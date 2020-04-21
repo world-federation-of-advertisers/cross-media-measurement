@@ -1,0 +1,22 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary")
+
+package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
+
+kt_jvm_binary(
+    name = "client",
+    srcs = [
+        "Main.kt",
+        "PublisherDataClient.kt",
+    ],
+    main_class = "org.wfanet.measurement.client.v1alpha.publisherdata.MainKt",
+    deps = [
+        "@com_google_protobuf//:protobuf_java",
+        "@com_google_protobuf//:protobuf_java_util",
+        "@io_grpc_grpc_java//api",
+        "@io_grpc_grpc_java//netty",
+        "@io_grpc_grpc_java//protobuf",
+        "@io_grpc_grpc_java//stub",
+        "@wfa_measurement_proto//measurement/api/v1alpha:publisher_data_service_java_grpc",
+        "@wfa_measurement_proto//measurement/api/v1alpha:publisher_data_service_java_proto",
+    ],
+)

@@ -1,0 +1,6 @@
+# This is completely unintuitive. The Bazel rules for Docker require this.
+# https://github.com/bazelbuild/bazel-gazelle/issues/609
+
+load("@bazel_gazelle//:def.bzl", "gazelle")
+
+gazelle(name = "gazelle")
