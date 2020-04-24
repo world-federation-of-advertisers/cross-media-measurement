@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+import "measurement/api/v1alpha/advertiser.proto";
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "DataProviderProto";
+
+// Representation of a data provider.
+message DataProvider {
+  message Key {
+    string data_provider_id = 1;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // Display name of the data provider.
+  string display_name = 2;
+}
+
+// Representation of a campaign within a data provider's system.
+message Campaign {
+  message Key {
+    string data_provider_id = 1;
+    // ID within the data provider's system.
+    string campaign_id = 2;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // Resource key of the Advertiser associated with this Campaign.
+  Advertiser.Key advertiser = 2;
+
+  // Display name.
+  string display_name = 3;
+}

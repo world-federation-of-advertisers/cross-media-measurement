@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+import "measurement/api/v1alpha/sketch.proto";
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "Metric";
+
+// The set of aggregated campaign metrics from a single data provider.
+message Metric {
+  message Key {
+    string data_provider_id = 1;
+    string campaign_id = 2;
+    string metric_requisition_id = 3;
+    // The index of the corresponding MetricDefinition in the parent
+    // CampaignMetricsRequisition.
+    int64 metric_id = 4;
+  }
+  // Resource key.
+  Key key = 1;
+
+  oneof metric {
+    // A sketch metric.
+    Sketch sketch_metric = 2;
+  }
+}

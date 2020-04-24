@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "measurement/api/v1alpha/data_provider.proto";
+import "measurement/api/v1alpha/sketch.proto";
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionProto";
+
+// A listing of which metrics should be uploaded and how they should be
+// aggregated.
+message MetricsRequisition {
+  message Key {
+    string advertiser_id = 1;
+    string metric_requisition_id = 2;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // Resource keys of the set of campaigns for which this set of metrics is
+  // needed. Required.
+  repeated Campaign.Key campaigns = 2;
+
+  // A time interval for a requisition.
+  message TimeInterval {
+    // Start of the time interval, inclusive. Required.
+    google.protobuf.Timestamp start_time = 1;
+    // End of the time interval, exclusive. Required. This must be later than
+    // the start time.
+    google.protobuf.Timestamp end_time = 2;
+  }
+  // The time interval of metric collection.
+  TimeInterval collection_interval = 3;
+
+  // State of a metrics requisition.
+  enum State {
+    // Default value if state is omitted. Should never be used.
+    STATE_UNSPECIFIED = 0;
+    // None of the requisition's metrics have been filled.
+    UNFULFILLED = 1;
+    // Some, but not all, of the requisition's metrics have been filled.
+    PARTIALLY_FULFILLED = 2;
+    // All of the requisition's metrics have been filled.
+    FULFILLED = 3;
+  }
+  // The state of this requisition. Output-only. It's considered fulfilled when
+  // the corresponding campaign-level requisitions for each campaign are
+  // fulfilled.
+  State state = 4;
+
+  // Which metrics are needed to fulfill this requisition. Required.
+  repeated MetricDefinition metrics = 5;
+
+  // (--TODO(sanjayvas): Figure out which other metrics are needed (e.g.
+  // non-deduped impression count?) --).
+
+  // (--TODO(sanjayvas): Figure out how to support segment slicing. --)
+}
+
+// A metrics requisition for a single campaign.
+//
+// This resource is never created directly through the API, and implicitly
+// exists for all campaigns referenced in a MetricsRequisition. Hence, all of
+// its fields are output-only.
+message CampaignMetricsRequisition {
+  message Key {
+    string data_provider_id = 1;
+    string campaign_id = 2;
+    string metrics_requisition_id = 3;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // Resource key of the advertiser-level requisition that this is associated
+  // with.
+  MetricsRequisition.Key metrics_requisition = 2;
+
+  // The time interval of metric collection.
+  MetricsRequisition.TimeInterval collection_interval = 3;
+
+  // The state of this requisition. It's considered fulfilled when the
+  // corresponding MetricSet has values for all of the metrics in the
+  // requisition.
+  MetricsRequisition.State state = 4;
+
+  // Which metrics are needed to fulfill this requisition.
+  repeated MetricDefinition metrics = 5;
+}
+
+// Representation of a metric to be collected.
+message MetricDefinition {
+  // Exactly one of these must be specified.
+  oneof metric {
+    // A metric to be collected as a sketch.
+    SketchMetricDefinition sketch_metric = 1;
+  }
+}
+
+// Representation of a metric to be collected as a sketch.
+message SketchMetricDefinition {
+  // Type of metric to be collected. Each value here should have a corresponding
+  // Sketch field in MetricSet.
+  enum Type {
+    // Default value. Should never be used.
+    TYPE_UNSPECIFIED = 0;
+    // Impression reach (cardinality).
+    IMPRESSION_REACH = 1;
+    // Impression reach with frequency.
+    IMPRESSION_REACH_AND_FREQUENCY = 2;
+  }
+  // The type of this SketchMetric. Required.
+  Type type = 1;
+
+  // Resource key of the sketch configuration. Required.
+  SketchConfig.Key sketch_config = 2;
+}

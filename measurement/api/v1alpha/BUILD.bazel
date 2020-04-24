@@ -1,0 +1,59 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "sketch_proto",
+    srcs = ["sketch.proto"],
+    deps = [":crypto_proto"],
+)
+
+proto_library(
+    name = "crypto_proto",
+    srcs = ["crypto.proto"],
+)
+
+proto_library(
+    name = "requisition_proto",
+    srcs = ["requisition.proto"],
+    deps = [
+        ":data_provider_proto",
+        ":sketch_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "metric_proto",
+    srcs = ["metric.proto"],
+    deps = [":sketch_proto"],
+)
+
+proto_library(
+    name = "advertiser_proto",
+    srcs = ["advertiser.proto"],
+)
+
+proto_library(
+    name = "data_provider_proto",
+    srcs = ["data_provider.proto"],
+    deps = [":advertiser_proto"],
+)
+
+proto_library(
+    name = "publisher_data_service_proto",
+    srcs = ["publisher_data_service.proto"],
+    deps = [
+        ":crypto_proto",
+        ":data_provider_proto",
+        ":metric_proto",
+        ":requisition_proto",
+    ],
+)
+
+proto_library(
+    name = "registration_service_proto",
+    srcs = ["registration_service.proto"],
+    deps = [
+        ":advertiser_proto",
+        ":data_provider_proto",
+    ],
+)

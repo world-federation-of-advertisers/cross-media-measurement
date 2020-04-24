@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+import "measurement/api/v1alpha/crypto.proto";
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "SketchProto";
+
+message SketchConfig {
+  message Key {
+    string sketch_config_id = 1;
+  }
+  // Resource key.
+  Key key = 1;
+}
+
+// Encrypted generalized enriched cardinality sketch.
+//
+// The sketch, logically, is a sparse collection of registers, each of which
+// have a single index and d values, where d is a parameter of the sketch
+// configuration.
+//
+message Sketch {
+  // Encrypted register data.
+  //
+  // ElGamal encryption is used here. The ElGamal public key consists of two
+  // components: (g, y). To encrypt a message m, a random number r is selected,
+  // and then the ciphertext consists of a pair of numbers:
+  //   u = g^r
+  //   e = m * y^r.
+  //
+  // In this proto, u and e are each 64-bit numbers stored as bytes in
+  // little-endian order. They are concatenated with u first.
+  //
+  // Each register is a contiguous series of ElGamal ciphertexts. The register
+  // is laid out with the index first, then the d values:
+  //
+  //       [index.u][index.e][value_1.u][value_1.e]...[value_d.u][value_d.e]
+  //  byte 0        8        16         24            (d+1)*16   (d+1)*16+8
+  //
+  // The registers are concatenated in an arbitrary order.
+  //
+  // It is invalid to have two registers with the same index.
+  bytes register_data = 1;
+
+  // Resource key of the CombinedPublicKey used to encrypt the sketch registers.
+  CombinedPublicKey.Key combined_public_key = 2;
+}
+
+// (-- TODO(sanjayvas): add SketchConfig. --)

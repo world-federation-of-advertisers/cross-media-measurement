@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "CryptoProto";
+
+// A representation of a combined public encryption key made of up the public
+// keys for each publisher data server.
+message CombinedPublicKey {
+  message Key {
+    string combined_public_key_id = 1;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // The encryption key itself. This is assumed to be a combined ElGamal public
+  // key.
+  bytes public_key = 2;
+}
