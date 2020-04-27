@@ -26,19 +26,35 @@ message Sketch {
   // Encrypted register data.
   //
   // ElGamal encryption is used here. The ElGamal public key consists of two
-  // components: (g, y). To encrypt a message m, a random number r is selected,
-  // and then the ciphertext consists of a pair of numbers:
+  // components: (g, y). To encrypt a message m, a random number r is selected.
+  // The ciphertext then consists of a pair of compressed Elliptic Curve Points
+  // (ECPoint), where each compressed ECPoint is 32-bytes wide.
   //   u = g^r
   //   e = m * y^r.
   //
-  // In this proto, u and e are each 64-bit numbers stored as bytes in
-  // little-endian order. They are concatenated with u first.
+  // The reason compressed ECPoints are 32-bytes wide is because for this
+  // application the order of the underlying field is 2^256. This in turn
+  // implies that elements of the group require 256-bits (or 32-bytes) to
+  // encode, of which the secret key is a particular element.
+  //
+  // However, each ECPoint is actually a (x, y) tuple where both x and y
+  // are elements of the group and are therefore each 32-bytes wide, and thus
+  // together the ECPoint is 64-bytes wide. This is referred to as the
+  // uncompressed encoding.
+  //
+  // Compression consists of storing just the x coordinate of the tuple along
+  // with the sign of y, which is sufficient to recover the entire ECPoint.
+  // Therefore a compressed ECPoint is just 32-bytes wide.
+  //
+  // This leads to u and e each having a size of 32-bytes, which are then
+  // stored as bytes in little-endian order with the values u and e concatenated
+  // with u coming first.
   //
   // Each register is a contiguous series of ElGamal ciphertexts. The register
-  // is laid out with the index first, then the d values:
+  // is laid out with the index first, then the d values in range [1, d]:
   //
   //       [index.u][index.e][value_1.u][value_1.e]...[value_d.u][value_d.e]
-  //  byte 0        8        16         24            (d+1)*16   (d+1)*16+8
+  //  byte 0        32       64         96            2d*32      2d*32+32
   //
   // The registers are concatenated in an arbitrary order.
   //
