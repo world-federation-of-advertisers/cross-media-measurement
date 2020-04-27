@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.db.gcp;
+
+option java_package = "org.wfa.measurement.internal.db.gcp";
+option java_multiple_files = true;
+
+import "src/main/proto/measurement/internal/sketch_aggregation_stage.proto";
+
+// Details about a computation at a MPC Worker Node.
+message ComputationDetails {
+  enum RoleInComputation {
+    // Never set intentionally
+    UNKNOWN = 0;
+    // The primary duchy for the computation.
+    PRIMARY = 1;
+    // A non-primary duchy for the computation. This duchy has to do many
+    // crypto operations, but is not responsible for joining sketch positions
+    // together, nor computing the final results.
+    SECONDARY = 2;
+  }
+  // The duchy's role in the computation.
+  RoleInComputation role = 1;
+  // The domain name of the duchy from which this one receives data for the
+  // computation.
+  string incoming_node_id = 2;
+  // The domain name of the duchy where outputs are sent for the computation.
+  string outgoing_node_id = 3;
+  // A prefix of all the BLOBs stored for this computation. This is used for
+  // cleaning up after a computation when the BLOBs are no longer needed.
+  string blobs_storage_prefix = 4;
+}
+
+// Details about a particular attempt of running a stage for a computation
+// within a duchy.
+message ComputationStageDetails {
+  // The stage the computation was in before entering this attempt.
+  SketchAggregationState previous_stage = 1;
+  // The stage the computation transitioned into after leaving the stage.
+  SketchAggregationState following_stage = 2;
+
+  oneof stage_specific {
+    // Details specific to the WAIT_SKETCHES stage.
+    WaitSketchesStageDetails wait_sketch_stage_details = 3;
+  }
+}
+
+// The WAIT_SKETCHES stage has a bootstrapping step where it requires
+// input from all other duchies before it can move forward. The bookkeeping
+// of which duchy has provided is stored in this message.
+message WaitSketchesStageDetails {
+  // A mapping of the name of a duchy to the BlobId corresponding to the
+  // ComputationBlobDependency.OUTPUT BLOB where it will be written.
+  //
+  // Upon receiving a sketch from a duchy the OUTPUT reference with the id
+  // found in this map is updated with the local copy of the blob. When all
+  // the output references have a path the worker can move onto the next stage.
+  map<string, int64> external_duchy_local_blob_id = 1;
+}

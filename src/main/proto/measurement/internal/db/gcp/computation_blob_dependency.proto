@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package wfa.measurement.internal;
+
+option java_package = "org.wfa.measurement.internal";
+option java_multiple_files = true;
+
+enum ComputationBlobDependency {
+  // Not set intentionally.
+  UNKNOWN = 0;
+
+  // BLOB is used as an input to the computation stage.
+  INPUT = 1;
+
+  // BLOB is an output of the computation stage. */
+  OUTPUT = 2;
+}
