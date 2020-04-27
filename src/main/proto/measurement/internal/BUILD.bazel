@@ -1,0 +1,13 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "sketch_aggregation_stage_proto",
+    srcs = ["sketch_aggregation_stage.proto"],
+)
+
+java_proto_library(
+    name = "sketch_aggregation_stage_java_proto",
+    deps = [":sketch_aggregation_stage_proto"],
+)
