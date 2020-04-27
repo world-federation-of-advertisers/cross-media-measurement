@@ -6,7 +6,7 @@ import "measurement/api/v1alpha/sketch.proto";
 
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "Metric";
+option java_outer_classname = "MetricProto";
 
 // The set of aggregated campaign metrics from a single data provider.
 message Metric {
