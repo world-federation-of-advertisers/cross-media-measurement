@@ -35,6 +35,17 @@ kotlin_repositories()  # if you want the default. Otherwise see custom kotlinc d
 
 kt_register_toolchains()  # to use the default toolchain, otherwise see toolchains below
 
+# Kotlin Coroutines
+maven_install(
+    artifacts = [
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
+    ],
+    generate_compat_repositories = True,
+    repositories = [
+        "https://repo1.maven.org/maven2",
+    ],
+)
+
 # gRPC Java
 # See https://github.com/grpc/grpc-java/blob/master/examples/WORKSPACE
 

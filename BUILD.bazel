@@ -2,5 +2,18 @@
 # https://github.com/bazelbuild/bazel-gazelle/issues/609
 
 load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_import")
 
 gazelle(name = "gazelle")
+
+kt_jvm_import(
+    name = "kotlinx_coroutines_core",
+    jars = [
+        "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
+    ],
+
+    # This appears to be necessary to appease IntelliJ. See:
+    # https://github.com/bazelbuild/intellij/issues/1616.
+    srcjar = "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
+    visibility = ["//:__subpackages__"],
+)
