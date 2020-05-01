@@ -12,6 +12,13 @@ class PublisherDataImpl : PublisherDataGrpc.PublisherDataImplBase() {
     req: GetCombinedPublicKeyRequest,
     responseObserver: StreamObserver<CombinedPublicKey>
   ) {
-    responseObserver.onError(StatusRuntimeException(Status.UNIMPLEMENTED))
+    if (req.key.combinedPublicKeyId.isEmpty()) {
+      responseObserver.onError(StatusRuntimeException(Status.INVALID_ARGUMENT))
+    } else {
+      responseObserver.onNext(CombinedPublicKey.newBuilder()
+                                .setKey(req.key)
+                                .build())
+      responseObserver.onCompleted()
+    }
   }
 }

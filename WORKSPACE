@@ -14,7 +14,7 @@ http_archive(
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
-### Kotlin ###
+# Kotlin
 # https://github.com/bazelbuild/rules_kotlin
 
 rules_kotlin_version = "legacy-1.3.0"
@@ -36,6 +36,7 @@ kotlin_repositories()  # if you want the default. Otherwise see custom kotlinc d
 kt_register_toolchains()  # to use the default toolchain, otherwise see toolchains below
 
 # Kotlin Coroutines
+
 maven_install(
     artifacts = [
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
@@ -43,6 +44,21 @@ maven_install(
     generate_compat_repositories = True,
     repositories = [
         "https://repo1.maven.org/maven2",
+    ],
+)
+
+# JUnit
+
+maven_install(
+    artifacts = [
+        "junit:junit:4.13",
+        "com.google.truth:truth:1.0.1",
+        "com.google.truth.extensions:truth-proto-extension:1.0.1",
+        "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
+    ],
+    generate_compat_repositories = True,
+    repositories = [
+        "https://repo.maven.apache.org/maven2/",
     ],
 )
 
@@ -82,7 +98,7 @@ load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
 protobuf_deps()
 
-### Docker ###
+# Docker
 # https://github.com/bazelbuild/rules_docker
 
 # Apparently the Bazel rules for Docker require this.
