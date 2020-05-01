@@ -8,21 +8,21 @@ option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MetricProto";
 
-// The set of aggregated campaign metrics from a single data provider.
-message Metric {
+// The value for a metric.
+message MetricValue {
+  // Resource key type. This is a singleton resource of a MetricRequisition.
   message Key {
     string data_provider_id = 1;
     string campaign_id = 2;
     string metric_requisition_id = 3;
-    // The index of the corresponding MetricDefinition in the parent
-    // CampaignMetricsRequisition.
-    int64 metric_id = 4;
   }
   // Resource key.
   Key key = 1;
 
-  oneof metric {
-    // A sketch metric.
-    Sketch sketch_metric = 2;
+  // The value type. This must match the corresponding field in the
+  // MetricDefinition from the parent MetricRequisition.
+  oneof value {
+    // A sketch.
+    Sketch sketch = 2;
   }
 }
