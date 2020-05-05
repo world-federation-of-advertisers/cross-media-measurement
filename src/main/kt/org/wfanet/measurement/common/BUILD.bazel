@@ -5,4 +5,24 @@ package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackage
 kt_jvm_library(
     name = "adaptive_throttler",
     srcs = ["AdaptiveThrottler.kt"],
+    deps = [
+        "//:kotlinx_coroutines_core",
+    ],
+)
+
+kt_jvm_library(
+    name = "renewed_flow",
+    srcs = ["RenewedFlow.kt"],
+    deps = [
+        "//:kotlinx_coroutines_core",
+    ],
+)
+
+kt_jvm_library(
+    name = "throttled_channel_consumer",
+    srcs = ["ThrottledChannelConsumer.kt"],
+    deps = [
+        ":adaptive_throttler",
+        "//:kotlinx_coroutines_core",
+    ],
 )
