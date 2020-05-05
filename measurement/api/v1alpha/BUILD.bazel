@@ -42,13 +42,23 @@ proto_library(
 )
 
 proto_library(
+    name = "requisition_service_proto",
+    srcs = ["requisition_service.proto"],
+    deps = [
+        ":advertiser_proto",
+        ":data_provider_proto",
+        ":requisition_proto",
+    ],
+)
+
+proto_library(
     name = "publisher_data_service_proto",
     srcs = ["publisher_data_service.proto"],
     deps = [
         ":crypto_proto",
-        ":data_provider_proto",
         ":metric_proto",
         ":requisition_proto",
+        ":requisition_service_proto",
     ],
 )
 
