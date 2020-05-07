@@ -1,9 +1,10 @@
-# This is completely unintuitive. The Bazel rules for Docker require this.
-# https://github.com/bazelbuild/bazel-gazelle/issues/609
-
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_import")
 
+package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
+
+# This is completely unintuitive. The Bazel rules for Docker require this.
+# https://github.com/bazelbuild/bazel-gazelle/issues/609
 gazelle(name = "gazelle")
 
 kt_jvm_import(
@@ -16,4 +17,11 @@ kt_jvm_import(
     # https://github.com/bazelbuild/intellij/issues/1616.
     srcjar = "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
     visibility = ["//:__subpackages__"],
+)
+
+java_library(
+    name = "google_cloud_spanner",
+    exports = [
+        "@maven//:com_google_cloud_google_cloud_spanner",
+    ],
 )

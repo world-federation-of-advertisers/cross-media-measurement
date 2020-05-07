@@ -14,9 +14,11 @@ import kotlinx.coroutines.launch
  * @param[max_parallelism] the number of coroutines to launch to read from the channel
  * @param[block] what to do with non-throttled channel elements
  */
-suspend fun <T> ReceiveChannel<T>.consumeInParallel(scope: CoroutineScope,
-                                                    max_parallelism: Int,
-                                                    block: suspend (T) -> Unit) {
+suspend fun <T> ReceiveChannel<T>.consumeInParallel(
+  scope: CoroutineScope,
+  max_parallelism: Int,
+  block: suspend (T) -> Unit
+) {
   repeat(max_parallelism) {
     scope.launch {
       for (item in this@consumeInParallel) {
@@ -38,12 +40,14 @@ suspend fun <T> ReceiveChannel<T>.consumeInParallel(scope: CoroutineScope,
  * @param[delayMillis] when throttled, how long to wait before retrying
  * @param[block] what to do with non-throttled channel elements
  */
-suspend fun <T> ReceiveChannel<T>.throttledConsumeEach(scope: CoroutineScope,
-                                                       max_parallelism: Int,
-                                                       throttler: AdaptiveThrottler,
-                                                       delayMillis: Long = 1000,
-                                                       block: suspend (T) -> Unit) {
-  consumeInParallel(scope, max_parallelism) {item: T ->
+suspend fun <T> ReceiveChannel<T>.throttledConsumeEach(
+  scope: CoroutineScope,
+  max_parallelism: Int,
+  throttler: AdaptiveThrottler,
+  delayMillis: Long = 1000,
+  block: suspend (T) -> Unit
+) {
+  consumeInParallel(scope, max_parallelism) { item: T ->
     throttler.onReady(delayMillis) {
       block(item)
     }
@@ -60,8 +64,10 @@ suspend fun <T> ReceiveChannel<T>.throttledConsumeEach(scope: CoroutineScope,
  * @param[delayMillis] when throttled, how long to wait before retrying
  * @param[block] what to do with non-throttled channel elements
  */
-suspend fun <T> Flow<T>.parallelCollect(max_parallelism: Int,
-                                        block: suspend (T) -> Unit) = coroutineScope {
+suspend fun <T> Flow<T>.parallelCollect(
+  max_parallelism: Int,
+  block: suspend (T) -> Unit
+) = coroutineScope {
   this@parallelCollect.produceIn(this)
     .consumeInParallel(this, max_parallelism, block)
 }
@@ -77,10 +83,12 @@ suspend fun <T> Flow<T>.parallelCollect(max_parallelism: Int,
  * @param[delayMillis] when throttled, how long to wait before retrying
  * @param[block] what to do with non-throttled channel elements
  */
-suspend fun <T> Flow<T>.throttledCollect(max_parallelism: Int,
-                                         throttler: AdaptiveThrottler,
-                                         delayMillis: Long = 1000,
-                                         block: suspend (T) -> Unit) = coroutineScope {
+suspend fun <T> Flow<T>.throttledCollect(
+  max_parallelism: Int,
+  throttler: AdaptiveThrottler,
+  delayMillis: Long = 1000,
+  block: suspend (T) -> Unit
+) = coroutineScope {
   this@throttledCollect.produceIn(this)
     .throttledConsumeEach(this, max_parallelism, throttler, delayMillis, block)
 }

@@ -21,9 +21,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  * @param[producer] callback that will be called repeatedly to produce flows
  * @return the combined flow
  */
-fun <T> renewedFlow(reconnectMillis: Long,
-                    reconnectDelayMillis: Long,
-                    producer: suspend () -> Flow<T>): Flow<T> = flow {
+fun <T> renewedFlow(
+  reconnectMillis: Long,
+  reconnectDelayMillis: Long,
+  producer: suspend () -> Flow<T>
+): Flow<T> = flow {
   while (true) {
     withTimeoutOrNull(reconnectMillis) {
       emitAll(producer())

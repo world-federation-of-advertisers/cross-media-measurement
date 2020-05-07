@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
+
+kt_jvm_library(
+    name = "spanner",
+    srcs = [
+        "Spanner.kt",
+        "SpannerImpl.kt",
+    ],
+    deps = [
+        "//:google_cloud_spanner",
+        "//:kotlinx_coroutines_core",
+    ],
+)

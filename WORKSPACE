@@ -52,6 +52,7 @@ maven_install(
     artifacts = [
         "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
         "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
+        "com.google.cloud:google-cloud-spanner:1.54.0",
         "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
         "com.google.truth.extensions:truth-proto-extension:1.0.1",
         "com.google.truth:truth:1.0.1",

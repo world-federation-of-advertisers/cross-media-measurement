@@ -12,9 +12,10 @@ import kotlin.random.Random
 /**
  * Indicates pushback used for throttling.
  */
-class ThrottledException(message: String, throwable: Throwable? = null) : Exception(message,
-                                                                                    throwable) {}
-
+class ThrottledException(message: String, throwable: Throwable? = null) : Exception(
+  message,
+  throwable
+) {}
 
 /**
  * Provides an adaptive throttler.
@@ -27,9 +28,11 @@ class ThrottledException(message: String, throwable: Throwable? = null) : Except
  * @param[clock] a clock
  * @param[timeHorizon] what time window to look at to determine proportion of accepted requests
  */
-class AdaptiveThrottler(private val overloadFactor: Double,
-                        private val clock: Clock,
-                        private val timeHorizon: Duration) {
+class AdaptiveThrottler(
+  private val overloadFactor: Double,
+  private val clock: Clock,
+  private val timeHorizon: Duration
+) {
   private val requests = ArrayDeque<Instant>()
   private val rejects = ArrayDeque<Instant>()
 
@@ -82,7 +85,7 @@ class AdaptiveThrottler(private val overloadFactor: Double,
       block()
     } catch (e: ThrottledException) {
       reportThrottled()
-      if (e.cause != null)  throw e.cause
+      if (e.cause != null) throw e.cause
     }
   }
 
@@ -93,5 +96,4 @@ class AdaptiveThrottler(private val overloadFactor: Double,
       queue.poll()
     }
   }
-
 }
