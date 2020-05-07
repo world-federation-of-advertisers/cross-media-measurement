@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
-import "measurement/api/v1alpha/advertiser.proto";
 import "measurement/api/v1alpha/data_provider.proto";
 import "measurement/api/v1alpha/requisition.proto";
 
@@ -35,8 +34,8 @@ service Requisition {
 
 // Request message for CreateMetricsRequisition method.
 message CreateMetricRequisitionRequest {
-  // Resource key of the parent Advertiser. Required.
-  Advertiser.Key parent = 1;
+  // Resource key of the parent Campaign. Required.
+  Campaign.Key parent = 1;
 
   // The MetricsRequisition to create. Required. The `key` field will be
   // ignored, and the system will assign an ID.

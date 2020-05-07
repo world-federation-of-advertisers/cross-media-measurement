@@ -45,7 +45,6 @@ proto_library(
     name = "requisition_service_proto",
     srcs = ["requisition_service.proto"],
     deps = [
-        ":advertiser_proto",
         ":data_provider_proto",
         ":requisition_proto",
     ],
