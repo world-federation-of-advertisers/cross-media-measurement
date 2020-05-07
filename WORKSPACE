@@ -35,33 +35,6 @@ kotlin_repositories()  # if you want the default. Otherwise see custom kotlinc d
 
 kt_register_toolchains()  # to use the default toolchain, otherwise see toolchains below
 
-# Kotlin Coroutines
-
-maven_install(
-    artifacts = [
-        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
-    ],
-    generate_compat_repositories = True,
-    repositories = [
-        "https://repo1.maven.org/maven2",
-    ],
-)
-
-# JUnit
-
-maven_install(
-    artifacts = [
-        "junit:junit:4.13",
-        "com.google.truth:truth:1.0.1",
-        "com.google.truth.extensions:truth-proto-extension:1.0.1",
-        "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
-    ],
-    generate_compat_repositories = True,
-    repositories = [
-        "https://repo.maven.apache.org/maven2/",
-    ],
-)
-
 # gRPC Java
 # See https://github.com/grpc/grpc-java/blob/master/examples/WORKSPACE
 
@@ -74,10 +47,16 @@ http_archive(
 
 load("@io_grpc_grpc_java//:repositories.bzl", "IO_GRPC_GRPC_JAVA_ARTIFACTS", "IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS", "grpc_java_repositories")
 
+# Maven
 maven_install(
     artifacts = [
         "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
         "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
+        "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
+        "com.google.truth.extensions:truth-proto-extension:1.0.1",
+        "com.google.truth:truth:1.0.1",
+        "junit:junit:4.13",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
     ] + IO_GRPC_GRPC_JAVA_ARTIFACTS,
     generate_compat_repositories = True,
     override_targets = IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS,
