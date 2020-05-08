@@ -50,6 +50,8 @@ load("@io_grpc_grpc_java//:repositories.bzl", "IO_GRPC_GRPC_JAVA_ARTIFACTS", "IO
 # Maven
 maven_install(
     artifacts = [
+        # GCP Spanner Client
+        "com.google.cloud:google-cloud-spanner:1.54.0",
         "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
         "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
         "com.google.cloud:google-cloud-spanner:1.54.0",

@@ -1,0 +1,12 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
+
+package(default_visibility = ["//src/test/kt/org/wfanet/measurement:__subpackages__"])
+
+kt_jvm_library(
+    name = "using_spanner_emulator",
+    srcs = ["UsingSpannerEmulator.kt"],
+    deps = [
+        "@maven//:com_google_cloud_google_cloud_spanner",
+        "@maven//:junit_junit",
+    ],
+)
