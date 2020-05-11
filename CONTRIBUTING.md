@@ -29,19 +29,21 @@ style guide.
 In addition to the automatic linting and formatting, please observe these
 guidelines:
 
-1. Write unit tests for all code.
-    1. Please only mock interfaces and abstract classes in tests.
-    1. Write test cases per behavior. Bias towards more, smaller test cases.
-1. Avoid third-party libraries where possible. Due to the privacy requirements
-   of this project, we prefer avoiding unaudited dependencies.
-1. Avoid weirdness.
-    1. Don't unnecessarily define infix functions.
-    1. Avoid reflection.
-    1. Keep code predictable. If a code reviewer struggles to understand it,
-       please add comments or refactor it to be clearer.
+1.  Write unit tests for all code.
+    1.  Please only mock interfaces and abstract classes in tests.
+    1.  Write test cases per behavior. Bias towards more, smaller test cases.
+1.  Avoid third-party libraries where possible. Due to the privacy requirements
+    of this project, we prefer avoiding unaudited dependencies.
+1.  Avoid weirdness.
+    1.  Don't unnecessarily define infix functions.
+    1.  Avoid reflection.
+    1.  Keep code predictable. If a code reviewer struggles to understand it,
+        please add comments or refactor it to be clearer.
 
 ### Formatting
+
 #### Kotlin
+
 Kotlin formatting is done by [`ktlint`](https://ktlint.github.io/).
 
 You can set up `ktlint`-compatible formatting in IntelliJ by following
@@ -51,6 +53,7 @@ right-clicking on the directory in the Project view and selecting "Reformat
 Code".
 
 #### Other languages
+
 For other languages, use
 [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) with
 `--style=Google`.
