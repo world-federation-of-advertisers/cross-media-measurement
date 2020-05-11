@@ -10,10 +10,20 @@ proto_library(
     deps = [":crypto_proto"],
 )
 
+java_proto_library(
+    name = "sketch_java_proto",
+    deps = [":sketch_proto"],
+)
+
 proto_library(
     name = "crypto_proto",
     srcs = ["crypto.proto"],
     strip_import_prefix = "/src/main/proto",
+)
+
+java_proto_library(
+    name = "crypto_java_proto",
+    deps = [":crypto_proto"],
 )
 
 proto_library(
@@ -27,11 +37,21 @@ proto_library(
     ],
 )
 
+java_proto_library(
+    name = "requisition_java_proto",
+    deps = [":requisition_proto"],
+)
+
 proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":sketch_proto"],
+)
+
+java_proto_library(
+    name = "metric_java_proto",
+    deps = [":metric_proto"],
 )
 
 proto_library(
@@ -40,11 +60,21 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
 )
 
+java_proto_library(
+    name = "advertiser_java_proto",
+    deps = [":advertiser_proto"],
+)
+
 proto_library(
     name = "data_provider_proto",
     srcs = ["data_provider.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":advertiser_proto"],
+)
+
+java_proto_library(
+    name = "data_provider_java_proto",
+    deps = [":data_provider_proto"],
 )
 
 proto_library(
@@ -55,6 +85,17 @@ proto_library(
         ":data_provider_proto",
         ":requisition_proto",
     ],
+)
+
+java_proto_library(
+    name = "requisition_service_java_proto",
+    deps = [":requisition_service_proto"],
+)
+
+java_grpc_library(
+    name = "requisition_service_java_grpc",
+    srcs = [":requisition_service_proto"],
+    deps = [":requisition_service_java_proto"],
 )
 
 proto_library(
