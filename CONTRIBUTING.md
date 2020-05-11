@@ -40,12 +40,20 @@ guidelines:
     1. Keep code predictable. If a code reviewer struggles to understand it,
        please add comments or refactor it to be clearer.
 
-### IntelliJ Autoformatting
+### Formatting
+#### Kotlin
+Kotlin formatting is done by [`ktlint`](https://ktlint.github.io/).
+
 You can set up `ktlint`-compatible formatting in IntelliJ by following
 [these instructions](https://github.com/pinterest/ktlint/blob/master/README.md#-with-intellij-idea).
 Once this is set up, entire directories can be formatted at once by
 right-clicking on the directory in the Project view and selecting "Reformat
 Code".
+
+#### Other languages
+For other languages, use
+[`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) with
+`--style=Google`.
 
 ## Code Reviews
 
