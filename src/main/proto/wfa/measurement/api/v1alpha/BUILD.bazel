@@ -6,17 +6,20 @@ package(default_visibility = ["//visibility:public"])
 proto_library(
     name = "sketch_proto",
     srcs = ["sketch.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [":crypto_proto"],
 )
 
 proto_library(
     name = "crypto_proto",
     srcs = ["crypto.proto"],
+    strip_import_prefix = "/src/main/proto",
 )
 
 proto_library(
     name = "requisition_proto",
     srcs = ["requisition.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [
         ":data_provider_proto",
         ":sketch_proto",
@@ -27,23 +30,27 @@ proto_library(
 proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [":sketch_proto"],
 )
 
 proto_library(
     name = "advertiser_proto",
     srcs = ["advertiser.proto"],
+    strip_import_prefix = "/src/main/proto",
 )
 
 proto_library(
     name = "data_provider_proto",
     srcs = ["data_provider.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [":advertiser_proto"],
 )
 
 proto_library(
     name = "requisition_service_proto",
     srcs = ["requisition_service.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [
         ":data_provider_proto",
         ":requisition_proto",
@@ -53,6 +60,7 @@ proto_library(
 proto_library(
     name = "publisher_data_service_proto",
     srcs = ["publisher_data_service.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [
         ":crypto_proto",
         ":metric_proto",
@@ -75,6 +83,7 @@ java_grpc_library(
 proto_library(
     name = "registration_service_proto",
     srcs = ["registration_service.proto"],
+    strip_import_prefix = "/src/main/proto",
     deps = [
         ":advertiser_proto",
         ":data_provider_proto",

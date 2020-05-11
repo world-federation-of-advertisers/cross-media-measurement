@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
-import "measurement/api/v1alpha/crypto.proto";
-import "measurement/api/v1alpha/metric.proto";
-import "measurement/api/v1alpha/requisition.proto";
-import "measurement/api/v1alpha/requisition_service.proto";
+import "wfa/measurement/api/v1alpha/crypto.proto";
+import "wfa/measurement/api/v1alpha/metric.proto";
+import "wfa/measurement/api/v1alpha/requisition.proto";
+import "wfa/measurement/api/v1alpha/requisition_service.proto";
 
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
