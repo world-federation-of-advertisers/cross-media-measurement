@@ -23,7 +23,7 @@ service Requisition {
 
   // Returns the metric requisitions for the specified Campaign.
   rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
-    returns (ListMetricRequisitionsResponse) {}
+      returns (ListMetricRequisitionsResponse) {}
 
   // Changes the state of a MetricRequisition to FULFILLED.
   //

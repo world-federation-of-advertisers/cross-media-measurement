@@ -6,7 +6,6 @@ option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "GlobalComputationProto";
 
-
 message GlobalComputation {
   message Key {
     string global_computation_id = 1;

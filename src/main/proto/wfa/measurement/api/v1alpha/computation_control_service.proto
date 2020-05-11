@@ -12,6 +12,5 @@ import "measurement/api/v1alpha/global_computation.proto";
 service ComputationControl {
   // Change the state of a computation.
   rpc UpdateGlobalComputationState(GlobalComputationState)
-    returns (GlobalComputationState);
+      returns (GlobalComputationState);
 }
-
