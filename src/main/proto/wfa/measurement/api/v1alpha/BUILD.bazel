@@ -89,3 +89,36 @@ proto_library(
         ":data_provider_proto",
     ],
 )
+
+java_proto_library(
+    name = "registration_service_java_proto",
+    deps = [":registration_service_proto"],
+)
+
+java_grpc_library(
+    name = "registration_service_java_grpc",
+    srcs = [":registration_service_proto"],
+    deps = [":registration_service_java_proto"],
+)
+
+proto_library(
+    name = "global_computation",
+    srcs = ["global_computation.proto"],
+)
+
+proto_library(
+    name = "computation_control_service_proto",
+    srcs = ["computation_control_service.proto"],
+    deps = [":global_computation"],
+)
+
+java_proto_library(
+    name = "computation_control_service_java_proto",
+    deps = [":computation_control_service_proto"],
+)
+
+java_grpc_library(
+    name = "computation_control_service_java_grpc",
+    srcs = [":computation_control_service_proto"],
+    deps = [":computation_control_service_java_proto"],
+)
