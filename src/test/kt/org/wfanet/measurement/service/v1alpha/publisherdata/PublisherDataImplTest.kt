@@ -13,7 +13,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
-import org.wfanet.measurement.api.v1alpha.CreateMetricRequest
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
 import kotlin.test.assertFailsWith
@@ -63,14 +62,5 @@ class PublisherDataImplTest {
                    .setKey(CombinedPublicKey.Key.newBuilder()
                              .setCombinedPublicKeyId(fakeKey))
                    .build())
-  }
-
-  @Test
-  fun `createMetric throws an unimplemented exception`() {
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      blockingStub!!.createMetric(CreateMetricRequest.getDefaultInstance())
-    }
-
-    assertThat(e.status.code).isEqualTo(Status.UNIMPLEMENTED.code)
   }
 }

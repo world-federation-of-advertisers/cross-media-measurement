@@ -4,10 +4,8 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusRuntimeException
 import java.io.Closeable
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v1alpha.CreateMetricRequest
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
 
@@ -32,16 +30,6 @@ class PublisherDataClient : Closeable {
     try {
       val response =
         blockingStub.getCombinedPublicKey(GetCombinedPublicKeyRequest.getDefaultInstance())
-      logger.info("Response: ${response}")
-    } catch (e: StatusRuntimeException) {
-      logger.warning("RPC failed: ${e.status}")
-    }
-  }
-
-  fun createMetric() {
-    logger.info("Sending request to CreateMetric...")
-    try {
-      val response = blockingStub.createMetric(CreateMetricRequest.getDefaultInstance())
       logger.info("Response: ${response}")
     } catch (e: StatusRuntimeException) {
       logger.warning("RPC failed: ${e.status}")

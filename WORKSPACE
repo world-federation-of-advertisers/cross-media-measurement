@@ -117,6 +117,6 @@ _kotlin_image_repos()
 
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "01bace73e89d968842e666a88165baa022ee551b",
+    commit = "0886b9b02d089a0ff2744f0e2afc6880aafe233a",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
 )
