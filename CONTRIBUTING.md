@@ -1,5 +1,7 @@
 # Contributing
 
+Guidelines for contributing to the Measurement system.
+
 ## Editing
 
 While any editor should work, most contributors use IntelliJ IDEA Community
@@ -17,6 +19,8 @@ additional_languages:
 ```
 
 ## Code Style
+
+### Kotlin
 
 We mostly adhere to the
 [Google Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
@@ -40,9 +44,32 @@ guidelines:
     1.  Keep code predictable. If a code reviewer struggles to understand it,
         please add comments or refactor it to be clearer.
 
-### Formatting
+### Bazel BUILD
 
-#### Kotlin
+Follow the Bazel
+[BUILD Style Guide](https://docs.bazel.build/versions/master/skylark/build-style.html).
+
+### Protocol Buffers
+
+Follow the
+[Google Protocol Buffers Style Guide](https://developers.google.com/protocol-buffers/docs/style).
+
+### Markdown
+
+Follow the
+[Google Markdown Style Guide](https://google.github.io/styleguide/docguide/style.html).
+
+Note: We intend to keep our Markdown compatible with both the
+[GitHub Flavored Markdown Spec](https://github.github.com/gfm/) and
+[Gitiles](https://gerrit.googlesource.com/gitiles/+/HEAD/Documentation/markdown.md).
+
+## Formatters
+
+Automated formatters help keep code styling consistent, especially when there
+are ambiguities in the style guide. You should run the appropriate formatters on
+your code prior to submitting.
+
+### Kotlin
 
 Kotlin formatting is done by [`ktlint`](https://ktlint.github.io/).
 
@@ -52,11 +79,16 @@ Once this is set up, entire directories can be formatted at once by
 right-clicking on the directory in the Project view and selecting "Reformat
 Code".
 
-#### Other languages
+### BUILD
 
-For other languages, use
-[`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) with
-`--style=Google`.
+Bazel includes a
+[`buildifier`](https://github.com/bazelbuild/buildtools/tree/master/buildifier)
+tool.
+
+### Other languages
+
+[`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) supports
+formatting for multiple languages. Run it with `--style=Google`.
 
 ## Code Reviews
 
