@@ -18,9 +18,11 @@ enum class TaskState {
 
 typealias TaskExecutor = suspend () -> TaskState
 
-class Scheduler(private val pollInterval: Duration,
-                private val throttler: AdaptiveThrottler,
-                private val executor: TaskExecutor) {
+class Scheduler(
+  private val pollInterval: Duration,
+  private val throttler: AdaptiveThrottler,
+  private val executor: TaskExecutor
+) {
   suspend fun runLoop() {
     loop@ while (true) {
       while (!throttler.attempt()) {

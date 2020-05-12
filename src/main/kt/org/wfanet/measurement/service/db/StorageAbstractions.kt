@@ -34,7 +34,8 @@ data class ComputationToken<T : Enum<T>>(
   /** The role this worker is playing for this computation. */
   val role: WorkerRole,
   /** The number of previous attempts of this stage for this computation. */
-  val attempt: Long)
+  val attempt: Long
+)
 
 /**
  * Specifies what to do with the lock on a computation after transitioning to a
@@ -173,7 +174,6 @@ interface ComputationsBlobDb {
    */
   fun delete(reference: String) {}
 }
-
 
 /**
  * The way in which a stage depends upon a BLOB.

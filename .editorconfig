@@ -1,4 +1,4 @@
-[*.{kt,kts}]
+[*.{kt, kts}]
 indent_size = 2
 max_line_length = 100
 trim_trailing_whitespace = true
@@ -7,4 +7,4 @@ insert_final_newline = true
 # Comma-separated list of rules to disable
 # AnnotationRule currently disabled due to
 #   https://github.com/pinterest/ktlint/issues/625
-disabled_rules=experimental:annotation
+disabled_rules = experimental:annotation

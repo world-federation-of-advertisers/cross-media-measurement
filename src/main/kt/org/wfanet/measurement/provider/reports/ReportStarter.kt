@@ -7,9 +7,11 @@ import kotlinx.coroutines.flow.transform
 import org.wfanet.measurement.common.AdaptiveThrottler
 import org.wfanet.measurement.common.throttledCollect
 
-class ReportStarter(private val reportApi: ReportApi,
-                    private val max_parallelism: Int,
-                    private val throttler: AdaptiveThrottler) {
+class ReportStarter(
+  private val reportApi: ReportApi,
+  private val max_parallelism: Int,
+  private val throttler: AdaptiveThrottler
+) {
 
   /**
    * Streams ReportConfigs that need Reports and creates them in parallel.

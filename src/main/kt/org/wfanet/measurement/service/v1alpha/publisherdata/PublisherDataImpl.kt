@@ -3,9 +3,9 @@ package org.wfanet.measurement.service.v1alpha.publisherdata
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.StreamObserver
-import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
-import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
+import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
 
 class PublisherDataImpl : PublisherDataGrpc.PublisherDataImplBase() {
   override fun getCombinedPublicKey(
@@ -15,9 +15,11 @@ class PublisherDataImpl : PublisherDataGrpc.PublisherDataImplBase() {
     if (req.key.combinedPublicKeyId.isEmpty()) {
       responseObserver.onError(StatusRuntimeException(Status.INVALID_ARGUMENT))
     } else {
-      responseObserver.onNext(CombinedPublicKey.newBuilder()
-                                .setKey(req.key)
-                                .build())
+      responseObserver.onNext(
+        CombinedPublicKey.newBuilder()
+          .setKey(req.key)
+          .build()
+      )
       responseObserver.onCompleted()
     }
   }

@@ -3,11 +3,11 @@ package org.wfanet.measurement.client.v1alpha.publisherdata
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
-import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
 
 class PublisherDataClient : Closeable {
   private val channel: ManagedChannel

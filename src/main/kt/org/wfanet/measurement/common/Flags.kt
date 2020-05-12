@@ -52,7 +52,7 @@ object Flags {
    *
    * @param[name] the global name of the flag
    */
-  operator fun get(name: String) : Flag<*>? = flags[name]
+  operator fun get(name: String): Flag<*>? = flags[name]
 
   /**
    * Clears all flags.

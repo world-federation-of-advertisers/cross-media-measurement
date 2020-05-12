@@ -27,7 +27,7 @@ interface ReportApi {
   suspend fun streamReportsInState(state: ReportState): Flow<Report>
 
   /** Loads all pending Reports with no unsatisfied Requisitions. */
-  suspend fun streamFulfilledPendingReports() : Flow<Report>
+  suspend fun streamFulfilledPendingReports(): Flow<Report>
 
   /**
    * Creates a report from a ScheduledReportConfig. In a transaction, updates the

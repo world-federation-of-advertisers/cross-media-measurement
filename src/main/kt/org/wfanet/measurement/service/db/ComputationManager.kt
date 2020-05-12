@@ -7,9 +7,10 @@ import java.io.IOException
  *
  * @param[T] enum of the stages of a computation.
  */
-class ComputationManager<T: Enum<T>> (
+class ComputationManager<T : Enum<T>>(
   private val relationalDatabase: ComputationsRelationalDb<T>,
-  private val blobDatabase: ComputationsBlobDb) {
+  private val blobDatabase: ComputationsBlobDb
+) {
 
   /**
    * Creates a new computation.
@@ -65,7 +66,8 @@ class ComputationManager<T: Enum<T>> (
     blobsToWrite: Map<BlobRef, ByteArray> = mapOf(),
     blobToCarryForward: Collection<BlobRef> = listOf(),
     blobsRequiredForOutput: Collection<BlobName> = listOf(),
-    afterTransition: AfterTransition): ComputationToken<T> {
+    afterTransition: AfterTransition
+  ): ComputationToken<T> {
 
     val refs = HashSet<BlobRef>(blobToCarryForward)
 
@@ -75,7 +77,8 @@ class ComputationManager<T: Enum<T>> (
       refs.add(ref)
     }
     return relationalDatabase.updateComputationState(
-      c, stateAfter, refs, blobsRequiredForOutput, afterTransition)
+      c, stateAfter, refs, blobsRequiredForOutput, afterTransition
+    )
   }
 
   /**
@@ -129,7 +132,8 @@ class ComputationManager<T: Enum<T>> (
    */
   fun readBlobReferenceNames(
     token: ComputationToken<T>,
-    dependencyType: BlobDependencyType): Map<BlobName, String?> {
+    dependencyType: BlobDependencyType
+  ): Map<BlobName, String?> {
     return relationalDatabase.readBlobReferenceNames(token, dependencyType = dependencyType)
   }
 
@@ -140,7 +144,8 @@ class ComputationManager<T: Enum<T>> (
    * @throws [IOException] upon failure
    */
   fun writeAndRecordOutputBlob(
-    token: ComputationToken<T>, blobName: BlobRef, blob: ByteArray) {
+    token: ComputationToken<T>, blobName: BlobRef, blob: ByteArray
+  ) {
 
     blobDatabase.blockingWrite(blobName, blob)
     relationalDatabase.writeOutputBlobReference(token, blobName)
