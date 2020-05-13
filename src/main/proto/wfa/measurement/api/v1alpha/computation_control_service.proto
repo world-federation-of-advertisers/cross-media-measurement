@@ -2,15 +2,30 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
+import "wfa/measurement/api/v1alpha/global_computation.proto";
+
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ComputationControlServiceProto";
 
-import "wfa/measurement/api/v1alpha/global_computation.proto";
-
 // Service to control Duchies from the Kingdom.
 service ComputationControl {
-  // Change the state of a computation.
-  rpc UpdateGlobalComputationState(GlobalComputationState)
+  // Transitions a GlobalComputationState. Results in a FAILED_PRECONDITION
+  // error if the state transition is invalid.
+  //
+  // This is a state transition method (see https://aip.dev/216).
+  //
+  // (--TODO(sanjayvas): Replace this with separate methods for each state
+  // transition if they end up needing different request fields. --)
+  rpc TransitionGlobalComputationState(TransitionGlobalComputationStateRequest)
       returns (GlobalComputationState);
+}
+
+// Request message for TransitionGlobalComputationState method.
+message TransitionGlobalComputationStateRequest {
+  // Resource key of the GlobalComputationState.
+  GlobalComputationState.Key key = 1;
+
+  // The desired state to transition to.
+  GlobalComputationState.State state = 2;
 }

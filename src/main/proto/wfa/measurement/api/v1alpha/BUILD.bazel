@@ -148,7 +148,7 @@ java_grpc_library(
 )
 
 proto_library(
-    name = "global_computation",
+    name = "global_computation_proto",
     srcs = ["global_computation.proto"],
     strip_import_prefix = "/src/main/proto",
 )
@@ -157,7 +157,7 @@ proto_library(
     name = "computation_control_service_proto",
     srcs = ["computation_control_service.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":global_computation"],
+    deps = [":global_computation_proto"],
 )
 
 java_proto_library(
