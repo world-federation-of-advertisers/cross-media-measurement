@@ -1,5 +1,4 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@io_grpc_grpc_java//:java_grpc_library.bzl", "java_grpc_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,11 +7,6 @@ proto_library(
     srcs = ["sketch.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":crypto_proto"],
-)
-
-java_proto_library(
-    name = "sketch_java_proto",
-    deps = [":sketch_proto"],
 )
 
 cc_proto_library(
@@ -26,11 +20,6 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
 )
 
-java_proto_library(
-    name = "crypto_java_proto",
-    deps = [":crypto_proto"],
-)
-
 proto_library(
     name = "requisition_proto",
     srcs = ["requisition.proto"],
@@ -42,21 +31,11 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "requisition_java_proto",
-    deps = [":requisition_proto"],
-)
-
 proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":sketch_proto"],
-)
-
-java_proto_library(
-    name = "metric_java_proto",
-    deps = [":metric_proto"],
 )
 
 proto_library(
@@ -65,21 +44,11 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
 )
 
-java_proto_library(
-    name = "advertiser_java_proto",
-    deps = [":advertiser_proto"],
-)
-
 proto_library(
     name = "data_provider_proto",
     srcs = ["data_provider.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":advertiser_proto"],
-)
-
-java_proto_library(
-    name = "data_provider_java_proto",
-    deps = [":data_provider_proto"],
 )
 
 proto_library(
@@ -90,17 +59,6 @@ proto_library(
         ":data_provider_proto",
         ":requisition_proto",
     ],
-)
-
-java_proto_library(
-    name = "requisition_service_java_proto",
-    deps = [":requisition_service_proto"],
-)
-
-java_grpc_library(
-    name = "requisition_service_java_grpc",
-    srcs = [":requisition_service_proto"],
-    deps = [":requisition_service_java_proto"],
 )
 
 proto_library(
@@ -115,17 +73,6 @@ proto_library(
     ],
 )
 
-java_proto_library(
-    name = "publisher_data_service_java_proto",
-    deps = [":publisher_data_service_proto"],
-)
-
-java_grpc_library(
-    name = "publisher_data_service_java_grpc",
-    srcs = [":publisher_data_service_proto"],
-    deps = [":publisher_data_service_java_proto"],
-)
-
 proto_library(
     name = "registration_service_proto",
     srcs = ["registration_service.proto"],
@@ -134,17 +81,6 @@ proto_library(
         ":advertiser_proto",
         ":data_provider_proto",
     ],
-)
-
-java_proto_library(
-    name = "registration_service_java_proto",
-    deps = [":registration_service_proto"],
-)
-
-java_grpc_library(
-    name = "registration_service_java_grpc",
-    srcs = [":registration_service_proto"],
-    deps = [":registration_service_java_proto"],
 )
 
 proto_library(
@@ -158,15 +94,4 @@ proto_library(
     srcs = ["computation_control_service.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":global_computation_proto"],
-)
-
-java_proto_library(
-    name = "computation_control_service_java_proto",
-    deps = [":computation_control_service_proto"],
-)
-
-java_grpc_library(
-    name = "computation_control_service_java_grpc",
-    srcs = [":computation_control_service_proto"],
-    deps = [":computation_control_service_java_proto"],
 )
