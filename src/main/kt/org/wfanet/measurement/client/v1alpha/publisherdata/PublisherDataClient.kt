@@ -2,41 +2,38 @@ package org.wfanet.measurement.client.v1alpha.publisherdata
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
-import io.grpc.StatusRuntimeException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
-import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
-import java.util.logging.Logger
 
 class PublisherDataClient : Closeable {
   private val channel: ManagedChannel
-  private val blockingStub: PublisherDataGrpc.PublisherDataBlockingStub
+  private val stub: PublisherDataGrpcKt.PublisherDataCoroutineStub
   private val host: String = "localhost"
   private val port: Int = 31125
 
   init {
     channel =
       ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
-    blockingStub = PublisherDataGrpc.newBlockingStub(channel)
+    stub = PublisherDataGrpcKt.PublisherDataCoroutineStub(channel)
   }
 
   override fun close() {
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
   }
 
-  fun getCombinedPublicKey() {
-    logger.info("Sending request to GetCombinedPublicKey...")
-    try {
-      val response =
-        blockingStub.getCombinedPublicKey(GetCombinedPublicKeyRequest.getDefaultInstance())
-      logger.info("Response: ${response}")
-    } catch (e: StatusRuntimeException) {
-      logger.warning("RPC failed: ${e.status}")
+  suspend fun getCombinedPublicKey() = coroutineScope {
+    println("Sending request to GetCombinedPublicKey...")
+    val response = async {
+      stub.getCombinedPublicKey(GetCombinedPublicKeyRequest.newBuilder().setKey(
+        CombinedPublicKey.Key.newBuilder()
+          .setCombinedPublicKeyId("\"Ceci n'est pas une clé\""))
+                                  .build())
     }
-  }
-
-  companion object {
-    private val logger = Logger.getLogger(PublisherDataClient::class.java.name)
+    println("Response: ${response.await()}")
   }
 }

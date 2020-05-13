@@ -1,0 +1,47 @@
+load("@com_github_grpc_grpc_kotlin//:kt_jvm_grpc.bzl", "kt_jvm_grpc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+java_proto_library(
+    name = "computation_control_service_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:computation_control_service_proto"],
+)
+
+kt_jvm_grpc_library(
+    name = "computation_control_service_kt_jvm_grpc",
+    srcs = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:computation_control_service_proto"],
+    deps = [":computation_control_service_java_proto"],
+)
+
+java_proto_library(
+    name = "publisher_data_service_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_proto"],
+)
+
+kt_jvm_grpc_library(
+    name = "publisher_data_service_kt_jvm_grpc",
+    srcs = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_proto"],
+    deps = [":publisher_data_service_java_proto"],
+)
+
+java_proto_library(
+    name = "registration_service_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:registration_service_proto"],
+)
+
+kt_jvm_grpc_library(
+    name = "registration_service_kt_jvm_grpc",
+    srcs = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:registration_service_proto"],
+    deps = [":registration_service_java_proto"],
+)
+
+java_proto_library(
+    name = "requisition_service_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_proto"],
+)
+
+kt_jvm_grpc_library(
+    name = "requisition_service_kt_jvm_grpc",
+    srcs = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_proto"],
+    deps = [":requisition_service_java_proto"],
+)

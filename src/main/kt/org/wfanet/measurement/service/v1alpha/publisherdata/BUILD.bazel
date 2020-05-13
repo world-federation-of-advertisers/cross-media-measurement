@@ -12,13 +12,14 @@ kt_jvm_library(
         "PublisherDataServer.kt",
     ],
     deps = [
+        "//:kotlinx_coroutines_core",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_java_proto",
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//:protobuf_java_util",
         "@io_grpc_grpc_java//api",
         "@io_grpc_grpc_java//protobuf",
         "@io_grpc_grpc_java//stub",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_java_grpc",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_java_proto",
     ],
 )
 

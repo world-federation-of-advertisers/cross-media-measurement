@@ -5,7 +5,7 @@ package wfa.measurement.internal.db.gcp;
 option java_package = "org.wfa.measurement.internal.db.gcp";
 option java_multiple_files = true;
 
-import "src/main/proto/measurement/internal/sketch_aggregation_stage.proto";
+import "src/main/proto/wfa/measurement/internal/sketch_aggregation_stage.proto";
 
 // Details about a computation at a MPC Worker Node.
 message ComputationDetails {

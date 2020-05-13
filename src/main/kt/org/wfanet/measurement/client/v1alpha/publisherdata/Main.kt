@@ -1,6 +1,8 @@
 package org.wfanet.measurement.client.v1alpha.publisherdata
 
-fun main() {
+import kotlinx.coroutines.runBlocking
+
+fun main() = runBlocking {
   PublisherDataClient().use {
     it.getCombinedPublicKey()
   }

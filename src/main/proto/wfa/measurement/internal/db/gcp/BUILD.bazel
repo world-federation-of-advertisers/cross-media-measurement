@@ -5,7 +5,7 @@ package(default_visibility = ["//visibility:public"])
 proto_library(
     name = "computations_proto",
     srcs = ["computations.proto"],
-    deps = ["//src/main/proto/measurement/internal:sketch_aggregation_stage_proto"],
+    deps = ["//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto"],
 )
 
 java_proto_library(

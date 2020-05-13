@@ -53,9 +53,12 @@ maven_install(
         "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
         "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
         "com.google.cloud:google-cloud-spanner:1.54.0",
+        "com.google.guava:guava:29.0-jre",
         "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
         "com.google.truth.extensions:truth-proto-extension:1.0.1",
         "com.google.truth:truth:1.0.1",
+        "com.squareup:kotlinpoet:1.5.0",
+        "io.grpc:grpc-kotlin-stub:0.1.1",
         "junit:junit:4.13",
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
     ] + IO_GRPC_GRPC_JAVA_ARTIFACTS,
@@ -77,6 +80,14 @@ grpc_java_repositories()
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
 protobuf_deps()
+
+# gRPC Kotlin
+
+git_repository(
+    name = "com_github_grpc_grpc_kotlin",
+    commit = "40d2356b82c10ebb4e592eae7d4f618d9eb83e5d",
+    remote = "https://github.com/fashing/grpc-kotlin",
+)
 
 # Docker
 # https://github.com/bazelbuild/rules_docker
@@ -117,6 +128,6 @@ _kotlin_image_repos()
 
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "0886b9b02d089a0ff2744f0e2afc6880aafe233a",
+    commit = "2be368a83aef57dff8f4cf717745f9fb4bc88d8c",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
 )
