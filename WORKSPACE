@@ -31,9 +31,20 @@ http_archive(
 
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kotlin_repositories", "kt_register_toolchains")
 
-kotlin_repositories()  # if you want the default. Otherwise see custom kotlinc distribution below
+KOTLIN_VERSION = "1.3.72"
 
-kt_register_toolchains()  # to use the default toolchain, otherwise see toolchains below
+KOTLINC_RELEASE_SHA = "ccd0db87981f1c0e3f209a1a4acb6778f14e63fe3e561a98948b5317e526cc6c"
+
+KOTLINC_RELEASE = {
+    "urls": [
+        "https://github.com/JetBrains/kotlin/releases/download/v{v}/kotlin-compiler-{v}.zip".format(v = KOTLIN_VERSION),
+    ],
+    "sha256": KOTLINC_RELEASE_SHA,
+}
+
+kotlin_repositories(compiler_release = KOTLINC_RELEASE)
+
+kt_register_toolchains()
 
 # gRPC Java
 # See https://github.com/grpc/grpc-java/blob/master/examples/WORKSPACE

@@ -5,6 +5,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.time.Duration
 import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
@@ -65,6 +66,23 @@ class ArgsTest {
 
     Flags.parse("-foo=false")
     assertThat(flag.value).isEqualTo(false)
+  }
+
+  @Test
+  fun `duration flag`() {
+    val flag = durationFlag("foo", default = Duration.ZERO)
+
+    flag.parseFrom("10s")
+    assertThat(flag.value).isEqualTo(Duration.ofSeconds(10))
+
+    flag.parseFrom("100m")
+    assertThat(flag.value).isEqualTo(Duration.ofMinutes(100))
+
+    flag.parseFrom("4h")
+    assertThat(flag.value).isEqualTo(Duration.ofHours(4))
+
+    flag.parseFrom("2d")
+    assertThat(flag.value).isEqualTo(Duration.ofDays(2))
   }
 
   @Test

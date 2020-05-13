@@ -36,19 +36,17 @@ suspend fun <T> ReceiveChannel<T>.consumeInParallel(
  *
  * @param[scope] the scope for sub-coroutines.
  * @param[max_parallelism] the number of coroutines to launch to read from the channel
- * @param[throttler] adaptively limits throughput
- * @param[delayMillis] when throttled, how long to wait before retrying
+ * @param[throttler] limits throughput
  * @param[block] what to do with non-throttled channel elements
  */
 suspend fun <T> ReceiveChannel<T>.throttledConsumeEach(
   scope: CoroutineScope,
   max_parallelism: Int,
-  throttler: AdaptiveThrottler,
-  delayMillis: Long = 1000,
+  throttler: Throttler,
   block: suspend (T) -> Unit
 ) {
   consumeInParallel(scope, max_parallelism) { item: T ->
-    throttler.onReady(delayMillis) {
+    throttler.onReady {
       block(item)
     }
   }
@@ -60,10 +58,10 @@ suspend fun <T> ReceiveChannel<T>.throttledConsumeEach(
  * Since flows are sequential, this is a convenient way to do a parallel map over a flow.
  *
  * @param[max_parallelism] the number of coroutines to launch to read from the channel
- * @param[throttler] adaptively limits throughput
- * @param[delayMillis] when throttled, how long to wait before retrying
+ * @param[throttler] limits throughput
  * @param[block] what to do with non-throttled channel elements
  */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 suspend fun <T> Flow<T>.parallelCollect(
   max_parallelism: Int,
   block: suspend (T) -> Unit
@@ -79,16 +77,15 @@ suspend fun <T> Flow<T>.parallelCollect(
  * flow.
  *
  * @param[max_parallelism] the number of coroutines to launch to read from the channel
- * @param[throttler] adaptively limits throughput
- * @param[delayMillis] when throttled, how long to wait before retrying
+ * @param[throttler] limits throughput
  * @param[block] what to do with non-throttled channel elements
  */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 suspend fun <T> Flow<T>.throttledCollect(
   max_parallelism: Int,
-  throttler: AdaptiveThrottler,
-  delayMillis: Long = 1000,
+  throttler: Throttler,
   block: suspend (T) -> Unit
 ) = coroutineScope {
   this@throttledCollect.produceIn(this)
-    .throttledConsumeEach(this, max_parallelism, throttler, delayMillis, block)
+    .throttledConsumeEach(this, max_parallelism, throttler, block)
 }

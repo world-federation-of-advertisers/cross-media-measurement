@@ -6,6 +6,8 @@
  */
 package org.wfanet.measurement.common
 
+import java.time.Duration
+
 /**
  * Singleton owner of all [Flag] objects.
  *
@@ -111,6 +113,23 @@ fun booleanFlag(name: String, default: Boolean): Flag<Boolean> =
   }
 
 fun stringFlag(name: String, default: String): Flag<String> = Flag(name, default, String::toString)
+
+internal fun String.parseDuration(): Duration {
+  val groups = Regex("^(\\d+)([smhd])$").matchEntire(this)?.groupValues ?: listOf()
+  if (groups.size == 3) {
+    val amount = groups[1].toLong()
+    when (groups[2].toLowerCase()) {
+      "s" -> return Duration.ofSeconds(amount)
+      "m" -> return Duration.ofMinutes(amount)
+      "h" -> return Duration.ofHours(amount)
+      "d" -> return Duration.ofDays(amount)
+    }
+  }
+  return Duration.parse(this)
+}
+
+fun durationFlag(name: String, default: Duration): Flag<Duration> =
+  Flag(name, default, String::parseDuration)
 
 class FlagError(message: String) : Exception(message)
 

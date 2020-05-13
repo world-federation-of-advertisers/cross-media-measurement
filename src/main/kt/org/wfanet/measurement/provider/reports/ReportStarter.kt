@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.transform
 import org.wfanet.measurement.common.AdaptiveThrottler
 import org.wfanet.measurement.common.throttledCollect
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ReportStarter(
   private val reportApi: ReportApi,
   private val max_parallelism: Int,

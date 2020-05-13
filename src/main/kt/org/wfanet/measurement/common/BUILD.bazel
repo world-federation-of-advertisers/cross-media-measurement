@@ -6,9 +6,18 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "throttler",
+    srcs = [
+        "ThrottledException.kt",
+        "Throttler.kt",
+    ],
+)
+
+kt_jvm_library(
     name = "adaptive_throttler",
     srcs = ["AdaptiveThrottler.kt"],
     deps = [
+        ":throttler",
         "//:kotlinx_coroutines_core",
     ],
 )
@@ -25,7 +34,7 @@ kt_jvm_library(
     name = "throttled_channel_consumer",
     srcs = ["ThrottledChannelConsumer.kt"],
     deps = [
-        ":adaptive_throttler",
+        ":throttler",
         "//:kotlinx_coroutines_core",
     ],
 )

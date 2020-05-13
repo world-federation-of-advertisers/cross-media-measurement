@@ -10,14 +10,6 @@ import java.util.ArrayDeque
 import kotlin.random.Random
 
 /**
- * Indicates pushback used for throttling.
- */
-class ThrottledException(message: String, throwable: Throwable? = null) : Exception(
-  message,
-  throwable
-) {}
-
-/**
  * Provides an adaptive throttler.
  *
  * This throttler tracks the number of attempts and failures over the last [timeHorizon] time window
@@ -27,12 +19,14 @@ class ThrottledException(message: String, throwable: Throwable? = null) : Except
  * @param[overloadFactor] how much to overload the backend
  * @param[clock] a clock
  * @param[timeHorizon] what time window to look at to determine proportion of accepted requests
+ * @param[pollDelayMillis] how often to retry when throttled in [onReady]
  */
 class AdaptiveThrottler(
   private val overloadFactor: Double,
   private val clock: Clock,
-  private val timeHorizon: Duration
-) {
+  private val timeHorizon: Duration,
+  private val pollDelayMillis: Long
+) : Throttler {
   private val requests = ArrayDeque<Instant>()
   private val rejects = ArrayDeque<Instant>()
 
@@ -45,47 +39,26 @@ class AdaptiveThrottler(
   private fun rejectionProbability(): Double =
     (numRequests - overloadFactor * numAccepts) / (numRequests + 1)
 
-  /**
-   * Determine if the current attempt to do something should be throttled.
-   *
-   * When this returns true, this assumes an attempt is made. When it returns false, it assumes an
-   * attempt hasn't been made.
-   *
-   * @return true if operation may proceed unthrottled; false if throttled.
-   */
-  fun attempt(): Boolean =
+  override fun attempt(): Boolean =
     (Random.nextDouble() > rejectionProbability()).also {
       if (it) {
         updateQueue(requests)
       }
     }
 
-  /**
-   * Indicate that an operation encountered pushback.
-   */
-  fun reportThrottled() {
+  override fun reportThrottled() {
     updateQueue(rejects)
   }
 
-  /**
-   * Helper for performing an operation when unthrottled.
-   *
-   * This repeatedly polls [attempt] at [pollIntervalMillis] intervals until it returns true, then
-   * calls [block]. If [block] raises a [ThrottledException], it calls [reportThrottled] and
-   * re-throws the exception's cause.
-   *
-   * @param[pollIntervalMillis] how frequently to retry
-   * @param[block] what to do when not throttled
-   */
-  suspend fun onReady(pollIntervalMillis: Long, block: suspend () -> Unit) {
+  override suspend fun onReady(block: suspend () -> Unit) {
     while (!attempt()) {
-      delay(pollIntervalMillis)
+      delay(pollDelayMillis)
     }
     try {
       block()
     } catch (e: ThrottledException) {
       reportThrottled()
-      if (e.cause != null) throw e.cause
+      e.cause?.let { throw it }
     }
   }
 

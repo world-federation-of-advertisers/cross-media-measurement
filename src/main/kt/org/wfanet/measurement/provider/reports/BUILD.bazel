@@ -1,10 +1,17 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load(
+    "@io_bazel_rules_kotlin//kotlin:kotlin.bzl",
+    "kt_jvm_binary",
+    "kt_jvm_library",
+)
 
 package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
 
 kt_jvm_library(
     name = "report_api",
-    srcs = ["ReportApi.kt"],
+    srcs = [
+        "ReportApi.kt",
+        "ReportApiImpl.kt",
+    ],
     deps = [
         "//:kotlinx_coroutines_core",
     ],
@@ -16,6 +23,20 @@ kt_jvm_library(
     deps = [
         ":report_api",
         "//:kotlinx_coroutines_core",
+        "//src/main/kt/org/wfanet/measurement/common:throttled_channel_consumer",
+        "//src/main/kt/org/wfanet/measurement/scheduler",
+    ],
+)
+
+kt_jvm_binary(
+    name = "report_starter_main",
+    srcs = ["ReportStarterMain.kt"],
+    main_class = "org.wfanet.measurement.provider.reports.ReportStarterMainKt",
+    deps = [
+        ":report_api",
+        ":report_starter",
+        "//:kotlinx_coroutines_core",
+        "//src/main/kt/org/wfanet/measurement/common:flags",
         "//src/main/kt/org/wfanet/measurement/common:throttled_channel_consumer",
         "//src/main/kt/org/wfanet/measurement/scheduler",
     ],
