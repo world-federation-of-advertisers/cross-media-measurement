@@ -6,7 +6,7 @@ import "wfa/measurement/api/v1alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
-option java_outer_classname = "SketchProto";
+option java_outer_classname = "EncryptedSketchProto";
 
 message SketchConfig {
   message Key {
@@ -22,7 +22,7 @@ message SketchConfig {
 // have a single index and d values, where d is a parameter of the sketch
 // configuration.
 //
-message Sketch {
+message EncryptedSketch {
   // Encrypted register data.
   //
   // ElGamal encryption is used here. The ElGamal public key consists of two

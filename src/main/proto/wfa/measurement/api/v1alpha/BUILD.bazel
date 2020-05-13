@@ -3,15 +3,15 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "sketch_proto",
-    srcs = ["sketch.proto"],
+    name = "encrypted_sketch_proto",
+    srcs = ["encrypted_sketch.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":crypto_proto"],
 )
 
 cc_proto_library(
-    name = "sketch_cc_proto",
-    deps = [":sketch_proto"],
+    name = "encrypted_sketch_cc_proto",
+    deps = [":encrypted_sketch_proto"],
 )
 
 proto_library(
@@ -26,7 +26,7 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
     deps = [
         ":data_provider_proto",
-        ":sketch_proto",
+        ":encrypted_sketch_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -35,7 +35,7 @@ proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":sketch_proto"],
+    deps = [":encrypted_sketch_proto"],
 )
 
 proto_library(
