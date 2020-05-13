@@ -6,7 +6,7 @@ option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ComputationControlServiceProto";
 
-import "src/main/proto/measurement/api/v1alpha/global_computation.proto";
+import "wfa/measurement/api/v1alpha/global_computation.proto";
 
 // Service to control Duchies from the Kingdom.
 service ComputationControl {
