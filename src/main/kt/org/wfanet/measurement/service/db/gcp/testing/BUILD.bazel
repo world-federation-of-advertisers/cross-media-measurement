@@ -3,6 +3,15 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_libra
 package(default_visibility = ["//src/test/kt/org/wfanet/measurement:__subpackages__"])
 
 kt_jvm_library(
+    name = "spanner_testing_functions",
+    srcs = ["SpannerTestingFunctions.kt"],
+    deps = [
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:com_google_cloud_google_cloud_spanner",
+    ],
+)
+
+kt_jvm_library(
     name = "using_spanner_emulator",
     srcs = ["UsingSpannerEmulator.kt"],
     deps = [

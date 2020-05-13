@@ -2,13 +2,13 @@ package org.wfanet.measurement.service.db.gcp
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.service.db.gcp.testing.UsingSpannerEmulator
-import kotlin.test.assertEquals
+import org.wfanet.measurement.service.db.gcp.testing.assertQueryReturns
 
 @RunWith(JUnit4::class)
 class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -19,13 +19,13 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
   fun insertOne() {
     val dbClient = spanner.client
     dbClient.write(listOf(makeInsertMutation()))
-    val resultSet = dbClient.singleUse().executeQuery(
-      Statement.of("SELECT ComputationId, ComputationStage FROM Computations;"));
-    println("Results:")
-    while (resultSet.next()) {
-      assertEquals(computationId, resultSet.getLong(0), "Wrong ComputationId")
-      assertEquals(1, resultSet.getLong(1), "Wrong ComputationStage")
-    }
+    assertQueryReturns(
+      dbClient,
+      "SELECT ComputationId, ComputationStage FROM Computations",
+      Struct.newBuilder()
+        .set("ComputationId").to(computationId)
+        .set("ComputationStage").to(1)
+        .build())
   }
 
   @Test
@@ -41,14 +41,14 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
       .set("DetailsJSON").to(ByteArray.copyFrom("123"))
       .build()
     dbClient.write(listOf(mutation, childMutation))
-    val resultSet = dbClient.singleUse().executeQuery(
-      Statement.of("SELECT ComputationId, ComputationStage, NextAttempt FROM ComputationStages;"));
-    println("Results:")
-    while (resultSet.next()) {
-      assertEquals(computationId, resultSet.getLong(0), "Wrong ComputationId")
-      assertEquals(2, resultSet.getLong(1), "Wrong ComputationStage")
-      assertEquals(3, resultSet.getLong(2), "Wrong NextAttempt")
-    }
+    assertQueryReturns(
+      dbClient,
+      "SELECT ComputationId, ComputationStage, NextAttempt FROM ComputationStages",
+      Struct.newBuilder()
+               .set("ComputationId").to(computationId)
+               .set("ComputationStage").to(2)
+               .set("NextAttempt").to(3)
+               .build())
   }
 
   private fun makeInsertMutation(): Mutation {

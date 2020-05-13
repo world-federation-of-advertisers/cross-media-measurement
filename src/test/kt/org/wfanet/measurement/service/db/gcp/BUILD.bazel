@@ -8,8 +8,8 @@ spanner_emulator_test(
     ],
     test_class = "org.wfanet.measurement.service.db.gcp.ComputationsSchemaTest",
     deps = [
+        "//src/main/kt/org/wfanet/measurement/service/db/gcp/testing:spanner_testing_functions",
         "//src/main/kt/org/wfanet/measurement/service/db/gcp/testing:using_spanner_emulator",
-        "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:com_google_cloud_google_cloud_spanner",
         "@maven//:junit_junit",
     ],
@@ -23,8 +23,8 @@ spanner_emulator_test(
     ],
     test_class = "org.wfanet.measurement.service.db.gcp.MeasurementProviderSchemaTest",
     deps = [
+        "//src/main/kt/org/wfanet/measurement/service/db/gcp/testing:spanner_testing_functions",
         "//src/main/kt/org/wfanet/measurement/service/db/gcp/testing:using_spanner_emulator",
-        "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:com_google_cloud_google_cloud_spanner",
         "@maven//:junit_junit",
     ],
