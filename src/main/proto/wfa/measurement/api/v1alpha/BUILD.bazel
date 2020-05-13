@@ -2,6 +2,11 @@ load(":macros.bzl", "java_and_kt_grpc_library")
 
 package(default_visibility = ["//visibility:public"])
 
+java_proto_library(
+    name = "global_computation_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:global_computation_proto"],
+)
+
 java_and_kt_grpc_library(
     name = "computation_control_service",
     deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:computation_control_service_proto"],

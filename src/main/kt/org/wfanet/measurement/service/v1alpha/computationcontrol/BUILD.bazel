@@ -1,0 +1,19 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kt/org/wfanet/measurement:__subpackages__",
+    "//src/test/kt/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "computationcontrol",
+    srcs = [
+        "ComputationControlImpl.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v1alpha:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_java_proto",
+        "@com_google_protobuf//:protobuf_java",
+        "@com_google_protobuf//:protobuf_java_util",
+    ],
+)

@@ -56,7 +56,29 @@ http_archive(
     url = "https://github.com/grpc/grpc-java/archive/v1.28.0.tar.gz",
 )
 
-load("@io_grpc_grpc_java//:repositories.bzl", "IO_GRPC_GRPC_JAVA_ARTIFACTS", "IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS", "grpc_java_repositories")
+load(
+    "@io_grpc_grpc_java//:repositories.bzl",
+    "IO_GRPC_GRPC_JAVA_ARTIFACTS",
+    "IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS",
+    "grpc_java_repositories",
+)
+
+# gRPC Kotlin
+
+git_repository(
+    name = "com_github_grpc_grpc_kotlin",
+    # TODO: use a commit number instead of pulling from the head of master.
+    # However, in the short term, we're iterating on this so it's handy.
+    branch = "master",
+    remote = "https://github.com/efoxepstein/grpc-kotlin",
+)
+
+load(
+    "@com_github_grpc_grpc_kotlin//:repositories.bzl",
+    "IO_GRPC_GRPC_KOTLIN_ARTIFACTS",
+    "IO_GRPC_GRPC_KOTLIN_OVERRIDE_TARGETS",
+    "grpc_kt_repositories",
+)
 
 # Maven
 maven_install(
@@ -74,9 +96,12 @@ maven_install(
         "io.grpc:grpc-kotlin-stub:0.1.1",
         "junit:junit:4.13",
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
-    ] + IO_GRPC_GRPC_JAVA_ARTIFACTS,
+    ] + IO_GRPC_GRPC_JAVA_ARTIFACTS + IO_GRPC_GRPC_KOTLIN_ARTIFACTS,
     generate_compat_repositories = True,
-    override_targets = IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS,
+    override_targets = dict(
+        IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS.items() +
+        IO_GRPC_GRPC_KOTLIN_OVERRIDE_TARGETS.items(),
+    ),
     repositories = [
         "https://repo.maven.apache.org/maven2/",
     ],
@@ -86,21 +111,15 @@ load("@maven//:compat.bzl", "compat_repositories")
 
 compat_repositories()
 
-# Run grpc_java_repositories after compat_repositories to ensure the
-# maven_install-selected dependencies are used.
+# Run after compat_repositories to ensure the maven_install-selected
+# dependencies are used.
+grpc_kt_repositories()
+
 grpc_java_repositories()
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
 protobuf_deps()
-
-# gRPC Kotlin
-
-git_repository(
-    name = "com_github_grpc_grpc_kotlin",
-    commit = "40d2356b82c10ebb4e592eae7d4f618d9eb83e5d",
-    remote = "https://github.com/fashing/grpc-kotlin",
-)
 
 # Docker
 # https://github.com/bazelbuild/rules_docker
@@ -141,6 +160,7 @@ _kotlin_image_repos()
 
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "2be368a83aef57dff8f4cf717745f9fb4bc88d8c",
+    # For now, until protos stabilize, use the latest version from master.
+    branch = "master",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
 )
