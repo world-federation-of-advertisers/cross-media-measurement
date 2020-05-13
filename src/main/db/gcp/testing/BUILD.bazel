@@ -10,6 +10,7 @@ package(default_visibility = ["//src/test:__subpackages__"])
 kt_jvm_import(
     name = "bazel_test_runner_jar",
     jar = "@bazel_tools//tools/jdk:TestRunner_deploy.jar",
+    srcjar = "@bazel_tools//tools/jdk:TestRunner_deploy.jar",
 )
 
 sh_library(
