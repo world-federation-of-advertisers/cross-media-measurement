@@ -10,7 +10,8 @@ import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 
 @RunWith(JUnit4::class)
-class MeasurementProviderSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {
+class MeasurementProviderSchemaTest :
+  UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {
 
   @Test
   fun `insert single Advertiser`() {

@@ -20,7 +20,7 @@ type -p sed || exit 100
 # from the local machine forwarded to the gRPC port of the emulator (9010).
 # The script will clean up after itself and remove the container, but just
 # in case, the container is set to timeout and be stopped after five minute
-CONTAINERNAME=$(docker run --detach -p 0:9010 --stop-timeout=300  --label kotlin_test_with_spanner_emulator gcr.io/cloud-spanner-emulator/emulator)
+CONTAINERNAME=$(docker run --detach -p 0:9010 --stop-timeout=300 --label kotlin_test_with_spanner_emulator gcr.io/cloud-spanner-emulator/emulator)
 echo "Started docker container ${CONTAINERNAME:?}"
 
 # Cleanup the docker image upon exit of the shell.
@@ -33,8 +33,8 @@ trap "cleanup_docker" EXIT
 
 # Wait until the container is running.
 until [ "$(docker inspect -f {{.State.Running}} ${CONTAINERNAME:?})" == "true" ]; do
-    sleep 0.1;
-done;
+  sleep 0.1
+done
 
 # Figure out which port was assigned to the container i.e. what port was chosen
 # as an empty port when we bound zero earlier.

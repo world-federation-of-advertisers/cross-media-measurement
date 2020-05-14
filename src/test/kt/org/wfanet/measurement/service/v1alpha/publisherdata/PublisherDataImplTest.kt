@@ -53,9 +53,9 @@ class PublisherDataImplTest {
 
     val response =
       blockingStub!!.getCombinedPublicKey(GetCombinedPublicKeyRequest.newBuilder()
-                                          .setKey(CombinedPublicKey.Key.newBuilder()
-                                                    .setCombinedPublicKeyId(fakeKey))
-                                          .build())
+                                            .setKey(CombinedPublicKey.Key.newBuilder()
+                                                      .setCombinedPublicKeyId(fakeKey))
+                                            .build())
 
     ProtoTruth.assertThat(response)
       .isEqualTo(CombinedPublicKey.newBuilder()

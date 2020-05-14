@@ -13,7 +13,7 @@ import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 @RunWith(JUnit4::class)
 class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
 
-  private val computationId : Long = 85740L
+  private val computationId: Long = 85740L
 
   @Test
   fun insertOne() {
@@ -45,10 +45,10 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
       dbClient,
       "SELECT ComputationId, ComputationStage, NextAttempt FROM ComputationStages",
       Struct.newBuilder()
-               .set("ComputationId").to(computationId)
-               .set("ComputationStage").to(2)
-               .set("NextAttempt").to(3)
-               .build())
+        .set("ComputationId").to(computationId)
+        .set("ComputationStage").to(2)
+        .set("NextAttempt").to(3)
+        .build())
   }
 
   private fun makeInsertMutation(): Mutation {
