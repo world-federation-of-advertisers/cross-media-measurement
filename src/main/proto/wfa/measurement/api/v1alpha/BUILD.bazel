@@ -15,6 +15,17 @@ cc_proto_library(
 )
 
 proto_library(
+    name = "sketch_proto",
+    srcs = ["sketch.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "sketch_cc_proto",
+    deps = [":sketch_proto"],
+)
+
+proto_library(
     name = "crypto_proto",
     srcs = ["crypto.proto"],
     strip_import_prefix = "/src/main/proto",
