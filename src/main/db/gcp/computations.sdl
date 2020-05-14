@@ -13,7 +13,7 @@
 -- amount of work from each of the MPC Nodes this work is a stage.
 -- There is a one-to-many mapping of rounds to stages. MPC Nodes track the
 -- progress of a computation through various stages. Most of which require
--- work on BLOBs of encrypted data. These BLOBs are not stored diretcly in
+-- work on BLOBs of encrypted data. These BLOBs are not stored directly in
 -- the spanner database, but are referenced here. So worker processes within
 -- an MPC Node know where to find them.
 
@@ -52,7 +52,7 @@ CREATE TABLE Computations (
   -- However failures happen so this field may be over written when the lock
   -- expires.
   --
-  -- For example this could be the identifeer of the GCP instance running a
+  -- For example this could be the identifier of the GCP instance running a
   -- Knight i.e. `gke-mpc-worker-knight-pool-c8f5637a-rffh`.
   LockOwner STRING(MAX),
 
@@ -81,7 +81,7 @@ CREATE TABLE Computations (
 ) PRIMARY KEY (ComputationId);
 
 
--- Query computations ready for work. All compuations that can be worked on
+-- Query computations ready for work. All computations that can be worked on
 -- have a non null LockExpirationTime.
 CREATE NULL_FILTERED INDEX ComputationsByLockExpirationTime
   ON Computations(LockExpirationTime ASC, UpdateTime ASC);
@@ -174,7 +174,7 @@ CREATE TABLE ComputationBlobReferences (
 
 -- ComputationStageAttempts
 --   Running history of attempts for running a stage of a computation.
---   It is generally expected that each stage will be attemtped once,
+--   It is generally expected that each stage will be attempted once,
 --   but it is possible for Knight to fail mid operation.
 CREATE TABLE ComputationStageAttempts (
   -- The local identifier of the computation.
@@ -193,10 +193,10 @@ CREATE TABLE ComputationStageAttempts (
   --   ComputationStages.NextAttempt should be incremented.
   Attempt INT64 NOT NULL,
 
-  -- When the attempt of the satege began.
+  -- When the attempt of the stage began.
   BeginTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
 
-  -- When the attempt finsihed.
+  -- When the attempt finished.
   EndTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (ComputationId, ComputationStage, Attempt),
   INTERLEAVE IN PARENT ComputationStages ON DELETE CASCADE;
