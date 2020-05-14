@@ -26,3 +26,18 @@ java_library(
         "@maven//:com_google_cloud_google_cloud_spanner",
     ],
 )
+
+java_library(
+    name = "grpc_core",
+    exports = [
+        ":kotlinx_coroutines_core",
+        "@com_google_protobuf//:protobuf_java",
+        "@com_google_protobuf//:protobuf_java_util",
+
+        # These aren't strictly necessary, but without them, IntelliJ
+        # complains. Until we figure out how to fix IntelliJ's Bazel sync,
+        # we will keep these here.
+        "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:context",
+        "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:stub",
+    ],
+)

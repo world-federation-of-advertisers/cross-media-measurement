@@ -26,11 +26,5 @@ def java_and_kt_grpc_library(name, deps):
             ":%s_java_proto" % name,
             ":%s_java_grpc" % name,
             ":%s_kt_jvm_grpc_internal" % name,
-
-            # These aren't strictly necessary, but without them, IntelliJ
-            # complains. Until we figure out how to fix IntelliJ's Bazel sync,
-            # we will keep these here.
-            "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:context",
-            "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:stub",
         ],
     )

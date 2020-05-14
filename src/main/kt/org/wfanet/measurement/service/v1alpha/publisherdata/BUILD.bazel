@@ -11,10 +11,7 @@ kt_jvm_library(
         "PublisherDataImpl.kt",
     ],
     deps = [
-        "//:kotlinx_coroutines_core",
-        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_java_proto",
+        "//:grpc_core",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
-        "@com_google_protobuf//:protobuf_java",
-        "@com_google_protobuf//:protobuf_java_util",
     ],
 )
