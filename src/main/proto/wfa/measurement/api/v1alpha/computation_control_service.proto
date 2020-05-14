@@ -10,22 +10,88 @@ option java_outer_classname = "ComputationControlServiceProto";
 
 // Service to control Duchies from the Kingdom.
 service ComputationControl {
-  // Transitions a GlobalComputationState. Results in a FAILED_PRECONDITION
-  // error if the state transition is invalid.
+  // Creates a GlobalComputation in the SUSPENDED state.
+  rpc CreateGlobalComputation(CreateGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Returns the specified GlobalComputation.
+  rpc GetGlobalComputation(GetGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Transitions a GlobalComputation to the RUNNING state.
+  //
+  // Valid if the current state is CREATED. Has no effect if the current state
+  // is already RUNNING. Results in a FAILED_PRECONDITION error for any other
+  // current state.
   //
   // This is a state transition method (see https://aip.dev/216).
+  rpc StartGlobalComputation(StartGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Transitions a GlobalComputation to the SUSPENDED state.
   //
-  // (--TODO(sanjayvas): Replace this with separate methods for each state
-  // transition if they end up needing different request fields. --)
-  rpc TransitionGlobalComputationState(TransitionGlobalComputationStateRequest)
-      returns (GlobalComputationState);
+  // Valid if the current state is RUNNING. Has no effect if the current state
+  // is already SUSPENDED. Results in a FAILED_PRECONDITION error for any other
+  // current state.
+  //
+  // This is a state transition method (see https://aip.dev/216).
+  rpc SuspendGlobalComputation(SuspendGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Transitions a GlobalComputation to the RUNNING state.
+  //
+  // Valid if the current state is SUSPENDED. Has no effect if the current state
+  // is already RUNNING. Results in a FAILED_PRECONDITION error for any other
+  // current state.
+  //
+  // This is a state transition method (see https://aip.dev/216).
+  rpc ResumeGlobalComputation(ResumeGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Transitions a GlobalComputation to the CANCELLED state.
+  //
+  // Valid if the current state is CREATED, RUNNING, or SUSPENDED. Has no effect
+  // if the current state is already CANCELLED. Results in a FAILED_PRECONDITION
+  // error for any other current state.
+  //
+  // This is a state transition method (see https://aip.dev/216).
+  rpc CancelGlobalComputation(CancelGlobalComputationRequest)
+      returns (GlobalComputation);
 }
 
-// Request message for TransitionGlobalComputationState method.
-message TransitionGlobalComputationStateRequest {
-  // Resource key of the GlobalComputationState.
-  GlobalComputationState.Key key = 1;
+// Request message for CreateGlobalComputation method.
+message CreateGlobalComputationRequest {
+  // The GlobalComputation to create. The `key` field will be ignored and the
+  // system will assign an ID.
+  GlobalComputation global_computation = 1;
+}
 
-  // The desired state to transition to.
-  GlobalComputationState.State state = 2;
+// Request message for GetGlobalComputation method.
+message GetGlobalComputationRequest {
+  // Resource key.
+  GlobalComputation.Key key = 1;
+}
+
+// Request message for StartGlobalComputation method.
+message StartGlobalComputationRequest {
+  // Resource key of the GlobalComputation.
+  GlobalComputation.Key key = 1;
+}
+
+// Request message for SuspendGlobalComputation method.
+message SuspendGlobalComputationRequest {
+  // Resource key of the GlobalComputation.
+  GlobalComputation.Key key = 1;
+}
+
+// Request message for ResumeGlobalComputation method.
+message ResumeGlobalComputationRequest {
+  // Resource key of the GlobalComputation.
+  GlobalComputation.Key key = 1;
+}
+
+// Request message for SuspendGlobalComputation method.
+message CancelGlobalComputationRequest {
+  // Resource key of the GlobalComputation.
+  GlobalComputation.Key key = 1;
 }

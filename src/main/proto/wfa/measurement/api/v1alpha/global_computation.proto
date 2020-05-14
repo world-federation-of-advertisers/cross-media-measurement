@@ -7,33 +7,36 @@ option java_multiple_files = true;
 option java_outer_classname = "GlobalComputationProto";
 
 message GlobalComputation {
+  // Resource key message.
   message Key {
     string global_computation_id = 1;
   }
+  // Resource key.
   Key key = 1;
 
-  GlobalComputationState.State state = 2;
-}
-
-message GlobalComputationState {
-  message Key {
-    string global_computation_id = 1;
-  }
-  Key key = 1;
-
+  // State that the computation can be in.
   enum State {
-    // No knowledge of the computation.
-    STATE_UNKNOWN = 0;
+    // Default value if state is omitted. Should never be us
+    STATE_UNSPECIFIED = 0;
 
-    // In progress.
-    RUNNING = 1;
+    // Computation has been created and is ready to start.
+    CREATED = 1;
 
-    // Computation exists, but no further progress will be made until told to
-    // resume.
-    PAUSED = 2;
+    // Computation is in progress.
+    RUNNING = 2;
 
-    // Computation existed, but was cancelled and cannot be resumed.
-    CANCELLED = 3;
+    // Computation was previously running but has been suspended.
+    SUSPENDED = 3;
+
+    // Computation completed successfully. Terminal state.
+    SUCCEEDED = 4;
+
+    // Computation was cancelled. Terminal state.
+    CANCELLED = 5;
+
+    // Computation completed unsuccessfully. Terminal state.
+    FAILED = 6;
   }
+  // Current state of the computation. Output only.
   State state = 2;
 }
