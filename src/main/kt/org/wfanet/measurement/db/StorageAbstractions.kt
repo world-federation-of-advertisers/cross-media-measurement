@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.db
+package org.wfanet.measurement.db
 
 /**
  * The role the worker is playing in an ongoing computation.

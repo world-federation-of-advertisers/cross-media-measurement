@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.db.gcp
+package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
@@ -7,8 +7,8 @@ import com.google.cloud.spanner.Value
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.service.db.gcp.testing.UsingSpannerEmulator
-import org.wfanet.measurement.service.db.gcp.testing.assertQueryReturns
+import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
+import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 
 @RunWith(JUnit4::class)
 class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {

@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kt/org/wfanet/measurement:__subpackages__",
@@ -6,29 +6,15 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "server_lib",
+    name = "publisherdata",
     srcs = [
         "PublisherDataImpl.kt",
-        "PublisherDataServer.kt",
     ],
     deps = [
         "//:kotlinx_coroutines_core",
-        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_java_proto",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
         "@com_google_protobuf//:protobuf_java",
         "@com_google_protobuf//:protobuf_java_util",
-        "@io_grpc_grpc_java//api",
-        "@io_grpc_grpc_java//protobuf",
-        "@io_grpc_grpc_java//stub",
-    ],
-)
-
-kt_jvm_binary(
-    name = "server",
-    srcs = ["Main.kt"],
-    main_class = "org.wfanet.measurement.service.v1alpha.publisherdata.MainKt",
-    deps = [
-        ":server_lib",
-        "@io_grpc_grpc_java//netty",
     ],
 )

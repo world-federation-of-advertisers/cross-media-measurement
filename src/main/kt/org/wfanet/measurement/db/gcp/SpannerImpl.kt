@@ -1,4 +1,4 @@
-package org.wfanet.measurement.common.gcp
+package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.ReadContext
@@ -18,7 +18,9 @@ import kotlinx.coroutines.withContext
  *
  * @param[scope] the scope to run database in.
  */
-class SpannerImpl(private val scope: CoroutineScope) : Spanner {
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class SpannerImpl(private val scope: CoroutineScope) :
+  Spanner {
   override suspend fun executeSqlQuery(
     sql: Statement,
     reader: ReadContext

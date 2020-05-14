@@ -83,10 +83,9 @@ load(
 # Maven
 maven_install(
     artifacts = [
-        # GCP Spanner Client
-        "com.google.cloud:google-cloud-spanner:1.54.0",
         "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
         "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
+        "com.google.cloud:google-cloud-core:1.93.4",
         "com.google.cloud:google-cloud-spanner:1.54.0",
         "com.google.guava:guava:29.0-jre",
         "com.google.truth.extensions:truth-liteproto-extension:1.0.1",

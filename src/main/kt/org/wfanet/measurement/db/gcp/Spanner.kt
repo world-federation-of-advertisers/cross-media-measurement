@@ -1,4 +1,4 @@
-package org.wfanet.measurement.common.gcp
+package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.ReadContext

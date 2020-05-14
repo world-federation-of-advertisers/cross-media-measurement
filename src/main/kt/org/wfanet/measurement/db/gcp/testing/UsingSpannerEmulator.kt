@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.db.gcp.testing
+package org.wfanet.measurement.db.gcp.testing
 
 import com.google.cloud.spanner.DatabaseAdminClient
 import com.google.cloud.spanner.DatabaseClient
@@ -33,8 +33,8 @@ import java.util.concurrent.atomic.AtomicInteger
 abstract class UsingSpannerEmulator(schemaResourcePath: String) {
   @get:Rule
   val spanner = SpannerDatabaseRule(schemaResourcePath,
-                                      project = project,
-                                      instance = instance)
+                                    project = project,
+                                    instance = instance)
 
   companion object {
     const val instance = "test-instance"
@@ -48,7 +48,11 @@ abstract class UsingSpannerEmulator(schemaResourcePath: String) {
     /** Executes a block of code with a [InstanceAdminClient]. */
     private fun withSpannerInstanceAdminClient(block: (InstanceAdminClient) -> Unit) {
       val spanner = options.service
-      try { block(spanner.instanceAdminClient) } finally { spanner.close() }
+      try {
+        block(spanner.instanceAdminClient)
+      } finally {
+        spanner.close()
+      }
     }
 
     @ClassRule

@@ -1,12 +1,13 @@
-package org.wfanet.measurement.service.v1alpha.publisherdata
+package org.wfanet.measurement.server.v1alpha.publisherdata
 
 import io.grpc.Server
 import io.grpc.ServerBuilder
+import org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataImpl
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
 
-class PublisherDataServer() {
+class PublisherDataServer {
   private val port: Int = 31125
   private var server: Server
 

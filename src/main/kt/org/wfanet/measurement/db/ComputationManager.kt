@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.db
+package org.wfanet.measurement.db
 
 import java.io.IOException
 
