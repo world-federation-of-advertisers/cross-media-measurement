@@ -57,7 +57,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "duchy_role",
+    srcs = ["DuchyRole.kt"],
+)
+
+kt_jvm_library(
     name = "duchy_order",
     srcs = ["DuchyOrder.kt"],
-    deps = [],
+    deps = [":duchy_role"],
 )

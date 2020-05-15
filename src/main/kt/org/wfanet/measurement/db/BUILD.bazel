@@ -16,7 +16,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "storage_abstractions",
     srcs = ["StorageAbstractions.kt"],
-    deps = [],
+    deps = ["//src/main/kt/org/wfanet/measurement/common:duchy_role"],
 )
 
 kt_jvm_library(

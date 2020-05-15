@@ -9,11 +9,10 @@ import com.google.cloud.spanner.InstanceId
 import com.google.cloud.spanner.InstanceInfo
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.SpannerOptions
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.ExternalResource
-import java.util.concurrent.atomic.AtomicInteger
-
 
 /**
  * Test case base class for running against an emulated Spanner backend.
@@ -32,17 +31,21 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 abstract class UsingSpannerEmulator(schemaResourcePath: String) {
   @get:Rule
-  val spanner = SpannerDatabaseRule(schemaResourcePath,
-                                    project = project,
-                                    instance = instance)
+  val spanner = SpannerDatabaseRule(
+    schemaResourcePath,
+    project = project,
+    instance = instance
+  )
 
   companion object {
     const val instance = "test-instance"
     private const val project = "test-project"
     internal val options = SpannerOptions.newBuilder()
       .setProjectId(project)
-      .setEmulatorHost(System.getenv("SPANNER_EMULATOR_HOST")
-                       ?: error("SPANNER_EMULATOR_HOST not set. (e.g. localhost:9010)"))
+      .setEmulatorHost(
+        System.getenv("SPANNER_EMULATOR_HOST")
+          ?: error("SPANNER_EMULATOR_HOST not set. (e.g. localhost:9010)")
+      )
       .build()
 
     /** Executes a block of code with a [InstanceAdminClient]. */
@@ -71,7 +74,8 @@ abstract class UsingSpannerEmulator(schemaResourcePath: String) {
               .setDisplayName("Test Instance")
               .setInstanceConfigId(InstanceConfigId.of(project, "emulator-config"))
               .setNodeCount(1)
-              .build()).get()
+              .build()
+          ).get()
         }
       }
 
@@ -91,15 +95,18 @@ abstract class UsingSpannerEmulator(schemaResourcePath: String) {
  * The database is created before each test and removed after each test. This prevents the state
  * of one test from affecting the results of another.
  */
-class SpannerDatabaseRule(private val sdlResourcePath: String,
-                          val project: String = "test-project",
-                          val instance: String = "test-instance") : ExternalResource() {
+class SpannerDatabaseRule(
+  private val sdlResourcePath: String,
+  val project: String = "test-project",
+  val instance: String = "test-instance"
+) : ExternalResource() {
 
   private val dbName: String = "test-db-${testCounter.incrementAndGet()}"
 
-  private val spanner: Spanner = UsingSpannerEmulator.options.service
+  val spanner: Spanner = UsingSpannerEmulator.options.service
   private val dbAdminClient: DatabaseAdminClient = spanner.databaseAdminClient
-  val client: DatabaseClient = spanner.getDatabaseClient(DatabaseId.of(project, instance, dbName))
+  val databaseId: DatabaseId = DatabaseId.of(project, instance, dbName)
+  val client: DatabaseClient = spanner.getDatabaseClient(databaseId)
 
   /** Creates a database using the schema before a test is run. */
   override fun before() {

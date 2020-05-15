@@ -17,3 +17,17 @@ kt_jvm_library(
         "//:kotlinx_coroutines_core",
     ],
 )
+
+kt_jvm_library(
+    name = "gcp_spanner_computations_db",
+    srcs = [
+        "GcpSpannerComputationsDb.kt",
+        "LocalComputationIdGenerator.kt",
+    ],
+    deps = [
+        ":spanner",
+        "//src/main/kt/org/wfanet/measurement/common:duchy_order",
+        "//src/main/kt/org/wfanet/measurement/db:storage_abstractions",
+        "//src/main/proto/wfa/measurement/internal/db/gcp:computations_java_proto",
+    ],
+)

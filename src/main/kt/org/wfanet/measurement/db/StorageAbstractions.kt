@@ -1,21 +1,6 @@
 package org.wfanet.measurement.db
 
-/**
- * The role the worker is playing in an ongoing computation.
- */
-enum class WorkerRole {
-  /**
-   * The worker is the first worker in the ring of MPC workers. They are
-   * expected to do a few more steps that other workers, such as homomorphic
-   * operations on ciphertexts.
-   */
-  PRIMARY,
-
-  /**
-   * The worker is not the first worker in the ring.
-   */
-  SECONDARY;
-}
+import org.wfanet.measurement.common.DuchyRole
 
 /**
  * Information about a computation.
@@ -27,13 +12,13 @@ data class ComputationToken<T : Enum<T>>(
   val globalId: Long,
   /** The state of the computation when the token was created. */
   val state: T,
-  /** Name of peasant that owns the lock on the computation. */
-  val owner: String,
+  /** Name of knight that owns the lock on the computation. */
+  val owner: String?,
   /** Identifier of the duchy that receives work for this computation. */
   val nextWorker: String,
   /** The role this worker is playing for this computation. */
-  val role: WorkerRole,
-  /** The number of previous attempts of this stage for this computation. */
+  val role: DuchyRole,
+  /** The number of the current attempt of this stage for this computation. */
   val attempt: Long
 )
 

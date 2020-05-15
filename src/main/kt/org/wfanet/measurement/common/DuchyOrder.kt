@@ -9,7 +9,7 @@ data class Duchy(val name: String, val publicKey: BigInteger)
  * Determines ordering of duchies for computations.
  */
 class DuchyOrder(nodes: Set<Duchy>) {
-  private val orderedNodes = nodes.sortedBy { it.publicKey }.map {it.name}
+  private val orderedNodes = nodes.sortedBy { it.publicKey }.map { it.name }
   private val numberOfNodes = BigInteger.valueOf(orderedNodes.size.toLong())
 
   /**
@@ -23,8 +23,35 @@ class DuchyOrder(nodes: Set<Duchy>) {
     val primaryIndex = sha1Mod(computationId, numberOfNodes)
 
     return orderedNodes.subList(primaryIndex, orderedNodes.size) +
-           orderedNodes.subList(0, primaryIndex)
+      orderedNodes.subList(0, primaryIndex)
   }
+
+  /**
+   * Returns the [DuchyPosition] for a duchy name in a computation.
+   */
+  fun positionFor(computationId: Long, name: String): DuchyPosition {
+    val ordered = computationOrder(computationId)
+    val indexOfThisDuchy = ordered.indexOf(name)
+
+    return DuchyPosition(
+      role =
+      when {
+        indexOfThisDuchy < 0 -> error("Duchy not in computation?")
+        indexOfThisDuchy == 0 -> DuchyRole.PRIMARY
+        else -> DuchyRole.SECONDARY
+      },
+      prev = ordered.wrapAroundGet(indexOfThisDuchy - 1),
+      next = ordered.wrapAroundGet(indexOfThisDuchy + 1)
+    )
+  }
+}
+
+data class DuchyPosition(val role: DuchyRole, val prev: String, val next: String)
+
+/** Gets the index % size item of list. */
+private fun List<String>.wrapAroundGet(index: Int): String {
+  val i = (index + size) % size
+  return this[i]
 }
 
 /** Returns sha1(value) % n. */
