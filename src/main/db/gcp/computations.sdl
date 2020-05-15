@@ -77,7 +77,7 @@ CREATE TABLE Computations (
   -- database.
   --
   -- See the wfa.measurement.internal.db.gcp.ComputationDetails Proto
-  ComputationDetailsJSON BYTES(MAX) NOT NULL,
+  ComputationDetailsJSON STRING(MAX) NOT NULL,
 ) PRIMARY KEY (ComputationId);
 
 
@@ -132,7 +132,7 @@ CREATE TABLE ComputationStages (
   -- database.
   --
   -- See the wfa.measurement.internal.db.gcp.ComputationStageDetails Proto
-  DetailsJSON BYTES(MAX) NOT NULL,
+  DetailsJSON STRING(MAX) NOT NULL,
 ) PRIMARY KEY (ComputationId, ComputationStage),
   INTERLEAVE IN PARENT Computations ON DELETE CASCADE;
 

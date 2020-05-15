@@ -38,7 +38,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
       .set("NextAttempt").to(3)
       .set("CreationTime").to(Value.COMMIT_TIMESTAMP)
       .set("Details").to(ByteArray.copyFrom("123"))
-      .set("DetailsJSON").to(ByteArray.copyFrom("123"))
+      .set("DetailsJSON").to("123")
       .build()
     dbClient.write(listOf(mutation, childMutation))
     assertQueryReturns(
@@ -57,7 +57,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
       .set("ComputationStage").to(1)
       .set("GlobalComputationId").to(1)
       .set("ComputationDetails").to(ByteArray.copyFrom("123"))
-      .set("ComputationDetailsJSON").to(ByteArray.copyFrom("123"))
+      .set("ComputationDetailsJSON").to("123")
       .build()
   }
 }
