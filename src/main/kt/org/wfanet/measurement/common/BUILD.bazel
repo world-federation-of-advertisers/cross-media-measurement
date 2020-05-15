@@ -45,3 +45,9 @@ kt_jvm_library(
     deps = [
     ],
 )
+
+kt_jvm_library(
+    name = "duchy_order",
+    srcs = ["DuchyOrder.kt"],
+    deps = [],
+)

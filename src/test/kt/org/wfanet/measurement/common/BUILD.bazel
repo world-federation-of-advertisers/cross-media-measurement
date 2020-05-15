@@ -13,3 +13,14 @@ kt_jvm_test(
         "@maven//:junit_junit",
     ],
 )
+
+kt_jvm_test(
+    name = "duchy_order_test",
+    srcs = ["DuchyOrderTest.kt"],
+    test_class = "org.wfanet.measurement.common.DuchyOrderTest",
+    deps = [
+        "//src/main/kt/org/wfanet/measurement/common:duchy_order",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:junit_junit",
+    ],
+)
