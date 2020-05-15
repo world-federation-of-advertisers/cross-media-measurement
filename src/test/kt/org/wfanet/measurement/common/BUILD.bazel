@@ -15,6 +15,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "identifiers_test",
+    srcs = ["IdentifiersTest.kt"],
+    test_class = "org.wfanet.measurement.common.IdentifiersTest",
+    deps = [
+        "//src/main/kt/org/wfanet/measurement/common:identifiers",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)
+
+kt_jvm_test(
     name = "duchy_order_test",
     srcs = ["DuchyOrderTest.kt"],
     test_class = "org.wfanet.measurement.common.DuchyOrderTest",
