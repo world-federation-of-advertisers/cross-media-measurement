@@ -36,3 +36,16 @@ kt_jvm_test(
         "@maven//:junit_junit",
     ],
 )
+
+kt_jvm_test(
+    name = "renewed_flow_test",
+    srcs = ["RenewedFlowTest.kt"],
+    test_class = "org.wfanet.measurement.common.RenewedFlowTest",
+    deps = [
+        "//:kotlinx_coroutines_core",
+        "//:kotlinx_coroutines_test",
+        "//src/main/kt/org/wfanet/measurement/common:renewed_flow",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:junit_junit",
+    ],
+)

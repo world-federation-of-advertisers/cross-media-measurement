@@ -19,6 +19,18 @@ kt_jvm_import(
     visibility = ["//:__subpackages__"],
 )
 
+kt_jvm_import(
+    name = "kotlinx_coroutines_test",
+    jars = [
+        "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_test",
+    ],
+
+    # This appears to be necessary to appease IntelliJ. See:
+    # https://github.com/bazelbuild/intellij/issues/1616.
+    srcjar = "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_test",
+    visibility = ["//:__subpackages__"],
+)
+
 java_library(
     name = "google_cloud_spanner",
     exports = [

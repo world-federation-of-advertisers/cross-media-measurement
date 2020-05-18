@@ -95,6 +95,7 @@ maven_install(
         "io.grpc:grpc-kotlin-stub:0.1.1",
         "junit:junit:4.13",
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.5",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.3.5",
     ] + IO_GRPC_GRPC_JAVA_ARTIFACTS + IO_GRPC_GRPC_KOTLIN_ARTIFACTS,
     generate_compat_repositories = True,
     override_targets = dict(
