@@ -3,8 +3,33 @@ load(":macros.bzl", "java_and_kt_grpc_library")
 package(default_visibility = ["//visibility:public"])
 
 java_proto_library(
+    name = "crypto_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:crypto_proto"],
+)
+
+java_proto_library(
+    name = "data_provider_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:data_provider_proto"],
+)
+
+java_proto_library(
     name = "global_computation_java_proto",
     deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:global_computation_proto"],
+)
+
+java_proto_library(
+    name = "metric_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:metric_proto"],
+)
+
+java_proto_library(
+    name = "requisition_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:requisition_proto"],
+)
+
+java_proto_library(
+    name = "sketch_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_proto"],
 )
 
 java_and_kt_grpc_library(

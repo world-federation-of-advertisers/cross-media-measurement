@@ -4,7 +4,8 @@ import java.math.BigInteger
 import java.util.Base64
 
 /**
- * Typesafe wrapper to represent the integer identifier format used below the service layer.
+ * Typesafe wrapper around Long to represent the integer format used below the service layer for the
+ * internal representation of external identifiers.
  *
  * @property[value] a non-negative integer identifier
  */
@@ -30,6 +31,9 @@ data class ExternalId(val value: Long) {
 data class ApiId(val value: String) {
   val externalId: ExternalId = ExternalId(Base64.getUrlDecoder().decode(value).toLong())
 }
+
+/** Typesafe wrapper around Long to represent the integer id format used internally. */
+data class InternalId(val value: Long)
 
 // An alternative is: toBigInteger().toByteArray(), but that includes the sign bit, which uses an
 // extra byte.

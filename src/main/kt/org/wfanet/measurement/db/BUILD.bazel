@@ -18,3 +18,17 @@ kt_jvm_library(
     srcs = ["StorageAbstractions.kt"],
     deps = [],
 )
+
+kt_jvm_library(
+    name = "measurement_provider",
+    srcs = [
+        "MeasurementProviderModels.kt",
+        "MeasurementProviderStorage.kt",
+    ],
+    deps = [
+        "//src/main/kt/org/wfanet/measurement/common:identifiers",
+        "//src/main/kt/org/wfanet/measurement/common:pagination",
+        "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",
+        "//src/main/proto/wfa/measurement/api/v1alpha:requisition_java_proto",
+    ],
+)
