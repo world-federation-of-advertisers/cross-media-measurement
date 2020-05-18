@@ -1,6 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
-package(default_visibility = ["//visibility:public"])
+package(default_visibility = ["//:__subpackages__"])
 
 proto_library(
     name = "sketch_aggregation_stage_proto",
@@ -10,4 +10,26 @@ proto_library(
 java_proto_library(
     name = "sketch_aggregation_stage_java_proto",
     deps = [":sketch_aggregation_stage_proto"],
+)
+
+proto_library(
+    name = "metric_definition_proto",
+    srcs = ["metric_definition.proto"],
+    deps = [],
+)
+
+java_proto_library(
+    name = "metric_definition_java_proto",
+    deps = [":metric_definition_proto"],
+)
+
+proto_library(
+    name = "requisition_details_proto",
+    srcs = ["requisition_details.proto"],
+    deps = [":metric_definition_proto"],
+)
+
+java_proto_library(
+    name = "requisition_details_java_proto",
+    deps = [":requisition_details_proto"],
 )

@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package wfa.measurement.internal;
+
+option java_package = "org.wfa.measurement.internal";
+option java_multiple_files = true;
+
+// Internal representation of the metadata around metrics.
+message MetricDefinition {
+  oneof definition {
+    SketchMetricDefinition sketch = 1;
+  }
+}
+
+// Internal representation of a metric to be collected as a sketch.
+message SketchMetricDefinition {
+  // Type of metric.
+  enum Type {
+    // Default value. Should never be used.
+    TYPE_UNSPECIFIED = 0;
+
+    // Impression reach (cardinality).
+    IMPRESSION_REACH = 1;
+
+    // Impression reach with frequency.
+    IMPRESSION_REACH_AND_FREQUENCY = 2;
+  }
+
+  // The type of this SketchMetric.
+  Type type = 1;
+
+  // Identifier of the sketch config.
+  int64 sketch_config_id = 2;
+}
