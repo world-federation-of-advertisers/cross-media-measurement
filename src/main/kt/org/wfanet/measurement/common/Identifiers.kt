@@ -3,23 +3,32 @@ package org.wfanet.measurement.common
 import java.math.BigInteger
 import java.util.Base64
 
-/** Typesafe wrapper around Long to represent the integer format used below the service layer. */
+/**
+ * Typesafe wrapper to represent the integer identifier format used below the service layer.
+ *
+ * @property[value] a non-negative integer identifier
+ */
 data class ExternalId(val value: Long) {
   init {
-    if (value < 0) throw IllegalArgumentException("Negative id numbers are not permitted: $value")
+    require(value >= 0) { "Negative id numbers are not permitted: $value" }
   }
-  val apiId: ApiId
-    get() = ApiId(Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(value.toByteArray()))
+
+  val apiId: ApiId by lazy {
+    ApiId(Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(value.toByteArray()))
+  }
 }
 
-/** Typesafe wrapper around String to represent the service-layer identifier format. */
+/**
+ * Typesafe wrapper around String to represent the service-layer identifier format.
+ *
+ * This eagerly decodes [value] into an [ExternalId] to validate the base64 encoding.
+ *
+ * @property[value] the websafe base64 external identifier
+ */
 data class ApiId(val value: String) {
-  val externalId: ExternalId
-    get() = ExternalId(Base64.getUrlDecoder()
-                         .decode(value)
-                         .toLong())
+  val externalId: ExternalId = ExternalId(Base64.getUrlDecoder().decode(value).toLong())
 }
 
 // An alternative is: toBigInteger().toByteArray(), but that includes the sign bit, which uses an
@@ -30,12 +39,10 @@ private fun Long.toByteArray(): ByteArray =
   }
 
 private fun ByteArray.toLong(): Long {
-  if (size != 8) {
-    throw IllegalArgumentException("Invalid conversion: $this is not 8 bytes")
-  }
+  require(size == 8) { "Invalid conversion: $this is not 8 bytes" }
   return BigInteger(this).toLong().also {
-    if (it < 0L) {
-      throw IllegalArgumentException("Negative id numbers are not permitted: $it")
+    require(it >= 0L) {
+      "Negative id numbers are not permitted: $it"
     }
   }
 }
