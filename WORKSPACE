@@ -67,10 +67,8 @@ load(
 
 git_repository(
     name = "com_github_grpc_grpc_kotlin",
-    # TODO: use a commit number instead of pulling from the head of master.
-    # However, in the short term, we're iterating on this so it's handy.
-    branch = "master",
-    remote = "https://github.com/efoxepstein/grpc-kotlin",
+    commit = "0b0102a5ab16eec2d97a766754a0141e51e86ef0"
+    remote = "https://github.com/fashing/grpc-kotlin",
 )
 
 load(
