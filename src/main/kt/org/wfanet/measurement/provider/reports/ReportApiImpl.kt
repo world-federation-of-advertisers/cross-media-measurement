@@ -2,6 +2,7 @@ package org.wfanet.measurement.provider.reports
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.wfanet.measurement.db.Requisition
 
 class ReportApiImpl : ReportApi {
   override suspend fun streamReadyScheduledReportConfigs(): Flow<ScheduledReportConfig> = flow {

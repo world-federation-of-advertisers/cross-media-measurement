@@ -10,16 +10,24 @@ data class DataProviderExternalKey(
 data class CampaignExternalKey(
   val dataProviderExternalId: ExternalId,
   val externalId: ExternalId
-)
+) {
+  constructor(dataProviderExternalKey: DataProviderExternalKey, externalId: ExternalId) :
+    this(dataProviderExternalKey.externalId, externalId)
+}
 
 data class RequisitionExternalKey(
   val dataProviderExternalId: ExternalId,
   val campaignExternalId: ExternalId,
   val externalId: ExternalId
-)
+) {
+  constructor(campaignExternalKey: CampaignExternalKey, externalId: ExternalId) :
+    this(campaignExternalKey.dataProviderExternalId, campaignExternalKey.externalId, externalId)
+}
 
-// TODO: add states
-enum class RequisitionState
+enum class RequisitionState {
+  UNFULFILLED,
+  FULFILLED,
+}
 
 data class Requisition(
   val externalKey: RequisitionExternalKey,

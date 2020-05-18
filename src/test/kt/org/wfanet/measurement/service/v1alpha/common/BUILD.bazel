@@ -1,0 +1,11 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "proto_conversions_test",
+    srcs = ["ProtoConversionsTest.kt"],
+    test_class = "org.wfanet.measurement.service.v1alpha.common.ProtoConversionsTest",
+    deps = [
+        "//:unit_testing_core",
+        "//src/main/kt/org/wfanet/measurement/service/v1alpha/common:proto_conversions",
+    ],
+)

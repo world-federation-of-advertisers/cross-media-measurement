@@ -1,6 +1,7 @@
 package org.wfanet.measurement.provider.reports
 
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.db.Requisition
 
 // TODO(efoxepstein): implement these stubs in different files.
 class ScheduledReportConfig
@@ -8,7 +9,6 @@ abstract class Report {
   abstract val requisitions: List<Requisition>
 }
 
-class Requisition
 enum class ReportState { SET_UP }
 
 /**

@@ -4,7 +4,10 @@ load(
     "kt_jvm_library",
 )
 
-package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
+package(default_visibility = [
+    "//src/main/kt/org/wfanet/measurement:__subpackages__",
+    "//src/test/kt/org/wfanet/measurement:__subpackages__",
+])
 
 kt_jvm_library(
     name = "report_api",
@@ -14,6 +17,7 @@ kt_jvm_library(
     ],
     deps = [
         "//:kotlinx_coroutines_core",
+        "//src/main/kt/org/wfanet/measurement/db:measurement_provider",
     ],
 )
 

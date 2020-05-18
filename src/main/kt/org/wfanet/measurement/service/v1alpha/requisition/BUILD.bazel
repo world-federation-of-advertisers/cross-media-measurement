@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kt/org/wfanet/measurement:__subpackages__",
@@ -8,11 +8,16 @@ package(default_visibility = [
 kt_jvm_library(
     name = "requisition",
     srcs = [
-        "RequisitionImpl.kt",
+        "RequisitionService.kt",
     ],
     deps = [
+        "//:grpc_core",
+        "//src/main/kt/org/wfanet/measurement/common:identifiers",
+        "//src/main/kt/org/wfanet/measurement/common:pagination",
+        "//src/main/kt/org/wfanet/measurement/db:measurement_provider",
+        "//src/main/kt/org/wfanet/measurement/service/v1alpha/common:keys",
+        "//src/main/kt/org/wfanet/measurement/service/v1alpha/common:proto_conversions",
+        "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_kt_jvm_grpc",
-        "@com_google_protobuf//:protobuf_java",
-        "@com_google_protobuf//:protobuf_java_util",
     ],
 )
