@@ -13,7 +13,9 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//src/main/kt/org/wfanet/measurement/common:identifiers",
+        "//src/main/proto/wfa/measurement/internal:requisition_details_java_proto",
         "//src/main/kt/org/wfanet/measurement/common:pagination",
+        "//src/main/kt/org/wfanet/measurement/common:proto_utils",
         "//src/main/kt/org/wfanet/measurement/db:measurement_provider",
         "//src/main/kt/org/wfanet/measurement/service/v1alpha/common:keys",
         "//src/main/kt/org/wfanet/measurement/service/v1alpha/common:proto_conversions",

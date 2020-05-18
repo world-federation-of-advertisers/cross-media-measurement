@@ -1,5 +1,7 @@
 package org.wfanet.measurement.service.v1alpha.common
 
+import org.wfa.measurement.internal.RequisitionDetails
+import org.wfanet.measurement.api.v1alpha.MetricDefinition
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.db.Requisition
 import org.wfanet.measurement.db.RequisitionState
@@ -31,3 +33,9 @@ fun MetricRequisition.State.toRequisitionState(): RequisitionState =
     MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
     else -> error("Invalid state: $this")
   }
+
+fun MetricDefinition.toRequisitionDetails(): RequisitionDetails {
+  // TODO: implement
+  return RequisitionDetails.getDefaultInstance()
+}
+

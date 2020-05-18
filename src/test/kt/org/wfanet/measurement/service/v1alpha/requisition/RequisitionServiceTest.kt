@@ -10,6 +10,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfa.measurement.internal.RequisitionDetails
 import org.wfanet.measurement.api.v1alpha.Campaign
 import org.wfanet.measurement.api.v1alpha.CreateMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
@@ -19,6 +20,7 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpc
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.CampaignExternalKey
 import org.wfanet.measurement.db.MeasurementProviderStorage
 import org.wfanet.measurement.db.Requisition
@@ -52,16 +54,24 @@ class RequisitionServiceTest {
       }.build()
 
     var IRRELEVANT_INSTANT: Instant = Instant.EPOCH
+    var WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
+    var WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
   }
 
-  object fakeMeasurementProviderStorage : MeasurementProviderStorage {
-    override suspend fun createRequisition(campaignExternalKey: CampaignExternalKey): Requisition =
-      Requisition(
+  object FakeMeasurementProviderStorage : MeasurementProviderStorage {
+    override suspend fun createRequisition(campaignExternalKey: CampaignExternalKey,
+                                           requisitionDetails: RequisitionDetails,
+                                           windowStartTime: Instant,
+                                           windowEndTime: Instant): Requisition {
+      require(windowStartTime == WINDOW_START_TIME)
+      require(windowEndTime == WINDOW_END_TIME)
+      return Requisition(
         RequisitionExternalKey(campaignExternalKey, REQUISITION_ID),
-        IRRELEVANT_INSTANT,
-        IRRELEVANT_INSTANT,
+        windowStartTime,
+        windowEndTime,
         RequisitionState.UNFULFILLED
       )
+    }
 
     override suspend fun fulfillRequisition(
       requisitionExternalKey: RequisitionExternalKey
@@ -91,7 +101,7 @@ class RequisitionServiceTest {
     val serverName = InProcessServerBuilder.generateName()
     grpcCleanup.register(InProcessServerBuilder.forName(serverName)
                            .directExecutor()
-                           .addService(RequisitionService(fakeMeasurementProviderStorage))
+                           .addService(RequisitionService(FakeMeasurementProviderStorage))
                            .build()
                            .start())
 
@@ -103,6 +113,15 @@ class RequisitionServiceTest {
   fun createMetricRequisition() = runBlocking {
     val request = CreateMetricRequisitionRequest.newBuilder().apply {
       parent = CAMPAIGN_API_KEY
+      metricsRequisitionBuilder.apply {
+        collectionIntervalBuilder.apply {
+          startTime = WINDOW_START_TIME.toProtoTime()
+          endTime = WINDOW_END_TIME.toProtoTime()
+        }
+        metricDefinitionBuilder.apply {
+          // TODO: add a definition
+        }
+      }
     }.build()
 
     val result = blockingStub.createMetricRequisition(request)

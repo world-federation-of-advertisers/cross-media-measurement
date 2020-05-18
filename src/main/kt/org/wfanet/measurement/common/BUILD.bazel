@@ -66,3 +66,11 @@ kt_jvm_library(
     srcs = ["DuchyOrder.kt"],
     deps = [":duchy_role"],
 )
+
+kt_jvm_library(
+    name = "proto_utils",
+    srcs = ["ProtoUtils.kt"],
+    deps = [
+        "@com_google_protobuf//:protobuf_java",
+    ],
+)

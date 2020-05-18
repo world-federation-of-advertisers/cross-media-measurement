@@ -7,13 +7,14 @@ import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
 import org.wfanet.measurement.common.Pagination
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.CampaignExternalKey
 import org.wfanet.measurement.db.MeasurementProviderStorage
 import org.wfanet.measurement.db.Requisition
-import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toExternalKey
+import org.wfanet.measurement.service.v1alpha.common.toRequisitionDetails
+import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toV1Api
-
 
 class RequisitionService(
   private val measurementProviderStorage: MeasurementProviderStorage
@@ -23,7 +24,13 @@ class RequisitionService(
     request: CreateMetricRequisitionRequest
   ): MetricRequisition {
     val key = request.parent.toExternalKey()
-    return measurementProviderStorage.createRequisition(key).toV1Api()
+    val metricsRequisition = request.metricsRequisition
+    val requisitionDetails = metricsRequisition.metricDefinition.toRequisitionDetails()
+    val startTime = metricsRequisition.collectionInterval.startTime.toInstant()
+    val endTime = metricsRequisition.collectionInterval.endTime.toInstant()
+    val requisition =
+      measurementProviderStorage.createRequisition(key, requisitionDetails, startTime, endTime)
+    return requisition.toV1Api()
   }
 
   override suspend fun fulfillMetricRequisition(

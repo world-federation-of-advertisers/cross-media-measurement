@@ -21,5 +21,6 @@ kt_jvm_library(
         ":keys",
         "//src/main/kt/org/wfanet/measurement/common:identifiers",
         "//src/main/kt/org/wfanet/measurement/db:measurement_provider",
+        "//src/main/proto/wfa/measurement/internal:requisition_details_java_proto",
     ],
 )
