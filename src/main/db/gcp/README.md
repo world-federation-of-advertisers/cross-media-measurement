@@ -35,8 +35,8 @@ $ gcloud spanner instances create test-instance \
 
 ### Make a Spanner database
 
-Note that the emulator doesn't support foreign keys,
-so we need to strip them out.
+Note that the emulator doesn't support foreign keys, so we need to strip them
+out.
 
 We also strip out comments.
 
@@ -50,5 +50,5 @@ $ gcloud spanner databases \
 
 ### Using it
 
-Now, you can run some sample operations with `gcloud spanner`
-or connect to the database in code using `localhost:9010`.
+Now, you can run some sample operations with `gcloud spanner` or connect to the
+database in code using `localhost:9010`.

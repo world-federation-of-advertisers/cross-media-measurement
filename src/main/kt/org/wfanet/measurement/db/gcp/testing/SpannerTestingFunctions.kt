@@ -40,17 +40,17 @@ fun assertQueryReturns(dbClient: DatabaseClient, sqlQuery: String, vararg expect
   assertEquals(
     expected.toList(), results,
     """
-   Expected:
-     Columns (should be one item)
-       $expectedColumns
-     Values (one item per row)
-       ${expectedList.debugString()}
-   but was:
-     Columns (should be one item)
-       $resultsColumns
-     Values (one item per row)
-       ${results.debugString()}
-   """.trimIndent()
+    Expected:
+      Columns (should be one item)
+        $expectedColumns
+      Values (one item per row)
+        ${expectedList.debugString()}
+    but was:
+      Columns (should be one item)
+        $resultsColumns
+      Values (one item per row)
+        ${results.debugString()}
+    """.trimIndent()
   )
 }
 
@@ -59,9 +59,10 @@ fun assertQueryReturnsNothing(dbClient: DatabaseClient, sqlQuery: String) {
   val resultsColumns = results.map { it.type.toString() }.toSet()
   assertTrue(
     results.isEmpty(),
-    "Expected no results, but got $resultsColumns with values ${results.debugString()}")
+    "Expected no results, but got $resultsColumns with values ${results.debugString()}"
+  )
 }
 
-private fun List<Struct>.debugString() : String {
-  return this.map(Struct::toString).joinToString("\n", postfix="\n")
+private fun List<Struct>.debugString(): String {
+  return this.map(Struct::toString).joinToString("\n", postfix = "\n")
 }

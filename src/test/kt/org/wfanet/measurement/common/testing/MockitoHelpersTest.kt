@@ -1,11 +1,11 @@
 package org.wfanet.measurement.common.testing
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFails
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.Mockito
-import kotlin.test.assertFails
 
 class Foo
 

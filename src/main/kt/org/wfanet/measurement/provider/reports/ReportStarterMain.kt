@@ -1,5 +1,7 @@
 package org.wfanet.measurement.provider.reports
 
+import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.AdaptiveThrottler
@@ -8,8 +10,6 @@ import org.wfanet.measurement.common.doubleFlag
 import org.wfanet.measurement.common.durationFlag
 import org.wfanet.measurement.common.intFlag
 import org.wfanet.measurement.common.longFlag
-import java.time.Clock
-import java.time.Duration
 
 object ReportStarterFlags {
   val MAX_PARALLELISM = intFlag("max-parallelism", 32)

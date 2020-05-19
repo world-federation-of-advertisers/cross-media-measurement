@@ -35,11 +35,11 @@ class DuchyOrder(nodes: Set<Duchy>) {
 
     return DuchyPosition(
       role =
-      when {
-        indexOfThisDuchy < 0 -> error("Duchy not in computation?")
-        indexOfThisDuchy == 0 -> DuchyRole.PRIMARY
-        else -> DuchyRole.SECONDARY
-      },
+        when {
+          indexOfThisDuchy < 0 -> error("Duchy not in computation?")
+          indexOfThisDuchy == 0 -> DuchyRole.PRIMARY
+          else -> DuchyRole.SECONDARY
+        },
       prev = ordered.wrapAroundGet(indexOfThisDuchy - 1),
       next = ordered.wrapAroundGet(indexOfThisDuchy + 1)
     )

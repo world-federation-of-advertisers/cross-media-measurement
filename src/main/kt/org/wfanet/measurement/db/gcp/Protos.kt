@@ -17,6 +17,6 @@ fun Message.toSpannerByteArray(): ByteArray {
 }
 
 /** Parse a spanner [ByteArray] into a protobuf [Message]. */
-fun <T: Message> ByteArray.toProtobufMessage(parser: Parser<T>): T {
+fun <T : Message> ByteArray.toProtobufMessage(parser: Parser<T>): T {
   return parser.parseFrom(this.toByteArray())
 }

@@ -91,10 +91,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-       SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner, LockExpirationTime,
-              ComputationDetails, ComputationDetailsJSON
-       FROM Computations
-       ORDER BY ComputationId
+      SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner, LockExpirationTime,
+             ComputationDetails, ComputationDetailsJSON
+      FROM Computations
+      ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId123.localId)
@@ -120,16 +120,18 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     // the update time was set to a recent enough timestamp.
     assertQueryReturnsNothing(
       spanner.client,
-      """SELECT ComputationId, UpdateTime FROM Computations
-        WHERE UpdateTime is NULL OR UpdateTime < '$fiveMinutesAgo'""".trimIndent()
+      """
+      SELECT ComputationId, UpdateTime FROM Computations
+      WHERE UpdateTime is NULL OR UpdateTime < '$fiveMinutesAgo'
+      """.trimIndent()
     )
 
     assertQueryReturns(
       spanner.client,
       """
-       SELECT ComputationId, ComputationStage, NextAttempt, EndTime, Details, DetailsJSON
-       FROM ComputationStages
-       ORDER BY ComputationId
+      SELECT ComputationId, ComputationStage, NextAttempt, EndTime, Details, DetailsJSON
+      FROM ComputationStages
+      ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId123.localId)
@@ -153,8 +155,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     // the creation time was set to a recent enough timestamp.
     assertQueryReturnsNothing(
       spanner.client,
-      """SELECT ComputationId, CreationTime FROM ComputationStages
-        WHERE CreationTime is NULL OR CreationTime < '$fiveMinutesAgo'""".trimIndent()
+      """
+      SELECT ComputationId, CreationTime FROM ComputationStages
+      WHERE CreationTime is NULL OR CreationTime < '$fiveMinutesAgo'
+      """.trimIndent()
     )
 
     assertQueryReturnsNothing(
@@ -164,9 +168,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-       SELECT ComputationId, ComputationStage, Attempt, EndTime
-       FROM ComputationStageAttempts
-       ORDER BY ComputationId
+      SELECT ComputationId, ComputationStage, Attempt, EndTime
+      FROM ComputationStageAttempts
+      ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId123.localId)
@@ -186,8 +190,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     // the begin time was set to a recent enough timestamp.
     assertQueryReturnsNothing(
       spanner.client,
-      """SELECT ComputationId, BeginTime FROM ComputationStageAttempts
-        WHERE BeginTime is NULL OR BeginTime < '$fiveMinutesAgo'""".trimIndent()
+      """
+      SELECT ComputationId, BeginTime FROM ComputationStageAttempts
+      WHERE BeginTime is NULL OR BeginTime < '$fiveMinutesAgo'
+      """.trimIndent()
     )
   }
 

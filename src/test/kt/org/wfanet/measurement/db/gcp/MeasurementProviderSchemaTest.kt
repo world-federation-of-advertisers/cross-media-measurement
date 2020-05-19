@@ -29,6 +29,7 @@ class MeasurementProviderSchemaTest :
       Struct.newBuilder()
         .set("AdvertiserId").to(3011)
         .set("ExternalAdvertiserId").to(1)
-        .build())
+        .build()
+    )
   }
 }

@@ -15,9 +15,11 @@ data class ExternalId(val value: Long) {
   }
 
   val apiId: ApiId by lazy {
-    ApiId(Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(value.toByteArray()))
+    ApiId(
+      Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(value.toByteArray())
+    )
   }
 }
 

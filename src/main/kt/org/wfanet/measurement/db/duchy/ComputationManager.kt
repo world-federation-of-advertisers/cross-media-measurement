@@ -68,7 +68,6 @@ class ComputationManager<T : Enum<T>>(
     blobsRequiredForOutput: Collection<BlobName> = listOf(),
     afterTransition: AfterTransition
   ): ComputationToken<T> {
-
     val refs = HashSet<BlobRef>(blobToCarryForward)
 
     for ((ref, bytes) in blobsToWrite) {
@@ -120,8 +119,10 @@ class ComputationManager<T : Enum<T>>(
       BlobDependencyType.INPUT
     )
       .map {
-        BlobRef(it.key,
-                checkNotNull(it.value) { "INPUT BLOB $it missing a path." })
+        BlobRef(
+          it.key,
+          checkNotNull(it.value) { "INPUT BLOB $it missing a path." }
+        )
       }
       // TODO: Read input blobs in parallel
       .map { it to blobDatabase.read(it) }
@@ -151,7 +152,6 @@ class ComputationManager<T : Enum<T>>(
     blobName: BlobRef,
     blob: ByteArray
   ) {
-
     blobDatabase.blockingWrite(blobName, blob)
     relationalDatabase.writeOutputBlobReference(token, blobName)
   }

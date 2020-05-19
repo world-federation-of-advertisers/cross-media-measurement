@@ -7,6 +7,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -15,7 +16,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpc
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class PublisherDataImplTest {
@@ -28,14 +28,21 @@ class PublisherDataImplTest {
   @Before
   fun setup() {
     val serverName = InProcessServerBuilder.generateName()
-    grpcCleanup.register(InProcessServerBuilder.forName(serverName)
-                           .directExecutor()
-                           .addService(PublisherDataImpl())
-                           .build()
-                           .start())
+    grpcCleanup.register(
+      InProcessServerBuilder.forName(serverName)
+        .directExecutor()
+        .addService(PublisherDataImpl())
+        .build()
+        .start()
+    )
     blockingStub =
-      PublisherDataGrpc.newBlockingStub(grpcCleanup.register(InProcessChannelBuilder.forName(
-        serverName).directExecutor().build()))
+      PublisherDataGrpc.newBlockingStub(
+        grpcCleanup.register(
+          InProcessChannelBuilder.forName(
+            serverName
+          ).directExecutor().build()
+        )
+      )
   }
 
   @Test
@@ -52,15 +59,23 @@ class PublisherDataImplTest {
     val fakeKey = "Ceci n'est pas une clé"
 
     val response =
-      blockingStub!!.getCombinedPublicKey(GetCombinedPublicKeyRequest.newBuilder()
-                                            .setKey(CombinedPublicKey.Key.newBuilder()
-                                                      .setCombinedPublicKeyId(fakeKey))
-                                            .build())
+      blockingStub!!.getCombinedPublicKey(
+        GetCombinedPublicKeyRequest.newBuilder()
+          .setKey(
+            CombinedPublicKey.Key.newBuilder()
+              .setCombinedPublicKeyId(fakeKey)
+          )
+          .build()
+      )
 
     ProtoTruth.assertThat(response)
-      .isEqualTo(CombinedPublicKey.newBuilder()
-                   .setKey(CombinedPublicKey.Key.newBuilder()
-                             .setCombinedPublicKeyId(fakeKey))
-                   .build())
+      .isEqualTo(
+        CombinedPublicKey.newBuilder()
+          .setKey(
+            CombinedPublicKey.Key.newBuilder()
+              .setCombinedPublicKeyId(fakeKey)
+          )
+          .build()
+      )
   }
 }

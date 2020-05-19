@@ -25,7 +25,8 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
       Struct.newBuilder()
         .set("ComputationId").to(computationId)
         .set("ComputationStage").to(1)
-        .build())
+        .build()
+    )
   }
 
   @Test
@@ -48,7 +49,8 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
         .set("ComputationId").to(computationId)
         .set("ComputationStage").to(2)
         .set("NextAttempt").to(3)
-        .build())
+        .build()
+    )
   }
 
   private fun makeInsertMutation(): Mutation {

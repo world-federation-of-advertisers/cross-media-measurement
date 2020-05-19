@@ -132,4 +132,3 @@ fun durationFlag(name: String, default: Duration): Flag<Duration> =
   Flag(name, default, String::parseDuration)
 
 class FlagError(message: String) : Exception(message)
-

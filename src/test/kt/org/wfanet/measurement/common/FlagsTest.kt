@@ -1,12 +1,12 @@
 package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
+import java.time.Duration
+import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import java.time.Duration
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class ArgsTest {
@@ -98,12 +98,14 @@ class ArgsTest {
     longFlag("baz", 0)
     booleanFlag("qux", false)
 
-    Flags.parse(listOf(
-      "--foo=def",
-      "-bar=456",
-      "-baz=0xabcdef",
-      "--qux=1"
-    ))
+    Flags.parse(
+      listOf(
+        "--foo=def",
+        "-bar=456",
+        "-baz=0xabcdef",
+        "--qux=1"
+      )
+    )
 
     assertThat(Flags["foo"]!!.value).isEqualTo("def")
     assertThat(Flags["bar"]!!.value).isEqualTo(456)

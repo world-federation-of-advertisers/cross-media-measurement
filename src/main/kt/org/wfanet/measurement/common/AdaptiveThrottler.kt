@@ -2,12 +2,12 @@
 
 package org.wfanet.measurement.common
 
-import kotlinx.coroutines.delay
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.ArrayDeque
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /**
  * Provides an adaptive throttler.

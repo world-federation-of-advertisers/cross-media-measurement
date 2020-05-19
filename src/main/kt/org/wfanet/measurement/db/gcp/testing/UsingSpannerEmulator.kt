@@ -60,15 +60,14 @@ abstract class UsingSpannerEmulator(schemaResourcePath: String) {
 
     @ClassRule
     @JvmField
-      /**
-       * Creates a test instance in the spanner emulator before running tests and deletes it
-       * after all tests.
-       */
+    /**
+     * Creates a test instance in the spanner emulator before running tests and deletes it
+     * after all tests.
+     */
     val spannerInstanceClassRule = object : ExternalResource() {
 
       override fun before() {
         withSpannerInstanceAdminClient {
-
           it.createInstance(
             InstanceInfo.newBuilder(InstanceId.of(project, instance))
               .setDisplayName("Test Instance")

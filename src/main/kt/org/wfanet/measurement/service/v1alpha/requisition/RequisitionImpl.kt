@@ -7,7 +7,6 @@ import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
 
-
 class RequisitionImpl : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
   override suspend fun createMetricRequisition(
     request: CreateMetricRequisitionRequest

@@ -5,8 +5,7 @@ kt_jvm_test(
     srcs = ["MockitoHelpersTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.MockitoHelpersTest",
     deps = [
+        "//:unit_testing_core",
         "//src/main/kt/org/wfanet/measurement/common/testing:mockito_helpers",
-        "//:unit_testing_core"
     ],
 )
-

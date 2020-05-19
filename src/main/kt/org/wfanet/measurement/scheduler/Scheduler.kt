@@ -2,10 +2,10 @@
 
 package org.wfanet.measurement.scheduler
 
-import kotlinx.coroutines.delay
-import org.wfanet.measurement.common.AdaptiveThrottler
 import java.time.Duration
 import kotlin.random.Random
+import kotlinx.coroutines.delay
+import org.wfanet.measurement.common.AdaptiveThrottler
 
 enum class TaskState {
   // Indicates that a task was executed and there may be more tasks to perform.
