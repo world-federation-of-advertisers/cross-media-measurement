@@ -4,9 +4,7 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt
 
@@ -28,15 +26,10 @@ class PublisherDataClient : Closeable {
 
   suspend fun getCombinedPublicKey() = coroutineScope {
     println("Sending request to GetCombinedPublicKey...")
-    val response = async {
-      stub.getCombinedPublicKey(
-        GetCombinedPublicKeyRequest.newBuilder().setKey(
-          CombinedPublicKey.Key.newBuilder()
-            .setCombinedPublicKeyId("\"Ceci n'est pas une clé\"")
-        )
-          .build()
-      )
-    }
-    println("Response: ${response.await()}")
+    val request = GetCombinedPublicKeyRequest.newBuilder().apply {
+      keyBuilder.combinedPublicKeyId = "\"Ceci n'est pas une clé\""
+    }.build()
+    val response = stub.getCombinedPublicKey(request)
+    println("Response: $response")
   }
 }
