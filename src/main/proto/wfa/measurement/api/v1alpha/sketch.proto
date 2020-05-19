@@ -89,7 +89,7 @@ message Distribution {
 // Enriched cardinality sketch config.
 message SketchConfig {
   // The sketch may be GENERIC or using a specific optimized implementation.
-  enum SketchType {GENERIC = 0;}
+  enum SketchType { GENERIC = 0; }
   // Index specification.
   // Indexes are unsigned integers.
   message IndexSpec {
