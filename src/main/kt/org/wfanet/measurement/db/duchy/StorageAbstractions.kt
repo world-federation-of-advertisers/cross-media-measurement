@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db
+package org.wfanet.measurement.db.duchy
 
 import org.wfanet.measurement.common.DuchyRole
 

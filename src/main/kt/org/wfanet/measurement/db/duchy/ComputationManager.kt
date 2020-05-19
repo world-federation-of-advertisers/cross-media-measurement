@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db
+package org.wfanet.measurement.db.duchy
 
 import java.io.IOException
 
@@ -115,7 +115,10 @@ class ComputationManager<T : Enum<T>>(
    * @throws [IOException] upon failure
    */
   fun readInputBlobs(c: ComputationToken<T>): Map<BlobRef, ByteArray> {
-    return readBlobReferenceNames(c, BlobDependencyType.INPUT)
+    return readBlobReferenceNames(
+      c,
+      BlobDependencyType.INPUT
+    )
       .map {
         BlobRef(it.key,
                 checkNotNull(it.value) { "INPUT BLOB $it missing a path." })
@@ -144,7 +147,9 @@ class ComputationManager<T : Enum<T>>(
    * @throws [IOException] upon failure
    */
   fun writeAndRecordOutputBlob(
-    token: ComputationToken<T>, blobName: BlobRef, blob: ByteArray
+    token: ComputationToken<T>,
+    blobName: BlobRef,
+    blob: ByteArray
   ) {
 
     blobDatabase.blockingWrite(blobName, blob)

@@ -1,0 +1,21 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
+
+kt_jvm_library(
+    name = "compuations_manager",
+    srcs = ["ComputationManager.kt"],
+    deps = [
+        ":storage_abstractions",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_abstractions",
+    srcs = [
+        "StorageAbstractions.kt",
+    ],
+    deps = [
+        "//src/main/kt/org/wfanet/measurement/common:duchy_role",
+    ],
+)

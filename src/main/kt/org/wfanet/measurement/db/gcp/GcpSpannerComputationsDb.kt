@@ -8,12 +8,12 @@ import org.wfa.measurement.internal.db.gcp.ComputationDetails
 import org.wfa.measurement.internal.db.gcp.ComputationStageDetails
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
-import org.wfanet.measurement.db.AfterTransition
-import org.wfanet.measurement.db.BlobDependencyType
-import org.wfanet.measurement.db.BlobName
-import org.wfanet.measurement.db.BlobRef
-import org.wfanet.measurement.db.ComputationToken
-import org.wfanet.measurement.db.ComputationsRelationalDb
+import org.wfanet.measurement.db.duchy.AfterTransition
+import org.wfanet.measurement.db.duchy.BlobDependencyType
+import org.wfanet.measurement.db.duchy.BlobName
+import org.wfanet.measurement.db.duchy.BlobRef
+import org.wfanet.measurement.db.duchy.ComputationToken
+import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.

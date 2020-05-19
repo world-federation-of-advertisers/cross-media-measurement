@@ -27,7 +27,7 @@ kt_jvm_library(
     deps = [
         ":spanner",
         "//src/main/kt/org/wfanet/measurement/common:duchy_order",
-        "//src/main/kt/org/wfanet/measurement/db:storage_abstractions",
+        "//src/main/kt/org/wfanet/measurement/db/duchy:storage_abstractions",
         "//src/main/proto/wfa/measurement/internal/db/gcp:computations_java_proto",
     ],
 )

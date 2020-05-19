@@ -14,9 +14,9 @@ import org.wfa.measurement.internal.db.gcp.ComputationStageDetails
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
-import org.wfanet.measurement.db.AfterTransition
-import org.wfanet.measurement.db.BlobRef
-import org.wfanet.measurement.db.ComputationToken
+import org.wfanet.measurement.db.duchy.AfterTransition
+import org.wfanet.measurement.db.duchy.BlobRef
+import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing

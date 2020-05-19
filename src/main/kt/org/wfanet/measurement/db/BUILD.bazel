@@ -3,23 +3,6 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_libra
 package(default_visibility = ["//src/main/kt/org/wfanet/measurement:__subpackages__"])
 
 kt_jvm_library(
-    name = "compuations_manager",
-    srcs = ["ComputationManager.kt"],
-    deps = [
-        ":storage_abstractions",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "@com_google_protobuf//:protobuf_java",
-        "@com_google_protobuf//:protobuf_java_util",
-    ],
-)
-
-kt_jvm_library(
-    name = "storage_abstractions",
-    srcs = ["StorageAbstractions.kt"],
-    deps = ["//src/main/kt/org/wfanet/measurement/common:duchy_role"],
-)
-
-kt_jvm_library(
     name = "measurement_provider",
     srcs = [
         "MeasurementProviderModels.kt",
