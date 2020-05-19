@@ -1,4 +1,4 @@
-load(":macros.bzl", "java_and_kt_grpc_library")
+load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
 
 package(default_visibility = ["//visibility:public"])
 

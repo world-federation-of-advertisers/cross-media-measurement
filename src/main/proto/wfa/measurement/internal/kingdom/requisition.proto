@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+option java_package = "org.wfa.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/requisition_details.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/requisition_state.proto";
+
+message Requisition {
+  // Primary Key
+  fixed64 data_provider_id= 1;
+  fixed64 campaign_id = 2;
+  fixed64 requisition_id = 3;
+
+  fixed64 external_requisition_id = 4;
+
+  google.protobuf.Timestamp window_start_time = 5;
+  google.protobuf.Timestamp window_end_time = 6;
+
+  RequisitionState state = 7;
+
+  RequisitionDetails requisition_details = 8;
+  string requisition_details_json = 9;
+}

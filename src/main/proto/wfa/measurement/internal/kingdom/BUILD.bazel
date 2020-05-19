@@ -1,0 +1,36 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load(":macros.bzl", "proto_and_java_proto_library")
+load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
+
+package(default_visibility = ["//:__subpackages__"])
+
+proto_and_java_proto_library(
+    name = "requisition",
+    deps = [
+        ":requisition_details_proto",
+        ":requisition_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_and_java_proto_library(
+    name = "requisition_details",
+    deps = [
+        "//src/main/proto/wfa/measurement/internal:metric_definition_proto",
+    ],
+)
+
+proto_and_java_proto_library(
+    name = "requisition_state",
+)
+
+proto_library(
+    name = "requisition_service_proto",
+    srcs = ["requisition_service.proto"],
+    deps = [":requisition_proto"],
+)
+
+java_and_kt_grpc_library(
+    name = "requisition_service",
+    deps = [":requisition_service_proto"],
+)

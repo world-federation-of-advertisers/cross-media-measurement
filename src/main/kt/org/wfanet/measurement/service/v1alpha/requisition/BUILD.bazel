@@ -13,7 +13,6 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//src/main/kt/org/wfanet/measurement/common:identifiers",
-        "//src/main/proto/wfa/measurement/internal:requisition_details_java_proto",
         "//src/main/kt/org/wfanet/measurement/common:pagination",
         "//src/main/kt/org/wfanet/measurement/common:proto_utils",
         "//src/main/kt/org/wfanet/measurement/db:measurement_provider",
@@ -21,5 +20,6 @@ kt_jvm_library(
         "//src/main/kt/org/wfanet/measurement/service/v1alpha/common:proto_conversions",
         "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
     ],
 )

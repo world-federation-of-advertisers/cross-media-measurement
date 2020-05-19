@@ -11,6 +11,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfa.measurement.internal.RequisitionDetails
+import org.wfa.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.api.v1alpha.Campaign
 import org.wfanet.measurement.api.v1alpha.CreateMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest

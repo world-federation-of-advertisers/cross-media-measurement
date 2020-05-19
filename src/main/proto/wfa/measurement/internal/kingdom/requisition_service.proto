@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+option java_package = "org.wfa.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+import "src/main/proto/wfa/measurement/internal/kingdom/requisition.proto";
+
+// Service for internal use to wrap direct database access.
+//
+// There are two categories of binary in the Kingdom:
+//   - API servers: these can use an in-process implementation of this.
+//   - Daemons/cronjobs: these will call out to this service.
+service RequisitionService {
+  // Creates a new DatabaseRequisition in the database. The `requisition_id` and
+  // `external_requisition_id` fields are ignored. This is idempotent.
+  rpc CreateDatabaseRequisition(Requisition)
+    returns (Requisition);
+}
+

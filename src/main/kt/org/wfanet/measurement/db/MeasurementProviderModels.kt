@@ -1,6 +1,5 @@
 package org.wfanet.measurement.db
 
-import java.time.Instant
 import org.wfanet.measurement.common.ExternalId
 
 data class DataProviderExternalKey(
@@ -24,14 +23,3 @@ data class RequisitionExternalKey(
     this(campaignExternalKey.dataProviderExternalId, campaignExternalKey.externalId, externalId)
 }
 
-enum class RequisitionState {
-  UNFULFILLED,
-  FULFILLED,
-}
-
-data class Requisition(
-  val externalKey: RequisitionExternalKey,
-  val windowStartTime: Instant,
-  val windowEndTime: Instant,
-  val state: RequisitionState
-)

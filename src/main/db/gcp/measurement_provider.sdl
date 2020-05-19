@@ -205,7 +205,7 @@ CREATE TABLE Requisitions (
   WindowStartTime        TIMESTAMP NOT NULL,
   WindowEndTime          TIMESTAMP NOT NULL,
 
-  State                  INT64 NOT NULL,  -- Some state proto enum.
+  State                  INT64 NOT NULL,  -- RequisitionState proto enum
 
   -- RequisitionDetails serialized proto
   RequisitionDetails     BYTES(MAX),
