@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
@@ -17,9 +17,13 @@ import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
+import org.wfanet.measurement.db.gcp.GcpSpannerComputationsDb
+import org.wfanet.measurement.db.gcp.LocalComputationIdGenerator
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
+import org.wfanet.measurement.db.gcp.toJson
+import org.wfanet.measurement.db.gcp.toSpannerByteArray
 
 @RunWith(JUnit4::class)
 class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -32,15 +36,17 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
   )
 
-  private val database = GcpSpannerComputationsDb<SketchAggregationState>(
-    spanner.spanner,
-    spanner.databaseId,
-    "AUSTRIA",
-    order,
-    localComputationIdGenerator = LocalIdIsGlobalIdPlusOne
-  )
+  private val database =
+    GcpSpannerComputationsDb<SketchAggregationState>(
+      spanner.spanner,
+      spanner.databaseId,
+      "AUSTRIA",
+      order,
+      localComputationIdGenerator = LocalIdIsGlobalIdPlusOne
+    )
 
-  object LocalIdIsGlobalIdPlusOne : LocalComputationIdGenerator {
+  object LocalIdIsGlobalIdPlusOne :
+    LocalComputationIdGenerator {
     override fun localId(globalId: Long): Long {
       return globalId + 1
     }
