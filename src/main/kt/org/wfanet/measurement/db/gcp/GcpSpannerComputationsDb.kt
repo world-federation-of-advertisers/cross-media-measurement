@@ -14,6 +14,7 @@ import org.wfanet.measurement.db.duchy.BlobName
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
+import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
@@ -24,10 +25,15 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
   private val localComputationIdGenerator: LocalComputationIdGenerator,
-  private val blobStorageBucket: String = "knight-computation-stage-storage"
+  private val blobStorageBucket: String = "knight-computation-stage-storage",
+  private val stateEnumHelper: ProtocolStateEnumHelper<T>
 ) : ComputationsRelationalDb<T> {
 
   override fun insertComputation(globalId: Long, initialState: T): ComputationToken<T> {
+    require(
+      stateEnumHelper.validInitialState(initialState)
+    ) { "Invalid initial state $initialState" }
+
     val localId: Long = localComputationIdGenerator.localId(globalId)
     val computationAtThisDuchy = duchyOrder.positionFor(globalId, duchyName)
 
@@ -41,9 +47,10 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       blobsStoragePrefix = "$blobStorageBucket/$localId"
     }.build()
 
+    val initialStateAsInt64 = stateEnumHelper.enumToLong(initialState)
     val computationRow = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(localId)
-      .set("ComputationStage").to(initialState.ordinal.toLong())
+      .set("ComputationStage").to(initialStateAsInt64)
       .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
       .set("GlobalComputationId").to(globalId)
       .set("ComputationDetails").to(details.toSpannerByteArray())
@@ -54,7 +61,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     val stageDetails = ComputationStageDetails.getDefaultInstance()
     val computationStageRow = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(localId)
-      .set("ComputationStage").to(initialState.ordinal.toLong())
+      .set("ComputationStage").to(initialStateAsInt64)
       .set("CreationTime").to(Value.COMMIT_TIMESTAMP)
       // The stage is being attempted right now.
       .set("NextAttempt").to(2)
@@ -64,7 +71,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 
     val computationStageAttemptRow = Mutation.newInsertBuilder("ComputationStageAttempts")
       .set("ComputationId").to(localId)
-      .set("ComputationStage").to(initialState.ordinal.toLong())
+      .set("ComputationStage").to(initialStateAsInt64)
       // The stage is being attempted right now.
       .set("Attempt").to(1)
       .set("BeginTime").to(Value.COMMIT_TIMESTAMP)

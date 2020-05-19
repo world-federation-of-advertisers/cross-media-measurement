@@ -8,7 +8,6 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfa.measurement.internal.SketchAggregationState
 import org.wfa.measurement.internal.db.gcp.ComputationDetails
 import org.wfa.measurement.internal.db.gcp.ComputationStageDetails
 import org.wfanet.measurement.common.Duchy
@@ -17,6 +16,7 @@ import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
+import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
 import org.wfanet.measurement.db.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.gcp.LocalComputationIdGenerator
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
@@ -24,6 +24,44 @@ import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
 import org.wfanet.measurement.db.gcp.toJson
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
+
+/**
+ * +--------------+
+ * |              |
+ * |              v
+ * A -> B -> C -> E
+ *      |         ^
+ *      v         |
+ *      D --------+
+ */
+enum class FakeProtocolStates {
+  A, B, C, D, E;
+}
+
+object ProtocolHelper : ProtocolStateEnumHelper<FakeProtocolStates> {
+  override val validInitialStates = setOf(FakeProtocolStates.A)
+  override val validSuccessors = mapOf(
+    FakeProtocolStates.A to setOf(FakeProtocolStates.B, FakeProtocolStates.E),
+    FakeProtocolStates.B to setOf(FakeProtocolStates.C, FakeProtocolStates.D),
+    FakeProtocolStates.C to setOf(FakeProtocolStates.E),
+    FakeProtocolStates.D to setOf(FakeProtocolStates.E)
+  )
+
+  override fun enumToLong(value: FakeProtocolStates): Long {
+    return value.ordinal.toLong()
+  }
+
+  override fun longToEnum(value: Long): FakeProtocolStates {
+    return when (value) {
+      0L -> FakeProtocolStates.A
+      1L -> FakeProtocolStates.B
+      2L -> FakeProtocolStates.C
+      3L -> FakeProtocolStates.D
+      4L -> FakeProtocolStates.E
+      else -> error("Bad value")
+    }
+  }
+}
 
 @RunWith(JUnit4::class)
 class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -37,12 +75,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   )
 
   private val database =
-    GcpSpannerComputationsDb<SketchAggregationState>(
+    GcpSpannerComputationsDb(
       spanner.spanner,
       spanner.databaseId,
       "AUSTRIA",
       order,
-      localComputationIdGenerator = LocalIdIsGlobalIdPlusOne
+      localComputationIdGenerator = LocalIdIsGlobalIdPlusOne,
+      stateEnumHelper = ProtocolHelper
     )
 
   object LocalIdIsGlobalIdPlusOne :
@@ -55,12 +94,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `insert two computations`() {
     val fiveMinutesAgo = Timestamp.ofTimeSecondsAndNanos(System.currentTimeMillis() / 1000 - 300, 0)
-    val resultId123 = database.insertComputation(123L, SketchAggregationState.STARTING)
-    val resultId220 = database.insertComputation(220L, SketchAggregationState.STARTING)
+    val resultId123 = database.insertComputation(123L, FakeProtocolStates.A)
+    val resultId220 = database.insertComputation(220L, FakeProtocolStates.A)
     assertEquals(
       ComputationToken(
         localId = 124, nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
-        owner = null, attempt = 1, state = SketchAggregationState.STARTING,
+        owner = null, attempt = 1, state = FakeProtocolStates.A,
         globalId = 123L
       ),
       resultId123
@@ -69,7 +108,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertEquals(
       ComputationToken(
         localId = 221, nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
-        owner = null, attempt = 1, state = SketchAggregationState.STARTING,
+        owner = null, attempt = 1, state = FakeProtocolStates.A,
         globalId = 220
       ),
       resultId220
@@ -199,10 +238,26 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun `insert computation fails`() {
-    database.insertComputation(123L, SketchAggregationState.STARTING)
+    database.insertComputation(123L, FakeProtocolStates.A)
     // This one fails because the same local id is used.
     assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
-      database.insertComputation(123L, SketchAggregationState.STARTING)
+      database.insertComputation(123L, FakeProtocolStates.A)
+    }
+  }
+
+  @Test
+  fun `insert computation with bad initial state fails`() {
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
+      database.insertComputation(123L, FakeProtocolStates.B)
+    }
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
+      database.insertComputation(123L, FakeProtocolStates.C)
+    }
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
+      database.insertComputation(123L, FakeProtocolStates.D)
+    }
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
+      database.insertComputation(123L, FakeProtocolStates.E)
     }
   }
 
@@ -210,7 +265,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun `unimplemented interface functions`() {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
-      owner = null, attempt = 1, state = SketchAggregationState.STARTING,
+      owner = null, attempt = 1, state = FakeProtocolStates.A,
       globalId = 0
     )
     assertFailsWith(NotImplementedError::class) { database.claimTask("owner") }
@@ -221,7 +276,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertFailsWith(NotImplementedError::class) {
       database.updateComputationState(
         token,
-        SketchAggregationState.ADDING_NOISE,
+        FakeProtocolStates.B,
         listOf(),
         listOf(),
         AfterTransition.DO_NOT_ADD_TO_QUEUE
