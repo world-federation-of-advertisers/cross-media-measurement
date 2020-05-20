@@ -85,11 +85,19 @@ proto_library(
 )
 
 proto_library(
-    name = "registration_service_proto",
-    srcs = ["registration_service.proto"],
+    name = "advertiser_registration_service_proto",
+    srcs = ["advertiser_registration_service.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [
         ":advertiser_proto",
+    ],
+)
+
+proto_library(
+    name = "data_provider_registration_service_proto",
+    srcs = ["data_provider_registration_service.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
         ":data_provider_proto",
     ],
 )

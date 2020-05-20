@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+import "wfa/measurement/api/v1alpha/advertiser.proto";
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "AdvertiserRegistrationServiceProto";
+
+// Kingdom service for registration of advertisers.
+service AdvertiserRegistration {
+  // Creates (registers) an Advertiser.
+  rpc CreateAdvertiser(CreateAdvertiserRequest) returns (Advertiser) {}
+}
+
+// Request message for CreateAdvertiser method.
+message CreateAdvertiserRequest {
+  // The Advertiser to create. Required. The `key field will be ignored, and the
+  // system will assign an ID.
+  Advertiser advertiser = 1;
+}

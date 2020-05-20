@@ -24,7 +24,6 @@ message DataProvider {
 message Campaign {
   message Key {
     string data_provider_id = 1;
-    // ID within the data provider's system.
     string campaign_id = 2;
   }
   // Resource key.
@@ -35,4 +34,8 @@ message Campaign {
 
   // Display name.
   string display_name = 3;
+
+  // ID referencing the campaign in an external system, provided by the data
+  // provider.
+  string campaign_reference_id = 4;
 }
