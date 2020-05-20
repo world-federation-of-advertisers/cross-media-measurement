@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfa.measurement.internal.SketchAggregationState
+import org.wfanet.measurement.internal.SketchAggregationState
 
 @RunWith(JUnit4::class)
 class SketchAggregationStatesTest {

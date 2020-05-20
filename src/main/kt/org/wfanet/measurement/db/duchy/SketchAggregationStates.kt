@@ -1,7 +1,7 @@
 package org.wfanet.measurement.db.duchy
 
-import org.wfa.measurement.internal.SketchAggregationState
-import org.wfa.measurement.internal.SketchAggregationState.*
+import org.wfanet.measurement.internal.SketchAggregationState
+import org.wfanet.measurement.internal.SketchAggregationState.*
 
 /**
  * Implementation of [ProtocolStateEnumHelper] for [SketchAggregationState].

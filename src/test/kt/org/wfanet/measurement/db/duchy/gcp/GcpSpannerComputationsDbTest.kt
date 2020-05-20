@@ -8,8 +8,8 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfa.measurement.internal.db.gcp.ComputationDetails
-import org.wfa.measurement.internal.db.gcp.ComputationStageDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole

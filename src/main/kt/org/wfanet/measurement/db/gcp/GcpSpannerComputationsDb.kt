@@ -4,8 +4,8 @@ import com.google.cloud.spanner.DatabaseId
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.Value
-import org.wfa.measurement.internal.db.gcp.ComputationDetails
-import org.wfa.measurement.internal.db.gcp.ComputationStageDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition

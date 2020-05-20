@@ -7,9 +7,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.Requisition
-import org.wfanet.measurement.db.RequisitionExternalKey
-import org.wfanet.measurement.db.RequisitionState
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionState
 import java.time.Instant
 import kotlin.test.assertFails
 
@@ -17,12 +17,15 @@ import kotlin.test.assertFails
 class ProtoConversionsTest {
   @Test
   fun `convert Requisition to apiProto`() {
-    val requisition = Requisition(
-      externalKey = RequisitionExternalKey(ExternalId(1), ExternalId(2), ExternalId(3)),
-      state = RequisitionState.FULFILLED,
-      windowStartTime = Instant.MIN,
-      windowEndTime = Instant.MAX
-    )
+    val requisition = Requisition.newBuilder().apply {
+      externalDataProviderId = ExternalId(1).value
+      externalCampaignId = ExternalId(2).value
+      externalRequisitionId = ExternalId(3).value
+
+      state = RequisitionState.FULFILLED
+      windowStartTime = Instant.MIN.toProtoTime()
+      windowEndTime = Instant.MAX.toProtoTime()
+    }.build()
 
     assertThat(requisition.toV1Api())
       .isEqualTo(MetricRequisition.newBuilder().apply {

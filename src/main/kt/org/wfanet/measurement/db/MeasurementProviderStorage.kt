@@ -1,9 +1,9 @@
 package org.wfanet.measurement.db
 
 import java.time.Instant
-import org.wfa.measurement.internal.kingdom.Requisition
-import org.wfa.measurement.internal.kingdom.RequisitionDetails
-import org.wfa.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.common.Pagination
 
 interface MeasurementProviderStorage {

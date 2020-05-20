@@ -1,7 +1,7 @@
 package org.wfanet.measurement.provider.reports
 
 import kotlinx.coroutines.flow.Flow
-import org.wfa.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition
 
 // TODO(efoxepstein): implement these stubs in different files.
 class ScheduledReportConfig

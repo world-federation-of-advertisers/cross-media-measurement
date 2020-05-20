@@ -4,7 +4,7 @@ package wfa.measurement.internal.kingdom;
 
 import "src/main/proto/wfa/measurement/internal/metric_definition.proto";
 
-option java_package = "org.wfa.measurement.internal.kingdom";
+option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Used within the Measurement Provider database to serialize details about a

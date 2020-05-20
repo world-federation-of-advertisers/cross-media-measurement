@@ -1,17 +1,24 @@
 package org.wfanet.measurement.service.v1alpha.common
 
-import org.wfa.measurement.internal.RequisitionDetails
 import org.wfanet.measurement.api.v1alpha.MetricDefinition
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.db.Requisition
-import org.wfanet.measurement.db.RequisitionState
+import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.RequisitionExternalKey
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+import org.wfanet.measurement.internal.kingdom.RequisitionState
+
+val Requisition.requisitionExternalKey: RequisitionExternalKey
+  get() = RequisitionExternalKey(ExternalId(externalDataProviderId),
+                                 ExternalId(externalCampaignId),
+                                 ExternalId(externalRequisitionId))
 
 /**
  * Converts internal [Requisition] into a V1 API proto.
  */
 fun Requisition.toV1Api(): MetricRequisition =
   MetricRequisition.newBuilder().apply {
-    key = externalKey.toV1Api()
+    key = requisitionExternalKey.toV1Api()
     state = this@toV1Api.state.toV1Api()
   }.build()
 
@@ -22,6 +29,7 @@ fun RequisitionState.toV1Api(): MetricRequisition.State =
   when (this) {
     RequisitionState.UNFULFILLED -> MetricRequisition.State.UNFULFILLED
     RequisitionState.FULFILLED -> MetricRequisition.State.FULFILLED
+    else -> MetricRequisition.State.UNRECOGNIZED
   }
 
 /**

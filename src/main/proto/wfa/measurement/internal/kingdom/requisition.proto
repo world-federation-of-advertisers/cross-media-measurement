@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-option java_package = "org.wfa.measurement.internal.kingdom";
+option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 import "google/protobuf/timestamp.proto";
@@ -11,7 +11,7 @@ import "src/main/proto/wfa/measurement/internal/kingdom/requisition_state.proto"
 
 message Requisition {
   // Primary Key
-  fixed64 data_provider_id= 1;
+  fixed64 data_provider_id = 1;
   fixed64 campaign_id = 2;
   fixed64 requisition_id = 3;
 
@@ -24,4 +24,8 @@ message Requisition {
 
   RequisitionDetails requisition_details = 8;
   string requisition_details_json = 9;
+
+  // Denormalized fields.
+  fixed64 external_data_provider_id = 10;
+  fixed64 external_campaign_id = 11;
 }
