@@ -3,9 +3,8 @@ package org.wfanet.measurement.db.gcp
 import com.google.cloud.spanner.DatabaseId
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
-import org.wfanet.measurement.internal.db.gcp.ComputationDetails
-import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
@@ -15,6 +14,8 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
+import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
@@ -30,6 +31,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 ) : ComputationsRelationalDb<T> {
 
   override fun insertComputation(globalId: Long, initialState: T): ComputationToken<T> {
+    // TODO: Invalidate any previously running computation for the global id.
     require(
       stateEnumHelper.validInitialState(initialState)
     ) { "Invalid initial state $initialState" }
@@ -93,7 +95,38 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   }
 
   override fun getToken(globalId: Long): ComputationToken<T>? {
-    TODO("Not yet implemented")
+    val transaction = spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction()
+    try {
+      val results = transaction.executeQuery(Statement.newBuilder(
+        """
+          SELECT c.ComputationId, c.LockOwner, c.ComputationStage, c.ComputationDetails,
+                 cs.NextAttempt
+          FROM Computations AS c
+          JOIN ComputationStages AS cs ON
+            (c.ComputationId = cs.ComputationId AND c.ComputationStage = cs.ComputationStage)
+          WHERE c.GlobalComputationId = @global_id
+          ORDER BY UpdateTime DESC
+          LIMIT 1
+        """.trimIndent()
+      ).bind("global_id").to(globalId).build())
+      val struct = results.getAtMostOne() ?: return null
+
+      val computationDetails =
+        struct.getBytes("ComputationDetails").toProtobufMessage(ComputationDetails.parser())
+
+      return ComputationToken(
+        globalId = globalId,
+        // From ComputationsByGlobalId index
+        localId = struct.getLong("ComputationId"),
+        // From Computations
+        state = stateEnumHelper.longToEnum(struct.getLong("ComputationStage")),
+        owner = struct.getNullableString("LockOwner"),
+        role = computationDetails.role.toDuchyRole(),
+        nextWorker = computationDetails.outgoingNodeId,
+        // From ComputationStages
+        attempt = struct.getLong("NextAttempt") - 1
+      )
+    } finally { transaction.close() }
   }
 
   override fun enqueue(token: ComputationToken<T>) {
@@ -127,5 +160,13 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 
   override fun writeOutputBlobReference(c: ComputationToken<T>, blobName: BlobRef) {
     TODO("Not yet implemented")
+  }
+}
+
+private fun ComputationDetails.RoleInComputation.toDuchyRole(): DuchyRole {
+  return when (this) {
+    ComputationDetails.RoleInComputation.PRIMARY -> DuchyRole.PRIMARY
+    ComputationDetails.RoleInComputation.SECONDARY -> DuchyRole.SECONDARY
+    else -> error("Unknown role $this")
   }
 }

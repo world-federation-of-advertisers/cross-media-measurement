@@ -1,6 +1,7 @@
 package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.ResultSet
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
 
@@ -25,3 +26,7 @@ fun Struct.getNullableTimestamp(column: String): Timestamp? =
 /** Returns the value of a INT64 column even if it is null. */
 fun Struct.getNullableLong(column: String): Long? =
   nullOrValue(column, Type.Code.INT64, Struct::getLong)
+
+fun ResultSet.getAtMostOne(): Struct? =
+  if (next()) currentRowAsStruct.also { check(!next()) { "Found more than one row" } }
+  else null
