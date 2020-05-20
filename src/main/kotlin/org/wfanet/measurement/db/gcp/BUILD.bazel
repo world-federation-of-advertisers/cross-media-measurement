@@ -11,6 +11,7 @@ kt_jvm_library(
         "Protos.kt",
         "Spanner.kt",
         "SpannerImpl.kt",
+        "SpannerStructs.kt",
     ],
     deps = [
         "//:google_cloud_spanner",
