@@ -14,7 +14,7 @@ data class ExternalId(val value: Long) {
     require(value >= 0) { "Negative id numbers are not permitted: $value" }
   }
 
-  val apiId: ApiId by lazy { ApiId(value.toByteArray().base64Encode()) }
+  val apiId: ApiId by lazy { ApiId(value.toByteArray().base64UrlEncode()) }
 }
 
 /**
@@ -25,16 +25,17 @@ data class ExternalId(val value: Long) {
  * @property[value] the websafe base64 external identifier
  */
 data class ApiId(val value: String) {
-  val externalId: ExternalId = ExternalId(value.base64Decode().toLong())
+  val externalId: ExternalId = ExternalId(value.base64UrlDecode().toLong())
 }
 
 /** Typesafe wrapper around Long to represent the integer id format used internally. */
 data class InternalId(val value: Long)
 
-private fun ByteArray.base64Encode() : String =
+/** Encodes [ByteArray] with RFC 7515's Base64url encoding into a base-64 string. */
+private fun ByteArray.base64UrlEncode() : String =
   Base64.getUrlEncoder().withoutPadding().encodeToString(this)
 
-private fun String.base64Decode() : ByteArray =
+private fun String.base64UrlDecode() : ByteArray =
   Base64.getUrlDecoder().decode(this)
 
 // An alternative is: toBigInteger().toByteArray(), but that includes the sign bit, which uses an
