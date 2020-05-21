@@ -2,6 +2,16 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 load("//src/main/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
+    name = "local_computaiton_id_generators_test",
+    srcs = ["LocalComputationIdGeneratorsTest.kt"],
+    test_class = "org.wfanet.measurement.db.gcp.LocalComputationIdGeneratorsTest",
+    deps = [
+        "//:unit_testing_core",
+        "//src/main/kt/org/wfanet/measurement/db/gcp:gcp_spanner_computations_db",
+    ],
+)
+
+kt_jvm_test(
     name = "spanner_structs_test",
     srcs = ["SpannerStructsTest.kt"],
     test_class = "org.wfanet.measurement.db.gcp.SpannerStructsTest",

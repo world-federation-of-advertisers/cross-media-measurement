@@ -13,6 +13,6 @@ class HalfOfGlobalBitsAndTimeStampIdGenerator(private val clock: Clock = Clock.s
   LocalComputationIdGenerator {
   override fun localId(globalId: Long): Long {
     // TODO: Reverse the bits.
-    return (globalId shr 32) and (clock.millis() shl 32)
+    return (globalId ushr 32) or (clock.millis() shl 32)
   }
 }
