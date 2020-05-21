@@ -6,6 +6,14 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "timestamps",
+    srcs = ["Timestamps.kt"],
+    deps = [
+        "//:google_cloud_spanner",
+    ],
+)
+
+kt_jvm_library(
     name = "spanner",
     srcs = [
         "Protos.kt",
@@ -14,6 +22,7 @@ kt_jvm_library(
         "SpannerStructs.kt",
     ],
     deps = [
+        ":timestamps",
         "//:google_cloud_spanner",
         "//:kotlinx_coroutines_core",
     ],

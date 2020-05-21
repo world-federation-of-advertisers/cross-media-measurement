@@ -4,8 +4,6 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
-import java.sql.Date
-import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
@@ -24,6 +22,7 @@ import org.wfanet.measurement.db.gcp.LocalComputationIdGenerator
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
+import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toJson
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
@@ -78,6 +77,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
   )
 
+  val details = ComputationDetails.newBuilder().apply {
+    incomingNodeId = "AUSTRIA"
+    outgoingNodeId = "BOHEMIA"
+    blobsStoragePrefix = "blobs"
+    role = ComputationDetails.RoleInComputation.PRIMARY
+  }.build()
+
   private val database =
     GcpSpannerComputationsDb(
       spanner.spanner,
@@ -104,18 +110,20 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       ComputationToken(
         localId = 124, nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
         owner = null, attempt = 1, state = FakeProtocolStates.A,
-        globalId = 123L
+        globalId = 123L, lastUpdateTime = 0
       ),
-      resultId123
+      // Commit timestamps cannot be faked in spanner
+      resultId123.copy(lastUpdateTime = 0)
     )
 
     assertEquals(
       ComputationToken(
         localId = 221, nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
         owner = null, attempt = 1, state = FakeProtocolStates.A,
-        globalId = 220
+        globalId = 220, lastUpdateTime = 0
       ),
-      resultId220
+      // Commit timestamps cannot be faked in spanner
+      resultId220.copy(lastUpdateTime = 0)
     )
 
     val expectedDetails123 = ComputationDetails.newBuilder().apply {
@@ -272,20 +280,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun `getToken`() {
-    fun Long.toTimestamp() = Timestamp.of(Date.from(Instant.ofEpochMilli(this)))
-
-    val details = ComputationDetails.newBuilder().apply {
-      incomingNodeId = "AUSTRIA"
-      outgoingNodeId = "BOHEMIA"
-      blobsStoragePrefix = "blobs"
-      role = ComputationDetails.RoleInComputation.PRIMARY
-    }.build()
     val lastUpdated = 12345678910L
     val lockExpires = lastUpdated + 1000
     val failedPreviousAttempt = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(411)
       .set("ComputationStage").to(4)
-      .set("UpdateTime").to((lastUpdated - 3000).toTimestamp())
+      .set("UpdateTime").to((lastUpdated - 3000).toGcpTimestamp())
       .set("GlobalComputationId").to(21231)
       .set("LockOwner").to(null as String?)
       .set("LockExpirationTime").to(null as Timestamp?)
@@ -295,10 +295,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val computation = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(100)
       .set("ComputationStage").to(3)
-      .set("UpdateTime").to(lastUpdated.toTimestamp())
+      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
       .set("GlobalComputationId").to(21231)
       .set("LockOwner").to("Fred")
-      .set("LockExpirationTime").to(lockExpires.toTimestamp())
+      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
       .set("ComputationDetails").to(details.toSpannerByteArray())
       .set("ComputationDetailsJSON").to(details.toJson())
       .build()
@@ -307,8 +307,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(100)
       .set("ComputationStage").to(2)
       .set("NextAttempt").to(45)
-      .set("CreationTime").to((lastUpdated - 20000).toTimestamp())
-      .set("EndTime").to((lastUpdated - 200).toTimestamp())
+      .set("CreationTime").to((lastUpdated - 20000).toGcpTimestamp())
+      .set("EndTime").to((lastUpdated - 200).toGcpTimestamp())
       .set("Details").to(stageDetails.toSpannerByteArray())
       .set("DetailsJSON").to(stageDetails.toJson())
       .build()
@@ -316,7 +316,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(100)
       .set("ComputationStage").to(3)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(lastUpdated.toTimestamp())
+      .set("CreationTime").to(lastUpdated.toGcpTimestamp())
       .set("Details").to(stageDetails.toSpannerByteArray())
       .set("DetailsJSON").to(stageDetails.toJson())
       .build()
@@ -336,7 +336,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         owner = "Fred",
         role = DuchyRole.PRIMARY,
         nextWorker = details.outgoingNodeId,
-        attempt = 1
+        attempt = 1,
+        lastUpdateTime = lastUpdated
       ),
       database.getToken(21231)
     )
@@ -352,14 +353,113 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
+  fun enqueue() {
+    val lastUpdated = 12345678910L
+    val lockExpires = lastUpdated + 1000
+    val token = ComputationToken(
+      localId = 1, globalId = 0, state = FakeProtocolStates.C,
+      owner = "PeterSpacemen", nextWorker = details.outgoingNodeId, role = DuchyRole.PRIMARY,
+      attempt = 1,
+      lastUpdateTime = lastUpdated
+    )
+
+    val computation = Mutation.newInsertBuilder("Computations")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(ProtocolHelper.enumToLong(token.state))
+      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
+      .set("GlobalComputationId").to(token.globalId)
+      .set("LockOwner").to(token.owner)
+      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
+      .set("ComputationDetails").to(details.toSpannerByteArray())
+      .set("ComputationDetailsJSON").to(details.toJson())
+      .build()
+    val differentComputation = Mutation.newInsertBuilder("Computations")
+      .set("ComputationId").to(456789)
+      .set("ComputationStage").to(1)
+      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
+      .set("GlobalComputationId").to(10111213)
+      .set("LockOwner").to(token.owner)
+      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
+      .set("ComputationDetails").to(details.toSpannerByteArray())
+      .set("ComputationDetailsJSON").to(details.toJson())
+      .build()
+
+    spanner.client.write(listOf(computation, differentComputation))
+    database.enqueue(token)
+
+    assertQueryReturns(
+      spanner.client,
+      """
+        SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner,
+               ComputationDetails, ComputationDetailsJSON,
+               (LockExpirationTime = UpdateTime) as LockExpired
+        FROM Computations
+        ORDER BY ComputationId
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolHelper.enumToLong(token.state))
+        .set("GlobalComputationId").to(token.globalId)
+        .set("LockOwner").to(null as String?)
+        .set("ComputationDetails").to(details.toSpannerByteArray())
+        .set("ComputationDetailsJSON").to(details.toJson())
+        .set("LockExpired").to(true)
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId").to(456789)
+        .set("ComputationStage").to(1)
+        .set("GlobalComputationId").to(10111213)
+        .set("LockOwner").to(token.owner)
+        .set("ComputationDetails").to(details.toSpannerByteArray())
+        .set("ComputationDetailsJSON").to(details.toJson())
+        .set("LockExpired").to(false)
+        .build()
+    )
+  }
+
+  @Test
+  fun `enqueue deteleted computation fails`() {
+    val token = ComputationToken(
+      localId = 1, globalId = 0, state = FakeProtocolStates.C,
+      owner = "PeterSpacemen", nextWorker = details.outgoingNodeId, role = DuchyRole.PRIMARY,
+      attempt = 1,
+      lastUpdateTime = 0
+    )
+    assertFailsWith<SpannerException> { database.enqueue(token) }
+  }
+
+  @Test
+  fun `enqueue with old token fails`() {
+    val lastUpdated = 12345678910L
+    val lockExpires = lastUpdated + 1000
+    val token = ComputationToken(
+      localId = 1, globalId = 0, state = FakeProtocolStates.C,
+      owner = "PeterSpacemen", nextWorker = details.outgoingNodeId, role = DuchyRole.PRIMARY,
+      attempt = 1, lastUpdateTime = lastUpdated + 200
+    )
+
+    val computation = Mutation.newInsertBuilder("Computations")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(ProtocolHelper.enumToLong(token.state))
+      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
+      .set("GlobalComputationId").to(token.globalId)
+      .set("LockOwner").to(token.owner)
+      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
+      .set("ComputationDetails").to(details.toSpannerByteArray())
+      .set("ComputationDetailsJSON").to(details.toJson())
+      .build()
+    spanner.client.write(listOf(computation))
+    assertFailsWith<SpannerException> { database.enqueue(token) }
+  }
+
+  @Test
   fun `unimplemented interface functions`() {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
       owner = null, attempt = 1, state = FakeProtocolStates.A,
-      globalId = 0
+      globalId = 0, lastUpdateTime = 0
     )
     assertFailsWith(NotImplementedError::class) { database.claimTask("owner") }
-    assertFailsWith(NotImplementedError::class) { database.enqueue(token) }
     assertFailsWith(NotImplementedError::class) { database.renewTask(token) }
     assertFailsWith(NotImplementedError::class) { database.readBlobReferenceNames(token) }
     assertFailsWith(NotImplementedError::class) {

@@ -19,7 +19,9 @@ data class ComputationToken<T : Enum<T>>(
   /** The role this worker is playing for this computation. */
   val role: DuchyRole,
   /** The number of the current attempt of this stage for this computation. */
-  val attempt: Long
+  val attempt: Long,
+  /** The last time the computation was updated in number of milliseconds since the epoch. */
+  val lastUpdateTime: Long
 )
 
 /**

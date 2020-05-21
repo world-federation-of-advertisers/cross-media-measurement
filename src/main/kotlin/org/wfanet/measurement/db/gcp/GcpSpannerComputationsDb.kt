@@ -1,9 +1,11 @@
 package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.DatabaseId
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
@@ -79,7 +81,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("BeginTime").to(Value.COMMIT_TIMESTAMP)
       .build()
 
-    spanner.getDatabaseClient(databaseId).write(
+    val writeTime = spanner.getDatabaseClient(databaseId).write(
       listOf(computationRow, computationStageRow, computationStageAttemptRow)
     )
 
@@ -89,6 +91,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       state = initialState,
       attempt = 1,
       owner = null,
+      lastUpdateTime = writeTime.toMillis(),
       role = computationAtThisDuchy.role,
       nextWorker = details.outgoingNodeId
     )
@@ -97,10 +100,11 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   override fun getToken(globalId: Long): ComputationToken<T>? {
     val transaction = spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction()
     try {
-      val results = transaction.executeQuery(Statement.newBuilder(
-        """
+      val results = transaction.executeQuery(
+        Statement.newBuilder(
+          """
           SELECT c.ComputationId, c.LockOwner, c.ComputationStage, c.ComputationDetails,
-                 cs.NextAttempt
+                 c.UpdateTime, cs.NextAttempt,
           FROM Computations AS c
           JOIN ComputationStages AS cs ON
             (c.ComputationId = cs.ComputationId AND c.ComputationStage = cs.ComputationStage)
@@ -121,6 +125,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
         // From Computations
         state = stateEnumHelper.longToEnum(struct.getLong("ComputationStage")),
         owner = struct.getNullableString("LockOwner"),
+        lastUpdateTime = struct.getTimestamp("UpdateTime").toMillis(),
         role = computationDetails.role.toDuchyRole(),
         nextWorker = computationDetails.outgoingNodeId,
         // From ComputationStages
@@ -130,7 +135,24 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   }
 
   override fun enqueue(token: ComputationToken<T>) {
-    TODO("Not yet implemented")
+    runIfTokenFromLastUpdate(token) { ctx ->
+      ctx.buffer(
+        Mutation.newUpdateBuilder("Computations")
+          .set("ComputationId").to(token.localId)
+          .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+          // Release any lock on this computation. The owner says who has the current
+          // lock on the computation, and the expiration time states both if and when the
+          // computation can be worked on. When LockOwner is null the computation is not being
+          // worked on, but that is not enough to say a knight should pick up the computation
+          // as its quest as there are stages which waiting for inputs from other nodes.
+          // A non-null LockExpirationTime states when a computation can be be taken up
+          // by a knight, and by using the commit timestamp we pretty much get the behaviour
+          // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
+          .set("LockOwner").to(null as String?)
+          .set("LockExpirationTime").to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    }
   }
 
   override fun claimTask(ownerId: String): ComputationToken<T>? {
@@ -160,6 +182,28 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 
   override fun writeOutputBlobReference(c: ComputationToken<T>, blobName: BlobRef) {
     TODO("Not yet implemented")
+  }
+
+  /**
+   * Runs the readWriteTransactionFunction if the ComputationToken is from the most recent
+   * update to a computation. This is done atomically with in read/write transaction.
+   *
+   * @return [R] which is the result of the readWriteTransactionBlock
+   * @throws IllegalStateException if the token is not for the most recent update.
+   */
+  private fun <R> runIfTokenFromLastUpdate(
+    token: ComputationToken<T>,
+    readWriteTransactionBlock: (TransactionContext) -> R
+  ) : R? {
+    return spanner.getDatabaseClient(databaseId).readWriteTransaction().run { ctx ->
+      val current = ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
+        ?: error("No row for computation (${token.localId})")
+      if (current.getTimestamp("UpdateTime").toMillis() == token.lastUpdateTime) {
+        readWriteTransactionBlock(ctx)
+      } else {
+        error("Failed to update, token is from older update time.")
+      }
+    }
   }
 }
 
