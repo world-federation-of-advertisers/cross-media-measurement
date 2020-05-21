@@ -1,0 +1,26 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "keys",
+    srcs = ["Keys.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:identifiers",
+        "//src/main/kotlin/org/wfanet/measurement/db:measurement_provider",
+    ],
+)
+
+kt_jvm_library(
+    name = "proto_conversions",
+    srcs = ["ProtoConversions.kt"],
+    deps = [
+        ":keys",
+        "//src/main/kotlin/org/wfanet/measurement/common:identifiers",
+        "//src/main/kotlin/org/wfanet/measurement/db:measurement_provider",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
+    ],
+)

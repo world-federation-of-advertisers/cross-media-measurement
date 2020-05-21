@@ -1,0 +1,51 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "flags_test",
+    srcs = [":FlagsTest.kt"],
+    test_class = "org.wfanet.measurement.common.ArgsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:flags",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@io_grpc_grpc_java//core",
+        "@io_grpc_grpc_java//testing",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "identifiers_test",
+    srcs = ["IdentifiersTest.kt"],
+    test_class = "org.wfanet.measurement.common.IdentifiersTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:identifiers",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "duchy_order_test",
+    srcs = ["DuchyOrderTest.kt"],
+    test_class = "org.wfanet.measurement.common.DuchyOrderTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:duchy_order",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:junit_junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "renewed_flow_test",
+    srcs = ["RenewedFlowTest.kt"],
+    test_class = "org.wfanet.measurement.common.RenewedFlowTest",
+    deps = [
+        "//:kotlinx_coroutines_core",
+        "//:kotlinx_coroutines_test",
+        "//src/main/kotlin/org/wfanet/measurement/common:renewed_flow",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:junit_junit",
+    ],
+)

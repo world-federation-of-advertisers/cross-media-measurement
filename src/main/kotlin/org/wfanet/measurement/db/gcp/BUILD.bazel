@@ -1,0 +1,34 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "spanner",
+    srcs = [
+        "Protos.kt",
+        "Spanner.kt",
+        "SpannerImpl.kt",
+    ],
+    deps = [
+        "//:google_cloud_spanner",
+        "//:kotlinx_coroutines_core",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcp_spanner_computations_db",
+    srcs = [
+        "GcpSpannerComputationsDb.kt",
+        "LocalComputationIdGenerator.kt",
+    ],
+    deps = [
+        ":spanner",
+        "//src/main/kotlin/org/wfanet/measurement/common:duchy_order",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy:protocol_state_helper",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy:storage_abstractions",
+        "//src/main/proto/wfa/measurement/internal/db/gcp:computations_java_proto",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "RequisitionServiceTest",
+    srcs = ["RequisitionServiceTest.kt"],
+    test_class = "org.wfanet.measurement.service.v1alpha.requisition.RequisitionServiceTest",
+    deps = [
+        "//:grpc_core",
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition",
+        "//src/main/kotlin/org/wfanet/measurement/common:proto_utils",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
+        "@io_grpc_grpc_java//testing",
+    ],
+)

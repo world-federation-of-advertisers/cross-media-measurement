@@ -1,0 +1,17 @@
+load("//src/main/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "measurement_provider_schema_test",
+    srcs = ["MeasurementProviderSchemaTest.kt"],
+    resources = [
+        "//src/main/db/gcp:measurement_provider_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.gcp.MeasurementProviderSchemaTest",
+    deps = [
+        "//:google_cloud_spanner",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:spanner_testing_functions",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:using_spanner_emulator",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@maven//:junit_junit",
+    ],
+)

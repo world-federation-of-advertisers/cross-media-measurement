@@ -1,0 +1,11 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "mockito_helpers_test",
+    srcs = ["MockitoHelpersTest.kt"],
+    test_class = "org.wfanet.measurement.common.testing.MockitoHelpersTest",
+    deps = [
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing:mockito_helpers",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "sketch_aggregation_protocol_state_helper_test",
+    srcs = ["SketchAggregationStatesTest.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStatesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy:sketch_aggregation_protocol_state_helper",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@io_grpc_grpc_java//core",
+        "@io_grpc_grpc_java//testing",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)

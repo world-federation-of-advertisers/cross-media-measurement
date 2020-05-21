@@ -1,0 +1,38 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "compuations_manager",
+    srcs = ["ComputationManager.kt"],
+    deps = [
+        ":storage_abstractions",
+    ],
+)
+
+kt_jvm_library(
+    name = "protocol_state_helper",
+    srcs = ["ProtocolStateEnumHelper.kt"],
+)
+
+kt_jvm_library(
+    name = "sketch_aggregation_protocol_state_helper",
+    srcs = ["SketchAggregationStates.kt"],
+    deps = [
+        ":protocol_state_helper",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_abstractions",
+    srcs = [
+        "StorageAbstractions.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:duchy_role",
+    ],
+)
