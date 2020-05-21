@@ -3,15 +3,23 @@ package org.wfanet.measurement.service.v1alpha.common
 import org.wfanet.measurement.api.v1alpha.MetricDefinition
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.RequisitionExternalKey
+import org.wfanet.measurement.db.kingdom.RequisitionExternalKey
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 val Requisition.requisitionExternalKey: RequisitionExternalKey
-  get() = RequisitionExternalKey(ExternalId(externalDataProviderId),
-                                 ExternalId(externalCampaignId),
-                                 ExternalId(externalRequisitionId))
+  get() = RequisitionExternalKey(
+    ExternalId(
+      externalDataProviderId
+    ),
+    ExternalId(
+      externalCampaignId
+    ),
+    ExternalId(
+      externalRequisitionId
+    )
+  )
 
 /**
  * Converts internal [Requisition] into a V1 API proto.
@@ -46,4 +54,3 @@ fun MetricDefinition.toRequisitionDetails(): RequisitionDetails {
   // TODO: implement
   return RequisitionDetails.getDefaultInstance()
 }
-

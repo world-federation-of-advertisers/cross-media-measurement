@@ -1,10 +1,10 @@
-package org.wfanet.measurement.db
+package org.wfanet.measurement.db.kingdom
 
 import java.time.Instant
+import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
-import org.wfanet.measurement.common.Pagination
 
 interface MeasurementProviderStorage {
   suspend fun createRequisition(

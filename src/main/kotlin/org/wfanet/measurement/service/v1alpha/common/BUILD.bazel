@@ -1,8 +1,8 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/service/v1alpha:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/service/v1alpha:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -10,7 +10,7 @@ kt_jvm_library(
     srcs = ["Keys.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:identifiers",
-        "//src/main/kotlin/org/wfanet/measurement/db:measurement_provider",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom:measurement_provider",
     ],
 )
 
@@ -20,7 +20,7 @@ kt_jvm_library(
     deps = [
         ":keys",
         "//src/main/kotlin/org/wfanet/measurement/common:identifiers",
-        "//src/main/kotlin/org/wfanet/measurement/db:measurement_provider",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom:measurement_provider",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
     ],
 )

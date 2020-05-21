@@ -8,8 +8,8 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.CampaignExternalKey
-import org.wfanet.measurement.db.MeasurementProviderStorage
+import org.wfanet.measurement.db.kingdom.CampaignExternalKey
+import org.wfanet.measurement.db.kingdom.MeasurementProviderStorage
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.service.v1alpha.common.toExternalKey
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionDetails

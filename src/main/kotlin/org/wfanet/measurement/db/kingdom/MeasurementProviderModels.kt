@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db
+package org.wfanet.measurement.db.kingdom
 
 import org.wfanet.measurement.common.ExternalId
 
@@ -22,4 +22,3 @@ data class RequisitionExternalKey(
   constructor(campaignExternalKey: CampaignExternalKey, externalId: ExternalId) :
     this(campaignExternalKey.dataProviderExternalId, campaignExternalKey.externalId, externalId)
 }
-

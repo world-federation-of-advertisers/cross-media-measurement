@@ -21,9 +21,9 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpc
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.db.CampaignExternalKey
-import org.wfanet.measurement.db.MeasurementProviderStorage
-import org.wfanet.measurement.db.RequisitionExternalKey
+import org.wfanet.measurement.db.kingdom.CampaignExternalKey
+import org.wfanet.measurement.db.kingdom.MeasurementProviderStorage
+import org.wfanet.measurement.db.kingdom.RequisitionExternalKey
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -59,7 +59,8 @@ class RequisitionServiceTest {
 
     var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   }
-  object FakeMeasurementProviderStorage : MeasurementProviderStorage {
+  object FakeMeasurementProviderStorage :
+    MeasurementProviderStorage {
     private fun RequisitionExternalKey.toRequisitionBuilder(): Requisition.Builder =
       Requisition.newBuilder().apply {
         externalDataProviderId = this@toRequisitionBuilder.dataProviderExternalId.value
@@ -82,19 +83,28 @@ class RequisitionServiceTest {
         .build()
     }
 
-    private fun makeRequisitionWithState(key: RequisitionExternalKey,
-                                         state: RequisitionState): Requisition =
+    private fun makeRequisitionWithState(
+      key: RequisitionExternalKey,
+      state: RequisitionState
+    ): Requisition =
       makeRequisition(key, IRRELEVANT_DETAILS, IRRELEVANT_INSTANT, IRRELEVANT_INSTANT, state)
 
-    override suspend fun createRequisition(campaignExternalKey: CampaignExternalKey,
-                                           requisitionDetails: RequisitionDetails,
-                                           windowStartTime: Instant,
-                                           windowEndTime: Instant): Requisition {
+    override suspend fun createRequisition(
+      campaignExternalKey: CampaignExternalKey,
+      requisitionDetails: RequisitionDetails,
+      windowStartTime: Instant,
+      windowEndTime: Instant
+    ): Requisition {
       require(windowStartTime == WINDOW_START_TIME)
       require(windowEndTime == WINDOW_END_TIME)
-      return makeRequisition(RequisitionExternalKey(campaignExternalKey, REQUISITION_ID),
-                             requisitionDetails, windowStartTime, windowEndTime,
-                             RequisitionState.UNFULFILLED)
+      return makeRequisition(
+        RequisitionExternalKey(
+          campaignExternalKey,
+          REQUISITION_ID
+        ),
+        requisitionDetails, windowStartTime, windowEndTime,
+        RequisitionState.UNFULFILLED
+      )
     }
 
     override suspend fun fulfillRequisition(
@@ -105,14 +115,21 @@ class RequisitionServiceTest {
         IRRELEVANT_DETAILS,
         IRRELEVANT_INSTANT,
         IRRELEVANT_INSTANT,
-        RequisitionState.FULFILLED)
+        RequisitionState.FULFILLED
+      )
 
-    override suspend fun listRequisitions(campaignExternalKey: CampaignExternalKey,
-                                          states: Set<RequisitionState>,
-                                          pagination: Pagination): List<Requisition> {
+    override suspend fun listRequisitions(
+      campaignExternalKey: CampaignExternalKey,
+      states: Set<RequisitionState>,
+      pagination: Pagination
+    ): List<Requisition> {
       require(pagination == Pagination(2, "some-page-token"))
       require(states == setOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED))
-      val key = RequisitionExternalKey(campaignExternalKey, REQUISITION_ID)
+      val key =
+        RequisitionExternalKey(
+          campaignExternalKey,
+          REQUISITION_ID
+        )
       return listOf(
         makeRequisitionWithState(key, RequisitionState.UNFULFILLED),
         makeRequisitionWithState(key, RequisitionState.FULFILLED)
@@ -123,11 +140,13 @@ class RequisitionServiceTest {
   @Before
   fun setup() {
     val serverName = InProcessServerBuilder.generateName()
-    grpcCleanup.register(InProcessServerBuilder.forName(serverName)
-                           .directExecutor()
-                           .addService(RequisitionService(FakeMeasurementProviderStorage))
-                           .build()
-                           .start())
+    grpcCleanup.register(
+      InProcessServerBuilder.forName(serverName)
+        .directExecutor()
+        .addService(RequisitionService(FakeMeasurementProviderStorage))
+        .build()
+        .start()
+    )
 
     val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
     blockingStub = RequisitionGrpc.newBlockingStub(grpcCleanup.register(channel))
@@ -178,9 +197,12 @@ class RequisitionServiceTest {
   fun listMetricRequisitions() = runBlocking {
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
       parent = CAMPAIGN_API_KEY
-      filterBuilder.addAllStates(listOf(
-        MetricRequisition.State.UNFULFILLED,
-        MetricRequisition.State.FULFILLED))
+      filterBuilder.addAllStates(
+        listOf(
+          MetricRequisition.State.UNFULFILLED,
+          MetricRequisition.State.FULFILLED
+        )
+      )
       pageSize = 2
       pageToken = "some-page-token"
     }.build()
@@ -201,4 +223,3 @@ class RequisitionServiceTest {
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 }
-
