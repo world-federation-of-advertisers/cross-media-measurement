@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation

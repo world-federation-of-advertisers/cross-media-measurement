@@ -10,6 +10,7 @@ kt_jvm_library(
     srcs = ["Timestamps.kt"],
     deps = [
         "//:google_cloud_spanner",
+        "//src/main/kotlin/org/wfanet/measurement/common:proto_utils",
     ],
 )
 
@@ -18,13 +19,13 @@ kt_jvm_library(
     srcs = [
         "Protos.kt",
         "Spanner.kt",
-        "SpannerImpl.kt",
         "SpannerStructs.kt",
     ],
     deps = [
         ":timestamps",
         "//:google_cloud_spanner",
         "//:kotlinx_coroutines_core",
+        "//src/main/kotlin/org/wfanet/measurement/common:proto_utils",
     ],
 )
 

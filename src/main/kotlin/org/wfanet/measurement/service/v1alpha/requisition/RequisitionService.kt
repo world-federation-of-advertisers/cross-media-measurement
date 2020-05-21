@@ -6,11 +6,12 @@ import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
+import org.wfanet.measurement.common.ApiId
 import org.wfanet.measurement.common.Pagination
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.kingdom.CampaignExternalKey
 import org.wfanet.measurement.db.kingdom.MeasurementProviderStorage
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toExternalKey
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionDetails
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
@@ -23,14 +24,16 @@ class RequisitionService(
   override suspend fun createMetricRequisition(
     request: CreateMetricRequisitionRequest
   ): MetricRequisition {
-    val key = request.parent.toExternalKey()
-    val metricsRequisition = request.metricsRequisition
-    val requisitionDetails = metricsRequisition.metricDefinition.toRequisitionDetails()
-    val startTime = metricsRequisition.collectionInterval.startTime.toInstant()
-    val endTime = metricsRequisition.collectionInterval.endTime.toInstant()
-    val requisition =
-      measurementProviderStorage.createRequisition(key, requisitionDetails, startTime, endTime)
-    return requisition.toV1Api()
+    val partialRequisition: Requisition = Requisition.newBuilder().apply {
+      externalDataProviderId = ApiId(request.parent.dataProviderId).externalId.value
+      externalCampaignId = ApiId(request.parent.campaignId).externalId.value
+      state = RequisitionState.UNFULFILLED
+      windowStartTime = request.metricsRequisition.collectionInterval.startTime
+      windowEndTime = request.metricsRequisition.collectionInterval.endTime
+      requisitionDetails = request.metricsRequisition.metricDefinition.toRequisitionDetails()
+    }.build()
+    val resultRequisition = measurementProviderStorage.createRequisition(partialRequisition)
+    return resultRequisition.toV1Api()
   }
 
   override suspend fun fulfillMetricRequisition(

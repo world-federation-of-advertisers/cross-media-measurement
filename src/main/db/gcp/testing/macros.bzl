@@ -16,6 +16,7 @@ def spanner_emulator_test(name, test_class, srcs, deps, resources):
         srcs = srcs,
         deps = deps + ["//src/main/db/gcp/testing:bazel_test_runner_jar"],
         resources = resources,
+        testonly = 1,
     )
     native.sh_test(
         name = name,

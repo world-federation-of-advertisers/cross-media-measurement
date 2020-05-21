@@ -1,9 +1,11 @@
 package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Timestamp
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import java.time.Clock
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -53,14 +55,14 @@ class RequisitionServiceTest {
         metricRequisitionId = REQUISITION_ID.apiId.value
       }.build()
 
-    var IRRELEVANT_INSTANT: Instant = Instant.EPOCH
-    var WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
-    var WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
+    var IRRELEVANT_TIMESTAMP: Timestamp = Instant.EPOCH.toProtoTime()
+    var WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+    var WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
     var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   }
   object FakeMeasurementProviderStorage :
-    MeasurementProviderStorage {
+    MeasurementProviderStorage(Clock.systemUTC()) {
     private fun RequisitionExternalKey.toRequisitionBuilder(): Requisition.Builder =
       Requisition.newBuilder().apply {
         externalDataProviderId = this@toRequisitionBuilder.dataProviderExternalId.value
@@ -71,14 +73,14 @@ class RequisitionServiceTest {
     private fun makeRequisition(
       key: RequisitionExternalKey,
       requisitionDetails: RequisitionDetails,
-      windowStartTime: Instant,
-      windowEndTime: Instant,
+      windowStartTime: Timestamp,
+      windowEndTime: Timestamp,
       state: RequisitionState
     ): Requisition {
       return key.toRequisitionBuilder()
         .setRequisitionDetails(requisitionDetails)
-        .setWindowStartTime(windowStartTime.toProtoTime())
-        .setWindowEndTime(windowEndTime.toProtoTime())
+        .setWindowStartTime(windowStartTime)
+        .setWindowEndTime(windowEndTime)
         .setState(state)
         .build()
     }
@@ -87,24 +89,12 @@ class RequisitionServiceTest {
       key: RequisitionExternalKey,
       state: RequisitionState
     ): Requisition =
-      makeRequisition(key, IRRELEVANT_DETAILS, IRRELEVANT_INSTANT, IRRELEVANT_INSTANT, state)
+      makeRequisition(key, IRRELEVANT_DETAILS, IRRELEVANT_TIMESTAMP, IRRELEVANT_TIMESTAMP, state)
 
-    override suspend fun createRequisition(
-      campaignExternalKey: CampaignExternalKey,
-      requisitionDetails: RequisitionDetails,
-      windowStartTime: Instant,
-      windowEndTime: Instant
-    ): Requisition {
-      require(windowStartTime == WINDOW_START_TIME)
-      require(windowEndTime == WINDOW_END_TIME)
-      return makeRequisition(
-        RequisitionExternalKey(
-          campaignExternalKey,
-          REQUISITION_ID
-        ),
-        requisitionDetails, windowStartTime, windowEndTime,
-        RequisitionState.UNFULFILLED
-      )
+    override suspend fun writeNewRequisition(requisition: Requisition): Requisition {
+      assertThat(requisition.windowStartTime).isEqualTo(WINDOW_START_TIME)
+      assertThat(requisition.windowEndTime).isEqualTo(WINDOW_END_TIME)
+      return requisition.toBuilder().setExternalRequisitionId(REQUISITION_ID.value).build()
     }
 
     override suspend fun fulfillRequisition(
@@ -113,8 +103,8 @@ class RequisitionServiceTest {
       makeRequisition(
         requisitionExternalKey,
         IRRELEVANT_DETAILS,
-        IRRELEVANT_INSTANT,
-        IRRELEVANT_INSTANT,
+        IRRELEVANT_TIMESTAMP,
+        IRRELEVANT_TIMESTAMP,
         RequisitionState.FULFILLED
       )
 
@@ -158,8 +148,8 @@ class RequisitionServiceTest {
       parent = CAMPAIGN_API_KEY
       metricsRequisitionBuilder.apply {
         collectionIntervalBuilder.apply {
-          startTime = WINDOW_START_TIME.toProtoTime()
-          endTime = WINDOW_END_TIME.toProtoTime()
+          startTime = WINDOW_START_TIME
+          endTime = WINDOW_END_TIME
         }
         metricDefinitionBuilder.apply {
           // TODO: add a definition

@@ -5,27 +5,45 @@ import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
- * Wraps the Java-centric Google Cloud Spanner library to make it more convenient for Kotlin.
+ * Dispatcher for blocking database operations.
  */
-interface Spanner {
+fun spannerDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
-  /**
-   * Executes an SQL read query.
-   *
-   * @param[sql] the query to execute
-   * @param[reader] the context in which to execute it (e.g. transaction or standalone)
-   * @return a [ReceiveChannel] with the results of the query
-   */
-  suspend fun executeSqlQuery(sql: Statement, reader: ReadContext): ReceiveChannel<Struct>
-
-  /**
-   * Runs a Spanner transaction.
-   *
-   * @param[dbClient] the connection to the database
-   * @param[block] the body of the transaction
-   */
-  suspend fun transaction(dbClient: DatabaseClient, block: (TransactionContext) -> Unit)
+/**
+ * Executes an SQL query, sending the results to a channel.
+ *
+ * @param[sql] the query to run
+ * @return a [ReceiveChannel] with the results of the query
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+fun ReadContext.executeSqlQuery(sql: Statement): Flow<Struct> = flow {
+  val resultSet = executeQuery(sql)
+  while (resultSet.next()) {
+    emit(resultSet.currentRowAsStruct)
+  }
 }
+
+fun ReadContext.executeSqlQuery(sql: String): Flow<Struct> =
+  executeSqlQuery(Statement.of(sql))
+
+/**
+ * Executes a RMW transaction.
+ *
+ * This wraps the Java API to be more convenient for Kotlin because the Java API is nullable but the
+ * block given isn't, so coercion from nullable to not is needed.
+ *
+ * @param[block] the body of the transaction
+ * @return the result of [block]
+ */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+fun <T> DatabaseClient.runReadWriteTransaction(
+  block: (TransactionContext) -> T
+): T = readWriteTransaction().run(block)!!
