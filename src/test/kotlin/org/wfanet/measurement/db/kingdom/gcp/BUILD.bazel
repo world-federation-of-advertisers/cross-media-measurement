@@ -46,3 +46,19 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing:requisition_test_base",
     ],
 )
+
+spanner_emulator_test(
+    name = "list_requisitions_query_test",
+    srcs = ["ListRequisitionsQueryTest.kt"],
+    resources = [
+        "//src/main/db/gcp:measurement_provider_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.ListRequisitionsQueryTest",
+    deps = [
+        "//:google_cloud_spanner",
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:spanner_testing_functions",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing:requisition_test_base",
+    ],
+)

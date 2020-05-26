@@ -6,71 +6,10 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "throttler",
-    srcs = [
-        "ThrottledException.kt",
-        "Throttler.kt",
-    ],
-)
-
-kt_jvm_library(
-    name = "adaptive_throttler",
-    srcs = ["AdaptiveThrottler.kt"],
-    deps = [
-        ":throttler",
-        "//:kotlinx_coroutines_core",
-    ],
-)
-
-kt_jvm_library(
-    name = "renewed_flow",
-    srcs = ["RenewedFlow.kt"],
+    name = "common",
+    srcs = glob(["*.kt"]),
     deps = [
         "//:kotlinx_coroutines_core",
-    ],
-)
-
-kt_jvm_library(
-    name = "throttled_channel_consumer",
-    srcs = ["ThrottledChannelConsumer.kt"],
-    deps = [
-        ":throttler",
-        "//:kotlinx_coroutines_core",
-    ],
-)
-
-kt_jvm_library(
-    name = "flags",
-    srcs = ["Flags.kt"],
-    deps = [
-    ],
-)
-
-kt_jvm_library(
-    name = "identifiers",
-    srcs = ["Identifiers.kt"],
-)
-
-kt_jvm_library(
-    name = "pagination",
-    srcs = ["Pagination.kt"],
-)
-
-kt_jvm_library(
-    name = "duchy_role",
-    srcs = ["DuchyRole.kt"],
-)
-
-kt_jvm_library(
-    name = "duchy_order",
-    srcs = ["DuchyOrder.kt"],
-    deps = [":duchy_role"],
-)
-
-kt_jvm_library(
-    name = "proto_utils",
-    srcs = ["ProtoUtils.kt"],
-    deps = [
         "@com_google_protobuf//:protobuf_java",
     ],
 )

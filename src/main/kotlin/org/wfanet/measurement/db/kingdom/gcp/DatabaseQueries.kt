@@ -7,6 +7,7 @@ val REQUISITION_READ_QUERY: Statement = Statement.of(
   SELECT Requisitions.DataProviderId,
          Requisitions.CampaignId,
          Requisitions.RequisitionId,
+         Requisitions.CreateTime,
          Requisitions.ExternalRequisitionId,
          Requisitions.WindowStartTime,
          Requisitions.WindowEndTime,

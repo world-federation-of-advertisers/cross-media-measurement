@@ -6,9 +6,7 @@ import com.google.cloud.spanner.Mutation
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.wfanet.measurement.db.gcp.executeSqlQuery
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toJson
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
@@ -57,45 +55,61 @@ open class RequisitionTestBase :
     }.build()
   }
 
-  @Before
-  fun populateDatabase() {
-    spanner.client.runReadWriteTransaction { transactionContext ->
-      transactionContext.buffer(
-        Mutation.newInsertBuilder("DataProviders").apply {
-          set("DataProviderId").to(DATA_PROVIDER_ID)
-          set("ExternalDataProviderId").to(EXTERNAL_DATA_PROVIDER_ID)
-          set("DataProviderDetails").to(ByteArray.copyFrom(""))
-          set("DataProviderDetailsJson").to("")
-        }.build()
-      )
+  protected fun insertDataProviderMutation(
+    dataProviderId: Long = DATA_PROVIDER_ID,
+    externalDataProviderId: Long = EXTERNAL_DATA_PROVIDER_ID,
+    dataProviderDetails: ByteArray = ByteArray.copyFrom(""),
+    dataProviderDetailsJson: String = ""
+  ): Mutation =
+    Mutation.newInsertBuilder("DataProviders").apply {
+      set("DataProviderId").to(dataProviderId)
+      set("ExternalDataProviderId").to(externalDataProviderId)
+      set("DataProviderDetails").to(dataProviderDetails)
+      set("DataProviderDetailsJson").to(dataProviderDetailsJson)
+    }.build()
 
-      transactionContext.buffer(
-        Mutation.newInsertBuilder("Campaigns").apply {
-          set("DataProviderId").to(DATA_PROVIDER_ID)
-          set("CampaignId").to(CAMPAIGN_ID)
-          set("AdvertiserId").to(IRRELEVANT_ADVERTISER_ID)
-          set("ExternalCampaignId").to(EXTERNAL_CAMPAIGN_ID)
-          set("ProvidedCampaignId").to("irrelevant")
-          set("CampaignDetails").to(ByteArray.copyFrom(""))
-          set("CampaignDetailsJson").to("")
-        }.build()
-      )
+  protected fun insertCampaignMutation(
+    dataProviderId: Long = DATA_PROVIDER_ID,
+    campaignId: Long = CAMPAIGN_ID,
+    advertiserId: Long = IRRELEVANT_ADVERTISER_ID,
+    externalCampaignId: Long = EXTERNAL_CAMPAIGN_ID,
+    providedCampaignId: String = "irrelevant-provided-campaign-id",
+    campaignDetails: ByteArray = ByteArray.copyFrom(""),
+    campaignDetailsJson: String = ""
+  ): Mutation =
+    Mutation.newInsertBuilder("Campaigns").apply {
+      set("DataProviderId").to(dataProviderId)
+      set("CampaignId").to(campaignId)
+      set("AdvertiserId").to(advertiserId)
+      set("ExternalCampaignId").to(externalCampaignId)
+      set("ProvidedCampaignId").to(providedCampaignId)
+      set("CampaignDetails").to(campaignDetails)
+      set("CampaignDetailsJson").to(campaignDetailsJson)
+    }.build()
 
-      transactionContext.buffer(
-        Mutation.newInsertBuilder("Requisitions").apply {
-          set("DataProviderId").to(DATA_PROVIDER_ID)
-          set("CampaignId").to(CAMPAIGN_ID)
-          set("RequisitionId").to(REQUISITION_ID)
-          set("ExternalRequisitionId").to(EXTERNAL_REQUISITION_ID)
-          set("WindowStartTime").to(START_TIME)
-          set("WindowEndTime").to(END_TIME)
-          set("State").to(RequisitionState.UNFULFILLED.ordinal.toLong())
-          set("RequisitionDetails").to(DETAILS.toSpannerByteArray())
-          set("RequisitionDetailsJson").to(DETAILS.toJson())
-        }.build()
-      )
-    }
-  }
+  fun insertRequisitionMutation(
+    dataProviderId: Long = DATA_PROVIDER_ID,
+    campaignId: Long = CAMPAIGN_ID,
+    requisitionId: Long = REQUISITION_ID,
+    externalRequisitionId: Long = EXTERNAL_REQUISITION_ID,
+    createTime: Timestamp = Timestamp.ofTimeMicroseconds(0),
+    windowStartTime: Timestamp = START_TIME,
+    windowEndTime: Timestamp = END_TIME,
+    state: RequisitionState = RequisitionState.UNFULFILLED,
+    requisitionDetails: RequisitionDetails = DETAILS
+  ): Mutation =
+    Mutation.newInsertBuilder("Requisitions").apply {
+      set("DataProviderId").to(dataProviderId)
+      set("CampaignId").to(campaignId)
+      set("RequisitionId").to(requisitionId)
+      set("CreateTime").to(createTime)
+      set("ExternalRequisitionId").to(externalRequisitionId)
+      set("WindowStartTime").to(windowStartTime)
+      set("WindowEndTime").to(windowEndTime)
+      set("State").to(state.ordinal.toLong())
+      set("RequisitionDetails").to(requisitionDetails.toSpannerByteArray())
+      set("RequisitionDetailsJson").to(requisitionDetails.toJson())
+    }.build()
 
   fun readAllRequisitions(): List<Requisition> = runBlocking {
     spanner

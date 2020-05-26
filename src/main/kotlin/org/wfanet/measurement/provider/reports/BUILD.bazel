@@ -27,7 +27,7 @@ kt_jvm_library(
     deps = [
         ":report_api",
         "//:kotlinx_coroutines_core",
-        "//src/main/kotlin/org/wfanet/measurement/common:throttled_channel_consumer",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/scheduler",
     ],
 )
@@ -40,8 +40,7 @@ kt_jvm_binary(
         ":report_api",
         ":report_starter",
         "//:kotlinx_coroutines_core",
-        "//src/main/kotlin/org/wfanet/measurement/common:flags",
-        "//src/main/kotlin/org/wfanet/measurement/common:throttled_channel_consumer",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/scheduler",
     ],
 )

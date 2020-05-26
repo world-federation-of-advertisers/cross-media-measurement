@@ -31,7 +31,11 @@ class GcpMeasurementProviderStorage(
     campaignExternalKey: CampaignExternalKey,
     states: Set<RequisitionState>,
     pagination: Pagination
-  ): List<Requisition> {
-    TODO("Not yet implemented")
-  }
+  ): ListResult = ListRequisitionsQuery().execute(
+    client.singleUse(),
+    campaignExternalKey.dataProviderExternalId,
+    campaignExternalKey.externalId,
+    states,
+    pagination
+  )
 }

@@ -3,17 +3,18 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFailsWith
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionTransactionTest : RequisitionTestBase() {
-
   private fun updateExistingRequisitionState(state: RequisitionState) {
     spanner.client.write(
       listOf(
@@ -24,6 +25,17 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
           .build()
       )
     )
+  }
+
+  @Before
+  fun populateDatabase() {
+    spanner.client.runReadWriteTransaction { transactionContext ->
+      transactionContext.buffer(
+        listOf(
+          insertDataProviderMutation(), insertCampaignMutation(), insertRequisitionMutation()
+        )
+      )
+    }
   }
 
   @Test
@@ -41,8 +53,10 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
           FulfillRequisitionTransaction()
             .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID))
         }
-      assertThat(requisition).isEqualTo(expectedRequisition)
-      assertThat(readAllRequisitions()).containsExactly(expectedRequisition)
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
+      assertThat(readAllRequisitions())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(expectedRequisition)
     }
   }
 

@@ -7,6 +7,6 @@ kt_jvm_library(
     srcs = ["Scheduler.kt"],
     deps = [
         "//:kotlinx_coroutines_core",
-        "//src/main/kotlin/org/wfanet/measurement/common:adaptive_throttler",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

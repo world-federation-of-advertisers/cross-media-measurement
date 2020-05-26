@@ -47,3 +47,9 @@ fun ReadContext.executeSqlQuery(sql: String): Flow<Struct> =
 fun <T> DatabaseClient.runReadWriteTransaction(
   block: (TransactionContext) -> T
 ): T = readWriteTransaction().run(block)!!
+
+/**
+ * Convenience function for appending without worrying about whether the last [append] had
+ * sufficient whitespace -- this adds a newline before and a space after.
+ */
+fun Statement.Builder.appendClause(sql: String): Statement.Builder = append("\n$sql ")

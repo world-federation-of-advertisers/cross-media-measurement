@@ -33,6 +33,6 @@ kt_jvm_library(
         "StorageAbstractions.kt",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:duchy_role",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

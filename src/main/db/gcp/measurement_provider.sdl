@@ -200,6 +200,8 @@ CREATE TABLE Requisitions (
   CampaignId             INT64 NOT NULL,
   RequisitionId          INT64 NOT NULL,
 
+  CreateTime             TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
   ExternalRequisitionId  INT64 NOT NULL,
 
   WindowStartTime        TIMESTAMP NOT NULL,

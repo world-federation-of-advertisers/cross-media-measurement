@@ -50,11 +50,12 @@ abstract class MeasurementProviderStorage(private val clock: Clock) {
     requisitionExternalKey: RequisitionExternalKey
   ): Requisition
 
+  data class ListResult(val requisitions: List<Requisition>, val nextPageToken: String?)
   abstract suspend fun listRequisitions(
     campaignExternalKey: CampaignExternalKey,
     states: Set<RequisitionState>,
     pagination: Pagination
-  ): List<Requisition>
+  ): ListResult
 
   private fun generateId(): Long =
     abs((Random().nextLong() shl 32) or (clock.millis() and 0xFFFFFFFF))

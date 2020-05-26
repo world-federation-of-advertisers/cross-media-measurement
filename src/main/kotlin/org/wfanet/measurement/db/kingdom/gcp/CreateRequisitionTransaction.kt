@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
+import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -71,6 +72,7 @@ class CreateRequisitionTransaction {
       .set("ExternalRequisitionId").to(externalRequisitionId)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
+      .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
       .set("State").to(state.ordinal.toLong())
       .set("RequisitionDetails").to(requisitionDetails.toSpannerByteArray())
       .set("RequisitionDetailsJson").to(requisitionDetailsJson)

@@ -5,7 +5,7 @@ kt_jvm_test(
     srcs = [":FlagsTest.kt"],
     test_class = "org.wfanet.measurement.common.ArgsTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@io_grpc_grpc_java//core",
         "@io_grpc_grpc_java//testing",
@@ -19,7 +19,7 @@ kt_jvm_test(
     srcs = ["IdentifiersTest.kt"],
     test_class = "org.wfanet.measurement.common.IdentifiersTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:identifiers",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:com_google_truth_truth",
         "@maven//:junit_junit",
@@ -31,7 +31,7 @@ kt_jvm_test(
     srcs = ["DuchyOrderTest.kt"],
     test_class = "org.wfanet.measurement.common.DuchyOrderTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:duchy_order",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:junit_junit",
     ],
@@ -44,7 +44,7 @@ kt_jvm_test(
     deps = [
         "//:kotlinx_coroutines_core",
         "//:kotlinx_coroutines_test",
-        "//src/main/kotlin/org/wfanet/measurement/common:renewed_flow",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:junit_junit",
     ],

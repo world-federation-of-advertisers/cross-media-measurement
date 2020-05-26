@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertNull
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -11,13 +12,24 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 
 @RunWith(JUnit4::class)
 class CreateRequisitionTransactionTest : RequisitionTestBase() {
+  @Before
+  fun populateDatabase() {
+    spanner.client.runReadWriteTransaction { transactionContext ->
+      transactionContext.buffer(
+        listOf(
+          insertDataProviderMutation(), insertCampaignMutation(), insertRequisitionMutation()
+        )
+      )
+    }
+  }
+
   @Test
   fun `requisition already exists`() {
     val existing: Requisition? = spanner.client.runReadWriteTransaction {
       CreateRequisitionTransaction().execute(it, REQUISITION)
     }
-    assertThat(existing).isEqualTo(REQUISITION)
-    assertThat(readAllRequisitions()).containsExactly(REQUISITION)
+    assertThat(existing).comparingExpectedFieldsOnly().isEqualTo(REQUISITION)
+    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(REQUISITION)
   }
 
   @Test
@@ -31,7 +43,7 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
       CreateRequisitionTransaction().execute(it, newRequisition)
     }
     assertNull(existing)
-    assertThat(readAllRequisitions()).containsExactly(
+    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(
       REQUISITION, newRequisition
     )
   }
@@ -47,7 +59,7 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
       CreateRequisitionTransaction().execute(it, newRequisition)
     }
     assertNull(existing)
-    assertThat(readAllRequisitions()).containsExactly(
+    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(
       REQUISITION, newRequisition
     )
   }
@@ -63,7 +75,7 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
       CreateRequisitionTransaction().execute(it, newRequisition)
     }
     assertNull(existing)
-    assertThat(readAllRequisitions()).containsExactly(
+    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(
       REQUISITION, newRequisition
     )
   }

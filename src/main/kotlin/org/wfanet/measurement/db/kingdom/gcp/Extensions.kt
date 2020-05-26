@@ -20,6 +20,7 @@ fun Struct.toRequisition(): Requisition {
     campaignId = getLong("CampaignId")
     requisitionId = getLong("RequisitionId")
 
+    createTime = getTimestamp("CreateTime").toProto()
     externalDataProviderId = getLong("ExternalDataProviderId")
     externalCampaignId = getLong("ExternalCampaignId")
     externalRequisitionId = getLong("ExternalRequisitionId")

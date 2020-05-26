@@ -10,7 +10,7 @@ kt_jvm_library(
     srcs = ["Timestamps.kt"],
     deps = [
         "//:google_cloud_spanner",
-        "//src/main/kotlin/org/wfanet/measurement/common:proto_utils",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -25,7 +25,7 @@ kt_jvm_library(
         ":timestamps",
         "//:google_cloud_spanner",
         "//:kotlinx_coroutines_core",
-        "//src/main/kotlin/org/wfanet/measurement/common:proto_utils",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -37,7 +37,7 @@ kt_jvm_library(
     ],
     deps = [
         ":spanner",
-        "//src/main/kotlin/org/wfanet/measurement/common:duchy_order",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy:protocol_state_helper",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy:storage_abstractions",
         "//src/main/proto/wfa/measurement/internal/db/gcp:computations_java_proto",
