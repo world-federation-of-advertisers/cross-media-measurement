@@ -156,8 +156,8 @@ message SketchConfig {
 message Sketch {
   // Enriched cardinality sketch register.
   message Register {
-    // Indices of the register. E.g. LiquidLegion bucket.
-    repeated int64 indexes = 1;
+    // Linearized register index. E.g. LiquidLegion bucket.
+    int64 index = 1;
     // Values of the register. E.g. LiquidLegion frequency.
     repeated int64 values = 2;
   }
