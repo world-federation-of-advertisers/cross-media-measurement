@@ -63,7 +63,7 @@ CREATE TABLE Computations (
   -- assigned to a worker. This is usually the case when the computation is
   -- waiting on inputs from another MPC node. A NULL value here should imply
   -- a NULL value in LockOwner.
-  LockExpirationTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+  LockExpirationTime TIMESTAMP,
 
   -- Serialized bytes of a proto3 protobuf with details about the
   -- ongoing computation which do not need to be indexed by the

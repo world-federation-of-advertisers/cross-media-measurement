@@ -1,12 +1,13 @@
 package org.wfanet.measurement.db.gcp
 
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseId
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
-import com.google.cloud.spanner.Value
+import java.time.Clock
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
@@ -29,7 +30,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   private val duchyOrder: DuchyOrder,
   private val localComputationIdGenerator: LocalComputationIdGenerator,
   private val blobStorageBucket: String = "knight-computation-stage-storage",
-  private val stateEnumHelper: ProtocolStateEnumHelper<T>
+  private val stateEnumHelper: ProtocolStateEnumHelper<T>,
+  private val clock: Clock = Clock.systemUTC()
 ) : ComputationsRelationalDb<T> {
 
   override fun insertComputation(globalId: Long, initialState: T): ComputationToken<T> {
@@ -51,11 +53,12 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       blobsStoragePrefix = "$blobStorageBucket/$localId"
     }.build()
 
+    val writeTimestamp = clock.gcpTimestamp()
     val initialStateAsInt64 = stateEnumHelper.enumToLong(initialState)
     val computationRow = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(localId)
       .set("ComputationStage").to(initialStateAsInt64)
-      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      .set("UpdateTime").to(writeTimestamp)
       .set("GlobalComputationId").to(globalId)
       .set("ComputationDetails").to(details.toSpannerByteArray())
       .set("ComputationDetailsJSON").to(details.toJson())
@@ -66,7 +69,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     val computationStageRow = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(localId)
       .set("ComputationStage").to(initialStateAsInt64)
-      .set("CreationTime").to(Value.COMMIT_TIMESTAMP)
+      .set("CreationTime").to(writeTimestamp)
       // The stage is being attempted right now.
       .set("NextAttempt").to(2)
       .set("Details").to(stageDetails.toSpannerByteArray())
@@ -78,10 +81,10 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("ComputationStage").to(initialStateAsInt64)
       // The stage is being attempted right now.
       .set("Attempt").to(1)
-      .set("BeginTime").to(Value.COMMIT_TIMESTAMP)
+      .set("BeginTime").to(writeTimestamp)
       .build()
 
-    val writeTime = spanner.getDatabaseClient(databaseId).write(
+    spanner.getDatabaseClient(databaseId).write(
       listOf(computationRow, computationStageRow, computationStageAttemptRow)
     )
 
@@ -91,7 +94,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       state = initialState,
       attempt = 1,
       owner = null,
-      lastUpdateTime = writeTime.toMillis(),
+      lastUpdateTime = writeTimestamp.toMillis(),
       role = computationAtThisDuchy.role,
       nextWorker = details.outgoingNodeId
     )
@@ -140,7 +143,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       ctx.buffer(
         Mutation.newUpdateBuilder("Computations")
           .set("ComputationId").to(token.localId)
-          .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+          .set("UpdateTime").to(clock.gcpTimestamp())
           // Release any lock on this computation. The owner says who has the current
           // lock on the computation, and the expiration time states both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being
@@ -150,14 +153,64 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
           // by a knight, and by using the commit timestamp we pretty much get the behaviour
           // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
           .set("LockOwner").to(null as String?)
-          .set("LockExpirationTime").to(Value.COMMIT_TIMESTAMP)
+          .set("LockExpirationTime").to(clock.gcpTimestamp())
           .build()
       )
     }
   }
 
   override fun claimTask(ownerId: String): ComputationToken<T>? {
-    TODO("Not yet implemented")
+    // First the possible tasks to claim are selected from the computations table, then for each
+    // item in the list we try to claim the lock in a transaction which will only succeed if the
+    // lock is still available. This pattern means only the item which is being updated
+    // would need to be locked and not every possible computation that can be worked on.
+    val possibleTasksToClaim =
+      spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction().executeQuery(
+        Statement.newBuilder(
+          """
+          SELECT c.ComputationId,  c.GlobalComputationId, c.UpdateTime
+          FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
+          WHERE c.LockExpirationTime <= @current_time
+          ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
+          LIMIT 50
+          """.trimIndent()
+        ).bind("current_time").to(clock.gcpTimestamp()).build()
+      )
+    while (possibleTasksToClaim.next()) {
+      val struct = possibleTasksToClaim.currentRowAsStruct
+      if (claim(struct.getLong("ComputationId"), struct.getTimestamp("UpdateTime"), ownerId)) {
+        return getToken(struct.getLong("GlobalComputationId"))
+      }
+    }
+
+    // Did not acquire the lock on any computation.
+    return null
+  }
+
+  /**
+   * Claims a specific computation for an owner.
+   *
+   * @return true if the lock was acquired. */
+  private fun claim(computationId: Long, lastUpdate: Timestamp, ownerId: String): Boolean {
+    return spanner.getDatabaseClient(databaseId).readWriteTransaction().run { ctx ->
+      val currentLockOwnerStruct =
+        ctx.readRow("Computations", Key.of(computationId), listOf("UpdateTime"))
+          ?: error("Failed to claim computation $computationId. It does not exist.")
+      // Verify that the row hasn't been updated since the previous, non-transactional read.
+      if (currentLockOwnerStruct.getTimestamp("UpdateTime") == lastUpdate) {
+        val fiveMinutesInTheFuture = clock.instant().plusSeconds(300).toGcpTimestamp()
+        ctx.buffer(
+          Mutation.newUpdateBuilder("Computations")
+            .set("ComputationId").to(computationId)
+            .set("LockOwner").to(ownerId)
+            .set("LockExpirationTime").to(fiveMinutesInTheFuture)
+            .set("UpdateTime").to(clock.gcpTimestamp())
+            .build()
+        )
+        return@run true
+      }
+      return@run false
+    } ?: error("claim for a specific computation ($computationId) returned a null value")
   }
 
   override fun renewTask(token: ComputationToken<T>) {
