@@ -1,7 +1,6 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
@@ -12,25 +11,6 @@ import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.internal.kingdom.Requisition
-
-val REQUISITION_READ_QUERY: Statement = Statement.of(
-  """
-  SELECT Requisitions.DataProviderId,
-         Requisitions.CampaignId,
-         Requisitions.RequisitionId,
-         Requisitions.ExternalRequisitionId,
-         Requisitions.WindowStartTime,
-         Requisitions.WindowEndTime,
-         Requisitions.State,
-         Requisitions.RequisitionDetails,
-         Requisitions.RequisitionDetailsJson,
-         DataProviders.ExternalDataProviderId,
-         Campaigns.ExternalCampaignId
-  FROM Requisitions
-  JOIN DataProviders USING (DataProviderId)
-  JOIN Campaigns USING (DataProviderId, CampaignId)
-  """.trimIndent()
-)
 
 /**
  * Persists a Requisition in Spanner if it doesn't yet exist.
@@ -87,9 +67,7 @@ class CreateRequisitionTransaction {
 
   private fun Requisition.toInsertMutation(): Mutation =
     Mutation.newInsertBuilder("Requisitions")
-      .set("DataProviderId").to(dataProviderId)
-      .set("CampaignId").to(campaignId)
-      .set("RequisitionId").to(requisitionId)
+      .addPrimaryKey(this)
       .set("ExternalRequisitionId").to(externalRequisitionId)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())

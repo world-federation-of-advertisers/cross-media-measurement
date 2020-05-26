@@ -30,3 +30,8 @@ fun Struct.getNullableLong(column: String): Long? =
 fun ResultSet.getAtMostOne(): Struct? =
   if (next()) currentRowAsStruct.also { check(!next()) { "Found more than one row" } }
   else null
+
+/**
+ * Returns a bytes column as a Kotlin native ByteArray. This is useful for deserializing protos.
+ */
+fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toByteArray()
