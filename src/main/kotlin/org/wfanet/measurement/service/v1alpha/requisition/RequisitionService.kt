@@ -50,7 +50,7 @@ class RequisitionService(
     val states = request.filter.statesList.map(MetricRequisition.State::toRequisitionState).toSet()
     val pagination = Pagination(request.pageSize, request.pageToken)
     val requisitions: List<Requisition> =
-      measurementProviderStorage.listRequisitions(campaignKey, states, pagination)
+      measurementProviderStorage.listRequisitions(campaignKey, states, pagination).requisitions
     return ListMetricRequisitionsResponse
       .newBuilder()
       .addAllMetricRequisitions(requisitions.map(Requisition::toV1Api))

@@ -61,6 +61,7 @@ class RequisitionServiceTest {
 
     var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   }
+
   object FakeMeasurementProviderStorage :
     MeasurementProviderStorage(Clock.systemUTC()) {
     private fun RequisitionExternalKey.toRequisitionBuilder(): Requisition.Builder =
@@ -112,7 +113,7 @@ class RequisitionServiceTest {
       campaignExternalKey: CampaignExternalKey,
       states: Set<RequisitionState>,
       pagination: Pagination
-    ): List<Requisition> {
+    ): ListResult {
       require(pagination == Pagination(2, "some-page-token"))
       require(states == setOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED))
       val key =
@@ -120,10 +121,10 @@ class RequisitionServiceTest {
           campaignExternalKey,
           REQUISITION_ID
         )
-      return listOf(
+      return ListResult(listOf(
         makeRequisitionWithState(key, RequisitionState.UNFULFILLED),
         makeRequisitionWithState(key, RequisitionState.FULFILLED)
-      )
+      ), "different-page-token")
     }
   }
 

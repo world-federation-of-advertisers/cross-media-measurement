@@ -8,7 +8,7 @@ kt_jvm_test(
         "//:grpc_core",
         "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_service_impl",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
         "@io_grpc_grpc_java//testing",
     ],

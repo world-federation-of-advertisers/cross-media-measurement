@@ -5,7 +5,7 @@ kt_jvm_test(
     srcs = [":PublisherDataImplTest.kt"],
     test_class = "org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataImplTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_service_impl",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@io_grpc_grpc_java//core",
         "@io_grpc_grpc_java//testing",
