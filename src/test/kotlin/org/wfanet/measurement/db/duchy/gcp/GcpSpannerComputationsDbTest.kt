@@ -261,12 +261,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun getToken() {
-    val lastUpdated = 12345678910L
-    val lockExpires = lastUpdated + 1000
+    val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val lockExpires = lastUpdated.plusSeconds(1000)
     val failedPreviousAttempt = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(411)
       .set("ComputationStage").to(4)
-      .set("UpdateTime").to((lastUpdated - 3000).toGcpTimestamp())
+      .set("UpdateTime").to(lastUpdated.minusSeconds(3000).toGcpTimestamp())
       .set("GlobalComputationId").to(21231)
       .set("LockOwner").to(null as String?)
       .set("LockExpirationTime").to(null as Timestamp?)
@@ -287,8 +287,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(100)
       .set("ComputationStage").to(2)
       .set("NextAttempt").to(45)
-      .set("CreationTime").to((lastUpdated - 20000).toGcpTimestamp())
-      .set("EndTime").to((lastUpdated - 200).toGcpTimestamp())
+      .set("CreationTime").to((lastUpdated.minusSeconds(2)).toGcpTimestamp())
+      .set("EndTime").to((lastUpdated.minusMillis(200)).toGcpTimestamp())
       .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
       .set("DetailsJSON").to(STAGE_DETAILS.toJson())
       .build()
@@ -317,7 +317,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         role = DuchyRole.PRIMARY,
         nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
         attempt = 1,
-        lastUpdateTime = lastUpdated
+        lastUpdateTime = lastUpdated.toEpochMilli()
       ),
       database.getToken(21231)
     )
@@ -334,12 +334,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun enqueue() {
-    val lastUpdated = 12345678910L
-    val lockExpires = System.currentTimeMillis() + 300_000
+    val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationToken(
       localId = 1, globalId = 0, state = FakeProtocolStates.C,
       owner = "PeterSpacemen", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = lastUpdated
+      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = lastUpdated.toEpochMilli()
     )
 
     val computation = Mutation.newInsertBuilder("Computations")
@@ -407,12 +407,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun `enqueue with old token fails`() {
-    val lastUpdated = 12345678910L
-    val lockExpires = lastUpdated + 1000
+    val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val lockExpires = lastUpdated.plusSeconds(1)
     val token = ComputationToken(
       localId = 1, globalId = 0, state = FakeProtocolStates.C,
       owner = "PeterSpacemen", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = lastUpdated + 200
+      role = DuchyRole.PRIMARY, attempt = 1,
+      lastUpdateTime = lastUpdated.minusSeconds(200).toEpochMilli()
     )
 
     val computation = Mutation.newInsertBuilder("Computations")
@@ -447,7 +448,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(555)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(3456789L.toGcpTimestamp())
+      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
       .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
       .set("DetailsJSON").to(STAGE_DETAILS.toJson())
       .build()
@@ -466,7 +467,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(66)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(3456789L.toGcpTimestamp())
+      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
       .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
       .set("DetailsJSON").to(STAGE_DETAILS.toJson())
       .build()
