@@ -3,6 +3,11 @@ load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
 package(default_visibility = ["//visibility:public"])
 
 java_proto_library(
+    name = "advertiser_java_proto",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:advertiser_proto"],
+)
+
+java_proto_library(
     name = "crypto_java_proto",
     deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:crypto_proto"],
 )
