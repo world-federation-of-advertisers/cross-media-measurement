@@ -28,14 +28,15 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   private val databaseId: DatabaseId,
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
-  private val localComputationIdGenerator: LocalComputationIdGenerator,
   private val blobStorageBucket: String = "knight-computation-stage-storage",
   private val stateEnumHelper: ProtocolStateEnumHelper<T>,
   private val clock: Clock = Clock.systemUTC()
 ) : ComputationsRelationalDb<T> {
 
+  private val localComputationIdGenerator: LocalComputationIdGenerator =
+    HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
+
   override fun insertComputation(globalId: Long, initialState: T): ComputationToken<T> {
-    // TODO: Invalidate any previously running computation for the global id.
     require(
       stateEnumHelper.validInitialState(initialState)
     ) { "Invalid initial state $initialState" }
@@ -112,8 +113,6 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
           JOIN ComputationStages AS cs ON
             (c.ComputationId = cs.ComputationId AND c.ComputationStage = cs.ComputationStage)
           WHERE c.GlobalComputationId = @global_id
-          ORDER BY UpdateTime DESC
-          LIMIT 1
           """.trimIndent()
         ).bind("global_id").to(globalId).build()
       )

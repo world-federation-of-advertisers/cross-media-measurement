@@ -90,7 +90,7 @@ CREATE NULL_FILTERED INDEX ComputationsByLockExpirationTime
 CREATE INDEX ComputationsByLockOwner ON Computations(LockOwner);
 
 -- Enable querying by global computation id.
-CREATE INDEX ComputationsByGlobalId ON Computations(GlobalComputationId);
+CREATE UNIQUE INDEX ComputationsByGlobalId ON Computations(GlobalComputationId);
 
 
 -- ComputationStages

@@ -22,7 +22,7 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
 import org.wfanet.measurement.db.gcp.GcpSpannerComputationsDb
-import org.wfanet.measurement.db.gcp.LocalComputationIdGenerator
+import org.wfanet.measurement.db.gcp.HalfOfGlobalBitsAndTimeStampIdGenerator
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
@@ -83,6 +83,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
     val STAGE_DETAILS: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
     val TEST_INSTANT: Instant = Instant.ofEpochMilli(123456789L)
+    val TEST_CLOCK: Clock = Clock.fixed(TEST_INSTANT, ZoneId.systemDefault())
   }
 
   private val database =
@@ -97,52 +98,47 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
           Duchy("AUSTRIA", 303L.toBigInteger())
         )
       ),
-      clock = Clock.fixed(TEST_INSTANT, ZoneId.systemDefault()),
-      localComputationIdGenerator = LocalIdIsGlobalIdPlusOne,
+      clock = TEST_CLOCK,
       stateEnumHelper = ProtocolHelper
     )
 
-  object LocalIdIsGlobalIdPlusOne :
-    LocalComputationIdGenerator {
-    override fun localId(globalId: Long): Long {
-      return globalId + 1
-    }
-  }
-
   @Test
   fun `insert two computations`() {
-    val resultId123 = database.insertComputation(123L, FakeProtocolStates.A)
-    val resultId220 = database.insertComputation(220L, FakeProtocolStates.A)
+    val idGenerator = HalfOfGlobalBitsAndTimeStampIdGenerator(TEST_CLOCK)
+    val id1 = 0xABCDEF0123
+    val resultId1 = database.insertComputation(id1, FakeProtocolStates.A)
+    val id2 = 0x6699AA231
+    val resultId2 = database.insertComputation(id2, FakeProtocolStates.A)
     assertEquals(
       ComputationToken(
-        localId = 124, nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
+        localId = idGenerator.localId(id1), nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
         owner = null, attempt = 1, state = FakeProtocolStates.A,
-        globalId = 123L, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+        globalId = id1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
-      resultId123
+      resultId1
     )
 
     assertEquals(
       ComputationToken(
-        localId = 221, nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
+        localId = idGenerator.localId(id2), nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
         owner = null, attempt = 1, state = FakeProtocolStates.A,
-        globalId = 220, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+        globalId = id2, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
-      resultId220
+      resultId2
     )
 
     val expectedDetails123 = ComputationDetails.newBuilder().apply {
       role = ComputationDetails.RoleInComputation.SECONDARY
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "BOHEMIA"
-      blobsStoragePrefix = "knight-computation-stage-storage/${resultId123.localId}"
+      blobsStoragePrefix = "knight-computation-stage-storage/${resultId1.localId}"
     }.build()
 
     val expectedDetails220 = ComputationDetails.newBuilder().apply {
       role = ComputationDetails.RoleInComputation.PRIMARY
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "BOHEMIA"
-      blobsStoragePrefix = "knight-computation-stage-storage/${resultId220.localId}"
+      blobsStoragePrefix = "knight-computation-stage-storage/${resultId2.localId}"
     }.build()
     assertQueryReturns(
       spanner.client,
@@ -150,24 +146,24 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
-      ORDER BY ComputationId
+      ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(resultId123.localId)
-        .set("ComputationStage").to(resultId123.state.ordinal.toLong())
+        .set("ComputationId").to(resultId1.localId)
+        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
         .set("UpdateTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("GlobalComputationId").to(resultId123.globalId)
-        .set("LockOwner").to(resultId123.owner)
+        .set("GlobalComputationId").to(resultId1.globalId)
+        .set("LockOwner").to(resultId1.owner)
         .set("LockExpirationTime").to(null as Timestamp?)
         .set("ComputationDetails").to(expectedDetails123.toSpannerByteArray())
         .set("ComputationDetailsJSON").to(expectedDetails123.toJson())
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(resultId220.localId)
-        .set("ComputationStage").to(resultId220.state.ordinal.toLong())
+        .set("ComputationId").to(resultId2.localId)
+        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
         .set("UpdateTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("GlobalComputationId").to(resultId220.globalId)
-        .set("LockOwner").to(resultId220.owner)
+        .set("GlobalComputationId").to(resultId2.globalId)
+        .set("LockOwner").to(resultId2.owner)
         .set("LockExpirationTime").to(null as Timestamp?)
         .set("ComputationDetails").to(expectedDetails220.toSpannerByteArray())
         .set("ComputationDetailsJSON").to(expectedDetails220.toJson())
@@ -180,22 +176,22 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       SELECT ComputationId, ComputationStage, CreationTime, NextAttempt,
              EndTime, Details, DetailsJSON
       FROM ComputationStages
-      ORDER BY ComputationId
+      ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(resultId123.localId)
-        .set("ComputationStage").to(resultId123.state.ordinal.toLong())
+        .set("ComputationId").to(resultId1.localId)
+        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
         .set("CreationTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("NextAttempt").to(resultId123.attempt + 1)
+        .set("NextAttempt").to(resultId1.attempt + 1)
         .set("EndTime").to(null as Timestamp?)
         .set("Details").to(ComputationStageDetails.getDefaultInstance().toSpannerByteArray())
         .set("DetailsJSON").to(ComputationStageDetails.getDefaultInstance().toJson())
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(resultId220.localId)
-        .set("ComputationStage").to(resultId220.state.ordinal.toLong())
+        .set("ComputationId").to(resultId2.localId)
+        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
         .set("CreationTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("NextAttempt").to(resultId220.attempt + 1)
+        .set("NextAttempt").to(resultId2.attempt + 1)
         .set("EndTime").to(null as Timestamp?)
         .set("Details").to(ComputationStageDetails.getDefaultInstance().toSpannerByteArray())
         .set("DetailsJSON").to(ComputationStageDetails.getDefaultInstance().toJson())
@@ -211,19 +207,19 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
-      ORDER BY ComputationId
+      ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(resultId123.localId)
-        .set("ComputationStage").to(resultId123.state.ordinal.toLong())
-        .set("Attempt").to(resultId123.attempt)
+        .set("ComputationId").to(resultId1.localId)
+        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
+        .set("Attempt").to(resultId1.attempt)
         .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(resultId220.localId)
-        .set("ComputationStage").to(resultId220.state.ordinal.toLong())
-        .set("Attempt").to(resultId220.attempt)
+        .set("ComputationId").to(resultId2.localId)
+        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
+        .set("Attempt").to(resultId2.attempt)
         .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
         .build()
@@ -231,7 +227,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `insert computation fails`() {
+  fun `insert computations with same global id fails`() {
     database.insertComputation(123L, FakeProtocolStates.A)
     // This one fails because the same local id is used.
     assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
@@ -264,16 +260,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun getToken() {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1000)
-    val failedPreviousAttempt = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(411)
-      .set("ComputationStage").to(4)
-      .set("UpdateTime").to(lastUpdated.minusSeconds(3000).toGcpTimestamp())
-      .set("GlobalComputationId").to(21231)
-      .set("LockOwner").to(null as String?)
-      .set("LockExpirationTime").to(null as Timestamp?)
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
-      .build()
     val computation = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(100)
       .set("ComputationStage").to(3)
@@ -303,7 +289,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .build()
     spanner.client.write(
       listOf(
-        failedPreviousAttempt,
         computation,
         computationStageB,
         computationStageD

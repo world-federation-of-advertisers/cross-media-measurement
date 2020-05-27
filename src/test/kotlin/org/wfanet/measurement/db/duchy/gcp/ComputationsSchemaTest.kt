@@ -2,8 +2,10 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -51,6 +53,25 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
         .set("NextAttempt").to(3)
         .build()
     )
+  }
+
+  @Test
+  fun globalIdIsUnique() {
+    val dbClient = spanner.client
+    dbClient.write(listOf(makeInsertMutation()))
+    assertFailsWith<SpannerException> {
+      dbClient.write(
+        listOf(
+          Mutation.newInsertBuilder("Computations")
+            .set("ComputationId").to(computationId + 6)
+            .set("ComputationStage").to(1)
+            .set("GlobalComputationId").to(1)
+            .set("ComputationDetails").to(ByteArray.copyFrom("123"))
+            .set("ComputationDetailsJSON").to("123")
+            .build()
+        )
+      )
+    }
   }
 
   private fun makeInsertMutation(): Mutation {
