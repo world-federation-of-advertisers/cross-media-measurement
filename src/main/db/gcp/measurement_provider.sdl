@@ -54,7 +54,7 @@ CREATE TABLE Advertisers (
 ) PRIMARY KEY (AdvertiserId);
 
 -- For advertiser APIs.
-CREATE INDEX AdvertisersByExternalId ON Advertisers(ExternalAdvertiserId);
+CREATE UNIQUE INDEX AdvertisersByExternalId ON Advertisers(ExternalAdvertiserId);
 
 
 CREATE TABLE DataProviders (
@@ -66,7 +66,7 @@ CREATE TABLE DataProviders (
 ) PRIMARY KEY (DataProviderId);
 
 -- For data provider APIs.
-CREATE INDEX DataProvidersByExternalId ON DataProviders(ExternalDataProviderId);
+CREATE UNIQUE INDEX DataProvidersByExternalId ON DataProviders(ExternalDataProviderId);
 
 -- Each Campaign belongs to both an Advertiser and a Data Provider.
 --
@@ -107,7 +107,7 @@ CREATE TABLE Campaigns (
 -- Used for Advertiser APIs, e.g. to support UIs showing all campaigns that an
 -- advertiser owns.
 CREATE INDEX CampaignsByAdvertiser ON Campaigns(AdvertiserId);
-CREATE INDEX CampaignsByExternalId ON Campaigns(ExternalCampaignId);
+CREATE UNIQUE INDEX CampaignsByExternalId ON Campaigns(ExternalCampaignId);
 CREATE INDEX CampaignsByProvidedId ON Campaigns(ProvidedCampaignId);
 
 
@@ -134,7 +134,7 @@ CREATE TABLE ReportConfigs (
   INTERLEAVE IN PARENT Advertisers ON DELETE CASCADE;
 
 -- Used by Data Provider and Advertiser APIs to configure and list reports.
-CREATE INDEX ReportConfigsByExternalId
+CREATE UNIQUE INDEX ReportConfigsByExternalId
   ON ReportConfigs(AdvertiserId, ExternalReportConfigId),
   INTERLEAVE IN Advertisers;
 
@@ -221,7 +221,7 @@ CREATE TABLE Requisitions (
 ) PRIMARY KEY (DataProviderId, CampaignId, RequisitionId),
   INTERLEAVE IN PARENT Campaigns ON DELETE CASCADE;
 
-CREATE INDEX RequisitionsByExternalId ON Requisitions(ExternalRequisitionId);
+CREATE UNIQUE INDEX RequisitionsByExternalId ON Requisitions(ExternalRequisitionId);
 
 -- Index to support finding pending metrics to serve to DataProviders, as well
 -- as computations to start: Reports in a waiting state with all of its metrics
@@ -279,7 +279,7 @@ CREATE TABLE ReportRequisitions (
                DataProviderId, CampaignId, RequisitionId),
   INTERLEAVE IN PARENT Reports ON DELETE CASCADE;
 
-CREATE INDEX ReportRequisitionsByRequisition
+CREATE UNIQUE INDEX ReportRequisitionsByRequisition
   ON ReportRequisitions(
     DataProviderId, CampaignId, RequisitionId,  -- Requisitions PK
     AdvertiserId, ReportConfigId, ScheduleId, ReportId -- Reports PK
