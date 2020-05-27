@@ -92,7 +92,7 @@ interface ComputationsRelationalDb<T : Enum<T>> {
   fun claimTask(ownerId: String): ComputationToken<T>?
 
   /** Extends the time a computation is locked. */
-  fun renewTask(token: ComputationToken<T>)
+  fun renewTask(token: ComputationToken<T>): ComputationToken<T>
 
   /**
    * Transitions a computation to a new state.

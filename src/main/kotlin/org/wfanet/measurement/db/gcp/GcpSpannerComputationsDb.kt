@@ -198,23 +198,28 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
           ?: error("Failed to claim computation $computationId. It does not exist.")
       // Verify that the row hasn't been updated since the previous, non-transactional read.
       if (currentLockOwnerStruct.getTimestamp("UpdateTime") == lastUpdate) {
-        val fiveMinutesInTheFuture = clock.instant().plusSeconds(300).toGcpTimestamp()
-        ctx.buffer(
-          Mutation.newUpdateBuilder("Computations")
-            .set("ComputationId").to(computationId)
-            .set("LockOwner").to(ownerId)
-            .set("LockExpirationTime").to(fiveMinutesInTheFuture)
-            .set("UpdateTime").to(clock.gcpTimestamp())
-            .build()
-        )
+        ctx.buffer(setLockMutation(computationId, ownerId))
         return@run true
       }
       return@run false
     } ?: error("claim for a specific computation ($computationId) returned a null value")
   }
 
-  override fun renewTask(token: ComputationToken<T>) {
-    TODO("Not yet implemented")
+  private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
+    val fiveMinutesInTheFuture = clock.instant().plusSeconds(300).toGcpTimestamp()
+    return Mutation.newUpdateBuilder("Computations")
+      .set("ComputationId").to(computationId)
+      .set("LockOwner").to(ownerId)
+      .set("LockExpirationTime").to(fiveMinutesInTheFuture)
+      .set("UpdateTime").to(clock.gcpTimestamp())
+      .build()
+  }
+
+  override fun renewTask(token: ComputationToken<T>): ComputationToken<T> {
+    val owner = checkNotNull(token.owner) { "Cannot renew lock for computation with no owner." }
+    runIfTokenFromLastUpdate(token) { it.buffer(setLockMutation(token.localId, owner)) }
+    return getToken(token.globalId)
+      ?: error("Failed to renew lock on computation (${token.globalId}, it does not exist.")
   }
 
   override fun updateComputationState(

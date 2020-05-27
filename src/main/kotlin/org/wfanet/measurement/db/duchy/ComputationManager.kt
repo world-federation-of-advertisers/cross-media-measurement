@@ -104,8 +104,8 @@ class ComputationManager<T : Enum<T>>(
    *
    * @throws [IOException] upon failure
    */
-  fun renewWork(token: ComputationToken<T>) {
-    relationalDatabase.renewTask(token)
+  fun renewWork(token: ComputationToken<T>): ComputationToken<T> {
+    return relationalDatabase.renewTask(token)
   }
 
   /**

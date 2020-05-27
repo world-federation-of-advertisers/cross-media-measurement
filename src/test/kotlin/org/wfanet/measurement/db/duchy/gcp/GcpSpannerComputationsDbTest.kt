@@ -4,6 +4,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
+import java.lang.IllegalStateException
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -511,7 +512,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(111)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(3456789L.toGcpTimestamp())
+      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
       .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
       .set("DetailsJSON").to(STAGE_DETAILS.toJson())
       .build()
@@ -530,7 +531,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(333)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(3456789L.toGcpTimestamp())
+      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
       .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
       .set("DetailsJSON").to(STAGE_DETAILS.toJson())
       .build()
@@ -548,13 +549,78 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
+  fun renewTask() {
+    val lastUpdated = TEST_INSTANT.minusSeconds(355)
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, state = FakeProtocolStates.E,
+      owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = lastUpdated.toEpochMilli()
+    )
+    val fiveSecondsFromNow = Instant.now().plusSeconds(5).toGcpTimestamp()
+    val computation = Mutation.newInsertBuilder("Computations")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(4)
+      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
+      .set("GlobalComputationId").to(token.globalId)
+      .set("LockOwner").to(token.owner)
+      .set("LockExpirationTime").to(fiveSecondsFromNow)
+      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
+      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .build()
+    val stage = Mutation.newInsertBuilder("ComputationStages")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(4)
+      .set("NextAttempt").to(3)
+      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
+      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
+      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .build()
+    spanner.client.write(listOf(computation, stage))
+    assertEquals(
+      token.copy(lastUpdateTime = TEST_INSTANT.toEpochMilli()),
+      database.renewTask(token)
+    )
+
+    assertQueryReturns(
+      spanner.client,
+      """
+        SELECT LockOwner, LockExpirationTime
+        FROM Computations
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("LockOwner").to(token.owner)
+        .set("LockExpirationTime").to(TEST_INSTANT.plusSeconds(300).toGcpTimestamp())
+        .build()
+    )
+  }
+
+  @Test
+  fun `renewTask for missing computation fails`() {
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, state = FakeProtocolStates.E,
+      owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = 12345L
+    )
+    assertFailsWith<SpannerException> { database.renewTask(token) }
+  }
+
+  @Test
+  fun `renewTask for token with no owner fails`() {
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, state = FakeProtocolStates.E,
+      owner = null, nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = 12345L
+    )
+    assertFailsWith<IllegalStateException> { database.renewTask(token) }
+  }
+
+  @Test
   fun `unimplemented interface functions`() {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
       owner = null, attempt = 1, state = FakeProtocolStates.A,
       globalId = 0, lastUpdateTime = 0
     )
-    assertFailsWith(NotImplementedError::class) { database.renewTask(token) }
     assertFailsWith(NotImplementedError::class) { database.readBlobReferenceNames(token) }
     assertFailsWith(NotImplementedError::class) {
       database.updateComputationState(
