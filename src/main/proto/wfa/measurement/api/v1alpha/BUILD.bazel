@@ -43,8 +43,13 @@ java_and_kt_grpc_library(
 )
 
 java_and_kt_grpc_library(
-    name = "registration_service",
-    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:registration_service_proto"],
+    name = "advertiser_registration_service",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:advertiser_registration_service_proto"],
+)
+
+java_and_kt_grpc_library(
+    name = "data_provider_registration_service",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:data_provider_registration_service_proto"],
 )
 
 java_and_kt_grpc_library(
