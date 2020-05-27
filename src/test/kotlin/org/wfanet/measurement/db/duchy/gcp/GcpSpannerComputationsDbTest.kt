@@ -390,11 +390,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-        SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner,
-               ComputationDetails, ComputationDetailsJSON,
-               (LockExpirationTime = UpdateTime) as LockExpired
-        FROM Computations
-        ORDER BY ComputationId
+      SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner,
+             ComputationDetails, ComputationDetailsJSON,
+             (LockExpirationTime = UpdateTime) as LockExpired
+      FROM Computations
+      ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)

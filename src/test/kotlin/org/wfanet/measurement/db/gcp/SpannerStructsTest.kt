@@ -54,6 +54,6 @@ class SpannerStructsTest {
     assertNull(ResultSets.forRows(struct.type, listOf()).getAtMostOne())
     assertEquals(struct, ResultSets.forRows(struct.type, listOf(struct)).getAtMostOne())
     assertFailsWith<IllegalStateException>
-      { ResultSets.forRows(struct.type, listOf(struct, struct)).getAtMostOne() }
+    { ResultSets.forRows(struct.type, listOf(struct, struct)).getAtMostOne() }
   }
 }

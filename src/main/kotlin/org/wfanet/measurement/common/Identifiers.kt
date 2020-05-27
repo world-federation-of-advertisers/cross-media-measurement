@@ -32,10 +32,10 @@ data class ApiId(val value: String) {
 data class InternalId(val value: Long)
 
 /** Encodes [ByteArray] with RFC 7515's Base64url encoding into a base-64 string. */
-private fun ByteArray.base64UrlEncode() : String =
+private fun ByteArray.base64UrlEncode(): String =
   Base64.getUrlEncoder().withoutPadding().encodeToString(this)
 
-private fun String.base64UrlDecode() : ByteArray =
+private fun String.base64UrlDecode(): ByteArray =
   Base64.getUrlDecoder().decode(this)
 
 // An alternative is: toBigInteger().toByteArray(), but that includes the sign bit, which uses an

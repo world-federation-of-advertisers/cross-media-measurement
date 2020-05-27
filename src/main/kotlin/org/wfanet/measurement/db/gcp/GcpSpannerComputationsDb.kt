@@ -111,8 +111,9 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
           WHERE c.GlobalComputationId = @global_id
           ORDER BY UpdateTime DESC
           LIMIT 1
-        """.trimIndent()
-      ).bind("global_id").to(globalId).build())
+          """.trimIndent()
+        ).bind("global_id").to(globalId).build()
+      )
       val struct = results.getAtMostOne() ?: return null
 
       val computationDetails =
@@ -194,7 +195,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   private fun <R> runIfTokenFromLastUpdate(
     token: ComputationToken<T>,
     readWriteTransactionBlock: (TransactionContext) -> R
-  ) : R? {
+  ): R? {
     return spanner.getDatabaseClient(databaseId).readWriteTransaction().run { ctx ->
       val current = ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
         ?: error("No row for computation (${token.localId})")

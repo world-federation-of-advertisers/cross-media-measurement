@@ -2,6 +2,8 @@ package org.wfanet.measurement.service.v1alpha.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Instant
+import kotlin.test.assertFails
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -10,8 +12,6 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
-import java.time.Instant
-import kotlin.test.assertFails
 
 @RunWith(JUnit4::class)
 class ProtoConversionsTest {
@@ -28,15 +28,17 @@ class ProtoConversionsTest {
     }.build()
 
     assertThat(requisition.toV1Api())
-      .isEqualTo(MetricRequisition.newBuilder().apply {
-        keyBuilder.apply {
-          dataProviderId = ExternalId(1).apiId.value
-          campaignId = ExternalId(2).apiId.value
-          metricRequisitionId = ExternalId(3).apiId.value
-        }
+      .isEqualTo(
+        MetricRequisition.newBuilder().apply {
+          keyBuilder.apply {
+            dataProviderId = ExternalId(1).apiId.value
+            campaignId = ExternalId(2).apiId.value
+            metricRequisitionId = ExternalId(3).apiId.value
+          }
 
-        state = MetricRequisition.State.FULFILLED
-      }.build())
+          state = MetricRequisition.State.FULFILLED
+        }.build()
+      )
   }
 
   @Test

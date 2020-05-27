@@ -22,4 +22,3 @@ java_proto_library(
     name = "metric_definition_java_proto",
     deps = [":metric_definition_proto"],
 )
-
