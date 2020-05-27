@@ -1,0 +1,14 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+package(default_visibility = ["//:__subpackages__"])
+
+proto_library(
+    name = "protocol_encryption_methods_proto",
+    srcs = ["protocol_encryption_methods.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "protocol_encryption_methods_cc_proto",
+    deps = [":protocol_encryption_methods_proto"],
+)

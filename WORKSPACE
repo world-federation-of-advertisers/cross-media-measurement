@@ -164,3 +164,57 @@ git_repository(
     branch = "master",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
 )
+
+# glog
+# Needed for private-join-and-compute
+http_archive(
+    name = "com_github_glog_glog",
+    sha256 = "f28359aeba12f30d73d9e4711ef356dc842886968112162bc73002645139c39c",
+    strip_prefix = "glog-0.4.0",
+    urls = ["https://github.com/google/glog/archive/v0.4.0.tar.gz"],
+)
+
+# gflags
+# Needed for glog
+http_archive(
+    name = "com_github_gflags_gflags",
+    sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+    strip_prefix = "gflags-2.2.2",
+    urls = [
+        "https://mirror.bazel.build/github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+        "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+    ],
+)
+
+# gRPC
+# Needed for private-join-and-compute
+http_archive(
+    name = "com_github_grpc_grpc",
+    sha256 = "4cbce7f708917b6e58b631c24c59fe720acc8fef5f959df9a58cdf9558d0a79b",
+    strip_prefix = "grpc-1.28.1",
+    urls = [
+        "https://github.com/grpc/grpc/archive/v1.28.1.tar.gz",
+    ],
+)
+
+load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+
+# Includes boringssl, com_google_absl, and other dependencies.
+# Needed for private-join-and-compute
+grpc_deps()
+
+load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
+
+# Loads transitive dependencies of GRPC.
+# Needed for private-join-and-compute
+grpc_extra_deps()
+
+# private-join-and-compute library used in the C++ crypto primitive.
+http_archive(
+    name = "com_google_private_join_and_compute",
+    sha256 = "dd39c10723f5471d5727c12adb34d2225d1aeb591106fe457f0a88320ee0329c",
+    strip_prefix = "private-join-and-compute-master",
+    urls = [
+        "https://github.com/google/private-join-and-compute/archive/master.zip",
+    ],
+)

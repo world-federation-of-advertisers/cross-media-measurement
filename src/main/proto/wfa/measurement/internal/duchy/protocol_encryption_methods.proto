@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy;
+
+option java_package = "org.wfanet.measurement.internal.duchy";
+option java_multiple_files = true;
+
+// Keys of the ElGamal cipher.
+message ElGamalKeys {
+  // Secret key of the ElGamal cipher.
+  bytes el_gamal_sk = 1;
+  // Public key g (generator) of the ElGamal cipher.
+  bytes el_gamal_g = 2;
+  // Public key y (g^sk) of the ElGamal cipher.
+  bytes el_gamal_y = 3;
+}
+
+// The request to blind (one layer) all register indexes of a sketch.
+// Only 3-tuple (register_index, fingerprint, count) registers are supported.
+message BlindOneLayerRegisterIndexRequest {
+  // The encrypted sketch.
+  bytes sketch = 1;
+  // Keys of the ElGamal cipher. Required.
+  ElGamalKeys el_gamal_keys = 2;
+  // Secret key of the Pohlig-Hellman cipher. Optional.
+  // If unset, a random key will be used.
+  bytes pohlig_hellman_sk = 3;
+}
+
+// Response of the BlindOneLayerRegisterIndex method.
+message BlindOneLayerRegisterIndexResponse {
+  // Sketch with blinded register indexes.
+  bytes sketch = 1;
+  // The key used to create the Pohlig Hellman cipher.
+  // If the request specifies this key, the same value is returned,
+  // otherwise, the randomly generated key is returned.
+  bytes pohlig_hellman_sk = 2;
+}
+
+// The request to blind (last layer) the register indexes, and then join the
+// registers by the deterministically encrypted register indexes, and then
+// merge the counts using the same-key-aggregating algorithm.
+message BlindLastLayerIndexThenJoinRegistersRequest {
+  // The input sketch. There should be only one layer of ElGamal encryption left
+  // on the register indexes. In other words, this method should only be called
+  // by the primary duchy at the last stop of round 1.
+  bytes sketch = 1;
+  // Keys of the ElGamal cipher. Required.
+  ElGamalKeys el_gamal_keys = 2;
+  // Secret key of the Pohlig-Hellman cipher. Optional.
+  // If unset, a random key will be used.
+  bytes pohlig_hellman_sk = 3;
+}
+
+// The response of the BlindLastLayerIndexThenJoinRegisters method.
+message BlindLastLayerIndexThenJoinRegistersResponse {
+  // The resulted sketch, whose register contains a two tuple of (flag, count).
+  bytes sketch = 1;
+  // The key used to create the Pohlig Hellman cipher.
+  // If the request specifies this key, the same value is returned,
+  // otherwise, the randomly generated key is returned.
+  bytes pohlig_hellman_sk = 2;
+}
+
+// The request to decrypt one layer of ElGamal encryption on the flag and count
+// of all registers.
+message DecryptOneLayerFlagAndCountRequest {
+  // The input sketch. Each register contains a 2 tuple of (flag, count)
+  bytes sketch = 1;
+  // The keys used to create the ElGamal cipher. required.
+  ElGamalKeys el_gamal_keys = 2;
+}
+
+// The response of the DecryptCountAndFlag method.
+message DecryptOneLayerFlagAndCountResponse {
+  // Sketch with decrypted (partially or fully) flag and count.
+  bytes sketch = 1;
+}
+
+// The request to decrypt the last layer of ElGamal encryption on the flag and
+// count of all registers. Only called by the primary duchy as the last step of
+// round 2.
+message DecryptLastLayerFlagAndCountRequest {
+  // The input sketch. Each register contains a 2 tuple of (flag, count).
+  // There should be only one layer of ElGamal encryption left
+  bytes sketch = 1;
+  // The keys used to create the ElGamal cipher. required.
+  ElGamalKeys el_gamal_keys = 2;
+  // Maximum frequency to display. Every count value greater than this value
+  // is decrypted as the maximum_frequency.
+  int32 maximum_frequency = 3;
+}
+
+// The response of the DecryptCountAndFlag method.
+message DecryptLastLayerFlagAndCountResponse {
+  // Decrypted is_destroyed flag. True indicates there are key conflict at this
+  // register. False means all keys of this register are the same.
+  repeated bool is_destroyed = 1;
+  // Decrypted count value, Caped by the maximum_frequency.
+  repeated int32 frequency = 2;
+}
