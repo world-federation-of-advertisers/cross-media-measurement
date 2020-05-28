@@ -12,6 +12,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.kingdom.CampaignExternalKey
 import org.wfanet.measurement.kingdom.RequisitionManager
+import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.toExternalKey
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionDetails
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
@@ -24,6 +25,10 @@ class RequisitionService(
   override suspend fun createMetricRequisition(
     request: CreateMetricRequisitionRequest
   ): MetricRequisition {
+    grpcRequire(!request.metricsRequisition.hasKey()) {
+      "request.metricsRequisition cannot have a key: $request"
+    }
+
     val partialRequisition: Requisition = Requisition.newBuilder().apply {
       externalDataProviderId = ApiId(request.parent.dataProviderId).externalId.value
       externalCampaignId = ApiId(request.parent.campaignId).externalId.value
@@ -46,6 +51,12 @@ class RequisitionService(
   override suspend fun listMetricRequisitions(
     request: ListMetricRequisitionsRequest
   ): ListMetricRequisitionsResponse {
+    grpcRequire(request.pageSize in 1..1000) {
+      "Page size must be between 1 and 1000 in request: $request"
+    }
+    grpcRequire(request.filter.statesCount > 0) {
+      "At least one state must be set in request.filter.states: $request"
+    }
     val campaignKey: CampaignExternalKey = request.parent.toExternalKey()
     val states = request.filter.statesList.map(MetricRequisition.State::toRequisitionState).toSet()
     val pagination = Pagination(request.pageSize, request.pageToken)

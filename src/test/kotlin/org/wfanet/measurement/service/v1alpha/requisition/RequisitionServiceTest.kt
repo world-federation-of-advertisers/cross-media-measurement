@@ -2,10 +2,10 @@ package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
+import io.grpc.StatusRuntimeException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
-import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -28,6 +28,8 @@ import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.kingdom.CampaignExternalKey
 import org.wfanet.measurement.kingdom.RequisitionExternalKey
 import org.wfanet.measurement.kingdom.RequisitionManager
+import java.time.Instant
+import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
@@ -160,6 +162,29 @@ class RequisitionServiceTest {
     }.build()
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createMetricRequisition with key fails`() = runBlocking<Unit> {
+    val request = CreateMetricRequisitionRequest.newBuilder().apply {
+      parent = CAMPAIGN_API_KEY
+      metricsRequisitionBuilder.apply {
+        // This is invalid and should cause an error:
+        key = REQUISITION_API_KEY
+
+        collectionIntervalBuilder.apply {
+          startTime = WINDOW_START_TIME
+          endTime = WINDOW_END_TIME
+        }
+        metricDefinitionBuilder.apply {
+          // TODO: add a definition
+        }
+      }
+    }.build()
+
+    assertFailsWith<StatusRuntimeException> {
+      blockingStub.createMetricRequisition(request)
+    }
   }
 
   @Test
