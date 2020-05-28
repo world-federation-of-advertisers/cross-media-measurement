@@ -370,10 +370,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-        SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner, LockExpirationTime,
-               ComputationDetails, ComputationDetailsJSON
-        FROM Computations
-        ORDER BY ComputationId
+      SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner, LockExpirationTime,
+             ComputationDetails, ComputationDetailsJSON
+      FROM Computations
+      ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -477,19 +477,25 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         enqueuedFiveMinutesAgo,
         enqueuedFiveMinutesAgoStage,
         enqueuedSixMinutesAgo,
-        enqueuedSixMinutesAgoStage))
+        enqueuedSixMinutesAgoStage
+      )
+    )
     assertEquals(
       ComputationToken(
         localId = 66, globalId = 6, state = FakeProtocolStates.A,
         owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()),
-      database.claimTask("the-owner-of-the-lock"))
+        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+      ),
+      database.claimTask("the-owner-of-the-lock")
+    )
     assertEquals(
       ComputationToken(
         localId = 555, globalId = 55, state = FakeProtocolStates.A,
         owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()),
-      database.claimTask("the-owner-of-the-lock"))
+        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+      ),
+      database.claimTask("the-owner-of-the-lock")
+    )
     // No tasks to claim anymore
     assertNull(database.claimTask("the-owner-of-the-lock"))
   }
@@ -542,8 +548,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       ComputationToken(
         localId = 111, globalId = 11, state = FakeProtocolStates.A,
         owner = "new-owner", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()),
-      database.claimTask("new-owner"))
+        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+      ),
+      database.claimTask("new-owner")
+    )
     // No task may be claimed at this point
     assertNull(database.claimTask("new-owner"))
   }
@@ -584,8 +592,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-        SELECT LockOwner, LockExpirationTime
-        FROM Computations
+      SELECT LockOwner, LockExpirationTime
+      FROM Computations
       """.trimIndent(),
       Struct.newBuilder()
         .set("LockOwner").to(token.owner)

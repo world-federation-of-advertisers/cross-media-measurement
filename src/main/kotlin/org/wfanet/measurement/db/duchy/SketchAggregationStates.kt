@@ -1,7 +1,28 @@
 package org.wfanet.measurement.db.duchy
 
 import org.wfanet.measurement.internal.SketchAggregationState
-import org.wfanet.measurement.internal.SketchAggregationState.*
+import org.wfanet.measurement.internal.SketchAggregationState.ADDING_NOISE
+import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_POSITIONS
+import org.wfanet.measurement.internal.SketchAggregationState.CLEAN_UP
+import org.wfanet.measurement.internal.SketchAggregationState.COMBINING_REGISTERS
+import org.wfanet.measurement.internal.SketchAggregationState.COMPUTING_METRICS
+import org.wfanet.measurement.internal.SketchAggregationState.COUNTS_BLINDED
+import org.wfanet.measurement.internal.SketchAggregationState.FINISHED
+import org.wfanet.measurement.internal.SketchAggregationState.METRICS_COMPUTED
+import org.wfanet.measurement.internal.SketchAggregationState.NOISE_ADDED
+import org.wfanet.measurement.internal.SketchAggregationState.POSITIONS_BLINDED
+import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_CONCATENATED
+import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_JOINED
+import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationState.REGISTERS_COMBINED
+import org.wfanet.measurement.internal.SketchAggregationState.STARTING
+import org.wfanet.measurement.internal.SketchAggregationState.TRANSMITTED_SKETCH
+import org.wfanet.measurement.internal.SketchAggregationState.UNRECOGNIZED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FINISHED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_JOINED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
 
 /**
  * Implementation of [ProtocolStateEnumHelper] for [SketchAggregationState].
@@ -40,6 +61,6 @@ object SketchAggregationStates :
 
   override fun longToEnum(value: Long): SketchAggregationState {
     // forNumber() returns null for unrecognized enum values for the proto.
-    return forNumber(value.toInt()) ?: UNRECOGNIZED
+    return SketchAggregationState.forNumber(value.toInt()) ?: UNRECOGNIZED
   }
 }

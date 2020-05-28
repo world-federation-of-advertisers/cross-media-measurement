@@ -2,8 +2,8 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "flags_test",
-    srcs = [":FlagsTest.kt"],
-    test_class = "org.wfanet.measurement.common.ArgsTest",
+    srcs = ["FlagsTest.kt"],
+    test_class = "org.wfanet.measurement.common.FlagsTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "@com_github_jetbrains_kotlin//:kotlin-test",
