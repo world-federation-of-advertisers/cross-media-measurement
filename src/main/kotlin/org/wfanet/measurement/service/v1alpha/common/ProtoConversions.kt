@@ -3,10 +3,10 @@ package org.wfanet.measurement.service.v1alpha.common
 import org.wfanet.measurement.api.v1alpha.MetricDefinition
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.kingdom.RequisitionExternalKey
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.kingdom.RequisitionExternalKey
 
 val Requisition.requisitionExternalKey: RequisitionExternalKey
   get() = RequisitionExternalKey(

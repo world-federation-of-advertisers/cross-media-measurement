@@ -33,6 +33,5 @@ kt_jvm_binary_and_image(
     visibility = ["//visibility:public"],
     deps = [
         ":requisition_service_impl",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
     ],
 )

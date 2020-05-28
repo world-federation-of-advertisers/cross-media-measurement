@@ -3,14 +3,17 @@ package org.wfanet.measurement.service.v1alpha.common
 import org.wfanet.measurement.api.v1alpha.Campaign
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ApiId
-import org.wfanet.measurement.db.kingdom.CampaignExternalKey
-import org.wfanet.measurement.db.kingdom.RequisitionExternalKey
+import org.wfanet.measurement.kingdom.CampaignExternalKey
+import org.wfanet.measurement.kingdom.RequisitionExternalKey
 
 /**
  * Converts v1 API proto [Campaign.Key] into an internal API-agnostic representation.
  */
 fun Campaign.KeyOrBuilder.toExternalKey(): CampaignExternalKey =
-  CampaignExternalKey(ApiId(dataProviderId).externalId, ApiId(campaignId).externalId)
+  CampaignExternalKey(
+    ApiId(dataProviderId).externalId,
+    ApiId(campaignId).externalId
+  )
 
 /**
  * Converts v1 API proto [MetricRequisition.Key] into an internal API-agnostic representation.

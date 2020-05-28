@@ -5,7 +5,6 @@ import com.google.protobuf.Timestamp
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
-import java.time.Clock
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -23,12 +22,12 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpc
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.db.kingdom.CampaignExternalKey
-import org.wfanet.measurement.db.kingdom.MeasurementProviderStorage
-import org.wfanet.measurement.db.kingdom.RequisitionExternalKey
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.kingdom.CampaignExternalKey
+import org.wfanet.measurement.kingdom.RequisitionExternalKey
+import org.wfanet.measurement.kingdom.RequisitionManager
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
@@ -61,9 +60,7 @@ class RequisitionServiceTest {
 
     var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   }
-
-  object FakeMeasurementProviderStorage :
-    MeasurementProviderStorage(Clock.systemUTC()) {
+  object FakeRequisitionManager : RequisitionManager {
     private fun RequisitionExternalKey.toRequisitionBuilder(): Requisition.Builder =
       Requisition.newBuilder().apply {
         externalDataProviderId = this@toRequisitionBuilder.dataProviderExternalId.value
@@ -92,7 +89,7 @@ class RequisitionServiceTest {
     ): Requisition =
       makeRequisition(key, IRRELEVANT_DETAILS, IRRELEVANT_TIMESTAMP, IRRELEVANT_TIMESTAMP, state)
 
-    override suspend fun writeNewRequisition(requisition: Requisition): Requisition {
+    override suspend fun createRequisition(requisition: Requisition): Requisition {
       assertThat(requisition.windowStartTime).isEqualTo(WINDOW_START_TIME)
       assertThat(requisition.windowEndTime).isEqualTo(WINDOW_END_TIME)
       return requisition.toBuilder().setExternalRequisitionId(REQUISITION_ID.value).build()
@@ -113,18 +110,15 @@ class RequisitionServiceTest {
       campaignExternalKey: CampaignExternalKey,
       states: Set<RequisitionState>,
       pagination: Pagination
-    ): ListResult {
+    ): RequisitionManager.ListResult {
       require(pagination == Pagination(2, "some-page-token"))
       require(states == setOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED))
-      val key =
-        RequisitionExternalKey(
-          campaignExternalKey,
-          REQUISITION_ID
-        )
-      return ListResult(listOf(
+      val key = RequisitionExternalKey(campaignExternalKey, REQUISITION_ID)
+      val requisitions = listOf(
         makeRequisitionWithState(key, RequisitionState.UNFULFILLED),
         makeRequisitionWithState(key, RequisitionState.FULFILLED)
-      ), "different-page-token")
+      )
+      return RequisitionManager.ListResult(requisitions, "different-page-token")
     }
   }
 
@@ -134,7 +128,7 @@ class RequisitionServiceTest {
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
-        .addService(RequisitionService(FakeMeasurementProviderStorage))
+        .addService(RequisitionService(FakeRequisitionManager))
         .build()
         .start()
     )
@@ -209,6 +203,7 @@ class RequisitionServiceTest {
         key = REQUISITION_API_KEY
         state = MetricRequisition.State.UNFULFILLED
       }
+      nextPageToken = "different-page-token"
     }.build()
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)

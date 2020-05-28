@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db.kingdom
+package org.wfanet.measurement.kingdom
 
 import org.wfanet.measurement.common.ExternalId
 

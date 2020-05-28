@@ -86,7 +86,6 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     fun executeQueryWithPagination(pagination: Pagination) =
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(EXTERNAL_DATA_PROVIDER_ID),
         ExternalId(EXTERNAL_CAMPAIGN_IDS[0]),
         setOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED),
         pagination
@@ -113,7 +112,6 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     assertFails {
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(EXTERNAL_DATA_PROVIDER_ID),
         ExternalId(EXTERNAL_CAMPAIGN_IDS[0]),
         setOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED),
         Pagination(1, "nonsense")
@@ -126,7 +124,6 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     assertFails {
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(EXTERNAL_DATA_PROVIDER_ID),
         ExternalId(CAMPAIGN_IDS[0]),
         setOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED),
         Pagination(1001, "")
@@ -139,7 +136,6 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     assertFails {
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(EXTERNAL_DATA_PROVIDER_ID),
         ExternalId(CAMPAIGN_IDS[0]),
         setOf(),
         Pagination(1, "")

@@ -13,7 +13,7 @@ import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.executeSqlQuery
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.kingdom.MeasurementProviderStorage
+import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -25,7 +25,6 @@ class ListRequisitionsQuery {
    * Runs a read query for a specific campaign.
    *
    * @param[readContext] Spanner read context
-   * @param[externalDataProviderId] the Data Provider
    * @param[externalCampaignId] the Campaign
    * @param[states] which states to include
    * @param[pagination] what page of results (and how many)
@@ -33,18 +32,16 @@ class ListRequisitionsQuery {
    */
   fun execute(
     readContext: ReadContext,
-    externalDataProviderId: ExternalId,
     externalCampaignId: ExternalId,
     states: Set<RequisitionState>,
     pagination: Pagination
-  ): MeasurementProviderStorage.ListResult {
+  ): KingdomRelationalDatabase.ListResult {
     require(pagination.pageSize <= 1000) { "Page size of $pagination is too large" }
     require(states.isNotEmpty())
 
     val whereClause =
       """
-      WHERE DataProviders.ExternalDataProviderId = @external_data_provider_id
-        AND Campaigns.ExternalCampaignId = @external_campaign_id
+      WHERE Campaigns.ExternalCampaignId = @external_campaign_id
         AND Requisitions.State IN UNNEST(@states)
         AND CreateTime > @last_create_time
       """.trimIndent()
@@ -62,7 +59,6 @@ class ListRequisitionsQuery {
       .toBuilder()
       .appendClause(whereClause)
       .appendClause(paginationClause)
-      .bind("external_data_provider_id").to(externalDataProviderId.value)
       .bind("external_campaign_id").to(externalCampaignId.value)
       .bind("states").toInt64Array(states.map { it.ordinal.toLong() })
       .bind("page_size").to(pagination.pageSize.toLong())
@@ -83,6 +79,6 @@ class ListRequisitionsQuery {
         ?.toByteArray()
         ?.base64UrlEncode()
 
-    return MeasurementProviderStorage.ListResult(requisitions, nextPageToken)
+    return KingdomRelationalDatabase.ListResult(requisitions, nextPageToken)
   }
 }

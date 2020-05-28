@@ -1,0 +1,25 @@
+load(
+    "@io_bazel_rules_kotlin//kotlin:kotlin.bzl",
+    "kt_jvm_library",
+)
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "kingdom",
+    srcs = glob(
+        ["*.kt"],
+        exclude = ["*Main.kt"],
+    ),
+    deps = [
+        "//:kotlinx_coroutines_core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",
+        "//src/main/proto/wfa/measurement/api/v1alpha:requisition_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+    ],
+)

@@ -1,40 +1,32 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.DatabaseClient
-import java.time.Clock
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
-import org.wfanet.measurement.db.kingdom.CampaignExternalKey
-import org.wfanet.measurement.db.kingdom.MeasurementProviderStorage
-import org.wfanet.measurement.db.kingdom.RequisitionExternalKey
+import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
-class GcpMeasurementProviderStorage(
-  private val client: DatabaseClient,
-  clock: Clock
-) : MeasurementProviderStorage(clock) {
+class GcpKingdomRelationalDatabase(private val client: DatabaseClient) : KingdomRelationalDatabase {
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
     client.runReadWriteTransaction { transactionContext ->
       CreateRequisitionTransaction().execute(transactionContext, requisition)
     } ?: requisition
 
-  override suspend fun fulfillRequisition(
-    requisitionExternalKey: RequisitionExternalKey
-  ): Requisition =
+  override suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition =
     client.runReadWriteTransaction { transactionContext ->
-      FulfillRequisitionTransaction().execute(transactionContext, requisitionExternalKey.externalId)
+      FulfillRequisitionTransaction().execute(transactionContext, externalRequisitionId)
     }
 
   override suspend fun listRequisitions(
-    campaignExternalKey: CampaignExternalKey,
+    externalCampaignId: ExternalId,
     states: Set<RequisitionState>,
     pagination: Pagination
-  ): ListResult = ListRequisitionsQuery().execute(
+  ): KingdomRelationalDatabase.ListResult = ListRequisitionsQuery().execute(
     client.singleUse(),
-    campaignExternalKey.dataProviderExternalId,
-    campaignExternalKey.externalId,
+    externalCampaignId,
     states,
     pagination
   )

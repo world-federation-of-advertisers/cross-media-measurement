@@ -10,7 +10,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
     ],
 )
