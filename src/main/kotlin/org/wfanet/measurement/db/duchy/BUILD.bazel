@@ -6,33 +6,10 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "compuations_manager",
-    srcs = ["ComputationManager.kt"],
-    deps = [
-        ":storage_abstractions",
-    ],
-)
-
-kt_jvm_library(
-    name = "protocol_state_helper",
-    srcs = ["ProtocolStateEnumHelper.kt"],
-)
-
-kt_jvm_library(
-    name = "sketch_aggregation_protocol_state_helper",
-    srcs = ["SketchAggregationStates.kt"],
-    deps = [
-        ":protocol_state_helper",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-    ],
-)
-
-kt_jvm_library(
-    name = "storage_abstractions",
-    srcs = [
-        "StorageAbstractions.kt",
-    ],
+    name = "duchy",
+    srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
     ],
 )

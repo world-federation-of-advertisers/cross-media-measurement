@@ -9,8 +9,7 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.db.duchy.gcp.ComputationsSchemaTest",
     deps = [
         "//:google_cloud_spanner",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:spanner_testing_functions",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:using_spanner_emulator",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:junit_junit",
     ],
@@ -25,9 +24,8 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.db.duchy.gcp.GcpSpannerComputationsDbTest",
     deps = [
         "//:google_cloud_spanner",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp:gcp_spanner_computations_db",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:spanner_testing_functions",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:using_spanner_emulator",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:junit_junit",
     ],

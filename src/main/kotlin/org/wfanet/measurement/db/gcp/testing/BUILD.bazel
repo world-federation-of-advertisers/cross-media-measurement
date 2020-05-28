@@ -6,20 +6,11 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "spanner_testing_functions",
+    name = "testing",
     testonly = 1,
-    srcs = ["SpannerTestingFunctions.kt"],
+    srcs = glob(["*.kt"]),
     deps = [
         "@com_github_jetbrains_kotlin//:kotlin-test",
-        "@maven//:com_google_cloud_google_cloud_spanner",
-    ],
-)
-
-kt_jvm_library(
-    name = "using_spanner_emulator",
-    testonly = 1,
-    srcs = ["UsingSpannerEmulator.kt"],
-    deps = [
         "@maven//:com_google_cloud_google_cloud_spanner",
         "@maven//:junit_junit",
     ],

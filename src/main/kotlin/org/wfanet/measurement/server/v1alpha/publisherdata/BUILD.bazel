@@ -5,8 +5,11 @@ load(
 )
 
 kt_jvm_library(
-    name = "publisher_data_server",
-    srcs = ["PublisherDataServer.kt"],
+    name = "publisherdata",
+    srcs = glob(
+        ["*.kt"],
+        exclude = ["*Main.kt"],
+    ),
     deps = [
         "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata",
@@ -22,7 +25,7 @@ kt_jvm_binary(
     srcs = ["Main.kt"],
     main_class = "org.wfanet.measurement.server.v1alpha.publisherdata.MainKt",
     deps = [
-        ":publisher_data_server",
+        ":publisherdata",
         "@io_grpc_grpc_java//netty",
     ],
 )

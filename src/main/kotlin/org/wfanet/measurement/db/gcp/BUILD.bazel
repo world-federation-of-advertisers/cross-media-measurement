@@ -6,40 +6,13 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "timestamps",
-    srcs = ["Timestamps.kt"],
+    name = "gcp",
+    srcs = glob(["*.kt"]),
     deps = [
-        "//:google_cloud_spanner",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "spanner",
-    srcs = [
-        "Protos.kt",
-        "Spanner.kt",
-        "SpannerStructs.kt",
-    ],
-    deps = [
-        ":timestamps",
         "//:google_cloud_spanner",
         "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "gcp_spanner_computations_db",
-    srcs = [
-        "GcpSpannerComputationsDb.kt",
-        "LocalComputationIdGenerator.kt",
-    ],
-    deps = [
-        ":spanner",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy:protocol_state_helper",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy:storage_abstractions",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal/db/gcp:computations_java_proto",
     ],
 )

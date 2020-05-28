@@ -58,7 +58,7 @@ java_library(
     name = "unit_testing_core",
     testonly = 1,
     exports = [
-        "//src/main/kotlin/org/wfanet/measurement/common/testing:mockito_helpers",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@maven//:com_google_truth_extensions_truth_liteproto_extension",
         "@maven//:com_google_truth_extensions_truth_proto_extension",

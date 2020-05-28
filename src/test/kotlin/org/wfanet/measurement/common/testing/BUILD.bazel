@@ -6,6 +6,6 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.common.testing.MockitoHelpersTest",
     deps = [
         "//:unit_testing_core",
-        "//src/main/kotlin/org/wfanet/measurement/common/testing:mockito_helpers",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

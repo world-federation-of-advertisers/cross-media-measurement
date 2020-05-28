@@ -7,9 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "computationcontrol",
-    srcs = [
-        "ComputationControlImpl.kt",
-    ],
+    srcs = glob(["*.kt"]),
     deps = [
         "//:grpc_core",
         "//src/main/proto/wfa/measurement/api/v1alpha:computation_control_service_kt_jvm_grpc",

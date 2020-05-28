@@ -6,11 +6,8 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "measurement_provider",
-    srcs = [
-        "MeasurementProviderModels.kt",
-        "MeasurementProviderStorage.kt",
-    ],
+    name = "kingdom",
+    srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",

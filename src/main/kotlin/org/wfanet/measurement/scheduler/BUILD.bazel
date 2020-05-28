@@ -4,7 +4,7 @@ package(default_visibility = ["//src/main/kotlin/org/wfanet/measurement:__subpac
 
 kt_jvm_library(
     name = "scheduler",
-    srcs = ["Scheduler.kt"],
+    srcs = glob(["*.kt"]),
     deps = [
         "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",

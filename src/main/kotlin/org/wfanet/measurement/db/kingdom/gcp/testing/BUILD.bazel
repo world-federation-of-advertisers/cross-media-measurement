@@ -6,16 +6,14 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "requisition_test_base",
+    name = "testing",
     testonly = 1,
-    srcs = [
-        "RequisitionTestBase.kt",
-    ],
+    srcs = glob(["*.kt"]),
     deps = [
         "//:google_cloud_spanner",
         "//:unit_testing_core",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:using_spanner_emulator",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom:measurement_provider",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
     ],
 )
