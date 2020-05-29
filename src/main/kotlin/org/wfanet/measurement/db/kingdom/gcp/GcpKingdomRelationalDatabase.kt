@@ -3,16 +3,22 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.spanner.DatabaseClient
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
-class GcpKingdomRelationalDatabase(private val client: DatabaseClient) : KingdomRelationalDatabase {
+class GcpKingdomRelationalDatabase(
+  private val randomIdGenerator: RandomIdGenerator,
+  private val client: DatabaseClient
+) : KingdomRelationalDatabase {
+
+  private val createRequisitionTransaction = CreateRequisitionTransaction(randomIdGenerator)
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
     client.runReadWriteTransaction { transactionContext ->
-      CreateRequisitionTransaction().execute(transactionContext, requisition)
+      createRequisitionTransaction.execute(transactionContext, requisition)
     } ?: requisition
 
   override suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition =

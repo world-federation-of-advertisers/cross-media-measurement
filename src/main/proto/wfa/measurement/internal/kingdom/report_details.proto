@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message ReportDetails {
+  // TODO: add fields
+}

@@ -1,11 +1,11 @@
 package org.wfanet.measurement.provider.reports
 
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.transform
 import org.wfanet.measurement.common.AdaptiveThrottler
 import org.wfanet.measurement.common.throttledCollect
+import org.wfanet.measurement.internal.kingdom.Report
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ReportStarter(
@@ -30,8 +30,8 @@ class ReportStarter(
    * Note: this will never terminate by itself; it should be cancelled when done.
    */
   suspend fun createRequisitions() {
-    reportApi.streamReportsInState(ReportState.SET_UP)
-      .transform { emitAll(it.requisitions.asFlow()) }
+    reportApi.streamReportsInState(Report.ReportState.AWAITING_REQUISITIONS)
+      .transform { emitAll(reportApi.streamMissingRequisitionsForReport(it)) }
       .throttledCollect(max_parallelism, throttler, block = reportApi::maybeAddRequisition)
   }
 

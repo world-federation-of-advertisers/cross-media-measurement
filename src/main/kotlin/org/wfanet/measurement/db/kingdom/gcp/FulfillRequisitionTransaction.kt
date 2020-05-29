@@ -1,10 +1,9 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
-import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.executeSqlQuery
@@ -16,6 +15,10 @@ import org.wfanet.measurement.internal.kingdom.RequisitionState
  * Marks a Requisition in Spanner as fulfilled (with state [RequisitionState.FULFILLED]).
  */
 class FulfillRequisitionTransaction {
+  private data class ReadResult(
+    val requisitionId: Long,
+    val requisition: Requisition
+  )
   /**
    * Runs the transaction body.
    *
@@ -27,19 +30,21 @@ class FulfillRequisitionTransaction {
   fun execute(
     transactionContext: TransactionContext,
     externalRequisitionId: ExternalId
-  ): Requisition =
-    updateState(transactionContext, readRequisition(transactionContext, externalRequisitionId))
+  ): Requisition {
+    val readResult = readRequisition(transactionContext, externalRequisitionId)
+    updateState(transactionContext, readResult.requisitionId)
+    return readResult.requisition.withStateFulfilled()
+  }
 
   private fun readRequisition(
     transactionContext: TransactionContext,
     externalRequisitionId: ExternalId
-  ): Requisition {
+  ): ReadResult {
     val query = readRequisitionQuery(externalRequisitionId)
-    val struct: Struct? = runBlocking(spannerDispatcher()) {
-      transactionContext.executeSqlQuery(query).singleOrNull()
+    val struct: Struct = runBlocking(spannerDispatcher()) {
+      transactionContext.executeSqlQuery(query).single()
     }
-    return struct?.toRequisition()
-      ?: throw IllegalArgumentException("Requisition $externalRequisitionId not found")
+    return ReadResult(struct.getLong("RequisitionId"), struct.toRequisition())
   }
 
   private fun readRequisitionQuery(externalRequisitionId: ExternalId): Statement =
@@ -51,26 +56,32 @@ class FulfillRequisitionTransaction {
 
   private fun updateState(
     transactionContext: TransactionContext,
-    originalRequisition: Requisition
-  ): Requisition {
-    val updatedRequisition = setStateFulfilled(originalRequisition)
-    val mutation = updateStateMutation(updatedRequisition)
+    requisitionId: Long
+  ) {
+    val dml = updateStateDml(requisitionId)
     runBlocking(spannerDispatcher()) {
-      transactionContext.buffer(mutation)
+      val rows: Long = transactionContext.executeUpdate(dml)
+      require(rows <= 1L) {
+        "Unexpected number of rows updated ($rows rows) from query $dml"
+      }
     }
-    return updatedRequisition
   }
 
-  private fun setStateFulfilled(requisition: Requisition): Requisition =
-    requisition
-      .toBuilder()
+  private fun Requisition.withStateFulfilled(): Requisition =
+    toBuilder()
       .setState(RequisitionState.FULFILLED)
       .build()
 
-  private fun updateStateMutation(requisition: Requisition) =
-    Mutation
-      .newUpdateBuilder("Requisitions")
-      .addPrimaryKey(requisition)
-      .set("State").to(requisition.state.ordinal.toLong())
+  private fun updateStateDml(requisitionId: Long): Statement {
+    val sql =
+      """
+      UPDATE Requisitions
+      SET State = @state
+      WHERE RequisitionId = @requisition_id
+      """.trimIndent()
+    return Statement.newBuilder(sql)
+      .bind("state").to(RequisitionState.FULFILLED_VALUE.toLong())
+      .bind("requisition_id").to(requisitionId)
       .build()
+  }
 }

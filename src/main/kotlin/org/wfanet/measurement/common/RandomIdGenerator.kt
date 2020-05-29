@@ -5,7 +5,12 @@ package org.wfanet.measurement.common
  */
 interface RandomIdGenerator {
   /**
-   * Generates a random positive 64-bit integer.
+   * Generates a random internal id.
    */
-  fun generate(): Long
+  fun generateInternalId(): InternalId
+
+  /**
+   * Generates a random external id.
+   */
+  fun generateExternalId(): ExternalId
 }

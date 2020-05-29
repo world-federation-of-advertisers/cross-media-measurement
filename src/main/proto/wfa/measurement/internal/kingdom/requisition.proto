@@ -10,13 +10,11 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message Requisition {
-  fixed64 data_provider_id = 1;
-  fixed64 campaign_id = 2;
-  fixed64 requisition_id = 3;
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_campaign_id = 2;
+  fixed64 external_requisition_id = 3;
 
-  google.protobuf.Timestamp create_time = 12;
-
-  fixed64 external_requisition_id = 4;
+  google.protobuf.Timestamp create_time = 4;
 
   google.protobuf.Timestamp window_start_time = 5;
   google.protobuf.Timestamp window_end_time = 6;
@@ -25,8 +23,4 @@ message Requisition {
 
   RequisitionDetails requisition_details = 8;
   string requisition_details_json = 9;
-
-  // Denormalized fields.
-  fixed64 external_data_provider_id = 10;
-  fixed64 external_campaign_id = 11;
 }

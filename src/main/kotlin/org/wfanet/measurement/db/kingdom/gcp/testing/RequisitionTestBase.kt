@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.db.gcp.executeSqlQuery
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
+import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toJson
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.db.kingdom.gcp.REQUISITION_READ_QUERY
@@ -36,22 +37,20 @@ open class RequisitionTestBase :
 
     val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
     const val NEW_REQUISITION_ID = 555L
+    const val NEW_EXTERNAL_REQUISITION_ID = 5555L
     val NEW_DETAILS: RequisitionDetails = RequisitionDetails.newBuilder().apply {
       metricDefinitionBuilder.sketchBuilder.sketchConfigId = 20202
     }.build()
 
     val REQUISITION: Requisition = Requisition.newBuilder().apply {
-      dataProviderId = DATA_PROVIDER_ID
-      campaignId = CAMPAIGN_ID
-      requisitionId = REQUISITION_ID
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      externalCampaignId = EXTERNAL_CAMPAIGN_ID
+      externalRequisitionId = EXTERNAL_REQUISITION_ID
       windowStartTime = START_TIME.toProto()
       windowEndTime = END_TIME.toProto()
       state = RequisitionState.UNFULFILLED
       requisitionDetails = DETAILS
       requisitionDetailsJson = DETAILS.toJson()
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalCampaignId = EXTERNAL_CAMPAIGN_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
     }.build()
   }
 
@@ -110,6 +109,19 @@ open class RequisitionTestBase :
       set("RequisitionDetails").to(requisitionDetails.toSpannerByteArray())
       set("RequisitionDetailsJson").to(requisitionDetails.toJson())
     }.build()
+
+  fun insertRequisitionMutation(
+    campaignId: Long,
+    requisitionId: Long,
+    requisition: Requisition
+  ): Mutation =
+    insertRequisitionMutation(
+      campaignId = campaignId,
+      requisitionId = requisitionId,
+      externalRequisitionId = requisition.externalRequisitionId,
+      createTime = requisition.createTime.toGcpTimestamp(),
+      state = requisition.state
+    )
 
   fun readAllRequisitions(): List<Requisition> = runBlocking {
     spanner

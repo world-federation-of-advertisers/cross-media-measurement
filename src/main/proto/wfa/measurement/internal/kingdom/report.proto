@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "src/main/proto/wfa/measurement/internal/kingdom/report_details.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Proto representation of the internal Report entity type.
+message Report {
+  enum ReportState {
+    REPORT_STATE_UNKNOWN = 0;
+    AWAITING_REQUISITIONS = 1;
+    READY_TO_START = 2;
+    IN_PROGRESS = 3;
+    SUCCESSFUL = 4;
+    FAILED = 5;
+  }
+
+  fixed64 external_advertiser_id = 1;
+  fixed64 external_report_config_id = 2;
+  fixed64 external_schedule_id = 3;
+  fixed64 external_report_id = 4;
+
+  ReportState state = 5;
+  ReportDetails report_details = 6;
+  string report_details_json = 7;
+}

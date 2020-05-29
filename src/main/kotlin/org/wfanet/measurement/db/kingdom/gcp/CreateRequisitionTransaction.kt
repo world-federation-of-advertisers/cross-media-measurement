@@ -1,12 +1,16 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.executeSqlQuery
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
@@ -18,7 +22,12 @@ import org.wfanet.measurement.internal.kingdom.Requisition
  *
  * Idempotency is determined by the Data Provider, Campaign, time window, and RequisitionDetails.
  */
-class CreateRequisitionTransaction {
+class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenerator) {
+  data class ParentKey(
+    val dataProviderId: Long,
+    val campaignId: Long
+  )
+
   /**
    * Runs the transaction body.
    *
@@ -34,8 +43,34 @@ class CreateRequisitionTransaction {
     requisition: Requisition
   ): Requisition? = runBlocking(spannerDispatcher()) {
     val existing = findExistingRequisition(transactionContext, requisition)
-    if (existing == null) transactionContext.buffer(requisition.toInsertMutation())
+    if (existing == null) {
+      val parentKey = findParentKey(transactionContext, requisition.externalCampaignId)
+      transactionContext.buffer(requisition.toInsertMutation(parentKey))
+    }
     existing
+  }
+
+  private suspend fun findParentKey(
+    transactionContext: TransactionContext,
+    externalCampaignId: Long
+  ): ParentKey {
+    val sql =
+      """
+      SELECT Campaigns.DataProviderId, Campaigns.CampaignId
+      FROM Campaigns
+      WHERE Campaigns.ExternalCampaignId = @external_campaign_id
+      """.trimIndent()
+
+    val row: Struct = transactionContext.executeSqlQuery(
+      Statement.newBuilder(sql)
+        .bind("external_campaign_id").to(externalCampaignId)
+        .build()
+    ).first()
+
+    return ParentKey(
+      row.getLong("DataProviderId"),
+      row.getLong("CampaignId")
+    )
   }
 
   private suspend fun findExistingRequisition(
@@ -66,10 +101,12 @@ class CreateRequisitionTransaction {
       .firstOrNull()
   }
 
-  private fun Requisition.toInsertMutation(): Mutation =
+  private fun Requisition.toInsertMutation(parentKey: ParentKey): Mutation =
     Mutation.newInsertBuilder("Requisitions")
-      .addPrimaryKey(this)
-      .set("ExternalRequisitionId").to(externalRequisitionId)
+      .set("DataProviderId").to(parentKey.dataProviderId)
+      .set("CampaignId").to(parentKey.campaignId)
+      .set("RequisitionId").to(randomIdGenerator.generateInternalId().value)
+      .set("ExternalRequisitionId").to(randomIdGenerator.generateExternalId().value)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)

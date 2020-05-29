@@ -20,7 +20,9 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
       listOf(
         Mutation
           .newUpdateBuilder("Requisitions")
-          .addPrimaryKey(REQUISITION)
+          .set("DataProviderId").to(DATA_PROVIDER_ID)
+          .set("CampaignId").to(CAMPAIGN_ID)
+          .set("RequisitionId").to(REQUISITION_ID)
           .set("State").to(state.ordinal.toLong())
           .build()
       )
@@ -63,10 +65,11 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
   @Test
   fun `missing requisition`() {
     spanner.client.readWriteTransaction().run { transactionContext ->
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<NoSuchElementException> {
         FulfillRequisitionTransaction()
           .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1))
       }
     }
+    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(REQUISITION)
   }
 }

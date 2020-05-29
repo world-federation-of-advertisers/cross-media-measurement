@@ -143,6 +143,8 @@ CREATE TABLE ReportConfigSchedules (
   ReportConfigId      INT64 NOT NULL,
   ScheduleId          INT64 NOT NULL,
 
+  ExternalScheduleId  INT64 NOT NULL,
+
   -- To support efficient queries for reports to generate.
   NextReportStartTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
 
@@ -157,14 +159,16 @@ CREATE INDEX ReportConfigsByNextReportStartTime
   ON ReportConfigSchedules(NextReportStartTime, ReportConfigId);
 
 CREATE TABLE Reports (
-  AdvertiserId    INT64 NOT NULL,
-  ReportConfigId  INT64 NOT NULL,
-  ScheduleId      INT64 NOT NULL,
-  ReportId        INT64 NOT NULL,
+  AdvertiserId      INT64 NOT NULL,
+  ReportConfigId    INT64 NOT NULL,
+  ScheduleId        INT64 NOT NULL,
+  ReportId          INT64 NOT NULL,
 
-  WindowStartTime TIMESTAMP NOT NULL,
-  WindowEndTime   TIMESTAMP NOT NULL,
-  State           INT64 NOT NULL,  -- Proto enum encoded as int
+  ExternalReportId  INT64 NOT NULL,
+
+  WindowStartTime   TIMESTAMP NOT NULL,
+  WindowEndTime     TIMESTAMP NOT NULL,
+  State             INT64 NOT NULL,  -- Proto enum encoded as int
 
   -- ReportDetails serialized proto
   ReportDetails     BYTES(MAX),
@@ -179,6 +183,8 @@ CREATE INDEX ReportsByTimeWindow
 
 -- Enable finding reports ready to be worked on.
 CREATE INDEX ReportsByState ON Reports(State);
+
+CREATE UNIQUE INDEX ReportsByExternalId ON Reports(ExternalReportId);
 
 CREATE TABLE ReportConfigCampaigns (
   AdvertiserId    INT64 NOT NULL,

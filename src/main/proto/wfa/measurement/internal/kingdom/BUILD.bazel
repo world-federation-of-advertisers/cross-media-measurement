@@ -5,6 +5,20 @@ load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_and_java_proto_library(
+    name = "repetition_spec",
+    deps = ["@com_google_protobuf//:timestamp_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "report",
+    deps = [":report_details_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "report_details",
+)
+
+proto_and_java_proto_library(
     name = "requisition",
     deps = [
         ":requisition_details_proto",
@@ -33,4 +47,12 @@ proto_library(
 java_and_kt_grpc_library(
     name = "requisition_service",
     deps = [":requisition_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "scheduled_report_config",
+    deps = [
+        ":repetition_spec_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )

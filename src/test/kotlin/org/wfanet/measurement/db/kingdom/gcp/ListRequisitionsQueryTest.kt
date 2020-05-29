@@ -3,7 +3,6 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.Timestamp
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertFails
 import org.junit.Before
 import org.junit.Test
@@ -12,7 +11,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -20,24 +18,36 @@ import org.wfanet.measurement.internal.kingdom.RequisitionState
 @RunWith(JUnit4::class)
 class ListRequisitionsQueryTest : RequisitionTestBase() {
   companion object {
-    val CAMPAIGN_IDS = listOf(1000L, 1001L)
-    val EXTERNAL_CAMPAIGN_IDS = listOf(2000L, 2001L)
-    private val REQUISITION_IDS = listOf(3000L, 3001L, 3002L, 30003L)
-    private val EXTERNAL_REQUISITION_IDS = listOf(4000L, 4001L, 4002L, 4003L)
-    private val STATES = listOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED)
+    const val CAMPAIGN_ID1 = 1000L
+    const val CAMPAIGN_ID2 = 1001L
 
-    val REQUISITIONS: List<Requisition> = (0..3).map { i ->
-      REQUISITION.toBuilder().apply {
-        campaignId = CAMPAIGN_IDS[i / 2]
-        externalCampaignId = EXTERNAL_CAMPAIGN_IDS[i / 2]
+    const val EXTERNAL_CAMPAIGN_ID1 = 1002L
+    const val EXTERNAL_CAMPAIGN_ID2 = 1003L
 
-        requisitionId = REQUISITION_IDS[i]
-        externalRequisitionId = EXTERNAL_REQUISITION_IDS[i]
+    const val REQUISITION_ID1 = 2000L
+    const val REQUISITION_ID2 = 2001L
+    const val REQUISITION_ID3 = 2002L
 
-        createTime = Timestamp.ofTimeMicroseconds(TimeUnit.SECONDS.toMicros(10) * (i + 1)).toProto()
-        state = STATES[i % 2]
-      }.build()
-    }.toList()
+    val REQUISITION1: Requisition = REQUISITION.toBuilder().apply {
+      externalCampaignId = EXTERNAL_CAMPAIGN_ID1
+      externalRequisitionId = 2003L
+      createTime = Timestamp.ofTimeSecondsAndNanos(100, 0).toProto()
+      state = RequisitionState.FULFILLED
+    }.build()
+
+    val REQUISITION2: Requisition = REQUISITION.toBuilder().apply {
+      externalCampaignId = EXTERNAL_CAMPAIGN_ID1
+      externalRequisitionId = 2004L
+      createTime = Timestamp.ofTimeSecondsAndNanos(200, 0).toProto()
+      state = RequisitionState.UNFULFILLED
+    }.build()
+
+    val REQUISITION3: Requisition = REQUISITION.toBuilder().apply {
+      externalCampaignId = EXTERNAL_CAMPAIGN_ID2
+      externalRequisitionId = 2005L
+      createTime = Timestamp.ofTimeSecondsAndNanos(300, 0).toProto()
+      state = RequisitionState.FULFILLED
+    }.build()
   }
 
   @Before
@@ -51,25 +61,17 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
         listOf(
           insertDataProviderMutation(),
           insertCampaignMutation(
-            campaignId = CAMPAIGN_IDS[0],
-            externalCampaignId = EXTERNAL_CAMPAIGN_IDS[0]
+            campaignId = CAMPAIGN_ID1,
+            externalCampaignId = EXTERNAL_CAMPAIGN_ID1
           ),
           insertCampaignMutation(
-            campaignId = CAMPAIGN_IDS[1],
-            externalCampaignId = EXTERNAL_CAMPAIGN_IDS[1]
-          )
+            campaignId = CAMPAIGN_ID2,
+            externalCampaignId = EXTERNAL_CAMPAIGN_ID2
+          ),
+          insertRequisitionMutation(CAMPAIGN_ID1, REQUISITION_ID1, REQUISITION1),
+          insertRequisitionMutation(CAMPAIGN_ID1, REQUISITION_ID2, REQUISITION2),
+          insertRequisitionMutation(CAMPAIGN_ID2, REQUISITION_ID3, REQUISITION3)
         )
-      )
-      transactionContext.buffer(
-        REQUISITIONS.map {
-          insertRequisitionMutation(
-            campaignId = it.campaignId,
-            requisitionId = it.requisitionId,
-            externalRequisitionId = it.externalRequisitionId,
-            createTime = it.createTime.toGcpTimestamp(),
-            state = it.state
-          )
-        }
       )
     }
   }
@@ -78,7 +80,7 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
   fun `database sanity check`() {
     assertThat(readAllRequisitions())
       .comparingExpectedFieldsOnly()
-      .containsExactlyElementsIn(REQUISITIONS)
+      .containsExactly(REQUISITION1, REQUISITION2, REQUISITION3)
   }
 
   @Test
@@ -86,7 +88,7 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     fun executeQueryWithPagination(pagination: Pagination) =
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(EXTERNAL_CAMPAIGN_IDS[0]),
+        ExternalId(EXTERNAL_CAMPAIGN_ID1),
         setOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED),
         pagination
       )
@@ -94,12 +96,12 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     val page1 = executeQueryWithPagination(Pagination(1, ""))
     assertThat(page1).isNotNull()
     assertThat(page1.nextPageToken).isNotNull()
-    assertThat(page1.requisitions).comparingExpectedFieldsOnly().containsExactly(REQUISITIONS[0])
+    assertThat(page1.requisitions).comparingExpectedFieldsOnly().containsExactly(REQUISITION1)
 
     val page2 = executeQueryWithPagination(Pagination(1, page1.nextPageToken.orEmpty()))
     assertThat(page2).isNotNull()
     assertThat(page2.nextPageToken).isNotNull()
-    assertThat(page2.requisitions).comparingExpectedFieldsOnly().containsExactly(REQUISITIONS[1])
+    assertThat(page2.requisitions).comparingExpectedFieldsOnly().containsExactly(REQUISITION2)
 
     val page3 = executeQueryWithPagination(Pagination(1, page2.nextPageToken.orEmpty()))
     assertThat(page3).isNotNull()
@@ -112,7 +114,7 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     assertFails {
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(EXTERNAL_CAMPAIGN_IDS[0]),
+        ExternalId(EXTERNAL_CAMPAIGN_ID1),
         setOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED),
         Pagination(1, "nonsense")
       )
@@ -124,7 +126,7 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     assertFails {
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(CAMPAIGN_IDS[0]),
+        ExternalId(EXTERNAL_CAMPAIGN_ID1),
         setOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED),
         Pagination(1001, "")
       )
@@ -136,7 +138,7 @@ class ListRequisitionsQueryTest : RequisitionTestBase() {
     assertFails {
       ListRequisitionsQuery().execute(
         spanner.client.singleUse(),
-        ExternalId(CAMPAIGN_IDS[0]),
+        ExternalId(EXTERNAL_CAMPAIGN_ID1),
         setOf(),
         Pagination(1, "")
       )

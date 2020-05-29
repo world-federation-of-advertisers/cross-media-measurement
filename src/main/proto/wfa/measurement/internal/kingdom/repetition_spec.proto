@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message RepetitionSpec {
+  google.protobuf.Timestamp start = 1;
+  Period repetition_period = 2;
+
+  enum TimeUnit {
+    TIME_UNIT_UNKNOWN = 0;
+    DAY = 1;
+    HOUR = 2;
+  }
+
+  message Period {
+    TimeUnit unit = 1;
+    int64 count = 2;
+  }
+}
