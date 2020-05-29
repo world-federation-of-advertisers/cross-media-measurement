@@ -15,5 +15,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
     ],
 )
