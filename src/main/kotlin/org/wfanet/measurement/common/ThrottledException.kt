@@ -5,7 +5,7 @@ package org.wfanet.measurement.common
  */
 class ThrottledException(
   message: String,
-  throwable: Throwable? = null
+  throwable: Throwable
 ) : Exception(
   message,
   throwable

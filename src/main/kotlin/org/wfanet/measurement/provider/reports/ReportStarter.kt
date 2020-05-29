@@ -3,15 +3,13 @@ package org.wfanet.measurement.provider.reports
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.transform
-import org.wfanet.measurement.common.AdaptiveThrottler
-import org.wfanet.measurement.common.throttledCollect
+import org.wfanet.measurement.common.parallelCollect
 import org.wfanet.measurement.internal.kingdom.Report
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ReportStarter(
   private val reportApi: ReportApi,
-  private val max_parallelism: Int,
-  private val throttler: AdaptiveThrottler
+  private val maxParallelism: Int
 ) {
 
   /**
@@ -21,7 +19,7 @@ class ReportStarter(
    */
   suspend fun createReports() = coroutineScope {
     reportApi.streamReadyScheduledReportConfigs()
-      .throttledCollect(max_parallelism, throttler, block = reportApi::createReport)
+      .parallelCollect(maxParallelism, reportApi::createReport)
   }
 
   /**
@@ -32,7 +30,7 @@ class ReportStarter(
   suspend fun createRequisitions() {
     reportApi.streamReportsInState(Report.ReportState.AWAITING_REQUISITIONS)
       .transform { emitAll(reportApi.streamMissingRequisitionsForReport(it)) }
-      .throttledCollect(max_parallelism, throttler, block = reportApi::maybeAddRequisition)
+      .parallelCollect(maxParallelism, reportApi::maybeAddRequisition)
   }
 
   /**
@@ -42,6 +40,6 @@ class ReportStarter(
    */
   suspend fun startComputations() {
     reportApi.streamFulfilledPendingReports()
-      .throttledCollect(max_parallelism, throttler, block = reportApi::startReport)
+      .parallelCollect(maxParallelism, reportApi::startReport)
   }
 }

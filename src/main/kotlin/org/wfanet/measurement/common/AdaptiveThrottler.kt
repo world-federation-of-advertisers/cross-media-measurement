@@ -50,15 +50,15 @@ class AdaptiveThrottler(
     updateQueue(rejects)
   }
 
-  override suspend fun onReady(block: suspend () -> Unit) {
+  override suspend fun <T> onReady(block: suspend () -> T): T {
     while (!attempt()) {
       delay(pollDelayMillis)
     }
     try {
-      block()
+      return block()
     } catch (e: ThrottledException) {
       reportThrottled()
-      e.cause?.let { throw it }
+      throw checkNotNull(e.cause) { "ThrottledException thrown without cause: $e" }
     }
   }
 

@@ -25,8 +25,6 @@ fun main(args: Array<String>) {
   runBlocking {
     Flags.parse(args.asIterable())
 
-    val reportApi: ReportApi = ReportApiImpl()
-
     val throttler = AdaptiveThrottler(
       ThrottlerFlags.OVERLOAD_FACTOR.value,
       Clock.systemUTC(),
@@ -35,9 +33,8 @@ fun main(args: Array<String>) {
     )
 
     val reportStarter = ReportStarter(
-      reportApi,
-      ReportStarterFlags.MAX_PARALLELISM.value,
-      throttler
+      ReportApiImpl(throttler),
+      ReportStarterFlags.MAX_PARALLELISM.value
     )
 
     // We just launch each of the tasks that we want to do in parallel. They each run indefinitely.
