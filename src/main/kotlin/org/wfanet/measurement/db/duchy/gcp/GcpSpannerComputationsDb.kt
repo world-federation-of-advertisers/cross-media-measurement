@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseId
@@ -17,6 +17,14 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
+import org.wfanet.measurement.db.gcp.gcpTimestamp
+import org.wfanet.measurement.db.gcp.getAtMostOne
+import org.wfanet.measurement.db.gcp.getNullableString
+import org.wfanet.measurement.db.gcp.toGcpTimestamp
+import org.wfanet.measurement.db.gcp.toJson
+import org.wfanet.measurement.db.gcp.toMillis
+import org.wfanet.measurement.db.gcp.toProtobufMessage
+import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 

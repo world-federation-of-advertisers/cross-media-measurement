@@ -21,8 +21,6 @@ import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
-import org.wfanet.measurement.db.gcp.GcpSpannerComputationsDb
-import org.wfanet.measurement.db.gcp.HalfOfGlobalBitsAndTimeStampIdGenerator
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing

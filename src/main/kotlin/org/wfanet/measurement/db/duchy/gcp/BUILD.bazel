@@ -10,7 +10,9 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//:google_cloud_spanner",
-        "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/proto/wfa/measurement/internal/db/gcp:computations_java_proto",
     ],
 )

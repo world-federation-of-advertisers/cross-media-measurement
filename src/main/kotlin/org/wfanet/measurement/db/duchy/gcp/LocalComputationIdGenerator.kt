@@ -1,4 +1,4 @@
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.db.duchy.gcp
 
 import java.time.Clock
 
