@@ -6,10 +6,10 @@ import com.google.cloud.spanner.Mutation
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.executeSqlQuery
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toJson
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.db.kingdom.gcp.REQUISITION_READ_QUERY
 import org.wfanet.measurement.db.kingdom.gcp.toRequisition

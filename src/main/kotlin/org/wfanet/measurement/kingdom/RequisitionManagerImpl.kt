@@ -1,5 +1,6 @@
 package org.wfanet.measurement.kingdom
 
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -20,9 +21,9 @@ class RequisitionManagerImpl(
   }
 
   override suspend fun fulfillRequisition(
-    requisitionExternalKey: RequisitionExternalKey
+    externalRequisitionId: ExternalId
   ): Requisition =
-    database.fulfillRequisition(requisitionExternalKey.externalId)
+    database.fulfillRequisition(externalRequisitionId)
 
   override suspend fun listRequisitions(
     campaignExternalKey: CampaignExternalKey,

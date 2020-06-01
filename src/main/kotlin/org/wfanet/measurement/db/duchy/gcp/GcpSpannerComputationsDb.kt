@@ -10,6 +10,7 @@ import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobName
@@ -21,7 +22,6 @@ import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getAtMostOne
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toJson
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.db.gcp.toProtobufMessage
 import org.wfanet.measurement.db.gcp.toSpannerByteArray

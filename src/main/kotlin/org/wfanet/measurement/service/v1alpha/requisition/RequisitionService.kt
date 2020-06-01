@@ -1,5 +1,7 @@
 package org.wfanet.measurement.service.v1alpha.requisition
 
+import com.google.protobuf.Timestamp
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v1alpha.CreateMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
@@ -7,45 +9,35 @@ import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
 import org.wfanet.measurement.common.ApiId
-import org.wfanet.measurement.common.Pagination
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
-import org.wfanet.measurement.kingdom.CampaignExternalKey
-import org.wfanet.measurement.kingdom.RequisitionManager
+import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
-import org.wfanet.measurement.service.v1alpha.common.toExternalKey
-import org.wfanet.measurement.service.v1alpha.common.toRequisitionDetails
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toV1Api
 
 class RequisitionService(
-  private val requisitionManager: RequisitionManager
+  private val internalRequisitionStub: RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub
 ) : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
 
   override suspend fun createMetricRequisition(
     request: CreateMetricRequisitionRequest
   ): MetricRequisition {
-    grpcRequire(!request.metricsRequisition.hasKey()) {
-      "request.metricsRequisition cannot have a key: $request"
-    }
-
-    val partialRequisition: Requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = ApiId(request.parent.dataProviderId).externalId.value
-      externalCampaignId = ApiId(request.parent.campaignId).externalId.value
-      state = RequisitionState.UNFULFILLED
-      windowStartTime = request.metricsRequisition.collectionInterval.startTime
-      windowEndTime = request.metricsRequisition.collectionInterval.endTime
-      requisitionDetails = request.metricsRequisition.metricDefinition.toRequisitionDetails()
-    }.build()
-    val resultRequisition = requisitionManager.createRequisition(partialRequisition)
-    return resultRequisition.toV1Api()
+    TODO("Remove this method")
   }
 
   override suspend fun fulfillMetricRequisition(
     request: FulfillMetricsRequisitionRequest
   ): MetricRequisition {
-    val key = request.key.toExternalKey()
-    return requisitionManager.fulfillRequisition(key).toV1Api()
+    val externalId = ApiId(request.key.metricRequisitionId).externalId
+    val internalRequest =
+      FulfillRequisitionRequest.newBuilder()
+        .setExternalRequisitionId(externalId.value)
+        .build()
+    return internalRequisitionStub.fulfillRequisition(internalRequest).toV1Api()
   }
 
   override suspend fun listMetricRequisitions(
@@ -57,15 +49,32 @@ class RequisitionService(
     grpcRequire(request.filter.statesCount > 0) {
       "At least one state must be set in request.filter.states: $request"
     }
-    val campaignKey: CampaignExternalKey = request.parent.toExternalKey()
-    val states = request.filter.statesList.map(MetricRequisition.State::toRequisitionState).toSet()
-    val pagination = Pagination(request.pageSize, request.pageToken)
-    val result: RequisitionManager.ListResult =
-      requisitionManager.listRequisitions(campaignKey, states, pagination)
+
+    val streamRequest = StreamRequisitionsRequest.newBuilder().apply {
+      limit = request.pageSize.toLong()
+      filterBuilder.apply {
+        if (request.pageToken.isNotBlank()) {
+          createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
+        }
+
+        addAllStates(request.filter.statesList.map(MetricRequisition.State::toRequisitionState))
+
+        addExternalDataProviderIds(ApiId(request.parent.dataProviderId).externalId.value)
+        addExternalCampaignIds(ApiId(request.parent.campaignId).externalId.value)
+      }
+    }.build()
+
+    val results: List<Requisition> =
+      internalRequisitionStub.streamRequisitions(streamRequest).toList()
+
+    if (results.isEmpty()) {
+      return ListMetricRequisitionsResponse.getDefaultInstance()
+    }
+
     return ListMetricRequisitionsResponse
       .newBuilder()
-      .addAllMetricRequisitions(result.requisitions.map(Requisition::toV1Api))
-      .setNextPageToken(result.nextPageToken.orEmpty())
+      .addAllMetricRequisitions(results.map(Requisition::toV1Api))
+      .setNextPageToken(results.last().createTime.toByteArray().base64UrlEncode())
       .build()
   }
 }

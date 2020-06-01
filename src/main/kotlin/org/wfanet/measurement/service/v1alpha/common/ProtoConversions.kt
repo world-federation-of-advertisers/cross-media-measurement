@@ -37,7 +37,7 @@ fun RequisitionState.toV1Api(): MetricRequisition.State =
   when (this) {
     RequisitionState.UNFULFILLED -> MetricRequisition.State.UNFULFILLED
     RequisitionState.FULFILLED -> MetricRequisition.State.FULFILLED
-    else -> MetricRequisition.State.UNRECOGNIZED
+    else -> MetricRequisition.State.STATE_UNSPECIFIED
   }
 
 /**

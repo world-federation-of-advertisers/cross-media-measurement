@@ -93,12 +93,8 @@ class RequisitionManagerImplTest {
 
   @Test
   fun fulfillRequisition() = runBlocking {
-    val key = RequisitionExternalKey(
-      ExternalId(REQUISITION.externalDataProviderId),
-      ExternalId(REQUISITION.externalCampaignId),
-      ExternalId(REQUISITION.externalRequisitionId)
-    )
-    assertThat(requisitionManager.fulfillRequisition(key)).isEqualTo(REQUISITION)
+    assertThat(requisitionManager.fulfillRequisition(ExternalId(REQUISITION.externalRequisitionId)))
+      .isEqualTo(REQUISITION)
   }
 
   @Test

@@ -2,18 +2,45 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
 import "src/main/proto/wfa/measurement/internal/kingdom/requisition.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/requisition_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Service for internal use to wrap direct database access.
-//
-// There are two categories of binary in the Kingdom:
-//   - API servers: these can use an in-process implementation of this.
-//   - Daemons/cronjobs: these will call out to this service.
+// Internal service for Requisitions.
 service RequisitionService {
   // Creates a new DatabaseRequisition in the database. The `requisition_id` and
   // `external_requisition_id` fields are ignored. This is idempotent.
-  rpc CreateDatabaseRequisition(Requisition) returns (Requisition);
+  rpc CreateRequisition(Requisition) returns (Requisition);
+
+  // Marks a Requisition as having RequisitionState.FULFILLED.
+  rpc FulfillRequisition(FulfillRequisitionRequest) returns (Requisition);
+
+  // Streams Requisitions from the database, ordered by create time ascending.
+  rpc StreamRequisitions(StreamRequisitionsRequest)
+      returns (stream Requisition);
+}
+
+message FulfillRequisitionRequest {
+  int64 external_requisition_id = 1;
+}
+
+message StreamRequisitionsRequest {
+  int64 limit = 1;
+
+  Filter filter = 3;
+
+  // All repeated fields are individually disjunctions.
+  //
+  // If a repeated field is not empty, then all output Requisitions must match
+  // one of the entries.
+  message Filter {
+    repeated int64 external_data_provider_ids = 1;
+    repeated int64 external_campaign_ids = 2;
+    repeated RequisitionState states = 3;
+
+    google.protobuf.Timestamp created_after = 4;
+  }
 }

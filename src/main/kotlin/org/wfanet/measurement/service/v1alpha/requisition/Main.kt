@@ -1,26 +1,31 @@
 package org.wfanet.measurement.service.v1alpha.requisition
 
-import java.time.Clock
-import java.util.logging.Logger
+import io.grpc.ManagedChannel
+import io.grpc.ManagedChannelBuilder
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.CommonServerType
 import org.wfanet.measurement.common.Flags
-import org.wfanet.measurement.common.RandomIdGeneratorImpl
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
-import org.wfanet.measurement.kingdom.RequisitionManagerImpl
+import org.wfanet.measurement.common.intFlag
+import org.wfanet.measurement.common.stringFlag
+import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
+
+object StubFlags {
+  val INTERNAL_API_HOST = stringFlag("internal_api_host", "")
+  val INTERNAL_API_PORT = intFlag("internal_api_port", 0)
+}
 
 fun main(args: Array<String>) {
-  val logger = Logger.getLogger("MainKt")
-  val spanner = SpannerFromFlags()
   Flags.parse(args.toList())
 
-  logger.info("Kingdom Spanner Database: ${spanner.databaseId}")
+  val channel: ManagedChannel =
+    ManagedChannelBuilder
+      .forAddress(StubFlags.INTERNAL_API_HOST.value, StubFlags.INTERNAL_API_PORT.value)
+      .usePlaintext()
+      .build()
 
-  val idGen = RandomIdGeneratorImpl(Clock.systemUTC())
-  val database = GcpKingdomRelationalDatabase(idGen, spanner.databaseClient)
-  val requisitionManager = RequisitionManagerImpl(database)
-  CommonServer(CommonServerType.REQUISITION, RequisitionService(requisitionManager))
+  val stub = RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(channel)
+
+  CommonServer(CommonServerType.REQUISITION, RequisitionService(stub))
     .start()
     .blockUntilShutdown()
 }

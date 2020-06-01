@@ -2,198 +2,133 @@ package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
-import io.grpc.StatusRuntimeException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import java.time.Instant
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.Campaign
-import org.wfanet.measurement.api.v1alpha.CreateMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.api.v1alpha.RequisitionGrpc
+import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.Pagination
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionState
-import org.wfanet.measurement.kingdom.CampaignExternalKey
-import org.wfanet.measurement.kingdom.RequisitionExternalKey
-import org.wfanet.measurement.kingdom.RequisitionManager
-import java.time.Instant
-import kotlin.test.assertFailsWith
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
   @get:Rule
   val grpcCleanup = GrpcCleanupRule()
 
-  private lateinit var blockingStub: RequisitionGrpc.RequisitionBlockingStub
+  private lateinit var stub: RequisitionGrpcKt.RequisitionCoroutineStub
 
   companion object {
-    private val DATA_PROVIDER_ID = ExternalId(1)
-    private val CAMPAIGN_ID = ExternalId(2)
-    val REQUISITION_ID = ExternalId(3)
+    var CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+    var WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+    var WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
 
-    val CAMPAIGN_API_KEY: Campaign.Key =
-      Campaign.Key.newBuilder().apply {
-        dataProviderId = DATA_PROVIDER_ID.apiId.value
-        campaignId = CAMPAIGN_ID.apiId.value
-      }.build()
+    var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
+
+    var REQUISITION: Requisition = Requisition.newBuilder().apply {
+      externalDataProviderId = 1
+      externalCampaignId = 2
+      externalRequisitionId = 3
+      createTime = CREATE_TIME
+      state = RequisitionState.FULFILLED
+      windowStartTime = WINDOW_START_TIME
+      windowEndTime = WINDOW_END_TIME
+      requisitionDetails = IRRELEVANT_DETAILS
+      requisitionDetailsJson = IRRELEVANT_DETAILS.toJson()
+    }.build()
 
     val REQUISITION_API_KEY: MetricRequisition.Key =
       MetricRequisition.Key.newBuilder().apply {
-        dataProviderId = DATA_PROVIDER_ID.apiId.value
-        campaignId = CAMPAIGN_ID.apiId.value
-        metricRequisitionId = REQUISITION_ID.apiId.value
+        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+        metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
       }.build()
 
-    var IRRELEVANT_TIMESTAMP: Timestamp = Instant.EPOCH.toProtoTime()
-    var WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-    var WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
-
-    var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
+    val logger = Logger.getLogger(this::class.java.name)
   }
-  object FakeRequisitionManager : RequisitionManager {
-    private fun RequisitionExternalKey.toRequisitionBuilder(): Requisition.Builder =
-      Requisition.newBuilder().apply {
-        externalDataProviderId = this@toRequisitionBuilder.dataProviderExternalId.value
-        externalCampaignId = this@toRequisitionBuilder.campaignExternalId.value
-        externalRequisitionId = this@toRequisitionBuilder.externalId.value
+
+  object FakeRequisitionService : RequisitionServiceGrpcKt.RequisitionServiceCoroutineImplBase() {
+    var fulfillRequisitionFn: ((FulfillRequisitionRequest) -> Requisition)? = null
+    var streamRequisitionsFn: ((StreamRequisitionsRequest) -> Flow<Requisition>)? = null
+
+    override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition =
+      loggingExceptions { fulfillRequisitionFn!!.invoke(request) }
+
+    override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> =
+      loggingExceptions { streamRequisitionsFn!!.invoke(request) }
+
+    private fun <T> loggingExceptions(block: () -> T): T {
+      try {
+        return block()
+      } catch (e: Exception) {
+        logger.log(Level.SEVERE, "Exception in FakeRequisitionService:", e)
+        throw e
       }
-
-    private fun makeRequisition(
-      key: RequisitionExternalKey,
-      requisitionDetails: RequisitionDetails,
-      windowStartTime: Timestamp,
-      windowEndTime: Timestamp,
-      state: RequisitionState
-    ): Requisition {
-      return key.toRequisitionBuilder()
-        .setRequisitionDetails(requisitionDetails)
-        .setWindowStartTime(windowStartTime)
-        .setWindowEndTime(windowEndTime)
-        .setState(state)
-        .build()
-    }
-
-    private fun makeRequisitionWithState(
-      key: RequisitionExternalKey,
-      state: RequisitionState
-    ): Requisition =
-      makeRequisition(key, IRRELEVANT_DETAILS, IRRELEVANT_TIMESTAMP, IRRELEVANT_TIMESTAMP, state)
-
-    override suspend fun createRequisition(requisition: Requisition): Requisition {
-      assertThat(requisition.windowStartTime).isEqualTo(WINDOW_START_TIME)
-      assertThat(requisition.windowEndTime).isEqualTo(WINDOW_END_TIME)
-      return requisition.toBuilder().setExternalRequisitionId(REQUISITION_ID.value).build()
-    }
-
-    override suspend fun fulfillRequisition(
-      requisitionExternalKey: RequisitionExternalKey
-    ): Requisition =
-      makeRequisition(
-        requisitionExternalKey,
-        IRRELEVANT_DETAILS,
-        IRRELEVANT_TIMESTAMP,
-        IRRELEVANT_TIMESTAMP,
-        RequisitionState.FULFILLED
-      )
-
-    override suspend fun listRequisitions(
-      campaignExternalKey: CampaignExternalKey,
-      states: Set<RequisitionState>,
-      pagination: Pagination
-    ): RequisitionManager.ListResult {
-      require(pagination == Pagination(2, "some-page-token"))
-      require(states == setOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED))
-      val key = RequisitionExternalKey(campaignExternalKey, REQUISITION_ID)
-      val requisitions = listOf(
-        makeRequisitionWithState(key, RequisitionState.UNFULFILLED),
-        makeRequisitionWithState(key, RequisitionState.FULFILLED)
-      )
-      return RequisitionManager.ListResult(requisitions, "different-page-token")
     }
   }
 
   @Before
   fun setup() {
     val serverName = InProcessServerBuilder.generateName()
+
+    val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
+    grpcCleanup.register(channel)
+
+    stub = RequisitionGrpcKt.RequisitionCoroutineStub(channel)
+    val internalStub = RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(channel)
+
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
-        .addService(RequisitionService(FakeRequisitionManager))
+        .addService(FakeRequisitionService)
+        .addService(RequisitionService(internalStub))
         .build()
         .start()
     )
-
-    val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
-    blockingStub = RequisitionGrpc.newBlockingStub(grpcCleanup.register(channel))
-  }
-
-  @Test
-  fun createMetricRequisition() = runBlocking {
-    val request = CreateMetricRequisitionRequest.newBuilder().apply {
-      parent = CAMPAIGN_API_KEY
-      metricsRequisitionBuilder.apply {
-        collectionIntervalBuilder.apply {
-          startTime = WINDOW_START_TIME
-          endTime = WINDOW_END_TIME
-        }
-        metricDefinitionBuilder.apply {
-          // TODO: add a definition
-        }
-      }
-    }.build()
-
-    val result = blockingStub.createMetricRequisition(request)
-
-    val expected = MetricRequisition.newBuilder().apply {
-      key = REQUISITION_API_KEY
-      state = MetricRequisition.State.UNFULFILLED
-    }.build()
-
-    assertThat(result).isEqualTo(expected)
-  }
-
-  @Test
-  fun `createMetricRequisition with key fails`() = runBlocking<Unit> {
-    val request = CreateMetricRequisitionRequest.newBuilder().apply {
-      parent = CAMPAIGN_API_KEY
-      metricsRequisitionBuilder.apply {
-        // This is invalid and should cause an error:
-        key = REQUISITION_API_KEY
-
-        collectionIntervalBuilder.apply {
-          startTime = WINDOW_START_TIME
-          endTime = WINDOW_END_TIME
-        }
-        metricDefinitionBuilder.apply {
-          // TODO: add a definition
-        }
-      }
-    }.build()
-
-    assertFailsWith<StatusRuntimeException> {
-      blockingStub.createMetricRequisition(request)
-    }
   }
 
   @Test
   fun fulfillMetricRequisition() = runBlocking {
+    FakeRequisitionService.fulfillRequisitionFn = { request: FulfillRequisitionRequest ->
+      assertThat(request).isEqualTo(
+        FulfillRequisitionRequest.newBuilder()
+          .setExternalRequisitionId(REQUISITION.externalRequisitionId)
+          .build()
+      )
+      REQUISITION
+    }
+
     val request = FulfillMetricsRequisitionRequest.newBuilder().apply {
-      key = REQUISITION_API_KEY
+      keyBuilder.apply {
+        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+        metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
+      }
     }.build()
 
-    val result = blockingStub.fulfillMetricRequisition(request)
+    val result = stub.fulfillMetricRequisition(request)
 
     val expected = MetricRequisition.newBuilder().apply {
       key = REQUISITION_API_KEY
@@ -204,9 +139,26 @@ class RequisitionServiceTest {
   }
 
   @Test
-  fun listMetricRequisitions() = runBlocking {
+  fun `listMetricRequisitions without page token`() = runBlocking {
+    FakeRequisitionService.streamRequisitionsFn = { streamRequisitionsRequest ->
+      assertThat(streamRequisitionsRequest).ignoringRepeatedFieldOrder().isEqualTo(
+        StreamRequisitionsRequest.newBuilder().apply {
+          limit = 2
+          filterBuilder.apply {
+            addAllStates(listOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED))
+            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+            addExternalCampaignIds(REQUISITION.externalCampaignId)
+          }
+        }.build()
+      )
+      flowOf(REQUISITION, REQUISITION)
+    }
+
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parent = CAMPAIGN_API_KEY
+      parentBuilder.apply {
+        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+      }
       filterBuilder.addAllStates(
         listOf(
           MetricRequisition.State.UNFULFILLED,
@@ -214,10 +166,10 @@ class RequisitionServiceTest {
         )
       )
       pageSize = 2
-      pageToken = "some-page-token"
+      pageToken = ""
     }.build()
 
-    val result = blockingStub.listMetricRequisitions(request)
+    val result = stub.listMetricRequisitions(request)
 
     val expected = ListMetricRequisitionsResponse.newBuilder().apply {
       addMetricRequisitionsBuilder().apply {
@@ -226,11 +178,46 @@ class RequisitionServiceTest {
       }
       addMetricRequisitionsBuilder().apply {
         key = REQUISITION_API_KEY
-        state = MetricRequisition.State.UNFULFILLED
+        state = MetricRequisition.State.FULFILLED
       }
-      nextPageToken = "different-page-token"
+      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }.build()
 
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(expected)
+  }
+
+  @Test
+  fun `listMetricRequisitions with page token`() = runBlocking {
+    FakeRequisitionService.streamRequisitionsFn = { streamRequisitionsRequest ->
+      assertThat(streamRequisitionsRequest).ignoringRepeatedFieldOrder().isEqualTo(
+        StreamRequisitionsRequest.newBuilder().apply {
+          limit = 1
+          filterBuilder.apply {
+            addStates(RequisitionState.UNFULFILLED)
+            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+            addExternalCampaignIds(REQUISITION.externalCampaignId)
+            createdAfter = CREATE_TIME
+          }
+        }.build()
+      )
+      emptyFlow()
+    }
+
+    val request = ListMetricRequisitionsRequest.newBuilder().apply {
+      parentBuilder.apply {
+        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+      }
+      filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
+      pageSize = 1
+      pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+    }.build()
+
+    val result = stub.listMetricRequisitions(request)
+    val expected = ListMetricRequisitionsResponse.getDefaultInstance()
+
+    assertThat(result).isEqualTo(expected)
   }
 }

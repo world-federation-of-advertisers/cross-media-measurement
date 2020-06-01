@@ -1,5 +1,6 @@
 package org.wfanet.measurement.kingdom
 
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -22,10 +23,10 @@ interface RequisitionManager {
   /**
    * Updates the state of a [Requisition] to [RequisitionState.FULFILLED].
    *
-   * @param[requisitionExternalKey]: the identifiers of the Requisition
+   * @param[externalRequisitionId]: the identifiers of the Requisition
    * @return the resulting [Requisition]
    */
-  suspend fun fulfillRequisition(requisitionExternalKey: RequisitionExternalKey): Requisition
+  suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition
 
   /**
    * Output type of [listRequisitions].
