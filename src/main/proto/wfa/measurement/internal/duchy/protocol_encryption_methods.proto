@@ -5,6 +5,12 @@ package wfa.measurement.internal.duchy;
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
+// Proto messages wrapping the input arguments or output results of the protocol
+// encryption methods, which are to be called via JNI in the Duchy.
+// Note that these protos contain sensitive data, e.g., private keys used in the
+// ciphers. So they SHOULD NOT be written into any logs or leave the running
+// process.
+
 // Keys of the ElGamal cipher.
 message ElGamalKeys {
   // Secret key of the ElGamal cipher.
