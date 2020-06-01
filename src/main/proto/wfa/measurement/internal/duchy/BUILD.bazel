@@ -12,3 +12,8 @@ cc_proto_library(
     name = "protocol_encryption_methods_cc_proto",
     deps = [":protocol_encryption_methods_proto"],
 )
+
+java_proto_library(
+    name = "protocol_encryption_methods_java_proto",
+    deps = [":protocol_encryption_methods_proto"],
+)

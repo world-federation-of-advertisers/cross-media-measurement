@@ -1,0 +1,82 @@
+load("@rules_java//java:defs.bzl", "java_library")
+
+package(default_visibility = [
+    "//src/main/java/org/wfanet/measurement:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/java/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+# Generate the SWIG C++ and Java wrapper files using SWIG.
+# The machine running this code should have swig installed.
+genrule(
+    name = "generate_swig",
+    srcs = ["protocol_encryption_utility.swig"],
+    outs = [
+        "protocol_encryption_utility_swig.cc",
+        "ProtocolEncryptionUtility.java",
+        "ProtocolEncryptionUtilityJNI.java",
+    ],
+    # Using swi and C++ source files, generate Java wrappers under the
+    # package "org.wfanet.measurement.crypto". Save all output in
+    # bazel-genfiles/... with the C++ wrapper file named
+    # protocol_encryption_utility_swig.cc.
+    cmd = "swig -c++ -java -package org.wfanet.measurement.crypto -o $(@D)/protocol_encryption_utility_swig.cc -outdir $(@D) $(SRCS)",
+    local = 1,
+)
+
+genrule(
+    name = "copy_jni_h",
+    srcs = ["@bazel_tools//tools/jdk:jni_header"],
+    outs = ["jni.h"],
+    cmd = "cp -f $< $@",
+)
+
+genrule(
+    name = "copy_jni_md_h",
+    srcs = ["@bazel_tools//tools/jdk:jni_md_header-linux"],
+    outs = ["jni_md.h"],
+    cmd = "cp -f $< $@",
+)
+
+# Eliminate "<JNI include path> not below the relative path of its package" warnings by
+# copying required includes locally.
+cc_library(
+    name = "jni",
+    hdrs = [
+        ":jni.h",
+        ":jni_md.h",
+    ],
+    includes = ["."],
+)
+
+# Create a C++ library from the C++ files created by the :generate_swig rule.
+cc_library(
+    name = "protocol_encryption_utility_swig",
+    srcs = [
+        ":generate_swig",
+    ],
+    deps = [
+        ":jni",
+        "//src/main/cc/measurement/crypto:protocol_encryption_utility_wrapper",
+    ],
+    alwayslink = True,
+)
+
+# Wrap the Bazel C++ library as a shared library file that can be referenced from Java.
+cc_binary(
+    name = "libprotocolencryptionutility.so",
+    linkshared = True,
+    deps = [":protocol_encryption_utility_swig"],
+)
+
+java_library(
+    name = "protocol_encryption_utility",
+    srcs = [
+        ":generate_swig",
+    ],
+    runtime_deps = [":libprotocolencryptionutility.so"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+    ],
+)
