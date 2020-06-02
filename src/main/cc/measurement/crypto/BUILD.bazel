@@ -1,7 +1,3 @@
-package(default_visibility = [
-    "//src/main/java/org/wfanet/measurement/crypto:__subpackages__",
-])
-
 cc_library(
     name = "protocol_encryption_utility",
     srcs = [
@@ -18,29 +14,16 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "protocol_encryption_utility_wrapper",
+cc_test(
+    name = "protocol_encryption_utility_test",
+    size = "small",
     srcs = [
-        "protocol_encryption_utility_wrapper.cc",
-    ],
-    hdrs = [
-        "protocol_encryption_utility_wrapper.h",
+        "protocol_encryption_utility_test.cc",
     ],
     deps = [
         ":protocol_encryption_utility",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
-        "@com_google_private_join_and_compute//util:status",
-    ],
-)
-
-cc_test(
-    name = "protocol_encryption_utility_wrapper_test",
-    size = "small",
-    srcs = [
-        "protocol_encryption_utility_wrapper_test.cc",
-    ],
-    deps = [
-        ":protocol_encryption_utility_wrapper",
+        "@any_sketch//src/main/cc/any_sketch:sketch_encrypter",
         "@googletest//:gtest_main",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_cc_proto",
     ],
 )

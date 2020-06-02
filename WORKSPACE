@@ -3,6 +3,20 @@ workspace(name = "wfa_measurement_system")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
+http_archive(
+    name = "googletest",
+    sha256 = "94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91",
+    strip_prefix = "googletest-release-1.10.0",
+    urls = ["https://github.com/google/googletest/archive/release-1.10.0.zip"],
+)
+
+http_archive(
+    name = "absl",
+    sha256 = "f342aac71a62861ac784cadb8127d5a42c6c61ab1cd07f00aef05f2cc4988c42",
+    strip_prefix = "abseil-cpp-20200225.2",
+    urls = ["https://github.com/abseil/abseil-cpp/archive/20200225.2.zip"],
+)
+
 # Support Maven sources
 
 http_archive(
@@ -219,9 +233,14 @@ http_archive(
     ],
 )
 
-http_archive(
-    name = "googletest",
-    sha256 = "94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91",
-    strip_prefix = "googletest-release-1.10.0",
-    urls = ["https://github.com/google/googletest/archive/release-1.10.0.zip"],
+git_repository(
+    name = "wfa_measurement_proto",
+    commit = "d6b42bb0fd73a287110e54203783b9c02e35a5b2",
+    remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
+)
+
+git_repository(
+    name = "any_sketch",
+    commit = "5c6e3bceda5f198babd37ceb3dc0a0d07d41077b",
+    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
 )
