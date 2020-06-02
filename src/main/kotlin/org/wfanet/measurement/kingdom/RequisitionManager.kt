@@ -1,7 +1,8 @@
 package org.wfanet.measurement.kingdom
 
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.Pagination
+import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -29,24 +30,14 @@ interface RequisitionManager {
   suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition
 
   /**
-   * Output type of [listRequisitions].
+   * Reads [Requisition]s.
    *
-   * @property[requisitions] the results -- possibly empty
-   * @property[nextPageToken] the token to get the next page, or null if there are no more pages
+   * @param[filter] a filter for which requisitions to read
+   * @param[limit] maximum number of requisitions to read
+   * @return the Requisitions
    */
-  data class ListResult(val requisitions: List<Requisition>, val nextPageToken: String?)
-
-  /**
-   * Reads pages of [Requisition]s.
-   *
-   * @param[campaignExternalKey] the [Campaign] to which the [Requisition]s belong
-   * @param[states] a filter: only results with a state in this set will be returned
-   * @param[pagination] which page of results to return
-   * @return a page of results (possibly empty)
-   */
-  suspend fun listRequisitions(
-    campaignExternalKey: CampaignExternalKey,
-    states: Set<RequisitionState>,
-    pagination: Pagination
-  ): ListResult
+  suspend fun streamRequisitions(
+    filter: StreamRequisitionsFilter,
+    limit: Long
+  ): Flow<Requisition>
 }

@@ -1,8 +1,9 @@
 package org.wfanet.measurement.kingdom
 
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -25,12 +26,8 @@ class RequisitionManagerImpl(
   ): Requisition =
     database.fulfillRequisition(externalRequisitionId)
 
-  override suspend fun listRequisitions(
-    campaignExternalKey: CampaignExternalKey,
-    states: Set<RequisitionState>,
-    pagination: Pagination
-  ): RequisitionManager.ListResult {
-    val result = database.listRequisitions(campaignExternalKey.externalId, states, pagination)
-    return RequisitionManager.ListResult(result.requisitions, result.nextPageToken)
-  }
+  override suspend fun streamRequisitions(
+    filter: StreamRequisitionsFilter,
+    limit: Long
+  ): Flow<Requisition> = database.streamRequisitions(filter, limit)
 }

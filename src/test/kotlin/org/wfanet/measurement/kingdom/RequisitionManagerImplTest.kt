@@ -3,13 +3,17 @@ package org.wfanet.measurement.kingdom
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
+import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -52,22 +56,14 @@ class RequisitionManagerImplTest {
       return REQUISITION
     }
 
-    override suspend fun listRequisitions(
-      externalCampaignId: ExternalId,
-      states: Set<RequisitionState>,
-      pagination: Pagination
-    ): KingdomRelationalDatabase.ListResult {
-      assertThat(externalCampaignId).isEqualTo(ExternalId(REQUISITION.externalCampaignId))
-      assertThat(states).containsExactly(RequisitionState.FULFILLED)
-      assertThat(pagination).isEqualTo(Pagination(10, "some-page-token"))
-      return KingdomRelationalDatabase.ListResult(
-        listOf(REQUISITION), "next-page-token"
-      )
-    }
+    override suspend fun streamRequisitions(
+      filter: StreamRequisitionsFilter,
+      limit: Long
+    ): Flow<Requisition> = flowOf(REQUISITION)
   }
 
   private val requisitionManager = RequisitionManagerImpl(
-    FakeKingdomRelationalDatabase
+    RequisitionManagerImplTest.FakeKingdomRelationalDatabase
   )
 
   @Test
@@ -98,19 +94,12 @@ class RequisitionManagerImplTest {
   }
 
   @Test
-  fun listRequisitions() = runBlocking {
-    val key = CampaignExternalKey(
-      ExternalId(REQUISITION.externalDataProviderId),
-      ExternalId(REQUISITION.externalCampaignId)
-    )
-    val states = setOf(RequisitionState.FULFILLED)
-    val pagination = Pagination(10, "some-page-token")
+  fun streamRequisitions() = runBlocking<Unit> {
+    val requisitions =
+      requisitionManager
+        .streamRequisitions(streamRequisitionsFilter(), 10)
+        .toList()
 
-    assertThat(requisitionManager.listRequisitions(key, states, pagination)).isEqualTo(
-      RequisitionManager.ListResult(
-        listOf(REQUISITION),
-        "next-page-token"
-      )
-    )
+    assertThat(requisitions).containsExactly(REQUISITION)
   }
 }

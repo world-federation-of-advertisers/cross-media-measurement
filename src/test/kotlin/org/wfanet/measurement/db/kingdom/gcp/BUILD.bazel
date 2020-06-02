@@ -1,3 +1,4 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 load("//src/main/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 spanner_emulator_test(
@@ -47,17 +48,30 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "list_requisitions_query_test",
-    srcs = ["ListRequisitionsQueryTest.kt"],
+    name = "stream_requisitions_query_test",
+    srcs = ["StreamRequisitionsQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:measurement_provider_schema",
     ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.ListRequisitionsQueryTest",
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.StreamRequisitionsQueryTest",
     deps = [
         "//:google_cloud_spanner",
         "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "filters_test",
+    srcs = ["FiltersTest.kt"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.FiltersTest",
+    deps = [
+        "//:google_cloud_spanner",
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
     ],
 )

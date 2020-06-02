@@ -1,13 +1,13 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.DatabaseClient
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 class GcpKingdomRelationalDatabase(
   private val randomIdGenerator: RandomIdGenerator,
@@ -26,14 +26,13 @@ class GcpKingdomRelationalDatabase(
       FulfillRequisitionTransaction().execute(transactionContext, externalRequisitionId)
     }
 
-  override suspend fun listRequisitions(
-    externalCampaignId: ExternalId,
-    states: Set<RequisitionState>,
-    pagination: Pagination
-  ): KingdomRelationalDatabase.ListResult = ListRequisitionsQuery().execute(
-    client.singleUse(),
-    externalCampaignId,
-    states,
-    pagination
-  )
+  override suspend fun streamRequisitions(
+    filter: StreamRequisitionsFilter,
+    limit: Long
+  ): Flow<Requisition> =
+    StreamRequisitionsQuery().execute(
+      client.singleUse(),
+      filter,
+      limit
+    )
 }

@@ -1,7 +1,7 @@
 package org.wfanet.measurement.db.kingdom
 
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.Pagination
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -25,16 +25,10 @@ interface KingdomRelationalDatabase {
   suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition
 
   /**
-   * Result type of [listRequisitions].
+   * Streams [Requisition]s.
    */
-  data class ListResult(val requisitions: List<Requisition>, val nextPageToken: String?)
-
-  /**
-   * Loads pages of [Requisition]s for a Campaign.
-   */
-  suspend fun listRequisitions(
-    externalCampaignId: ExternalId,
-    states: Set<RequisitionState>,
-    pagination: Pagination
-  ): ListResult
+  suspend fun streamRequisitions(
+    filter: StreamRequisitionsFilter,
+    limit: Long
+  ): Flow<Requisition>
 }
