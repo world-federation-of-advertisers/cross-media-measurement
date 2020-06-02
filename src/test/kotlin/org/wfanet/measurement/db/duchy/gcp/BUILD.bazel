@@ -35,6 +35,7 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.db.duchy.gcp.GcpSpannerComputationsDbTest",
     deps = [
         "//:google_cloud_spanner",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "@com_github_jetbrains_kotlin//:kotlin-test",

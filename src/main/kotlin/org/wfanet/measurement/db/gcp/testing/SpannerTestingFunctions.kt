@@ -39,18 +39,17 @@ fun assertQueryReturns(dbClient: DatabaseClient, sqlQuery: String, vararg expect
   assertEquals(expectedColumns, resultsColumns)
   assertEquals(
     expected.toList(), results,
-    """
-    Expected:
-      Columns (should be one item)
-        $expectedColumns
-      Values (one item per row)
-        ${expectedList.debugString()}
-    but was:
-      Columns (should be one item)
-        $resultsColumns
-      Values (one item per row)
-        ${results.debugString()}
-    """.trimIndent()
+"""
+Query did not return expected results:
+'$sqlQuery'
+
+Columns:
+$expectedColumns
+Expected Values:
+${expectedList.debugString()}
+Actual Values:
+${results.debugString()}
+""".trim()
   )
 }
 

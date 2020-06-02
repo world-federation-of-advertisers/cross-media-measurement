@@ -166,7 +166,7 @@ CREATE TABLE ComputationBlobReferences (
   -- Says in what way the stage depends upon the referenced BLOB, i.e.
   -- is the blob an input to the stage, or is it a required output.
   --
-  -- See the wfa.measurement.internal.db.gcp.BlobDependency proto
+  -- See the wfa.measurement.internal.db.gcp.ComputationBlobDependency proto
   DependencyType INT64 NOT NULL,
 ) PRIMARY KEY (ComputationId, ComputationStage, BlobId),
   INTERLEAVE IN PARENT ComputationStages ON DELETE CASCADE;

@@ -4,6 +4,8 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.ResultSet
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
+import com.google.protobuf.Message
+import com.google.protobuf.Parser
 
 private fun <T> Struct.nullOrValue(
   column: String,
@@ -35,3 +37,7 @@ fun ResultSet.getAtMostOne(): Struct? =
  * Returns a bytes column as a Kotlin native ByteArray. This is useful for deserializing protos.
  */
 fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toByteArray()
+
+/** Parses a protobuf [Message] from a bytes column. */
+fun <T : Message> Struct.getProtoBufMessage(column: String, parser: Parser<T>): T =
+  getBytes(column).toProtobufMessage(parser)

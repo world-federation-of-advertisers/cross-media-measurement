@@ -21,10 +21,12 @@ import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
 import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getAtMostOne
 import org.wfanet.measurement.db.gcp.getNullableString
+import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.db.gcp.toProtobufMessage
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
+import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 
@@ -206,6 +208,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       // Verify that the row hasn't been updated since the previous, non-transactional read.
       if (currentLockOwnerStruct.getTimestamp("UpdateTime") == lastUpdate) {
         ctx.buffer(setLockMutation(computationId, ownerId))
+        // TODO(fryej): Set the Begin time in ComputationStageAttempts table.
         return@run true
       }
       return@run false
@@ -213,14 +216,15 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   }
 
   private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
-    val fiveMinutesInTheFuture = clock.instant().plusSeconds(300).toGcpTimestamp()
     return Mutation.newUpdateBuilder("Computations")
       .set("ComputationId").to(computationId)
       .set("LockOwner").to(ownerId)
-      .set("LockExpirationTime").to(fiveMinutesInTheFuture)
+      .set("LockExpirationTime").to(fiveMinutesInTheFuture())
       .set("UpdateTime").to(clock.gcpTimestamp())
       .build()
   }
+
+  private fun fiveMinutesInTheFuture() = clock.instant().plusSeconds(300).toGcpTimestamp()
 
   override fun renewTask(token: ComputationToken<T>): ComputationToken<T> {
     val owner = checkNotNull(token.owner) { "Cannot renew lock for computation with no owner." }
@@ -236,7 +240,142 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     blobOutputRefs: Collection<BlobName>,
     afterTransition: AfterTransition
   ): ComputationToken<T> {
-    TODO("Not yet implemented")
+    require(
+      stateEnumHelper.validTransition(token.state, to)
+    ) { "Invalid state transition ${token.state} -> $to" }
+
+    runIfTokenFromLastUpdate(token) { ctx ->
+      val writeTime = clock.gcpTimestamp()
+      val newStageAsInt64 = stateEnumHelper.enumToLong(to)
+
+      ctx.buffer(
+        mutationsToChangeStages(
+          ctx,
+          token,
+          newStageAsInt64,
+          writeTime,
+          afterTransition
+        )
+      )
+
+      ctx.buffer(
+        mutationsToMakeBlobRefsForNewStage(
+          token.localId,
+          newStageAsInt64,
+          blobInputRefs,
+          blobOutputRefs
+        )
+      )
+    }
+    return getToken(token.globalId) ?: error("Computation $token no longer exists.")
+  }
+
+  private fun mutationsToChangeStages(
+    ctx: TransactionContext,
+    token: ComputationToken<T>,
+    newStageAsInt64: Long,
+    writeTime: Timestamp,
+    afterTransition: AfterTransition
+  ): List<Mutation> {
+    val currentStageAsInt64 = stateEnumHelper.enumToLong(token.state)
+    val currentStageDetails = ctx.readRow(
+      "ComputationStages",
+      Key.of(token.localId, currentStageAsInt64),
+      listOf("Details")
+    ) ?: error("No row for (${token.localId}, $currentStageAsInt64)")
+
+    val existingStageDetails =
+      currentStageDetails.getProtoBufMessage("Details", ComputationStageDetails.parser())
+        .toBuilder()
+        .setFollowingStageValue(newStageAsInt64.toInt())
+        .build()
+
+    val computation = Mutation.newInsertOrUpdateBuilder("Computations")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(newStageAsInt64)
+      .set("UpdateTime").to(writeTime)
+    val existingStage = Mutation.newUpdateBuilder("ComputationStages")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(currentStageAsInt64)
+      .set("EndTime").to(writeTime)
+      .set("Details").to(existingStageDetails.toSpannerByteArray())
+      .set("DetailsJSON").to(existingStageDetails.toJson())
+    val existingAttempt = Mutation.newUpdateBuilder("ComputationStageAttempts")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(currentStageAsInt64)
+      .set("Attempt").to(token.attempt)
+      .set("EndTime").to(writeTime)
+
+    val newStageDetails = ComputationStageDetails.newBuilder().apply {
+      previousStageValue = currentStageAsInt64.toInt()
+      // TODO(fryej): Set stage_specific field.
+    }.build()
+    val newStage = Mutation.newInsertBuilder("ComputationStages")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(newStageAsInt64)
+      .set("NextAttempt").to(2L)
+      .set("CreationTime").to(writeTime)
+      .set("Details").to(newStageDetails.toSpannerByteArray())
+      .set("DetailsJSON").to(newStageDetails.toJson())
+    val newAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(newStageAsInt64)
+      .set("Attempt").to(1)
+
+    when (afterTransition) {
+      AfterTransition.CONTINUE_WORKING -> {
+        /** like [claimTask] on the computation in same transaction. */
+        newAttempt.set("BeginTime").to(writeTime)
+        computation.set("LockExpirationTime").to(fiveMinutesInTheFuture())
+      }
+      AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
+        /** like [enqueue] the computation in same transaction. */
+        computation
+          .set("LockOwner").to(null as String?)
+          .set("LockExpirationTime").to(writeTime)
+      }
+      AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
+        // Release the lock and remove from queue.
+        computation
+          .set("LockOwner").to(null as String?)
+          .set("LockExpirationTime").to(null as Timestamp?)
+      }
+    }
+    return listOf(
+      computation.build(),
+      existingStage.build(),
+      existingAttempt.build(),
+      newStage.build(),
+      newAttempt.build()
+    )
+  }
+
+  private fun mutationsToMakeBlobRefsForNewStage(
+    localId: Long,
+    stageAsInt64: Long,
+    blobInputRefs: Collection<BlobRef>,
+    blobOutputRefs: Collection<BlobName>
+  ): List<Mutation> {
+    val mutations = ArrayList<Mutation>()
+    blobInputRefs.mapIndexedTo(mutations) { index, blobRef ->
+      Mutation.newInsertBuilder("ComputationBlobReferences")
+        .set("ComputationId").to(localId)
+        .set("ComputationStage").to(stageAsInt64)
+        .set("BlobId").to(index.toLong())
+        .set("PathToBlob").to(blobRef.pathToBlob)
+        .set("DependencyType").to(ComputationBlobDependency.INPUT.ordinal.toLong())
+        .build()
+    }
+
+    blobOutputRefs.mapIndexedTo(mutations) { index, _ ->
+      Mutation.newInsertBuilder("ComputationBlobReferences")
+        .set("ComputationId").to(localId)
+        .set("ComputationStage").to(stageAsInt64)
+        .set("BlobId").to(index.toLong() + blobInputRefs.size)
+        .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
+        .build()
+    }
+    return mutations
   }
 
   override fun readBlobReferenceNames(

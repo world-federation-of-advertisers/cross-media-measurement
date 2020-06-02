@@ -9,3 +9,13 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "test_clock_with_named_instants_test",
+    srcs = ["TestClockWithNamedInstantsTest.kt"],
+    test_class = "org.wfanet.measurement.common.testing.TestClockWithNamedInstantsTest",
+    deps = [
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
