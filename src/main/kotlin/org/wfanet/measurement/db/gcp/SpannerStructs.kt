@@ -4,8 +4,10 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.ResultSet
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
+import com.google.cloud.spanner.ValueBinder
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
+import org.wfanet.measurement.common.toJson
 
 private fun <T> Struct.nullOrValue(
   column: String,
@@ -41,3 +43,9 @@ fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toB
 /** Parses a protobuf [Message] from a bytes column. */
 fun <T : Message> Struct.getProtoBufMessage(column: String, parser: Parser<T>): T =
   getBytes(column).toProtobufMessage(parser)
+
+/** Bind a protobuf [Message] as a Spanner ByteArray. */
+fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toSpannerByteArray())
+
+/** Bind a protobuf [Message] as a JSON string representation. */
+fun <T> ValueBinder<T>.toProtoJson(message: Message?): T = to(message?.toJson())

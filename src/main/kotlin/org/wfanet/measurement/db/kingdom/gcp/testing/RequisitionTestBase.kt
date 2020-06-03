@@ -10,7 +10,8 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.executeSqlQuery
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toSpannerByteArray
+import org.wfanet.measurement.db.gcp.toProtoBytes
+import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.REQUISITION_READ_QUERY
 import org.wfanet.measurement.db.kingdom.gcp.toRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -106,8 +107,8 @@ open class RequisitionTestBase :
       set("WindowStartTime").to(windowStartTime)
       set("WindowEndTime").to(windowEndTime)
       set("State").to(state.ordinal.toLong())
-      set("RequisitionDetails").to(requisitionDetails.toSpannerByteArray())
-      set("RequisitionDetailsJson").to(requisitionDetails.toJson())
+      set("RequisitionDetails").toProtoBytes(requisitionDetails)
+      set("RequisitionDetailsJson").toProtoJson(requisitionDetails)
     }.build()
 
   fun insertRequisitionMutation(

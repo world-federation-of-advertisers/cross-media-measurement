@@ -14,7 +14,7 @@ import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.executeSqlQuery
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toSpannerByteArray
+import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 /**
@@ -111,7 +111,7 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
       .set("State").to(state.ordinal.toLong())
-      .set("RequisitionDetails").to(requisitionDetails.toSpannerByteArray())
+      .set("RequisitionDetails").toProtoBytes(requisitionDetails)
       .set("RequisitionDetailsJson").to(requisitionDetailsJson)
       .build()
 }

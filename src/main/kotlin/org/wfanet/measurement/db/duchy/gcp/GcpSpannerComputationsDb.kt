@@ -10,7 +10,6 @@ import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobName
@@ -24,8 +23,9 @@ import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
+import org.wfanet.measurement.db.gcp.toProtoBytes
+import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.gcp.toProtobufMessage
-import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
@@ -71,8 +71,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("ComputationStage").to(initialStateAsInt64)
       .set("UpdateTime").to(writeTimestamp)
       .set("GlobalComputationId").to(globalId)
-      .set("ComputationDetails").to(details.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(details.toJson())
+      .set("ComputationDetails").toProtoBytes(details)
+      .set("ComputationDetailsJSON").toProtoJson(details)
       .build()
 
     // There are not any details for the initial stage when the record is being created.
@@ -83,8 +83,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("CreationTime").to(writeTimestamp)
       // The stage is being attempted right now.
       .set("NextAttempt").to(2)
-      .set("Details").to(stageDetails.toSpannerByteArray())
-      .set("DetailsJSON").to(stageDetails.toJson())
+      .set("Details").toProtoBytes(stageDetails)
+      .set("DetailsJSON").toProtoJson(stageDetails)
       .build()
 
     val computationStageAttemptRow = Mutation.newInsertBuilder("ComputationStageAttempts")
@@ -298,8 +298,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("ComputationId").to(token.localId)
       .set("ComputationStage").to(currentStageAsInt64)
       .set("EndTime").to(writeTime)
-      .set("Details").to(existingStageDetails.toSpannerByteArray())
-      .set("DetailsJSON").to(existingStageDetails.toJson())
+      .set("Details").toProtoBytes(existingStageDetails)
+      .set("DetailsJSON").toProtoJson(existingStageDetails)
     val existingAttempt = Mutation.newUpdateBuilder("ComputationStageAttempts")
       .set("ComputationId").to(token.localId)
       .set("ComputationStage").to(currentStageAsInt64)
@@ -315,8 +315,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("ComputationStage").to(newStageAsInt64)
       .set("NextAttempt").to(2L)
       .set("CreationTime").to(writeTime)
-      .set("Details").to(newStageDetails.toSpannerByteArray())
-      .set("DetailsJSON").to(newStageDetails.toJson())
+      .set("Details").toProtoBytes(newStageDetails)
+      .set("DetailsJSON").toProtoJson(newStageDetails)
     val newAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
       .set("ComputationId").to(token.localId)
       .set("ComputationStage").to(newStageAsInt64)

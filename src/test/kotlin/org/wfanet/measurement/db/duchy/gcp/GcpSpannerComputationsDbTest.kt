@@ -17,7 +17,6 @@ import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobName
 import org.wfanet.measurement.db.duchy.BlobRef
@@ -27,7 +26,8 @@ import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toSpannerByteArray
+import org.wfanet.measurement.db.gcp.toProtoBytes
+import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
@@ -157,8 +157,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("GlobalComputationId").to(resultId1.globalId)
         .set("LockOwner").to(resultId1.owner)
         .set("LockExpirationTime").to(null as Timestamp?)
-        .set("ComputationDetails").to(expectedDetails123.toSpannerByteArray())
-        .set("ComputationDetailsJSON").to(expectedDetails123.toJson())
+        .set("ComputationDetails").toProtoBytes(expectedDetails123)
+        .set("ComputationDetailsJSON").toProtoJson(expectedDetails123)
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId2.localId)
@@ -167,8 +167,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("GlobalComputationId").to(resultId2.globalId)
         .set("LockOwner").to(resultId2.owner)
         .set("LockExpirationTime").to(null as Timestamp?)
-        .set("ComputationDetails").to(expectedDetails220.toSpannerByteArray())
-        .set("ComputationDetailsJSON").to(expectedDetails220.toJson())
+        .set("ComputationDetails").toProtoBytes(expectedDetails220)
+        .set("ComputationDetailsJSON").toProtoJson(expectedDetails220)
         .build()
     )
 
@@ -186,8 +186,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("NextAttempt").to(resultId1.attempt + 1)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").to(ComputationStageDetails.getDefaultInstance().toSpannerByteArray())
-        .set("DetailsJSON").to(ComputationStageDetails.getDefaultInstance().toJson())
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
+        .set("DetailsJSON").toProtoJson(ComputationStageDetails.getDefaultInstance())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId2.localId)
@@ -195,8 +195,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("NextAttempt").to(resultId2.attempt + 1)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").to(ComputationStageDetails.getDefaultInstance().toSpannerByteArray())
-        .set("DetailsJSON").to(ComputationStageDetails.getDefaultInstance().toJson())
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
+        .set("DetailsJSON").toProtoJson(ComputationStageDetails.getDefaultInstance())
         .build()
     )
 
@@ -269,8 +269,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(21231)
       .set("LockOwner").to("Fred")
       .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val computationStageB = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(100)
@@ -278,16 +278,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("NextAttempt").to(45)
       .set("CreationTime").to((lastUpdated.minusSeconds(2)).toGcpTimestamp())
       .set("EndTime").to((lastUpdated.minusMillis(200)).toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
     val computationStageD = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(100)
       .set("ComputationStage").to(3)
       .set("NextAttempt").to(2)
       .set("CreationTime").to(lastUpdated.toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
     spanner.client.write(
       listOf(
@@ -337,8 +337,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(token.globalId)
       .set("LockOwner").to(token.owner)
       .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val differentComputation = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(456789)
@@ -347,8 +347,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(10111213)
       .set("LockOwner").to(token.owner)
       .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
 
     spanner.client.write(listOf(computation, differentComputation))
@@ -368,8 +368,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("GlobalComputationId").to(token.globalId)
         .set("LockOwner").to(null as String?)
         .set("LockExpirationTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-        .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+        .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+        .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(456789)
@@ -377,8 +377,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("GlobalComputationId").to(10111213)
         .set("LockOwner").to(token.owner)
         .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-        .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-        .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+        .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+        .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
         .build()
     )
   }
@@ -411,8 +411,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(token.globalId)
       .set("LockOwner").to(token.owner)
       .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     spanner.client.write(listOf(computation))
     assertFailsWith<SpannerException> { database.enqueue(token) }
@@ -429,16 +429,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(55)
       .set("LockOwner").to(null as String?)
       .set("LockExpirationTime").to(fiveMinutesAgo)
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val enqueuedFiveMinutesAgoStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(555)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
 
     val enqueuedSixMinutesAgo = Mutation.newInsertBuilder("Computations")
@@ -448,16 +448,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(6)
       .set("LockOwner").to(null as String?)
       .set("LockExpirationTime").to(sixMinutesAgo)
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val enqueuedSixMinutesAgoStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(66)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
     spanner.client.write(
       listOf(
@@ -498,16 +498,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(11)
       .set("LockOwner").to("owner-of-the-lock")
       .set("LockExpirationTime").to(fiveMinutesAgo)
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val claimedButExpiredStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(111)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
 
     val claimed = Mutation.newInsertBuilder("Computations")
@@ -517,16 +517,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(33)
       .set("LockOwner").to("owner-of-the-lock")
       .set("LockExpirationTime").to(fiveMinutesFromNow)
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val claimedStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(333)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
 
     spanner.client.write(listOf(claimed, claimedStage, claimedButExpired, claimedButExpiredStage))
@@ -559,16 +559,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(token.globalId)
       .set("LockOwner").to(token.owner)
       .set("LockExpirationTime").to(fiveSecondsFromNow)
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val stage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(token.localId)
       .set("ComputationStage").to(4)
       .set("NextAttempt").to(3)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
     spanner.client.write(listOf(computation, stage))
     assertEquals(
@@ -628,16 +628,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("GlobalComputationId").to(token.globalId)
       .set("LockOwner").to(token.owner)
       .set("LockExpirationTime").to(testClock["lock_expires"].toGcpTimestamp())
-      .set("ComputationDetails").to(COMPUTATION_DEATILS.toSpannerByteArray())
-      .set("ComputationDetailsJSON").to(COMPUTATION_DEATILS.toJson())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
     val stage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(token.localId)
       .set("ComputationStage").to(1)
       .set("NextAttempt").to(3)
       .set("CreationTime").to(testClock["stage_b_created"].toGcpTimestamp())
-      .set("Details").to(STAGE_DETAILS.toSpannerByteArray())
-      .set("DetailsJSON").to(STAGE_DETAILS.toJson())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
     val attempt = Mutation.newInsertBuilder("ComputationStageAttempts")
       .set("ComputationId").to(token.localId)
@@ -692,9 +692,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("NextAttempt").to(3)
         .set("EndTime").to(testClock["update_stage"].toGcpTimestamp())
-        .set("Details").to(ComputationStageDetails.newBuilder().apply {
+        .set("Details").toProtoBytes(ComputationStageDetails.newBuilder().apply {
           followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.D).toInt()
-        }.build().toSpannerByteArray())
+        }.build())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -702,9 +702,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["update_stage"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").to(ComputationStageDetails.newBuilder().apply {
+        .set("Details").toProtoBytes(ComputationStageDetails.newBuilder().apply {
           previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.B).toInt()
-        }.build().toSpannerByteArray())
+        }.build())
         .build()
     )
 
@@ -893,9 +893,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["insert_computation"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_B"].toGcpTimestamp())
-        .set("Details").to(ComputationStageDetails.newBuilder().apply {
+        .set("Details").toProtoBytes(ComputationStageDetails.newBuilder().apply {
           followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.B).toInt()
-        }.build().toSpannerByteArray())
+        }.build())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -903,10 +903,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["move_to_B"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_C"].toGcpTimestamp())
-        .set("Details").to(ComputationStageDetails.newBuilder().apply {
+        .set("Details").toProtoBytes(ComputationStageDetails.newBuilder().apply {
           previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.A).toInt()
           followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.C).toInt()
-        }.build().toSpannerByteArray())
+        }.build())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -914,10 +914,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["move_to_C"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_E"].toGcpTimestamp())
-        .set("Details").to(ComputationStageDetails.newBuilder().apply {
+        .set("Details").toProtoBytes(ComputationStageDetails.newBuilder().apply {
           previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.B).toInt()
           followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.E).toInt()
-        }.build().toSpannerByteArray())
+        }.build())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -925,9 +925,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["move_to_E"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").to(ComputationStageDetails.newBuilder().apply {
+        .set("Details").toProtoBytes(ComputationStageDetails.newBuilder().apply {
           previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.C).toInt()
-        }.build().toSpannerByteArray())
+        }.build())
         .build()
     )
 
