@@ -18,7 +18,7 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.db.duchy.AfterTransition
-import org.wfanet.measurement.db.duchy.BlobName
+import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
@@ -840,15 +840,15 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("move_to_B", 21)
     token = database.updateComputationState(
       token, FakeProtocolStates.B,
-      listOf(BlobRef("input_data", "/path/to/inputs/123")),
-      listOf(BlobName("output_data")),
+      listOf(BlobRef(1, "/path/to/inputs/123")),
+      listOf(2),
       AfterTransition.CONTINUE_WORKING
     )
     testClock.tickSeconds("move_to_C", 3)
     token = database.updateComputationState(
       token, FakeProtocolStates.C,
       listOf(),
-      listOf(BlobName("output_data")),
+      listOf(2),
       AfterTransition.ADD_UNCLAIMED_TO_QUEUE
     )
     database.enqueue(token)
@@ -857,7 +857,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("move_to_E", 3)
     token = database.updateComputationState(
       token, FakeProtocolStates.E,
-      listOf(BlobRef("input_data", "/path/to/inputs/789")),
+      listOf(BlobRef(1, "/path/to/inputs/789")),
       listOf(),
       AfterTransition.DO_NOT_ADD_TO_QUEUE
     )
@@ -988,17 +988,93 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
+  fun readBlobReferences() {
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, state = FakeProtocolStates.B,
+      owner = null, nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
+    )
+    val computation = Mutation.newInsertBuilder("Computations")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(1)
+      .set("UpdateTime").to(testClock.last().toGcpTimestamp())
+      .set("GlobalComputationId").to(token.globalId)
+      .set("LockOwner").to(token.owner)
+      .set("LockExpirationTime").to(testClock.last().toGcpTimestamp())
+      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
+      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
+      .build()
+    val stage = Mutation.newInsertBuilder("ComputationStages")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(1)
+      .set("NextAttempt").to(3)
+      .set("CreationTime").to(testClock.last().toGcpTimestamp())
+      .set("Details").toProtoBytes(STAGE_DETAILS)
+      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
+      .build()
+
+    val inputBlobA = Mutation.newInsertBuilder("ComputationBlobReferences")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(1)
+      .set("BlobId").to(0L)
+      .set("PathToBlob").to("/path/to/blob/A")
+      .set("DependencyType").to(ComputationBlobDependency.INPUT_VALUE.toLong())
+      .build()
+    val inputBlobB = Mutation.newInsertBuilder("ComputationBlobReferences")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(1)
+      .set("BlobId").to(1L)
+      .set("PathToBlob").to("/path/to/blob/B")
+      .set("DependencyType").to(ComputationBlobDependency.INPUT_VALUE.toLong())
+      .build()
+    val outputBlobC = Mutation.newInsertBuilder("ComputationBlobReferences")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(1)
+      .set("BlobId").to(2L)
+      .set("PathToBlob").to("/path/to/blob/C")
+      .set("DependencyType").to(ComputationBlobDependency.OUTPUT_VALUE.toLong())
+      .build()
+    val outputBlobD = Mutation.newInsertBuilder("ComputationBlobReferences")
+      .set("ComputationId").to(token.localId)
+      .set("ComputationStage").to(1)
+      .set("BlobId").to(3L)
+      .set("DependencyType").to(ComputationBlobDependency.OUTPUT_VALUE.toLong())
+      .build()
+    spanner.client.write(listOf(computation, stage))
+    spanner.client.write(listOf(inputBlobA, inputBlobB, outputBlobC, outputBlobD))
+    assertEquals(
+      mapOf(
+        0L to "/path/to/blob/A",
+        1L to "/path/to/blob/B",
+        2L to "/path/to/blob/C",
+        3L to null
+      ),
+      database.readBlobReferences(token, BlobDependencyType.ANY))
+    assertEquals(
+      mapOf(
+        2L to "/path/to/blob/C",
+        3L to null
+      ),
+      database.readBlobReferences(token, BlobDependencyType.OUTPUT))
+    assertEquals(
+      mapOf(
+        0L to "/path/to/blob/A",
+        1L to "/path/to/blob/B"
+      ),
+      database.readBlobReferences(token, BlobDependencyType.INPUT))
+  }
+
+  @Test
   fun `unimplemented interface functions`() {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
       owner = null, attempt = 1, state = FakeProtocolStates.A,
       globalId = 0, lastUpdateTime = 0
     )
-    assertFailsWith(NotImplementedError::class) { database.readBlobReferenceNames(token) }
     assertFailsWith(NotImplementedError::class) {
       database.writeOutputBlobReference(
         token,
-        BlobRef("", "")
+        BlobRef(0L, "")
       )
     }
   }

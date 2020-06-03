@@ -12,7 +12,7 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobDependencyType
-import org.wfanet.measurement.db.duchy.BlobName
+import org.wfanet.measurement.db.duchy.BlobId
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
@@ -21,6 +21,7 @@ import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getAtMostOne
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
+import org.wfanet.measurement.db.gcp.sequence
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.db.gcp.toProtoBytes
@@ -237,7 +238,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     token: ComputationToken<T>,
     to: T,
     blobInputRefs: Collection<BlobRef>,
-    blobOutputRefs: Collection<BlobName>,
+    blobOutputRefs: Collection<BlobId>,
     afterTransition: AfterTransition
   ): ComputationToken<T> {
     require(
@@ -354,7 +355,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     localId: Long,
     stageAsInt64: Long,
     blobInputRefs: Collection<BlobRef>,
-    blobOutputRefs: Collection<BlobName>
+    blobOutputRefs: Collection<BlobId>
   ): List<Mutation> {
     val mutations = ArrayList<Mutation>()
     blobInputRefs.mapIndexedTo(mutations) { index, blobRef ->
@@ -378,14 +379,35 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     return mutations
   }
 
-  override fun readBlobReferenceNames(
-    current: ComputationToken<T>,
+  override fun readBlobReferences(
+    token: ComputationToken<T>,
     dependencyType: BlobDependencyType
-  ): Map<BlobName, String?> {
-    TODO("Not yet implemented")
+  ): Map<BlobId, String?> {
+    val blobRefsForStageQuery = Statement.newBuilder(
+      """
+          SELECT BlobId, PathToBlob, DependencyType 
+          FROM ComputationBlobReferences
+          WHERE ComputationId = @local_id AND ComputationStage = @stage_as_int_64
+          """.trimMargin()
+    ).bind("local_id").to(token.localId)
+      .bind("stage_as_int_64").to(stateEnumHelper.enumToLong(token.state))
+      .build()
+
+    return runIfTokenFromLastUpdate(token) { ctx ->
+        ctx.executeQuery(blobRefsForStageQuery).sequence()
+        .filter {
+          val dep = ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
+          when (dependencyType) {
+            BlobDependencyType.ANY -> true
+            BlobDependencyType.OUTPUT -> dep == ComputationBlobDependency.OUTPUT
+            BlobDependencyType.INPUT -> dep == ComputationBlobDependency.INPUT
+          }
+        }
+        .map { it.getLong("BlobId") to it.getNullableString("PathToBlob") }.toMap()
+    }!!
   }
 
-  override fun writeOutputBlobReference(c: ComputationToken<T>, blobName: BlobRef) {
+  override fun writeOutputBlobReference(token: ComputationToken<T>, blobName: BlobRef) {
     TODO("Not yet implemented")
   }
 

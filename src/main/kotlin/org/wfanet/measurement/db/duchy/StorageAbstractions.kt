@@ -112,36 +112,34 @@ interface ComputationsRelationalDb<T : Enum<T>> {
     token: ComputationToken<T>,
     to: T,
     blobInputRefs: Collection<BlobRef>,
-    blobOutputRefs: Collection<BlobName>,
+    blobOutputRefs: Collection<BlobId>,
     afterTransition: AfterTransition
   ): ComputationToken<T>
 
   /**
    * Reads mappings of blob names to paths in blob storage.
    */
-  fun readBlobReferenceNames(
-    current: ComputationToken<T>,
+  fun readBlobReferences(
+    token: ComputationToken<T>,
     dependencyType: BlobDependencyType = BlobDependencyType.INPUT
-  ): Map<BlobName, String?>
+  ): Map<BlobId, String?>
 
   /**
    * Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from
    * a stage.
    */
-  fun writeOutputBlobReference(c: ComputationToken<T>, blobName: BlobRef)
+  fun writeOutputBlobReference(token: ComputationToken<T>, blobName: BlobRef)
 }
 
 /**
- * Name used to identify a BLOB by its purpose across multiple processes.
+ * The identifier of a Blob
  */
-data class BlobName(val name: String)
+typealias BlobId = Long
 
 /**
  * Reference to a named BLOB's storage location.
  */
-data class BlobRef(val name: BlobName, val pathToBlob: String) {
-  constructor(name: String, pathToBlob: String) : this(BlobName(name), pathToBlob)
-}
+data class BlobRef(val name: BlobId, val pathToBlob: String)
 
 /** BLOBs storage used by a computation. */
 interface ComputationsBlobDb {

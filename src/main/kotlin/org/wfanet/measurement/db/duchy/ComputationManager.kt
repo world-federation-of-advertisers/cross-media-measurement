@@ -65,7 +65,7 @@ class ComputationManager<T : Enum<T>>(
     stateAfter: T,
     blobsToWrite: Map<BlobRef, ByteArray> = mapOf(),
     blobToCarryForward: Collection<BlobRef> = listOf(),
-    blobsRequiredForOutput: Collection<BlobName> = listOf(),
+    blobsRequiredForOutput: Collection<BlobId> = listOf(),
     afterTransition: AfterTransition
   ): ComputationToken<T> {
     val refs = HashSet<BlobRef>(blobToCarryForward)
@@ -114,7 +114,7 @@ class ComputationManager<T : Enum<T>>(
    * @throws [IOException] upon failure
    */
   fun readInputBlobs(c: ComputationToken<T>): Map<BlobRef, ByteArray> {
-    return readBlobReferenceNames(
+    return readBlobReferences(
       c,
       BlobDependencyType.INPUT
     )
@@ -134,11 +134,11 @@ class ComputationManager<T : Enum<T>>(
    *
    * @throws [IOException] upon failure
    */
-  fun readBlobReferenceNames(
+  fun readBlobReferences(
     token: ComputationToken<T>,
     dependencyType: BlobDependencyType
-  ): Map<BlobName, String?> {
-    return relationalDatabase.readBlobReferenceNames(token, dependencyType = dependencyType)
+  ): Map<BlobId, String?> {
+    return relationalDatabase.readBlobReferences(token, dependencyType = dependencyType)
   }
 
   /**

@@ -49,3 +49,7 @@ fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toSpanne
 
 /** Bind a protobuf [Message] as a JSON string representation. */
 fun <T> ValueBinder<T>.toProtoJson(message: Message?): T = to(message?.toJson())
+
+/** Returns a [Sequence] of [Struct]s from a [ResultSet]. */
+fun ResultSet.sequence(): Sequence<Struct> =
+  generateSequence { if (next()) currentRowAsStruct else null }
