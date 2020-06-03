@@ -1,0 +1,20 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PublisherDataClientTest",
+    srcs = ["PublisherDataClientTest.kt"],
+    test_class = "org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClientTest",
+    deps = [
+        "//:grpc_core",
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/client/v1alpha/publisherdata:client",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
+        "@com_github_jetbrains_kotlin//:kotlin-test",
+        "@io_grpc_grpc_java//core",
+        "@io_grpc_grpc_java//testing",
+        "@maven//:com_google_truth_extensions_truth_liteproto_extension",
+        "@maven//:com_google_truth_extensions_truth_proto_extension",
+        "@maven//:com_google_truth_truth",
+        "@maven//:junit_junit",
+    ],
+)
