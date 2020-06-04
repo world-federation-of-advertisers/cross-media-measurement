@@ -7,6 +7,7 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import org.wfanet.measurement.common.DuchyOrder
@@ -26,8 +27,6 @@ import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.singleOrNull
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.gcp.toProtobufMessage
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
@@ -73,34 +72,31 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 
     val writeTimestamp = clock.gcpTimestamp()
     val initialStateAsInt64 = stateEnumHelper.enumToLong(initialState)
-    val computationRow = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(localId)
-      .set("ComputationStage").to(initialStateAsInt64)
-      .set("UpdateTime").to(writeTimestamp)
-      .set("GlobalComputationId").to(globalId)
-      .set("ComputationDetails").toProtoBytes(details)
-      .set("ComputationDetailsJSON").toProtoJson(details)
-      .build()
+    val computationRow = insertComputation(
+      localId,
+      updateTime = writeTimestamp,
+      globalId = globalId,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = WRITE_NULL_TIMESTAMP,
+      details = details,
+      stage = initialStateAsInt64)
 
     // There are not any details for the initial stage when the record is being created.
     val stageDetails = ComputationStageDetails.getDefaultInstance()
-    val computationStageRow = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(localId)
-      .set("ComputationStage").to(initialStateAsInt64)
-      .set("CreationTime").to(writeTimestamp)
+    val computationStageRow = insertComputationStage(
+      localId = localId,
+      stage = initialStateAsInt64,
+      creationTime = writeTimestamp,
       // The stage is being attempted right now.
-      .set("NextAttempt").to(2)
-      .set("Details").toProtoBytes(stageDetails)
-      .set("DetailsJSON").toProtoJson(stageDetails)
-      .build()
+      nextAttempt = 2,
+      details = stageDetails
+    )
 
-    val computationStageAttemptRow = Mutation.newInsertBuilder("ComputationStageAttempts")
-      .set("ComputationId").to(localId)
-      .set("ComputationStage").to(initialStateAsInt64)
-      // The stage is being attempted right now.
-      .set("Attempt").to(1)
-      .set("BeginTime").to(writeTimestamp)
-      .build()
+    val computationStageAttemptRow = insertComputationStageAttempt(
+      localId = localId,
+      stage = initialStateAsInt64,
+      attempt = 1,
+      beginTime = writeTimestamp)
 
     databaseClient.write(
       listOf(computationRow, computationStageRow, computationStageAttemptRow)
@@ -158,9 +154,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   override fun enqueue(token: ComputationToken<T>) {
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(
-        Mutation.newUpdateBuilder("Computations")
-          .set("ComputationId").to(token.localId)
-          .set("UpdateTime").to(clock.gcpTimestamp())
+        updateComputation(
+          token.localId, clock.gcpTimestamp(),
           // Release any lock on this computation. The owner says who has the current
           // lock on the computation, and the expiration time states both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being
@@ -169,9 +164,9 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
           // A non-null LockExpirationTime states when a computation can be be taken up
           // by a knight, and by using the commit timestamp we pretty much get the behaviour
           // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
-          .set("LockOwner").to(null as String?)
-          .set("LockExpirationTime").to(clock.gcpTimestamp())
-          .build()
+          lockOwner = WRITE_NULL_STRING,
+          lockExpirationTime = clock.gcpTimestamp()
+        )
       )
     }
   }
@@ -183,20 +178,34 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     // would need to be locked and not every possible computation that can be worked on.
     val sql =
       """
-      SELECT c.ComputationId,  c.GlobalComputationId, c.UpdateTime
+      SELECT c.ComputationId,  c.GlobalComputationId, c.ComputationStage, c.UpdateTime,
+             cs.NextAttempt
       FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
+      JOIN ComputationStages cs USING(ComputationId, ComputationStage)
       WHERE c.LockExpirationTime <= @current_time
       ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
       LIMIT 50
       """.trimIndent()
+    /** Claim a specific task represented by the results of running the above sql. */
+    fun claimSpecificTask(struct: Struct): Boolean =
+      databaseClient.readWriteTransaction().run { ctx ->
+        claim(
+          ctx,
+          struct.getLong("ComputationId"),
+          struct.getLong("ComputationStage"),
+          struct.getLong("NextAttempt"),
+          struct.getTimestamp("UpdateTime"),
+          ownerId
+        )
+      } ?: error("claim for a specific computation ($struct) returned a null value")
 
     databaseClient
       .singleUse()
       .executeQuery(Statement.newBuilder(sql).bind("current_time").to(clock.gcpTimestamp()).build())
       .asSequence()
-      .forEach { struct ->
-        if (claim(struct.getLong("ComputationId"), struct.getTimestamp("UpdateTime"), ownerId)) {
-          return getToken(struct.getLong("GlobalComputationId"))
+      .forEach {
+        if (claimSpecificTask(it)) {
+          return getToken(it.getLong("GlobalComputationId"))
         }
       }
 
@@ -205,31 +214,59 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   }
 
   /**
-   * Claims a specific computation for an owner.
-   *
-   * @return true if the lock was acquired. */
-  private fun claim(computationId: Long, lastUpdate: Timestamp, ownerId: String): Boolean {
-    return databaseClient.readWriteTransaction().run { ctx ->
-      val currentLockOwnerStruct =
-        ctx.readRow("Computations", Key.of(computationId), listOf("UpdateTime"))
-          ?: error("Failed to claim computation $computationId. It does not exist.")
-      // Verify that the row hasn't been updated since the previous, non-transactional read.
-      if (currentLockOwnerStruct.getTimestamp("UpdateTime") == lastUpdate) {
-        ctx.buffer(setLockMutation(computationId, ownerId))
-        // TODO(fryej): Set the Begin time in ComputationStageAttempts table.
-        return@run true
-      }
-      return@run false
-    } ?: error("claim for a specific computation ($computationId) returned a null value")
+   * Tries to claim a specific computation for an owner, returning the result of the attempt.
+   * If a lock is acquired a new row is written to the ComputationStageAttempts table.
+   */
+  private fun claim(
+    ctx: TransactionContext,
+    computationId: Long,
+    stageAsInt64: Long,
+    nextAttempt: Long,
+    lastUpdate: Timestamp,
+    ownerId: String
+  ): Boolean {
+    val currentLockOwnerStruct =
+      ctx.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
+        ?: error("Failed to claim computation $computationId. It does not exist.")
+    // Verify that the row hasn't been updated since the previous, non-transactional read.
+    // If it has been updated since that time the lock should not be acquired.
+    if (currentLockOwnerStruct.getTimestamp("UpdateTime") != lastUpdate) return false
+
+    val writeTime = clock.gcpTimestamp()
+    ctx.buffer(setLockMutation(computationId, ownerId))
+    // Create a new attempt of the stage for the nextAttempt.
+    ctx.buffer(
+      insertComputationStageAttempt(
+        computationId, stageAsInt64, nextAttempt, beginTime = writeTime)
+    )
+    // And increment NextAttempt column of the computation stage.
+    ctx.buffer(
+      updateComputationStage(computationId, stageAsInt64, nextAttempt = nextAttempt + 1)
+    )
+
+    if (currentLockOwnerStruct.getNullableString("LockOwner") != null) {
+      // If the computation was locked, but that lock was expired we need to finish off the
+      // current attempt of the stage.
+      ctx.buffer(
+        // TODO(fryej): Add a column that captures why an attempt ended.
+        updateComputationStageAttempt(
+          localId = computationId,
+          stage = stageAsInt64,
+          // The current attempt is the one before the nextAttempt
+          attempt = nextAttempt - 1,
+          endTime = writeTime)
+      )
+    }
+    // The lock was acquired.
+    return true
   }
 
   private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
-    return Mutation.newUpdateBuilder("Computations")
-      .set("ComputationId").to(computationId)
-      .set("LockOwner").to(ownerId)
-      .set("LockExpirationTime").to(fiveMinutesInTheFuture())
-      .set("UpdateTime").to(clock.gcpTimestamp())
-      .build()
+    return updateComputation(
+      computationId, clock.gcpTimestamp(),
+      lockOwner = ownerId,
+      lockExpirationTime = fiveMinutesInTheFuture()
+    )
   }
 
   private fun fiveMinutesInTheFuture() = clock.instant().plusSeconds(300).toGcpTimestamp()
@@ -286,6 +323,80 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     afterTransition: AfterTransition
   ): List<Mutation> {
     val currentStageAsInt64 = stateEnumHelper.enumToLong(token.state)
+    val mutations = arrayListOf<Mutation>()
+
+    mutations.add(updateComputation(
+      token.localId,
+      writeTime,
+      stage = newStageAsInt64,
+      lockOwner = when (afterTransition) {
+        // Write the NULL value to the lockOwner column to release the lock.
+        AfterTransition.DO_NOT_ADD_TO_QUEUE, AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+          WRITE_NULL_STRING
+        // Do not change the owner
+        AfterTransition.CONTINUE_WORKING -> null
+      },
+      lockExpirationTime = when (afterTransition) {
+        // Null LockExpirationTime values will not be claimed from the work queue.
+        AfterTransition.DO_NOT_ADD_TO_QUEUE -> WRITE_NULL_TIMESTAMP
+        // The computation is ready for processing by some worker right away.
+        AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTime
+        // The computation lock will expire sometime in the future.
+        AfterTransition.CONTINUE_WORKING -> fiveMinutesInTheFuture()
+      })
+    )
+
+    mutations.add(mutationToTransitionOutOfCurrentStage(ctx, token, newStageAsInt64, writeTime))
+
+    mutations.add(
+      updateComputationStageAttempt(
+        token.localId, currentStageAsInt64, token.attempt, endTime = writeTime)
+    )
+
+    // Mutation to insert the first attempt of the stage. When this value is null, no attempt
+    // of the newly inserted ComputationStage will be added.
+    val attemptOfNewStageMutation: Mutation? =
+      when (afterTransition) {
+        // Do not start an attempt of the stage
+        AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> null
+        // Start an attempt of the new stage.
+        AfterTransition.DO_NOT_ADD_TO_QUEUE, AfterTransition.CONTINUE_WORKING ->
+          insertComputationStageAttempt(token.localId, newStageAsInt64, 1, beginTime = writeTime)
+      }
+
+    val newStageDetails = ComputationStageDetails.newBuilder().apply {
+      previousStageValue = currentStageAsInt64.toInt()
+      // TODO(fryej): Set stage_specific field.
+    }.build()
+    mutations.add(insertComputationStage(
+      token.localId,
+      newStageAsInt64,
+      creationTime = writeTime,
+      details = newStageDetails,
+      // nextAttempt is the number of the current attempt of the stage plus one.
+      // Adding an Attempt to the new stage while transitioning state means that an attempt of that
+      // new stage is ongoing at the end of this transaction. Meaning if for some reason there
+      // needs to be another attempt of that stage in the future the next attempt will be #2.
+      // Conversely, when an attempt of the new stage is not added because,
+      // attemptOfNewStageMutation is null, then there is not an ongoing attempt of the stage at
+      // the end of the transaction, the next attempt of stage will be the first.
+      nextAttempt = if (attemptOfNewStageMutation == null) 1L else 2L
+    ))
+
+    // Add attemptOfNewStageMutation to mutations if it is not null. This must be added after
+    // the mutation to insert the computation stage because it creates the parent row.
+    attemptOfNewStageMutation?.let { mutations.add(it) }
+
+    return mutations
+  }
+
+  private fun mutationToTransitionOutOfCurrentStage(
+    ctx: TransactionContext,
+    token: ComputationToken<T>,
+    newStageAsInt64: Long,
+    writeTime: Timestamp
+  ): Mutation {
+    val currentStageAsInt64 = stateEnumHelper.enumToLong(token.state)
     val currentStageDetails = ctx.readRow(
       "ComputationStages",
       Key.of(token.localId, currentStageAsInt64),
@@ -298,63 +409,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
         .setFollowingStageValue(newStageAsInt64.toInt())
         .build()
 
-    val computation = Mutation.newInsertOrUpdateBuilder("Computations")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(newStageAsInt64)
-      .set("UpdateTime").to(writeTime)
-    val existingStage = Mutation.newUpdateBuilder("ComputationStages")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(currentStageAsInt64)
-      .set("EndTime").to(writeTime)
-      .set("Details").toProtoBytes(existingStageDetails)
-      .set("DetailsJSON").toProtoJson(existingStageDetails)
-    val existingAttempt = Mutation.newUpdateBuilder("ComputationStageAttempts")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(currentStageAsInt64)
-      .set("Attempt").to(token.attempt)
-      .set("EndTime").to(writeTime)
-
-    val newStageDetails = ComputationStageDetails.newBuilder().apply {
-      previousStageValue = currentStageAsInt64.toInt()
-      // TODO(fryej): Set stage_specific field.
-    }.build()
-    val newStage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(newStageAsInt64)
-      .set("NextAttempt").to(2L)
-      .set("CreationTime").to(writeTime)
-      .set("Details").toProtoBytes(newStageDetails)
-      .set("DetailsJSON").toProtoJson(newStageDetails)
-    val newAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(newStageAsInt64)
-      .set("Attempt").to(1)
-
-    when (afterTransition) {
-      AfterTransition.CONTINUE_WORKING -> {
-        /** like [claimTask] on the computation in same transaction. */
-        newAttempt.set("BeginTime").to(writeTime)
-        computation.set("LockExpirationTime").to(fiveMinutesInTheFuture())
-      }
-      AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
-        /** like [enqueue] the computation in same transaction. */
-        computation
-          .set("LockOwner").to(null as String?)
-          .set("LockExpirationTime").to(writeTime)
-      }
-      AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
-        // Release the lock and remove from queue.
-        computation
-          .set("LockOwner").to(null as String?)
-          .set("LockExpirationTime").to(null as Timestamp?)
-      }
-    }
-    return listOf(
-      computation.build(),
-      existingStage.build(),
-      existingAttempt.build(),
-      newStage.build(),
-      newAttempt.build()
+    return updateComputationStage(
+      token.localId, currentStageAsInt64, endTime = writeTime, details = existingStageDetails
     )
   }
 
@@ -365,6 +421,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     blobOutputRefs: Collection<BlobId>
   ): List<Mutation> {
     val mutations = ArrayList<Mutation>()
+    // TODO(fryej): Make insert/update helper functions for ComputationBlobReferences
     blobInputRefs.mapIndexedTo(mutations) { index, blobRef ->
       Mutation.newInsertBuilder("ComputationBlobReferences")
         .set("ComputationId").to(localId)

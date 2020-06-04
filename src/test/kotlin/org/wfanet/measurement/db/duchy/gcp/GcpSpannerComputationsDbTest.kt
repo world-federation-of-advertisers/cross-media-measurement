@@ -70,6 +70,7 @@ object ProtocolHelper : ProtocolStateEnumHelper<FakeProtocolStates> {
   }
 }
 
+// TODO(fryej): Use ComputationMutations helper functions in the test.
 @RunWith(JUnit4::class)
 class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
 
@@ -420,12 +421,15 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun claimTask() {
-    val fiveMinutesAgo = TEST_INSTANT.minusSeconds(300).toGcpTimestamp()
-    val sixMinutesAgo = TEST_INSTANT.minusSeconds(360).toGcpTimestamp()
+    testClock.tickSeconds("6_minutes_ago")
+    testClock.tickSeconds("5_minutes_ago", 60)
+    testClock.tickSeconds("TimeOfTest", 300)
+    val fiveMinutesAgo = testClock["5_minutes_ago"].toGcpTimestamp()
+    val sixMinutesAgo = testClock["6_minutes_ago"].toGcpTimestamp()
     val enqueuedFiveMinutesAgo = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(555)
       .set("ComputationStage").to(0)
-      .set("UpdateTime").to(TEST_INSTANT.minusSeconds(600).toGcpTimestamp())
+      .set("UpdateTime").to(fiveMinutesAgo)
       .set("GlobalComputationId").to(55)
       .set("LockOwner").to(null as String?)
       .set("LockExpirationTime").to(fiveMinutesAgo)
@@ -435,7 +439,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val enqueuedFiveMinutesAgoStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(555)
       .set("ComputationStage").to(0)
-      .set("NextAttempt").to(2)
+      .set("NextAttempt").to(1)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
       .set("Details").toProtoBytes(STAGE_DETAILS)
       .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
@@ -444,7 +448,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val enqueuedSixMinutesAgo = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(66)
       .set("ComputationStage").to(0)
-      .set("UpdateTime").to(TEST_INSTANT.minusSeconds(540).toGcpTimestamp())
+      .set("UpdateTime").to(sixMinutesAgo)
       .set("GlobalComputationId").to(6)
       .set("LockOwner").to(null as String?)
       .set("LockExpirationTime").to(sixMinutesAgo)
@@ -454,11 +458,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val enqueuedSixMinutesAgoStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(66)
       .set("ComputationStage").to(0)
-      .set("NextAttempt").to(2)
+      .set("NextAttempt").to(1)
       .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
       .set("Details").toProtoBytes(STAGE_DETAILS)
       .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
+
     spanner.client.write(
       listOf(
         enqueuedFiveMinutesAgo,
@@ -471,49 +476,86 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       ComputationToken(
         localId = 66, globalId = 6, state = FakeProtocolStates.A,
         owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
       ),
       database.claimTask("the-owner-of-the-lock")
     )
+
+    assertQueryReturns(
+      spanner.client,
+      """
+      SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
+      WHERE ComputationId = 66 AND ComputationStage = 0
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("Attempt").to(1)
+        .set("BeginTime").to(testClock.last().toGcpTimestamp())
+        .set("EndTime").to(null as Timestamp?)
+        .build()
+    )
+
     assertEquals(
       ComputationToken(
         localId = 555, globalId = 55, state = FakeProtocolStates.A,
         owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
       ),
       database.claimTask("the-owner-of-the-lock")
     )
+
+    assertQueryReturns(
+      spanner.client,
+      """
+      SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
+      WHERE ComputationId = 555 AND ComputationStage = 0
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("Attempt").to(1)
+        .set("BeginTime").to(testClock.last().toGcpTimestamp())
+        .set("EndTime").to(null as Timestamp?)
+        .build()
+    )
+
     // No tasks to claim anymore
     assertNull(database.claimTask("the-owner-of-the-lock"))
   }
 
   @Test
   fun `claim locked tasks`() {
-    val fiveMinutesAgo = TEST_INSTANT.minusSeconds(300).toGcpTimestamp()
-    val fiveMinutesFromNow = TEST_INSTANT.plusSeconds(300).toGcpTimestamp()
-    val claimedButExpired = Mutation.newInsertBuilder("Computations")
+    testClock.tickSeconds("5_minutes_ago", 60)
+    testClock.tickSeconds("TimeOfTest", 300)
+    val fiveMinutesAgo = testClock["5_minutes_ago"].toGcpTimestamp()
+    val fiveMinutesFromNow = testClock.last().plusSeconds(300).toGcpTimestamp()
+    val expiredClaim = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(111)
       .set("ComputationStage").to(0)
-      .set("UpdateTime").to(TEST_INSTANT.minusSeconds(600).toGcpTimestamp())
+      .set("UpdateTime").to(testClock["start"].toGcpTimestamp())
       .set("GlobalComputationId").to(11)
       .set("LockOwner").to("owner-of-the-lock")
       .set("LockExpirationTime").to(fiveMinutesAgo)
       .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
       .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
       .build()
-    val claimedButExpiredStage = Mutation.newInsertBuilder("ComputationStages")
+    val expiredClaimStage = Mutation.newInsertBuilder("ComputationStages")
       .set("ComputationId").to(111)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
+      .set("CreationTime").to(fiveMinutesAgo)
       .set("Details").toProtoBytes(STAGE_DETAILS)
       .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
+    val expiredClaimAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
+      .set("ComputationId").to(111)
+      .set("ComputationStage").to(0)
+      .set("Attempt").to(1)
+      .set("BeginTime").to(fiveMinutesAgo)
+      .build()
+    spanner.client.write(listOf(expiredClaim, expiredClaimStage, expiredClaimAttempt))
 
     val claimed = Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(333)
       .set("ComputationStage").to(0)
-      .set("UpdateTime").to(TEST_INSTANT.minusSeconds(540).toGcpTimestamp())
+      .set("UpdateTime").to(testClock["start"].toGcpTimestamp())
       .set("GlobalComputationId").to(33)
       .set("LockOwner").to("owner-of-the-lock")
       .set("LockExpirationTime").to(fiveMinutesFromNow)
@@ -524,21 +566,47 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       .set("ComputationId").to(333)
       .set("ComputationStage").to(0)
       .set("NextAttempt").to(2)
-      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
+      .set("CreationTime").to(fiveMinutesAgo)
       .set("Details").toProtoBytes(STAGE_DETAILS)
       .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
       .build()
+    val claimedAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
+      .set("ComputationId").to(333)
+      .set("ComputationStage").to(0)
+      .set("Attempt").to(1)
+      .set("BeginTime").to(fiveMinutesAgo)
+      .build()
+    spanner.client.write(listOf(claimed, claimedStage, claimedAttempt))
 
-    spanner.client.write(listOf(claimed, claimedStage, claimedButExpired, claimedButExpiredStage))
     // Claim a task that is owned but the lock expired.
     assertEquals(
       ComputationToken(
         localId = 111, globalId = 11, state = FakeProtocolStates.A,
         owner = "new-owner", nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
-        role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
+        role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = testClock.last().toEpochMilli()
       ),
       database.claimTask("new-owner")
     )
+
+    assertQueryReturns(
+      spanner.client,
+      """
+      SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
+      WHERE ComputationId = 111 AND ComputationStage = 0
+      ORDER BY Attempt
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("Attempt").to(1)
+        .set("BeginTime").to(fiveMinutesAgo)
+        .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .build(),
+      Struct.newBuilder()
+        .set("Attempt").to(2)
+        .set("BeginTime").to(testClock.last().toGcpTimestamp())
+        .set("EndTime").to(null as Timestamp?)
+        .build()
+    )
+
     // No task may be claimed at this point
     assertNull(database.claimTask("new-owner"))
   }
@@ -659,7 +727,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     // Ensure the Computation and ComputationStage were updated. This does not check if the
     // lock is held or the exact configurations of the ComputationStageAttempts because they
-    // differ depending on what to do after the transision.
+    // differ depending on what to do after the transition.
     assertStageTransitioned(token)
     return token
   }
@@ -682,7 +750,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-      SELECT ComputationId, ComputationStage, CreationTime, NextAttempt, EndTime, Details
+      SELECT ComputationId, ComputationStage, CreationTime, EndTime, Details
       FROM ComputationStages
       ORDER BY ComputationStage
       """.trimIndent(),
@@ -690,7 +758,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.B))
         .set("CreationTime").to(testClock["stage_b_created"].toGcpTimestamp())
-        .set("NextAttempt").to(3)
         .set("EndTime").to(testClock["update_stage"].toGcpTimestamp())
         .set("Details").toProtoBytes(
           ComputationStageDetails.newBuilder().apply {
@@ -702,7 +769,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.D))
         .set("CreationTime").to(testClock["update_stage"].toGcpTimestamp())
-        .set("NextAttempt").to(2)
         .set("EndTime").to(null as Timestamp?)
         .set("Details").toProtoBytes(
           ComputationStageDetails.newBuilder().apply {
@@ -710,12 +776,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
           }.build()
         )
         .build()
-    )
-
-    assertQueryReturns(
-      spanner.client,
-      "SELECT COUNT(*) AS totalAttempts FROM ComputationStageAttempts",
-      Struct.newBuilder().set("totalAttempts").to(2).build()
     )
   }
 
@@ -784,13 +844,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
-        .build(),
-      Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.D))
-        .set("Attempt").to(1)
-        .set("BeginTime").to(null as Timestamp?)
-        .set("EndTime").to(null as Timestamp?)
         .build()
     )
   }
@@ -827,7 +880,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.D))
         .set("Attempt").to(1)
-        .set("BeginTime").to(null as Timestamp?)
+        .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
         .build()
     )
@@ -838,9 +891,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("insert_computation", 20)
     var token = database.insertComputation(12345, FakeProtocolStates.A)
     assertNull(database.claimTask("TestJob"))
-    testClock.tickSeconds("enqueue_in_stage_a", 20)
-    database.enqueue(token)
-    token = assertNotNull(database.claimTask("TestJob"))
     testClock.tickSeconds("move_to_B", 21)
     token = database.updateComputationState(
       token, FakeProtocolStates.B,

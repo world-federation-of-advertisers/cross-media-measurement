@@ -194,7 +194,7 @@ CREATE TABLE ComputationStageAttempts (
   Attempt INT64 NOT NULL,
 
   -- When the attempt of the stage began.
-  BeginTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+  BeginTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   -- When the attempt finished.
   EndTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
