@@ -6,12 +6,12 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.RandomIdGenerator
-import org.wfanet.measurement.db.gcp.executeSqlQuery
+import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
@@ -61,11 +61,12 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
       WHERE Campaigns.ExternalCampaignId = @external_campaign_id
       """.trimIndent()
 
-    val row: Struct = transactionContext.executeSqlQuery(
+    val statement : Statement =
       Statement.newBuilder(sql)
         .bind("external_campaign_id").to(externalCampaignId)
         .build()
-    ).first()
+
+    val row: Struct = transactionContext.executeQuery(statement).asFlow().single()
 
     return ParentKey(
       row.getLong("DataProviderId"),
@@ -95,10 +96,11 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
       .build()
 
     return transactionContext
-      .executeSqlQuery(statement)
+      .executeQuery(statement)
+      .asFlow()
       .map { it.toRequisition() }
       .filter { it.requisitionDetails == newRequisition.requisitionDetails }
-      .firstOrNull()
+      .singleOrNull()
   }
 
   private fun Requisition.toInsertMutation(parentKey: ParentKey): Mutation =

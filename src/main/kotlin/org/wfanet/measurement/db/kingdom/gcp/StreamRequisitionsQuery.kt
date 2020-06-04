@@ -5,7 +5,7 @@ import com.google.cloud.spanner.Statement
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.gcp.executeSqlQuery
+import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
 
@@ -29,6 +29,9 @@ class StreamRequisitionsQuery {
       .appendClause("LIMIT @limit")
       .bind("limit").to(limit)
 
-    return readContext.executeSqlQuery(queryBuilder.build()).map { it.toRequisition() }
+    return readContext
+      .executeQuery(queryBuilder.build())
+      .asFlow()
+      .map { it.toRequisition() }
   }
 }

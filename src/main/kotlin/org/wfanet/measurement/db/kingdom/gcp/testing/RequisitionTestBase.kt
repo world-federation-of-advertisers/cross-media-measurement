@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.db.gcp.executeSqlQuery
+import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
@@ -128,7 +128,8 @@ open class RequisitionTestBase :
     spanner
       .client
       .singleUse()
-      .executeSqlQuery(REQUISITION_READ_QUERY)
+      .executeQuery(REQUISITION_READ_QUERY)
+      .asFlow()
       .map { it.toRequisition() }
       .toList()
   }

@@ -6,7 +6,7 @@ import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.executeSqlQuery
+import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -41,9 +41,7 @@ class FulfillRequisitionTransaction {
     externalRequisitionId: ExternalId
   ): ReadResult {
     val query = readRequisitionQuery(externalRequisitionId)
-    val struct: Struct = runBlocking(spannerDispatcher()) {
-      transactionContext.executeSqlQuery(query).single()
-    }
+    val struct: Struct = runBlocking { transactionContext.executeQuery(query).asFlow().single() }
     return ReadResult(struct.getLong("RequisitionId"), struct.toRequisition())
   }
 
