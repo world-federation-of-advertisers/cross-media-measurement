@@ -156,15 +156,6 @@ load(
 
 _kotlin_image_repos()
 
-# Cloud Spanner Emulator
-#
-# Note that we intentionally do not pull in the transitive workspace
-# dependencies. This is built in isolation from the archive file.
-
-load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_archive")
-
-cloud_spanner_emulator_archive()
-
 # Public APIs for measurement system
 
 git_repository(
