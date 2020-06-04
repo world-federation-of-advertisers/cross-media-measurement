@@ -36,7 +36,7 @@ interface RequisitionManager {
    * @param[limit] maximum number of requisitions to read
    * @return the Requisitions
    */
-  suspend fun streamRequisitions(
+  fun streamRequisitions(
     filter: StreamRequisitionsFilter,
     limit: Long
   ): Flow<Requisition>

@@ -7,7 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "testing",
-    testonly = 1,
+    testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
         "//:google_cloud_spanner",

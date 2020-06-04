@@ -56,15 +56,13 @@ class RequisitionManagerImplTest {
       return REQUISITION
     }
 
-    override suspend fun streamRequisitions(
+    override fun streamRequisitions(
       filter: StreamRequisitionsFilter,
       limit: Long
     ): Flow<Requisition> = flowOf(REQUISITION)
   }
 
-  private val requisitionManager = RequisitionManagerImpl(
-    RequisitionManagerImplTest.FakeKingdomRelationalDatabase
-  )
+  private val requisitionManager = RequisitionManagerImpl(FakeKingdomRelationalDatabase)
 
   @Test
   fun `createRequisition normal`() = runBlocking {

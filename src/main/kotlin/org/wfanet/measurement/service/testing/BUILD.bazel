@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -10,8 +10,8 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
-        "@com_github_jetbrains_kotlin//:kotlin-test",
-        "@maven//:com_google_cloud_google_cloud_spanner",
-        "@maven//:junit_junit",
+        "//:grpc_core",
+        "//:unit_testing_core",
+        "@io_grpc_grpc_java//testing",
     ],
 )

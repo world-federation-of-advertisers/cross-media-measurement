@@ -12,7 +12,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
-import org.wfanet.measurement.db.kingdom.StreamRequisitionsClause
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
@@ -98,31 +97,28 @@ class StreamRequisitionsQueryTest : RequisitionTestBase() {
 
   @Test
   fun `create time filter`() {
-    fun createdAfterFilter(time: Instant) =
-      streamRequisitionsFilter(StreamRequisitionsClause.CreatedAfter(time))
+    fun filter(time: Instant) = streamRequisitionsFilter(createdAfter = time)
 
-    assertThat(executeToList(createdAfterFilter(Instant.EPOCH), 10))
+    assertThat(executeToList(filter(Instant.EPOCH), 10))
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION1, REQUISITION2, REQUISITION3)
 
-    assertThat(executeToList(createdAfterFilter(REQUISITION1.createTime.toInstant()), 10))
+    assertThat(executeToList(filter(REQUISITION1.createTime.toInstant()), 10))
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION2, REQUISITION3)
 
-    assertThat(executeToList(createdAfterFilter(REQUISITION2.createTime.toInstant()), 10))
+    assertThat(executeToList(filter(REQUISITION2.createTime.toInstant()), 10))
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION3)
 
-    assertThat(executeToList(createdAfterFilter(REQUISITION3.createTime.toInstant()), 10))
+    assertThat(executeToList(filter(REQUISITION3.createTime.toInstant()), 10))
       .isEmpty()
   }
 
   @Test
   fun `externalDataProviderId filter`() {
     fun filter(vararg ids: Long) =
-      streamRequisitionsFilter(
-        StreamRequisitionsClause.ExternalDataProviderId(ids.map { ExternalId(it) })
-      )
+      streamRequisitionsFilter(externalDataProviderIds = ids.map(::ExternalId))
 
     assertThat(executeToList(filter(EXTERNAL_DATA_PROVIDER_ID), 10))
       .comparingExpectedFieldsOnly()
@@ -139,9 +135,7 @@ class StreamRequisitionsQueryTest : RequisitionTestBase() {
   @Test
   fun `state filter`() {
     fun filter(vararg ids: Long) =
-      streamRequisitionsFilter(
-        StreamRequisitionsClause.ExternalCampaignId(ids.map { ExternalId(it) })
-      )
+      streamRequisitionsFilter(externalCampaignIds = ids.map(::ExternalId))
 
     assertThat(executeToList(filter(EXTERNAL_CAMPAIGN_ID1), 10))
       .comparingExpectedFieldsOnly()
@@ -160,8 +154,8 @@ class StreamRequisitionsQueryTest : RequisitionTestBase() {
   fun `externalCampaignId filter`() {
     fun filter(vararg states: RequisitionState) =
       streamRequisitionsFilter(
-        StreamRequisitionsClause.ExternalCampaignId(listOf(ExternalId(EXTERNAL_CAMPAIGN_ID1))),
-        StreamRequisitionsClause.State(states.toList())
+        externalCampaignIds = listOf(ExternalId(EXTERNAL_CAMPAIGN_ID1)),
+        states = states.toList()
       )
 
     assertThat(executeToList(filter(RequisitionState.UNFULFILLED), 10))

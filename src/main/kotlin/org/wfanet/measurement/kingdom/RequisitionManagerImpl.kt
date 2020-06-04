@@ -26,7 +26,7 @@ class RequisitionManagerImpl(
   ): Requisition =
     database.fulfillRequisition(externalRequisitionId)
 
-  override suspend fun streamRequisitions(
+  override fun streamRequisitions(
     filter: StreamRequisitionsFilter,
     limit: Long
   ): Flow<Requisition> = database.streamRequisitions(filter, limit)

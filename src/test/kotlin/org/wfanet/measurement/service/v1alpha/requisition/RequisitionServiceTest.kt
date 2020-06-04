@@ -2,9 +2,6 @@ package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
-import io.grpc.testing.GrpcCleanupRule
 import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -12,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,13 +28,10 @@ import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
-  @get:Rule
-  val grpcCleanup = GrpcCleanupRule()
-
-  private lateinit var stub: RequisitionGrpcKt.RequisitionCoroutineStub
 
   companion object {
     var CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -89,24 +82,18 @@ class RequisitionServiceTest {
     }
   }
 
-  @Before
-  fun setup() {
-    val serverName = InProcessServerBuilder.generateName()
-
-    val channel = InProcessChannelBuilder.forName(serverName).directExecutor().build()
-    grpcCleanup.register(channel)
-
-    stub = RequisitionGrpcKt.RequisitionCoroutineStub(channel)
-    val internalStub = RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(channel)
-
-    grpcCleanup.register(
-      InProcessServerBuilder.forName(serverName)
-        .directExecutor()
-        .addService(FakeRequisitionService)
-        .addService(RequisitionService(internalStub))
-        .build()
-        .start()
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { channel ->
+    listOf(
+      FakeRequisitionService,
+      RequisitionService(
+        RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(channel)
+      )
     )
+  }
+
+  private val stub: RequisitionGrpcKt.RequisitionCoroutineStub by lazy {
+    RequisitionGrpcKt.RequisitionCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test

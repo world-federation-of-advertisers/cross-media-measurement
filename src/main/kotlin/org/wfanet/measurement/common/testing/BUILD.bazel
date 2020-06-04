@@ -6,7 +6,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "testing",
-    testonly = 1,
+    testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
         "@maven//:org_mockito_mockito_core",

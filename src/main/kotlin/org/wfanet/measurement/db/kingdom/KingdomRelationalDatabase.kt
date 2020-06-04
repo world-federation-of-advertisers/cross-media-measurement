@@ -27,7 +27,7 @@ interface KingdomRelationalDatabase {
   /**
    * Streams [Requisition]s.
    */
-  suspend fun streamRequisitions(
+  fun streamRequisitions(
     filter: StreamRequisitionsFilter,
     limit: Long
   ): Flow<Requisition>
