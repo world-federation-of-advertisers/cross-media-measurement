@@ -1,6 +1,7 @@
 package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.DatabaseId
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
@@ -8,6 +9,8 @@ import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
+import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
@@ -17,11 +20,12 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
+import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.gcpTimestamp
-import org.wfanet.measurement.db.gcp.getAtMostOne
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.sequence
+import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.db.gcp.toProtoBytes
@@ -46,6 +50,10 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
+
+  private val databaseClient: DatabaseClient by lazy {
+    spanner.getDatabaseClient(databaseId)
+  }
 
   override fun insertComputation(globalId: Long, initialState: T): ComputationToken<T> {
     require(
@@ -96,7 +104,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       .set("BeginTime").to(writeTimestamp)
       .build()
 
-    spanner.getDatabaseClient(databaseId).write(
+    databaseClient.write(
       listOf(computationRow, computationStageRow, computationStageAttemptRow)
     )
 
@@ -113,39 +121,46 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   }
 
   override fun getToken(globalId: Long): ComputationToken<T>? {
-    val transaction = spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction()
-    try {
-      val results = transaction.executeQuery(
-        Statement.newBuilder(
-          """
-          SELECT c.ComputationId, c.LockOwner, c.ComputationStage, c.ComputationDetails,
-                 c.UpdateTime, cs.NextAttempt,
-          FROM Computations AS c
-          JOIN ComputationStages AS cs ON
-            (c.ComputationId = cs.ComputationId AND c.ComputationStage = cs.ComputationStage)
-          WHERE c.GlobalComputationId = @global_id
-          """.trimIndent()
-        ).bind("global_id").to(globalId).build()
-      )
-      val struct = results.getAtMostOne() ?: return null
+    val sql =
+      """
+      SELECT c.ComputationId, c.LockOwner, c.ComputationStage, c.ComputationDetails,
+             c.UpdateTime, cs.NextAttempt
+      FROM Computations AS c
+      JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
+      WHERE c.GlobalComputationId = @global_id
+      """.trimIndent()
 
-      val computationDetails =
-        struct.getBytes("ComputationDetails").toProtobufMessage(ComputationDetails.parser())
+    val query: Statement =
+      Statement.newBuilder(sql)
+        .bind("global_id").to(globalId)
+        .build()
 
-      return ComputationToken(
-        globalId = globalId,
-        // From ComputationsByGlobalId index
-        localId = struct.getLong("ComputationId"),
-        // From Computations
-        state = stateEnumHelper.longToEnum(struct.getLong("ComputationStage")),
-        owner = struct.getNullableString("LockOwner"),
-        lastUpdateTime = struct.getTimestamp("UpdateTime").toMillis(),
-        role = computationDetails.role.toDuchyRole(),
-        nextWorker = computationDetails.outgoingNodeId,
-        // From ComputationStages
-        attempt = struct.getLong("NextAttempt") - 1
-      )
-    } finally { transaction.close() }
+    val struct = runBlocking(spannerDispatcher()) {
+      databaseClient
+        .singleUse()
+        .executeQuery(query)
+        .asFlow()
+        .singleOrNull()
+    } ?: return null
+
+    val computationDetails =
+      struct
+        .getBytes("ComputationDetails")
+        .toProtobufMessage(ComputationDetails.parser())
+
+    return ComputationToken(
+      globalId = globalId,
+      // From ComputationsByGlobalId index
+      localId = struct.getLong("ComputationId"),
+      // From Computations
+      state = stateEnumHelper.longToEnum(struct.getLong("ComputationStage")),
+      owner = struct.getNullableString("LockOwner"),
+      lastUpdateTime = struct.getTimestamp("UpdateTime").toMillis(),
+      role = computationDetails.role.toDuchyRole(),
+      nextWorker = computationDetails.outgoingNodeId,
+      // From ComputationStages
+      attempt = struct.getLong("NextAttempt") - 1
+    )
   }
 
   override fun enqueue(token: ComputationToken<T>) {
@@ -174,24 +189,22 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     // item in the list we try to claim the lock in a transaction which will only succeed if the
     // lock is still available. This pattern means only the item which is being updated
     // would need to be locked and not every possible computation that can be worked on.
-    spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction().executeQuery(
-      Statement.newBuilder(
-        """
-        SELECT c.ComputationId,  c.GlobalComputationId, c.UpdateTime
-        FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
-        WHERE c.LockExpirationTime <= @current_time
-        ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
-        LIMIT 50
-        """.trimIndent()
-      ).bind("current_time").to(clock.gcpTimestamp()).build()).sequence()
-      .forEach { struct ->
-      if (claim(struct.getLong("ComputationId"), struct.getTimestamp("UpdateTime"), ownerId)) {
-        return getToken(struct.getLong("GlobalComputationId"))
-      }
-    }
+    val sql =
+      """
+      SELECT c.ComputationId,  c.GlobalComputationId, c.UpdateTime
+      FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
+      WHERE c.LockExpirationTime <= @current_time
+      ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
+      LIMIT 50
+      """.trimIndent()
 
-    // Did not acquire the lock on any computation.
-    return null
+    return databaseClient
+      .singleUse()
+      .executeQuery(Statement.newBuilder(sql).bind("current_time").to(clock.gcpTimestamp()).build())
+      .sequence()
+      .filter { claim(it.getLong("ComputationId"), it.getTimestamp("UpdateTime"), ownerId) }
+      .map { getToken(it.getLong("GlobalComputationId")) }
+      .firstOrNull()
   }
 
   /**
@@ -199,7 +212,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
    *
    * @return true if the lock was acquired. */
   private fun claim(computationId: Long, lastUpdate: Timestamp, ownerId: String): Boolean {
-    return spanner.getDatabaseClient(databaseId).readWriteTransaction().run { ctx ->
+    return databaseClient.readWriteTransaction().run { ctx ->
       val currentLockOwnerStruct =
         ctx.readRow("Computations", Key.of(computationId), listOf("UpdateTime"))
           ?: error("Failed to claim computation $computationId. It does not exist.")
@@ -380,18 +393,22 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     token: ComputationToken<T>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
-    val blobRefsForStageQuery = Statement.newBuilder(
+    val sql =
       """
-          SELECT BlobId, PathToBlob, DependencyType 
-          FROM ComputationBlobReferences
-          WHERE ComputationId = @local_id AND ComputationStage = @stage_as_int_64
-          """.trimMargin()
-    ).bind("local_id").to(token.localId)
-      .bind("stage_as_int_64").to(stateEnumHelper.enumToLong(token.state))
-      .build()
+      SELECT BlobId, PathToBlob, DependencyType 
+      FROM ComputationBlobReferences
+      WHERE ComputationId = @local_id AND ComputationStage = @stage_as_int_64
+      """.trimMargin()
+    val blobRefsForStageQuery =
+      Statement.newBuilder(sql)
+        .bind("local_id").to(token.localId)
+        .bind("stage_as_int_64").to(stateEnumHelper.enumToLong(token.state))
+        .build()
 
     return runIfTokenFromLastUpdate(token) { ctx ->
-        ctx.executeQuery(blobRefsForStageQuery).sequence()
+      ctx
+        .executeQuery(blobRefsForStageQuery)
+        .sequence()
         .filter {
           val dep = ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
           when (dependencyType) {
@@ -400,7 +417,8 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
             BlobDependencyType.INPUT -> dep == ComputationBlobDependency.INPUT
           }
         }
-        .map { it.getLong("BlobId") to it.getNullableString("PathToBlob") }.toMap()
+        .map { it.getLong("BlobId") to it.getNullableString("PathToBlob") }
+        .toMap()
     }!!
   }
 
@@ -419,7 +437,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     token: ComputationToken<T>,
     readWriteTransactionBlock: (TransactionContext) -> R
   ): R? {
-    return spanner.getDatabaseClient(databaseId).readWriteTransaction().run { ctx ->
+    return databaseClient.readWriteTransaction().run { ctx ->
       val current = ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
         ?: error("No row for computation (${token.localId})")
       if (current.getTimestamp("UpdateTime").toMillis() == token.lastUpdateTime) {
