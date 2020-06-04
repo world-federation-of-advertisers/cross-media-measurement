@@ -21,8 +21,9 @@ genrule(
     # package "org.wfanet.measurement.crypto". Save all output in
     # bazel-genfiles/... with the C++ wrapper file named
     # protocol_encryption_utility_swig.cc.
-    cmd = "swig -c++ -java -package org.wfanet.measurement.crypto -o $(@D)/protocol_encryption_utility_swig.cc -outdir $(@D) $(SRCS)",
-    local = 1,
+    cmd = "type -p swig > /dev/null || (echo \"Swig doesn't exist, install swig first.\" && exit 100) ;" +
+          "swig -c++ -java -package org.wfanet.measurement.crypto -o $(@D)/protocol_encryption_utility_swig.cc -outdir $(@D) $(SRCS)",
+    local = True,
 )
 
 genrule(

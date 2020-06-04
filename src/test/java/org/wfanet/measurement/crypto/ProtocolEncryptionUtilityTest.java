@@ -16,7 +16,16 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest;
 public class ProtocolEncryptionUtilityTest {
 
   static {
-    System.loadLibrary("protocolencryptionutility");
+    try {
+      System.loadLibrary("protocolencryptionutility");
+    } catch (UnsatisfiedLinkError e) {
+      if (e.getMessage().contains("grte")) {
+        throw new RuntimeException(
+            "This JNI SketchJavaEncrypter doesn't work with googlejdk.  Use another Java version.");
+      } else {
+        throw e;
+      }
+    }
   }
 
   @Test
