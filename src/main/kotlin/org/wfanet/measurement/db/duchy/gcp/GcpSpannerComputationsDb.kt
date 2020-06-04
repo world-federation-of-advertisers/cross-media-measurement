@@ -174,20 +174,17 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     // item in the list we try to claim the lock in a transaction which will only succeed if the
     // lock is still available. This pattern means only the item which is being updated
     // would need to be locked and not every possible computation that can be worked on.
-    val possibleTasksToClaim =
-      spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction().executeQuery(
-        Statement.newBuilder(
-          """
-          SELECT c.ComputationId,  c.GlobalComputationId, c.UpdateTime
-          FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
-          WHERE c.LockExpirationTime <= @current_time
-          ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
-          LIMIT 50
-          """.trimIndent()
-        ).bind("current_time").to(clock.gcpTimestamp()).build()
-      )
-    while (possibleTasksToClaim.next()) {
-      val struct = possibleTasksToClaim.currentRowAsStruct
+    spanner.getDatabaseClient(databaseId).singleUseReadOnlyTransaction().executeQuery(
+      Statement.newBuilder(
+        """
+        SELECT c.ComputationId,  c.GlobalComputationId, c.UpdateTime
+        FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
+        WHERE c.LockExpirationTime <= @current_time
+        ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
+        LIMIT 50
+        """.trimIndent()
+      ).bind("current_time").to(clock.gcpTimestamp()).build()).sequence()
+      .forEach { struct ->
       if (claim(struct.getLong("ComputationId"), struct.getTimestamp("UpdateTime"), ownerId)) {
         return getToken(struct.getLong("GlobalComputationId"))
       }
