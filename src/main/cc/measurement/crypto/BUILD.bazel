@@ -11,7 +11,10 @@ cc_library(
         "protocol_encryption_utility.h",
     ],
     deps = [
+        "//src/main/cc/measurement/crypto/util:macros",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
+        "@absl//absl/algorithm:container",
+        "@absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//util:status",
@@ -27,6 +30,8 @@ cc_test(
     deps = [
         ":protocol_encryption_utility",
         "@any_sketch//src/main/cc/any_sketch:sketch_encrypter",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_cc_proto",
     ],

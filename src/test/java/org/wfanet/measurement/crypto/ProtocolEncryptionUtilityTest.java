@@ -29,6 +29,11 @@ public class ProtocolEncryptionUtilityTest {
   }
 
   @Test
+  public void EndToEnd_basicBehavior() {
+    // TODO(wangyaopw): add test for this
+  }
+
+  @Test
   public void BlindOneLayerRegisterIndex_invalidRequestProtoStringShouldFail() {
     RuntimeException exception =
         assertThrows(

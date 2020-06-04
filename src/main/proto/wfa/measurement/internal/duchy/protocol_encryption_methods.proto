@@ -24,7 +24,10 @@ message ElGamalKeys {
 // The request to blind (one layer) all register indexes of a sketch.
 // Only 3-tuple (register_index, fingerprint, count) registers are supported.
 message BlindOneLayerRegisterIndexRequest {
-  // The encrypted sketch.
+  // The input sketch, which is a concatenation of a list of registers.
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
   bytes sketch = 1;
   // Keys of the local ElGamal cipher. Required.
   ElGamalKeys local_el_gamal_keys = 2;
@@ -37,7 +40,10 @@ message BlindOneLayerRegisterIndexRequest {
 
 // Response of the BlindOneLayerRegisterIndex method.
 message BlindOneLayerRegisterIndexResponse {
-  // Sketch with blinded register indexes.
+  // The output sketch, whose register indexes are partially decrypted.
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
   bytes sketch = 1;
   // The key used to create the local Pohlig Hellman cipher.
   // If the request specifies this key, the same value is returned,
@@ -49,7 +55,11 @@ message BlindOneLayerRegisterIndexResponse {
 // registers by the deterministically encrypted register indexes, and then
 // merge the counts using the same-key-aggregating algorithm.
 message BlindLastLayerIndexThenJoinRegistersRequest {
-  // The input sketch. There should be only one layer of ElGamal encryption left
+  // The input sketch, which is a concatenation of a list of registers.
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
+  // There should be only one layer of ElGamal encryption left
   // on the register indexes. In other words, this method should only be called
   // by the primary duchy at the last stop of round 1.
   bytes sketch = 1;
@@ -67,8 +77,10 @@ message BlindLastLayerIndexThenJoinRegistersRequest {
 
 // The response of the BlindLastLayerIndexThenJoinRegisters method.
 message BlindLastLayerIndexThenJoinRegistersResponse {
-  // The resulted sketch, whose register contains a two tuple of (flag, count).
-  bytes sketch = 1;
+  // A concatenation of a list of (flag, count) pairs in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_counts = 1;
   // The key used to create the local Pohlig Hellman cipher.
   // If the request specifies this key, the same value is returned,
   // otherwise, the randomly generated key is returned.
@@ -78,8 +90,10 @@ message BlindLastLayerIndexThenJoinRegistersResponse {
 // The request to decrypt one layer of ElGamal encryption on the flag and count
 // of all registers.
 message DecryptOneLayerFlagAndCountRequest {
-  // The input sketch. Each register contains a 2 tuple of (flag, count)
-  bytes sketch = 1;
+  // A concatenation of a list of (flag, count) pairs in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_counts = 1;
   // The keys used to create the local ElGamal cipher. required.
   ElGamalKeys local_el_gamal_keys = 2;
   // The elliptical curve to work on.
@@ -88,17 +102,21 @@ message DecryptOneLayerFlagAndCountRequest {
 
 // The response of the DecryptCountAndFlag method.
 message DecryptOneLayerFlagAndCountResponse {
-  // Sketch with decrypted (partially or fully) flag and count.
-  bytes sketch = 1;
+  // A concatenation of a list of (flag, count) pairs in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_counts = 1;
 }
 
 // The request to decrypt the last layer of ElGamal encryption on the flag and
 // count of all registers. Only called by the primary duchy as the last step of
 // round 2.
 message DecryptLastLayerFlagAndCountRequest {
-  // The input sketch. Each register contains a 2 tuple of (flag, count).
-  // There should be only one layer of ElGamal encryption left
-  bytes sketch = 1;
+  // A concatenation of a list of (flag, count) pairs in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, which only has one
+  // layer of ElGamal encryption left.
+  // The size of flag_count_lists should be divisible by 132.
+  bytes flag_counts = 1;
   // The keys used to create the local ElGamal cipher. required.
   ElGamalKeys local_el_gamal_keys = 2;
   // Maximum frequency to display. Every count value greater than this value
@@ -110,9 +128,13 @@ message DecryptLastLayerFlagAndCountRequest {
 
 // The response of the DecryptCountAndFlag method.
 message DecryptLastLayerFlagAndCountResponse {
-  // Decrypted is_destroyed flag. True indicates there are key conflict at this
-  // register. False means all keys of this register are the same.
-  repeated bool is_destroyed = 1;
-  // Decrypted count value, Caped by the maximum_frequency.
-  repeated int32 frequency = 2;
+  message FlagCount {
+    // Decrypted is_not_destroyed flag. False indicates there are key conflict
+    // at this register. True means all keys of this register are the same.
+    bool is_not_destroyed = 1;
+    // Decrypted count value, Caped by the maximum_frequency.
+    int32 frequency = 2;
+  }
+  // (flag, count) result for each register index.
+  repeated FlagCount flag_counts = 1;
 }
