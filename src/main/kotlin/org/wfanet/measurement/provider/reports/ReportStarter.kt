@@ -3,6 +3,7 @@ package org.wfanet.measurement.provider.reports
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.transform
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.parallelCollect
 import org.wfanet.measurement.internal.kingdom.Report
 
@@ -19,7 +20,9 @@ class ReportStarter(
    */
   suspend fun createReports() = coroutineScope {
     reportApi.streamReadyScheduledReportConfigs()
-      .parallelCollect(maxParallelism, reportApi::createReport)
+      .parallelCollect(maxParallelism) {
+        reportApi.createReport(ExternalId(it.externalScheduleId))
+      }
   }
 
   /**

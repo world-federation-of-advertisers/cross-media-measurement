@@ -36,6 +36,14 @@ java_and_kt_grpc_library(
 )
 
 proto_and_java_proto_library(
+    name = "report_config_schedule",
+    deps = [
+        ":repetition_spec_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_and_java_proto_library(
     name = "requisition",
     deps = [
         ":requisition_details_proto",
@@ -68,12 +76,4 @@ proto_library(
 java_and_kt_grpc_library(
     name = "requisition_service",
     deps = [":requisition_service_proto"],
-)
-
-proto_and_java_proto_library(
-    name = "scheduled_report_config",
-    deps = [
-        ":repetition_spec_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
 )
