@@ -81,9 +81,9 @@ load(
 
 git_repository(
     name = "com_github_grpc_grpc_kotlin",
-    commit = "0b0102a5ab16eec2d97a766754a0141e51e86ef0",
+    commit = "3ce43b8713c080dac60dec0ef0d83367a2cece3b",
     remote = "https://github.com/fashing/grpc-kotlin",
-    shallow_since = "1589575288 -0400",
+    shallow_since = "1590091633 -0400",
 )
 
 load(

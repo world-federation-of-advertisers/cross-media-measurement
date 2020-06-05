@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
 import "src/main/proto/wfa/measurement/internal/kingdom/report_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -22,6 +23,9 @@ message Report {
   fixed64 external_report_config_id = 2;
   fixed64 external_schedule_id = 3;
   fixed64 external_report_id = 4;
+
+  google.protobuf.Timestamp window_start_time = 8;
+  google.protobuf.Timestamp window_end_time = 9;
 
   ReportState state = 5;
   ReportDetails report_details = 6;

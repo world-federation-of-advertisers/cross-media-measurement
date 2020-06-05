@@ -15,7 +15,7 @@ def java_and_kt_grpc_library(name, deps):
     kt_jvm_grpc_library(
         name = name + "_kt_jvm_grpc_internal",
         srcs = deps,
-        deps = [":%s_java_grpc" % name],
+        deps = [":%s_java_proto" % name],
     )
 
     # Bundle all the dependencies together for convenience.

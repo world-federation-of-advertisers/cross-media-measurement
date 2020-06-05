@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/report.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for Reports.
+// TODO: rename once we have a naming scheme for internal services.
+service ReportStorage {
+  // Creates the next Report from a ReportConfigSchedule.
+  //
+  // If there is already a Report for the schedule with a time window not fully
+  // elapsed, this will return that Report instead of making a new one.
+  rpc CreateNextReport(CreateNextReportRequest) returns (Report);
+
+  // Streams Reports from the database, ordered by create time ascending.
+  rpc StreamReports(StreamReportsRequest) returns (stream Report);
+
+  // Updates the state of a Report.
+  rpc UpdateReportState(UpdateReportStateRequest) returns (Report);
+}
+
+message CreateNextReportRequest {
+  string external_schedule_id = 1;
+}
+
+message StreamReportsRequest {
+  int64 limit = 1;
+
+  Filter filter = 3;
+
+  // All repeated fields are individually disjunctions.
+  //
+  // If a repeated field is not empty, then all output Reports must match one of
+  // the entries.
+  message Filter {
+    repeated int64 external_data_provider_ids = 1;
+    repeated int64 external_campaign_ids = 2;
+    repeated int64 external_advertiser_ids = 3;
+    repeated int64 external_report_config_ids = 4;
+    repeated int64 external_schedule_ids = 5;
+    repeated Report.ReportState states = 6;
+    google.protobuf.Timestamp created_after = 7;
+  }
+}
+
+message UpdateReportStateRequest {
+  int64 external_report_id = 1;
+  Report.ReportState state = 2;
+}

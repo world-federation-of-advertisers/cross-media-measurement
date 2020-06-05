@@ -166,6 +166,8 @@ CREATE TABLE Reports (
 
   ExternalReportId  INT64 NOT NULL,
 
+  CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
   WindowStartTime   TIMESTAMP NOT NULL,
   WindowEndTime     TIMESTAMP NOT NULL,
   State             INT64 NOT NULL,  -- Proto enum encoded as int
