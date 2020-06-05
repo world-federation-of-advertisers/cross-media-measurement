@@ -2,29 +2,29 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.ReadContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
-import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.db.kingdom.StreamReportsFilter
+import org.wfanet.measurement.internal.kingdom.Report
 
-class StreamRequisitionsQuery {
+class StreamReportsQuery {
   fun execute(
     readContext: ReadContext,
-    filter: StreamRequisitionsFilter,
+    filter: StreamReportsFilter,
     limit: Long
-  ): Flow<Requisition> {
-    val reader = RequisitionReader()
+  ): Flow<Report> {
+    val reader = ReportReader()
 
     if (!filter.empty) {
       reader.builder.append("\nWHERE ")
-      filter.toSql(reader.builder, StreamRequisitionsFilterSqlConverter)
+      filter.toSql(reader.builder, StreamReportsFilterSqlConverter)
     }
 
     reader.builder
       .appendClause("ORDER BY CreateTime ASC")
       .appendClause("LIMIT @limit")
       .bind("limit").to(limit)
+      .build()
 
-    return reader.execute(readContext).map { it.requisition }
+    return reader.execute(readContext)
   }
 }

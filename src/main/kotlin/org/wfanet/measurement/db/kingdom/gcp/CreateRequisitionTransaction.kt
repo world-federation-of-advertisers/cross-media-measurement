@@ -61,7 +61,7 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
       WHERE Campaigns.ExternalCampaignId = @external_campaign_id
       """.trimIndent()
 
-    val statement : Statement =
+    val statement: Statement =
       Statement.newBuilder(sql)
         .bind("external_campaign_id").to(externalCampaignId)
         .build()
@@ -86,8 +86,9 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
         AND Requisitions.WindowEndTime = @window_end_time
       """.trimIndent()
 
-    val statement = REQUISITION_READ_QUERY
-      .toBuilder()
+    val reader = RequisitionReader()
+
+    reader.builder
       .append(whereClause)
       .bind("external_data_provider_id").to(newRequisition.externalDataProviderId)
       .bind("external_campaign_id").to(newRequisition.externalCampaignId)
@@ -95,10 +96,9 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
       .bind("window_end_time").to(newRequisition.windowEndTime.toGcpTimestamp())
       .build()
 
-    return transactionContext
-      .executeQuery(statement)
-      .asFlow()
-      .map { it.toRequisition() }
+    return reader
+      .execute(transactionContext)
+      .map { it.requisition }
       .filter { it.requisitionDetails == newRequisition.requisitionDetails }
       .singleOrNull()
   }

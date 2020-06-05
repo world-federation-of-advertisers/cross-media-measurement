@@ -1,12 +1,10 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -39,18 +37,15 @@ class FulfillRequisitionTransaction {
   private fun readRequisition(
     transactionContext: TransactionContext,
     externalRequisitionId: ExternalId
-  ): ReadResult {
-    val query = readRequisitionQuery(externalRequisitionId)
-    val struct: Struct = runBlocking { transactionContext.executeQuery(query).asFlow().single() }
-    return ReadResult(struct.getLong("RequisitionId"), struct.toRequisition())
-  }
-
-  private fun readRequisitionQuery(externalRequisitionId: ExternalId): Statement =
-    REQUISITION_READ_QUERY
-      .toBuilder()
+  ): RequisitionAndInternalId {
+    val reader = RequisitionReader()
+    reader
+      .builder
       .append("WHERE ExternalRequisitionId = @external_requisition_id")
       .bind("external_requisition_id").to(externalRequisitionId.value)
-      .build()
+
+    return runBlocking { reader.execute(transactionContext).single() }
+  }
 
   private fun updateState(
     transactionContext: TransactionContext,

@@ -146,7 +146,7 @@ CREATE TABLE ReportConfigSchedules (
   ExternalScheduleId  INT64 NOT NULL,
 
   -- To support efficient queries for reports to generate.
-  NextReportStartTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+  NextReportStartTime TIMESTAMP NOT NULL,
 
   -- RepetitionSpec serialized proto.
   RepetitionSpec      BYTES(MAX) NOT NULL,  -- Serialized proto

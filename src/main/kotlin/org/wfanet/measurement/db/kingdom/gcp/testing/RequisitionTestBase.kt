@@ -7,20 +7,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.db.gcp.asFlow
-import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
-import org.wfanet.measurement.db.kingdom.gcp.REQUISITION_READ_QUERY
-import org.wfanet.measurement.db.kingdom.gcp.toRequisition
+import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
-open class RequisitionTestBase :
-  UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {
-
+abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
   companion object {
     const val DATA_PROVIDER_ID = 1L
     const val EXTERNAL_DATA_PROVIDER_ID = 101L
@@ -125,12 +120,9 @@ open class RequisitionTestBase :
     )
 
   fun readAllRequisitions(): List<Requisition> = runBlocking {
-    spanner
-      .client
-      .singleUse()
-      .executeQuery(REQUISITION_READ_QUERY)
-      .asFlow()
-      .map { it.toRequisition() }
+    RequisitionReader()
+      .execute(spanner.client.singleUse())
+      .map { it.requisition }
       .toList()
   }
 }
