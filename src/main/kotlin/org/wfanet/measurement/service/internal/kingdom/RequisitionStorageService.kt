@@ -6,13 +6,13 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.RequisitionManager
 
-class RequisitionService(
+class RequisitionStorageService(
   private val requisitionManager: RequisitionManager
-) : RequisitionServiceGrpcKt.RequisitionServiceCoroutineImplBase() {
+) : RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase() {
   override suspend fun createRequisition(request: Requisition): Requisition =
     requisitionManager.createRequisition(request)
 

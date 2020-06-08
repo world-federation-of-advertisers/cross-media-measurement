@@ -65,7 +65,7 @@ proto_and_java_proto_library(
 
 proto_library(
     name = "requisition_service_proto",
-    srcs = ["requisition_service.proto"],
+    srcs = ["requisition_storage_service.proto"],
     deps = [
         ":requisition_proto",
         ":requisition_state_proto",
@@ -74,6 +74,6 @@ proto_library(
 )
 
 java_and_kt_grpc_library(
-    name = "requisition_service",
+    name = "requisition_storage_service",
     deps = [":requisition_service_proto"],
 )

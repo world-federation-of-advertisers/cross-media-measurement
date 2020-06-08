@@ -17,14 +17,14 @@ import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.RequisitionManager
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
-class RequisitionServiceTest {
+class RequisitionStorageServiceTest {
 
   companion object {
     val REQUISITION: Requisition = Requisition.newBuilder().apply {
@@ -55,11 +55,11 @@ class RequisitionServiceTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(RequisitionService(FakeRequisitionManager))
+    listOf(RequisitionStorageService(FakeRequisitionManager))
   }
 
-  private val stub: RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub by lazy {
-    RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(grpcTestServerRule.channel)
+  private val stub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub by lazy {
+    RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test

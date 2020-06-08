@@ -25,8 +25,8 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -62,7 +62,7 @@ class RequisitionServiceTest {
     val logger = Logger.getLogger(this::class.java.name)
   }
 
-  object FakeRequisitionService : RequisitionServiceGrpcKt.RequisitionServiceCoroutineImplBase() {
+  object FakeRequisitionService : RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase() {
     var fulfillRequisitionFn: ((FulfillRequisitionRequest) -> Requisition)? = null
     var streamRequisitionsFn: ((StreamRequisitionsRequest) -> Flow<Requisition>)? = null
 
@@ -87,7 +87,7 @@ class RequisitionServiceTest {
     listOf(
       FakeRequisitionService,
       RequisitionService(
-        RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(channel)
+        RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel)
       )
     )
   }

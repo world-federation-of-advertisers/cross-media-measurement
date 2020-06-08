@@ -7,7 +7,7 @@ import org.wfanet.measurement.common.CommonServerType
 import org.wfanet.measurement.common.Flags
 import org.wfanet.measurement.common.intFlag
 import org.wfanet.measurement.common.stringFlag
-import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 
 object StubFlags {
   val INTERNAL_API_HOST = stringFlag("internal_api_host", "")
@@ -23,7 +23,7 @@ fun main(args: Array<String>) {
       .usePlaintext()
       .build()
 
-  val stub = RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub(channel)
+  val stub = RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel)
 
   CommonServer(CommonServerType.REQUISITION, RequisitionService(stub))
     .start()

@@ -13,14 +13,14 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionServiceGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toV1Api
 
 class RequisitionService(
-  private val internalRequisitionStub: RequisitionServiceGrpcKt.RequisitionServiceCoroutineStub
+  private val internalRequisitionStub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 ) : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
 
   override suspend fun createMetricRequisition(

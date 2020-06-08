@@ -10,7 +10,7 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Internal service for Requisitions.
-service RequisitionService {
+service RequisitionStorage {
   // Creates a new DatabaseRequisition in the database. The `requisition_id` and
   // `external_requisition_id` fields are ignored. This is idempotent.
   rpc CreateRequisition(Requisition) returns (Requisition);
