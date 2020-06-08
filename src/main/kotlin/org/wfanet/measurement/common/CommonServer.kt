@@ -7,12 +7,15 @@ import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
 
-class CommonServer(private val serversEnum: CommonServerType,
-                   vararg services: BindableService) {
+class CommonServer(
+  private val nameForLogging: String,
+  private val port: Int,
+  vararg services: BindableService
+) {
   private var server: Server
 
   init {
-    val builder = ServerBuilder.forPort(serversEnum.port)
+    val builder = ServerBuilder.forPort(port)
     services.forEach {
       builder.addService(it)
     }
@@ -22,14 +25,16 @@ class CommonServer(private val serversEnum: CommonServerType,
   @Throws(IOException::class)
   fun start(): CommonServer {
     server.start()
-    logger.log(Level.INFO,
-               "${serversEnum.nameForLogging} started, listening on ${serversEnum.port}")
+    logger.log(
+      Level.INFO,
+      "$nameForLogging started, listening on $port"
+    )
     Runtime.getRuntime().addShutdownHook(object : Thread() {
       override fun run() {
         // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-        System.err.println("*** ${serversEnum.nameForLogging} shutting down...")
+        System.err.println("*** $nameForLogging shutting down...")
         this@CommonServer.stop()
-        System.err.println("*** ${serversEnum.nameForLogging} shut down")
+        System.err.println("*** $nameForLogging shut down")
       }
     })
     return this
@@ -47,10 +52,4 @@ class CommonServer(private val serversEnum: CommonServerType,
   companion object {
     private val logger = Logger.getLogger(this::class.java.name)
   }
-}
-
-enum class CommonServerType(val nameForLogging: String, val port: Int) {
-  COMPUTATION_CONTROL("ComputationControlServer", 31124),
-  PUBLISHER_DATA("PublisherDataServer", 31125),
-  REQUISITION("RequisitionServer", 31126)
 }

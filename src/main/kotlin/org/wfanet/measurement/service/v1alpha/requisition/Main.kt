@@ -3,7 +3,6 @@ package org.wfanet.measurement.service.v1alpha.requisition
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import org.wfanet.measurement.common.CommonServer
-import org.wfanet.measurement.common.CommonServerType
 import org.wfanet.measurement.common.Flags
 import org.wfanet.measurement.common.intFlag
 import org.wfanet.measurement.common.stringFlag
@@ -25,7 +24,7 @@ fun main(args: Array<String>) {
 
   val stub = RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel)
 
-  CommonServer(CommonServerType.REQUISITION, RequisitionService(stub))
+  CommonServer("RequisitionServer", 8080, RequisitionService(stub))
     .start()
     .blockUntilShutdown()
 }

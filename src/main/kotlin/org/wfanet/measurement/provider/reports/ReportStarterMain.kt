@@ -16,7 +16,7 @@ object ReportStarterFlags {
 }
 
 object ThrottlerFlags {
-  val OVERLOAD_FACTOR = doubleFlag("throttler-overload_factor", 1.2)
+  val OVERLOAD_FACTOR = doubleFlag("throttler-overload-factor", 1.2)
   val TIME_HORIZON = durationFlag("throttler-time-horizon", Duration.ofMinutes(2))
   val POLL_DELAY_MILLIS = longFlag("throttler-poll-delay-millis", 0)
 }

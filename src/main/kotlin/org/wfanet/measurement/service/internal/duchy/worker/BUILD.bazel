@@ -1,0 +1,31 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "worker_service_impl",
+    srcs = glob(
+        ["*.kt"],
+        exclude = ["Main.kt"],
+    ),
+    deps = [
+        "//:grpc_core",
+        "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
+        "//src/main/proto/wfa/measurement/internal/duchy:worker_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_binary_and_image(
+    name = "worker_server",
+    srcs = ["Main.kt"],
+    main_class = "org.wfanet.measurement.service.internal.duchy.worker.MainKt",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":worker_service_impl",
+        "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
+    ],
+)

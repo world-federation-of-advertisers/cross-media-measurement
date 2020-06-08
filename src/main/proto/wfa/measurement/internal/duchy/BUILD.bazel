@@ -1,4 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -16,4 +17,26 @@ cc_proto_library(
 java_proto_library(
     name = "protocol_encryption_methods_java_proto",
     deps = [":protocol_encryption_methods_proto"],
+)
+
+proto_library(
+    name = "worker_service_proto",
+    srcs = ["worker_service.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+java_and_kt_grpc_library(
+    name = "worker_service",
+    deps = [":worker_service_proto"],
+)
+
+proto_library(
+    name = "work_management_service_proto",
+    srcs = ["work_management_service.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+java_and_kt_grpc_library(
+    name = "work_management_service",
+    deps = [":work_management_service_proto"],
 )
