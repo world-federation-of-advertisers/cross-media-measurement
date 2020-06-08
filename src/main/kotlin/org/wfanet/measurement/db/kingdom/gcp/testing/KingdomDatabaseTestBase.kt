@@ -3,6 +3,7 @@ package org.wfanet.measurement.db.kingdom.gcp.testing
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import java.time.Instant
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
@@ -100,7 +101,7 @@ abstract class KingdomDatabaseTestBase :
           .set("CreateTime").to(createTime?.toGcpTimestamp() ?: Value.COMMIT_TIMESTAMP)
           .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
           .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
-          .set("State").to(state.ordinal.toLong())
+          .set("State").to(state.numberAsLong)
           .set("ReportDetails").to(reportDetails.toSpannerByteArray())
           .set("ReportDetailsJson").to(reportDetails.toJson())
           .build()

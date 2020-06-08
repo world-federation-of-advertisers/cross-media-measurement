@@ -2,12 +2,14 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
+import com.google.protobuf.ProtocolMessageEnum
 import java.time.Instant
 import org.wfanet.measurement.common.AllOfClause
 import org.wfanet.measurement.common.AnyOfClause
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.kingdom.StreamReportsClause
@@ -89,7 +91,7 @@ object StreamReportsFilterSqlConverter : SqlConverter<StreamReportsClause> {
 private fun externalIdValueArray(ids: Iterable<ExternalId>): Value =
   Value.int64Array(ids.map(ExternalId::value))
 
-private fun <T : Enum<T>> enumValueArray(enums: Iterable<T>): Value =
-  Value.int64Array(enums.map { it.ordinal.toLong() })
+private fun enumValueArray(enums: Iterable<ProtocolMessageEnum>): Value =
+  Value.int64Array(enums.map { it.numberAsLong })
 
 private fun timestampValue(time: Instant): Value = Value.timestamp(time.toGcpTimestamp())

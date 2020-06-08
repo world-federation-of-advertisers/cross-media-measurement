@@ -11,6 +11,7 @@ import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobId
@@ -370,7 +371,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
         .set("ComputationStage").to(stageAsInt64)
         .set("BlobId").to(index.toLong())
         .set("PathToBlob").to(blobRef.pathToBlob)
-        .set("DependencyType").to(ComputationBlobDependency.INPUT.ordinal.toLong())
+        .set("DependencyType").to(ComputationBlobDependency.INPUT.numberAsLong)
         .build()
     }
 
@@ -379,7 +380,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
         .set("ComputationId").to(localId)
         .set("ComputationStage").to(stageAsInt64)
         .set("BlobId").to(index.toLong() + blobInputRefs.size)
-        .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
+        .set("DependencyType").to(ComputationBlobDependency.OUTPUT.numberAsLong)
         .build()
     }
     return mutations

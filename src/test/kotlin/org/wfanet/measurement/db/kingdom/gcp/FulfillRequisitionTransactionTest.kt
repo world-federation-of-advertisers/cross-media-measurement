@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -23,7 +24,7 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
           .set("DataProviderId").to(DATA_PROVIDER_ID)
           .set("CampaignId").to(CAMPAIGN_ID)
           .set("RequisitionId").to(REQUISITION_ID)
-          .set("State").to(state.ordinal.toLong())
+          .set("State").to(state.numberAsLong)
           .build()
       )
     )

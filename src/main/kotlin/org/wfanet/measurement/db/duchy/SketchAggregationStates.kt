@@ -1,5 +1,6 @@
 package org.wfanet.measurement.db.duchy
 
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.internal.SketchAggregationState
 import org.wfanet.measurement.internal.SketchAggregationState.ADDING_NOISE
 import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_COUNTS
@@ -56,7 +57,7 @@ object SketchAggregationStates :
     ).withDefault { setOf() }
 
   override fun enumToLong(value: SketchAggregationState): Long {
-    return value.ordinal.toLong()
+    return value.numberAsLong
   }
 
   override fun longToEnum(value: Long): SketchAggregationState {
