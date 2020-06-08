@@ -16,7 +16,14 @@ fun ResultSet.asFlow(): Flow<Struct> = flow {
 }.flowOn(spannerDispatcher())
 
 /** Returns a [Sequence] of [Struct]s from a [ResultSet]. */
-fun ResultSet.sequence(): Sequence<Struct> =
-  generateSequence { if (next()) currentRowAsStruct else null }
+fun ResultSet.asSequence(): Sequence<Struct> = sequence {
+  while (next()) {
+    yield(currentRowAsStruct)
+  }
+}
 
-fun ResultSet.singleOrNull(): Struct? = sequence().singleOrNull()
+/**
+ * Returns the unique element in a [ResultSet], or null if it's empty. Throws an error if there are
+ * more than one element.
+ */
+fun ResultSet.singleOrNull(): Struct? = asSequence().singleOrNull()

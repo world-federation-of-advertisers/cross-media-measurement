@@ -18,10 +18,10 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
+import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
-import org.wfanet.measurement.db.gcp.sequence
 import org.wfanet.measurement.db.gcp.singleOrNull
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
@@ -192,7 +192,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     databaseClient
       .singleUse()
       .executeQuery(Statement.newBuilder(sql).bind("current_time").to(clock.gcpTimestamp()).build())
-      .sequence()
+      .asSequence()
       .forEach { struct ->
         if (claim(struct.getLong("ComputationId"), struct.getTimestamp("UpdateTime"), ownerId)) {
           return getToken(struct.getLong("GlobalComputationId"))
@@ -404,7 +404,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     return runIfTokenFromLastUpdate(token) { ctx ->
       ctx
         .executeQuery(blobRefsForStageQuery)
-        .sequence()
+        .asSequence()
         .filter {
           val dep = ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
           when (dependencyType) {
