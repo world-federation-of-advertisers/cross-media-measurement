@@ -20,52 +20,6 @@ public class ProtocolEncryptionUtilityTest {
   }
 
   @Test
-  public void BlindOneLayerRegisterIndex_Unimplemented() {
-    BlindOneLayerRegisterIndexRequest request =
-        BlindOneLayerRegisterIndexRequest.getDefaultInstance();
-    RuntimeException exception =
-        assertThrows(
-            RuntimeException.class,
-            () -> ProtocolEncryptionUtility.BlindOneLayerRegisterIndex(request.toByteArray()));
-    assertThat(exception).hasMessageThat().contains("unimplemented");
-  }
-
-  @Test
-  public void BlindLastLayerIndexThenJoinRegistersRequest_Unimplemented() {
-    BlindLastLayerIndexThenJoinRegistersRequest request =
-        BlindLastLayerIndexThenJoinRegistersRequest.getDefaultInstance();
-    RuntimeException exception =
-        assertThrows(
-            RuntimeException.class,
-            () ->
-                ProtocolEncryptionUtility.BlindLastLayerIndexThenJoinRegisters(
-                    request.toByteArray()));
-    assertThat(exception).hasMessageThat().contains("unimplemented");
-  }
-
-  @Test
-  public void DecryptOneLayerFlagAndCount_Unimplemented() {
-    DecryptOneLayerFlagAndCountRequest request =
-        DecryptOneLayerFlagAndCountRequest.getDefaultInstance();
-    RuntimeException exception =
-        assertThrows(
-            RuntimeException.class,
-            () -> ProtocolEncryptionUtility.DecryptOneLayerFlagAndCount(request.toByteArray()));
-    assertThat(exception).hasMessageThat().contains("unimplemented");
-  }
-
-  @Test
-  public void DecryptLastLayerFlagAndCount_Unimplemented() {
-    DecryptLastLayerFlagAndCountRequest request =
-        DecryptLastLayerFlagAndCountRequest.getDefaultInstance();
-    RuntimeException exception =
-        assertThrows(
-            RuntimeException.class,
-            () -> ProtocolEncryptionUtility.DecryptLastLayerFlagAndCount(request.toByteArray()));
-    assertThat(exception).hasMessageThat().contains("unimplemented");
-  }
-
-  @Test
   public void BlindOneLayerRegisterIndex_invalidRequestProtoStringShouldFail() {
     RuntimeException exception =
         assertThrows(

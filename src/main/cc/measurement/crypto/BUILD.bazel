@@ -46,15 +46,3 @@ cc_library(
         "@com_google_private_join_and_compute//util:status",
     ],
 )
-
-cc_test(
-    name = "protocol_encryption_utility_wrapper_test",
-    size = "small",
-    srcs = [
-        "protocol_encryption_utility_wrapper_test.cc",
-    ],
-    deps = [
-        ":protocol_encryption_utility_wrapper",
-        "@googletest//:gtest_main",
-    ],
-)

@@ -85,7 +85,6 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
         "The size of sketch is not divisible by the register_size: " +
         std::to_string(kBytesPerCipherText * 3));
   }
-  const int num_registers = request.sketch().size() / (kBytesPerCipherText * 3);
   ASSIGN_OR_RETURN(
       CompositeCipher composite_cipher,
       CreateCompositeCipher(request.curve_id(), request.local_el_gamal_keys(),
