@@ -27,3 +27,9 @@ fun ResultSet.asSequence(): Sequence<Struct> = sequence {
  * more than one element.
  */
 fun ResultSet.singleOrNull(): Struct? = asSequence().singleOrNull()
+
+
+/**
+ * Returns the unique element in a [ResultSet]. Throws an error if the number of elements is not 1.
+ */
+fun ResultSet.single(): Struct = asSequence().single()

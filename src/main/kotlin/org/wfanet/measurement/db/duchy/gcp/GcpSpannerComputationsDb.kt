@@ -21,7 +21,9 @@ import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.gcpTimestamp
+import org.wfanet.measurement.db.gcp.getBytesAsByteArray
 import org.wfanet.measurement.db.gcp.getNullableString
+import org.wfanet.measurement.db.gcp.single
 import org.wfanet.measurement.db.gcp.singleOrNull
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
@@ -405,16 +407,34 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     return mutations
   }
 
+  override fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT {
+    val blobRefsForStageQuery =
+      Statement.newBuilder(
+        """
+        SELECT Details FROM ComputationStages
+        WHERE ComputationId = @local_id AND ComputationStage = @stage_as_int_64
+        """.trimIndent())
+        .bind("local_id").to(token.localId)
+        .bind("stage_as_int_64").to(computationMutations.enumToLong(token.state))
+        .build()
+    return computationMutations.parseDetails(
+        databaseClient.singleUseReadOnlyTransaction()
+          .executeQuery(blobRefsForStageQuery)
+          .single()
+          .getBytesAsByteArray("Details")
+    )
+  }
+
   override fun readBlobReferences(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
     val sql =
       """
-      SELECT BlobId, PathToBlob, DependencyType 
+      SELECT BlobId, PathToBlob, DependencyType
       FROM ComputationBlobReferences
       WHERE ComputationId = @local_id AND ComputationStage = @stage_as_int_64
-      """.trimMargin()
+      """.trimIndent()
     val blobRefsForStageQuery =
       Statement.newBuilder(sql)
         .bind("local_id").to(token.localId)

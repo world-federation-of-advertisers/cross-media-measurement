@@ -1103,6 +1103,50 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
+  fun readStageSpecificDetails() {
+    val token = ComputationToken(
+      globalId = 21231,
+      localId = 100,
+      state = FakeProtocolStates.D,
+      owner = null,
+      role = DuchyRole.PRIMARY,
+      nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
+      attempt = 1,
+      lastUpdateTime = testClock.last().toEpochMilli()
+    )
+    val computation = computationMutations.insertComputation(
+      localId = token.localId,
+      stage = FakeProtocolStates.D,
+      updateTime = testClock.last().toGcpTimestamp(),
+      globalId = token.globalId,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DEATILS
+    )
+    val stage = computationMutations.insertComputationStage(
+      localId = token.localId,
+      stage = FakeProtocolStates.D,
+      nextAttempt = 1,
+      creationTime = testClock.last().toGcpTimestamp(),
+      details = FakeProtocolStageDetails.getDefaultInstance()
+    )
+    spanner.client.write(listOf(computation, stage))
+    ProtoTruth.assertThat(database.readStageSpecificDetails(token)).isEqualToDefaultInstance()
+
+    val newDetails = FakeProtocolStageDetails.newBuilder().setName("AnotherName").build()
+    val stageWithSpecificDetails = computationMutations.updateComputationStage(
+      localId = token.localId,
+      stage = FakeProtocolStates.D,
+      details = newDetails
+    )
+    spanner.client.write(listOf(stageWithSpecificDetails))
+    assertEquals(
+      newDetails,
+      database.readStageSpecificDetails(token)
+    )
+  }
+
+  @Test
   fun `unimplemented interface functions`() {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,

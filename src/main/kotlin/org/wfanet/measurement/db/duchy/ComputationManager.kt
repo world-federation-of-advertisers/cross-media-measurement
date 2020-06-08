@@ -155,4 +155,14 @@ class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
     blobDatabase.blockingWrite(blobName, blob)
     relationalDatabase.writeOutputBlobReference(token, blobName)
   }
+
+  /**
+   * Reads the specific stage details as a [M] protobuf message for the current stage of a
+   * computation.
+   *
+   * @throws [IOException] upon failure
+   */
+  fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailT {
+    return relationalDatabase.readStageSpecificDetails(token)
+  }
 }

@@ -125,6 +125,11 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
   ): Map<BlobId, String?>
 
   /**
+   * Reads details for a specific stage of a computation as an [M] protobuf message.
+   */
+  fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT
+
+  /**
    * Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from
    * a stage.
    */
