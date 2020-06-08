@@ -18,3 +18,5 @@ fun ResultSet.asFlow(): Flow<Struct> = flow {
 /** Returns a [Sequence] of [Struct]s from a [ResultSet]. */
 fun ResultSet.sequence(): Sequence<Struct> =
   generateSequence { if (next()) currentRowAsStruct else null }
+
+fun ResultSet.singleOrNull(): Struct? = sequence().singleOrNull()

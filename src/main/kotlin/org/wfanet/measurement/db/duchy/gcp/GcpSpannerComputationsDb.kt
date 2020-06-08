@@ -9,8 +9,6 @@ import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
-import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
@@ -20,12 +18,11 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
-import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.sequence
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.singleOrNull
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.db.gcp.toProtoBytes
@@ -135,13 +132,7 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
         .bind("global_id").to(globalId)
         .build()
 
-    val struct = runBlocking(spannerDispatcher()) {
-      databaseClient
-        .singleUse()
-        .executeQuery(query)
-        .asFlow()
-        .singleOrNull()
-    } ?: return null
+    val struct = databaseClient.singleUse().executeQuery(query).singleOrNull() ?: return null
 
     val computationDetails =
       struct
@@ -198,13 +189,18 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       LIMIT 50
       """.trimIndent()
 
-    return databaseClient
+    databaseClient
       .singleUse()
       .executeQuery(Statement.newBuilder(sql).bind("current_time").to(clock.gcpTimestamp()).build())
       .sequence()
-      .filter { claim(it.getLong("ComputationId"), it.getTimestamp("UpdateTime"), ownerId) }
-      .map { getToken(it.getLong("GlobalComputationId")) }
-      .firstOrNull()
+      .forEach { struct ->
+        if (claim(struct.getLong("ComputationId"), struct.getTimestamp("UpdateTime"), ownerId)) {
+          return getToken(struct.getLong("GlobalComputationId"))
+        }
+      }
+
+    // Did not acquire the lock on any computation.
+    return null
   }
 
   /**
