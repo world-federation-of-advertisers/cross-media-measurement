@@ -3,8 +3,7 @@ package org.wfanet.measurement.service.internal.kingdom
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlin.test.assertFails
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -15,12 +14,12 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
+import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
-import org.wfanet.measurement.kingdom.RequisitionManager
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
@@ -32,30 +31,15 @@ class RequisitionStorageServiceTest {
       externalCampaignId = 2
       externalRequisitionId = 3
       createTimeBuilder.seconds = 456
-      state = RequisitionState.FULFILLED
+      state = RequisitionState.UNFULFILLED
     }.build()
   }
 
-  object FakeRequisitionManager : RequisitionManager {
-    var streamRequisitionsFn: (StreamRequisitionsFilter, Long) -> Flow<Requisition> =
-      { _, _ -> emptyFlow() }
-
-    override suspend fun createRequisition(requisition: Requisition): Requisition =
-      REQUISITION
-
-    override suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition =
-      REQUISITION
-
-    override fun streamRequisitions(
-      filter: StreamRequisitionsFilter,
-      limit: Long
-    ): Flow<Requisition> =
-      streamRequisitionsFn(filter, limit)
-  }
+  val fakeKingdomRelationalDatabase = FakeKingdomRelationalDatabase()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(RequisitionStorageService(FakeRequisitionManager))
+    listOf(RequisitionStorageService(fakeKingdomRelationalDatabase))
   }
 
   private val stub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub by lazy {
@@ -63,9 +47,47 @@ class RequisitionStorageServiceTest {
   }
 
   @Test
-  fun createRequisition() = runBlocking<Unit> {
-    assertThat(stub.createRequisition(REQUISITION))
+  fun `createRequisition fails with id`() = runBlocking<Unit> {
+    val requisition: Requisition = Requisition.newBuilder().apply {
+      externalDataProviderId = 1
+      externalCampaignId = 2
+      externalRequisitionId = 3 // <-- should be unset
+      state = RequisitionState.UNFULFILLED
+    }.build()
+
+    assertFails { stub.createRequisition(requisition) }
+  }
+
+  @Test
+  fun `createRequisition fails with wrong state`() = runBlocking<Unit> {
+    val requisition: Requisition = Requisition.newBuilder().apply {
+      externalDataProviderId = 1
+      externalCampaignId = 2
+      state = RequisitionState.FULFILLED
+    }.build()
+
+    assertFails { stub.createRequisition(requisition) }
+  }
+
+  @Test
+  fun `createRequisition success`() = runBlocking<Unit> {
+    val inputRequisition: Requisition = Requisition.newBuilder().apply {
+      externalDataProviderId = 1
+      externalCampaignId = 2
+      state = RequisitionState.UNFULFILLED
+    }.build()
+
+    var capturedRequisition: Requisition? = null
+    fakeKingdomRelationalDatabase.writeNewRequisitionFn = {
+      capturedRequisition = it
+      REQUISITION
+    }
+
+    assertThat(stub.createRequisition(inputRequisition))
       .isEqualTo(REQUISITION)
+
+    assertThat(capturedRequisition)
+      .isEqualTo(inputRequisition)
   }
 
   @Test
@@ -75,8 +97,17 @@ class RequisitionStorageServiceTest {
         .setExternalRequisitionId(12345)
         .build()
 
+    var capturedExternalRequisitionId: ExternalId? = null
+    fakeKingdomRelationalDatabase.fulfillRequisitionFn = {
+      capturedExternalRequisitionId = it
+      REQUISITION
+    }
+
     assertThat(stub.fulfillRequisition(request))
       .isEqualTo(REQUISITION)
+
+    assertThat(capturedExternalRequisitionId)
+      .isEqualTo(ExternalId(12345))
   }
 
   @Test
@@ -93,9 +124,9 @@ class RequisitionStorageServiceTest {
       }.build()
 
     var capturedFilter: StreamRequisitionsFilter? = null
-    var capturedLimit: Long = 0
+    var capturedLimit: Long? = null
 
-    FakeRequisitionManager.streamRequisitionsFn = { filter, limit ->
+    fakeKingdomRelationalDatabase.streamRequisitionsFn = { filter, limit ->
       capturedFilter = filter
       capturedLimit = limit
       flowOf(REQUISITION, REQUISITION)

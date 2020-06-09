@@ -6,27 +6,17 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
-import org.wfanet.measurement.kingdom.RequisitionExternalKey
-
-val Requisition.requisitionExternalKey: RequisitionExternalKey
-  get() = RequisitionExternalKey(
-    ExternalId(
-      externalDataProviderId
-    ),
-    ExternalId(
-      externalCampaignId
-    ),
-    ExternalId(
-      externalRequisitionId
-    )
-  )
 
 /**
  * Converts internal [Requisition] into a V1 API proto.
  */
 fun Requisition.toV1Api(): MetricRequisition =
   MetricRequisition.newBuilder().apply {
-    key = requisitionExternalKey.toV1Api()
+    keyBuilder.apply {
+      dataProviderId = ExternalId(externalDataProviderId).apiId.value
+      campaignId = ExternalId(externalCampaignId).apiId.value
+      metricRequisitionId = ExternalId(externalRequisitionId).apiId.value
+    }
     state = this@toV1Api.state.toV1Api()
   }.build()
 
