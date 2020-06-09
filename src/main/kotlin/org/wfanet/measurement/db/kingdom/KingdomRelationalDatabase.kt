@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.kingdom
 
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -31,4 +32,12 @@ interface KingdomRelationalDatabase {
     filter: StreamRequisitionsFilter,
     limit: Long
   ): Flow<Requisition>
+
+  /**
+   * Streams [Report]s.
+   */
+  fun streamReports(
+    filter: StreamReportsFilter,
+    limit: Long
+  ): Flow<Report>
 }

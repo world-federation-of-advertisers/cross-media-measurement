@@ -6,11 +6,13 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
+import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 class GcpKingdomRelationalDatabase(
-  private val randomIdGenerator: RandomIdGenerator,
+  randomIdGenerator: RandomIdGenerator,
   private val client: DatabaseClient
 ) : KingdomRelationalDatabase {
 
@@ -31,6 +33,13 @@ class GcpKingdomRelationalDatabase(
     limit: Long
   ): Flow<Requisition> =
     StreamRequisitionsQuery().execute(
+      client.singleUse(),
+      filter,
+      limit
+    )
+
+  override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> =
+    StreamReportsQuery().execute(
       client.singleUse(),
       filter,
       limit

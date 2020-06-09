@@ -25,7 +25,7 @@ service ReportStorage {
 }
 
 message CreateNextReportRequest {
-  string external_schedule_id = 1;
+  int64 external_schedule_id = 1;
 }
 
 message StreamReportsRequest {
@@ -38,8 +38,6 @@ message StreamReportsRequest {
   // If a repeated field is not empty, then all output Reports must match one of
   // the entries.
   message Filter {
-    repeated int64 external_data_provider_ids = 1;
-    repeated int64 external_campaign_ids = 2;
     repeated int64 external_advertiser_ids = 3;
     repeated int64 external_report_config_ids = 4;
     repeated int64 external_schedule_ids = 5;

@@ -15,3 +15,21 @@ kt_jvm_test(
         "@io_grpc_grpc_java//testing",
     ],
 )
+
+kt_jvm_test(
+    name = "report_storage_service_test",
+    srcs = ["ReportStorageServiceTest.kt"],
+    test_class = "org.wfanet.measurement.service.internal.kingdom.ReportStorageServiceTest",
+    deps = [
+        "//:grpc_core",
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_storage_service_kt_jvm_grpc",
+        "@io_grpc_grpc_java//testing",
+    ],
+)

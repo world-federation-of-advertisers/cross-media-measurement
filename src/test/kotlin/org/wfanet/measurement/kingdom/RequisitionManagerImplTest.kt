@@ -3,7 +3,6 @@ package org.wfanet.measurement.kingdom
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -11,9 +10,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
+import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
@@ -45,29 +44,21 @@ class RequisitionManagerImplTest {
       }.build()
   }
 
-  object FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
-    override suspend fun writeNewRequisition(requisition: Requisition): Requisition {
-      assertThat(requisition).isEqualTo(NEW_REQUISITION)
-      return REQUISITION
-    }
-
-    override suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition {
-      assertThat(externalRequisitionId).isEqualTo(ExternalId(REQUISITION.externalRequisitionId))
-      return REQUISITION
-    }
-
-    override fun streamRequisitions(
-      filter: StreamRequisitionsFilter,
-      limit: Long
-    ): Flow<Requisition> = flowOf(REQUISITION)
-  }
-
-  private val requisitionManager = RequisitionManagerImpl(FakeKingdomRelationalDatabase)
+  private val fakeKingdomRelationalDatabase = FakeKingdomRelationalDatabase()
+  private val requisitionManager = RequisitionManagerImpl(fakeKingdomRelationalDatabase)
 
   @Test
   fun `createRequisition normal`() = runBlocking {
+    var capturedRequisition: Requisition? = null
+    fakeKingdomRelationalDatabase.writeNewRequisitionFn = {
+      capturedRequisition = it
+      REQUISITION
+    }
+
     val result = requisitionManager.createRequisition(NEW_REQUISITION)
+
     assertThat(result).isEqualTo(REQUISITION)
+    assertThat(capturedRequisition).isEqualTo(NEW_REQUISITION)
   }
 
   @Test
@@ -87,17 +78,37 @@ class RequisitionManagerImplTest {
 
   @Test
   fun fulfillRequisition() = runBlocking {
+    var capturedExternalRequisitionId: ExternalId? = null
+    fakeKingdomRelationalDatabase.fulfillRequisitionFn = {
+      capturedExternalRequisitionId = it
+      REQUISITION
+    }
+
     assertThat(requisitionManager.fulfillRequisition(ExternalId(REQUISITION.externalRequisitionId)))
       .isEqualTo(REQUISITION)
+
+    assertThat(capturedExternalRequisitionId)
+      .isEqualTo(ExternalId(REQUISITION.externalRequisitionId))
   }
 
   @Test
   fun streamRequisitions() = runBlocking<Unit> {
+    var capturedFilter: StreamRequisitionsFilter? = null
+    var capturedLimit: Long? = null
+    fakeKingdomRelationalDatabase.streamRequisitionsFn = { filter, limit ->
+      capturedFilter = filter
+      capturedLimit = limit
+      flowOf(REQUISITION)
+    }
+
+    val filter = streamRequisitionsFilter()
     val requisitions =
       requisitionManager
-        .streamRequisitions(streamRequisitionsFilter(), 10)
+        .streamRequisitions(filter, 10)
         .toList()
 
     assertThat(requisitions).containsExactly(REQUISITION)
+    assertThat(capturedFilter).isSameInstanceAs(filter)
+    assertThat(capturedLimit).isEqualTo(10)
   }
 }

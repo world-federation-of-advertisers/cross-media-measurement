@@ -7,6 +7,7 @@ kt_jvm_test(
     deps = [
         "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom",
     ],
 )
