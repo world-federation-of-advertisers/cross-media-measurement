@@ -34,6 +34,13 @@ interface KingdomRelationalDatabase {
   ): Flow<Requisition>
 
   /**
+   * Creates the next [Report] for a [ReportConfigSchedule].
+   *
+   * If the report start window would be in the future, this does nothing.
+   */
+  fun createNextReport(externalScheduleId: ExternalId): Report
+
+  /**
    * Streams [Report]s.
    */
   fun streamReports(

@@ -2,13 +2,11 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/timestamp.proto";
 import "src/main/proto/wfa/measurement/internal/kingdom/time_period.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-message RepetitionSpec {
-  google.protobuf.Timestamp start = 1;
-  TimePeriod repetition_period = 2;
+message ReportConfigDetails {
+  TimePeriod report_duration = 1;
 }

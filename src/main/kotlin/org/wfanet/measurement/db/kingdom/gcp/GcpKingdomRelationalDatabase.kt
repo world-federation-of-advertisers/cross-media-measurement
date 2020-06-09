@@ -1,6 +1,9 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseClient
+import com.google.cloud.spanner.TimestampBound
+import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.RandomIdGenerator
@@ -12,11 +15,13 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 class GcpKingdomRelationalDatabase(
+  clock: Clock,
   randomIdGenerator: RandomIdGenerator,
   private val client: DatabaseClient
 ) : KingdomRelationalDatabase {
 
   private val createRequisitionTransaction = CreateRequisitionTransaction(randomIdGenerator)
+  private val createNextReportTransaction = CreateNextReportTransaction(clock, randomIdGenerator)
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
     client.runReadWriteTransaction { transactionContext ->
@@ -37,6 +42,19 @@ class GcpKingdomRelationalDatabase(
       filter,
       limit
     )
+
+  override fun createNextReport(externalScheduleId: ExternalId): Report {
+    val runner = client.readWriteTransaction()
+    runner.run { transactionContext ->
+      createNextReportTransaction.execute(transactionContext, externalScheduleId)
+    }
+    val commitTimestamp: Timestamp = runner.commitTimestamp
+
+    return ReadReportQuery().execute(
+      client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp)),
+      externalScheduleId
+    )
+  }
 
   override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> =
     StreamReportsQuery().execute(

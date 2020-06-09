@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message TimePeriod {
+  enum Unit {
+    UNIT_UNKNOWN = 0;
+    DAY = 1;
+    HOUR = 2;
+  }
+
+  Unit unit = 1;
+  int64 count = 2;
+}

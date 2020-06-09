@@ -77,6 +77,22 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "create_next_report_transaction_test",
+    srcs = ["CreateNextReportTransactionTest.kt"],
+    resources = [
+        "//src/main/db/gcp:measurement_provider_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateNextReportTransactionTest",
+    deps = [
+        "//:google_cloud_spanner",
+        "//:unit_testing_core",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "stream_reports_query_test",
     srcs = ["StreamReportsQueryTest.kt"],
     resources = [

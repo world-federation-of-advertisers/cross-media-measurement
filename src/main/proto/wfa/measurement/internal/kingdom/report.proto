@@ -24,7 +24,7 @@ message Report {
   fixed64 external_schedule_id = 3;
   fixed64 external_report_id = 4;
 
-  google.protobuf.Timestamp createTime = 10;
+  google.protobuf.Timestamp create_time = 10;
   google.protobuf.Timestamp window_start_time = 8;
   google.protobuf.Timestamp window_end_time = 9;
 

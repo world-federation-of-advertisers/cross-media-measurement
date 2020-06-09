@@ -186,7 +186,8 @@ CREATE INDEX ReportsByTimeWindow
 -- Enable finding reports ready to be worked on.
 CREATE INDEX ReportsByState ON Reports(State);
 
-CREATE UNIQUE INDEX ReportsByExternalId ON Reports(ExternalReportId);
+CREATE UNIQUE INDEX ReportsByExternalId
+  ON Reports(ExternalReportId, CreateTime DESC);
 
 CREATE TABLE ReportConfigCampaigns (
   AdvertiserId    INT64 NOT NULL,

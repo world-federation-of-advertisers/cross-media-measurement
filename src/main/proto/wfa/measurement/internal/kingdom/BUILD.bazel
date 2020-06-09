@@ -6,7 +6,10 @@ package(default_visibility = ["//:__subpackages__"])
 
 proto_and_java_proto_library(
     name = "repetition_spec",
-    deps = ["@com_google_protobuf//:timestamp_proto"],
+    deps = [
+        ":time_period_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 proto_and_java_proto_library(
@@ -14,6 +17,13 @@ proto_and_java_proto_library(
     deps = [
         ":report_details_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_and_java_proto_library(
+    name = "report_config_details",
+    deps = [
+        ":time_period_proto",
     ],
 )
 
@@ -76,4 +86,8 @@ proto_library(
 java_and_kt_grpc_library(
     name = "requisition_storage_service",
     deps = [":requisition_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "time_period",
 )

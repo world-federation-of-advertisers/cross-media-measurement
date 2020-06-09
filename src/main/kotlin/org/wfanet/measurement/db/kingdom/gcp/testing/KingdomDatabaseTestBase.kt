@@ -10,6 +10,7 @@ import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 
 abstract class KingdomDatabaseTestBase :
@@ -38,6 +39,7 @@ abstract class KingdomDatabaseTestBase :
     advertiserId: Long,
     reportConfigId: Long,
     externalReportConfigId: Long,
+    reportConfigDetails: ReportConfigDetails = ReportConfigDetails.getDefaultInstance(),
     numRequisitions: Long = 0
   ) {
     spanner.client.write(
@@ -48,8 +50,8 @@ abstract class KingdomDatabaseTestBase :
           .set("ExternalReportConfigId").to(externalReportConfigId)
           .set("NumRequisitions").to(numRequisitions)
           .set("State").to(0)
-          .set("ReportConfigDetails").to(com.google.cloud.ByteArray.copyFrom(""))
-          .set("ReportConfigDetailsJson").to("irrelevant-report-config-details-json")
+          .set("ReportConfigDetails").to(reportConfigDetails.toSpannerByteArray())
+          .set("ReportConfigDetailsJson").to(reportConfigDetails.toJson())
           .build()
       )
     )
