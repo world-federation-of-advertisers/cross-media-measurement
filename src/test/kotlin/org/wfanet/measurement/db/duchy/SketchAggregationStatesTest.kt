@@ -1,6 +1,7 @@
 package org.wfanet.measurement.db.duchy
 
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.Test
@@ -19,11 +20,15 @@ class SketchAggregationStatesTest {
   @Test
   fun `enumToLong then longToEnum results in same enum value`() {
     for (state in SketchAggregationState.values()) {
-      assertEquals(
-        state,
-        SketchAggregationStates.longToEnum(SketchAggregationStates.enumToLong(state)),
-        "enumToLong and longToEnum were not inverses for $state"
-      )
+      if (state == SketchAggregationState.UNRECOGNIZED) {
+        assertFails { SketchAggregationStates.enumToLong(state) }
+      } else {
+        assertEquals(
+          state,
+          SketchAggregationStates.longToEnum(SketchAggregationStates.enumToLong(state)),
+          "enumToLong and longToEnum were not inverses for $state"
+        )
+      }
     }
   }
 
