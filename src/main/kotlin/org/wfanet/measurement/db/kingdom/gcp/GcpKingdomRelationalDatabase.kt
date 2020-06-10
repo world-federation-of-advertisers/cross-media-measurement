@@ -62,4 +62,14 @@ class GcpKingdomRelationalDatabase(
       filter,
       limit
     )
+
+  override fun associateRequisitionToReport(
+    externalRequisitionId: ExternalId,
+    externalReportId: ExternalId
+  ) {
+    client.runReadWriteTransaction { transactionContext ->
+      AssociateRequisitionAndReportTransaction()
+        .execute(transactionContext, externalRequisitionId, externalReportId)
+    }
+  }
 }

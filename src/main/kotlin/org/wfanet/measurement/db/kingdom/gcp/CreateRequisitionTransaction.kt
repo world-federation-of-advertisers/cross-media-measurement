@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.numberAsLong
+import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
@@ -87,17 +88,14 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
         AND Requisitions.WindowEndTime = @window_end_time
       """.trimIndent()
 
-    val reader = RequisitionReader()
-
-    reader.builder
-      .append(whereClause)
-      .bind("external_data_provider_id").to(newRequisition.externalDataProviderId)
-      .bind("external_campaign_id").to(newRequisition.externalCampaignId)
-      .bind("window_start_time").to(newRequisition.windowStartTime.toGcpTimestamp())
-      .bind("window_end_time").to(newRequisition.windowEndTime.toGcpTimestamp())
-      .build()
-
-    return reader
+    return RequisitionReader()
+      .withBuilder {
+        appendClause(whereClause)
+        bind("external_data_provider_id").to(newRequisition.externalDataProviderId)
+        bind("external_campaign_id").to(newRequisition.externalCampaignId)
+        bind("window_start_time").to(newRequisition.windowStartTime.toGcpTimestamp())
+        bind("window_end_time").to(newRequisition.windowEndTime.toGcpTimestamp())
+      }
       .execute(transactionContext)
       .map { it.requisition }
       .filter { it.requisitionDetails == newRequisition.requisitionDetails }

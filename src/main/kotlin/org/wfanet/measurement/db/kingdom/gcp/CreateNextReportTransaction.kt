@@ -40,13 +40,13 @@ class CreateNextReportTransaction(
   private suspend fun readSchedule(
     transactionContext: TransactionContext,
     externalScheduleId: ExternalId
-  ): ScheduleReadResult {
-    val reader = ScheduleReader()
-    reader.builder
-      .appendClause("WHERE ReportConfigSchedules.ExternalScheduleId = @external_schedule_id")
-      .bind("external_schedule_id").to(externalScheduleId.value)
-    return reader.execute(transactionContext).single()
-  }
+  ): ScheduleReadResult =
+    ScheduleReader()
+      .withBuilder {
+        appendClause("WHERE ReportConfigSchedules.ExternalScheduleId = @external_schedule_id")
+        bind("external_schedule_id").to(externalScheduleId.value)
+      }
+      .execute(transactionContext).single()
 
   private fun createNewReport(
     transactionContext: TransactionContext,

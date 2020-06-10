@@ -47,4 +47,9 @@ interface KingdomRelationalDatabase {
     filter: StreamReportsFilter,
     limit: Long
   ): Flow<Report>
+
+  /**
+   * Associates a [Requisition] and a [Report].
+   */
+  fun associateRequisitionToReport(externalRequisitionId: ExternalId, externalReportId: ExternalId)
 }

@@ -8,9 +8,9 @@ import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 /**
- * Reads [Requisition] protos (and internal requisition ids) from Spanner.
+ * Reads [Requisition] protos (and their internal primary keys) from Spanner.
  */
-class RequisitionReader : SpannerReader<RequisitionAndInternalId>() {
+class RequisitionReader : SpannerReader<RequisitionReadResult>() {
   override val baseSql: String =
     """
     SELECT Requisitions.DataProviderId,
@@ -30,10 +30,12 @@ class RequisitionReader : SpannerReader<RequisitionAndInternalId>() {
     JOIN Campaigns USING (DataProviderId, CampaignId)
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): RequisitionAndInternalId =
-    RequisitionAndInternalId(
-      buildRequisition(struct),
-      struct.getLong("RequisitionId")
+  override suspend fun translate(struct: Struct): RequisitionReadResult =
+    RequisitionReadResult(
+      requisition = buildRequisition(struct),
+      dataProviderId = struct.getLong("DataProviderId"),
+      campaignId = struct.getLong("CampaignId"),
+      requisitionId = struct.getLong("RequisitionId")
     )
 
   private fun buildRequisition(struct: Struct): Requisition = Requisition.newBuilder().apply {
@@ -54,7 +56,9 @@ class RequisitionReader : SpannerReader<RequisitionAndInternalId>() {
   }.build()
 }
 
-data class RequisitionAndInternalId(
+data class RequisitionReadResult(
   val requisition: Requisition,
+  val dataProviderId: Long,
+  val campaignId: Long,
   val requisitionId: Long
 )

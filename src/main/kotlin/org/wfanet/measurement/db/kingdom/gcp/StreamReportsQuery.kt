@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.ReadContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.internal.kingdom.Report
@@ -23,8 +24,7 @@ class StreamReportsQuery {
       .appendClause("ORDER BY CreateTime ASC")
       .appendClause("LIMIT @limit")
       .bind("limit").to(limit)
-      .build()
 
-    return reader.execute(readContext)
+    return reader.execute(readContext).map { it.report }
   }
 }

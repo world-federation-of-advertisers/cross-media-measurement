@@ -9,7 +9,7 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 /**
  * Reads [Report] protos from Spanner.
  */
-class ReportReader : SpannerReader<Report>() {
+class ReportReader : SpannerReader<ReportReadResult>() {
   override val baseSql: String =
     """
     SELECT
@@ -33,7 +33,16 @@ class ReportReader : SpannerReader<Report>() {
     JOIN ReportConfigSchedules USING (AdvertiserId, ReportConfigId, ScheduleId)
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): Report = Report.newBuilder().apply {
+  override suspend fun translate(struct: Struct): ReportReadResult =
+    ReportReadResult(
+      buildReport(struct),
+      struct.getLong("AdvertiserId"),
+      struct.getLong("ReportConfigId"),
+      struct.getLong("ScheduleId"),
+      struct.getLong("ReportId")
+    )
+
+  private fun buildReport(struct: Struct): Report = Report.newBuilder().apply {
     externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
     externalReportConfigId = struct.getLong("ExternalReportConfigId")
     externalScheduleId = struct.getLong("ExternalScheduleId")
@@ -49,3 +58,11 @@ class ReportReader : SpannerReader<Report>() {
     reportDetailsJson = struct.getString("ReportDetailsJson")
   }.build()
 }
+
+data class ReportReadResult(
+  val report: Report,
+  val advertiserId: Long,
+  val reportConfigId: Long,
+  val scheduleId: Long,
+  val reportId: Long
+)

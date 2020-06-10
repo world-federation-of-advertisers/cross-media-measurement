@@ -19,6 +19,11 @@ abstract class SpannerReader<T> {
     Statement.newBuilder(baseSql)
   }
 
+  fun withBuilder(block: Statement.Builder.() -> Unit): SpannerReader<T> {
+    builder.block()
+    return this
+  }
+
   fun execute(readContext: ReadContext): Flow<T> =
     readContext.executeQuery(builder.build()).asFlow().map(::translate)
 }

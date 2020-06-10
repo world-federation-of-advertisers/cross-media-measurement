@@ -8,7 +8,7 @@ import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.internal.kingdom.Report
 
 class ReadReportQuery {
-  fun execute(readContext: ReadContext, externalScheduleId: ExternalId): Report {
+  fun execute(readContext: ReadContext, externalScheduleId: ExternalId): Report = runBlocking {
     val whereClause =
       """
       WHERE ReportConfigSchedules.ExternalScheduleId = @external_schedule_id
@@ -16,12 +16,13 @@ class ReadReportQuery {
       LIMIT 1
       """.trimIndent()
 
-    val reader = ReportReader()
-
-    reader.builder
-      .appendClause(whereClause)
-      .bind("external_schedule_id").to(externalScheduleId.value)
-
-    return runBlocking { reader.execute(readContext).single() }
+    ReportReader()
+      .withBuilder {
+        appendClause(whereClause)
+        bind("external_schedule_id").to(externalScheduleId.value)
+      }
+      .execute(readContext)
+      .single()
+      .report
   }
 }

@@ -4,9 +4,6 @@ import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
 import java.time.Period
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,19 +48,6 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
       CreateNextReportTransaction(clock, FakeIdGenerator)
         .execute(transactionContext, externalScheduleId)
     }
-  }
-
-  private fun readAllReportsInSpanner(): List<Report> = runBlocking {
-    ReportReader()
-      .execute(spanner.client.singleUse())
-      .toList()
-  }
-
-  private fun readAllSchedulesInSpanner(): List<ReportConfigSchedule> = runBlocking {
-    ScheduleReader()
-      .execute(spanner.client.singleUse())
-      .map { it.schedule }
-      .toList()
   }
 
   @Before
