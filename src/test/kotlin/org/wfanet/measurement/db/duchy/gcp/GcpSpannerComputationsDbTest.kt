@@ -70,7 +70,6 @@ object ProtocolHelper : ProtocolStateEnumHelper<FakeProtocolStates> {
   }
 }
 
-// TODO(fryej): Use ComputationMutations helper functions in the test.
 @RunWith(JUnit4::class)
 class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
 
@@ -263,33 +262,30 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun getToken() {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1000)
-    val computation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(100)
-      .set("ComputationStage").to(3)
-      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
-      .set("GlobalComputationId").to(21231)
-      .set("LockOwner").to("Fred")
-      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val computationStageB = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(100)
-      .set("ComputationStage").to(2)
-      .set("NextAttempt").to(45)
-      .set("CreationTime").to((lastUpdated.minusSeconds(2)).toGcpTimestamp())
-      .set("EndTime").to((lastUpdated.minusMillis(200)).toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
-    val computationStageD = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(100)
-      .set("ComputationStage").to(3)
-      .set("NextAttempt").to(2)
-      .set("CreationTime").to(lastUpdated.toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
+    val computation = insertComputation(
+      localId = 100,
+      updateTime = lastUpdated.toGcpTimestamp(),
+      globalId = 21231,
+      stage = 3,
+      lockOwner = "Fred",
+      lockExpirationTime = lockExpires.toGcpTimestamp(),
+      details = COMPUTATION_DEATILS
+    )
+    val computationStageB = insertComputationStage(
+      localId = 100,
+      stage = 2,
+      nextAttempt = 45,
+      creationTime = lastUpdated.minusSeconds(2).toGcpTimestamp(),
+      endTime = lastUpdated.minusMillis(200).toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
+    val computationStageD = insertComputationStage(
+      localId = 100,
+      stage = 3,
+      nextAttempt = 2,
+      creationTime = lastUpdated.toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
     spanner.client.write(
       listOf(
         computation,
@@ -331,26 +327,25 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = lastUpdated.toEpochMilli()
     )
 
-    val computation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(ProtocolHelper.enumToLong(token.state))
-      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
-      .set("GlobalComputationId").to(token.globalId)
-      .set("LockOwner").to(token.owner)
-      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val differentComputation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(456789)
-      .set("ComputationStage").to(1)
-      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
-      .set("GlobalComputationId").to(10111213)
-      .set("LockOwner").to(token.owner)
-      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
+    val computation = insertComputation(
+      localId = token.localId,
+      updateTime = lastUpdated.toGcpTimestamp(),
+      globalId = token.globalId,
+      stage = ProtocolHelper.enumToLong(token.state),
+      lockOwner = token.owner!!,
+      lockExpirationTime = lockExpires.toGcpTimestamp(),
+      details = COMPUTATION_DEATILS
+    )
+    val differentComputation =
+      insertComputation(
+        localId = 456789,
+        updateTime = lastUpdated.toGcpTimestamp(),
+        globalId = 10111213,
+        stage = 1,
+        lockOwner = token.owner!!,
+        lockExpirationTime = lockExpires.toGcpTimestamp(),
+        details = COMPUTATION_DEATILS
+      )
 
     spanner.client.write(listOf(computation, differentComputation))
     database.enqueue(token)
@@ -405,16 +400,15 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       lastUpdateTime = lastUpdated.minusSeconds(200).toEpochMilli()
     )
 
-    val computation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(ProtocolHelper.enumToLong(token.state))
-      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
-      .set("GlobalComputationId").to(token.globalId)
-      .set("LockOwner").to(token.owner)
-      .set("LockExpirationTime").to(lockExpires.toGcpTimestamp())
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
+    val computation = insertComputation(
+      localId = token.localId,
+      updateTime = lastUpdated.toGcpTimestamp(),
+      globalId = token.globalId,
+      stage = ProtocolHelper.enumToLong(token.state),
+      lockOwner = token.owner!!,
+      lockExpirationTime = lockExpires.toGcpTimestamp(),
+      details = COMPUTATION_DEATILS
+    )
     spanner.client.write(listOf(computation))
     assertFailsWith<SpannerException> { database.enqueue(token) }
   }
@@ -426,44 +420,39 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("TimeOfTest", 300)
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcpTimestamp()
     val sixMinutesAgo = testClock["6_minutes_ago"].toGcpTimestamp()
-    val enqueuedFiveMinutesAgo = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(555)
-      .set("ComputationStage").to(0)
-      .set("UpdateTime").to(fiveMinutesAgo)
-      .set("GlobalComputationId").to(55)
-      .set("LockOwner").to(null as String?)
-      .set("LockExpirationTime").to(fiveMinutesAgo)
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val enqueuedFiveMinutesAgoStage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(555)
-      .set("ComputationStage").to(0)
-      .set("NextAttempt").to(1)
-      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
+    val enqueuedFiveMinutesAgo = insertComputation(
+      localId = 555,
+      updateTime = fiveMinutesAgo,
+      globalId = 55,
+      stage = 0,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = fiveMinutesAgo,
+      details = COMPUTATION_DEATILS
+    )
+    val enqueuedFiveMinutesAgoStage = insertComputationStage(
+      localId = 555,
+      stage = 0,
+      nextAttempt = 1,
+      creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
 
-    val enqueuedSixMinutesAgo = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(66)
-      .set("ComputationStage").to(0)
-      .set("UpdateTime").to(sixMinutesAgo)
-      .set("GlobalComputationId").to(6)
-      .set("LockOwner").to(null as String?)
-      .set("LockExpirationTime").to(sixMinutesAgo)
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val enqueuedSixMinutesAgoStage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(66)
-      .set("ComputationStage").to(0)
-      .set("NextAttempt").to(1)
-      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
-
+    val enqueuedSixMinutesAgo = insertComputation(
+      localId = 66,
+      stage = 0,
+      updateTime = sixMinutesAgo,
+      globalId = 6,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = sixMinutesAgo,
+      details = COMPUTATION_DEATILS
+    )
+    val enqueuedSixMinutesAgoStage = insertComputationStage(
+      localId = 66,
+      stage = 0,
+      nextAttempt = 1,
+      creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
     spanner.client.write(
       listOf(
         enqueuedFiveMinutesAgo,
@@ -526,56 +515,52 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("TimeOfTest", 300)
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcpTimestamp()
     val fiveMinutesFromNow = testClock.last().plusSeconds(300).toGcpTimestamp()
-    val expiredClaim = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(111)
-      .set("ComputationStage").to(0)
-      .set("UpdateTime").to(testClock["start"].toGcpTimestamp())
-      .set("GlobalComputationId").to(11)
-      .set("LockOwner").to("owner-of-the-lock")
-      .set("LockExpirationTime").to(fiveMinutesAgo)
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val expiredClaimStage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(111)
-      .set("ComputationStage").to(0)
-      .set("NextAttempt").to(2)
-      .set("CreationTime").to(fiveMinutesAgo)
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
-    val expiredClaimAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
-      .set("ComputationId").to(111)
-      .set("ComputationStage").to(0)
-      .set("Attempt").to(1)
-      .set("BeginTime").to(fiveMinutesAgo)
-      .build()
+    val expiredClaim = insertComputation(
+      localId = 111L,
+      stage = 0,
+      updateTime = testClock["start"].toGcpTimestamp(),
+      globalId = 11,
+      lockOwner = "owner-of-the-lock",
+      lockExpirationTime = fiveMinutesAgo,
+      details = COMPUTATION_DEATILS
+    )
+    val expiredClaimStage = insertComputationStage(
+      localId = 111,
+      stage = 0,
+      nextAttempt = 2,
+      creationTime = fiveMinutesAgo,
+      details = STAGE_DETAILS
+    )
+    val expiredClaimAttempt = insertComputationStageAttempt(
+      localId = 111,
+      stage = 0,
+      attempt = 1,
+      beginTime = fiveMinutesAgo
+    )
     spanner.client.write(listOf(expiredClaim, expiredClaimStage, expiredClaimAttempt))
 
-    val claimed = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(333)
-      .set("ComputationStage").to(0)
-      .set("UpdateTime").to(testClock["start"].toGcpTimestamp())
-      .set("GlobalComputationId").to(33)
-      .set("LockOwner").to("owner-of-the-lock")
-      .set("LockExpirationTime").to(fiveMinutesFromNow)
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val claimedStage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(333)
-      .set("ComputationStage").to(0)
-      .set("NextAttempt").to(2)
-      .set("CreationTime").to(fiveMinutesAgo)
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
-    val claimedAttempt = Mutation.newInsertBuilder("ComputationStageAttempts")
-      .set("ComputationId").to(333)
-      .set("ComputationStage").to(0)
-      .set("Attempt").to(1)
-      .set("BeginTime").to(fiveMinutesAgo)
-      .build()
+    val claimed = insertComputation(
+      localId = 333,
+      stage = 0,
+      updateTime = testClock["start"].toGcpTimestamp(),
+      globalId = 33,
+      lockOwner = "owner-of-the-lock",
+      lockExpirationTime = fiveMinutesFromNow,
+      details = COMPUTATION_DEATILS
+    )
+    val claimedStage = insertComputationStage(
+      localId = 333,
+      stage = 0,
+      nextAttempt = 2,
+      creationTime = fiveMinutesAgo,
+      details = STAGE_DETAILS
+    )
+    val claimedAttempt = insertComputationStageAttempt(
+      localId = 333,
+      stage = 0,
+      attempt = 1,
+      beginTime = fiveMinutesAgo
+    )
     spanner.client.write(listOf(claimed, claimedStage, claimedAttempt))
 
     // Claim a task that is owned but the lock expired.
@@ -620,24 +605,22 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = lastUpdated.toEpochMilli()
     )
     val fiveSecondsFromNow = Instant.now().plusSeconds(5).toGcpTimestamp()
-    val computation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(4)
-      .set("UpdateTime").to(lastUpdated.toGcpTimestamp())
-      .set("GlobalComputationId").to(token.globalId)
-      .set("LockOwner").to(token.owner)
-      .set("LockExpirationTime").to(fiveSecondsFromNow)
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val stage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(4)
-      .set("NextAttempt").to(3)
-      .set("CreationTime").to(Instant.ofEpochMilli(3456789L).toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
+    val computation = insertComputation(
+      token.localId,
+      lastUpdated.toGcpTimestamp(),
+      token.globalId,
+      stage = 4,
+      lockOwner = token.owner!!,
+      lockExpirationTime = fiveSecondsFromNow,
+      details = COMPUTATION_DEATILS
+    )
+    val stage = insertComputationStage(
+      localId = token.localId,
+      stage = 4,
+      nextAttempt = 3,
+      creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
     spanner.client.write(listOf(computation, stage))
     assertEquals(
       token.copy(lastUpdateTime = TEST_INSTANT.toEpochMilli()),
@@ -689,30 +672,29 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       role = DuchyRole.PRIMARY, attempt = 2,
       lastUpdateTime = testClock["last_updated"].toEpochMilli()
     )
-    val computation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("UpdateTime").to(testClock["last_updated"].toGcpTimestamp())
-      .set("GlobalComputationId").to(token.globalId)
-      .set("LockOwner").to(token.owner)
-      .set("LockExpirationTime").to(testClock["lock_expires"].toGcpTimestamp())
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val stage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("NextAttempt").to(3)
-      .set("CreationTime").to(testClock["stage_b_created"].toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
-    val attempt = Mutation.newInsertBuilder("ComputationStageAttempts")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("Attempt").to(2)
-      .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
-      .build()
+    val computation = insertComputation(
+      localId = token.localId,
+      updateTime = testClock["last_updated"].toGcpTimestamp(),
+      globalId = token.globalId,
+      stage = 1,
+      lockOwner = token.owner!!,
+      lockExpirationTime = testClock["lock_expires"].toGcpTimestamp(),
+      details = COMPUTATION_DEATILS
+    )
+    val stage = insertComputationStage(
+      localId = token.localId,
+      stage = 1,
+      nextAttempt = 3,
+      creationTime = testClock["stage_b_created"].toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
+    val attempt =
+      insertComputationStageAttempt(
+        localId = token.localId,
+        stage = 1,
+        attempt = 2,
+        beginTime = testClock["stage_b_created"].toGcpTimestamp()
+      )
     spanner.client.write(listOf(computation, stage, attempt))
     testClock.tickSeconds("update_stage", 100)
     assertEquals(
@@ -1056,24 +1038,22 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       owner = null, nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
     )
-    val computation = Mutation.newInsertBuilder("Computations")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("UpdateTime").to(testClock.last().toGcpTimestamp())
-      .set("GlobalComputationId").to(token.globalId)
-      .set("LockOwner").to(token.owner)
-      .set("LockExpirationTime").to(testClock.last().toGcpTimestamp())
-      .set("ComputationDetails").toProtoBytes(COMPUTATION_DEATILS)
-      .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DEATILS)
-      .build()
-    val stage = Mutation.newInsertBuilder("ComputationStages")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("NextAttempt").to(3)
-      .set("CreationTime").to(testClock.last().toGcpTimestamp())
-      .set("Details").toProtoBytes(STAGE_DETAILS)
-      .set("DetailsJSON").toProtoJson(STAGE_DETAILS)
-      .build()
+    val computation = insertComputation(
+      localId = token.localId,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = 1,
+      globalId = token.globalId,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DEATILS
+    )
+    val stage = insertComputationStage(
+      localId = token.localId,
+      stage = 1,
+      nextAttempt = 3,
+      creationTime = testClock.last().toGcpTimestamp(),
+      details = STAGE_DETAILS
+    )
 
     val inputBlobA = Mutation.newInsertBuilder("ComputationBlobReferences")
       .set("ComputationId").to(token.localId)
