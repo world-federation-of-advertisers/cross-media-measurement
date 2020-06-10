@@ -1,6 +1,17 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 load("//src/main/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
+proto_library(
+    name = "fake_protocol_state_details_proto",
+    srcs = ["fake_protocol_state_details.proto"],
+    deps = ["//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto"],
+)
+
+java_proto_library(
+    name = "fake_protocol_state_details_java_proto",
+    deps = [":fake_protocol_state_details_proto"],
+)
+
 kt_jvm_test(
     name = "local_computaiton_id_generators_test",
     srcs = ["LocalComputationIdGeneratorsTest.kt"],
@@ -34,11 +45,11 @@ spanner_emulator_test(
     ],
     test_class = "org.wfanet.measurement.db.duchy.gcp.GcpSpannerComputationsDbTest",
     deps = [
+        ":fake_protocol_state_details_java_proto",
         "//:google_cloud_spanner",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "@com_github_jetbrains_kotlin//:kotlin-test",
-        "@maven//:junit_junit",
+        "//:unit_testing_core",
     ],
 )

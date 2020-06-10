@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.db.duchy.gcp;
+
+import "src/main/proto/wfa/measurement/internal/sketch_aggregation_stage.proto";
+
+option java_package = "org.wfanet.measurement.internal.db.gcp";
+option java_multiple_files = true;
+
+// Used by the GcpSpannerComputationsDb test.
+message FakeProtocolStageDetails {
+  // The name of the stage. This may not be the sort of thing to put in details
+  // protos in prod code, but it is easy to distinguish correctness of code
+  // for tests.
+  string name = 1;
+}

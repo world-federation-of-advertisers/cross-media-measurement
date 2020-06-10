@@ -7,10 +7,17 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "@com_github_jetbrains_kotlin//:kotlin-test",
-        "@io_grpc_grpc_java//core",
-        "@io_grpc_grpc_java//testing",
-        "@maven//:com_google_truth_truth",
-        "@maven//:junit_junit",
+        "//:unit_testing_core",
+    ],
+)
+
+kt_jvm_test(
+    name = "sketch_aggregation_stage_details_test",
+    srcs = ["SketchAggregationStageDetailsTest.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStageDetailsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//:unit_testing_core",
     ],
 )

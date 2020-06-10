@@ -5,10 +5,10 @@ import java.io.IOException
 /**
  * Manages status and state transitions for ongoing computations.
  *
- * @param[T] enum of the stages of a computation.
+ * @param[StageT] enum of the stages of a computation.
  */
-class ComputationManager<T : Enum<T>>(
-  private val relationalDatabase: ComputationsRelationalDb<T>,
+class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
+  private val relationalDatabase: ComputationsRelationalDb<StageT, StageDetailT>,
   private val blobDatabase: ComputationsBlobDb
 ) {
 
@@ -17,7 +17,7 @@ class ComputationManager<T : Enum<T>>(
    *
    * @throws [IOException] upon failure
    */
-  fun createComputation(globalId: Long, stage: T): ComputationToken<T> {
+  fun createComputation(globalId: Long, stage: StageT): ComputationToken<StageT> {
     return relationalDatabase.insertComputation(globalId, stage)
   }
 
@@ -25,7 +25,7 @@ class ComputationManager<T : Enum<T>>(
    * Returns a [ComputationToken] for the most recent computation for a
    * [globalId].
    */
-  fun getToken(globalId: Long): ComputationToken<T>? {
+  fun getToken(globalId: Long): ComputationToken<StageT>? {
     return relationalDatabase.getToken(globalId)
   }
 
@@ -61,13 +61,13 @@ class ComputationManager<T : Enum<T>>(
    * @throws [IOException] when state state transition fails
    */
   fun transitionState(
-    c: ComputationToken<T>,
-    stateAfter: T,
+    c: ComputationToken<StageT>,
+    stateAfter: StageT,
     blobsToWrite: Map<BlobRef, ByteArray> = mapOf(),
     blobToCarryForward: Collection<BlobRef> = listOf(),
     blobsRequiredForOutput: Collection<BlobId> = listOf(),
     afterTransition: AfterTransition
-  ): ComputationToken<T> {
+  ): ComputationToken<StageT> {
     val refs = HashSet<BlobRef>(blobToCarryForward)
 
     for ((ref, bytes) in blobsToWrite) {
@@ -85,7 +85,7 @@ class ComputationManager<T : Enum<T>>(
    *
    * @throws [IOException] upon failure
    */
-  fun enqueue(token: ComputationToken<T>) {
+  fun enqueue(token: ComputationToken<StageT>) {
     relationalDatabase.enqueue(token)
   }
 
@@ -95,7 +95,7 @@ class ComputationManager<T : Enum<T>>(
    * If the returned value is present, then the task has been claimed for the
    * worker. When absent, no task was claimed.
    */
-  fun claimWork(workerId: String): ComputationToken<T>? {
+  fun claimWork(workerId: String): ComputationToken<StageT>? {
     return relationalDatabase.claimTask(workerId)
   }
 
@@ -104,7 +104,7 @@ class ComputationManager<T : Enum<T>>(
    *
    * @throws [IOException] upon failure
    */
-  fun renewWork(token: ComputationToken<T>): ComputationToken<T> {
+  fun renewWork(token: ComputationToken<StageT>): ComputationToken<StageT> {
     return relationalDatabase.renewTask(token)
   }
 
@@ -113,7 +113,7 @@ class ComputationManager<T : Enum<T>>(
    *
    * @throws [IOException] upon failure
    */
-  fun readInputBlobs(c: ComputationToken<T>): Map<BlobRef, ByteArray> {
+  fun readInputBlobs(c: ComputationToken<StageT>): Map<BlobRef, ByteArray> {
     return readBlobReferences(
       c,
       BlobDependencyType.INPUT
@@ -135,7 +135,7 @@ class ComputationManager<T : Enum<T>>(
    * @throws [IOException] upon failure
    */
   fun readBlobReferences(
-    token: ComputationToken<T>,
+    token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
     return relationalDatabase.readBlobReferences(token, dependencyType = dependencyType)
@@ -148,7 +148,7 @@ class ComputationManager<T : Enum<T>>(
    * @throws [IOException] upon failure
    */
   fun writeAndRecordOutputBlob(
-    token: ComputationToken<T>,
+    token: ComputationToken<StageT>,
     blobName: BlobRef,
     blob: ByteArray
   ) {

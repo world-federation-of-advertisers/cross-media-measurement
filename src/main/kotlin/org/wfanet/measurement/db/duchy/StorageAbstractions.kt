@@ -5,13 +5,13 @@ import org.wfanet.measurement.common.DuchyRole
 /**
  * Information about a computation.
  */
-data class ComputationToken<T : Enum<T>>(
+data class ComputationToken<StageT : Enum<StageT>>(
   /** The identifier for the computation used locally. */
   val localId: Long,
   /** The identifier for the computation used across all systems. */
   val globalId: Long,
   /** The state of the computation when the token was created. */
-  val state: T,
+  val state: StageT,
   /** Name of knight that owns the lock on the computation. */
   val owner: String?,
   /** Identifier of the duchy that receives work for this computation. */
@@ -56,7 +56,7 @@ enum class AfterTransition {
  * The database must have strong consistency guarantees as it is used to
  * coordinate assignment of work by pulling jobs.
  */
-interface ComputationsRelationalDb<T : Enum<T>> {
+interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
 
   /**
    * Inserts a new computation for the global identifier.
@@ -64,13 +64,13 @@ interface ComputationsRelationalDb<T : Enum<T>> {
    * A new local identifier is created and returned in the [ComputationToken].
    * The computation is not added to the queue.
    */
-  fun insertComputation(globalId: Long, initialState: T): ComputationToken<T>
+  fun insertComputation(globalId: Long, initialState: StageT): ComputationToken<StageT>
 
   /**
    * Returns a [ComputationToken] for the most recent computation for a
    * [globalId].
    */
-  fun getToken(globalId: Long): ComputationToken<T>?
+  fun getToken(globalId: Long): ComputationToken<StageT>?
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a
@@ -78,7 +78,7 @@ interface ComputationsRelationalDb<T : Enum<T>> {
    *
    * This will release any ownership and locks associated with the computation.
    */
-  fun enqueue(token: ComputationToken<T>)
+  fun enqueue(token: ComputationToken<StageT>)
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for
@@ -89,10 +89,10 @@ interface ComputationsRelationalDb<T : Enum<T>> {
    * @return [ComputationToken] for the work that needs to be completed,
    *    when this value is null, no work was claimed.
    */
-  fun claimTask(ownerId: String): ComputationToken<T>?
+  fun claimTask(ownerId: String): ComputationToken<StageT>?
 
   /** Extends the time a computation is locked. */
-  fun renewTask(token: ComputationToken<T>): ComputationToken<T>
+  fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT>
 
   /**
    * Transitions a computation to a new state.
@@ -109,18 +109,18 @@ interface ComputationsRelationalDb<T : Enum<T>> {
    *    a successful transition.
    */
   fun updateComputationState(
-    token: ComputationToken<T>,
-    to: T,
+    token: ComputationToken<StageT>,
+    to: StageT,
     blobInputRefs: Collection<BlobRef>,
     blobOutputRefs: Collection<BlobId>,
     afterTransition: AfterTransition
-  ): ComputationToken<T>
+  ): ComputationToken<StageT>
 
   /**
    * Reads mappings of blob names to paths in blob storage.
    */
   fun readBlobReferences(
-    token: ComputationToken<T>,
+    token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType = BlobDependencyType.INPUT
   ): Map<BlobId, String?>
 
@@ -128,7 +128,7 @@ interface ComputationsRelationalDb<T : Enum<T>> {
    * Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from
    * a stage.
    */
-  fun writeOutputBlobReference(token: ComputationToken<T>, blobName: BlobRef)
+  fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef)
 }
 
 /**
