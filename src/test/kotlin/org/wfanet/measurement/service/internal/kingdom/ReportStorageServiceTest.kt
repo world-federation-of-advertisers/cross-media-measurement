@@ -14,6 +14,7 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
+import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
@@ -42,6 +43,26 @@ class ReportStorageServiceTest {
 
   private val stub: ReportStorageGrpcKt.ReportStorageCoroutineStub by lazy {
     ReportStorageGrpcKt.ReportStorageCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  @Test
+  fun createNextReport() = runBlocking<Unit> {
+    val request: CreateNextReportRequest =
+      CreateNextReportRequest.newBuilder().apply {
+        externalScheduleId = 12345
+      }.build()
+
+    var capturedExternalScheduleId: ExternalId? = null
+    fakeKingdomRelationalDatabase.createNextReportFn = {
+      capturedExternalScheduleId = it
+      REPORT
+    }
+
+    assertThat(stub.createNextReport(request))
+      .isEqualTo(REPORT)
+
+    assertThat(capturedExternalScheduleId)
+      .isEqualTo(ExternalId(12345))
   }
 
   @Test

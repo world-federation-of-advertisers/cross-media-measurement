@@ -14,7 +14,8 @@ import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 class ReportStorageService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
 ) : ReportStorageGrpcKt.ReportStorageCoroutineImplBase() {
-  override suspend fun createNextReport(request: CreateNextReportRequest): Report = TODO()
+  override suspend fun createNextReport(request: CreateNextReportRequest): Report =
+    kingdomRelationalDatabase.createNextReport(ExternalId(request.externalScheduleId))
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> =
     kingdomRelationalDatabase.streamReports(
