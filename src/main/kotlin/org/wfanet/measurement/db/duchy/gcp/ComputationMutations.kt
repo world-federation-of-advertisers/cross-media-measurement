@@ -3,7 +3,9 @@ package org.wfanet.measurement.db.duchy.gcp
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.db.gcp.toProtoBytes
+import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
+import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 
@@ -11,6 +13,8 @@ import org.wfanet.measurement.internal.db.gcp.ComputationStageDetails
 const val WRITE_NULL_STRING = ""
 /** Returns null if a string equals [WRITE_NULL_STRING]. */
 private fun stringOrNull(s: String) = if (s == WRITE_NULL_STRING) null else s
+/** Ensures a string] does not equal [WRITE_NULL_STRING]. */
+private fun nonNullValueString(t: String) = requireNotNull(stringOrNull(t))
 
 /** Tells the mutation to write a null value to a Timestamp column. */
 val WRITE_NULL_TIMESTAMP = Timestamp.ofTimeMicroseconds(0)
@@ -214,4 +218,56 @@ fun updateComputationStageAttempt(
 ): Mutation {
   return computationStageAttempt(
     Mutation::newUpdateBuilder, localId, stage, attempt, beginTime, endTime)
+}
+
+/** Creates a write a mutation for the ComputationBlobReferences spanner table. */
+fun computationBlobReference(
+  newBuilderFunction: MutationBuilderFunction,
+  localId: Long,
+  stage: Long,
+  blobId: Long,
+  pathToBlob: String? = null,
+  dependencyType: ComputationBlobDependency? = null
+): Mutation {
+  val m = newBuilderFunction("ComputationBlobReferences")
+  m.set("ComputationId").to(localId)
+  m.set("ComputationStage").to(stage)
+  m.set("BlobId").to(blobId)
+  pathToBlob?.let {m.set("PathToBlob").to(nonNullValueString(it))}
+  dependencyType?.let {m.set("DependencyType").toProtoEnum(it)}
+  return m.build()
+}
+
+/**
+ * Creates an insertion to the ComputationBlobReferences spanner table.
+ *
+ * Fields required for the write are non-nullable. Any param set to null will be excluded from the
+ * update mutation. Writing null values to the column is not supported
+ */
+fun insertComputationBlobReference(
+  localId: Long,
+  stage: Long,
+  blobId: Long,
+  pathToBlob: String? = null,
+  dependencyType: ComputationBlobDependency
+): Mutation {
+  return computationBlobReference(
+    Mutation::newInsertBuilder, localId, stage, blobId, pathToBlob, dependencyType)
+}
+
+/**
+ * Creates an insertion to the ComputationBlobReferences spanner table.
+ *
+ * Fields required for the write are non-nullable. Any param set to null will be excluded from the
+ * update mutation. Writing null values to the column is not supported
+ */
+fun updateComputationBlobReference(
+  localId: Long,
+  stage: Long,
+  blobId: Long,
+  pathToBlob: String? = null,
+  dependencyType: ComputationBlobDependency? = null
+): Mutation {
+  return computationBlobReference(
+    Mutation::newUpdateBuilder, localId, stage, blobId, pathToBlob, dependencyType)
 }

@@ -1054,34 +1054,33 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       creationTime = testClock.last().toGcpTimestamp(),
       details = STAGE_DETAILS
     )
-
-    val inputBlobA = Mutation.newInsertBuilder("ComputationBlobReferences")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("BlobId").to(0L)
-      .set("PathToBlob").to("/path/to/blob/A")
-      .set("DependencyType").to(ComputationBlobDependency.INPUT_VALUE.toLong())
-      .build()
-    val inputBlobB = Mutation.newInsertBuilder("ComputationBlobReferences")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("BlobId").to(1L)
-      .set("PathToBlob").to("/path/to/blob/B")
-      .set("DependencyType").to(ComputationBlobDependency.INPUT_VALUE.toLong())
-      .build()
-    val outputBlobC = Mutation.newInsertBuilder("ComputationBlobReferences")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("BlobId").to(2L)
-      .set("PathToBlob").to("/path/to/blob/C")
-      .set("DependencyType").to(ComputationBlobDependency.OUTPUT_VALUE.toLong())
-      .build()
-    val outputBlobD = Mutation.newInsertBuilder("ComputationBlobReferences")
-      .set("ComputationId").to(token.localId)
-      .set("ComputationStage").to(1)
-      .set("BlobId").to(3L)
-      .set("DependencyType").to(ComputationBlobDependency.OUTPUT_VALUE.toLong())
-      .build()
+    val inputBlobA = insertComputationBlobReference(
+      localId = token.localId,
+      stage = 1,
+      blobId = 0,
+      pathToBlob = "/path/to/blob/A",
+      dependencyType = ComputationBlobDependency.INPUT
+    )
+    val inputBlobB = insertComputationBlobReference(
+      localId = token.localId,
+      stage = 1,
+      blobId = 1,
+      pathToBlob = "/path/to/blob/B",
+      dependencyType = ComputationBlobDependency.INPUT
+    )
+    val outputBlobC = insertComputationBlobReference(
+      localId = token.localId,
+      stage = 1,
+      blobId = 2,
+      pathToBlob = "/path/to/blob/C",
+      dependencyType = ComputationBlobDependency.OUTPUT
+    )
+    val outputBlobD = insertComputationBlobReference(
+      localId = token.localId,
+      stage = 1,
+      blobId = 3,
+      dependencyType = ComputationBlobDependency.OUTPUT
+    )
     spanner.client.write(listOf(computation, stage))
     spanner.client.write(listOf(inputBlobA, inputBlobB, outputBlobC, outputBlobD))
     assertEquals(

@@ -421,24 +421,23 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     blobOutputRefs: Collection<BlobId>
   ): List<Mutation> {
     val mutations = ArrayList<Mutation>()
-    // TODO(fryej): Make insert/update helper functions for ComputationBlobReferences
     blobInputRefs.mapIndexedTo(mutations) { index, blobRef ->
-      Mutation.newInsertBuilder("ComputationBlobReferences")
-        .set("ComputationId").to(localId)
-        .set("ComputationStage").to(stageAsInt64)
-        .set("BlobId").to(index.toLong())
-        .set("PathToBlob").to(blobRef.pathToBlob)
-        .set("DependencyType").to(ComputationBlobDependency.INPUT.numberAsLong)
-        .build()
+      insertComputationBlobReference(
+        localId = localId,
+        stage = stageAsInt64,
+        blobId = index.toLong(),
+        pathToBlob = blobRef.pathToBlob,
+        dependencyType = ComputationBlobDependency.INPUT
+      )
     }
 
     blobOutputRefs.mapIndexedTo(mutations) { index, _ ->
-      Mutation.newInsertBuilder("ComputationBlobReferences")
-        .set("ComputationId").to(localId)
-        .set("ComputationStage").to(stageAsInt64)
-        .set("BlobId").to(index.toLong() + blobInputRefs.size)
-        .set("DependencyType").to(ComputationBlobDependency.OUTPUT.numberAsLong)
-        .build()
+      insertComputationBlobReference(
+        localId = localId,
+        stage = stageAsInt64,
+        blobId = index.toLong() + blobInputRefs.size,
+        dependencyType = ComputationBlobDependency.OUTPUT
+      )
     }
     return mutations
   }
