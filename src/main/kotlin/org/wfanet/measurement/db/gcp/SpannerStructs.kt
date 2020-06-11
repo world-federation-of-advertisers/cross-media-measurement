@@ -57,4 +57,4 @@ fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toSpanne
 fun <T> ValueBinder<T>.toProtoJson(message: Message?): T = to(message?.toJson())
 
 /** Bind a protobuf enum to an INT64 Spanner column. */
-fun <T> ValueBinder<T>.toProtoEnum(enum: ProtocolMessageEnum): T = to(enum.numberAsLong)
+fun <T> ValueBinder<T>.toProtoEnum(value: ProtocolMessageEnum): T = to(value.numberAsLong)
