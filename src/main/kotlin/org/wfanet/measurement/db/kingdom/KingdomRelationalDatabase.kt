@@ -3,6 +3,7 @@ package org.wfanet.measurement.db.kingdom
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -38,12 +39,17 @@ interface KingdomRelationalDatabase {
   fun createNextReport(externalScheduleId: ExternalId): Report
 
   /**
+   * Updates the state of a [Report].
+   */
+  fun updateReportState(externalReportId: ExternalId, state: ReportState): Report
+
+  /**
    * Streams [Report]s.
    */
   fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report>
 
   /**
-   * Streams [Report]s in state [Report.ReportState.AWAITING_REQUISITIONS] where all of their
+   * Streams [Report]s in state [ReportState.AWAITING_REQUISITIONS] where all of their
    * [Requisitions] have state [RequisitionState.FULFILLED].
    */
   fun streamReadyReports(limit: Long): Flow<Report>

@@ -14,7 +14,7 @@ class AssociateRequisitionAndReportTransaction {
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) = runBlocking {
-    val reportFuture = async { readReport(transactionContext, externalReportId) }
+    val reportFuture = async { ReportReader.forExternalId(transactionContext, externalReportId)!! }
     val requisitionFuture = async { readRequisition(transactionContext, externalRequisitionId) }
 
     val report = reportFuture.await()
@@ -34,18 +34,6 @@ class AssociateRequisitionAndReportTransaction {
         .build()
     )
   }
-
-  private suspend fun readReport(
-    transactionContext: TransactionContext,
-    externalReportId: ExternalId
-  ): ReportReadResult =
-    ReportReader()
-      .withBuilder {
-        appendClause("WHERE Reports.ExternalReportId = @external_report_id")
-        bind("external_report_id").to(externalReportId.value)
-      }
-      .execute(transactionContext)
-      .single()
 
   private suspend fun readRequisition(
     transactionContext: TransactionContext,

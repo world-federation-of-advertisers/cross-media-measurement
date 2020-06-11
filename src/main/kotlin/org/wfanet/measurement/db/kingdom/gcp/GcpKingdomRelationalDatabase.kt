@@ -3,6 +3,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.TimestampBound
+import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.RandomIdGenerator
@@ -12,7 +13,6 @@ import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition
-import java.time.Clock
 
 class GcpKingdomRelationalDatabase(
   clock: Clock,
@@ -55,6 +55,11 @@ class GcpKingdomRelationalDatabase(
       externalScheduleId
     )
   }
+
+  override fun updateReportState(externalReportId: ExternalId, state: Report.ReportState) =
+    client.runReadWriteTransaction { transactionContext ->
+      UpdateReportStateTransaction().execute(transactionContext, externalReportId, state)
+    }
 
   override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> =
     StreamReportsQuery().execute(client.singleUse(), filter, limit)

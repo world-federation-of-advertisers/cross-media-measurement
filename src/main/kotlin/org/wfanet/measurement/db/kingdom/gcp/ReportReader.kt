@@ -1,6 +1,10 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
+import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
@@ -11,7 +15,7 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
  */
 class ReportReader : SpannerReader<ReportReadResult>() {
   companion object {
-    val SELECT_COLUMNS = listOf(
+    private val SELECT_COLUMNS = listOf(
       "Reports.AdvertiserId",
       "Reports.ReportConfigId",
       "Reports.ScheduleId",
@@ -29,6 +33,18 @@ class ReportReader : SpannerReader<ReportReadResult>() {
     )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
+
+    suspend fun forExternalId(
+      readContext: ReadContext,
+      externalReportId: ExternalId
+    ): ReportReadResult? =
+      ReportReader()
+        .withBuilder {
+          appendClause("WHERE Reports.ExternalReportId = @external_report_id")
+          bind("external_report_id").to(externalReportId.value)
+        }
+        .execute(readContext)
+        .singleOrNull()
   }
 
   override val baseSql: String =
