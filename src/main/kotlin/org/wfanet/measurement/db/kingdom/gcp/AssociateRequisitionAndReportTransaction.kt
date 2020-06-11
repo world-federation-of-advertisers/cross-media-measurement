@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
@@ -13,8 +14,11 @@ class AssociateRequisitionAndReportTransaction {
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) = runBlocking {
-    val report = readReport(transactionContext, externalReportId)
-    val requisition = readRequisition(transactionContext, externalRequisitionId)
+    val reportFuture = async { readReport(transactionContext, externalReportId) }
+    val requisitionFuture = async { readRequisition(transactionContext, externalRequisitionId) }
+
+    val report = reportFuture.await()
+    val requisition = requisitionFuture.await()
 
     // This uses an InsertOrUpdate to avoid crashing if it already exists. This can't actually
     // update the row because the entire thing is part of the PK.
