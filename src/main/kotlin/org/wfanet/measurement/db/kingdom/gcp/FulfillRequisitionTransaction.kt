@@ -5,7 +5,7 @@ import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.numberAsLong
+import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
@@ -55,7 +55,7 @@ class FulfillRequisitionTransaction {
         .set("DataProviderId").to(readResult.dataProviderId)
         .set("CampaignId").to(readResult.campaignId)
         .set("RequisitionId").to(readResult.requisitionId)
-        .set("State").to(RequisitionState.FULFILLED.numberAsLong)
+        .set("State").toProtoEnum(RequisitionState.FULFILLED)
         .build()
     transactionContext.buffer(mutation)
   }

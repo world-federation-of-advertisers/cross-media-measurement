@@ -7,6 +7,8 @@ import com.google.cloud.spanner.Type
 import com.google.cloud.spanner.ValueBinder
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
+import com.google.protobuf.ProtocolMessageEnum
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.common.toJson
 
 private fun <T> Struct.nullOrValue(
@@ -53,3 +55,6 @@ fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toSpanne
 
 /** Bind a protobuf [Message] as a JSON string representation. */
 fun <T> ValueBinder<T>.toProtoJson(message: Message?): T = to(message?.toJson())
+
+/** Bind a protobuf enum to an INT64 Spanner column. */
+fun <T> ValueBinder<T>.toProtoEnum(enum: ProtocolMessageEnum): T = to(enum.numberAsLong)

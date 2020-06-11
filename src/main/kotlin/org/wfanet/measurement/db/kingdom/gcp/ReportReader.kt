@@ -10,23 +10,30 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
  * Reads [Report] protos from Spanner.
  */
 class ReportReader : SpannerReader<ReportReadResult>() {
+  companion object {
+    val SELECT_COLUMNS = listOf(
+      "Reports.AdvertiserId",
+      "Reports.ReportConfigId",
+      "Reports.ScheduleId",
+      "Reports.ReportId",
+      "Reports.ExternalReportId",
+      "Reports.CreateTime",
+      "Reports.WindowStartTime",
+      "Reports.WindowEndTime",
+      "Reports.State",
+      "Reports.ReportDetails",
+      "Reports.ReportDetailsJson",
+      "Advertisers.ExternalAdvertiserId",
+      "ReportConfigs.ExternalReportConfigId",
+      "ReportConfigSchedules.ExternalScheduleId"
+    )
+
+    val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
+  }
+
   override val baseSql: String =
     """
-    SELECT
-      Reports.AdvertiserId,
-      Reports.ReportConfigId,
-      Reports.ScheduleId,
-      Reports.ReportId,
-      Reports.ExternalReportId,
-      Reports.CreateTime,
-      Reports.WindowStartTime,
-      Reports.WindowEndTime,
-      Reports.State,
-      Reports.ReportDetails,
-      Reports.ReportDetailsJson,
-      Advertisers.ExternalAdvertiserId,
-      ReportConfigs.ExternalReportConfigId,
-      ReportConfigSchedules.ExternalScheduleId
+    SELECT $SELECT_COLUMNS_SQL
     FROM Reports
     JOIN Advertisers USING (AdvertiserId)
     JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)

@@ -11,11 +11,11 @@ import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.RandomIdGenerator
-import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
+import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
@@ -80,7 +80,7 @@ class CreateNextReportTransaction(
         .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
-        .set("State").to(Report.ReportState.AWAITING_REQUISITIONS.numberAsLong)
+        .set("State").toProtoEnum(Report.ReportState.AWAITING_REQUISITIONS)
         .set("ReportDetails").to(ReportDetails.getDefaultInstance().toSpannerByteArray())
         .set("ReportDetailsJson").to(ReportDetails.getDefaultInstance().toJson())
         .build()

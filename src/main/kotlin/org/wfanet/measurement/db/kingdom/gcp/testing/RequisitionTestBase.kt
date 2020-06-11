@@ -6,10 +6,10 @@ import com.google.cloud.spanner.Mutation
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
+import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -102,7 +102,7 @@ abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
       set("ExternalRequisitionId").to(externalRequisitionId)
       set("WindowStartTime").to(windowStartTime)
       set("WindowEndTime").to(windowEndTime)
-      set("State").to(state.numberAsLong)
+      set("State").toProtoEnum(state)
       set("RequisitionDetails").toProtoBytes(requisitionDetails)
       set("RequisitionDetailsJson").toProtoJson(requisitionDetails)
     }.build()
