@@ -189,21 +189,15 @@ load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 # Needed for private-join-and-compute
 grpc_extra_deps()
 
-# private-join-and-compute library used in the C++ crypto primitive.
-http_archive(
-    name = "com_google_private_join_and_compute",
-    sha256 = "dd39c10723f5471d5727c12adb34d2225d1aeb591106fe457f0a88320ee0329c",
-    strip_prefix = "private-join-and-compute-master",
-    urls = [
-        "https://github.com/google/private-join-and-compute/archive/master.zip",
-    ],
-)
+# Public APIs for measurement system.
 
 git_repository(
     name = "wfa_measurement_proto",
     commit = "d6b42bb0fd73a287110e54203783b9c02e35a5b2",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
 )
+
+# AnySketch.
 
 git_repository(
     name = "any_sketch",
