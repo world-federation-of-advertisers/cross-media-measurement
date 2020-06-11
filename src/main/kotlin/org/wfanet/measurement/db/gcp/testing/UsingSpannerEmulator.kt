@@ -126,7 +126,7 @@ class SpannerDatabaseRule(
 
 /** Reads a spanner schema file and transforms it into a list of operations to creat a database. */
 private fun readEmulatorSchema(resourcePath: String): List<String> {
-  return resourcePath.javaClass::class.java.getResource(resourcePath).readText()
+  return UsingSpannerEmulator::class.java.getResource(resourcePath).readText()
     .split('\n')
     // Replace comments and refrences to foreign keys from schema file.
     .map { it.replace("""(--|CONSTRAINT|FOREIGN|REFERENCES).*$""".toRegex(), "") }
