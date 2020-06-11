@@ -28,10 +28,7 @@ interface KingdomRelationalDatabase {
   /**
    * Streams [Requisition]s.
    */
-  fun streamRequisitions(
-    filter: StreamRequisitionsFilter,
-    limit: Long
-  ): Flow<Requisition>
+  fun streamRequisitions(filter: StreamRequisitionsFilter, limit: Long): Flow<Requisition>
 
   /**
    * Creates the next [Report] for a [ReportConfigSchedule].
@@ -43,10 +40,13 @@ interface KingdomRelationalDatabase {
   /**
    * Streams [Report]s.
    */
-  fun streamReports(
-    filter: StreamReportsFilter,
-    limit: Long
-  ): Flow<Report>
+  fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report>
+
+  /**
+   * Streams [Report]s in state [Report.ReportState.AWAITING_REQUISITIONS] where all of their
+   * [Requisitions] have state [RequisitionState.FULFILLED].
+   */
+  fun streamReadyReports(limit: Long): Flow<Report>
 
   /**
    * Associates a [Requisition] and a [Report].
