@@ -5,6 +5,8 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
@@ -30,4 +32,14 @@ class ReportStorageService(
     )
 
   override suspend fun updateReportState(request: UpdateReportStateRequest): Report = TODO()
+
+  override suspend fun associateRequisition(
+    request: AssociateRequisitionRequest
+  ): AssociateRequisitionResponse {
+    kingdomRelationalDatabase.associateRequisitionToReport(
+      externalRequisitionId = ExternalId(request.externalRequisitionId),
+      externalReportId = ExternalId(request.externalReportId)
+    )
+    return AssociateRequisitionResponse.getDefaultInstance()
+  }
 }

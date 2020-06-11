@@ -17,6 +17,10 @@ http_archive(
     urls = ["https://github.com/abseil/abseil-cpp/archive/20200225.2.zip"],
 )
 
+# @com_google_truth_truth
+
+load("//build/com_google_truth_truth:repo.bzl", "COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS")
+
 # @io_bazel_rules_kotlin
 
 load(":build/io_bazel_rules_kotlin/repo.bzl", "kotlinc_release", "rules_kotin_repo")
@@ -70,20 +74,25 @@ http_archive(
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
+MAVEN_ARTIFACTS = [
+    "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
+    "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
+    "com.google.cloud:google-cloud-core:1.93.5",
+    "com.google.cloud:google-cloud-spanner:1.55.1",
+    "io.grpc:grpc-kotlin-stub:0.1.2",
+    "junit:junit:4.13",
+    "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.3.5",
+    "org.mockito:mockito-core:3.3.3",
+]
+
+MAVEN_ARTIFACTS += IO_GRPC_GRPC_JAVA_ARTIFACTS
+
+MAVEN_ARTIFACTS += IO_GRPC_GRPC_KOTLIN_ARTIFACTS
+
+MAVEN_ARTIFACTS += COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS
+
 maven_install(
-    artifacts = [
-        "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
-        "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
-        "com.google.cloud:google-cloud-core:1.93.5",
-        "com.google.cloud:google-cloud-spanner:1.55.1",
-        "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
-        "com.google.truth.extensions:truth-proto-extension:1.0.1",
-        "com.google.truth:truth:1.0.1",
-        "io.grpc:grpc-kotlin-stub:0.1.2",
-        "junit:junit:4.13",
-        "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.3.5",
-        "org.mockito:mockito-core:3.3.3",
-    ] + IO_GRPC_GRPC_JAVA_ARTIFACTS + IO_GRPC_GRPC_KOTLIN_ARTIFACTS,
+    artifacts = MAVEN_ARTIFACTS,
     generate_compat_repositories = True,
     override_targets = dict(
         IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS.items() +

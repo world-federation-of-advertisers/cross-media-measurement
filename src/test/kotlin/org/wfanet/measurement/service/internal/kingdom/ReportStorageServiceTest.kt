@@ -14,6 +14,8 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
@@ -102,5 +104,27 @@ class ReportStorageServiceTest {
 
     assertThat(capturedFilter?.clauses).containsExactlyElementsIn(expectedFilter.clauses)
     assertThat(capturedLimit).isEqualTo(10)
+  }
+
+  @Test
+  fun associateRequisition() = runBlocking<Unit> {
+    val request = AssociateRequisitionRequest.newBuilder().apply {
+      externalReportId = 1
+      externalRequisitionId = 2
+    }.build()
+
+    var capturedExternalRequisitionId: ExternalId? = null
+    var capturedExternalReportId: ExternalId? = null
+    fakeKingdomRelationalDatabase.associateRequisitionToReportFn = {
+      externalRequisitionId, externalReportId ->
+      capturedExternalRequisitionId = externalRequisitionId
+      capturedExternalReportId = externalReportId
+    }
+
+    assertThat(stub.associateRequisition(request))
+      .isEqualTo(AssociateRequisitionResponse.getDefaultInstance())
+
+    assertThat(capturedExternalReportId).isEqualTo(ExternalId(1))
+    assertThat(capturedExternalRequisitionId).isEqualTo(ExternalId(2))
   }
 }
