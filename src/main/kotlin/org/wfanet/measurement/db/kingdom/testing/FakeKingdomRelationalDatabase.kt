@@ -16,6 +16,7 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
     { _, _ -> emptyFlow() }
   var createNextReportFn: (ExternalId) -> Report = { Report.getDefaultInstance() }
   var streamReportsFn: (StreamReportsFilter, Long) -> Flow<Report> = { _, _ -> emptyFlow() }
+  var streamReadyReportsFn: (Long) -> Flow<Report> = { emptyFlow() }
   var associateRequisitionToReportFn: (ExternalId, ExternalId) -> Unit = { _, _ -> }
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
@@ -33,11 +34,10 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
   override fun createNextReport(externalScheduleId: ExternalId): Report =
     createNextReportFn(externalScheduleId)
 
-  override fun streamReports(
-    filter: StreamReportsFilter,
-    limit: Long
-  ): Flow<Report> =
+  override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> =
     streamReportsFn(filter, limit)
+
+  override fun streamReadyReports(limit: Long): Flow<Report> = streamReadyReportsFn(limit)
 
   override fun associateRequisitionToReport(
     externalRequisitionId: ExternalId,

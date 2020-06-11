@@ -10,6 +10,7 @@ import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 
@@ -30,6 +31,9 @@ class ReportStorageService(
       ),
       request.limit
     )
+
+  override fun streamReadyReports(request: StreamReadyReportsRequest): Flow<Report> =
+    kingdomRelationalDatabase.streamReadyReports(request.limit)
 
   override suspend fun updateReportState(request: UpdateReportStateRequest): Report = TODO()
 

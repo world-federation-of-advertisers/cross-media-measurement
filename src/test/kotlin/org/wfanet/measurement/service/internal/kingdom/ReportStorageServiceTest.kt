@@ -19,6 +19,7 @@ import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -103,6 +104,24 @@ class ReportStorageServiceTest {
     )
 
     assertThat(capturedFilter?.clauses).containsExactlyElementsIn(expectedFilter.clauses)
+    assertThat(capturedLimit).isEqualTo(10)
+  }
+
+  @Test
+  fun streamReadyReports() = runBlocking<Unit> {
+    val request: StreamReadyReportsRequest =
+      StreamReadyReportsRequest.newBuilder().setLimit(10L).build()
+
+    var capturedLimit: Long = 0
+
+    fakeKingdomRelationalDatabase.streamReadyReportsFn = { limit ->
+      capturedLimit = limit
+      flowOf(REPORT, REPORT)
+    }
+
+    assertThat(stub.streamReadyReports(request).toList())
+      .containsExactly(REPORT, REPORT)
+
     assertThat(capturedLimit).isEqualTo(10)
   }
 

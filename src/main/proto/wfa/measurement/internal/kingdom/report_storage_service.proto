@@ -20,6 +20,10 @@ service ReportStorage {
   // Streams Reports from the database, ordered by create time ascending.
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
 
+  // Streams "ready" Reports from the database: those that are awaiting
+  // Requisitions, but all Requisitions have been fulfilled.
+  rpc StreamReadyReports(StreamReadyReportsRequest) returns (stream Report);
+
   // Updates the state of a Report.
   rpc UpdateReportState(UpdateReportStateRequest) returns (Report);
 
@@ -48,6 +52,10 @@ message StreamReportsRequest {
     repeated Report.ReportState states = 6;
     google.protobuf.Timestamp created_after = 7;
   }
+}
+
+message StreamReadyReportsRequest {
+  int64 limit = 1;
 }
 
 message UpdateReportStateRequest {
