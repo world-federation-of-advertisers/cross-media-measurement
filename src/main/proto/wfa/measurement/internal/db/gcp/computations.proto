@@ -34,11 +34,6 @@ message ComputationDetails {
 // Details about a particular attempt of running a stage for a computation
 // within a duchy.
 message ComputationStageDetails {
-  // The stage the computation was in before entering this attempt.
-  SketchAggregationState previous_stage = 1;
-  // The stage the computation transitioned into after leaving the stage.
-  SketchAggregationState following_stage = 2;
-
   oneof stage_specific {
     // Details specific to the WAIT_SKETCHES stage.
     WaitSketchesStageDetails wait_sketch_stage_details = 3;

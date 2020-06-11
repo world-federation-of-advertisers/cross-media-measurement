@@ -120,6 +120,16 @@ CREATE TABLE ComputationStages (
   -- The time the computation left the stage.
   EndTime TIMESTAMP OPTIONS(allow_commit_timestamp = true),
 
+  -- The stage the computation was in before entering this stage.
+  --
+  -- See the wfa.measurement.internal.SketchAggregationState proto
+  PreviousStage INT64,
+
+  -- The stage the computation transitioned into after leaving the stage.
+  --
+  -- See the wfa.measurement.internal.SketchAggregationState proto
+  FollowingStage INT64,
+
   -- Serialized bytes of a proto3 protobuf with details about the
   -- computation stage which do not need to be indexed by the
   -- database.

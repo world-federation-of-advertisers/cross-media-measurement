@@ -732,7 +732,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-      SELECT ComputationId, ComputationStage, CreationTime, EndTime, Details
+      SELECT ComputationId, ComputationStage, CreationTime, EndTime, PreviousStage, FollowingStage, 
+             Details
       FROM ComputationStages
       ORDER BY ComputationStage
       """.trimIndent(),
@@ -741,22 +742,18 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.B))
         .set("CreationTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock["update_stage"].toGcpTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageDetails.newBuilder().apply {
-            followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.D).toInt()
-          }.build()
-        )
+        .set("PreviousStage").to(null as Long?)
+        .set("FollowingStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.D))
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.D))
         .set("CreationTime").to(testClock["update_stage"].toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(
-          ComputationStageDetails.newBuilder().apply {
-            previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.B).toInt()
-          }.build()
-        )
+        .set("PreviousStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.B))
+        .set("FollowingStage").to(null as Long?)
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
         .build()
     )
   }
@@ -919,7 +916,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       spanner.client,
       """
-      SELECT ComputationId, ComputationStage, CreationTime, NextAttempt, EndTime, Details
+      SELECT ComputationId, ComputationStage, CreationTime, NextAttempt, EndTime, PreviousStage,
+             FollowingStage, Details
       FROM ComputationStages
       ORDER BY ComputationStage
       """.trimIndent(),
@@ -929,11 +927,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["insert_computation"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_B"].toGcpTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageDetails.newBuilder().apply {
-            followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.B).toInt()
-          }.build()
-        )
+        .set("PreviousStage").to(null as Long?)
+        .set("FollowingStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.B))
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -941,12 +937,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["move_to_B"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_C"].toGcpTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageDetails.newBuilder().apply {
-            previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.A).toInt()
-            followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.C).toInt()
-          }.build()
-        )
+        .set("PreviousStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.A))
+        .set("FollowingStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.C))
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -954,12 +947,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["move_to_C"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_E"].toGcpTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageDetails.newBuilder().apply {
-            previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.B).toInt()
-            followingStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.E).toInt()
-          }.build()
-        )
+        .set("PreviousStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.B))
+        .set("FollowingStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.E))
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -967,11 +957,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("CreationTime").to(testClock["move_to_E"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(
-          ComputationStageDetails.newBuilder().apply {
-            previousStageValue = ProtocolHelper.enumToLong(FakeProtocolStates.C).toInt()
-          }.build()
-        )
+        .set("PreviousStage").to(ProtocolHelper.enumToLong(FakeProtocolStates.C))
+        .set("FollowingStage").to(null as Long?)
+        .set("Details").toProtoBytes(ComputationStageDetails.getDefaultInstance())
         .build()
     )
 

@@ -120,14 +120,18 @@ fun computationStage(
   nextAttempt: Long? = null,
   creationTime: Timestamp? = null,
   endTime: Timestamp? = null,
+  previousStage: Long? = null,
+  followingStage: Long? = null,
   details: ComputationStageDetails? = null
 ): Mutation {
   val m = newBuilderFunction("ComputationStages")
   m.set("ComputationId").to(localId)
   m.set("ComputationStage").to(stage)
+  nextAttempt?.let { m.set("NextAttempt").to(it) }
   creationTime?.let { m.set("CreationTime").to(nonNullValueTimestamp(it)) }
   endTime?.let { m.set("EndTime").to(nonNullValueTimestamp(it)) }
-  nextAttempt?.let { m.set("NextAttempt").to(it) }
+  previousStage?.let { m.set("PreviousStage").to(it) }
+  followingStage?.let { m.set("FollowingStage").to(it) }
   details?.let { m.set("Details").toProtoBytes(details).set("DetailsJSON").toProtoJson(details) }
   return m.build()
 }
@@ -144,10 +148,13 @@ fun insertComputationStage(
   nextAttempt: Long,
   creationTime: Timestamp,
   endTime: Timestamp? = null,
+  previousStage: Long? = null,
+  followingStage: Long? = null,
   details: ComputationStageDetails
 ): Mutation {
   return computationStage(
-    Mutation::newInsertBuilder, localId, stage, nextAttempt, creationTime, endTime, details)
+    Mutation::newInsertBuilder, localId, stage, nextAttempt, creationTime, endTime,
+    previousStage, followingStage, details)
 }
 
 /**
@@ -162,10 +169,14 @@ fun updateComputationStage(
   nextAttempt: Long? = null,
   creationTime: Timestamp? = null,
   endTime: Timestamp? = null,
+  previousStage: Long? = null,
+  followingStage: Long? = null,
   details: ComputationStageDetails? = null
 ): Mutation {
   return computationStage(
-      Mutation::newUpdateBuilder, localId, stage, nextAttempt, creationTime, endTime, details)
+    Mutation::newUpdateBuilder, localId, stage, nextAttempt, creationTime, endTime,
+    previousStage, followingStage, details
+  )
 }
 
 /** Creates a write a mutation for the ComputationStageAttempts spanner table. */

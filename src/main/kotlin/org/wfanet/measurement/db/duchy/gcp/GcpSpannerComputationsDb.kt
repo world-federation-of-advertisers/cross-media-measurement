@@ -295,7 +295,6 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
 
       ctx.buffer(
         mutationsToChangeStages(
-          ctx,
           token,
           newStageAsInt64,
           writeTime,
@@ -316,7 +315,6 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
   }
 
   private fun mutationsToChangeStages(
-    ctx: TransactionContext,
     token: ComputationToken<T>,
     newStageAsInt64: Long,
     writeTime: Timestamp,
@@ -346,7 +344,14 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
       })
     )
 
-    mutations.add(mutationToTransitionOutOfCurrentStage(ctx, token, newStageAsInt64, writeTime))
+    mutations.add(
+      updateComputationStage(
+        token.localId,
+        stage = currentStageAsInt64,
+        followingStage = newStageAsInt64,
+        endTime = writeTime
+      )
+    )
 
     mutations.add(
       updateComputationStageAttempt(
@@ -364,15 +369,12 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
           insertComputationStageAttempt(token.localId, newStageAsInt64, 1, beginTime = writeTime)
       }
 
-    val newStageDetails = ComputationStageDetails.newBuilder().apply {
-      previousStageValue = currentStageAsInt64.toInt()
-      // TODO(fryej): Set stage_specific field.
-    }.build()
     mutations.add(insertComputationStage(
-      token.localId,
-      newStageAsInt64,
+      localId = token.localId,
+      stage = newStageAsInt64,
+      previousStage = currentStageAsInt64,
       creationTime = writeTime,
-      details = newStageDetails,
+      details = ComputationStageDetails.getDefaultInstance(),
       // nextAttempt is the number of the current attempt of the stage plus one.
       // Adding an Attempt to the new stage while transitioning state means that an attempt of that
       // new stage is ongoing at the end of this transaction. Meaning if for some reason there
@@ -388,30 +390,6 @@ class GcpSpannerComputationsDb<T : Enum<T>>(
     attemptOfNewStageMutation?.let { mutations.add(it) }
 
     return mutations
-  }
-
-  private fun mutationToTransitionOutOfCurrentStage(
-    ctx: TransactionContext,
-    token: ComputationToken<T>,
-    newStageAsInt64: Long,
-    writeTime: Timestamp
-  ): Mutation {
-    val currentStageAsInt64 = stateEnumHelper.enumToLong(token.state)
-    val currentStageDetails = ctx.readRow(
-      "ComputationStages",
-      Key.of(token.localId, currentStageAsInt64),
-      listOf("Details")
-    ) ?: error("No row for (${token.localId}, $currentStageAsInt64)")
-
-    val existingStageDetails =
-      currentStageDetails.getProtoBufMessage("Details", ComputationStageDetails.parser())
-        .toBuilder()
-        .setFollowingStageValue(newStageAsInt64.toInt())
-        .build()
-
-    return updateComputationStage(
-      token.localId, currentStageAsInt64, endTime = writeTime, details = existingStageDetails
-    )
   }
 
   private fun mutationsToMakeBlobRefsForNewStage(
