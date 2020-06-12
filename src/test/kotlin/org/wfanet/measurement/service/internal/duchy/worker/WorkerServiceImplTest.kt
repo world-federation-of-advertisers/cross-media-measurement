@@ -2,6 +2,7 @@ package org.wfanet.measurement.service.internal.duchy.worker
 
 import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth
+import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
@@ -13,7 +14,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.client.internal.duchy.worker.WorkerClient
+import org.wfanet.measurement.internal.duchy.TraceRequest
 import org.wfanet.measurement.internal.duchy.TraceResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
 import kotlin.test.assertFailsWith
@@ -23,21 +24,22 @@ class WorkerServiceImplTest {
   @get:Rule
   val grpcCleanup = GrpcCleanupRule()
 
-  lateinit var clients: List<WorkerClient>
+  lateinit var names: List<ServerSetup>
+  lateinit var clients: List<WorkerServiceGrpcKt.WorkerServiceCoroutineStub>
 
   val namesForLogging = listOf("Alsace", "Bavaria", "Carinthia")
 
   @Before
   fun setup() {
-    val names = namesForLogging.map {
-      Name(InProcessServerBuilder.generateName(), it)
-    }
-    clients = names.map { (serverName, _) ->
+    names = namesForLogging.map {
+      val serverName = InProcessServerBuilder.generateName()
       val channel = grpcCleanup.register(
         InProcessChannelBuilder.forName(serverName).directExecutor().build()
       )
-      val stub = WorkerServiceGrpcKt.WorkerServiceCoroutineStub(channel)
-      WorkerClient(channel, stub)
+      ServerSetup(serverName, it, channel)
+    }
+    clients = names.map { (_, _, channel) ->
+      WorkerServiceGrpcKt.WorkerServiceCoroutineStub(channel)
     }
     (names zip clients.slice(IntRange(1, namesForLogging.size - 1) + IntRange(0, 0)))
       .forEach { (name, client) ->
@@ -52,7 +54,7 @@ class WorkerServiceImplTest {
   }
 
   @Test
-  fun `trace length 1`() {
+  fun `trace length 1`() = runBlocking {
     val expected = TraceResponse.newBuilder()
       .addHop(
         TraceResponse.Hop.newBuilder()
@@ -62,7 +64,7 @@ class WorkerServiceImplTest {
       )
       .build()
 
-    val response = runBlocking { clients[0].trace(0) }
+    val response = clients[0].trace(TraceRequest.newBuilder().setCount(0).build())
 
     ProtoTruth.assertThat(response)
       .isEqualTo(
@@ -79,7 +81,7 @@ class WorkerServiceImplTest {
         })
       .build()
 
-    val response = runBlocking { clients[0].trace(5) }
+    val response = runBlocking { clients[0].trace(TraceRequest.newBuilder().setCount(5).build()) }
 
     ProtoTruth.assertThat(response)
       .isEqualTo(
@@ -90,11 +92,15 @@ class WorkerServiceImplTest {
   @Test
   fun `trace length 7 throws`() {
     val e = assertFailsWith(StatusException::class) {
-      runBlocking { clients[0].trace(6) }
+      runBlocking { clients[0].trace(TraceRequest.newBuilder().setCount(6).build()) }
     }
 
     Truth.assertThat(e.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
   }
 }
 
-data class Name(val serverName: String, val nameForLogging: String)
+data class ServerSetup(
+  val serverName: String,
+  val nameForLogging: String,
+  val channel: ManagedChannel
+)

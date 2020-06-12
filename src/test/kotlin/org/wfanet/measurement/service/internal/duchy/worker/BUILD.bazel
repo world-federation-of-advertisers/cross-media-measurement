@@ -5,6 +5,7 @@ kt_jvm_test(
     srcs = ["WorkerServiceImplTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.duchy.worker.WorkerServiceImplTest",
     deps = [
+        "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/worker:worker_service_impl",
         "//third_party/java/com/google/common/truth",
         "//third_party/java/com/google/common/truth/extensions/proto",

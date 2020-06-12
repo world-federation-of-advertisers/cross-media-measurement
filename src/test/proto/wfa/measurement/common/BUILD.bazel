@@ -1,0 +1,15 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
+
+package(default_visibility = ["//src/test:__subpackages__"])
+
+proto_library(
+    name = "fake_service_proto",
+    srcs = ["fake_service.proto"],
+    strip_import_prefix = "/src/test/proto",
+)
+
+java_and_kt_grpc_library(
+    name = "fake_service",
+    deps = [":fake_service_proto"],
+)
