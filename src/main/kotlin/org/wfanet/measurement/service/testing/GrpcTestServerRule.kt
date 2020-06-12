@@ -12,8 +12,7 @@ import org.junit.runners.model.Statement
 class GrpcTestServerRule(
   private val servicesFactory: (ManagedChannel) -> List<BindableService>
 ) : TestRule {
-  val grpcCleanupRule: GrpcCleanupRule = GrpcCleanupRule()
-
+  private val grpcCleanupRule: GrpcCleanupRule = GrpcCleanupRule()
   private val serverName = InProcessServerBuilder.generateName()
 
   val channel: ManagedChannel =
@@ -32,10 +31,6 @@ class GrpcTestServerRule(
     servicesFactory(channel).forEach { serverBuilder.addService(it) }
     grpcCleanupRule.register(serverBuilder.build().start())
 
-    return object : Statement() {
-      override fun evaluate() {
-        grpcCleanupRule.apply(base, description)
-      }
-    }
+    return grpcCleanupRule.apply(base, description)
   }
 }

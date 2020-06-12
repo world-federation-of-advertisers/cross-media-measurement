@@ -25,7 +25,7 @@ class ReportStorageService(
       streamReportsFilter(
         externalAdvertiserIds = request.filter.externalAdvertiserIdsList.map(::ExternalId),
         externalReportConfigIds = request.filter.externalReportConfigIdsList.map(::ExternalId),
-        externalScheduleIds = request.filter.externalReportConfigIdsList.map(::ExternalId),
+        externalScheduleIds = request.filter.externalScheduleIdsList.map(::ExternalId),
         states = request.filter.statesList,
         createdAfter = request.filter.createdAfter.toInstant()
       ),
