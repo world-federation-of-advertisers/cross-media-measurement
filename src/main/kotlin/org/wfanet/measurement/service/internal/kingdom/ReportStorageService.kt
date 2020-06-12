@@ -35,7 +35,8 @@ class ReportStorageService(
   override fun streamReadyReports(request: StreamReadyReportsRequest): Flow<Report> =
     kingdomRelationalDatabase.streamReadyReports(request.limit)
 
-  override suspend fun updateReportState(request: UpdateReportStateRequest): Report = TODO()
+  override suspend fun updateReportState(request: UpdateReportStateRequest): Report =
+    kingdomRelationalDatabase.updateReportState(ExternalId(request.externalReportId), request.state)
 
   override suspend fun associateRequisition(
     request: AssociateRequisitionRequest

@@ -18,9 +18,11 @@ import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
+import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
@@ -33,7 +35,7 @@ class ReportStorageServiceTest {
       externalScheduleId = 3
       externalReportId = 4
       createTimeBuilder.seconds = 567
-      state = Report.ReportState.FAILED
+      state = ReportState.FAILED
     }.build()
   }
 
@@ -69,6 +71,28 @@ class ReportStorageServiceTest {
   }
 
   @Test
+  fun updateReportState() = runBlocking<Unit> {
+    val request: UpdateReportStateRequest =
+      UpdateReportStateRequest.newBuilder().apply {
+        externalReportId = REPORT.externalReportId
+        state = REPORT.state
+      }.build()
+
+    var capturedExternalReportId: ExternalId? = null
+    var capturedState: ReportState? = null
+
+    fakeKingdomRelationalDatabase.updateReportStateFn = { externalReportId, reportState ->
+      capturedExternalReportId = externalReportId
+      capturedState = reportState
+      REPORT
+    }
+
+    assertThat(stub.updateReportState(request)).isEqualTo(REPORT)
+    assertThat(capturedExternalReportId).isEqualTo(ExternalId(REPORT.externalReportId))
+    assertThat(capturedState).isEqualTo(REPORT.state)
+  }
+
+  @Test
   fun streamReports() = runBlocking<Unit> {
     val request: StreamReportsRequest =
       StreamReportsRequest.newBuilder().apply {
@@ -78,7 +102,7 @@ class ReportStorageServiceTest {
           addExternalReportConfigIds(2)
           addExternalReportConfigIds(3)
           addExternalScheduleIds(4)
-          addStates(Report.ReportState.AWAITING_REQUISITIONS)
+          addStates(ReportState.AWAITING_REQUISITIONS)
           createdAfterBuilder.seconds = 12345
         }
       }.build()
@@ -99,7 +123,7 @@ class ReportStorageServiceTest {
       externalAdvertiserIds = listOf(ExternalId(1)),
       externalReportConfigIds = listOf(ExternalId(2), ExternalId(3)),
       externalScheduleIds = listOf(ExternalId(4)),
-      states = listOf(Report.ReportState.AWAITING_REQUISITIONS),
+      states = listOf(ReportState.AWAITING_REQUISITIONS),
       createdAfter = Instant.ofEpochSecond(12345)
     )
 
