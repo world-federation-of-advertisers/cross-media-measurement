@@ -4,6 +4,11 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.extensions.proto.ProtoTruth
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -22,15 +27,11 @@ import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
+import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 
 /**
  * +--------------+
@@ -1147,17 +1148,77 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `unimplemented interface functions`() {
+  fun writeOutputBlobReference() {
     val token = ComputationToken(
-      localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
-      owner = null, attempt = 1, state = FakeProtocolStates.A,
-      globalId = 0, lastUpdateTime = 0
+      localId = 4315, globalId = 55, state = FakeProtocolStates.B,
+      owner = null, nextWorker = COMPUTATION_DEATILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
     )
-    assertFailsWith(NotImplementedError::class) {
-      database.writeOutputBlobReference(
-        token,
-        BlobRef(0L, "")
-      )
+    val computation = computationMutations.insertComputation(
+      localId = token.localId,
+      stage = FakeProtocolStates.B,
+      updateTime = testClock.last().toGcpTimestamp(),
+      globalId = token.globalId,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = WRITE_NULL_TIMESTAMP,
+      details = COMPUTATION_DEATILS
+    )
+    val stage = computationMutations.insertComputationStage(
+      localId = token.localId,
+      stage = FakeProtocolStates.B,
+      nextAttempt = 3,
+      creationTime = testClock.last().toGcpTimestamp(),
+      details = FakeProtocolStageDetails.getDefaultInstance()
+    )
+    val outputRef = computationMutations.insertComputationBlobReference(
+      localId = token.localId,
+      stage = FakeProtocolStates.B,
+      blobId = 1234L,
+      dependencyType = ComputationBlobDependency.OUTPUT
+    )
+    val inputRef = computationMutations.insertComputationBlobReference(
+      localId = token.localId,
+      stage = FakeProtocolStates.B,
+      blobId = 5678L,
+      pathToBlob = "/path/to/input/blob",
+      dependencyType = ComputationBlobDependency.INPUT
+    )
+    spanner.client.write(listOf(computation, stage, outputRef, inputRef))
+    database.writeOutputBlobReference(token, BlobRef(1234L, "/wrote/something/there"))
+    assertQueryReturns(
+      spanner.client,
+      """
+      SELECT ComputationId, ComputationStage, BlobId, PathToBlob, DependencyType
+      FROM ComputationBlobReferences
+      ORDER BY ComputationStage, BlobId
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolStates.enumToLong(token.state))
+        .set("BlobId").to(1234L)
+        .set("PathToBlob").to("/wrote/something/there")
+        .set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolStates.enumToLong(token.state))
+        .set("BlobId").to(5678L)
+        .set("PathToBlob").to("/path/to/input/blob")
+        .set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)
+        .build()
+    )
+
+    // Can't update a blob with blank path.
+    assertFailsWith<IllegalArgumentException> {
+      database.writeOutputBlobReference(token, BlobRef(1234L, ""))
+    }
+    // Can't update an input blob
+    assertFailsWith<SpannerException> {
+      database.writeOutputBlobReference(token, BlobRef(5678L, "/wrote/something/there"))
+    }
+    // Blob id doesn't exist
+    assertFailsWith<SpannerException> {
+      database.writeOutputBlobReference(token, BlobRef(223344L, "/wrote/something/there"))
     }
   }
 }

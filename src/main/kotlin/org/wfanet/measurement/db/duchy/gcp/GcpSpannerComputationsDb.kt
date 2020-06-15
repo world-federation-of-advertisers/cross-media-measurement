@@ -22,6 +22,7 @@ import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getBytesAsByteArray
 import org.wfanet.measurement.db.gcp.getNullableString
+import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.internal.ComputationBlobDependency
@@ -400,7 +401,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         listOf("BlobId", "PathToBlob", "DependencyType"))
         .asSequence()
         .filter {
-          val dep = ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
+          val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
           when (dependencyType) {
             BlobDependencyType.ANY -> true
             BlobDependencyType.OUTPUT -> dep == ComputationBlobDependency.OUTPUT
@@ -413,7 +414,26 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   }
 
   override fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef) {
-    TODO("Not yet implemented")
+    require(blobName.pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $blobName" }
+    runIfTokenFromLastUpdate(token) { ctx ->
+      val type = ctx.readRow(
+        "ComputationBlobReferences",
+        Key.of(token.localId, computationMutations.enumToLong(token.state), blobName.name),
+        listOf("DependencyType")
+      )
+        ?.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
+        ?: error("No ComputationBlobReferences row for " +
+          "(${token.localId}, ${token.state}, ${blobName.name})")
+      require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
+      ctx.buffer(
+        computationMutations.updateComputationBlobReference(
+          localId = token.localId,
+          stage = token.state,
+          blobId = blobName.name,
+          pathToBlob = blobName.pathToBlob
+        )
+      )
+    }
   }
 
   /**
