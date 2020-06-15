@@ -79,6 +79,8 @@ MAVEN_ARTIFACTS = [
     "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
     "com.google.cloud:google-cloud-core:1.93.5",
     "com.google.cloud:google-cloud-spanner:1.55.1",
+    "com.google.cloud:google-cloud-storage:1.109.0",
+    "com.google.cloud:google-cloud-nio:0.121.0",
     "io.grpc:grpc-kotlin-stub:0.1.2",
     "junit:junit:4.13",
     "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.3.5",

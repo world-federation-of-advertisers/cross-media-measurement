@@ -40,6 +40,23 @@ java_library(
 )
 
 java_library(
+    name = "google_cloud_storage",
+    exports = [
+        "@maven//:com_google_cloud_google_cloud_core",
+        "@maven//:com_google_cloud_google_cloud_storage",
+    ],
+)
+
+java_library(
+    name = "google_cloud_nio",
+    exports = [
+        "@maven//:com_google_cloud_google_cloud_core",
+        "@maven//:com_google_cloud_google_cloud_nio",
+        "@maven//:com_google_cloud_google_cloud_storage",
+    ],
+)
+
+java_library(
     name = "grpc_core",
     exports = [
         ":kotlinx_coroutines_core",
