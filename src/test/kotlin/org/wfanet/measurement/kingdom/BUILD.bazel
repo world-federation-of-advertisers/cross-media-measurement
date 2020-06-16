@@ -1,0 +1,16 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "report_starter_test",
+    srcs = ["ReportStarterTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.ReportStarterTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+        "//third_party/kotlin/kotlin/test",
+        "//third_party/kotlin/kotlinx/coroutines:core",
+    ],
+)

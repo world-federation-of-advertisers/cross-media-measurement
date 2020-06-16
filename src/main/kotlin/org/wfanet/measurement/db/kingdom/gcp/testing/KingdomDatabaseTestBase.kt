@@ -18,6 +18,7 @@ import org.wfanet.measurement.db.kingdom.gcp.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
@@ -95,10 +96,10 @@ abstract class KingdomDatabaseTestBase :
     scheduleId: Long,
     reportId: Long,
     externalReportId: Long,
+    state: ReportState,
     createTime: Instant? = null,
     windowStartTime: Instant = Instant.EPOCH,
     windowEndTime: Instant = Instant.EPOCH,
-    state: Report.ReportState = Report.ReportState.AWAITING_REQUISITIONS,
     reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
   ) {
     write(

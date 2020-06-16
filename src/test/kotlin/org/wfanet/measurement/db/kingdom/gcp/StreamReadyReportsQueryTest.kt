@@ -10,6 +10,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 @RunWith(JUnit4::class)
@@ -65,7 +66,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 
-  private fun insertReportInState(state: Report.ReportState) {
+  private fun insertReportInState(state: ReportState) {
     insertReport(
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
@@ -102,7 +103,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() = runBlocking<Unit> {
-    insertReportInState(Report.ReportState.AWAITING_REQUISITIONS)
+    insertReportInState(ReportState.AWAITING_REQUISITION_FULFILLMENT)
     insertRequisitionInState(RequisitionState.FULFILLED)
     insertReportRequisition()
 
@@ -115,21 +116,21 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `ignores Reports missing ReportRequisitions`() = runBlocking<Unit> {
-    insertReportInState(Report.ReportState.AWAITING_REQUISITIONS)
+    insertReportInState(ReportState.AWAITING_REQUISITION_FULFILLMENT)
     insertRequisitionInState(RequisitionState.FULFILLED)
     assertThat(streamReadyReportsToList()).isEmpty()
   }
 
   @Test
   fun `ignores Reports in other states`() = runBlocking<Unit> {
-    insertReportInState(Report.ReportState.READY_TO_START)
+    insertReportInState(ReportState.READY_TO_START)
     insertRequisitionInState(RequisitionState.FULFILLED)
     assertThat(streamReadyReportsToList()).isEmpty()
   }
 
   @Test
   fun `ignores Reports with unfulfilled Requisitions`() = runBlocking<Unit> {
-    insertReportInState(Report.ReportState.AWAITING_REQUISITIONS)
+    insertReportInState(ReportState.AWAITING_REQUISITION_FULFILLMENT)
     insertRequisitionInState(RequisitionState.UNFULFILLED)
     insertReportRequisition()
 

@@ -14,6 +14,7 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
 @RunWith(JUnit4::class)
 class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
@@ -63,10 +64,21 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 
+  private fun insertTheReport() {
+    insertReport(
+      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
+      ReportState.AWAITING_REQUISITION_CREATION
+    )
+  }
+
+  private fun insertTheRequisition() {
+    insertRequisition(DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID)
+  }
+
   @Test
   fun success() {
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID)
-    insertRequisition(DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID)
+    insertTheReport()
+    insertTheRequisition()
 
     runAssociateRequisitionAndReportTransaction(
       ExternalId(EXTERNAL_REQUISITION_ID),
@@ -100,7 +112,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `missing requisition`() {
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID)
+    insertTheReport()
     assertFails {
       runAssociateRequisitionAndReportTransaction(
         ExternalId(EXTERNAL_REQUISITION_ID),
@@ -111,7 +123,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `missing report`() {
-    insertRequisition(DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID)
+    insertTheRequisition()
     assertFails {
       runAssociateRequisitionAndReportTransaction(
         ExternalId(EXTERNAL_REQUISITION_ID),
@@ -122,8 +134,8 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `already exists`() {
-    insertRequisition(DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID)
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID)
+    insertTheReport()
+    insertTheRequisition()
 
     val expectedColumns: Map<String, Long> = mapOf(
       "AdvertiserId" to ADVERTISER_ID,

@@ -102,7 +102,7 @@ class ReportStorageServiceTest {
           addExternalReportConfigIds(2)
           addExternalReportConfigIds(3)
           addExternalScheduleIds(4)
-          addStates(ReportState.AWAITING_REQUISITIONS)
+          addStates(ReportState.AWAITING_REQUISITION_CREATION)
           createdAfterBuilder.seconds = 12345
         }
       }.build()
@@ -123,7 +123,7 @@ class ReportStorageServiceTest {
       externalAdvertiserIds = listOf(ExternalId(1)),
       externalReportConfigIds = listOf(ExternalId(2), ExternalId(3)),
       externalScheduleIds = listOf(ExternalId(4)),
-      states = listOf(ReportState.AWAITING_REQUISITIONS),
+      states = listOf(ReportState.AWAITING_REQUISITION_CREATION),
       createdAfter = Instant.ofEpochSecond(12345)
     )
 

@@ -17,7 +17,7 @@ import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
-import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
@@ -80,7 +80,7 @@ class CreateNextReportTransaction(
         .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
-        .set("State").toProtoEnum(Report.ReportState.AWAITING_REQUISITIONS)
+        .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
         .set("ReportDetails").to(ReportDetails.getDefaultInstance().toSpannerByteArray())
         .set("ReportDetailsJson").to(ReportDetails.getDefaultInstance().toJson())
         .build()

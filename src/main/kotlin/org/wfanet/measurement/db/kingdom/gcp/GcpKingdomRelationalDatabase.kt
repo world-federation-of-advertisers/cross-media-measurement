@@ -12,6 +12,7 @@ import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 class GcpKingdomRelationalDatabase(
@@ -56,7 +57,7 @@ class GcpKingdomRelationalDatabase(
     )
   }
 
-  override fun updateReportState(externalReportId: ExternalId, state: Report.ReportState) =
+  override fun updateReportState(externalReportId: ExternalId, state: ReportState) =
     client.runReadWriteTransaction { transactionContext ->
       UpdateReportStateTransaction().execute(transactionContext, externalReportId, state)
     }

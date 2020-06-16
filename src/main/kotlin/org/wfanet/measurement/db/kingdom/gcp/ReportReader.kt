@@ -8,6 +8,7 @@ import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 
 /**
@@ -75,7 +76,7 @@ class ReportReader : SpannerReader<ReportReadResult>() {
 
     windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
     windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
-    state = struct.getProtoEnum("State", Report.ReportState::forNumber)
+    state = struct.getProtoEnum("State", ReportState::forNumber)
 
     reportDetails = struct.getProtoBufMessage("ReportDetails", ReportDetails.parser())
     reportDetailsJson = struct.getString("ReportDetailsJson")

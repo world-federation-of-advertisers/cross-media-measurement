@@ -10,7 +10,10 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//third_party/java/io/grpc:api",
+        "//third_party/java/io/grpc/core:util",
         "//third_party/java/io/grpc/inprocess",
         "//third_party/java/io/grpc/testing",
         "//third_party/java/org/junit",

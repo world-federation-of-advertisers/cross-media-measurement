@@ -18,6 +18,7 @@ import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
@@ -113,7 +114,7 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
       externalReportId = EXTERNAL_REPORT_ID
       windowStartTime = clock["nextReportStartTime"].toProtoTime()
       windowEndTime = clock["nextReportStartTime"].plus(Period.ofDays(3)).toProtoTime()
-      state = Report.ReportState.AWAITING_REQUISITIONS
+      state = ReportState.AWAITING_REQUISITION_CREATION
       reportDetails = ReportDetails.getDefaultInstance()
       reportDetailsJson = reportDetails.toJson()
     }.build()

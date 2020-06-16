@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 /**
@@ -34,7 +35,7 @@ class StreamReadyReportsQuery {
       .withBuilder {
         appendClause(sql)
         bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
-        bind("report_state").toProtoEnum(Report.ReportState.AWAITING_REQUISITIONS)
+        bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_FULFILLMENT)
         bind("limit").to(limit)
       }
       .execute(readContext)

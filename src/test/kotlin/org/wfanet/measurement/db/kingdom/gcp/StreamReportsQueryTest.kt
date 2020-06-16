@@ -14,6 +14,7 @@ import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
 @RunWith(JUnit4::class)
 class StreamReportsQueryTest : KingdomDatabaseTestBase() {
@@ -61,9 +62,15 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
 
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID1, EXTERNAL_REPORT_ID1)
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID2, EXTERNAL_REPORT_ID2)
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID3, EXTERNAL_REPORT_ID3)
+    fun insertReportWithIds(reportId: Long, externalReportId: Long) =
+      insertReport(
+        ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, reportId, externalReportId,
+        state = ReportState.READY_TO_START
+      )
+
+    insertReportWithIds(REPORT_ID1, EXTERNAL_REPORT_ID1)
+    insertReportWithIds(REPORT_ID2, EXTERNAL_REPORT_ID2)
+    insertReportWithIds(REPORT_ID3, EXTERNAL_REPORT_ID3)
   }
 
   @Test
@@ -105,14 +112,6 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `external id filters`() = runBlocking<Unit> {
-    fun executeWithAdvertiserFilter(externalAdvertiserId: Long) =
-      executeToList(
-        streamReportsFilter(
-          externalAdvertiserIds = listOf(ExternalId(externalAdvertiserId))
-        ),
-        5
-      )
-
     fun wrongIdIf(condition: Boolean, id: Long) = ExternalId(if (condition) UNUSED_ID else id)
 
     repeat(3) {
@@ -132,7 +131,7 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
       externalAdvertiserIds = listOf(ExternalId(EXTERNAL_ADVERTISER_ID)),
       externalReportConfigIds = listOf(ExternalId(EXTERNAL_REPORT_CONFIG_ID)),
       externalScheduleIds = listOf(ExternalId(EXTERNAL_SCHEDULE_ID)),
-      states = listOf(Report.ReportState.AWAITING_REQUISITIONS),
+      states = listOf(ReportState.READY_TO_START),
       createdAfter = Instant.EPOCH
     )
     assertThat(executeToList(filter, 10))

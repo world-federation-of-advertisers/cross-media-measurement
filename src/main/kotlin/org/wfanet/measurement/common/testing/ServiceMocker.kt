@@ -5,7 +5,6 @@ import io.grpc.kotlin.AbstractCoroutineServerImpl
 import kotlin.reflect.KFunction2
 import kotlin.reflect.KSuspendFunction2
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.logBeforeThrowing
 
 /**
  * A lightweight, opinionated version of mocking.
@@ -41,7 +40,7 @@ class ServiceMocker<T : AbstractCoroutineServerImpl> {
     val method = callerName()
     val handler = handlers[method] ?: error("Method not mocked: $method")
     calls.add(GrpcCall(method, request))
-    return logBeforeThrowing { handler(request) as ReturnT }
+    return handler(request) as ReturnT
   }
 
   /** Returns the name of the function that calls [handleCall]. */

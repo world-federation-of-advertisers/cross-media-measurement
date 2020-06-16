@@ -47,7 +47,14 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
-    insertReport(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID)
+    insertReport(
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      EXTERNAL_REPORT_ID,
+      ReportState.AWAITING_REQUISITION_FULFILLMENT
+    )
   }
 
   @Test
@@ -65,5 +72,17 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
           .containsExactly(Report.newBuilder().setState(state).build())
       }
     }
+  }
+
+  @Test
+  fun `noop update`() {
+    runUpdateReportStateTransaction(ExternalId(EXTERNAL_REPORT_ID), ReportState.SUCCEEDED)
+
+    // Does not fail:
+    runUpdateReportStateTransaction(ExternalId(EXTERNAL_REPORT_ID), ReportState.SUCCEEDED)
+
+    assertThat(readAllReportsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(Report.newBuilder().setState(ReportState.SUCCEEDED).build())
   }
 }

@@ -8,6 +8,7 @@ import io.grpc.testing.GrpcCleanupRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.common.GrpcExceptionLogger
 
 class GrpcTestServerRule(
   private val servicesFactory: (ManagedChannel) -> List<BindableService>
@@ -26,9 +27,11 @@ class GrpcTestServerRule(
   override fun apply(base: Statement?, description: Description?): Statement {
     val serverBuilder =
       InProcessServerBuilder.forName(serverName)
+        .intercept(GrpcExceptionLogger())
         .directExecutor()
 
     servicesFactory(channel).forEach { serverBuilder.addService(it) }
+
     grpcCleanupRule.register(serverBuilder.build().start())
 
     return grpcCleanupRule.apply(base, description)

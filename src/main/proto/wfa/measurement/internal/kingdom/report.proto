@@ -12,11 +12,23 @@ option java_multiple_files = true;
 message Report {
   enum ReportState {
     REPORT_STATE_UNKNOWN = 0;
-    AWAITING_REQUISITIONS = 1;
-    READY_TO_START = 2;
-    IN_PROGRESS = 3;
-    SUCCESSFUL = 4;
-    FAILED = 5;
+
+    // For new Reports, before all Requisitions are created and associated.
+    AWAITING_REQUISITION_CREATION = 1;
+
+    // All Requisitions are created and associated, but some are unfulfilled.
+    AWAITING_REQUISITION_FULFILLMENT = 2;
+
+    // All Requisitions are associated and fulfilled.
+    READY_TO_START = 3;
+
+    // Each duchy has been successfully told to start the computation.
+    IN_PROGRESS = 4;
+
+    // Terminal states
+    SUCCEEDED = 5;
+    FAILED = 6;
+    CANCELLED = 7;
   }
 
   fixed64 external_advertiser_id = 1;

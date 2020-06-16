@@ -1,5 +1,7 @@
-package org.wfanet.measurement.provider.reports
+package org.wfanet.measurement.kingdom
 
+import io.grpc.ManagedChannel
+import io.grpc.ManagedChannelBuilder
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.launch
@@ -10,9 +12,13 @@ import org.wfanet.measurement.common.doubleFlag
 import org.wfanet.measurement.common.durationFlag
 import org.wfanet.measurement.common.intFlag
 import org.wfanet.measurement.common.longFlag
+import org.wfanet.measurement.common.stringFlag
+import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 
 object ReportStarterFlags {
   val MAX_PARALLELISM = intFlag("max-parallelism", 32)
+  val INTERNAL_SERVICES_TARGET = stringFlag("internal-services-target", "")
 }
 
 object ThrottlerFlags {
@@ -25,6 +31,11 @@ fun main(args: Array<String>) {
   runBlocking {
     Flags.parse(args.asIterable())
 
+    val channel: ManagedChannel =
+      ManagedChannelBuilder
+        .forTarget(ReportStarterFlags.INTERNAL_SERVICES_TARGET.value)
+        .build()
+
     val throttler = AdaptiveThrottler(
       ThrottlerFlags.OVERLOAD_FACTOR.value,
       Clock.systemUTC(),
@@ -32,14 +43,21 @@ fun main(args: Array<String>) {
       ThrottlerFlags.POLL_DELAY_MILLIS.value
     )
 
+    val reportStarterClient = ReportStarterClientImpl(
+      ReportStorageCoroutineStub(channel),
+      RequisitionStorageCoroutineStub(channel)
+    )
+
     val reportStarter = ReportStarter(
-      ReportApiImpl(throttler),
-      ReportStarterFlags.MAX_PARALLELISM.value
+      throttler,
+      ReportStarterFlags.MAX_PARALLELISM.value,
+      reportStarterClient
     )
 
     // We just launch each of the tasks that we want to do in parallel. They each run indefinitely.
+    // TODO: move to separate binaries.
     launch { reportStarter.createReports() }
     launch { reportStarter.createRequisitions() }
-    launch { reportStarter.startComputations() }
+    launch { reportStarter.startReports() }
   }
 }
