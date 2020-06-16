@@ -9,7 +9,7 @@ import java.io.IOException
  */
 class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   private val relationalDatabase: ComputationsRelationalDb<StageT, StageDetailT>,
-  private val blobDatabase: ComputationsBlobDb
+  private val blobDatabase: ComputationsBlobDb<StageT>
 ) {
 
   /**
@@ -143,7 +143,7 @@ class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
 
   /**
    * Write a BLOB to blob storage, and then update the reference to it in the
-   * relation data base for a stage.
+   * relational data base for a stage.
    *
    * @throws [IOException] upon failure
    */
@@ -155,6 +155,10 @@ class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
     blobDatabase.blockingWrite(blobName, blob)
     relationalDatabase.writeOutputBlobReference(token, blobName)
   }
+
+  /** Convenience function to get a path were a new blob may be written. */
+  fun newBlobPath(token: ComputationToken<StageT>, name: String): String =
+    blobDatabase.newBlobPath(token, name)
 
   /**
    * Reads the specific stage details as a [M] protobuf message for the current stage of a

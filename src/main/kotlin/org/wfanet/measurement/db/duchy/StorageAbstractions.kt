@@ -147,7 +147,7 @@ typealias BlobId = Long
 data class BlobRef(val name: BlobId, val pathToBlob: String)
 
 /** BLOBs storage used by a computation. */
-interface ComputationsBlobDb {
+interface ComputationsBlobDb<StageT : Enum<StageT>> {
 
   /**
    * Reads and returns a BLOB from storage
@@ -162,7 +162,10 @@ interface ComputationsBlobDb {
   /**
    * Deletes a BLOB
    */
-  fun delete(reference: String) {}
+  fun delete(reference: BlobRef)
+
+  /** Returns a path where to write a blob for a computation stage. */
+  fun newBlobPath(token: ComputationToken<StageT>, name: String): String
 }
 
 /**

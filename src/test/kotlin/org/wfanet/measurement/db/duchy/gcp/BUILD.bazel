@@ -23,6 +23,22 @@ kt_jvm_test(
     ],
 )
 
+kt_jvm_test(
+    name = "gcp_storage_computations_db_test",
+    srcs = ["GcpStorageComputationsDbTest.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.gcp.GcpStorageComputationsDbTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/com/google/cloud/storage",
+        "//third_party/java/com/google/cloud/storage/contrib/nio",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/com/google/common/truth/extensions/proto",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
+    ],
+)
+
 spanner_emulator_test(
     name = "computations_schema_test",
     srcs = ["ComputationsSchemaTest.kt"],
