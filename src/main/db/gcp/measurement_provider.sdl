@@ -7,6 +7,7 @@
 --   │       ├── ReportConfigCampaigns
 --   │       └── ReportConfigSchedules
 --   │           └── Reports
+--   │               └── ReportLogEntries
 --   │               └── ReportRequisitions
 --   └── DataProviders
 --       └── Campaigns
@@ -174,8 +175,8 @@ CREATE TABLE Reports (
   State             INT64 NOT NULL,  -- Proto enum encoded as int
 
   -- ReportDetails serialized proto
-  ReportDetails     BYTES(MAX),
-  ReportDetailsJson STRING(MAX),
+  ReportDetails     BYTES(MAX) NOT NULL,
+  ReportDetailsJson STRING(MAX) NOT NULL,
 ) PRIMARY KEY (AdvertiserId, ReportConfigId, ScheduleId, ReportId),
   INTERLEAVE IN PARENT ReportConfigSchedules ON DELETE CASCADE;
 
@@ -189,6 +190,23 @@ CREATE INDEX ReportsByState ON Reports(State, UpdateTime ASC);
 
 CREATE UNIQUE INDEX ReportsByExternalId
   ON Reports(ExternalReportId, CreateTime DESC);
+
+-- Contains status updates from the Duchies and within the Kingdom for a
+-- particular report. For any given report, each Duchy might send many updates
+-- (one or more per stage of the MPC protocol). This is used to give a bird's
+-- eye view of the state of the computations to help debug and track progress.
+CREATE TABLE ReportLogEntries (
+  AdvertiserId    INT64 NOT NULL,
+  ReportConfigId  INT64 NOT NULL,
+  ScheduleId      INT64 NOT NULL,
+  ReportId        INT64 NOT NULL,
+  CreateTime      TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  -- ReportLogDetails serialized proto.
+  ReportLogDetails      BYTES(MAX) NOT NULL,
+  ReportLogDetailsJson  STRING(MAX) NOT NULL,
+) PRIMARY KEY (AdvertiserId, ReportConfigId, ScheduleId, ReportId, CreateTime),
+  INTERLEAVE IN PARENT Reports ON DELETE CASCADE;
 
 CREATE TABLE ReportConfigCampaigns (
   AdvertiserId    INT64 NOT NULL,
