@@ -3,9 +3,6 @@ package org.wfanet.measurement.service.v1alpha.requisition
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import java.time.Instant
-import java.util.logging.Level
-import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -17,7 +14,7 @@ import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
+import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.toJson
@@ -27,7 +24,9 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
@@ -58,52 +57,27 @@ class RequisitionServiceTest {
         campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
         metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
       }.build()
-
-    val logger = Logger.getLogger(this::class.java.name)
   }
 
-  object FakeRequisitionService : RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase() {
-    var fulfillRequisitionFn: ((FulfillRequisitionRequest) -> Requisition)? = null
-    var streamRequisitionsFn: ((StreamRequisitionsRequest) -> Flow<Requisition>)? = null
-
-    override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition =
-      loggingExceptions { fulfillRequisitionFn!!.invoke(request) }
-
-    override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> =
-      loggingExceptions { streamRequisitionsFn!!.invoke(request) }
-
-    private fun <T> loggingExceptions(block: () -> T): T {
-      try {
-        return block()
-      } catch (e: Exception) {
-        logger.log(Level.SEVERE, "Exception in FakeRequisitionService:", e)
-        throw e
-      }
-    }
-  }
+  private val requisitionStorage = FakeRequisitionStorage()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { channel ->
     listOf(
-      FakeRequisitionService,
+      requisitionStorage,
       RequisitionService(
         RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel)
       )
     )
   }
 
-  private val stub: RequisitionGrpcKt.RequisitionCoroutineStub by lazy {
-    RequisitionGrpcKt.RequisitionCoroutineStub(grpcTestServerRule.channel)
+  private val stub: RequisitionCoroutineStub by lazy {
+    RequisitionCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
-  fun fulfillMetricRequisition() = runBlocking {
-    FakeRequisitionService.fulfillRequisitionFn = { request: FulfillRequisitionRequest ->
-      assertThat(request).isEqualTo(
-        FulfillRequisitionRequest.newBuilder()
-          .setExternalRequisitionId(REQUISITION.externalRequisitionId)
-          .build()
-      )
+  fun fulfillMetricRequisition() = runBlocking<Unit> {
+    requisitionStorage.mocker.mock(RequisitionStorageCoroutineImplBase::fulfillRequisition) {
       REQUISITION
     }
 
@@ -123,23 +97,24 @@ class RequisitionServiceTest {
     }.build()
 
     assertThat(result).isEqualTo(expected)
+
+    assertThat(requisitionStorage.mocker.callsForMethod("fulfillRequisition"))
+      .containsExactly(
+        FulfillRequisitionRequest.newBuilder()
+          .setExternalRequisitionId(REQUISITION.externalRequisitionId)
+          .build()
+      )
   }
 
   @Test
-  fun `listMetricRequisitions without page token`() = runBlocking {
-    FakeRequisitionService.streamRequisitionsFn = { streamRequisitionsRequest ->
-      assertThat(streamRequisitionsRequest).ignoringRepeatedFieldOrder().isEqualTo(
-        StreamRequisitionsRequest.newBuilder().apply {
-          limit = 2
-          filterBuilder.apply {
-            addAllStates(listOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED))
-            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
-            addExternalCampaignIds(REQUISITION.externalCampaignId)
-          }
-        }.build()
-      )
-      flowOf(REQUISITION, REQUISITION)
-    }
+  fun `listMetricRequisitions without page token`() = runBlocking<Unit> {
+    requisitionStorage
+      .mocker
+      .mockStreaming(
+        RequisitionStorageCoroutineImplBase::streamRequisitions
+      ) {
+        flowOf(REQUISITION, REQUISITION)
+      }
 
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
       parentBuilder.apply {
@@ -173,24 +148,25 @@ class RequisitionServiceTest {
     assertThat(result)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(expected)
-  }
 
-  @Test
-  fun `listMetricRequisitions with page token`() = runBlocking {
-    FakeRequisitionService.streamRequisitionsFn = { streamRequisitionsRequest ->
-      assertThat(streamRequisitionsRequest).ignoringRepeatedFieldOrder().isEqualTo(
+    assertThat(requisitionStorage.mocker.callsForMethod("streamRequisitions"))
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
         StreamRequisitionsRequest.newBuilder().apply {
-          limit = 1
+          limit = 2
           filterBuilder.apply {
-            addStates(RequisitionState.UNFULFILLED)
+            addAllStates(listOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED))
             addExternalDataProviderIds(REQUISITION.externalDataProviderId)
             addExternalCampaignIds(REQUISITION.externalCampaignId)
-            createdAfter = CREATE_TIME
           }
         }.build()
       )
-      emptyFlow()
-    }
+  }
+
+  fun `listMetricRequisitions with page token`() = runBlocking<Unit> {
+    requisitionStorage
+      .mocker
+      .mockStreaming(RequisitionStorageCoroutineImplBase::streamRequisitions) { emptyFlow() }
 
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
       parentBuilder.apply {
@@ -206,5 +182,19 @@ class RequisitionServiceTest {
     val expected = ListMetricRequisitionsResponse.getDefaultInstance()
 
     assertThat(result).isEqualTo(expected)
+
+    assertThat(requisitionStorage.mocker.callsForMethod("streamRequisitions"))
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        StreamRequisitionsRequest.newBuilder().apply {
+          limit = 1
+          filterBuilder.apply {
+            addStates(RequisitionState.UNFULFILLED)
+            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+            addExternalCampaignIds(REQUISITION.externalCampaignId)
+            createdAfter = CREATE_TIME
+          }
+        }.build()
+      )
   }
 }
