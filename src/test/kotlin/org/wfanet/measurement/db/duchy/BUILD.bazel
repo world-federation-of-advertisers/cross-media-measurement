@@ -7,7 +7,8 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//:unit_testing_core",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -18,6 +19,9 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//:unit_testing_core",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/com/google/common/truth/extensions/proto",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )

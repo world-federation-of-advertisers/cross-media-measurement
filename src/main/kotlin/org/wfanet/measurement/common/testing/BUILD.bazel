@@ -9,6 +9,7 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
-        "@maven//:org_mockito_mockito_core",
+        "//third_party/java/org/junit",
+        "//third_party/java/org/mockito",
     ],
 )

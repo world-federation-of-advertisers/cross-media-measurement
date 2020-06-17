@@ -9,7 +9,7 @@ java_test(
     deps = [
         "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
-        "@maven//:com_google_truth_truth",
-        "@maven//:junit_junit",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/org/junit",
     ],
 )

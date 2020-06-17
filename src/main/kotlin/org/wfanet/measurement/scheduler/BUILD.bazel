@@ -6,7 +6,7 @@ kt_jvm_library(
     name = "scheduler",
     srcs = glob(["*.kt"]),
     deps = [
-        "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )

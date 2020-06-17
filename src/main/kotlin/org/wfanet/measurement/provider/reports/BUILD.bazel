@@ -16,13 +16,13 @@ kt_jvm_library(
         exclude = ["*Main.kt"],
     ),
     deps = [
-        "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/scheduler",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedule_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )
 
@@ -32,8 +32,8 @@ kt_jvm_binary(
     main_class = "org.wfanet.measurement.provider.reports.ReportStarterMainKt",
     deps = [
         ":reports",
-        "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/scheduler",
+        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )

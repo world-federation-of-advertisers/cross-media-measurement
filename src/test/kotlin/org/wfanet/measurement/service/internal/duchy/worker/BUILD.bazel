@@ -2,16 +2,16 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "WorkerServiceImplTest",
-    srcs = [":WorkerServiceImplTest.kt"],
+    srcs = ["WorkerServiceImplTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.duchy.worker.WorkerServiceImplTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/worker:worker_service_impl",
-        "@com_github_jetbrains_kotlin//:kotlin-test",
-        "@io_grpc_grpc_java//core",
-        "@io_grpc_grpc_java//testing",
-        "@maven//:com_google_truth_extensions_truth_liteproto_extension",
-        "@maven//:com_google_truth_extensions_truth_proto_extension",
-        "@maven//:com_google_truth_truth",
-        "@maven//:junit_junit",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/com/google/common/truth/extensions/proto",
+        "//third_party/java/io/grpc:api",
+        "//third_party/java/io/grpc/inprocess",
+        "//third_party/java/io/grpc/testing",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )

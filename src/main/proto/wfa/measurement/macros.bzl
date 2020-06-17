@@ -22,7 +22,7 @@ def java_and_kt_grpc_library(name, deps):
     native.java_library(
         name = name + "_kt_jvm_grpc",
         exports = [
-            "//:kotlinx_coroutines_core",
+            "//third_party/kotlin/kotlinx/coroutines:core",
             ":%s_java_proto" % name,
             ":%s_java_grpc" % name,
             ":%s_kt_jvm_grpc_internal" % name,

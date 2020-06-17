@@ -5,8 +5,9 @@ kt_jvm_test(
     srcs = ["SpannerStructsTest.kt"],
     test_class = "org.wfanet.measurement.db.gcp.SpannerStructsTest",
     deps = [
-        "//:google_cloud_spanner",
-        "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )

@@ -9,8 +9,9 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
-        "//:grpc_core",
-        "//:kotlinx_coroutines_core",
-        "@com_google_protobuf//:protobuf_java",
+        "//third_party/java/com/google/protobuf",
+        "//third_party/java/com/google/protobuf/util",
+        "//third_party/java/io/grpc:api",
+        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )

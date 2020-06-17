@@ -10,8 +10,9 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
-        "@com_github_jetbrains_kotlin//:kotlin-test",
-        "@maven//:com_google_cloud_google_cloud_spanner",
-        "@maven//:junit_junit",
+        "//third_party/java/com/google/api/core",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )

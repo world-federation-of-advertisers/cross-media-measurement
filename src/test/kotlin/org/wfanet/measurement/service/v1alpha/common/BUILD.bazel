@@ -5,10 +5,13 @@ kt_jvm_test(
     srcs = ["ProtoConversionsTest.kt"],
     test_class = "org.wfanet.measurement.service.v1alpha.common.ProtoConversionsTest",
     deps = [
-        "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/com/google/common/truth/extensions/proto",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )

@@ -26,8 +26,8 @@ load("//build/com_google_truth_truth:repo.bzl", "COM_GOOGLE_TRUTH_TRUTH_ARTIFACT
 load(":build/io_bazel_rules_kotlin/repo.bzl", "kotlinc_release", "rules_kotin_repo")
 
 rules_kotin_repo(
-    sha256 = "4fd769fb0db5d3c6240df8a9500515775101964eebdf85a3f9f0511130885fde",
-    version = "legacy-1.3.0",
+    sha256 = "da0e6e1543fcc79e93d4d93c3333378f3bd5d29e82c1bc2518de0dbe048e6598",
+    version = "legacy-1.4.0-rc3",
 )
 
 load(":build/io_bazel_rules_kotlin/deps.bzl", "rules_kotlin_deps")
@@ -95,6 +95,7 @@ MAVEN_ARTIFACTS += COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS
 
 maven_install(
     artifacts = MAVEN_ARTIFACTS,
+    fetch_sources = True,
     generate_compat_repositories = True,
     override_targets = dict(
         IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS.items() +

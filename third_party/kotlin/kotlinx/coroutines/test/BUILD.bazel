@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "test",
+    actual = "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_test",
+)

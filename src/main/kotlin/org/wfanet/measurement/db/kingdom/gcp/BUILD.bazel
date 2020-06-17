@@ -9,8 +9,6 @@ kt_jvm_library(
     name = "gcp",
     srcs = glob(["*.kt"]),
     deps = [
-        "//:google_cloud_spanner",
-        "//:kotlinx_coroutines_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
@@ -21,5 +19,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )

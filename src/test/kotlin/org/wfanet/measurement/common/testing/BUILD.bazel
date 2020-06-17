@@ -5,8 +5,11 @@ kt_jvm_test(
     srcs = ["MockitoHelpersTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.MockitoHelpersTest",
     deps = [
-        "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/org/junit",
+        "//third_party/java/org/mockito",
+        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -15,7 +18,8 @@ kt_jvm_test(
     srcs = ["TestClockWithNamedInstantsTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.TestClockWithNamedInstantsTest",
     deps = [
-        "//:unit_testing_core",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
     ],
 )
