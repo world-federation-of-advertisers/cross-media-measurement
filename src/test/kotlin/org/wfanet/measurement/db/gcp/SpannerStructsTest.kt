@@ -1,9 +1,7 @@
 package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.Timestamp
-import com.google.cloud.spanner.ResultSets
 import com.google.cloud.spanner.Struct
-import java.lang.IllegalStateException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
@@ -47,13 +45,5 @@ class SpannerStructsTest {
     assertEquals(timestamp, struct.getNullableTimestamp("timestampValue"))
     assertFailsWith<IllegalStateException> { struct.getNullableTimestamp("int64Value") }
     assertFailsWith<IllegalStateException> { struct.getNullableTimestamp("nullString") }
-  }
-
-  @Test
-  fun getAtMostOne() {
-    assertNull(ResultSets.forRows(struct.type, listOf()).getAtMostOne())
-    assertEquals(struct, ResultSets.forRows(struct.type, listOf(struct)).getAtMostOne())
-    assertFailsWith<IllegalStateException>
-    { ResultSets.forRows(struct.type, listOf(struct, struct)).getAtMostOne() }
   }
 }
