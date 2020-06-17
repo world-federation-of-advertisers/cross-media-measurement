@@ -66,9 +66,27 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//third_party/java/com/google/cloud/grpc",
         "//third_party/java/com/google/cloud/spanner",
-        "//third_party/java/com/google/common/truth",
+        "//third_party/java/com/google/common/truth/extensions/proto",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
+    ],
+)
+
+spanner_emulator_test(
+    name = "gcp_computations_managers_test",
+    srcs = ["GcpComputationManagersTest.kt"],
+    resources = [
+        "//src/main/db/gcp:computations_scehema",
+    ],
+    test_class = "org.wfanet.measurement.db.duchy.gcp.GcpComputationManagersTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/com/google/cloud/storage",
+        "//third_party/java/com/google/cloud/storage/contrib/nio",
         "//third_party/java/com/google/common/truth/extensions/proto",
         "//third_party/java/org/junit",
         "//third_party/kotlin/kotlin/test",

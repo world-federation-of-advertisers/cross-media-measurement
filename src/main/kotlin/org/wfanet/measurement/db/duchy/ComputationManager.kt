@@ -7,7 +7,7 @@ import java.io.IOException
  *
  * @param[StageT] enum of the stages of a computation.
  */
-class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
+abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   private val relationalDatabase: ComputationsRelationalDb<StageT, StageDetailT>,
   private val blobDatabase: ComputationsBlobDb<StageT>
 ) {
