@@ -3,7 +3,6 @@ package org.wfanet.measurement.db.duchy.gcp
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
-import com.google.cloud.storage.StorageOptions
 import java.nio.file.Paths
 import kotlin.random.Random
 import org.wfanet.measurement.db.duchy.BlobRef
@@ -20,14 +19,14 @@ class GcpStorageComputationsDb<StageT : Enum<StageT>>(
   private val random: Random = Random
 ) : ComputationsBlobDb<StageT> {
   override fun read(reference: BlobRef): ByteArray =
-    storage[blobId(reference)]?.getContent() ?: error("No blob for $reference")
+    storage[blobId(reference.pathToBlob)]?.getContent() ?: error("No blob for $reference")
 
-  override fun blockingWrite(blob: BlobRef, bytes: ByteArray) {
-    storage.create(blobInfo(blob), bytes)
+  override fun blockingWrite(path: String, bytes: ByteArray) {
+    storage.create(blobInfo(path), bytes)
   }
 
   override fun delete(reference: BlobRef) {
-    storage.delete(blobId(reference))
+    storage.delete(blobId(reference.pathToBlob))
   }
 
   /**
@@ -38,6 +37,6 @@ class GcpStorageComputationsDb<StageT : Enum<StageT>>(
     return Paths.get(token.localId.toString(), token.state.name, name, hexValue).toString()
   }
 
-  private fun blobId(blob: BlobRef): BlobId = BlobId.of(bucket, blob.pathToBlob)
-  private fun blobInfo(blob: BlobRef): BlobInfo = BlobInfo.newBuilder(blobId(blob)).build()
+  private fun blobId(path: String): BlobId = BlobId.of(bucket, path)
+  private fun blobInfo(path: String): BlobInfo = BlobInfo.newBuilder(blobId(path)).build()
 }

@@ -709,11 +709,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("update_stage", 100)
     assertEquals(
       database.updateComputationState(
-        token,
-        FakeProtocolStates.D,
-        listOf(),
-        listOf(),
-        afterTransition
+        token = token,
+        to = FakeProtocolStates.D,
+        inputBlobPaths = listOf(),
+        outputBlobs = 0,
+        afterTransition = afterTransition
       ),
       database.getToken(token.globalId)
     )
@@ -882,27 +882,34 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertNull(database.claimTask("TestJob"))
     testClock.tickSeconds("move_to_B", 21)
     token = database.updateComputationState(
-      token, FakeProtocolStates.B,
-      listOf(BlobRef(1, "/path/to/inputs/123")),
-      listOf(2),
-      AfterTransition.CONTINUE_WORKING
+      token = token,
+      to = FakeProtocolStates.B,
+      inputBlobPaths = listOf("/path/to/inputs/123"),
+      outputBlobs = 1,
+      afterTransition = AfterTransition.CONTINUE_WORKING
     )
+    testClock.tickSeconds("write_output_B")
+    database.writeOutputBlobReference(token, BlobRef(1L, "/path/to/output/for/stage/B"))
     testClock.tickSeconds("move_to_C", 3)
     token = database.updateComputationState(
-      token, FakeProtocolStates.C,
-      listOf(),
-      listOf(2),
-      AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+      token = token,
+      to = FakeProtocolStates.C,
+      inputBlobPaths = listOf(),
+      outputBlobs = 1,
+      afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
     )
+    testClock.tickSeconds("write_output_C")
+    database.writeOutputBlobReference(token, BlobRef(0L, "/path/to/output/for/stage/C"))
     database.enqueue(token)
     testClock.tickSeconds("claimed_in_C", 3)
     token = assertNotNull(database.claimTask("a-second-worker"))
     testClock.tickSeconds("move_to_E", 3)
     token = database.updateComputationState(
-      token, FakeProtocolStates.E,
-      listOf(BlobRef(1, "/path/to/inputs/789")),
-      listOf(),
-      AfterTransition.DO_NOT_ADD_TO_QUEUE
+      token = token,
+      to = FakeProtocolStates.E,
+      inputBlobPaths = listOf("/path/to/inputs/789"),
+      outputBlobs = 0,
+      afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
     )
     assertNull(database.claimTask("nothing-to-claim"))
 
@@ -991,14 +998,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
         .set("BlobId").to(1L)
-        .set("PathToBlob").to(null as String?)
+        .set("PathToBlob").to("/path/to/output/for/stage/B")
         .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.C))
         .set("BlobId").to(0L)
-        .set("PathToBlob").to(null as String?)
+        .set("PathToBlob").to("/path/to/output/for/stage/C")
         .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
         .build(),
       Struct.newBuilder()
@@ -1020,11 +1027,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     assertFailsWith<IllegalArgumentException> {
       database.updateComputationState(
-        token,
-        FakeProtocolStates.D,
-        listOf(),
-        listOf(),
-        AfterTransition.DO_NOT_ADD_TO_QUEUE
+        token = token,
+        to = FakeProtocolStates.D,
+        inputBlobPaths = listOf(),
+        outputBlobs = 0,
+        afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
     }
   }

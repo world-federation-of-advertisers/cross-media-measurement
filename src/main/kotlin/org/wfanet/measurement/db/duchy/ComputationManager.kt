@@ -46,13 +46,13 @@ class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * BLOBs required by the task are all referenced here. Not all of these BLOBs
    * must be rewritten, as some can be carried forward to the next computation.
    *
-   * @param[c] The task currently being worked
+   * @param[token] The task currently being worked
    * @param[stateAfter] The state to transition the computation to
    * @param[blobsToWrite] The input BLOBs for the new state which must be
    *    written to the [BlobComputationsDb]
-   * @param[blobToCarryForward] The input BLOBs for the new state which already
+   * @param[blobToCarryForward] The path to the  input BLOBs for the new state which already
    *    exist in [BlobComputationsDb]
-   * @param[blobsRequiredForOutput] The BLOBs which should be written as part of
+   * @param[blobsRequiredForOutput] The number of BLOBs which should be written as part of
    *    this stage, this may be useful when a stage is waiting on inputs from
    *    multiple other workers.
    * @param[afterTransition] What to do with the work after transitioning the
@@ -61,22 +61,22 @@ class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * @throws [IOException] when state state transition fails
    */
   fun transitionState(
-    c: ComputationToken<StageT>,
+    token: ComputationToken<StageT>,
     stateAfter: StageT,
-    blobsToWrite: Map<BlobRef, ByteArray> = mapOf(),
-    blobToCarryForward: Collection<BlobRef> = listOf(),
-    blobsRequiredForOutput: Collection<BlobId> = listOf(),
+    blobsToWrite: Map<String, ByteArray> = mapOf(),
+    blobToCarryForward: List<String> = listOf(),
+    blobsRequiredForOutput: Int = 0,
     afterTransition: AfterTransition
   ): ComputationToken<StageT> {
-    val refs = HashSet<BlobRef>(blobToCarryForward)
+    val writtenBlobs = ArrayList(blobToCarryForward)
 
-    for ((ref, bytes) in blobsToWrite) {
+    for ((path, bytes) in blobsToWrite) {
       // TODO: Investigate using co-routines to write in parallel.
-      blobDatabase.blockingWrite(ref, bytes)
-      refs.add(ref)
+      blobDatabase.blockingWrite(path, bytes)
+      writtenBlobs.add(path)
     }
     return relationalDatabase.updateComputationState(
-      c, stateAfter, refs, blobsRequiredForOutput, afterTransition
+      token, stateAfter, writtenBlobs, blobsRequiredForOutput, afterTransition
     )
   }
 

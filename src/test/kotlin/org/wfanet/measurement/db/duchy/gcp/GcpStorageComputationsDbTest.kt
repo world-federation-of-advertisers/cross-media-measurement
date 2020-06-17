@@ -59,10 +59,9 @@ class GcpStorageComputationsDbTest {
 
   @Test
   fun writeBlobPath() {
-    val blobId = 0L
     val pathToBlob = "path/to/a/blob"
     val blobData = "data-to-write-to-storage".toByteArray()
-    blobsDb.blockingWrite(BlobRef(blobId, pathToBlob), blobData)
+    blobsDb.blockingWrite(pathToBlob, blobData)
     assertThat(storage[BlobId.of(TEST_BUCKET, pathToBlob)].getContent()).isEqualTo(blobData)
   }
 

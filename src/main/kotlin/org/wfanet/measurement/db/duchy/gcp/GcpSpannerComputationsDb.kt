@@ -242,8 +242,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   override fun updateComputationState(
     token: ComputationToken<StageT>,
     to: StageT,
-    blobInputRefs: Collection<BlobRef>,
-    blobOutputRefs: Collection<BlobId>,
+    inputBlobPaths: List<String>,
+    outputBlobs: Int,
     afterTransition: AfterTransition
   ): ComputationToken<StageT> {
     require(
@@ -251,6 +251,15 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     ) { "Invalid state transition ${token.state} -> $to" }
 
     runIfTokenFromLastUpdate(token) { ctx ->
+      val unwrittenOutputs =
+        blobIdToPathMap(ctx, token.localId, token.state, BlobDependencyType.OUTPUT)
+          .filterValues { it == null }
+      check(unwrittenOutputs.isEmpty()) {
+        """
+        Cannot transition computation for $token to stage $to, all outputs have not been written.
+        Outputs not written for blob ids (${unwrittenOutputs.keys})
+        """.trimIndent()
+      }
       val writeTime = clock.gcpTimestamp()
 
       ctx.buffer(mutationsToChangeStages(token, to, writeTime, afterTransition))
@@ -259,8 +268,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         mutationsToMakeBlobRefsForNewStage(
           token.localId,
           to,
-          blobInputRefs,
-          blobOutputRefs
+          inputBlobPaths,
+          outputBlobs
         )
       )
     }
@@ -352,21 +361,21 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   private fun mutationsToMakeBlobRefsForNewStage(
     localId: Long,
     stage: StageT,
-    blobInputRefs: Collection<BlobRef>,
-    blobOutputRefs: Collection<BlobId>
+    blobInputRefs: List<String>,
+    outputBlobs: Int
   ): List<Mutation> {
     val mutations = ArrayList<Mutation>()
-    blobInputRefs.mapIndexedTo(mutations) { index, blobRef ->
+    blobInputRefs.mapIndexedTo(mutations) { index, path ->
       computationMutations.insertComputationBlobReference(
         localId = localId,
         stage = stage,
         blobId = index.toLong(),
-        pathToBlob = blobRef.pathToBlob,
+        pathToBlob = path,
         dependencyType = ComputationBlobDependency.INPUT
       )
     }
 
-    blobOutputRefs.mapIndexedTo(mutations) { index, _ ->
+    (0 until outputBlobs).mapTo(mutations) { index ->
       computationMutations.insertComputationBlobReference(
         localId = localId,
         stage = stage,
@@ -394,23 +403,32 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
-    return runIfTokenFromLastUpdate(token) { ctx ->
-      ctx.read(
-        "ComputationBlobReferences",
-        KeySet.prefixRange(Key.of(token.localId, computationMutations.enumToLong(token.state))),
-        listOf("BlobId", "PathToBlob", "DependencyType"))
-        .asSequence()
-        .filter {
-          val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
-          when (dependencyType) {
-            BlobDependencyType.ANY -> true
-            BlobDependencyType.OUTPUT -> dep == ComputationBlobDependency.OUTPUT
-            BlobDependencyType.INPUT -> dep == ComputationBlobDependency.INPUT
-          }
-        }
-        .map { it.getLong("BlobId") to it.getNullableString("PathToBlob") }
-        .toMap()
+    return runIfTokenFromLastUpdate(token) {
+        ctx -> blobIdToPathMap(ctx, token.localId, token.state, dependencyType)
     }!!
+  }
+
+  private fun blobIdToPathMap(
+    ctx: TransactionContext,
+    localId: Long,
+    stage: StageT,
+    dependencyType: BlobDependencyType
+  ): Map<Long, String?> {
+    return ctx.read(
+      "ComputationBlobReferences",
+      KeySet.prefixRange(Key.of(localId, computationMutations.enumToLong(stage))),
+      listOf("BlobId", "PathToBlob", "DependencyType"))
+      .asSequence()
+      .filter {
+        val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
+        when (dependencyType) {
+          BlobDependencyType.ANY -> true
+          BlobDependencyType.OUTPUT -> dep == ComputationBlobDependency.OUTPUT
+          BlobDependencyType.INPUT -> dep == ComputationBlobDependency.INPUT
+        }
+      }
+      .map { it.getLong("BlobId") to it.getNullableString("PathToBlob") }
+      .toMap()
   }
 
   override fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef) {

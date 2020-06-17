@@ -99,7 +99,7 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    *
    * @param[token] The token for the computation
    * @param[to] Stage this computation should transition to.
-   * @param[blobInputRefs] References to BLOBs that are inputs to this
+   * @param[inputBlobPaths] References to BLOBs that are inputs to this
    *    computation stage, all inputs should be written on transition and should
    *    not change.
    * @param[blobOutputRefs] Names of BLOBs that are outputs to this computation.
@@ -111,8 +111,8 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
   fun updateComputationState(
     token: ComputationToken<StageT>,
     to: StageT,
-    blobInputRefs: Collection<BlobRef>,
-    blobOutputRefs: Collection<BlobId>,
+    inputBlobPaths: List<String>,
+    outputBlobs: Int,
     afterTransition: AfterTransition
   ): ComputationToken<StageT>
 
@@ -157,7 +157,11 @@ interface ComputationsBlobDb<StageT : Enum<StageT>> {
   /**
    * Write a BLOB and ensure it is fully written before returning.
    */
-  fun blockingWrite(blob: BlobRef, bytes: ByteArray)
+  fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.pathToBlob, bytes)
+  /**
+   * Write a BLOB and ensure it is fully written before returning.
+   */
+  fun blockingWrite(path: String, bytes: ByteArray)
 
   /**
    * Deletes a BLOB
