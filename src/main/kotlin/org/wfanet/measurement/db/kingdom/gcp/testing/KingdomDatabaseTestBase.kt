@@ -90,6 +90,22 @@ abstract class KingdomDatabaseTestBase :
     )
   }
 
+  protected fun insertReportConfigCampaign(
+    advertiserId: Long,
+    reportConfigId: Long,
+    dataProviderId: Long,
+    campaignId: Long
+  ) {
+    write(
+      Mutation.newInsertBuilder("ReportConfigCampaigns")
+        .set("AdvertiserId").to(advertiserId)
+        .set("ReportConfigId").to(reportConfigId)
+        .set("DataProviderId").to(dataProviderId)
+        .set("CampaignId").to(campaignId)
+        .build()
+    )
+  }
+
   protected fun insertReport(
     advertiserId: Long,
     reportConfigId: Long,

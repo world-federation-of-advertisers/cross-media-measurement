@@ -79,7 +79,6 @@ class GcpKingdomRelationalDatabase(
     }
   }
 
-  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> {
-    TODO("Not yet implemented")
-  }
+  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> =
+    ReadRequisitionTemplatesQuery().execute(client.singleUse(), reportConfigId)
 }
