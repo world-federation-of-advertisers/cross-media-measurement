@@ -74,22 +74,26 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       lockOwner = WRITE_NULL_STRING,
       lockExpirationTime = WRITE_NULL_TIMESTAMP,
       details = details,
-      stage = initialState)
-
-    val computationStageRow = computationMutations.insertComputationStage(
-      localId = localId,
-      stage = initialState,
-      creationTime = writeTimestamp,
-      // The stage is being attempted right now.
-      nextAttempt = 2,
-      details = computationMutations.detailsFor(initialState)
+      stage = initialState
     )
 
-    val computationStageAttemptRow = computationMutations.insertComputationStageAttempt(
-      localId = localId,
-      stage = initialState,
-      attempt = 1,
-      beginTime = writeTimestamp)
+    val computationStageRow =
+      computationMutations.insertComputationStage(
+        localId = localId,
+        stage = initialState,
+        creationTime = writeTimestamp,
+        // The stage is being attempted right now.
+        nextAttempt = 2,
+        details = computationMutations.detailsFor(initialState)
+      )
+
+    val computationStageAttemptRow =
+      computationMutations.insertComputationStageAttempt(
+        localId = localId,
+        stage = initialState,
+        attempt = 1,
+        beginTime = writeTimestamp
+      )
 
     databaseClient.write(
       listOf(computationRow, computationStageRow, computationStageAttemptRow)
@@ -130,7 +134,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(
         computationMutations.updateComputation(
-          token.localId, clock.gcpTimestamp(),
+          token.localId,
+          clock.gcpTimestamp(),
           // Release any lock on this computation. The owner says who has the current
           // lock on the computation, and the expiration time states both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being
@@ -194,7 +199,11 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     // Create a new attempt of the stage for the nextAttempt.
     ctx.buffer(
       computationMutations.insertComputationStageAttempt(
-        computationId, stage, nextAttempt, beginTime = writeTime)
+        computationId,
+        stage,
+        nextAttempt,
+        beginTime = writeTime
+      )
     )
     // And increment NextAttempt column of the computation stage.
     ctx.buffer(
@@ -213,9 +222,9 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         computationMutations.updateComputationStageAttempt(
           localId = computationId,
           stage = stage,
-          // The current attempt is the one before the nextAttempt
-          attempt = nextAttempt - 1,
-          endTime = writeTime)
+          attempt = nextAttempt - 1, // The current attempt is the one before the nextAttempt
+          endTime = writeTime
+        )
       )
     }
     // The lock was acquired.
@@ -224,7 +233,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
 
   private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
     return computationMutations.updateComputation(
-      computationId, clock.gcpTimestamp(),
+      computationId,
+      clock.gcpTimestamp(),
       lockOwner = ownerId,
       lockExpirationTime = fiveMinutesInTheFuture()
     )
@@ -284,25 +294,27 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   ): List<Mutation> {
     val mutations = arrayListOf<Mutation>()
 
-    mutations.add(computationMutations.updateComputation(
-      token.localId,
-      writeTime,
-      stage = newStage,
-      lockOwner = when (afterTransition) {
-        // Write the NULL value to the lockOwner column to release the lock.
-        AfterTransition.DO_NOT_ADD_TO_QUEUE, AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
-          WRITE_NULL_STRING
-        // Do not change the owner
-        AfterTransition.CONTINUE_WORKING -> null
-      },
-      lockExpirationTime = when (afterTransition) {
-        // Null LockExpirationTime values will not be claimed from the work queue.
-        AfterTransition.DO_NOT_ADD_TO_QUEUE -> WRITE_NULL_TIMESTAMP
-        // The computation is ready for processing by some worker right away.
-        AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTime
-        // The computation lock will expire sometime in the future.
-        AfterTransition.CONTINUE_WORKING -> fiveMinutesInTheFuture()
-      })
+    mutations.add(
+      computationMutations.updateComputation(
+        token.localId,
+        writeTime,
+        stage = newStage,
+        lockOwner = when (afterTransition) {
+          // Write the NULL value to the lockOwner column to release the lock.
+          AfterTransition.DO_NOT_ADD_TO_QUEUE,
+          AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> WRITE_NULL_STRING
+          // Do not change the owner
+          AfterTransition.CONTINUE_WORKING -> null
+        },
+        lockExpirationTime = when (afterTransition) {
+          // Null LockExpirationTime values will not be claimed from the work queue.
+          AfterTransition.DO_NOT_ADD_TO_QUEUE -> WRITE_NULL_TIMESTAMP
+          // The computation is ready for processing by some worker right away.
+          AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTime
+          // The computation lock will expire sometime in the future.
+          AfterTransition.CONTINUE_WORKING -> fiveMinutesInTheFuture()
+        }
+      )
     )
 
     mutations.add(
@@ -316,7 +328,11 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
 
     mutations.add(
       computationMutations.updateComputationStageAttempt(
-        token.localId, token.state, token.attempt, endTime = writeTime)
+        token.localId,
+        token.state,
+        token.attempt,
+        endTime = writeTime
+      )
     )
 
     // Mutation to insert the first attempt of the stage. When this value is null, no attempt
@@ -335,21 +351,23 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
           )
       }
 
-    mutations.add(computationMutations.insertComputationStage(
-      localId = token.localId,
-      stage = newStage,
-      previousStage = token.state,
-      creationTime = writeTime,
-      details = computationMutations.detailsFor(newStage),
-      // nextAttempt is the number of the current attempt of the stage plus one.
-      // Adding an Attempt to the new stage while transitioning state means that an attempt of that
-      // new stage is ongoing at the end of this transaction. Meaning if for some reason there
-      // needs to be another attempt of that stage in the future the next attempt will be #2.
-      // Conversely, when an attempt of the new stage is not added because,
-      // attemptOfNewStageMutation is null, then there is not an ongoing attempt of the stage at
-      // the end of the transaction, the next attempt of stage will be the first.
-      nextAttempt = if (attemptOfNewStageMutation == null) 1L else 2L
-    ))
+    mutations.add(
+      computationMutations.insertComputationStage(
+        localId = token.localId,
+        stage = newStage,
+        previousStage = token.state,
+        creationTime = writeTime,
+        details = computationMutations.detailsFor(newStage),
+        // nextAttempt is the number of the current attempt of the stage plus one. Adding an Attempt
+        // to the new stage while transitioning state means that an attempt of that new stage is
+        // ongoing at the end of this transaction. Meaning if for some reason there needs to be
+        // another attempt of that stage in the future the next attempt will be #2. Conversely, when
+        // an attempt of the new stage is not added because, attemptOfNewStageMutation is null, then
+        // there is not an ongoing attempt of the stage at the end of the transaction, the next
+        // attempt of stage will be the first.
+        nextAttempt = if (attemptOfNewStageMutation == null) 1L else 2L
+      )
+    )
 
     // Add attemptOfNewStageMutation to mutations if it is not null. This must be added after
     // the mutation to insert the computation stage because it creates the parent row.
@@ -388,14 +406,14 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
 
   override fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT {
     return computationMutations.parseDetails(
-        databaseClient.singleUseReadOnlyTransaction()
-          .readRow(
-            "ComputationStages",
-            Key.of(token.localId, computationMutations.enumToLong(token.state)),
-            listOf("Details")
-          )
-          ?.getBytesAsByteArray("Details")
-          ?: error("No ComputationStages row for ($token)")
+      databaseClient.singleUseReadOnlyTransaction()
+        .readRow(
+          "ComputationStages",
+          Key.of(token.localId, computationMutations.enumToLong(token.state)),
+          listOf("Details")
+        )
+        ?.getBytesAsByteArray("Details")
+        ?: error("No ComputationStages row for ($token)")
     )
   }
 
@@ -403,8 +421,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
-    return runIfTokenFromLastUpdate(token) {
-        ctx -> blobIdToPathMap(ctx, token.localId, token.state, dependencyType)
+    return runIfTokenFromLastUpdate(token) { ctx ->
+      blobIdToPathMap(ctx, token.localId, token.state, dependencyType)
     }!!
   }
 
@@ -417,7 +435,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     return ctx.read(
       "ComputationBlobReferences",
       KeySet.prefixRange(Key.of(localId, computationMutations.enumToLong(stage))),
-      listOf("BlobId", "PathToBlob", "DependencyType"))
+      listOf("BlobId", "PathToBlob", "DependencyType")
+    )
       .asSequence()
       .filter {
         val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
@@ -440,8 +459,10 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         listOf("DependencyType")
       )
         ?.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
-        ?: error("No ComputationBlobReferences row for " +
-          "(${token.localId}, ${token.state}, ${blobName.name})")
+        ?: error(
+          "No ComputationBlobReferences row for " +
+            "(${token.localId}, ${token.state}, ${blobName.name})"
+        )
       require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
       ctx.buffer(
         computationMutations.updateComputationBlobReference(
@@ -466,8 +487,9 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     readWriteTransactionBlock: (TransactionContext) -> R
   ): R? {
     return databaseClient.readWriteTransaction().run { ctx ->
-      val current = ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
-        ?: error("No row for computation (${token.localId})")
+      val current =
+        ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
+          ?: error("No row for computation (${token.localId})")
       if (current.getTimestamp("UpdateTime").toMillis() == token.lastUpdateTime) {
         readWriteTransactionBlock(ctx)
       } else {
