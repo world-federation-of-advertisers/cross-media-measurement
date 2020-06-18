@@ -6,6 +6,7 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 /**
  * Wrapper interface for the Kingdom's relational database.
@@ -49,8 +50,8 @@ interface KingdomRelationalDatabase {
   fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report>
 
   /**
-   * Streams [Report]s in state [ReportState.AWAITING_REQUISITIONS] where all of their
-   * [Requisitions] have state [RequisitionState.FULFILLED].
+   * Streams [Report]s in state [ReportState.AWAITING_REQUISITION_FULFILLMENT] where all of their
+   * [Requisition]s have state [RequisitionState.FULFILLED].
    */
   fun streamReadyReports(limit: Long): Flow<Report>
 
@@ -58,4 +59,7 @@ interface KingdomRelationalDatabase {
    * Associates a [Requisition] and a [Report].
    */
   fun associateRequisitionToReport(externalRequisitionId: ExternalId, externalReportId: ExternalId)
+
+  /** Lists the idealized [RequisitionTemplate]s for a [ReportConfig]. */
+  fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate>
 }

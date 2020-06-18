@@ -9,6 +9,7 @@ import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
   var writeNewRequisitionFn: (Requisition) -> Requisition = { it }
@@ -21,6 +22,7 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
   var streamReportsFn: (StreamReportsFilter, Long) -> Flow<Report> = { _, _ -> emptyFlow() }
   var streamReadyReportsFn: (Long) -> Flow<Report> = { emptyFlow() }
   var associateRequisitionToReportFn: (ExternalId, ExternalId) -> Unit = { _, _ -> }
+  var listRequisitionTemplatesFn: (ExternalId) -> Iterable<RequisitionTemplate> = { emptyList() }
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
     writeNewRequisitionFn(requisition)
@@ -50,4 +52,7 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
     externalReportId: ExternalId
   ) =
     associateRequisitionToReportFn(externalRequisitionId, externalReportId)
+
+  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> =
+    listRequisitionTemplatesFn(reportConfigId)
 }

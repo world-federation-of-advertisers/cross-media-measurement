@@ -14,6 +14,7 @@ import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 class GcpKingdomRelationalDatabase(
   clock: Clock,
@@ -76,5 +77,9 @@ class GcpKingdomRelationalDatabase(
       AssociateRequisitionAndReportTransaction()
         .execute(transactionContext, externalRequisitionId, externalReportId)
     }
+  }
+
+  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> {
+    TODO("Not yet implemented")
   }
 }
