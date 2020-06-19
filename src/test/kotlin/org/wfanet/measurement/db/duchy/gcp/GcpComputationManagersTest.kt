@@ -72,8 +72,8 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
     // Each of these operations makes assertions about the state of the computation via changes
     // to the computation token.
     computation.enqueue()
-    // TODO: Should not be the second attempt of the starting task.
-    computation.claimWorkFor("some-peasant", attempt = 2)
+
+    computation.claimWorkFor("some-peasant")
     computation.runTransientStage(ADDING_NOISE to NOISE_ADDED)
     fakeRpcService.sendNoisedSketchesToPrimary()
 
@@ -121,15 +121,17 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
       testClock)
-
     val fakeRpcService = computation.FakeRpcService()
 
+    computation.enqueue()
+    computation.claimWorkFor("some-peasant")
+    computation.runTransientStage(ADDING_NOISE to NOISE_ADDED)
     computation.runWaitStage(WAIT_SKETCHES)
+
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
     computation.claimWorkFor("some-peasant")
-    computation.runTransientStage(ADDING_NOISE to NOISE_ADDED)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
@@ -227,15 +229,15 @@ class SingleComputationManager(
 
   /** Add computation to work queue and verify that it has no owner. */
   fun enqueue() {
-    assertTokenChangesTo(token.copy(owner = null)) {
+    assertTokenChangesTo(token.copy(owner = null, attempt = 0)) {
       manager.enqueue(token)
       assertNotNull(manager.getToken(token.globalId))
     }
   }
 
   /** Get computation from work queue and verify it is owned by the [workerId]. */
-  fun claimWorkFor(workerId: String, attempt: Long = 1) {
-    assertTokenChangesTo(token.copy(owner = workerId, attempt = attempt)) {
+  fun claimWorkFor(workerId: String) {
+    assertTokenChangesTo(token.copy(owner = workerId, attempt = 1)) {
       assertNotNull(manager.claimWork(workerId))
     }
   }

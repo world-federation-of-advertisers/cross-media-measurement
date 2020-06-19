@@ -125,7 +125,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertEquals(
       ComputationToken(
         localId = idGenerator.localId(id1), nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
-        owner = null, attempt = 1, state = FakeProtocolStates.A,
+        owner = null, attempt = 0, state = FakeProtocolStates.A,
         globalId = id1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
       resultId1
@@ -134,7 +134,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertEquals(
       ComputationToken(
         localId = idGenerator.localId(id2), nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
-        owner = null, attempt = 1, state = FakeProtocolStates.A,
+        owner = null, attempt = 0, state = FakeProtocolStates.A,
         globalId = id2, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
       resultId2
@@ -215,27 +215,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       spanner.client, "SELECT ComputationId FROM ComputationBlobReferences"
     )
 
-    assertQueryReturns(
+    assertQueryReturnsNothing(
       spanner.client,
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
       ORDER BY ComputationId DESC
-      """.trimIndent(),
-      Struct.newBuilder()
-        .set("ComputationId").to(resultId1.localId)
-        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
-        .set("Attempt").to(resultId1.attempt)
-        .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .build(),
-      Struct.newBuilder()
-        .set("ComputationId").to(resultId2.localId)
-        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
-        .set("Attempt").to(resultId2.attempt)
-        .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .build()
+      """.trimIndent()
     )
   }
 
@@ -880,6 +866,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("insert_computation", 20)
     var token = database.insertComputation(12345, FakeProtocolStates.A)
     assertNull(database.claimTask("TestJob"))
+    database.enqueue(token)
+    token = assertNotNull(database.claimTask("a-worker"))
     testClock.tickSeconds("move_to_B", 21)
     token = database.updateComputationState(
       token = token,

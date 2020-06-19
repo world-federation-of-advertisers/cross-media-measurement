@@ -67,43 +67,32 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     }.build()
 
     val writeTimestamp = clock.gcpTimestamp()
-    val computationRow = computationMutations.insertComputation(
-      localId,
-      updateTime = writeTimestamp,
-      globalId = globalId,
-      lockOwner = WRITE_NULL_STRING,
-      lockExpirationTime = WRITE_NULL_TIMESTAMP,
-      details = details,
-      stage = initialState
-    )
-
-    val computationStageRow =
-      computationMutations.insertComputationStage(
-        localId = localId,
-        stage = initialState,
-        creationTime = writeTimestamp,
-        // The stage is being attempted right now.
-        nextAttempt = 2,
-        details = computationMutations.detailsFor(initialState)
+    val computationRow =
+      computationMutations.insertComputation(
+        localId,
+        updateTime = writeTimestamp,
+        globalId = globalId,
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = WRITE_NULL_TIMESTAMP,
+        details = details,
+        stage = initialState
       )
 
-    val computationStageAttemptRow =
-      computationMutations.insertComputationStageAttempt(
-        localId = localId,
-        stage = initialState,
-        attempt = 1,
-        beginTime = writeTimestamp
-      )
-
-    databaseClient.write(
-      listOf(computationRow, computationStageRow, computationStageAttemptRow)
+    val computationStageRow = computationMutations.insertComputationStage(
+      localId = localId,
+      stage = initialState,
+      creationTime = writeTimestamp,
+      nextAttempt = 1,
+      details = computationMutations.detailsFor(initialState)
     )
+
+    databaseClient.write(listOf(computationRow, computationStageRow))
 
     return ComputationToken(
       localId = localId,
       globalId = globalId,
       state = initialState,
-      attempt = 1,
+      attempt = 0,
       owner = null,
       lastUpdateTime = writeTimestamp.toMillis(),
       role = computationAtThisDuchy.role,
@@ -134,8 +123,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(
         computationMutations.updateComputation(
-          token.localId,
-          clock.gcpTimestamp(),
+          localId = token.localId,
+          updateTime = clock.gcpTimestamp(),
           // Release any lock on this computation. The owner says who has the current
           // lock on the computation, and the expiration time states both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being

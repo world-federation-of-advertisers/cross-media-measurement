@@ -43,7 +43,7 @@ class SketchAggregationStatesTest {
     assertTrue {
       SketchAggregationStates.validTransition(
         SketchAggregationState.STARTING,
-        SketchAggregationState.WAIT_SKETCHES
+        SketchAggregationState.ADDING_NOISE
       )
     }
 
