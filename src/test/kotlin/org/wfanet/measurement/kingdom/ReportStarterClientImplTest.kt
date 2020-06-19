@@ -2,14 +2,19 @@ package org.wfanet.measurement.kingdom
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
@@ -17,6 +22,8 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
+import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
+import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportConfigStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
@@ -105,32 +112,106 @@ class ReportStarterClientImplTest {
   }
 
   @Test
-  fun createRequisition() {
-    // TODO
+  fun createRequisition() = runBlocking<Unit> {
+    val inputRequisition = Requisition.newBuilder().setExternalDataProviderId(1).build()
+    val outputRequisition = Requisition.newBuilder().setExternalDataProviderId(2).build()
+
+    fakeRequisitionStorage.mocker.mock(FakeRequisitionStorage::createRequisition) {
+      outputRequisition
+    }
+
+    assertThat(reportStarterClient.createRequisition(inputRequisition))
+      .isEqualTo(outputRequisition)
+
+    assertThat(fakeRequisitionStorage.mocker.callsForMethod("createRequisition"))
+      .containsExactly(inputRequisition)
   }
 
   @Test
-  fun associateRequisitionToReport() {
-    // TODO
+  fun associateRequisitionToReport() = runBlocking<Unit> {
+    fakeReportStorage.mocker.mock(FakeReportStorage::associateRequisition) {
+      AssociateRequisitionResponse.getDefaultInstance()
+    }
+
+    val requisition = Requisition.newBuilder().setExternalRequisitionId(1).build()
+    val report = Report.newBuilder().setExternalReportId(2).build()
+
+    reportStarterClient.associateRequisitionToReport(requisition, report)
+
+    val expectedRequest = AssociateRequisitionRequest.newBuilder().apply {
+      externalRequisitionId = 1
+      externalReportId = 2
+    }.build()
+
+    assertThat(fakeReportStorage.mocker.callsForMethod("associateRequisition"))
+      .containsExactly(expectedRequest)
   }
 
   @Test
-  fun updateReportState() {
-    // TODO
+  fun updateReportState() = runBlocking<Unit> {
+    val outputReport = Report.getDefaultInstance()
+    fakeReportStorage.mocker.mock(FakeReportStorage::updateReportState) { outputReport }
+
+    val report = Report.newBuilder().setExternalReportId(1).build()
+    val newState = ReportState.IN_PROGRESS
+
+    reportStarterClient.updateReportState(report, newState)
+
+    val expectedRequest =
+      UpdateReportStateRequest.newBuilder()
+        .setExternalReportId(report.externalReportId)
+        .setState(newState)
+        .build()
+
+    assertThat(fakeReportStorage.mocker.callsForMethod("updateReportState"))
+      .containsExactly(expectedRequest)
   }
 
   @Test
-  fun streamReportsInState() {
-    // TODO
+  fun streamReportsInState() = runBlocking<Unit> {
+    val report1 = Report.newBuilder().setExternalReportId(1).build()
+    val report2 = Report.newBuilder().setExternalReportId(2).build()
+    val report3 = Report.newBuilder().setExternalReportId(3).build()
+
+    fakeReportStorage.mocker.mockStreaming(FakeReportStorage::streamReports) {
+      flowOf(report1, report2, report3)
+    }
+
+    val state = ReportState.AWAITING_REQUISITION_FULFILLMENT
+    val outputReports = reportStarterClient.streamReportsInState(state)
+
+    assertThat(outputReports.toList())
+      .containsExactly(report1, report2, report3)
+      .inOrder()
+
+    val expectedRequest = StreamReportsRequest.newBuilder().apply {
+      filterBuilder.addStates(state)
+    }.build()
+
+    assertThat(fakeReportStorage.mocker.callsForMethod("streamReports"))
+      .comparingExpectedFieldsOnly()
+      .containsExactly(expectedRequest)
   }
 
   @Test
-  fun streamReadyReports() {
-    // TODO
+  fun streamReadyReports() = runBlocking<Unit> {
+    val report1 = Report.newBuilder().setExternalReportId(1).build()
+    val report2 = Report.newBuilder().setExternalReportId(2).build()
+    val report3 = Report.newBuilder().setExternalReportId(3).build()
+
+    fakeReportStorage.mocker.mockStreaming(FakeReportStorage::streamReadyReports) {
+      flowOf(report1, report2, report3)
+    }
+
+    val outputReports = reportStarterClient.streamReadyReports()
+
+    assertThat(outputReports.toList())
+      .containsExactly(report1, report2, report3)
+      .inOrder()
   }
 
   @Test
-  fun streamReadySchedules() {
+  fun streamReadySchedules() = runBlocking<Unit> {
     // TODO
   }
 }
