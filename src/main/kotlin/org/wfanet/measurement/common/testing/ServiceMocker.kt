@@ -47,16 +47,16 @@ class ServiceMocker<T : AbstractCoroutineServerImpl> {
   private fun callerName() = Thread.currentThread().stackTrace[3].methodName
 
   /** Sets the implementation of a unary non-streaming gRPC method. */
-  fun <RequestT : Message, ResponseT : Message> mock(
-    method: KSuspendFunction2<T, RequestT, ResponseT>,
+  fun <M : T, RequestT : Message, ResponseT : Message> mock(
+    method: KSuspendFunction2<M, RequestT, ResponseT>,
     block: (RequestT) -> ResponseT
   ) {
     mockInternal(method.name, block)
   }
 
   /** Sets the implementation of a server-side streaming gRPC method. */
-  fun <RequestT : Message, ResponseT : Message> mockStreaming(
-    method: KFunction2<T, RequestT, Flow<ResponseT>>,
+  fun <M : T, RequestT : Message, ResponseT : Message> mockStreaming(
+    method: KFunction2<M, RequestT, Flow<ResponseT>>,
     block: (RequestT) -> Flow<ResponseT>
   ) {
     mockInternal(method.name, block)

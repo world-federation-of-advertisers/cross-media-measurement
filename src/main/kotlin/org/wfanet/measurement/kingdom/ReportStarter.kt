@@ -50,7 +50,6 @@ class ReportStarter(
   suspend fun createRequisitions() {
     streamReportsAwaitingRequisitionCreation()
       .transform { report ->
-        // TODO: need ReportConfigs too to figure out which  Requisitions are needed.
         for (requisition in reportStarterClient.buildRequisitionsForReport(report)) {
           emit(Pair(report, requisition))
         }
