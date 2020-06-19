@@ -60,8 +60,8 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // The current stage is a RECEIVED* stage which generate no outputs.
-          blobToCarryForward = inputsToCurrentStage,
-          blobsRequiredForOutput = 1,
+          inputBlobsPaths = inputsToCurrentStage,
+          outputBlobCount = 1,
           // The peasant has more work to do, either send it to next duchy or continue working
           // if this is the primary.
           afterTransition = AfterTransition.CONTINUE_WORKING
@@ -75,8 +75,8 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // Continue with the outputs of the previous stage.
-          blobToCarryForward = outputsToCurrentStage,
-          blobsRequiredForOutput = 1,
+          inputBlobsPaths = outputsToCurrentStage,
+          outputBlobCount = 1,
           // The peasant has more work to do, e.g., send it to next duchy.
           afterTransition = AfterTransition.CONTINUE_WORKING
         )
@@ -91,7 +91,7 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // The output of the last job is kept around as it is the finished work.
-          blobToCarryForward = outputsToCurrentStage,
+          inputBlobsPaths = outputsToCurrentStage,
           // The peasant has more work to do, either send it to next duchy or continue working
           // if this is the primary.
           afterTransition = AfterTransition.CONTINUE_WORKING
@@ -104,9 +104,9 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // Keep a reference to the finished work artifact in case it needs to be resent.
-          blobToCarryForward = inputsToCurrentStage,
+          inputBlobsPaths = inputsToCurrentStage,
           // Requires an output to be written e.g., the sketch sent by the predecessor duchy.
-          blobsRequiredForOutput = 1,
+          outputBlobCount = 1,
           // Peasant have nothing to do for this stage.
           afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
         )
@@ -116,7 +116,7 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // Keep a reference to the finished work artifact in case it needs to be resent.
-          blobToCarryForward = inputsToCurrentStage,
+          inputBlobsPaths = inputsToCurrentStage,
           // Peasant have nothing to do for this stage.
           afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
         )
@@ -129,7 +129,7 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // The sketch received from the last duchy.
-          blobToCarryForward = outputsToCurrentStage,
+          inputBlobsPaths = outputsToCurrentStage,
           // This will be called by an gRPC handler, so it gets added to the peasant work queue.
           afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
         )
@@ -139,7 +139,7 @@ class SketchAggregationComputationManager(
           token,
           stage,
           // Save a reference to the noised sketches in case they need to tbe resent.
-          blobToCarryForward = inputsToCurrentStage,
+          inputBlobsPaths = inputsToCurrentStage,
           // Job will be moved into a Wait stage.
           afterTransition = AfterTransition.CONTINUE_WORKING
         )
@@ -150,7 +150,7 @@ class SketchAggregationComputationManager(
         transitionState(
           token,
           stage,
-          blobsRequiredForOutput = duchiesInComputation - 1,
+          outputBlobCount = duchiesInComputation - 1,
           // Need to wait for input from other duchies.
           afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
         )

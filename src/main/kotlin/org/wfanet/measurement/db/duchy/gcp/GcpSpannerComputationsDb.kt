@@ -78,13 +78,14 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         stage = initialState
       )
 
-    val computationStageRow = computationMutations.insertComputationStage(
-      localId = localId,
-      stage = initialState,
-      creationTime = writeTimestamp,
-      nextAttempt = 1,
-      details = computationMutations.detailsFor(initialState)
-    )
+    val computationStageRow =
+      computationMutations.insertComputationStage(
+        localId = localId,
+        stage = initialState,
+        creationTime = writeTimestamp,
+        nextAttempt = 1,
+        details = computationMutations.detailsFor(initialState)
+      )
 
     databaseClient.write(listOf(computationRow, computationStageRow))
 

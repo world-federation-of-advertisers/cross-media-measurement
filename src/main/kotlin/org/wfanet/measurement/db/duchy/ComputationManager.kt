@@ -22,8 +22,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   }
 
   /**
-   * Returns a [ComputationToken] for the most recent computation for a
-   * [globalId].
+   * Returns a [ComputationToken] for the most recent computation for a [globalId].
    */
   fun getToken(globalId: Long): ComputationToken<StageT>? {
     return relationalDatabase.getToken(globalId)
@@ -33,50 +32,37 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * Transitions the state of an ongoing computation.
    *
    * This can be thought of as an atomic transaction, at least on the underlying
-   * [ComputationsRelationalDb]. BLOBs are written first via a
-   * [ComputationsBlobDb], and then the state and work queue is updated in a
-   * single transaction. The new state for the computation is in a clean state
-   * and is thus ready for whatever processing is required, by a worker. This
-   * means all input BLOBs are present at the end of this operation and all of
-   * those BLOBS' references are known for the state. Upon failure, it may be
-   * possible for BLOBs to be written. In such a case, it is up to the caller
-   * to clean up BLOBs if desired.
+   * [ComputationsRelationalDb]. BLOBs are written first via a [ComputationsBlobDb], and then the
+   * state and work queue is updated in a single transaction. The new state for the computation is
+   * in a clean state and is thus ready for whatever processing is required, by a worker. This means
+   * all input BLOBs are present at the end of this operation and all of those BLOBS' references are
+   * known for the state.
    *
-   * Because each task knows the input blobs required to complete it the set of
-   * BLOBs required by the task are all referenced here. Not all of these BLOBs
-   * must be rewritten, as some can be carried forward to the next computation.
+   * Because each task knows the input blobs required to complete it, the set of BLOBs required by
+   * the task are all referenced here. The BLOBs should be present before calling this function.
    *
    * @param[token] The task currently being worked
    * @param[stateAfter] The state to transition the computation to
-   * @param[blobsToWrite] The input BLOBs for the new state which must be
-   *    written to the [BlobComputationsDb]
-   * @param[blobToCarryForward] The path to the  input BLOBs for the new state which already
-   *    exist in [BlobComputationsDb]
-   * @param[blobsRequiredForOutput] The number of BLOBs which should be written as part of
-   *    this stage, this may be useful when a stage is waiting on inputs from
-   *    multiple other workers.
-   * @param[afterTransition] What to do with the work after transitioning the
-   *    state.
+   * @param[inputBlobsPaths] List of pathes ot all input BLOBs for the new state. They must exist.
+   * @param[outputBlobCount] The number of BLOBs which should be written as part of this stage,
+   *    this may be useful when a stage is waiting on inputs from multiple other workers.
+   * @param[afterTransition] What to do with the work after transitioning the state.
    *
    * @throws [IOException] when state state transition fails
    */
   fun transitionState(
     token: ComputationToken<StageT>,
     stateAfter: StageT,
-    blobsToWrite: Map<String, ByteArray> = mapOf(),
-    blobToCarryForward: List<String> = listOf(),
-    blobsRequiredForOutput: Int = 0,
+    inputBlobsPaths: List<String> = listOf(),
+    outputBlobCount: Int = 0,
     afterTransition: AfterTransition
   ): ComputationToken<StageT> {
-    val writtenBlobs = ArrayList(blobToCarryForward)
-
-    for ((path, bytes) in blobsToWrite) {
-      // TODO: Investigate using co-routines to write in parallel.
-      blobDatabase.blockingWrite(path, bytes)
-      writtenBlobs.add(path)
-    }
     return relationalDatabase.updateComputationState(
-      token, stateAfter, writtenBlobs, blobsRequiredForOutput, afterTransition
+      token = token,
+      to = stateAfter,
+      inputBlobPaths = inputBlobsPaths,
+      outputBlobs = outputBlobCount,
+      afterTransition = afterTransition
     )
   }
 
@@ -92,8 +78,8 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   /**
    * Pull for available work and claim a task for the worker.
    *
-   * If the returned value is present, then the task has been claimed for the
-   * worker. When absent, no task was claimed.
+   * If the returned value is present, then the task has been claimed for the worker. When absent,
+   * no task was claimed.
    */
   fun claimWork(workerId: String): ComputationToken<StageT>? {
     return relationalDatabase.claimTask(workerId)
@@ -142,8 +128,8 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   }
 
   /**
-   * Write a BLOB to blob storage, and then update the reference to it in the
-   * relational data base for a stage.
+   * Write a BLOB to blob storage, and then update the reference to it in the relational data
+   * base for a stage.
    *
    * @throws [IOException] upon failure
    */

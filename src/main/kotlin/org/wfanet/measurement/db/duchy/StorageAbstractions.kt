@@ -25,8 +25,7 @@ data class ComputationToken<StageT : Enum<StageT>>(
 )
 
 /**
- * Specifies what to do with the lock on a computation after transitioning to a
- * new stage.
+ * Specifies what to do with the lock on a computation after transitioning to a new stage.
  *
  * @see[ComputationsRelationalDb.updateComputationState]
  */
@@ -61,33 +60,26 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
   /**
    * Inserts a new computation for the global identifier.
    *
-   * A new local identifier is created and returned in the [ComputationToken].
-   * The computation is not added to the queue.
+   * A new local identifier is created and returned in the [ComputationToken]. The computation is
+   * not added to the queue.
    */
   fun insertComputation(globalId: Long, initialState: StageT): ComputationToken<StageT>
 
-  /**
-   * Returns a [ComputationToken] for the most recent computation for a
-   * [globalId].
-   */
+  /** Returns a [ComputationToken] for the most recent computation for a [globalId]. */
   fun getToken(globalId: Long): ComputationToken<StageT>?
 
   /**
-   * Adds a computation to the work queue, saying it can be worked on by a
-   * worker job.
+   * Adds a computation to the work queue, saying it can be worked on by a worker job.
    *
    * This will release any ownership and locks associated with the computation.
    */
   fun enqueue(token: ComputationToken<StageT>)
 
   /**
-   * Query for Computations with tasks ready for processing, and claim one for
-   * an owner.
+   * Query for Computations with tasks ready for processing, and claim one for an owner.
    *
-   * @param[ownerId] The identifier of the worker process that will own the
-   *    lock.
-   * @return [ComputationToken] for the work that needs to be completed,
-   *    when this value is null, no work was claimed.
+   * @param[ownerId] The identifier of the worker process that will own the lock.
+   * @return [ComputationToken] work that was claimed. When null, no work was claimed.
    */
   fun claimTask(ownerId: String): ComputationToken<StageT>?
 
@@ -99,14 +91,11 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    *
    * @param[token] The token for the computation
    * @param[to] Stage this computation should transition to.
-   * @param[inputBlobPaths] References to BLOBs that are inputs to this
-   *    computation stage, all inputs should be written on transition and should
-   *    not change.
-   * @param[blobOutputRefs] Names of BLOBs that are outputs to this computation.
-   *    These are created as part of the computation so they do not have a
-   *    reference to the real storage location.
-   * @param[afterTransition] States what work to do with the computation after
-   *    a successful transition.
+   * @param[inputBlobPaths] References to BLOBs that are inputs to this computation stage, all
+   *    inputs should be written on transition and should not change.
+   * @param[outputBlobs] Number of BLOBs this computation outputs. These are created as
+   *    part of the computation so they do not have a reference to the real storage location.
+   * @param[afterTransition] The work to be do with the computation after a successful transition.
    */
   fun updateComputationState(
     token: ComputationToken<StageT>,
@@ -116,65 +105,46 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
     afterTransition: AfterTransition
   ): ComputationToken<StageT>
 
-  /**
-   * Reads mappings of blob names to paths in blob storage.
-   */
+  /** Reads mappings of blob names to paths in blob storage. */
   fun readBlobReferences(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType = BlobDependencyType.INPUT
   ): Map<BlobId, String?>
 
-  /**
-   * Reads details for a specific stage of a computation as an [M] protobuf message.
-   */
+  /** Reads details for a specific stage of a computation. */
   fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT
 
-  /**
-   * Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from
-   * a stage.
-   */
+  /** Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from a stage. */
   fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef)
 }
 
 /**
- * The identifier of a Blob
- */
+ * The identifier of a Blob */
 typealias BlobId = Long
 
-/**
- * Reference to a named BLOB's storage location.
- */
+/** Reference to a named BLOB's storage location. */
 data class BlobRef(val name: BlobId, val pathToBlob: String)
 
 /** BLOBs storage used by a computation. */
 interface ComputationsBlobDb<StageT : Enum<StageT>> {
 
-  /**
-   * Reads and returns a BLOB from storage
-   */
+  /** Reads and returns a BLOB from storage */
   fun read(reference: BlobRef): ByteArray
 
-  /**
-   * Write a BLOB and ensure it is fully written before returning.
-   */
+  /** Write a BLOB and ensure it is fully written before returning. */
   fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.pathToBlob, bytes)
-  /**
-   * Write a BLOB and ensure it is fully written before returning.
-   */
+
+  /** Write a BLOB and ensure it is fully written before returning. */
   fun blockingWrite(path: String, bytes: ByteArray)
 
-  /**
-   * Deletes a BLOB
-   */
+  /** Deletes a BLOB */
   fun delete(reference: BlobRef)
 
   /** Returns a path where to write a blob for a computation stage. */
   fun newBlobPath(token: ComputationToken<StageT>, name: String): String
 }
 
-/**
- * The way in which a stage depends upon a BLOB.
- */
+/** The way in which a stage depends upon a BLOB. */
 enum class BlobDependencyType {
   /** BLOB is used as an input to the computation stage. */
   INPUT,
