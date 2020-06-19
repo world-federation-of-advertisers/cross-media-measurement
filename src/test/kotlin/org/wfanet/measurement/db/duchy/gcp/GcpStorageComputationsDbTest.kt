@@ -23,7 +23,7 @@ class GcpStorageComputationsDbTest {
     private val storage: Storage = LocalStorageHelper.getOptions().service
     private val token = ComputationToken(
       localId = 5432L, globalId = 6789, attempt = 1, lastUpdateTime = 1234567891011L,
-      state = SketchAggregationState.BLINDING_COUNTS, nextWorker = "next-one", owner = "me",
+      state = SketchAggregationState.DECRYPTING_FLAG_COUNTS, nextWorker = "next-one", owner = "me",
       role = DuchyRole.PRIMARY
     )
   }
@@ -51,9 +51,9 @@ class GcpStorageComputationsDbTest {
   @Test
   fun newPath() {
     val pathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
-    assertThat(pathWithRandomSuffix).startsWith("5432/BLINDING_COUNTS/finished_sketch")
+    assertThat(pathWithRandomSuffix).startsWith("5432/DECRYPTING_FLAG_COUNTS/finished_sketch")
     val secondPathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
-    assertThat(pathWithRandomSuffix).startsWith("5432/BLINDING_COUNTS/finished_sketch")
+    assertThat(pathWithRandomSuffix).startsWith("5432/DECRYPTING_FLAG_COUNTS/finished_sketch")
     assertThat(pathWithRandomSuffix).isNotEqualTo(secondPathWithRandomSuffix)
   }
 

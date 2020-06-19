@@ -3,13 +3,13 @@ package org.wfanet.measurement.db.duchy
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.internal.SketchAggregationState
 import org.wfanet.measurement.internal.SketchAggregationState.ADDING_NOISE
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_POSITIONS
 import org.wfanet.measurement.internal.SketchAggregationState.CLEAN_UP
 import org.wfanet.measurement.internal.SketchAggregationState.COMBINING_REGISTERS
 import org.wfanet.measurement.internal.SketchAggregationState.COMPUTING_METRICS
-import org.wfanet.measurement.internal.SketchAggregationState.COUNTS_BLINDED
+import org.wfanet.measurement.internal.SketchAggregationState.DECRYPTING_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationState.FINISHED
+import org.wfanet.measurement.internal.SketchAggregationState.FLAG_COUNTS_DECRYPTED
 import org.wfanet.measurement.internal.SketchAggregationState.METRICS_COMPUTED
 import org.wfanet.measurement.internal.SketchAggregationState.NOISE_ADDED
 import org.wfanet.measurement.internal.SketchAggregationState.POSITIONS_BLINDED
@@ -47,9 +47,9 @@ object SketchAggregationStates :
       COMBINING_REGISTERS to setOf(REGISTERS_COMBINED, CLEAN_UP),
       REGISTERS_COMBINED to setOf(WAIT_JOINED, CLEAN_UP),
       WAIT_JOINED to setOf(RECEIVED_JOINED, CLEAN_UP),
-      RECEIVED_JOINED to setOf(BLINDING_COUNTS, CLEAN_UP),
-      BLINDING_COUNTS to setOf(COUNTS_BLINDED, CLEAN_UP),
-      COUNTS_BLINDED to setOf(COMPUTING_METRICS, WAIT_FINISHED, CLEAN_UP),
+      RECEIVED_JOINED to setOf(DECRYPTING_FLAG_COUNTS, CLEAN_UP),
+      DECRYPTING_FLAG_COUNTS to setOf(FLAG_COUNTS_DECRYPTED, CLEAN_UP),
+      FLAG_COUNTS_DECRYPTED to setOf(COMPUTING_METRICS, WAIT_FINISHED, CLEAN_UP),
       COMPUTING_METRICS to setOf(METRICS_COMPUTED, CLEAN_UP),
       METRICS_COMPUTED to setOf(WAIT_FINISHED, CLEAN_UP),
       WAIT_FINISHED to setOf(CLEAN_UP),

@@ -51,16 +51,12 @@ enum SketchAggregationState {
   WAIT_JOINED = 13;
   // The worker received the joined sketch from its predecessor.
   RECEIVED_JOINED = 14;
-  //
-  // The worker is re-encrypting the summed counter value, encrypting the
-  // lookup table values, and decrypting the flag value that determines if
-  // the counter was destroyed.
-  BLINDING_COUNTS = 15;
-  //
-  // The worker has finished  re-encrypting the summed counter value,
-  // encrypting the lookup table values, and decrypting the flag value that
-  // determines if the counter was destroyed.
-  COUNTS_BLINDED = 16;
+  // The worker is decrypting counts - which are the summed values across all
+  // sketches for the same register value - and flag values for them.
+  DECRYPTING_FLAG_COUNTS = 15;
+  // The worker has finished removing its layer of encryption for the flag and
+  // counter values.
+  FLAG_COUNTS_DECRYPTED = 16;
   // The primary worker is computing the results of the computation.
   COMPUTING_METRICS = 17;
   // The primary worker has computed the metrics for the computation.
