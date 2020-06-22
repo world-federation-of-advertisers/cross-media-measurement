@@ -54,6 +54,21 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "minimum_interval_throttler_test",
+    srcs = ["MinimumIntervalThrottlerTest.kt"],
+    test_class = "org.wfanet.measurement.common.MinimumIntervalThrottlerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
+        "//third_party/kotlin/kotlinx/coroutines:core",
+        "//third_party/kotlin/kotlinx/coroutines/test",
+    ],
+)
+
+kt_jvm_test(
     name = "renewed_flow_test",
     srcs = ["RenewedFlowTest.kt"],
     test_class = "org.wfanet.measurement.common.RenewedFlowTest",
