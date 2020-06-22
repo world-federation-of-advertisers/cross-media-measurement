@@ -12,61 +12,59 @@ enum SketchAggregationState {
   UNKNOWN = 0;
   // The computation is just starting no work has been done but it is known
   STARTING = 1;
+  // Sketches are stored at different workers. In this stage the worker is
+  // collecting sketches for the computation from its local storage.
+  GATHERING_LOCAL_SKETCHES = 2;
+  // The worker is adding noise to the sketch.
+  ADDING_NOISE = 3;
   // The primary worker is waiting for sketches from all the other MPC worker
   // nodes.
-  WAIT_SKETCHES = 2;
+  WAIT_SKETCHES = 4;
   // The primary worker has received all the sketches needed to run the
   // computation.
-  RECEIVED_SKETCHES = 3;
-  // The worker is adding noise to the sketch.
-  ADDING_NOISE = 4;
-  // The worker finished adding noise to the sketch.
-  NOISE_ADDED = 5;
-  // A non-primary worker has sent its copy of the noised sketches to the
-  // primary worker.
-  TRANSMITTED_SKETCH = 6;
+  RECEIVED_SKETCHES = 5;
   // The worker is waiting to receive a copy of the concatenated sketch from
   // the previous worker in the ring of workers. The primary worker is the
   // one to first send the concatenated sketch to the next worker, but it
   // does so before re-encrypting it's positional values. So the primary
   // Worker is waiting on a sketch from the Nth worker.
-  WAIT_CONCATENATED = 7;
+  WAIT_CONCATENATED = 6;
   // The worker received the concatenated sketch from its predecessor in the
   // ring.
-  RECEIVED_CONCATENATED = 8;
+  RECEIVED_CONCATENATED = 7;
   // The worker is re-encrypting positional values in ths concatenated sketch.
-  BLINDING_POSITIONS = 9;
-  // The worker finished re-encrypting positional values in ths concatenated
-  // sketch.
-  POSITIONS_BLINDED = 10;
-  // The primary worker is joining values based on their re-encrypted
-  // positional values and combining them via the same key aggregation method.
-  COMBINING_REGISTERS = 11;
-  // The primary worker has combined the register values using the same key
-  // aggregation method.
-  REGISTERS_COMBINED = 12;
+  //
+  // Should only be set at a non-primary worker.
+  BLINDING_POSITIONS = 8;
+  // The primary worker is re-encrypting the position values of the sketch and
+  // joining them based on their re-encrypted positional values and combining
+  // them via the same key aggregation method.
+  //
+  // Should only be run at the primary worker.
+  BLINDING_AND_JOINING_REGISTERS = 9;
   // The worker is waiting on its predecessor in the ring of workers for the
   // join sketch. The primary worker is the first to send the joined sketch,
   // but also the last to re-encrypt values in it.
-  WAIT_JOINED = 13;
+  WAIT_JOINED = 10;
   // The worker received the joined sketch from its predecessor.
-  RECEIVED_JOINED = 14;
+  RECEIVED_JOINED = 11;
   // The worker is decrypting counts - which are the summed values across all
   // sketches for the same register value - and flag values for them.
-  DECRYPTING_FLAG_COUNTS = 15;
-  // The worker has finished removing its layer of encryption for the flag and
-  // counter values.
-  FLAG_COUNTS_DECRYPTED = 16;
+  //
+  // The results of this stage differ depending on the role of the worker where
+  // it is run.
+  //   * A non-primary is simply decrypting its layer of elgamal encryption.
+  //   * The primary decrypts its encryption and then use the lookup table to
+  //     map the flags to booleans and counts to actual integers.
+  DECRYPTING_FLAG_COUNTS = 12;
   // The primary worker is computing the results of the computation.
-  COMPUTING_METRICS = 17;
-  // The primary worker has computed the metrics for the computation.
-  METRICS_COMPUTED = 18;
+  COMPUTING_METRICS = 13;
   // The worker is done with processing, but is waiting from a signal that
   // the computation  finished everywhere.
-  WAIT_FINISHED = 19;
+  WAIT_FINISHED = 14;
   // The worker is cleanup after the computation i.e. removing BLOBs that are
   // no longer needed.
-  CLEAN_UP = 20;
+  CLEAN_UP = 15;
   // The computation is done.
-  FINISHED = 21;
+  FINISHED = 16;
 }

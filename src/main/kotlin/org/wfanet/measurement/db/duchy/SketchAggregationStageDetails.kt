@@ -12,8 +12,11 @@ class SketchAggregationStageDetails(private val otherDuchies: List<String>) :
         ComputationStageDetails.newBuilder()
           .setWaitSketchStageDetails(
             WaitSketchesStageDetails.newBuilder()
+              // The WAIT_SKETCHES stage has exactly one input which is the noised sketches from
+              // the primary duchy running the wait operation. It is not an output of the stage
+              // because it is a result of a locally running stage.
               .putAllExternalDuchyLocalBlobId(
-                otherDuchies.mapIndexed { idx, duchy -> duchy to idx.toLong() }.toMap()
+                otherDuchies.mapIndexed { idx, duchy -> duchy to (idx + 1).toLong() }.toMap()
               )
           )
           .build()
