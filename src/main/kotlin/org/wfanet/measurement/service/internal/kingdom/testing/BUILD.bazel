@@ -13,6 +13,8 @@ kt_jvm_library(
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedule_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedule_storage_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_config_storage_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
