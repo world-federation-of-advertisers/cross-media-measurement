@@ -75,6 +75,17 @@ proto_and_java_proto_library(
     ],
 )
 
+proto_library(
+    name = "report_config_schedule_storage_service_proto",
+    srcs = ["report_config_schedule_storage_service.proto"],
+    deps = [":report_config_schedule_proto"],
+)
+
+java_and_kt_grpc_library(
+    name = "report_config_schedule_storage_service",
+    deps = [":report_config_schedule_storage_service_proto"],
+)
+
 proto_and_java_proto_library(
     name = "requisition",
     deps = [
