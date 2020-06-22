@@ -12,7 +12,6 @@ class ReportConfigScheduleStorageService(
 
   override fun streamReadyReportConfigSchedules(
     request: StreamReadyReportConfigSchedulesRequest
-  ): Flow<ReportConfigSchedule> {
-    TODO()
-  }
+  ): Flow<ReportConfigSchedule> =
+    kingdomRelationalDatabase.streamReadySchedules(request.limit)
 }

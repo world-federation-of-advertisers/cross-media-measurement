@@ -13,6 +13,7 @@ import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
@@ -81,4 +82,8 @@ class GcpKingdomRelationalDatabase(
 
   override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> =
     ReadRequisitionTemplatesQuery().execute(client.singleUse(), reportConfigId)
+
+  override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> {
+    TODO("Not yet implemented")
+  }
 }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
@@ -62,4 +63,7 @@ interface KingdomRelationalDatabase {
 
   /** Lists the idealized [RequisitionTemplate]s for a [ReportConfig]. */
   fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate>
+
+  /** Streams [ReportConfigSchedule]s with a nextReportStartTime in the past. */
+  fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule>
 }
