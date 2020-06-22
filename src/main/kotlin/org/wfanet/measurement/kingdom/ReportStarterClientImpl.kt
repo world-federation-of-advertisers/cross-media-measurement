@@ -7,18 +7,21 @@ import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
+import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 
 class ReportStarterClientImpl(
   private val reportConfigStorage: ReportConfigStorageCoroutineStub,
+  private val reportConfigScheduleStorage: ReportConfigScheduleStorageCoroutineStub,
   private val reportStorage: ReportStorageCoroutineStub,
   private val requisitionStorage: RequisitionStorageCoroutineStub
 ) : ReportStarterClient {
@@ -82,5 +85,8 @@ class ReportStarterClientImpl(
   override fun streamReadyReports(): Flow<Report> =
     reportStorage.streamReadyReports(StreamReadyReportsRequest.getDefaultInstance())
 
-  override fun streamReadySchedules(): Flow<ReportConfigSchedule> { TODO() }
+  override fun streamReadySchedules(): Flow<ReportConfigSchedule> =
+    reportConfigScheduleStorage.streamReadyReportConfigSchedules(
+      StreamReadyReportConfigSchedulesRequest.getDefaultInstance()
+    )
 }

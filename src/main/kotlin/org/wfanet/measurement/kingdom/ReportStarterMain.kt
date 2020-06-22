@@ -13,6 +13,7 @@ import org.wfanet.measurement.common.durationFlag
 import org.wfanet.measurement.common.intFlag
 import org.wfanet.measurement.common.longFlag
 import org.wfanet.measurement.common.stringFlag
+import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
@@ -46,6 +47,7 @@ fun main(args: Array<String>) {
 
     val reportStarterClient = ReportStarterClientImpl(
       ReportConfigStorageCoroutineStub(channel),
+      ReportConfigScheduleStorageCoroutineStub(channel),
       ReportStorageCoroutineStub(channel),
       RequisitionStorageCoroutineStub(channel)
     )

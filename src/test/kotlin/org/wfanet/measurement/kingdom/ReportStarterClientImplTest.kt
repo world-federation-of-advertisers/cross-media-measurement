@@ -16,6 +16,7 @@ import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -24,6 +25,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.Requisit
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
+import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportConfigScheduleStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportConfigStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
@@ -32,19 +34,27 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 class ReportStarterClientImplTest {
 
   private val fakeReportConfigStorage = FakeReportConfigStorage()
+  private val fakeReportConfigScheduleStorage = FakeReportConfigScheduleStorage()
   private val fakeReportStorage = FakeReportStorage()
   private val fakeRequisitionStorage = FakeRequisitionStorage()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(fakeReportConfigStorage, fakeReportStorage, fakeRequisitionStorage)
+    listOf(
+      fakeReportConfigStorage,
+      fakeReportConfigScheduleStorage,
+      fakeReportStorage,
+      fakeRequisitionStorage
+    )
   }
 
   private val reportStarterClient: ReportStarterClient by lazy {
+    val channel = grpcTestServerRule.channel
     ReportStarterClientImpl(
-      ReportConfigStorageCoroutineStub(grpcTestServerRule.channel),
-      ReportStorageCoroutineStub(grpcTestServerRule.channel),
-      RequisitionStorageCoroutineStub(grpcTestServerRule.channel)
+      ReportConfigStorageCoroutineStub(channel),
+      ReportConfigScheduleStorageCoroutineStub(channel),
+      ReportStorageCoroutineStub(channel),
+      RequisitionStorageCoroutineStub(channel)
     )
   }
 
@@ -212,6 +222,19 @@ class ReportStarterClientImplTest {
 
   @Test
   fun streamReadySchedules() = runBlocking<Unit> {
-    // TODO
+    val schedule1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
+    val schedule2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
+    val schedule3 = ReportConfigSchedule.newBuilder().setExternalScheduleId(3).build()
+
+    fakeReportConfigScheduleStorage.mocker.mockStreaming(
+      FakeReportConfigScheduleStorage::streamReadyReportConfigSchedules
+    ) {
+      flowOf(schedule1, schedule2, schedule3)
+    }
+
+    val outputSchedules = reportStarterClient.streamReadySchedules()
+
+    assertThat(outputSchedules.toList())
+      .containsExactly(schedule1, schedule2, schedule3)
   }
 }
