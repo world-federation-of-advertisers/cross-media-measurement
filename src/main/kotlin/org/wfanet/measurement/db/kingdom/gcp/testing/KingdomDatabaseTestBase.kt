@@ -3,7 +3,6 @@ package org.wfanet.measurement.db.kingdom.gcp.testing
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
-import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -19,11 +18,13 @@ import org.wfanet.measurement.db.kingdom.gcp.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionState
+import java.time.Instant
 
 abstract class KingdomDatabaseTestBase :
   UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {
@@ -47,12 +48,11 @@ abstract class KingdomDatabaseTestBase :
     )
   }
 
-  // TODO: add ReportConfigDetails proto as input.
-  // TODO: add State as input.
   protected fun insertReportConfig(
     advertiserId: Long,
     reportConfigId: Long,
     externalReportConfigId: Long,
+    state: ReportConfigState = ReportConfigState.ACTIVE,
     reportConfigDetails: ReportConfigDetails = ReportConfigDetails.getDefaultInstance(),
     numRequisitions: Long = 0
   ) {
@@ -62,7 +62,7 @@ abstract class KingdomDatabaseTestBase :
         .set("ReportConfigId").to(reportConfigId)
         .set("ExternalReportConfigId").to(externalReportConfigId)
         .set("NumRequisitions").to(numRequisitions)
-        .set("State").to(0)
+        .set("State").toProtoEnum(state)
         .set("ReportConfigDetails").to(reportConfigDetails.toSpannerByteArray())
         .set("ReportConfigDetailsJson").to(reportConfigDetails.toJson())
         .build()

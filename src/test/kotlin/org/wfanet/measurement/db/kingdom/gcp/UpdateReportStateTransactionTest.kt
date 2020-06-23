@@ -24,12 +24,6 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
     const val EXTERNAL_SCHEDULE_ID = 6L
     const val REPORT_ID = 7L
     const val EXTERNAL_REPORT_ID = 8L
-    const val DATA_PROVIDER_ID = 9L
-    const val EXTERNAL_DATA_PROVIDER_ID = 10L
-    const val CAMPAIGN_ID = 11L
-    const val EXTERNAL_CAMPAIGN_ID = 12L
-    const val REQUISITION_ID = 13L
-    const val EXTERNAL_REQUISITION_ID = 14L
   }
 
   private fun runUpdateReportStateTransaction(

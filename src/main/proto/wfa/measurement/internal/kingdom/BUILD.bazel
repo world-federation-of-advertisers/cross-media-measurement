@@ -21,6 +21,13 @@ proto_and_java_proto_library(
 )
 
 proto_and_java_proto_library(
+    name = "report_config",
+    deps = [
+        ":report_config_details_proto",
+    ],
+)
+
+proto_and_java_proto_library(
     name = "report_config_details",
     deps = [
         ":time_period_proto",

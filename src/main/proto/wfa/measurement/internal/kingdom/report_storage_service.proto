@@ -9,7 +9,6 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Internal service for Reports.
-// TODO: rename once we have a naming scheme for internal services.
 service ReportStorage {
   // Creates the next Report from a ReportConfigSchedule.
   //

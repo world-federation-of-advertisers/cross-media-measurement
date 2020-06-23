@@ -2,7 +2,6 @@ package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v1alpha.CreateMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
@@ -22,12 +21,6 @@ import org.wfanet.measurement.service.v1alpha.common.toV1Api
 class RequisitionService(
   private val internalRequisitionStub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 ) : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
-
-  override suspend fun createMetricRequisition(
-    request: CreateMetricRequisitionRequest
-  ): MetricRequisition {
-    TODO("Remove this method")
-  }
 
   override suspend fun fulfillMetricRequisition(
     request: FulfillMetricsRequisitionRequest

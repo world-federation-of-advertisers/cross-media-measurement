@@ -2,8 +2,6 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.time.Instant
-import java.time.Period
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,10 +17,13 @@ import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
+import java.time.Instant
+import java.time.Period
 
 @RunWith(JUnit4::class)
 class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
@@ -58,7 +59,7 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
       EXTERNAL_REPORT_CONFIG_ID,
-      ReportConfigDetails.newBuilder().apply {
+      reportConfigDetails = ReportConfigDetails.newBuilder().apply {
         reportDurationBuilder.apply {
           unit = TimePeriod.Unit.DAY
           count = 3
