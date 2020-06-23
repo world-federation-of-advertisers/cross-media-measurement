@@ -57,7 +57,7 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
             .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID))
         }
       assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
-      assertThat(readAllRequisitions())
+      assertThat(readAllRequisitionsInSpanner())
         .comparingExpectedFieldsOnly()
         .containsExactly(expectedRequisition)
     }
@@ -71,6 +71,8 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
           .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1))
       }
     }
-    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(REQUISITION)
+    assertThat(readAllRequisitionsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(REQUISITION)
   }
 }

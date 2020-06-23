@@ -15,6 +15,7 @@ import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.db.kingdom.gcp.ReportReader
+import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
@@ -23,6 +24,7 @@ import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
@@ -207,6 +209,13 @@ abstract class KingdomDatabaseTestBase :
     ScheduleReader()
       .execute(spanner.client.singleUse())
       .map { it.schedule }
+      .toList()
+  }
+
+  protected fun readAllRequisitionsInSpanner(): List<Requisition> = runBlocking {
+    RequisitionReader()
+      .execute(spanner.client.singleUse())
+      .map { it.requisition }
       .toList()
   }
 

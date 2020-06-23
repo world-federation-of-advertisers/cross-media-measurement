@@ -3,15 +3,11 @@ package org.wfanet.measurement.db.kingdom.gcp.testing
 import com.google.cloud.ByteArray
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
-import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
@@ -119,11 +115,4 @@ abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
       createTime = requisition.createTime.toGcpTimestamp(),
       state = requisition.state
     )
-
-  fun readAllRequisitions(): List<Requisition> = runBlocking {
-    RequisitionReader()
-      .execute(spanner.client.singleUse())
-      .map { it.requisition }
-      .toList()
-  }
 }

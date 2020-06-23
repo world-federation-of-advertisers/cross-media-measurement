@@ -48,7 +48,7 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
     assertThat(existing)
       .comparingExpectedFieldsOnly()
       .isEqualTo(REQUISITION)
-    assertThat(readAllRequisitions())
+    assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION)
   }
@@ -64,7 +64,7 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
       createRequisitionTransaction.execute(it, newRequisition)
     }
     assertNull(existing)
-    assertThat(readAllRequisitions())
+    assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)
   }
@@ -80,9 +80,9 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
       createRequisitionTransaction.execute(it, newRequisition)
     }
     assertNull(existing)
-    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(
-      REQUISITION, newRequisition
-    )
+    assertThat(readAllRequisitionsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(REQUISITION, newRequisition)
   }
 
   @Test
@@ -96,8 +96,8 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
       createRequisitionTransaction.execute(it, newRequisition)
     }
     assertNull(existing)
-    assertThat(readAllRequisitions()).comparingExpectedFieldsOnly().containsExactly(
-      REQUISITION, newRequisition
-    )
+    assertThat(readAllRequisitionsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(REQUISITION, newRequisition)
   }
 }

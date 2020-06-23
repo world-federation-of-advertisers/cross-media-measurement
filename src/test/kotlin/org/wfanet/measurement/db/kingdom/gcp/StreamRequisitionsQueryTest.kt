@@ -81,7 +81,7 @@ class StreamRequisitionsQueryTest : RequisitionTestBase() {
 
   @Test
   fun `database sanity check`() {
-    assertThat(readAllRequisitions())
+    assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION1, REQUISITION2, REQUISITION3)
   }
