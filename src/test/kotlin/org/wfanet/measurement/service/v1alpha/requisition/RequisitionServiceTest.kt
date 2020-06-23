@@ -163,6 +163,7 @@ class RequisitionServiceTest {
       )
   }
 
+  @Test
   fun `listMetricRequisitions with page token`() = runBlocking<Unit> {
     requisitionStorage
       .mocker
