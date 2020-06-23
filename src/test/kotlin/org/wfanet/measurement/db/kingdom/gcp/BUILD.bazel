@@ -183,6 +183,25 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "stream_ready_schedules_query_test",
+    srcs = ["StreamReadySchedulesQueryTest.kt"],
+    resources = [
+        "//src/main/db/gcp:measurement_provider_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.StreamReadySchedulesQueryTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/com/google/common/truth/extensions/proto",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+spanner_emulator_test(
     name = "update_report_state_transaction_test",
     srcs = ["UpdateReportStateTransactionTest.kt"],
     resources = [

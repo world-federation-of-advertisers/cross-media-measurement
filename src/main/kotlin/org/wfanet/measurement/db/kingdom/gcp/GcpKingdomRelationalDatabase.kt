@@ -83,7 +83,6 @@ class GcpKingdomRelationalDatabase(
   override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> =
     ReadRequisitionTemplatesQuery().execute(client.singleUse(), reportConfigId)
 
-  override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> {
-    TODO("Not yet implemented")
-  }
+  override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> =
+    StreamReadySchedulesQuery().execute(client.singleUse(), limit)
 }
