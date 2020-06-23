@@ -3,7 +3,6 @@
 #include <openssl/obj_mac.h>
 #include <wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h>
 
-#include "absl/strings/string_view.h"
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "gmock/gmock.h"
@@ -41,6 +40,18 @@ MATCHER_P2(StatusIs, code, message, "") {
       AllOf(testing::Property(&Status::code, code),
             testing::Property(&Status::message, testing::HasSubstr(message))),
       arg, result_listener);
+}
+
+MATCHER_P(IsBlockSorted, block_size, "") {
+  if (arg.length() % block_size != 0) {
+    return false;
+  }
+  for (size_t i = block_size; i < arg.length(); i += block_size) {
+    if (arg.substr(i, block_size) < arg.substr(i - block_size, block_size)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Returns true if two proto messages are equal when ignoring the order of
@@ -173,6 +184,8 @@ class TestData {
         blind_one_layer_register_index_response_1 =
             BlindOneLayerRegisterIndex(blind_one_layer_register_index_request_1)
                 .value();
+    EXPECT_THAT(blind_one_layer_register_index_response_1.sketch(),
+                IsBlockSorted(kBytesPerEncryptedRegister));
 
     // Blind register indexes at duchy 2
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_2;
@@ -190,6 +203,8 @@ class TestData {
         blind_one_layer_register_index_response_2 =
             BlindOneLayerRegisterIndex(blind_one_layer_register_index_request_2)
                 .value();
+    EXPECT_THAT(blind_one_layer_register_index_response_2.sketch(),
+                IsBlockSorted(kBytesPerEncryptedRegister));
 
     // Blind register indexes and join registers at duchy 3 (primary duchy)
     BlindLastLayerIndexThenJoinRegistersRequest
@@ -210,6 +225,9 @@ class TestData {
             BlindLastLayerIndexThenJoinRegisters(
                 blind_last_layer_index_then_join_registers_request)
                 .value();
+    EXPECT_THAT(
+        blind_last_layer_index_then_join_registers_response.flag_counts(),
+        IsBlockSorted(kBytesCipherText * 2));
 
     // Decrypt flags and counts at duchy 1
     DecryptOneLayerFlagAndCountRequest
@@ -227,6 +245,8 @@ class TestData {
             DecryptOneLayerFlagAndCount(
                 decrypt_one_layer_flag_and_count_request_1)
                 .value();
+    EXPECT_THAT(decrypt_one_layer_flag_and_count_response_1.flag_counts(),
+                IsBlockSorted(kBytesCipherText * 2));
 
     // Decrypt flags and counts at duchy 2
     DecryptOneLayerFlagAndCountRequest
@@ -242,6 +262,8 @@ class TestData {
             DecryptOneLayerFlagAndCount(
                 decrypt_one_layer_flag_and_count_request_2)
                 .value();
+    EXPECT_THAT(decrypt_one_layer_flag_and_count_request_2.flag_counts(),
+                IsBlockSorted(kBytesCipherText * 2));
 
     // Decrypt flags and counts at duchy 3 (primary duchy).
     DecryptLastLayerFlagAndCountRequest
@@ -304,7 +326,7 @@ TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
             blinded_sketch_2.substr(66 * 2, 66));  // Count
 }
 
-TEST(BlindOneLayerRegisterIndex, wrongInputSketchSizeShouldThrow) {
+TEST(BlindOneLayerRegisterIndex, WrongInputSketchSizeShouldThrow) {
   BlindOneLayerRegisterIndexRequest request;
   auto result = BlindOneLayerRegisterIndex(request);
 
@@ -318,7 +340,7 @@ TEST(BlindOneLayerRegisterIndex, wrongInputSketchSizeShouldThrow) {
               StatusIs(StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(BlindLastLayerIndexThenJoinRegisters, wrongInputSketchSizeShouldThrow) {
+TEST(BlindLastLayerIndexThenJoinRegisters, WrongInputSketchSizeShouldThrow) {
   BlindLastLayerIndexThenJoinRegistersRequest request;
   auto result = BlindLastLayerIndexThenJoinRegisters(request);
   ASSERT_FALSE(result.ok());
@@ -331,7 +353,7 @@ TEST(BlindLastLayerIndexThenJoinRegisters, wrongInputSketchSizeShouldThrow) {
               StatusIs(StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(DecryptOneLayerFlagAndCount, wrongInputSketchSizeShouldThrow) {
+TEST(DecryptOneLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
   DecryptOneLayerFlagAndCountRequest request;
   auto result = DecryptOneLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
@@ -344,7 +366,7 @@ TEST(DecryptOneLayerFlagAndCount, wrongInputSketchSizeShouldThrow) {
               StatusIs(StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(DecryptLastLayerFlagAndCount, wrongInputSketchSizeShouldThrow) {
+TEST(DecryptLastLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
   DecryptLastLayerFlagAndCountRequest request;
   auto result = DecryptLastLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
@@ -357,7 +379,7 @@ TEST(DecryptLastLayerFlagAndCount, wrongInputSketchSizeShouldThrow) {
               StatusIs(StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(EndToEnd, sumOfCountsShouldBeCorrect) {
+TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
@@ -375,7 +397,7 @@ TEST(EndToEnd, sumOfCountsShouldBeCorrect) {
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
-TEST(EndToEnd, sumOfCoutsShouldBeCappedByMaximumFrequency) {
+TEST(EndToEnd, SumOfCoutsShouldBeCappedByMaximumFrequency) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111,
@@ -393,7 +415,7 @@ TEST(EndToEnd, sumOfCoutsShouldBeCappedByMaximumFrequency) {
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
-TEST(EndToEnd, keyCollisionShouldDestroyCount) {
+TEST(EndToEnd, KeyCollisionShouldDestroyCount) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
@@ -410,7 +432,7 @@ TEST(EndToEnd, keyCollisionShouldDestroyCount) {
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
-TEST(EndToEnd, zeroCountShouldBeSkipped) {
+TEST(EndToEnd, ZeroCountShouldBeSkipped) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 222, /* count = */ 0);
@@ -425,7 +447,7 @@ TEST(EndToEnd, zeroCountShouldBeSkipped) {
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
-TEST(EndToEnd, combinedCases) {
+TEST(EndToEnd, CombinedCases) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
 

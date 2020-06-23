@@ -8,3 +8,26 @@ cc_library(
         "macros.h",
     ],
 )
+
+cc_library(
+    name = "string_block_sorter",
+    hdrs = [
+        "string_block_sorter.h",
+    ],
+    deps = [
+        "@com_google_private_join_and_compute//util:status",
+    ],
+)
+
+cc_test(
+    name = "string_block_sorter_test",
+    size = "small",
+    srcs = [
+        "string_block_sorter_test.cc",
+    ],
+    deps = [
+        ":string_block_sorter",
+        "@absl//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)

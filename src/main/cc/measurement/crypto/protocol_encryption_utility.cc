@@ -24,6 +24,7 @@
 #include "crypto/ec_commutative_cipher.h"
 #include "util/canonical_errors.h"
 #include "util/macros.h"
+#include "util/string_block_sorter.h"
 
 namespace wfa::measurement::crypto {
 
@@ -352,14 +353,14 @@ Status MergeCountsUsingSameKeyAggregation(
                      GetEcPointPairInverse(key_0));
     // Merge all addition points to the result
     for (size_t i = 1; i < sub_permutation.size(); ++i) {
-      size_t offset =
+      size_t data_offset =
           sub_permutation[i] * kBytesPerCipherRegister + kBytesPerCipherText;
-      if (offset > sketch.size()) {
+      if (data_offset > sketch.size()) {
         return InternalError("Offset is out of bound");
       }
       ASSIGN_OR_RETURN(KeyCountPairCipherText next_key_count,
-                       ExtractKeyCountPairFromSubstring(
-                           sketch.substr(offset, kBytesPerCipherText * 2)));
+                       ExtractKeyCountPairFromSubstring(sketch.substr(
+                           data_offset, kBytesPerCipherText * 2)));
       // Get the ECPoints of this (Key, count) pair, 2 for key, and 2 for count.
       ASSIGN_OR_RETURN(ElGamalEcPointPair count_i,
                        GetElGamalEcPoints(next_key_count.count,
@@ -478,7 +479,8 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
         current_block.substr(kBytesPerCipherText * 2, kBytesPerCipherText),
         *response_sketch));
   }
-  // TODO(wangyaopw): shuffle the sketch before returning.
+  RETURN_IF_ERROR(
+      util::SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
   return response;
 };
 
@@ -507,11 +509,14 @@ BlindLastLayerIndexThenJoinRegisters(
   });
 
   BlindLastLayerIndexThenJoinRegistersResponse response;
+  std::string* response_data = response.mutable_flag_counts();
   *response.mutable_local_pohlig_hellman_sk() =
       composite_cipher.p_h_cipher->GetPrivateKeyBytes();
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       request.curve_id(), request.composite_el_gamal_keys(), request.sketch(),
-      blinded_register_indexes, permutation, *response.mutable_flag_counts()));
+      blinded_register_indexes, permutation, *response_data));
+  RETURN_IF_ERROR(
+      util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
   return response;
 };
 
@@ -529,9 +534,9 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
           request.local_el_gamal_keys().el_gamal_sk()));
 
   DecryptOneLayerFlagAndCountResponse response;
-  std::string* response_sketch = response.mutable_flag_counts();
+  std::string* response_data = response.mutable_flag_counts();
   // The output sketch is the same size with the input sketch.
-  response_sketch->reserve(request.flag_counts().size());
+  response_data->reserve(request.flag_counts().size());
   for (size_t offset = 0; offset < request.flag_counts().size();
        offset += kBytesPerCipherText) {
     // The size of current_block is guaranteed to be equal to
@@ -543,9 +548,15 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      el_gamal_cipher->Decrypt(ciphertext));
     // Append the result to the response.
-    response_sketch->append(ciphertext.first);
-    response_sketch->append(decrypted_el_gamal);
+    // The first part of the ciphertext is the random number which is still
+    // required to decrypt the other layers of ElGamal encryptions (at the
+    // subsequent duchies. So we keep it.
+    response_data->append(ciphertext.first);
+    response_data->append(decrypted_el_gamal);
   }
+
+  RETURN_IF_ERROR(
+      util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
   return response;
 };
 

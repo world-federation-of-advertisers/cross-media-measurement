@@ -12,6 +12,7 @@ cc_library(
     ],
     deps = [
         "//src/main/cc/measurement/crypto/util:macros",
+        "//src/main/cc/measurement/crypto/util:string_block_sorter",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
         "@absl//absl/algorithm:container",
         "@absl//absl/container:flat_hash_map",
