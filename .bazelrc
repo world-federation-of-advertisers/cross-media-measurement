@@ -1,3 +1,2 @@
 build --cxxopt='-std=c++17'
-test --javabase=@bazel_tools//tools/jdk:remote_jdk11
-run --javabase=@bazel_tools//tools/jdk:remote_jdk11
+build --javabase=@bazel_tools//tools/jdk:remote_jdk11
