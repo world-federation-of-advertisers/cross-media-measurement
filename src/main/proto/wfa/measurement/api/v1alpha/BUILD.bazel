@@ -111,8 +111,8 @@ proto_library(
 )
 
 proto_library(
-    name = "computation_control_service_proto",
-    srcs = ["computation_control_service.proto"],
+    name = "global_computation_service_proto",
+    srcs = ["global_computation_service.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [":global_computation_proto"],
 )

@@ -39,4 +39,6 @@ message GlobalComputation {
   }
   // Current state of the computation. Output only.
   State state = 2;
+
+  // TODO: add additional fields to show Duchies what to compute.
 }

@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package wfa.measurement.api.v1alpha;
+
+import "wfa/measurement/api/v1alpha/global_computation.proto";
+
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "GlobalComputationServiceProto";
+
+// Kingdom service for Duchies to use to access GlobalComputations.
+service GlobalComputations {
+  // Point lookup for GlobalComputation resources.
+  rpc GetGlobalComputation(GetGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Streams GlobalComputations in ascending update-time order. Computations may
+  // appear multiple times in the stream if they are updated during the life of
+  // the RPC.
+  //
+  // The stream excludes GlobalComputations in a terminal state (as per
+  // documentation on the GlobalComputation.State message definition).
+  // GlobalComputations in terminal states are still accessible via
+  // `GetGlobalComputation` for point lookup.
+  //
+  // Since these events are relatively infrequent but also can come in bursts,
+  // we use a streaming RPC to avoid frequent polling for rare events, yet
+  // still have a prompt reaction when they do occur.
+  rpc StreamActiveGlobalComputations(StreamActiveGlobalComputationsRequest)
+      returns (stream StreamActiveGlobalComputationsResponse);
+}
+
+// Request message for GetGlobalComputation method.
+message GetGlobalComputationRequest {
+  GlobalComputation.Key key = 1;
+}
+
+// Request message for StreamActiveGlobalComputations method.
+message StreamActiveGlobalComputationsRequest {
+  // If empty, streams from the least recently updated GlobalComputation.
+  string continuation_token = 1;
+}
+
+// Response message for StreamActiveGlobalComputations method.
+message StreamActiveGlobalComputationsResponse {
+  GlobalComputation global_computations = 1;
+  string continuation_token = 2;
+}
