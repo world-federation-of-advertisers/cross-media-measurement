@@ -4,10 +4,6 @@ import com.google.cloud.ByteArray
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoEnum
-import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
@@ -78,41 +74,4 @@ abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
       set("CampaignDetails").to(campaignDetails)
       set("CampaignDetailsJson").to(campaignDetailsJson)
     }.build()
-
-  fun insertRequisitionMutation(
-    dataProviderId: Long = DATA_PROVIDER_ID,
-    campaignId: Long = CAMPAIGN_ID,
-    requisitionId: Long = REQUISITION_ID,
-    externalRequisitionId: Long = EXTERNAL_REQUISITION_ID,
-    createTime: Timestamp = Timestamp.ofTimeMicroseconds(0),
-    windowStartTime: Timestamp = START_TIME,
-    windowEndTime: Timestamp = END_TIME,
-    state: RequisitionState = RequisitionState.UNFULFILLED,
-    requisitionDetails: RequisitionDetails = DETAILS
-  ): Mutation =
-    Mutation.newInsertBuilder("Requisitions").apply {
-      set("DataProviderId").to(dataProviderId)
-      set("CampaignId").to(campaignId)
-      set("RequisitionId").to(requisitionId)
-      set("CreateTime").to(createTime)
-      set("ExternalRequisitionId").to(externalRequisitionId)
-      set("WindowStartTime").to(windowStartTime)
-      set("WindowEndTime").to(windowEndTime)
-      set("State").toProtoEnum(state)
-      set("RequisitionDetails").toProtoBytes(requisitionDetails)
-      set("RequisitionDetailsJson").toProtoJson(requisitionDetails)
-    }.build()
-
-  fun insertRequisitionMutation(
-    campaignId: Long,
-    requisitionId: Long,
-    requisition: Requisition
-  ): Mutation =
-    insertRequisitionMutation(
-      campaignId = campaignId,
-      requisitionId = requisitionId,
-      externalRequisitionId = requisition.externalRequisitionId,
-      createTime = requisition.createTime.toGcpTimestamp(),
-      state = requisition.state
-    )
 }

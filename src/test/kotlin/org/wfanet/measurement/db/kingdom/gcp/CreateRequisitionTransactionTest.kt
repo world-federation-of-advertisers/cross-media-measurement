@@ -10,8 +10,10 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
+import org.wfanet.measurement.db.gcp.toInstant
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 @RunWith(JUnit4::class)
 class CreateRequisitionTransactionTest : RequisitionTestBase() {
@@ -29,12 +31,17 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
 
   @Before
   fun populateDatabase() {
-    spanner.client.write(
-      listOf(
-        insertDataProviderMutation(),
-        insertCampaignMutation(),
-        insertRequisitionMutation()
-      )
+    spanner.client.write(listOf(insertDataProviderMutation(), insertCampaignMutation()))
+
+    insertRequisition(
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
+      REQUISITION_ID,
+      EXTERNAL_REQUISITION_ID,
+      state = RequisitionState.UNFULFILLED,
+      windowStartTime = START_TIME.toInstant(),
+      windowEndTime = END_TIME.toInstant(),
+      requisitionDetails = DETAILS
     )
   }
 

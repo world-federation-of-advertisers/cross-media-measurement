@@ -11,7 +11,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
@@ -59,24 +58,37 @@ class StreamRequisitionsQueryTest : RequisitionTestBase() {
    * data provider.
    */
   fun populateDatabase() {
-    spanner.client.runReadWriteTransaction { transactionContext ->
-      transactionContext.buffer(
-        listOf(
-          insertDataProviderMutation(),
-          insertCampaignMutation(
-            campaignId = CAMPAIGN_ID1,
-            externalCampaignId = EXTERNAL_CAMPAIGN_ID1
-          ),
-          insertCampaignMutation(
-            campaignId = CAMPAIGN_ID2,
-            externalCampaignId = EXTERNAL_CAMPAIGN_ID2
-          ),
-          insertRequisitionMutation(CAMPAIGN_ID1, REQUISITION_ID1, REQUISITION1),
-          insertRequisitionMutation(CAMPAIGN_ID1, REQUISITION_ID2, REQUISITION2),
-          insertRequisitionMutation(CAMPAIGN_ID2, REQUISITION_ID3, REQUISITION3)
+    spanner.client.write(
+      listOf(
+        insertDataProviderMutation(),
+        insertCampaignMutation(
+          campaignId = CAMPAIGN_ID1,
+          externalCampaignId = EXTERNAL_CAMPAIGN_ID1
+        ),
+        insertCampaignMutation(
+          campaignId = CAMPAIGN_ID2,
+          externalCampaignId = EXTERNAL_CAMPAIGN_ID2
         )
       )
-    }
+    )
+
+    insertRequisition(CAMPAIGN_ID1, REQUISITION_ID1, REQUISITION1)
+    insertRequisition(CAMPAIGN_ID1, REQUISITION_ID2, REQUISITION2)
+    insertRequisition(CAMPAIGN_ID2, REQUISITION_ID3, REQUISITION3)
+  }
+
+  private fun insertRequisition(campaignId: Long, requisitionId: Long, requisition: Requisition) {
+    insertRequisition(
+      DATA_PROVIDER_ID,
+      campaignId,
+      requisitionId,
+      requisition.externalRequisitionId,
+      state = requisition.state,
+      createTime = requisition.createTime.toInstant(),
+      windowStartTime = requisition.windowStartTime.toInstant(),
+      windowEndTime = requisition.windowEndTime.toInstant(),
+      requisitionDetails = requisition.requisitionDetails
+    )
   }
 
   @Test

@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
+import org.wfanet.measurement.db.gcp.toInstant
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -32,13 +32,18 @@ class FulfillRequisitionTransactionTest : RequisitionTestBase() {
 
   @Before
   fun populateDatabase() {
-    spanner.client.runReadWriteTransaction { transactionContext ->
-      transactionContext.buffer(
-        listOf(
-          insertDataProviderMutation(), insertCampaignMutation(), insertRequisitionMutation()
-        )
-      )
-    }
+    spanner.client.write(listOf(insertDataProviderMutation(), insertCampaignMutation()))
+
+    insertRequisition(
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
+      REQUISITION_ID,
+      EXTERNAL_REQUISITION_ID,
+      state = RequisitionState.UNFULFILLED,
+      windowStartTime = START_TIME.toInstant(),
+      windowEndTime = END_TIME.toInstant(),
+      requisitionDetails = DETAILS
+    )
   }
 
   @Test
