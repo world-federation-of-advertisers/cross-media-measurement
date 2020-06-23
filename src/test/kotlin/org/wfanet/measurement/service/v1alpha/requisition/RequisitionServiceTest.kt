@@ -21,8 +21,8 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
@@ -34,10 +34,10 @@ class RequisitionServiceTest {
 
   companion object {
     var CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-    var WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
-    var WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
+    private var WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+    private var WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
 
-    var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
+    private var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
 
     var REQUISITION: Requisition = Requisition.newBuilder().apply {
       externalDataProviderId = 1

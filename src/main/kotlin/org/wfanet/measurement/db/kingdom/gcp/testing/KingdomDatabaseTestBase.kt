@@ -3,6 +3,7 @@ package org.wfanet.measurement.db.kingdom.gcp.testing
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -22,9 +23,8 @@ import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionState
-import java.time.Instant
 
 abstract class KingdomDatabaseTestBase :
   UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {

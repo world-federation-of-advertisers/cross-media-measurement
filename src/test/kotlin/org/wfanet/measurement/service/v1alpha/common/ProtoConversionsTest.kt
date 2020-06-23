@@ -11,7 +11,7 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 @RunWith(JUnit4::class)
 class ProtoConversionsTest {

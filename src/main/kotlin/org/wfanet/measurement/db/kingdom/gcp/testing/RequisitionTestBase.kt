@@ -13,8 +13,8 @@ import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
   companion object {

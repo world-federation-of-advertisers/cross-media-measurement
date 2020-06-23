@@ -4,8 +4,8 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionState
 
 /**
  * Reads [Requisition] protos (and their internal primary keys) from Spanner.

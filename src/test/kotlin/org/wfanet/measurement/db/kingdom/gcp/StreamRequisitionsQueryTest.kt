@@ -16,7 +16,7 @@ import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 @RunWith(JUnit4::class)
 class StreamRequisitionsQueryTest : RequisitionTestBase() {

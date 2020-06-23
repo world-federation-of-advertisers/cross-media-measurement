@@ -12,7 +12,7 @@ import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.RequisitionTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionTransactionTest : RequisitionTestBase() {

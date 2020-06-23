@@ -11,7 +11,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 @RunWith(JUnit4::class)
 class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {

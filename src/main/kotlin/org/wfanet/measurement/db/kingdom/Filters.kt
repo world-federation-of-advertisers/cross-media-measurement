@@ -8,7 +8,7 @@ import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.allOf
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 typealias StreamRequisitionsFilter = AllOfClause<StreamRequisitionsClause>
 typealias StreamReportsFilter = AllOfClause<StreamReportsClause>

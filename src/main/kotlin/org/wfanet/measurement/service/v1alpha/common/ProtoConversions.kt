@@ -3,7 +3,7 @@ package org.wfanet.measurement.service.v1alpha.common
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 /**
  * Converts internal [Requisition] into a V1 API proto.
@@ -37,4 +37,3 @@ fun MetricRequisition.State.toRequisitionState(): RequisitionState =
     MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
     else -> error("Invalid state: $this")
   }
-

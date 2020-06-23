@@ -7,7 +7,7 @@ import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 /**
  * Query for finding [Report]s with no unfulfilled [Requisition]s.

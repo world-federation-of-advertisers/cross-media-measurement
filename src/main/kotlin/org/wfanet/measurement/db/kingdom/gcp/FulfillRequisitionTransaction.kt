@@ -7,7 +7,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionState
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 /**
  * Marks a Requisition in Spanner as fulfilled (with state [RequisitionState.FULFILLED]).
