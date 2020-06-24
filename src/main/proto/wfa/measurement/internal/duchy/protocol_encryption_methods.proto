@@ -21,6 +21,39 @@ message ElGamalKeys {
   bytes el_gamal_y = 3;
 }
 
+// The request to add noise registers to the sketch.
+// Only 3-tuple (register_index, fingerprint, count) registers are supported.
+message AddNoiseToSketchRequest {
+  // The input sketch, which is a concatenation of a list of registers.
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
+  // The sketch is only needed so the noise can be interleaved and hidden in the
+  // sktech. The registers in the sketch are unchanged, except for their orders.
+  bytes sketch = 1;
+  // Keys of the composite ElGamal cipher. Only public keys are required, i.e.,
+  // el_gamal_g and el_gamal_y.
+  ElGamalKeys composite_el_gamal_keys = 2;
+  // The elliptical curve to work on.
+  int64 curve_id = 3;
+  // Maximum frequency to display. Every count value greater than this value
+  // is decrypted as the maximum_frequency. Hiding counts above the
+  // maximum_frequency impacts how much moise is needed to achieve differential
+  // privacy.
+  int32 maximum_frequency = 4;
+  // The baseline of noise agreed by all workers.
+  int32 noise_baseline = 5;
+}
+
+// Response of the AddNoiseToSketch method.
+message AddNoiseToSketchResponse {
+  // The output sketch, which contains shuffled input and noise registers.
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
+  bytes sketch = 1;
+}
+
 // The request to blind (one layer) all register indexes of a sketch.
 // Only 3-tuple (register_index, fingerprint, count) registers are supported.
 message BlindOneLayerRegisterIndexRequest {
