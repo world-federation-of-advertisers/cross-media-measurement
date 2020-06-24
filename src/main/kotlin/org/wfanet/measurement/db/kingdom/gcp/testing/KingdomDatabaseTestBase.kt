@@ -31,6 +31,14 @@ import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 abstract class KingdomDatabaseTestBase :
   UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {
 
+  companion object {
+    @JvmStatic
+    fun buildRequisitionDetails(sketchConfigId: Long): RequisitionDetails =
+      RequisitionDetails.newBuilder().apply {
+        metricDefinitionBuilder.sketchBuilder.sketchConfigId = sketchConfigId
+      }.build()
+  }
+
   private fun write(mutation: Mutation) {
     spanner.client.write(listOf(mutation))
   }
@@ -44,7 +52,7 @@ abstract class KingdomDatabaseTestBase :
       Mutation.newInsertBuilder("Advertisers")
         .set("AdvertiserId").to(advertiserId)
         .set("ExternalAdvertiserId").to(externalAdvertiserId)
-        .set("AdvertiserDetails").to(com.google.cloud.ByteArray.copyFrom(""))
+        .set("AdvertiserDetails").to(ByteArray.copyFrom(""))
         .set("AdvertiserDetailsJson").to("irrelevant-advertiser-details-json")
         .build()
     )
