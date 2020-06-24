@@ -1,8 +1,6 @@
 package org.wfanet.measurement.db.kingdom.gcp.testing
 
-import com.google.cloud.ByteArray
 import com.google.cloud.Timestamp
-import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -42,17 +40,4 @@ abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
       requisitionDetailsJson = DETAILS.toJson()
     }.build()
   }
-
-  protected fun insertDataProviderMutation(
-    dataProviderId: Long = DATA_PROVIDER_ID,
-    externalDataProviderId: Long = EXTERNAL_DATA_PROVIDER_ID,
-    dataProviderDetails: ByteArray = ByteArray.copyFrom(""),
-    dataProviderDetailsJson: String = ""
-  ): Mutation =
-    Mutation.newInsertBuilder("DataProviders").apply {
-      set("DataProviderId").to(dataProviderId)
-      set("ExternalDataProviderId").to(externalDataProviderId)
-      set("DataProviderDetails").to(dataProviderDetails)
-      set("DataProviderDetailsJson").to(dataProviderDetailsJson)
-    }.build()
 }

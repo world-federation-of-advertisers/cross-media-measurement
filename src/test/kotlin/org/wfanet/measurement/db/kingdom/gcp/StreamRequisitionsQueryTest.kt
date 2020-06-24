@@ -58,7 +58,7 @@ class StreamRequisitionsQueryTest : RequisitionTestBase() {
    * data provider.
    */
   fun populateDatabase() {
-    spanner.client.write(listOf(insertDataProviderMutation()))
+    insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
 
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID1, EXTERNAL_CAMPAIGN_ID1, IRRELEVANT_ADVERTISER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID2, EXTERNAL_CAMPAIGN_ID2, IRRELEVANT_ADVERTISER_ID)
