@@ -55,23 +55,4 @@ abstract class RequisitionTestBase : KingdomDatabaseTestBase() {
       set("DataProviderDetails").to(dataProviderDetails)
       set("DataProviderDetailsJson").to(dataProviderDetailsJson)
     }.build()
-
-  protected fun insertCampaignMutation(
-    dataProviderId: Long = DATA_PROVIDER_ID,
-    campaignId: Long = CAMPAIGN_ID,
-    advertiserId: Long = IRRELEVANT_ADVERTISER_ID,
-    externalCampaignId: Long = EXTERNAL_CAMPAIGN_ID,
-    providedCampaignId: String = "irrelevant-provided-campaign-id",
-    campaignDetails: ByteArray = ByteArray.copyFrom(""),
-    campaignDetailsJson: String = ""
-  ): Mutation =
-    Mutation.newInsertBuilder("Campaigns").apply {
-      set("DataProviderId").to(dataProviderId)
-      set("CampaignId").to(campaignId)
-      set("AdvertiserId").to(advertiserId)
-      set("ExternalCampaignId").to(externalCampaignId)
-      set("ProvidedCampaignId").to(providedCampaignId)
-      set("CampaignDetails").to(campaignDetails)
-      set("CampaignDetailsJson").to(campaignDetailsJson)
-    }.build()
 }

@@ -31,7 +31,9 @@ class CreateRequisitionTransactionTest : RequisitionTestBase() {
 
   @Before
   fun populateDatabase() {
-    spanner.client.write(listOf(insertDataProviderMutation(), insertCampaignMutation()))
+    spanner.client.write(listOf(insertDataProviderMutation()))
+
+    insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, IRRELEVANT_ADVERTISER_ID)
 
     insertRequisition(
       DATA_PROVIDER_ID,
