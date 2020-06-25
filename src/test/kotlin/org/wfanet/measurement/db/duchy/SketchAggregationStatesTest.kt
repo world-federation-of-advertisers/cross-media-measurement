@@ -43,14 +43,14 @@ class SketchAggregationStatesTest {
     assertTrue {
       SketchAggregationStates.validTransition(
         SketchAggregationState.STARTING,
-        SketchAggregationState.ADDING_NOISE
+        SketchAggregationState.GATHERING_LOCAL_SKETCHES
       )
     }
 
     assertFalse {
       SketchAggregationStates.validTransition(
         SketchAggregationState.STARTING,
-        SketchAggregationState.BLINDING_AND_JOINING_REGISTERS
+        SketchAggregationState.ADDING_NOISE
       )
     }
 
