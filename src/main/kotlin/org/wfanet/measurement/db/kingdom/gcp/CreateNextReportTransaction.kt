@@ -12,11 +12,11 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
+import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
-import org.wfanet.measurement.db.gcp.toSpannerByteArray
+import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
@@ -81,8 +81,8 @@ class CreateNextReportTransaction(
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
         .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
-        .set("ReportDetails").to(ReportDetails.getDefaultInstance().toSpannerByteArray())
-        .set("ReportDetailsJson").to(ReportDetails.getDefaultInstance().toJson())
+        .set("ReportDetails").toProtoBytes(ReportDetails.getDefaultInstance())
+        .set("ReportDetailsJson").toProtoJson(ReportDetails.getDefaultInstance())
         .build()
 
     transactionContext.buffer(listOf(updateScheduleMutation, insertReportMutation))

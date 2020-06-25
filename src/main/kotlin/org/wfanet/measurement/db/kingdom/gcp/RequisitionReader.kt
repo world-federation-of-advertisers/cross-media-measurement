@@ -1,8 +1,8 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.getProtoEnum
+import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
@@ -49,7 +49,7 @@ class RequisitionReader : SpannerReader<RequisitionReadResult>() {
     windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
 
     state = struct.getProtoEnum("State", RequisitionState::forNumber)
-    requisitionDetails = struct.getProtoBufMessage(
+    requisitionDetails = struct.getProtoMessage(
       "RequisitionDetails", RequisitionDetails.parser()
     )
     requisitionDetailsJson = struct.getString("RequisitionDetailsJson")

@@ -1,7 +1,7 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getProtoBufMessage
+import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
@@ -33,7 +33,7 @@ class ScheduleReader : SpannerReader<ScheduleReadResult>() {
       struct.getLong("AdvertiserId"),
       struct.getLong("ReportConfigId"),
       struct.getLong("ScheduleId"),
-      struct.getProtoBufMessage("ReportConfigDetails", ReportConfigDetails.parser())
+      struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
     )
 
   private fun buildSchedule(struct: Struct): ReportConfigSchedule =
@@ -43,7 +43,7 @@ class ScheduleReader : SpannerReader<ScheduleReadResult>() {
       externalScheduleId = struct.getLong("ExternalScheduleId")
 
       nextReportStartTime = struct.getTimestamp("NextReportStartTime").toProto()
-      repetitionSpec = struct.getProtoBufMessage("RepetitionSpec", RepetitionSpec.parser())
+      repetitionSpec = struct.getProtoMessage("RepetitionSpec", RepetitionSpec.parser())
       repetitionSpecJson = struct.getString("RepetitionSpecJson")
     }.build()
 }

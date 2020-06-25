@@ -38,15 +38,15 @@ fun Struct.getNullableLong(column: String): Long? =
 fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toByteArray()
 
 /** Parses a protobuf [Message] from a bytes column. */
-fun <T : Message> Struct.getProtoBufMessage(column: String, parser: Parser<T>): T =
-  getBytes(column).toProtobufMessage(parser)
+fun <T : Message> Struct.getProtoMessage(column: String, parser: Parser<T>): T =
+  getBytes(column).toProtoMessage(parser)
 
 /** Parses an enum from an INT64 Spanner column. */
 fun <T : Enum<T>> Struct.getProtoEnum(column: String, parser: (Int) -> T): T =
   parser(getLong(column).toInt())
 
 /** Bind a protobuf [Message] as a Spanner ByteArray. */
-fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toSpannerByteArray())
+fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toGcpByteArray())
 
 /** Bind a protobuf [Message] as a JSON string representation. */
 fun <T> ValueBinder<T>.toProtoJson(message: Message?): T = to(message?.toJson())

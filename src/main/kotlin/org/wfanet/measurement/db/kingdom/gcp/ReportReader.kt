@@ -5,8 +5,8 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.gcp.getProtoBufMessage
 import org.wfanet.measurement.db.gcp.getProtoEnum
+import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
@@ -78,7 +78,7 @@ class ReportReader : SpannerReader<ReportReadResult>() {
     windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
     state = struct.getProtoEnum("State", ReportState::forNumber)
 
-    reportDetails = struct.getProtoBufMessage("ReportDetails", ReportDetails.parser())
+    reportDetails = struct.getProtoMessage("ReportDetails", ReportDetails.parser())
     reportDetailsJson = struct.getString("ReportDetailsJson")
   }.build()
 }

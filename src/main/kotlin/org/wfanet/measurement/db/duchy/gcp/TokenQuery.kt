@@ -4,7 +4,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.gcp.getNullableString
-import org.wfanet.measurement.db.gcp.getProtoBufMessage
+import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 
 /** Query for fields needed to make a [ComputationToken] .*/
@@ -33,7 +33,7 @@ class TokenQuery<StateT>(
       lockOwner = struct.getNullableString("LockOwner"),
       updateTime = struct.getTimestamp("UpdateTime"),
       nextAttempt = struct.getLong("NextAttempt"),
-      details = struct.getProtoBufMessage("ComputationDetails", ComputationDetails.parser())
+      details = struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
     )
 }
 /** @see [TokenQuery.asResult] .*/

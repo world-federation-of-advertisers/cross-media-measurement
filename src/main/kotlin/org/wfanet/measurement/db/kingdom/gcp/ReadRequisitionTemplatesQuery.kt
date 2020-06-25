@@ -4,7 +4,7 @@ import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.getProtoBufMessage
+import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.db.gcp.single
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
@@ -40,7 +40,7 @@ class ReadRequisitionTemplatesQuery {
 
   private fun buildRequisitionTemplates(struct: Struct): Sequence<RequisitionTemplate> {
     val reportConfigDetails =
-      struct.getProtoBufMessage("ReportConfigDetails", ReportConfigDetails.parser())
+      struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
 
     val dataProviders = struct.getLongList("ExternalDataProviderIds")
     val campaigns = struct.getLongList("ExternalCampaignIds")

@@ -7,13 +7,11 @@ import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
-import org.wfanet.measurement.db.gcp.toSpannerByteArray
 import org.wfanet.measurement.db.kingdom.gcp.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.ScheduleReader
@@ -73,8 +71,8 @@ abstract class KingdomDatabaseTestBase :
         .set("ExternalReportConfigId").to(externalReportConfigId)
         .set("NumRequisitions").to(numRequisitions)
         .set("State").toProtoEnum(state)
-        .set("ReportConfigDetails").to(reportConfigDetails.toSpannerByteArray())
-        .set("ReportConfigDetailsJson").to(reportConfigDetails.toJson())
+        .set("ReportConfigDetails").toProtoBytes(reportConfigDetails)
+        .set("ReportConfigDetailsJson").toProtoJson(reportConfigDetails)
         .build()
     )
   }
@@ -94,8 +92,8 @@ abstract class KingdomDatabaseTestBase :
         .set("ScheduleId").to(scheduleId)
         .set("ExternalScheduleId").to(externalScheduleId)
         .set("NextReportStartTime").to(nextReportStartTime.toGcpTimestamp())
-        .set("RepetitionSpec").to(repetitionSpec.toSpannerByteArray())
-        .set("RepetitionSpecJson").to(repetitionSpec.toJson())
+        .set("RepetitionSpec").toProtoBytes(repetitionSpec)
+        .set("RepetitionSpecJson").toProtoJson(repetitionSpec)
         .build()
     )
   }
@@ -139,8 +137,8 @@ abstract class KingdomDatabaseTestBase :
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
         .set("State").toProtoEnum(state)
-        .set("ReportDetails").to(reportDetails.toSpannerByteArray())
-        .set("ReportDetailsJson").to(reportDetails.toJson())
+        .set("ReportDetails").toProtoBytes(reportDetails)
+        .set("ReportDetailsJson").toProtoJson(reportDetails)
         .build()
     )
   }
