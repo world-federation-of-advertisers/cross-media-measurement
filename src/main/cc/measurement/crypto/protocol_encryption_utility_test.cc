@@ -25,6 +25,7 @@ using ::private_join_and_compute::StatusCode;
 using ::wfa::measurement::api::v1alpha::Sketch;
 using ::wfa::measurement::api::v1alpha::SketchConfig;
 using ::wfa::measurement::internal::duchy::ElGamalKeys;
+using ::wfa::measurement::internal::duchy::ElGamalPublicKeys;
 using FlagCount = ::wfa::measurement::internal::duchy::
     DecryptLastLayerFlagAndCountResponse::FlagCount;
 
@@ -56,9 +57,9 @@ ElGamalKeys GenerateRandomElGamalKeys(const int curve_id) {
       CommutativeElGamal::CreateWithNewKeyPair(curve_id).value();
   *el_gamal_keys.mutable_el_gamal_sk() =
       el_gamal_cipher.get()->GetPrivateKeyBytes().value();
-  *el_gamal_keys.mutable_el_gamal_g() =
+  *el_gamal_keys.mutable_el_gamal_pk()->mutable_el_gamal_g() =
       el_gamal_cipher.get()->GetPublicKeyBytes().value().first;
-  *el_gamal_keys.mutable_el_gamal_y() =
+  *el_gamal_keys.mutable_el_gamal_pk()->mutable_el_gamal_y() =
       el_gamal_cipher.get()->GetPublicKeyBytes().value().second;
   return el_gamal_keys;
 }
@@ -104,7 +105,7 @@ class TestData {
   std::string duchy_2_p_h_key_;
   ElGamalKeys duchy_3_el_gamal_keys_;
   std::string duchy_3_p_h_key_;
-  ElGamalKeys client_el_gamal_keys_;  // combined from 3 duchy keys;
+  ElGamalPublicKeys client_el_gamal_keys_;  // combined from 3 duchy keys;
   std::unique_ptr<any_sketch::SketchEncrypter> sketch_encrypter;
 
   TestData() {
@@ -120,17 +121,17 @@ class TestData {
     Context ctx;
     ECGroup ec_group = ECGroup::Create(kTestCurveId, &ctx).value();
     ECPoint duchy_1_public_el_gamal_y_ec =
-        ec_group.CreateECPoint(duchy_1_el_gamal_keys_.el_gamal_y()).value();
+        ec_group.CreateECPoint(duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_y()).value();
     ECPoint duchy_2_public_el_gamal_y_ec =
-        ec_group.CreateECPoint(duchy_2_el_gamal_keys_.el_gamal_y()).value();
+        ec_group.CreateECPoint(duchy_2_el_gamal_keys_.el_gamal_pk().el_gamal_y()).value();
     ECPoint duchy_3_public_el_gamal_y_ec =
-        ec_group.CreateECPoint(duchy_3_el_gamal_keys_.el_gamal_y()).value();
+        ec_group.CreateECPoint(duchy_3_el_gamal_keys_.el_gamal_pk().el_gamal_y()).value();
     ECPoint client_public_el_gamal_y_ec =
         duchy_1_public_el_gamal_y_ec.Add(duchy_2_public_el_gamal_y_ec)
             .value()
             .Add(duchy_3_public_el_gamal_y_ec)
             .value();
-    client_el_gamal_keys_.set_el_gamal_g(duchy_1_el_gamal_keys_.el_gamal_g());
+    client_el_gamal_keys_.set_el_gamal_g(duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_g());
     client_el_gamal_keys_.set_el_gamal_y(
         client_public_el_gamal_y_ec.ToBytesCompressed().value());
 

@@ -38,6 +38,7 @@ using ::private_join_and_compute::ECPoint;
 using ::private_join_and_compute::InternalError;
 using ::private_join_and_compute::InvalidArgumentError;
 using ::private_join_and_compute::Status;
+using ::wfa::measurement::internal::duchy::ElGamalPublicKeys;
 using ::wfa::measurement::internal::duchy::ElGamalKeys;
 using ElGamalCiphertext = std::pair<std::string, std::string>;
 using FlagCount = ::wfa::measurement::internal::duchy::
@@ -81,8 +82,8 @@ struct KeyCountPairCipherText {
   ElGamalCiphertext count;
 };
 
-ElGamalCiphertext GetPublicKeyStringPair(const ElGamalKeys& el_gamal_keys) {
-  return std::make_pair(el_gamal_keys.el_gamal_g(), el_gamal_keys.el_gamal_y());
+ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKeys& public_keys) {
+  return std::make_pair(public_keys.el_gamal_g(), public_keys.el_gamal_y());
 }
 
 StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
@@ -148,7 +149,7 @@ StatusOr<CompositeCipher> CreateCompositeCipher(
   // Create the ElGamal cipher using the provided keys.
   ASSIGN_OR_RETURN(result.e_g_cipher,
                    CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                       curve_id, GetPublicKeyStringPair(el_gamal_keys),
+                       curve_id, GetPublicKeyStringPair(el_gamal_keys.el_gamal_pk()),
                        el_gamal_keys.el_gamal_sk()));
   // Create the Pohlig Hellman cipher using the provided key or a random key if
   // no key is provided.
@@ -173,7 +174,7 @@ StatusOr<std::string> MapToCurve(const ECGroup& ec_group,
 }
 
 StatusOr<SameKeyAggregator> CreateSameKeyAggregator(
-    const int curve_id, const ElGamalKeys& client_el_gamal_keys) {
+    const int curve_id, const ElGamalPublicKeys& client_el_gamal_keys) {
   SameKeyAggregator result;
   // Create the client ElGamal cipher using the provided keys.
   ASSIGN_OR_RETURN(result.client_e_g_cipher,
@@ -372,7 +373,7 @@ Status MergeCountsUsingSameKeyAggregation(
 // the counts in each group using the SameKeyAggregation algorithm. Then, append
 // the (flag, count) result of each group to the response.
 Status JoinRegistersByIndexAndMergeCounts(
-    const int curve_id, const ElGamalKeys& el_gamal_keys,
+    const int curve_id, const ElGamalPublicKeys& public_keys,
     absl::string_view sketch,
     const std::vector<std::string>& blinded_register_indexes,
     absl::Span<const size_t> permutation, std::string& response) {
@@ -380,7 +381,7 @@ Status JoinRegistersByIndexAndMergeCounts(
   // data providers. The cipher is used to calculate destructor in the
   // SameKeyAggregation.
   ASSIGN_OR_RETURN(SameKeyAggregator same_key_aggregator,
-                   CreateSameKeyAggregator(curve_id, el_gamal_keys));
+                   CreateSameKeyAggregator(curve_id, public_keys));
   const size_t num_registers = sketch.size() / kBytesPerCipherRegister;
   int start = 0;
   for (size_t i = 0; i < num_registers; ++i) {
@@ -488,7 +489,7 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   ASSIGN_OR_RETURN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
                    CommutativeElGamal::CreateFromPublicAndPrivateKeys(
                        request.curve_id(),
-                       GetPublicKeyStringPair(request.local_el_gamal_keys()),
+                       GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
                        request.local_el_gamal_keys().el_gamal_sk()));
 
   DecryptOneLayerFlagAndCountResponse response;
@@ -522,7 +523,7 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
   ASSIGN_OR_RETURN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
                    CommutativeElGamal::CreateFromPublicAndPrivateKeys(
                        request.curve_id(),
-                       GetPublicKeyStringPair(request.local_el_gamal_keys()),
+                       GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
                        request.local_el_gamal_keys().el_gamal_sk()));
   absl::flat_hash_map<std::string, int> count_lookup_table;
   ASSIGN_OR_RETURN(

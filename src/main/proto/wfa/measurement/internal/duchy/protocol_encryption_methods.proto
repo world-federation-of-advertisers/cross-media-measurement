@@ -11,14 +11,19 @@ option java_multiple_files = true;
 // ciphers. So they SHOULD NOT be written into any logs or leave the running
 // process.
 
+// Public keys of the ElGamal cipher.
+message ElGamalPublicKeys {
+  // Public key g (generator) of the ElGamal cipher.
+  bytes el_gamal_g = 1;
+  // Public key y (g^sk) of the ElGamal cipher.
+  bytes el_gamal_y = 2;
+}
 // Keys of the ElGamal cipher.
 message ElGamalKeys {
   // Secret key of the ElGamal cipher.
   bytes el_gamal_sk = 1;
-  // Public key g (generator) of the ElGamal cipher.
-  bytes el_gamal_g = 2;
-  // Public key y (g^sk) of the ElGamal cipher.
-  bytes el_gamal_y = 3;
+  // Public keys of the ElGamal cipher.
+  ElGamalPublicKeys el_gamal_pk = 2;
 }
 
 // The request to add noise registers to the sketch.
@@ -31,9 +36,9 @@ message AddNoiseToSketchRequest {
   // The sketch is only needed so the noise can be interleaved and hidden in the
   // sktech. The registers in the sketch are unchanged, except for their orders.
   bytes sketch = 1;
-  // Keys of the composite ElGamal cipher. Only public keys are required, i.e.,
-  // el_gamal_g and el_gamal_y.
-  ElGamalKeys composite_el_gamal_keys = 2;
+  // Public keys of the composite ElGamal cipher. Used to encrypt the added
+  // noise.
+  ElGamalPublicKeys composite_el_gamal_keys = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
   // Maximum frequency to display. Every count value greater than this value
@@ -103,9 +108,9 @@ message BlindLastLayerIndexThenJoinRegistersRequest {
   bytes local_pohlig_hellman_sk = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
-  // Keys of the composite ElGamal cipher. Only public keys are required, i.e.,
-  // el_gamal_g and el_gamal_y.
-  ElGamalKeys composite_el_gamal_keys = 5;
+  // Public Keys of the composite ElGamal cipher. Used to encrypt the random
+  // numbers in SameKeyAggregation.
+  ElGamalPublicKeys composite_el_gamal_keys = 5;
 }
 
 // The response of the BlindLastLayerIndexThenJoinRegisters method.
