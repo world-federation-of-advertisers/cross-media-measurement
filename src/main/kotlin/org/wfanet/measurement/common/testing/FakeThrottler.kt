@@ -6,9 +6,6 @@ import org.wfanet.measurement.common.Throttler
 class FakeThrottler : Throttler {
   var canAttempt = true
 
-  override fun attempt(): Boolean = canAttempt
-  override fun reportThrottled() {}
-
   override suspend fun <T> onReady(block: suspend () -> T): T {
     while (!canAttempt) {
       delay(200)

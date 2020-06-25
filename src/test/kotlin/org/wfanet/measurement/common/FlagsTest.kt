@@ -72,6 +72,9 @@ class FlagsTest {
   fun `duration flag`() {
     val flag = durationFlag("foo", default = Duration.ZERO)
 
+    flag.parseFrom("7ms")
+    assertThat(flag.value).isEqualTo(Duration.ofMillis(7))
+
     flag.parseFrom("10s")
     assertThat(flag.value).isEqualTo(Duration.ofSeconds(10))
 

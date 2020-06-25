@@ -11,7 +11,6 @@ import org.wfanet.measurement.common.Flags
 import org.wfanet.measurement.common.doubleFlag
 import org.wfanet.measurement.common.durationFlag
 import org.wfanet.measurement.common.intFlag
-import org.wfanet.measurement.common.longFlag
 import org.wfanet.measurement.common.stringFlag
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
@@ -26,7 +25,7 @@ object ReportStarterFlags {
 object ThrottlerFlags {
   val OVERLOAD_FACTOR = doubleFlag("throttler-overload-factor", 1.2)
   val TIME_HORIZON = durationFlag("throttler-time-horizon", Duration.ofMinutes(2))
-  val POLL_DELAY_MILLIS = longFlag("throttler-poll-delay-millis", 0)
+  val POLL_DELAY = durationFlag("throttler-poll-delay", Duration.ofMillis(1))
 }
 
 fun main(args: Array<String>) {
@@ -42,7 +41,7 @@ fun main(args: Array<String>) {
       ThrottlerFlags.OVERLOAD_FACTOR.value,
       Clock.systemUTC(),
       ThrottlerFlags.TIME_HORIZON.value,
-      ThrottlerFlags.POLL_DELAY_MILLIS.value
+      ThrottlerFlags.POLL_DELAY.value
     )
 
     val reportStarterClient = ReportStarterClientImpl(

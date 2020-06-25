@@ -115,10 +115,11 @@ fun booleanFlag(name: String, default: Boolean): Flag<Boolean> =
 fun stringFlag(name: String, default: String): Flag<String> = Flag(name, default, String::toString)
 
 internal fun String.parseDuration(): Duration {
-  val groups = Regex("^(\\d+)([smhd])$").matchEntire(this)?.groupValues ?: listOf()
+  val groups = Regex("^(\\d+)(ms|s|m|h|d)$").matchEntire(this)?.groupValues ?: listOf()
   if (groups.size == 3) {
     val amount = groups[1].toLong()
     when (groups[2].toLowerCase()) {
+      "ms" -> return Duration.ofMillis(amount)
       "s" -> return Duration.ofSeconds(amount)
       "m" -> return Duration.ofMinutes(amount)
       "h" -> return Duration.ofHours(amount)
