@@ -8,9 +8,9 @@ import org.wfanet.measurement.common.Flag
 import org.wfanet.measurement.common.stringFlag
 
 class SpannerFromFlags(
-  projectFlag: String = "spanner_project",
-  instanceFlag: String = "spanner_instance",
-  databaseFlag: String = "spanner_database"
+  projectFlag: String = "spanner-project",
+  instanceFlag: String = "spanner-instance",
+  databaseFlag: String = "spanner-database"
 ) {
   private var project: Flag<String> = stringFlag(projectFlag, default = "")
   private var instance: Flag<String> = stringFlag(instanceFlag, default = "")

@@ -26,3 +26,11 @@ container_push(
     registry = "gcr.io",
     repository = "ads-open-measurement/requisition",
 )
+
+container_push(
+    name = "push_gcp_kingdom_storage_server_image",
+    format = "Docker",
+    image = "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/gcp_kingdom_storage_server",
+)
