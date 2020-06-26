@@ -1,24 +1,20 @@
 package org.wfanet.measurement.db.duchy
 
+import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.internal.SketchAggregationState
-import org.wfanet.measurement.internal.SketchAggregationState.ADDING_NOISE
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_AND_JOINING_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationState.CLEAN_UP
-import org.wfanet.measurement.internal.SketchAggregationState.COMPUTING_METRICS
-import org.wfanet.measurement.internal.SketchAggregationState.DECRYPTING_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.FINISHED
-import org.wfanet.measurement.internal.SketchAggregationState.GATHERING_LOCAL_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_JOINED
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.STARTING
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FINISHED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_JOINED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationState.COMPLETED
+import org.wfanet.measurement.internal.SketchAggregationState.CREATED
+import org.wfanet.measurement.internal.SketchAggregationState.TO_ADD_NOISE
+import org.wfanet.measurement.internal.SketchAggregationState.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
 import org.wfanet.measurement.internal.SketchAggregationState.UNKNOWN
 import org.wfanet.measurement.internal.SketchAggregationState.UNRECOGNIZED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 
 /**
@@ -48,39 +44,33 @@ class SketchAggregationComputationManager(
     outputsToCurrentStage: List<String>,
     stage: SketchAggregationState
   ): ComputationToken<SketchAggregationState> {
+    requireValidRoleForStage(stage, token.role)
     return when (stage) {
-      // Runs after the initialization of the computation, there are not any inputs.
-      GATHERING_LOCAL_SKETCHES -> transitionState(
+      // Stages of the computation reducing all inputs and outputs of the current stage into a
+      // single output.
+      TO_APPEND_SKETCHES -> transitionState(
         token,
         stage,
+        // The input to current stage is the set of locally stored sketches with added noise,
+        // the outputs of the current stage are the set of sketches with added noise received
+        // from the other duchies.
+        inputBlobsPaths = requireNotEmpty(inputsToCurrentStage) + requireNotEmpty(
+          outputsToCurrentStage
+        ),
         outputBlobCount = 1,
-        afterTransition = AfterTransition.CONTINUE_WORKING
+        afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
       )
-      // Stages which are run immediately after a stage producing output on the same peasant.
-      ADDING_NOISE,
-      COMPUTING_METRICS -> transitionState(
+      // Stages of computation mapping one input to one output.
+      TO_ADD_NOISE,
+      TO_BLIND_POSITIONS,
+      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+      TO_DECRYPT_FLAG_COUNTS,
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> transitionState(
         token,
         stage,
         inputBlobsPaths = requireNotEmpty(outputsToCurrentStage),
         outputBlobCount = 1,
-        afterTransition = AfterTransition.CONTINUE_WORKING
-      )
-      // Stages where part of the computation is run after receiving inputs from another duchy.
-      // These stages follow a RECEIVED_* stage, which do not create output but carry forward the
-      // output of the WAIT_* stage.
-      //
-      // For example, the input to BLINDING_POSITIONS is the concatenated sketch from the
-      // predecessor duchy which is the output of WAIT_CONCATENATED. The output of WAIT_CONCATENATED
-      // is the input to RECEIVED_CONCATENATED which doesn't produce an output. So the input to
-      // BLINDING_POSITIONS is RECEIVED_CONCATENATED.input which is WAIT_CONCATENATED.output
-      BLINDING_POSITIONS,
-      BLINDING_AND_JOINING_REGISTERS,
-      DECRYPTING_FLAG_COUNTS -> transitionState(
-        token,
-        stage,
-        inputBlobsPaths = requireNotEmpty(inputsToCurrentStage),
-        outputBlobCount = 1,
-        afterTransition = AfterTransition.CONTINUE_WORKING
+        afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
       )
       // The primary duchy is waiting for input from all the other duchies. This is a special case
       // of the other wait stages as it has n-1 inputs.
@@ -90,12 +80,11 @@ class SketchAggregationComputationManager(
         // The output of current stage is the results of adding noise to locally stored sketches.
         inputBlobsPaths = requireNotEmpty(outputsToCurrentStage),
         outputBlobCount = duchiesInComputation - 1,
-        // Need to wait for input from other duchies.
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
       // Stages were the duchy is waiting for a single input from the predecessor duchy.
       WAIT_CONCATENATED,
-      WAIT_JOINED -> transitionState(
+      WAIT_FLAG_COUNTS -> transitionState(
         token,
         stage,
         // Keep a reference to the finished work artifact in case it needs to be resent.
@@ -105,48 +94,25 @@ class SketchAggregationComputationManager(
         // Peasant have nothing to do for this stage.
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
-      // Waits for a signal to cleanup the computation. The signal itself is not a required input
-      // for the next stage, so it doesn't need to be stored.
-      WAIT_FINISHED -> transitionState(
-        token,
-        stage,
-        // Keep a reference to the finished work artifact in case it needs to be resent.
-        inputBlobsPaths = requireNotEmpty(inputsToCurrentStage),
-        // Peasant have nothing to do for this stage.
-        afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
-      )
-      // Stages were the duchy is making a single output from a collection of data from all duchies.
-      RECEIVED_SKETCHES -> transitionState(
-        token,
-        stage,
-        // The input to current stage is the set of locally stored sketches with added noise,
-        // the outputs of the current stage are the set of sketches with added noise received
-        // from the other duchies.
-        inputBlobsPaths = requireNotEmpty(inputsToCurrentStage) + requireNotEmpty(
-          outputsToCurrentStage
-        ),
-        // Creates the first concatenated sketch.
-        outputBlobCount = 1,
-        // This will be called by an gRPC handler, so it gets added to the peasant work queue.
-        afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-      )
-      // Stages where the duchy got input from another duchy. These stages make no output themselves
-      // but are a way to track when a computation operates on the inputs from another duchy.
-      RECEIVED_CONCATENATED,
-      RECEIVED_JOINED -> transitionState(
-        token,
-        stage,
-        // The sketch received from the last duchy.
-        inputBlobsPaths = requireNotEmpty(outputsToCurrentStage),
-        // This will be called by an gRPC handler, so it gets added to the peasant work queue.
-        afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-      )
-      CLEAN_UP -> // Some peasant needs to clean up after the computation.
-        transitionState(token, stage, afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE)
-      FINISHED ->
+      COMPLETED ->
         transitionState(token, stage, afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE)
       // States that we can't transition to ever.
-      UNRECOGNIZED, UNKNOWN, STARTING -> error("Cannot make transition function to stage $stage")
+      UNRECOGNIZED, UNKNOWN, CREATED -> error("Cannot make transition function to stage $stage")
+    }
+  }
+
+  private fun requireValidRoleForStage(stage: SketchAggregationState, role: DuchyRole) {
+    when (stage) {
+      WAIT_SKETCHES,
+      TO_APPEND_SKETCHES,
+      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> require(role == DuchyRole.PRIMARY) {
+        "$stage may only be executed by the primary MPC worker."
+      }
+      TO_BLIND_POSITIONS, TO_DECRYPT_FLAG_COUNTS -> require(role == DuchyRole.SECONDARY) {
+        "$stage may only be executed by a non-primary MPC worker."
+      }
+      else -> { /* Stage can be executed at either primary or non-primary */ }
     }
   }
 }

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 class SketchAggregationStatesTest {
   @Test
   fun `verify initial state`() {
-    assertTrue { SketchAggregationStates.validInitialState(SketchAggregationState.STARTING) }
+    assertTrue { SketchAggregationStates.validInitialState(SketchAggregationState.CREATED) }
     assertFalse { SketchAggregationStates.validInitialState(SketchAggregationState.WAIT_SKETCHES) }
   }
 
@@ -42,29 +42,29 @@ class SketchAggregationStatesTest {
   fun `verify transistions`() {
     assertTrue {
       SketchAggregationStates.validTransition(
-        SketchAggregationState.STARTING,
-        SketchAggregationState.GATHERING_LOCAL_SKETCHES
+        SketchAggregationState.CREATED,
+        SketchAggregationState.TO_ADD_NOISE
       )
     }
 
     assertFalse {
       SketchAggregationStates.validTransition(
-        SketchAggregationState.STARTING,
-        SketchAggregationState.ADDING_NOISE
+        SketchAggregationState.CREATED,
+        SketchAggregationState.WAIT_SKETCHES
       )
     }
 
     assertFalse {
       SketchAggregationStates.validTransition(
         SketchAggregationState.UNKNOWN,
-        SketchAggregationState.STARTING
+        SketchAggregationState.CREATED
       )
     }
 
     assertFalse {
       SketchAggregationStates.validTransition(
         SketchAggregationState.UNRECOGNIZED,
-        SketchAggregationState.STARTING
+        SketchAggregationState.CREATED
       )
     }
   }

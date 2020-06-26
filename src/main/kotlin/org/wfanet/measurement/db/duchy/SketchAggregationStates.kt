@@ -2,22 +2,17 @@ package org.wfanet.measurement.db.duchy
 
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.internal.SketchAggregationState
-import org.wfanet.measurement.internal.SketchAggregationState.ADDING_NOISE
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_AND_JOINING_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationState.CLEAN_UP
-import org.wfanet.measurement.internal.SketchAggregationState.COMPUTING_METRICS
-import org.wfanet.measurement.internal.SketchAggregationState.DECRYPTING_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.FINISHED
-import org.wfanet.measurement.internal.SketchAggregationState.GATHERING_LOCAL_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_JOINED
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.STARTING
+import org.wfanet.measurement.internal.SketchAggregationState.COMPLETED
+import org.wfanet.measurement.internal.SketchAggregationState.CREATED
+import org.wfanet.measurement.internal.SketchAggregationState.TO_ADD_NOISE
+import org.wfanet.measurement.internal.SketchAggregationState.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
 import org.wfanet.measurement.internal.SketchAggregationState.UNRECOGNIZED
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FINISHED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_JOINED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
 
 /**
@@ -25,25 +20,28 @@ import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
  */
 object SketchAggregationStates :
   ProtocolStateEnumHelper<SketchAggregationState> {
-  override val validInitialStates = setOf(STARTING)
+  override val validInitialStates = setOf(CREATED)
 
   override val validSuccessors =
     mapOf(
-      STARTING to setOf(GATHERING_LOCAL_SKETCHES, CLEAN_UP),
-      GATHERING_LOCAL_SKETCHES to setOf(ADDING_NOISE, CLEAN_UP),
-      ADDING_NOISE to setOf(WAIT_SKETCHES, WAIT_CONCATENATED, CLEAN_UP),
-      WAIT_SKETCHES to setOf(RECEIVED_SKETCHES, CLEAN_UP),
-      RECEIVED_SKETCHES to setOf(WAIT_CONCATENATED, CLEAN_UP),
-      WAIT_CONCATENATED to setOf(RECEIVED_CONCATENATED, CLEAN_UP),
-      RECEIVED_CONCATENATED to setOf(BLINDING_POSITIONS, BLINDING_AND_JOINING_REGISTERS, CLEAN_UP),
-      BLINDING_POSITIONS to setOf(WAIT_JOINED, CLEAN_UP),
-      BLINDING_AND_JOINING_REGISTERS to setOf(WAIT_JOINED, CLEAN_UP),
-      WAIT_JOINED to setOf(RECEIVED_JOINED, CLEAN_UP),
-      RECEIVED_JOINED to setOf(DECRYPTING_FLAG_COUNTS, CLEAN_UP),
-      DECRYPTING_FLAG_COUNTS to setOf(COMPUTING_METRICS, WAIT_FINISHED, CLEAN_UP),
-      COMPUTING_METRICS to setOf(WAIT_FINISHED, CLEAN_UP),
-      WAIT_FINISHED to setOf(CLEAN_UP),
-      CLEAN_UP to setOf(FINISHED)
+      CREATED to setOf(TO_ADD_NOISE, COMPLETED),
+      TO_ADD_NOISE to setOf(WAIT_SKETCHES, WAIT_CONCATENATED, COMPLETED),
+      WAIT_SKETCHES to setOf(TO_APPEND_SKETCHES, COMPLETED),
+      TO_APPEND_SKETCHES to setOf(WAIT_CONCATENATED, COMPLETED),
+      WAIT_CONCATENATED to setOf(
+        TO_BLIND_POSITIONS,
+        TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+        COMPLETED
+      ),
+      TO_BLIND_POSITIONS to setOf(WAIT_FLAG_COUNTS, COMPLETED),
+      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS to setOf(WAIT_FLAG_COUNTS, COMPLETED),
+      WAIT_FLAG_COUNTS to setOf(
+        TO_DECRYPT_FLAG_COUNTS,
+        TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
+        COMPLETED
+      ),
+      TO_DECRYPT_FLAG_COUNTS to setOf(COMPLETED),
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS to setOf(COMPLETED)
     ).withDefault { setOf() }
 
   override fun enumToLong(value: SketchAggregationState): Long {

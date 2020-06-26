@@ -13,19 +13,16 @@ import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.internal.SketchAggregationState
-import org.wfanet.measurement.internal.SketchAggregationState.ADDING_NOISE
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_AND_JOINING_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationState.BLINDING_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationState.COMPUTING_METRICS
-import org.wfanet.measurement.internal.SketchAggregationState.DECRYPTING_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.GATHERING_LOCAL_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_JOINED
-import org.wfanet.measurement.internal.SketchAggregationState.RECEIVED_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.STARTING
+import org.wfanet.measurement.internal.SketchAggregationState.COMPLETED
+import org.wfanet.measurement.internal.SketchAggregationState.CREATED
+import org.wfanet.measurement.internal.SketchAggregationState.TO_ADD_NOISE
+import org.wfanet.measurement.internal.SketchAggregationState.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FINISHED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_JOINED
+import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
 import java.math.BigInteger
 import java.time.Instant
@@ -64,28 +61,25 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
-
-    // Each of these operations makes assertions about the state of the computation via changes
-    // to the computation token.
+    computation.writeOutputs(CREATED)
+    computation.gatherLocalSketches()
     computation.enqueue()
 
     computation.claimWorkFor("some-peasant")
-    computation.runComputationStage(GATHERING_LOCAL_SKETCHES)
-    computation.runComputationStage(ADDING_NOISE)
-
+    computation.writeOutputs(TO_ADD_NOISE)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
 
     computation.claimWorkFor("some-other-peasant")
-    computation.runComputationStage(BLINDING_POSITIONS)
-    computation.runWaitStage(WAIT_JOINED)
+    computation.writeOutputs(TO_BLIND_POSITIONS)
+    computation.runWaitStage(WAIT_FLAG_COUNTS)
 
-    fakeRpcService.receiveJoinedSketchGrpc()
+    fakeRpcService.receiveFlagCountsGrpc()
 
     computation.claimWorkFor("yet-another-peasant")
-    computation.runComputationStage(DECRYPTING_FLAG_COUNTS)
-    computation.runWaitStage(WAIT_FINISHED)
+    computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS)
+    computation.runWaitStage(COMPLETED)
 
     computation.assertTokenEquals(
       ComputationToken(
@@ -97,7 +91,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         nextWorker = BAVARIA,
         lastUpdateTime = testClock.last().toEpochMilli(),
         role = DuchyRole.SECONDARY,
-        state = WAIT_FINISHED
+        state = COMPLETED
       )
     )
   }
@@ -119,32 +113,31 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
-
+    computation.writeOutputs(CREATED)
+    computation.gatherLocalSketches()
     computation.enqueue()
+
     computation.claimWorkFor("some-peasant")
-    computation.runComputationStage(GATHERING_LOCAL_SKETCHES)
-    computation.runComputationStage(ADDING_NOISE)
+    computation.writeOutputs(TO_ADD_NOISE)
     computation.runWaitStage(WAIT_SKETCHES)
 
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
     computation.claimWorkFor("some-peasant")
-    computation.writeAllOutputsForCurrentState("ConcatenatedSketchAtPrimaryDuchy")
+    computation.writeOutputs(TO_APPEND_SKETCHES)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
 
     computation.claimWorkFor("some-other-peasant")
-    computation.runComputationStage(BLINDING_AND_JOINING_REGISTERS)
-    computation.runWaitStage(WAIT_JOINED)
-
-    fakeRpcService.receiveJoinedSketchGrpc()
+    computation.writeOutputs(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS)
+    computation.runWaitStage(WAIT_FLAG_COUNTS)
+    fakeRpcService.receiveFlagCountsGrpc()
 
     computation.claimWorkFor("yet-another-peasant")
-    computation.runComputationStage(DECRYPTING_FLAG_COUNTS)
-    computation.runComputationStage(COMPUTING_METRICS)
-    computation.runWaitStage(WAIT_FINISHED)
+    computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
+    computation.runWaitStage(COMPLETED)
 
     computation.assertTokenEquals(
       ComputationToken(
@@ -156,7 +149,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         nextWorker = BAVARIA,
         lastUpdateTime = testClock.last().toEpochMilli(),
         role = DuchyRole.PRIMARY,
-        state = WAIT_FINISHED
+        state = COMPLETED
       )
     )
   }
@@ -183,14 +176,15 @@ class SingleComputationManager(
   private val testClock: TestClockWithNamedInstants
 ) {
 
-  private var token = manager.createComputation(globalId, STARTING)
+  private var token = manager.createComputation(globalId, CREATED)
   val localId by lazy { token.localId }
 
-  fun writeAllOutputsForCurrentState(content: String) {
+  fun writeOutputs(stage: SketchAggregationState) {
+    assertEquals(stage, token.state)
     testClock.tickSeconds("${token.state.name}_$token.attempt_outputs")
     manager.readBlobReferences(token, BlobDependencyType.OUTPUT)
       .map { BlobRef(it.key, manager.newBlobPath(token, "outputs")) }
-      .forEach { manager.writeAndRecordOutputBlob(token, it, content.toByteArray()) }
+      .forEach { manager.writeAndRecordOutputBlob(token, it, stage.name.toByteArray()) }
   }
 
   /** Runs an operation and checks the returned token from the operation matches the expected. */
@@ -239,7 +233,7 @@ class SingleComputationManager(
   inner class FakeRpcService {
     /**
      * Fake receiving a sketch from a [sender], if all sketches have been received
-     * set state to [RECEIVED_SKETCHES].
+     * set state to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
     fun receiveSketch(sender: String) {
       val stageDetails = manager.readStageSpecificDetails(token).waitSketchStageDetails
@@ -256,12 +250,12 @@ class SingleComputationManager(
       val notWritten =
         manager.readBlobReferences(token, BlobDependencyType.OUTPUT).values.count { it == null }
       if (notWritten == 0) {
-        assertTokenChangesTo(token.copy(state = RECEIVED_SKETCHES, attempt = 0)) {
+        assertTokenChangesTo(token.copy(state = TO_APPEND_SKETCHES, attempt = 0)) {
           manager.transitionComputationToStage(
             it.token,
             it.inputs,
             it.outputs.requireNoNulls(),
-            RECEIVED_SKETCHES
+            TO_APPEND_SKETCHES
           )
         }
       }
@@ -269,40 +263,40 @@ class SingleComputationManager(
 
     /** Fakes receiving the concatenated sketch from the incoming duchy. */
     fun receiveConcatenatedSketchGrpc() {
-      writeAllOutputsForCurrentState("ConcatenatedSketch")
-      assertTokenChangesTo(token.copy(state = RECEIVED_CONCATENATED, attempt = 0)) {
+      writeOutputs(WAIT_CONCATENATED)
+      val state =
+        if (token.role == DuchyRole.PRIMARY) TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+        else TO_BLIND_POSITIONS
+      assertTokenChangesTo(token.copy(state = state, attempt = 0)) {
         manager.transitionComputationToStage(
-          it.token,
-          it.inputs,
-          it.outputs.requireNoNulls(),
-          RECEIVED_CONCATENATED
+          it.token, it.inputs, it.outputs.requireNoNulls(), state
         )
       }
     }
 
     /** Fakes receiving the joined sketch from the incoming duchy. */
-    fun receiveJoinedSketchGrpc() {
-      writeAllOutputsForCurrentState("JoinedSketch")
-      assertTokenChangesTo(token.copy(state = RECEIVED_JOINED, attempt = 0)) {
+    fun receiveFlagCountsGrpc() {
+      writeOutputs(WAIT_FLAG_COUNTS)
+      val state =
+        if (token.role == DuchyRole.PRIMARY) TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+        else TO_DECRYPT_FLAG_COUNTS
+      assertTokenChangesTo(token.copy(state = state, attempt = 0)) {
         manager.transitionComputationToStage(
-          it.token,
-          it.inputs,
-          it.outputs.requireNoNulls(),
-          RECEIVED_JOINED
+          it.token, it.inputs, it.outputs.requireNoNulls(), state
         )
       }
     }
   }
 
-  /**
-   *  Runs a stage of the computation which creates an output by changing state to that stage, and
-   *  writing a fake output.
-   */
-  fun runComputationStage(stage: SketchAggregationState) {
-    assertTokenChangesTo(token.copy(state = stage, attempt = 1)) {
-      manager.transitionComputationToStage(it.token, it.inputs, it.outputs.requireNoNulls(), stage)
+  fun gatherLocalSketches() {
+    assertTokenChangesTo(token.copy(state = TO_ADD_NOISE, attempt = 0, owner = null)) {
+      manager.transitionComputationToStage(
+        it.token,
+        it.inputs,
+        it.outputs.requireNoNulls(),
+        TO_ADD_NOISE
+      )
     }
-    writeAllOutputsForCurrentState("Data_$stage")
   }
 
   /** Move to a waiting stage and make sure the computation is not in the work queue. */

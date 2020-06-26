@@ -9,7 +9,6 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.TransactionContext
 import com.google.protobuf.Message
-import java.time.Clock
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
@@ -27,6 +26,7 @@ import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import java.time.Clock
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
@@ -83,17 +83,40 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         localId = localId,
         stage = initialState,
         creationTime = writeTimestamp,
-        nextAttempt = 1,
+        nextAttempt = 2,
         details = computationMutations.detailsFor(initialState)
       )
 
-    databaseClient.write(listOf(computationRow, computationStageRow))
+    val computationStageAttemptRow =
+      computationMutations.insertComputationStageAttempt(
+        localId = localId,
+        stage = initialState,
+        attempt = 1,
+        beginTime = writeTimestamp
+      )
+
+    val blobRefRow =
+      computationMutations.insertComputationBlobReference(
+        localId = localId,
+        stage = initialState,
+        blobId = 0,
+        dependencyType = ComputationBlobDependency.OUTPUT
+      )
+
+    databaseClient.write(
+      listOf(
+        computationRow,
+        computationStageRow,
+        computationStageAttemptRow,
+        blobRefRow
+      )
+    )
 
     return ComputationToken(
       localId = localId,
       globalId = globalId,
       state = initialState,
-      attempt = 0,
+      attempt = 1,
       owner = null,
       lastUpdateTime = writeTimestamp.toMillis(),
       role = computationAtThisDuchy.role,

@@ -5,7 +5,6 @@ import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,6 +13,7 @@ import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.internal.SketchAggregationState
+import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class GcpStorageComputationsDbTest {
@@ -23,7 +23,7 @@ class GcpStorageComputationsDbTest {
     private val storage: Storage = LocalStorageHelper.getOptions().service
     private val token = ComputationToken(
       localId = 5432L, globalId = 6789, attempt = 1, lastUpdateTime = 1234567891011L,
-      state = SketchAggregationState.DECRYPTING_FLAG_COUNTS, nextWorker = "next-one", owner = "me",
+      state = SketchAggregationState.TO_DECRYPT_FLAG_COUNTS, nextWorker = "next-one", owner = "me",
       role = DuchyRole.PRIMARY
     )
   }
@@ -51,9 +51,9 @@ class GcpStorageComputationsDbTest {
   @Test
   fun newPath() {
     val pathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
-    assertThat(pathWithRandomSuffix).startsWith("5432/DECRYPTING_FLAG_COUNTS/finished_sketch")
+    assertThat(pathWithRandomSuffix).startsWith("5432/TO_DECRYPT_FLAG_COUNTS/finished_sketch")
     val secondPathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
-    assertThat(pathWithRandomSuffix).startsWith("5432/DECRYPTING_FLAG_COUNTS/finished_sketch")
+    assertThat(pathWithRandomSuffix).startsWith("5432/TO_DECRYPT_FLAG_COUNTS/finished_sketch")
     assertThat(pathWithRandomSuffix).isNotEqualTo(secondPathWithRandomSuffix)
   }
 

@@ -4,11 +4,6 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.extensions.proto.ProtoTruth
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -24,7 +19,6 @@ import org.wfanet.measurement.db.duchy.ProtocolStageDetails
 import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
-import org.wfanet.measurement.db.gcp.testing.assertQueryReturnsNothing
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
@@ -32,6 +26,11 @@ import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 /**
  * +--------------+
@@ -125,7 +124,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertEquals(
       ComputationToken(
         localId = idGenerator.localId(id1), nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
-        owner = null, attempt = 0, state = FakeProtocolStates.A,
+        owner = null, attempt = 1, state = FakeProtocolStates.A,
         globalId = id1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
       resultId1
@@ -134,7 +133,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertEquals(
       ComputationToken(
         localId = idGenerator.localId(id2), nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
-        owner = null, attempt = 0, state = FakeProtocolStates.A,
+        owner = null, attempt = 1, state = FakeProtocolStates.A,
         globalId = id2, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
       resultId2
@@ -211,17 +210,45 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .build()
     )
 
-    assertQueryReturnsNothing(
-      spanner.client, "SELECT ComputationId FROM ComputationBlobReferences"
+    assertQueryReturns(
+      spanner.client,
+      """
+      SELECT ComputationId, COUNT(1) as N
+      FROM ComputationBlobReferences 
+      GROUP BY ComputationId
+      ORDER BY ComputationId DESC  
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(resultId1.localId)
+        .set("N").to(1)
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId").to(resultId2.localId)
+        .set("N").to(1)
+        .build()
     )
 
-    assertQueryReturnsNothing(
+    assertQueryReturns(
       spanner.client,
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
       ORDER BY ComputationId DESC
-      """.trimIndent()
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(resultId1.localId)
+        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
+        .set("Attempt").to(1)
+        .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
+        .set("EndTime").to(null as Timestamp?)
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId").to(resultId2.localId)
+        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
+        .set("Attempt").to(1)
+        .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
+        .set("EndTime").to(null as Timestamp?)
+        .build()
     )
   }
 
@@ -866,8 +893,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("insert_computation", 20)
     var token = database.insertComputation(12345, FakeProtocolStates.A)
     assertNull(database.claimTask("TestJob"))
-    database.enqueue(token)
-    token = assertNotNull(database.claimTask("a-worker"))
+    database.writeOutputBlobReference(token, BlobRef(0L, "/path/to/output/for/stage/A"))
     testClock.tickSeconds("move_to_B", 21)
     token = database.updateComputationState(
       token = token,
@@ -975,6 +1001,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       FROM ComputationBlobReferences
       ORDER BY ComputationStage, BlobId
       """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.A))
+        .set("BlobId").to(0L)
+        .set("PathToBlob").to("/path/to/output/for/stage/A")
+        .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
+        .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
