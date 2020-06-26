@@ -20,9 +20,9 @@ class SketchAggregationStageDetailsTest {
           SketchAggregationState.WAIT_SKETCHES -> ComputationStageDetails.newBuilder()
             .setWaitSketchStageDetails(
               WaitSketchesStageDetails.newBuilder()
-                .putExternalDuchyLocalBlobId("A", 0L)
-                .putExternalDuchyLocalBlobId("B", 1L)
-                .putExternalDuchyLocalBlobId("C", 2L)
+                .putExternalDuchyLocalBlobId("A", 1L)
+                .putExternalDuchyLocalBlobId("B", 2L)
+                .putExternalDuchyLocalBlobId("C", 3L)
             )
             .build()
           else -> ComputationStageDetails.getDefaultInstance()
