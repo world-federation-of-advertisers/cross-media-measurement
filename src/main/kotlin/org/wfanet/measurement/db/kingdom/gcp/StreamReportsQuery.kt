@@ -20,10 +20,13 @@ class StreamReportsQuery {
       filter.toSql(reader.builder, StreamReportsFilterSqlConverter)
     }
 
-    reader.builder
-      .appendClause("ORDER BY CreateTime ASC")
-      .appendClause("LIMIT @limit")
-      .bind("limit").to(limit)
+    reader.builder.appendClause("ORDER BY CreateTime ASC")
+
+    if (limit > 0) {
+      reader.builder
+        .appendClause("LIMIT @limit")
+        .bind("limit").to(limit)
+    }
 
     return reader.execute(readContext).map { it.report }
   }

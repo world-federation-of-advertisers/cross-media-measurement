@@ -90,7 +90,9 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
       .containsExactly(REPORT1)
 
     assertThat(executeToList(streamReportsFilter(), 0))
-      .isEmpty()
+      .comparingExpectedFieldsOnly()
+      .containsExactly(REPORT1, REPORT2, REPORT3)
+      .inOrder()
   }
 
   @Test

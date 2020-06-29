@@ -1,7 +1,9 @@
 package org.wfanet.measurement.service.internal.kingdom
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
+import kotlin.test.todo
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -19,11 +21,16 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
+import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -109,7 +116,32 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `reportConfigStorage listRequisitionTemplates`() = runBlocking<Unit> {
+  fun coverage() {
+    val serviceDescriptors = listOf(
+      ReportConfigStorageGrpcKt.serviceDescriptor,
+      ReportConfigScheduleStorageGrpcKt.serviceDescriptor,
+      ReportStorageGrpcKt.serviceDescriptor,
+      RequisitionStorageGrpcKt.serviceDescriptor
+    )
+
+    val expectedTests =
+      serviceDescriptors
+        .flatMap { descriptor ->
+          descriptor.methods.map { it.fullMethodName.substringAfterLast('.').replace('/', ' ') }
+        }
+
+    val actualTests =
+      javaClass
+        .methods
+        .filter { it.isAnnotationPresent(Test::class.java) }
+        .map { it.name }
+
+    assertThat(actualTests)
+      .containsAtLeastElementsIn(expectedTests)
+  }
+
+  @Test
+  fun `ReportConfigStorage ListRequisitionTemplates`() = runBlocking<Unit> {
     val request = ListRequisitionTemplatesRequest.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
     }.build()
@@ -127,7 +159,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `reportConfigScheduleStorage streamReadyReportConfigSchedules`() = runBlocking<Unit> {
+  fun `ReportConfigScheduleStorage StreamReadyReportConfigSchedules`() = runBlocking<Unit> {
     val request = StreamReadyReportConfigSchedulesRequest.getDefaultInstance()
 
     val expected = ReportConfigSchedule.newBuilder().apply {
@@ -143,7 +175,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `reportStorage getReport`() = runBlocking<Unit> {
+  fun `ReportStorage GetReport`() = runBlocking<Unit> {
     val request = GetReportRequest.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
     val expected = Report.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
@@ -158,7 +190,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `reportStorage createNextReport`() = runBlocking<Unit> {
+  fun `ReportStorage CreateNextReport`() = runBlocking<Unit> {
     val request = CreateNextReportRequest.newBuilder().apply {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
     }.build()
@@ -174,5 +206,38 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       .isEqualTo(expected)
   }
 
+  @Test
+  fun `ReportStorage StreamReports`() = runBlocking<Unit> {
+    val request = StreamReportsRequest.getDefaultInstance()
+
+    val expected = Report.newBuilder().apply {
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      externalScheduleId = EXTERNAL_SCHEDULE_ID
+    }.build()
+
+    val result = reportStorage.streamReports(request)
+    assertThat(result.toList())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(expected)
+  }
+
   // TODO(efoxepstein): add remaining test cases.
+
+  @Test
+  fun `ReportStorage StreamReadyReports`() = todo {}
+
+  @Test
+  fun `ReportStorage UpdateReportState`() = todo {}
+
+  @Test
+  fun `ReportStorage AssociateRequisition`() = todo {}
+
+  @Test
+  fun `RequisitionStorage CreateRequisition`() = todo {}
+
+  @Test
+  fun `RequisitionStorage FulfillRequisition`() = todo {}
+
+  @Test
+  fun `RequisitionStorage StreamRequisitions`() = todo {}
 }
