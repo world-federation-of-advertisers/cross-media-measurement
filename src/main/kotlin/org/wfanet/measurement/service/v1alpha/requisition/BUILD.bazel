@@ -7,7 +7,7 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "requisition_service_impl",
+    name = "requisition",
     srcs = glob(
         ["*.kt"],
         exclude = ["Main.kt"],
@@ -15,14 +15,12 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_storage_service_kt_jvm_grpc",
-        "//third_party/java/com/google/cloud/spanner",
     ],
 )
 
@@ -32,6 +30,6 @@ kt_jvm_binary_and_image(
     main_class = "org.wfanet.measurement.service.v1alpha.requisition.MainKt",
     visibility = ["//visibility:public"],
     deps = [
-        ":requisition_service_impl",
+        ":requisition",
     ],
 )
