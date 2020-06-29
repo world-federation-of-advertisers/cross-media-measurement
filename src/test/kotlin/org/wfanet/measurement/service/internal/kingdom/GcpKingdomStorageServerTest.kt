@@ -1,5 +1,8 @@
 package org.wfanet.measurement.service.internal.kingdom
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
+import com.google.cloud.spanner.Statement
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
@@ -10,8 +13,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.db.gcp.runReadWriteTransaction
+import org.wfanet.measurement.db.gcp.singleOrNull
+import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
@@ -27,11 +35,14 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
+import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.TimePeriod
+import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 /**
@@ -113,6 +124,8 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
 
     insertReportConfigCampaign(ADVERTISER_ID, REPORT_CONFIG_ID, DATA_PROVIDER_ID, CAMPAIGN_ID)
+
+    insertRequisition(DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID)
   }
 
   @Test
@@ -213,6 +226,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     val expected = Report.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
       externalScheduleId = EXTERNAL_SCHEDULE_ID
+      externalReportId = EXTERNAL_REPORT_ID
     }.build()
 
     val result = reportStorage.streamReports(request)
@@ -221,16 +235,94 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       .containsExactly(expected)
   }
 
+  @Test
+  fun `ReportStorage StreamReadyReports`() = runBlocking<Unit> {
+    databaseClient.runReadWriteTransaction {
+      it.executeUpdate(
+        Statement.newBuilder("UPDATE Reports SET State = @state WHERE ExternalReportId = @id")
+          .bind("state").toProtoEnum(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+          .bind("id").to(EXTERNAL_REPORT_ID)
+          .build()
+      )
+
+      it.executeUpdate(
+        Statement.newBuilder(
+          """
+          UPDATE Requisitions
+          SET State = @state
+          WHERE ExternalRequisitionId = @id
+          """
+        )
+          .bind("state").toProtoEnum(RequisitionState.FULFILLED)
+          .bind("id").to(EXTERNAL_REQUISITION_ID)
+          .build()
+      )
+    }
+
+    insertReportRequisition(
+      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID,
+      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID
+    )
+
+    val request = StreamReadyReportsRequest.getDefaultInstance()
+
+    val expected = Report.newBuilder().apply {
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      externalScheduleId = EXTERNAL_SCHEDULE_ID
+      externalReportId = EXTERNAL_REPORT_ID
+    }.build()
+
+    val result = reportStorage.streamReadyReports(request)
+    assertThat(result.toList())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(expected)
+  }
+
+  @Test
+  fun `ReportStorage UpdateReportState`() = runBlocking<Unit> {
+    val request = UpdateReportStateRequest.newBuilder().apply {
+      externalReportId = EXTERNAL_REPORT_ID
+      state = ReportState.FAILED
+    }.build()
+
+    val expected = Report.newBuilder().apply {
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      externalScheduleId = EXTERNAL_SCHEDULE_ID
+      externalReportId = EXTERNAL_REPORT_ID
+    }.build()
+
+    val result = reportStorage.updateReportState(request)
+    assertThat(result)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expected)
+  }
+
+  @Test
+  fun `ReportStorage AssociateRequisition`() = runBlocking<Unit> {
+    val request = AssociateRequisitionRequest.newBuilder().apply {
+      externalReportId = EXTERNAL_REPORT_ID
+      externalRequisitionId = EXTERNAL_REQUISITION_ID
+    }.build()
+
+    val expected = AssociateRequisitionResponse.getDefaultInstance()
+
+    val result = reportStorage.associateRequisition(request)
+    assertThat(result).isEqualTo(expected)
+
+    val key = Key.of(
+      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, // Report PK
+      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID
+    ) // Requisition PK
+
+    val spannerResult =
+      databaseClient.singleUse()
+        .read("ReportRequisitions", KeySet.singleKey(key), listOf("AdvertiserId"))
+        .singleOrNull()
+
+    assertThat(spannerResult).isNotNull()
+  }
+
   // TODO(efoxepstein): add remaining test cases.
-
-  @Test
-  fun `ReportStorage StreamReadyReports`() = todo {}
-
-  @Test
-  fun `ReportStorage UpdateReportState`() = todo {}
-
-  @Test
-  fun `ReportStorage AssociateRequisition`() = todo {}
 
   @Test
   fun `RequisitionStorage CreateRequisition`() = todo {}

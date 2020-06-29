@@ -204,6 +204,28 @@ abstract class KingdomDatabaseTestBase :
     )
   }
 
+  protected fun insertReportRequisition(
+    advertiserId: Long,
+    reportConfigId: Long,
+    scheduleId: Long,
+    reportId: Long,
+    dataProviderId: Long,
+    campaignId: Long,
+    requisitionId: Long
+  ) {
+    write(
+      Mutation.newInsertBuilder("ReportRequisitions")
+        .set("AdvertiserId").to(advertiserId)
+        .set("ReportConfigId").to(reportConfigId)
+        .set("ScheduleId").to(scheduleId)
+        .set("ReportId").to(reportId)
+        .set("DataProviderId").to(dataProviderId)
+        .set("CampaignId").to(campaignId)
+        .set("RequisitionId").to(requisitionId)
+        .build()
+    )
+  }
+
   protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
     ReportReader()
       .execute(databaseClient.singleUse())

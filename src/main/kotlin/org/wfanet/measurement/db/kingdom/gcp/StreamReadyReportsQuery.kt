@@ -28,7 +28,6 @@ class StreamReadyReportsQuery {
         AND Reports.State = @report_state
       GROUP BY ${ReportReader.SELECT_COLUMNS_SQL}, ReportConfigs.NumRequisitions
       HAVING COUNT(ReportRequisitions.RequisitionId) = ReportConfigs.NumRequisitions
-      LIMIT @limit
       """.trimIndent()
 
     return ReportReader()
@@ -36,7 +35,11 @@ class StreamReadyReportsQuery {
         appendClause(sql)
         bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
         bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_FULFILLMENT)
-        bind("limit").to(limit)
+
+        if (limit > 0) {
+          appendClause("LIMIT @limit")
+          bind("limit").to(limit)
+        }
       }
       .execute(readContext)
       .map { it.report }
