@@ -121,7 +121,7 @@ class StreamRequisitionsQueryTest : KingdomDatabaseTestBase() {
   private fun executeToList(filter: StreamRequisitionsFilter, limit: Long): List<Requisition> =
     runBlocking {
       StreamRequisitionsQuery().execute(
-        spanner.client.singleUse(),
+        databaseClient.singleUse(),
         filter,
         limit
       ).toList()

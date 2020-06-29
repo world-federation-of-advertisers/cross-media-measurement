@@ -30,7 +30,7 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
     externalReportId: ExternalId,
     state: ReportState
   ) {
-    spanner.client.runReadWriteTransaction { transactionContext: TransactionContext ->
+    databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
       UpdateReportStateTransaction()
         .execute(transactionContext, externalReportId, state)
     }

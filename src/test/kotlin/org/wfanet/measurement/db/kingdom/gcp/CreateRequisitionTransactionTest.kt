@@ -84,7 +84,7 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `requisition already exists`() {
-    val existing: Requisition? = spanner.client.runReadWriteTransaction {
+    val existing: Requisition? = databaseClient.runReadWriteTransaction {
       createRequisitionTransaction.execute(it, INPUT_REQUISITION)
     }
     assertThat(existing)
@@ -102,7 +102,7 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       windowStartTime = NEW_TIMESTAMP.toProto()
     }.build()
 
-    val existing: Requisition? = spanner.client.readWriteTransaction().run {
+    val existing: Requisition? = databaseClient.readWriteTransaction().run {
       createRequisitionTransaction.execute(it, newRequisition)
     }
     assertNull(existing)
@@ -118,7 +118,7 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       windowEndTime = NEW_TIMESTAMP.toProto()
     }.build()
 
-    val existing: Requisition? = spanner.client.readWriteTransaction().run {
+    val existing: Requisition? = databaseClient.readWriteTransaction().run {
       createRequisitionTransaction.execute(it, newRequisition)
     }
     assertNull(existing)
@@ -134,7 +134,7 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       requisitionDetails = NEW_REQUISITION_DETAILS
     }.build()
 
-    val existing: Requisition? = spanner.client.readWriteTransaction().run {
+    val existing: Requisition? = databaseClient.readWriteTransaction().run {
       createRequisitionTransaction.execute(it, newRequisition)
     }
     assertNull(existing)

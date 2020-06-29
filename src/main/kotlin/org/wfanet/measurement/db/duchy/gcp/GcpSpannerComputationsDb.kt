@@ -2,11 +2,9 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseClient
-import com.google.cloud.spanner.DatabaseId
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.TransactionContext
 import com.google.protobuf.Message
 import org.wfanet.measurement.common.DuchyOrder
@@ -32,8 +30,7 @@ import java.time.Clock
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
  */
 class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
-  private val spanner: Spanner,
-  private val databaseId: DatabaseId,
+  private val databaseClient: DatabaseClient,
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
   private val blobStorageBucket: String = "knight-computation-stage-storage",
@@ -43,10 +40,6 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
-
-  private val databaseClient: DatabaseClient by lazy {
-    spanner.getDatabaseClient(databaseId)
-  }
 
   override fun insertComputation(globalId: Long, initialState: StageT): ComputationToken<StageT> {
     require(

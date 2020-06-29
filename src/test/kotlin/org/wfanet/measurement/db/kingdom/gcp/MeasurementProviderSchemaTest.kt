@@ -15,7 +15,7 @@ class MeasurementProviderSchemaTest :
 
   @Test
   fun `insert single Advertiser`() {
-    val dbClient = spanner.client
+    val dbClient = databaseClient
     val mutation = Mutation.newInsertBuilder("Advertisers")
       .set("AdvertiserId").to(3011)
       .set("ExternalAdvertiserId").to(1)

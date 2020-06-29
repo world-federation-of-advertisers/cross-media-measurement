@@ -38,7 +38,7 @@ abstract class KingdomDatabaseTestBase :
   }
 
   private fun write(mutation: Mutation) {
-    spanner.client.write(listOf(mutation))
+    databaseClient.write(listOf(mutation))
   }
 
   // TODO: add AdvertiserDetails proto as input.
@@ -206,21 +206,21 @@ abstract class KingdomDatabaseTestBase :
 
   protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
     ReportReader()
-      .execute(spanner.client.singleUse())
+      .execute(databaseClient.singleUse())
       .map { it.report }
       .toList()
   }
 
   protected fun readAllSchedulesInSpanner(): List<ReportConfigSchedule> = runBlocking {
     ScheduleReader()
-      .execute(spanner.client.singleUse())
+      .execute(databaseClient.singleUse())
       .map { it.schedule }
       .toList()
   }
 
   protected fun readAllRequisitionsInSpanner(): List<Requisition> = runBlocking {
     RequisitionReader()
-      .execute(spanner.client.singleUse())
+      .execute(databaseClient.singleUse())
       .map { it.requisition }
       .toList()
   }

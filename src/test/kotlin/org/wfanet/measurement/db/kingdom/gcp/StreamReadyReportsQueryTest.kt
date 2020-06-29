@@ -35,7 +35,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
   private fun streamReadyReportsToList(): List<Report> =
     runBlocking {
       StreamReadyReportsQuery()
-        .execute(spanner.client.singleUse(), 100L)
+        .execute(databaseClient.singleUse(), 100L)
         .toList()
     }
 
@@ -86,7 +86,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
   }
 
   private fun insertReportRequisition() {
-    spanner.client.write(
+    databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("ReportRequisitions")
           .set("AdvertiserId").to(ADVERTISER_ID)

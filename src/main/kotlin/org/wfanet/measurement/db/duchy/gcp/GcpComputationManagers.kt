@@ -1,6 +1,6 @@
 package org.wfanet.measurement.db.duchy.gcp
 
-import com.google.cloud.spanner.DatabaseId
+import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.SpannerOptions
 import com.google.cloud.storage.StorageOptions
 import java.math.BigInteger
@@ -29,8 +29,7 @@ typealias GoogleCloudSpannerOptions = SpannerOptions
 fun newCascadingLegionsSketchAggregationGcpComputationManager(
   duchyName: String,
   duchyPublicKeys: Map<String, BigInteger>,
-  spannerOptions: GoogleCloudSpannerOptions = GoogleCloudSpannerOptions.getDefaultInstance(),
-  spannerDatabaseId: DatabaseId,
+  databaseClient: DatabaseClient,
   googleCloudStorageOptions: GoogleCloudStorageOptions =
     GoogleCloudStorageOptions.getDefaultInstance(),
   storageBucket: String,
@@ -42,8 +41,7 @@ fun newCascadingLegionsSketchAggregationGcpComputationManager(
   )
   return SketchAggregationComputationManager(
     GcpSpannerComputationsDb(
-      spannerOptions.service,
-      spannerDatabaseId,
+      databaseClient = databaseClient,
       duchyName = duchyName,
       duchyOrder = duchyOrder,
       computationMutations = ComputationMutations(SketchAggregationStates, stageDetailsUtil),

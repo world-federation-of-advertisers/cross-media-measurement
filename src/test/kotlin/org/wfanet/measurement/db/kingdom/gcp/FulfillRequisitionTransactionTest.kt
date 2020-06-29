@@ -46,7 +46,7 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
   }
 
   private fun updateExistingRequisitionState(state: RequisitionState) {
-    spanner.client.write(
+    databaseClient.write(
       listOf(
         Mutation
           .newUpdateBuilder("Requisitions")
@@ -86,7 +86,7 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
     for (state in listOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED)) {
       updateExistingRequisitionState(state)
       val requisition: Requisition? =
-        spanner.client.readWriteTransaction().run { transactionContext ->
+        databaseClient.readWriteTransaction().run { transactionContext ->
           FulfillRequisitionTransaction()
             .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID))
         }
@@ -99,7 +99,7 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `missing requisition`() {
-    spanner.client.readWriteTransaction().run { transactionContext ->
+    databaseClient.readWriteTransaction().run { transactionContext ->
       assertFailsWith<NoSuchElementException> {
         FulfillRequisitionTransaction()
           .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1))

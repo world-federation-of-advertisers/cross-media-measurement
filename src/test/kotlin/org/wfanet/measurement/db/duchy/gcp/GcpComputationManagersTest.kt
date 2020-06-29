@@ -2,6 +2,10 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
+import java.math.BigInteger
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -24,10 +28,6 @@ import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_CO
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
-import java.math.BigInteger
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -51,8 +51,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       newCascadingLegionsSketchAggregationGcpComputationManager(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
-        spannerOptions = spanner.spanner.options,
-        spannerDatabaseId = spanner.databaseId,
+        databaseClient = databaseClient,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
         storageBucket = "test-peasant-bucket",
         clock = testClock
@@ -103,8 +102,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       newCascadingLegionsSketchAggregationGcpComputationManager(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
-        spannerOptions = spanner.spanner.options,
-        spannerDatabaseId = spanner.databaseId,
+        databaseClient = databaseClient,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
         storageBucket = "test-peasant-bucket",
         clock = testClock

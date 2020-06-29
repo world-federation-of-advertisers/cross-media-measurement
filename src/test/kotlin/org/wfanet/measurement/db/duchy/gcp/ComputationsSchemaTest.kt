@@ -19,7 +19,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
 
   @Test
   fun insertOne() {
-    val dbClient = spanner.client
+    val dbClient = databaseClient
     dbClient.write(listOf(makeInsertMutation()))
     assertQueryReturns(
       dbClient,
@@ -33,7 +33,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
 
   @Test
   fun insertChild() {
-    val dbClient = spanner.client
+    val dbClient = databaseClient
     val mutation = makeInsertMutation()
     val childMutation = Mutation.newInsertOrUpdateBuilder("ComputationStages")
       .set("ComputationId").to(computationId)
@@ -57,7 +57,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
 
   @Test
   fun globalIdIsUnique() {
-    val dbClient = spanner.client
+    val dbClient = databaseClient
     dbClient.write(listOf(makeInsertMutation()))
     assertFailsWith<SpannerException> {
       dbClient.write(

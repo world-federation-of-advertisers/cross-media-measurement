@@ -201,6 +201,25 @@ load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 # Needed for private-join-and-compute
 grpc_extra_deps()
 
+# @bazel_binary
+
+load("@bazel_skylib//lib:versions.bzl", "versions")
+load("//build/bazel:repo.bzl", "bazel_binary")
+
+bazel_binary(
+    name = "bazel_binary",
+    version = versions.get(),
+)
+
+# @cloud_spanner_emulator
+
+load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator")
+
+cloud_spanner_emulator(
+    name = "cloud_spanner_emulator",
+    commit = "c949744161c94a89acd107e34fa3a1bda0fc1b48",
+)
+
 # Public APIs for measurement system.
 
 git_repository(

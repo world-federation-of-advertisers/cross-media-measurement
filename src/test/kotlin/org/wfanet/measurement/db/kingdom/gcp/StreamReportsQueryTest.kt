@@ -50,7 +50,7 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
   private fun executeToList(filter: StreamReportsFilter, limit: Long): List<Report> =
     runBlocking {
       StreamReportsQuery().execute(
-        spanner.client.singleUse(),
+        databaseClient.singleUse(),
         filter,
         limit
       ).toList()

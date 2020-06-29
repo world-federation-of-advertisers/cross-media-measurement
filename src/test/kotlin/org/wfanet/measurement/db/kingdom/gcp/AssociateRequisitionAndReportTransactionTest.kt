@@ -39,7 +39,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    spanner.client.runReadWriteTransaction { transactionContext: TransactionContext ->
+    databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
       AssociateRequisitionAndReportTransaction()
         .execute(transactionContext, externalRequisitionId, externalReportId)
     }
@@ -85,8 +85,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
       ExternalId(EXTERNAL_REPORT_ID)
     )
 
-    val reportRequisitions = spanner
-      .client
+    val reportRequisitions = databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT * FROM ReportRequisitions"))
       .asSequence()
@@ -147,7 +146,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
       "RequisitionId" to REQUISITION_ID
     )
 
-    spanner.client.write(
+    databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("ReportRequisitions").also { builder ->
           for ((column, value) in expectedColumns) {
@@ -162,8 +161,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
       ExternalId(EXTERNAL_REPORT_ID)
     )
 
-    val reportRequisitions = spanner
-      .client
+    val reportRequisitions = databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT * FROM ReportRequisitions"))
       .asSequence()

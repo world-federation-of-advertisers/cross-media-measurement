@@ -43,7 +43,7 @@ class StreamReadySchedulesQueryTest : KingdomDatabaseTestBase() {
   private fun streamReadySchedulesToList(limit: Long): List<ReportConfigSchedule> =
     runBlocking {
       StreamReadySchedulesQuery()
-        .execute(spanner.client.singleUse(), limit)
+        .execute(databaseClient.singleUse(), limit)
         .toList()
     }
 

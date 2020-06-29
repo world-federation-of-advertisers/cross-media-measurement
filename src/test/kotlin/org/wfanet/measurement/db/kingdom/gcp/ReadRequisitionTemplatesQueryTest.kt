@@ -10,7 +10,6 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 @RunWith(JUnit4::class)
@@ -50,12 +49,15 @@ class ReadRequisitionTemplatesQueryTest : KingdomDatabaseTestBase() {
     private fun buildRequisitionTemplate(
       externalCampaignId: Long,
       metricDefinition: MetricDefinition
-    ): RequisitionTemplate =
-      RequisitionTemplate.newBuilder()
-        .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID)
-        .setExternalCampaignId(externalCampaignId)
-        .setRequisitionDetails(RequisitionDetails.newBuilder().setMetricDefinition(metricDefinition))
-        .build()
+    ): RequisitionTemplate {
+      val builder =
+        RequisitionTemplate
+          .newBuilder()
+          .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID)
+          .setExternalCampaignId(externalCampaignId)
+      builder.requisitionDetailsBuilder.metricDefinition = metricDefinition
+      return builder.build()
+    }
   }
 
   @Before
@@ -85,7 +87,7 @@ class ReadRequisitionTemplatesQueryTest : KingdomDatabaseTestBase() {
   fun success() = runBlocking<Unit> {
     val results =
       ReadRequisitionTemplatesQuery()
-        .execute(spanner.client.singleUse(), ExternalId(EXTERNAL_REPORT_CONFIG_ID))
+        .execute(databaseClient.singleUse(), ExternalId(EXTERNAL_REPORT_CONFIG_ID))
 
     assertThat(results)
       .containsExactlyElementsIn(REQUISITION_TEMPLATES)

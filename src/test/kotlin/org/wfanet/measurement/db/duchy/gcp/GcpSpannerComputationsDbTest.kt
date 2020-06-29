@@ -4,6 +4,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.extensions.proto.ProtoTruth
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -98,10 +99,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   private val testClock = TestClockWithNamedInstants(TEST_INSTANT)
   private val computationMutations = ComputationMutations(ProtocolStates, StageDetailsHelper())
 
-  private val database =
-    GcpSpannerComputationsDb(
-      spanner.spanner,
-      spanner.databaseId,
+  private lateinit var database:
+    GcpSpannerComputationsDb<FakeProtocolStates, FakeProtocolStageDetails>
+
+  @Before
+  fun initDatabase() {
+    database = GcpSpannerComputationsDb(
+      databaseClient,
       "AUSTRIA",
       DuchyOrder(
         setOf(
@@ -113,6 +117,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       clock = testClock,
       computationMutations = computationMutations
     )
+  }
 
   @Test
   fun `insert two computations`() {
@@ -153,7 +158,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       blobsStoragePrefix = "knight-computation-stage-storage/${resultId2.localId}"
     }.build()
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
@@ -183,7 +188,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, CreationTime, NextAttempt,
              EndTime, Details, DetailsJSON
@@ -211,7 +216,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, COUNT(1) as N
       FROM ComputationBlobReferences 
@@ -229,7 +234,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
@@ -310,7 +315,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       creationTime = lastUpdated.toGcpTimestamp(),
       details = computationMutations.detailsFor(FakeProtocolStates.D)
     )
-    spanner.client.write(
+    databaseClient.write(
       listOf(
         computation,
         computationStageB,
@@ -370,11 +375,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       details = COMPUTATION_DETAILS
     )
 
-    spanner.client.write(listOf(computation, differentComputation))
+    databaseClient.write(listOf(computation, differentComputation))
     database.enqueue(token)
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, GlobalComputationId, LockOwner, LockExpirationTime,
              ComputationDetails, ComputationDetailsJSON
@@ -432,7 +437,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       lockExpirationTime = lockExpires.toGcpTimestamp(),
       details = COMPUTATION_DETAILS
     )
-    spanner.client.write(listOf(computation))
+    databaseClient.write(listOf(computation))
     assertFailsWith<SpannerException> { database.enqueue(token) }
   }
 
@@ -476,7 +481,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
       details = computationMutations.detailsFor(FakeProtocolStates.A)
     )
-    spanner.client.write(
+    databaseClient.write(
       listOf(
         enqueuedFiveMinutesAgo,
         enqueuedFiveMinutesAgoStage,
@@ -494,7 +499,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
       WHERE ComputationId = 66 AND ComputationStage = 0
@@ -516,7 +521,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
       WHERE ComputationId = 555 AND ComputationStage = 0
@@ -560,7 +565,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       attempt = 1,
       beginTime = fiveMinutesAgo
     )
-    spanner.client.write(listOf(expiredClaim, expiredClaimStage, expiredClaimAttempt))
+    databaseClient.write(listOf(expiredClaim, expiredClaimStage, expiredClaimAttempt))
 
     val claimed = computationMutations.insertComputation(
       localId = 333,
@@ -584,7 +589,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       attempt = 1,
       beginTime = fiveMinutesAgo
     )
-    spanner.client.write(listOf(claimed, claimedStage, claimedAttempt))
+    databaseClient.write(listOf(claimed, claimedStage, claimedAttempt))
 
     // Claim a task that is owned but the lock expired.
     assertEquals(
@@ -597,7 +602,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
       WHERE ComputationId = 111 AND ComputationStage = 0
@@ -644,14 +649,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
       details = computationMutations.detailsFor(FakeProtocolStates.E)
     )
-    spanner.client.write(listOf(computation, stage))
+    databaseClient.write(listOf(computation, stage))
     assertEquals(
       token.copy(lastUpdateTime = TEST_INSTANT.toEpochMilli()),
       database.renewTask(token)
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT LockOwner, LockExpirationTime
       FROM Computations
@@ -718,7 +723,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         attempt = 2,
         beginTime = testClock["stage_b_created"].toGcpTimestamp()
       )
-    spanner.client.write(listOf(computation, stage, attempt))
+    databaseClient.write(listOf(computation, stage, attempt))
     testClock.tickSeconds("update_stage", 100)
     assertEquals(
       database.updateComputationState(
@@ -739,7 +744,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   private fun assertStageTransitioned(token: ComputationToken<FakeProtocolStates>) {
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId
       FROM Computations
@@ -753,7 +758,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, CreationTime, EndTime, PreviousStage, FollowingStage, 
              Details
@@ -786,7 +791,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val token = testTransitionOfStageWhere(AfterTransition.CONTINUE_WORKING)
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       "SELECT ComputationId, LockOwner, LockExpirationTime FROM Computations",
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -796,7 +801,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
@@ -824,7 +829,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val token = testTransitionOfStageWhere(AfterTransition.ADD_UNCLAIMED_TO_QUEUE)
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       "SELECT ComputationId, LockOwner, LockExpirationTime FROM Computations",
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -834,7 +839,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
@@ -855,7 +860,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val token = testTransitionOfStageWhere(AfterTransition.DO_NOT_ADD_TO_QUEUE)
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       "SELECT ComputationId, LockOwner, LockExpirationTime FROM Computations",
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -865,7 +870,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
       FROM ComputationStageAttempts
@@ -928,7 +933,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertNull(database.claimTask("nothing-to-claim"))
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner,
           LockExpirationTime
@@ -945,7 +950,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, CreationTime, NextAttempt, EndTime, PreviousStage,
              FollowingStage, Details
@@ -995,7 +1000,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, BlobId, PathToBlob, DependencyType
       FROM ComputationBlobReferences
@@ -1107,8 +1112,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       blobId = 3,
       dependencyType = ComputationBlobDependency.OUTPUT
     )
-    spanner.client.write(listOf(computation, stage))
-    spanner.client.write(listOf(inputBlobA, inputBlobB, outputBlobC, outputBlobD))
+    databaseClient.write(listOf(computation, stage))
+    databaseClient.write(listOf(inputBlobA, inputBlobB, outputBlobC, outputBlobD))
     assertEquals(
       mapOf(
         0L to "/path/to/blob/A",
@@ -1162,7 +1167,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       creationTime = testClock.last().toGcpTimestamp(),
       details = FakeProtocolStageDetails.getDefaultInstance()
     )
-    spanner.client.write(listOf(computation, stage))
+    databaseClient.write(listOf(computation, stage))
     ProtoTruth.assertThat(database.readStageSpecificDetails(token)).isEqualToDefaultInstance()
 
     val newDetails = FakeProtocolStageDetails.newBuilder().setName("AnotherName").build()
@@ -1171,7 +1176,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       stage = FakeProtocolStates.D,
       details = newDetails
     )
-    spanner.client.write(listOf(stageWithSpecificDetails))
+    databaseClient.write(listOf(stageWithSpecificDetails))
     assertEquals(
       newDetails,
       database.readStageSpecificDetails(token)
@@ -1214,10 +1219,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       pathToBlob = "/path/to/input/blob",
       dependencyType = ComputationBlobDependency.INPUT
     )
-    spanner.client.write(listOf(computation, stage, outputRef, inputRef))
+    databaseClient.write(listOf(computation, stage, outputRef, inputRef))
     database.writeOutputBlobReference(token, BlobRef(1234L, "/wrote/something/there"))
     assertQueryReturns(
-      spanner.client,
+      databaseClient,
       """
       SELECT ComputationId, ComputationStage, BlobId, PathToBlob, DependencyType
       FROM ComputationBlobReferences

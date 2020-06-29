@@ -1,6 +1,7 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Clock
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -24,7 +25,6 @@ import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.Requisit
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import java.time.Clock
 
 /**
  * Integration test for Kingdom internal services + Spanner.
@@ -67,11 +67,10 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     }.build()
   }
 
-  private val relationalDatabase = GcpKingdomRelationalDatabase(
-    Clock.systemUTC(),
-    RandomIdGeneratorImpl(Clock.systemUTC()),
-    spanner.client
-  )
+  private val relationalDatabase =
+    GcpKingdomRelationalDatabase(Clock.systemUTC(), RandomIdGeneratorImpl(Clock.systemUTC())) {
+      databaseClient
+    }
 
   @get:Rule
   val grpcTestServer = GrpcTestServerRule {

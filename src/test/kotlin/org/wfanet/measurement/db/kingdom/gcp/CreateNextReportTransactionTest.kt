@@ -45,7 +45,7 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
   }
 
   private fun execute(externalScheduleId: ExternalId) {
-    spanner.client.runReadWriteTransaction { transactionContext: TransactionContext ->
+    databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
       CreateNextReportTransaction(clock, FakeIdGenerator)
         .execute(transactionContext, externalScheduleId)
     }
