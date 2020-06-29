@@ -17,7 +17,7 @@ import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ProtocolStageDetails
-import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
+import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
@@ -42,37 +42,37 @@ import kotlin.test.assertNull
  *      v         |
  *      D --------+
  */
-enum class FakeProtocolStates {
+enum class FakeProtocolStages {
   A, B, C, D, E;
 }
 
-object ProtocolStates : ProtocolStateEnumHelper<FakeProtocolStates> {
-  override val validInitialStates = setOf(FakeProtocolStates.A)
+object ProtocolStages : ProtocolStageEnumHelper<FakeProtocolStages> {
+  override val validInitialStages = setOf(FakeProtocolStages.A)
   override val validSuccessors = mapOf(
-    FakeProtocolStates.A to setOf(FakeProtocolStates.B, FakeProtocolStates.E),
-    FakeProtocolStates.B to setOf(FakeProtocolStates.C, FakeProtocolStates.D),
-    FakeProtocolStates.C to setOf(FakeProtocolStates.E),
-    FakeProtocolStates.D to setOf(FakeProtocolStates.E)
+    FakeProtocolStages.A to setOf(FakeProtocolStages.B, FakeProtocolStages.E),
+    FakeProtocolStages.B to setOf(FakeProtocolStages.C, FakeProtocolStages.D),
+    FakeProtocolStages.C to setOf(FakeProtocolStages.E),
+    FakeProtocolStages.D to setOf(FakeProtocolStages.E)
   )
 
-  override fun enumToLong(value: FakeProtocolStates): Long {
+  override fun enumToLong(value: FakeProtocolStages): Long {
     return value.ordinal.toLong()
   }
 
-  override fun longToEnum(value: Long): FakeProtocolStates {
+  override fun longToEnum(value: Long): FakeProtocolStages {
     return when (value) {
-      0L -> FakeProtocolStates.A
-      1L -> FakeProtocolStates.B
-      2L -> FakeProtocolStates.C
-      3L -> FakeProtocolStates.D
-      4L -> FakeProtocolStates.E
+      0L -> FakeProtocolStages.A
+      1L -> FakeProtocolStages.B
+      2L -> FakeProtocolStages.C
+      3L -> FakeProtocolStages.D
+      4L -> FakeProtocolStages.E
       else -> error("Bad value")
     }
   }
 }
 
-class StageDetailsHelper : ProtocolStageDetails<FakeProtocolStates, FakeProtocolStageDetails> {
-  override fun detailsFor(stage: FakeProtocolStates): FakeProtocolStageDetails {
+class StageDetailsHelper : ProtocolStageDetails<FakeProtocolStages, FakeProtocolStageDetails> {
+  override fun detailsFor(stage: FakeProtocolStages): FakeProtocolStageDetails {
     return FakeProtocolStageDetails.newBuilder()
       .setName(stage.name)
       .build()
@@ -97,10 +97,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   private val testClock = TestClockWithNamedInstants(TEST_INSTANT)
-  private val computationMutations = ComputationMutations(ProtocolStates, StageDetailsHelper())
+  private val computationMutations = ComputationMutations(ProtocolStages, StageDetailsHelper())
 
   private lateinit var database:
-    GcpSpannerComputationsDb<FakeProtocolStates, FakeProtocolStageDetails>
+    GcpSpannerComputationsDb<FakeProtocolStages, FakeProtocolStageDetails>
 
   @Before
   fun initDatabase() {
@@ -123,13 +123,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun `insert two computations`() {
     val idGenerator = HalfOfGlobalBitsAndTimeStampIdGenerator(testClock)
     val id1 = 0xABCDEF0123
-    val resultId1 = database.insertComputation(id1, FakeProtocolStates.A)
+    val resultId1 = database.insertComputation(id1, FakeProtocolStages.A)
     val id2 = 0x6699AA231
-    val resultId2 = database.insertComputation(id2, FakeProtocolStates.A)
+    val resultId2 = database.insertComputation(id2, FakeProtocolStages.A)
     assertEquals(
       ComputationToken(
         localId = idGenerator.localId(id1), nextWorker = "BOHEMIA", role = DuchyRole.SECONDARY,
-        owner = null, attempt = 1, state = FakeProtocolStates.A,
+        owner = null, attempt = 1, stage = FakeProtocolStages.A,
         globalId = id1, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
       resultId1
@@ -138,7 +138,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertEquals(
       ComputationToken(
         localId = idGenerator.localId(id2), nextWorker = "BOHEMIA", role = DuchyRole.PRIMARY,
-        owner = null, attempt = 1, state = FakeProtocolStates.A,
+        owner = null, attempt = 1, stage = FakeProtocolStages.A,
         globalId = id2, lastUpdateTime = TEST_INSTANT.toEpochMilli()
       ),
       resultId2
@@ -167,7 +167,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId1.localId)
-        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
+        .set("ComputationStage").to(resultId1.stage.ordinal.toLong())
         .set("UpdateTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("GlobalComputationId").to(resultId1.globalId)
         .set("LockOwner").to(resultId1.owner)
@@ -177,7 +177,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId2.localId)
-        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
+        .set("ComputationStage").to(resultId2.stage.ordinal.toLong())
         .set("UpdateTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("GlobalComputationId").to(resultId2.globalId)
         .set("LockOwner").to(resultId2.owner)
@@ -197,21 +197,21 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId1.localId)
-        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
+        .set("ComputationStage").to(resultId1.stage.ordinal.toLong())
         .set("CreationTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("NextAttempt").to(resultId1.attempt + 1)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(resultId1.state))
-        .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(resultId1.state))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(resultId1.stage))
+        .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(resultId1.stage))
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId2.localId)
-        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
+        .set("ComputationStage").to(resultId2.stage.ordinal.toLong())
         .set("CreationTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("NextAttempt").to(resultId2.attempt + 1)
         .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(resultId2.state))
-        .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(resultId2.state))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(resultId2.stage))
+        .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(resultId2.stage))
         .build()
     )
 
@@ -242,14 +242,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId1.localId)
-        .set("ComputationStage").to(resultId1.state.ordinal.toLong())
+        .set("ComputationStage").to(resultId1.stage.ordinal.toLong())
         .set("Attempt").to(1)
         .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId2.localId)
-        .set("ComputationStage").to(resultId2.state.ordinal.toLong())
+        .set("ComputationStage").to(resultId2.stage.ordinal.toLong())
         .set("Attempt").to(1)
         .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
@@ -259,26 +259,26 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   @Test
   fun `insert computations with same global id fails`() {
-    database.insertComputation(123L, FakeProtocolStates.A)
+    database.insertComputation(123L, FakeProtocolStages.A)
     // This one fails because the same local id is used.
     assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
-      database.insertComputation(123L, FakeProtocolStates.A)
+      database.insertComputation(123L, FakeProtocolStages.A)
     }
   }
 
   @Test
-  fun `insert computation with bad initial state fails`() {
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
-      database.insertComputation(123L, FakeProtocolStates.B)
+  fun `insert computation with bad initial stage fails`() {
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+      database.insertComputation(123L, FakeProtocolStages.B)
     }
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
-      database.insertComputation(123L, FakeProtocolStates.C)
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+      database.insertComputation(123L, FakeProtocolStages.C)
     }
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
-      database.insertComputation(123L, FakeProtocolStates.D)
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+      database.insertComputation(123L, FakeProtocolStages.D)
     }
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial state") {
-      database.insertComputation(123L, FakeProtocolStates.E)
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+      database.insertComputation(123L, FakeProtocolStages.E)
     }
   }
 
@@ -295,25 +295,25 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = 100,
       updateTime = lastUpdated.toGcpTimestamp(),
       globalId = 21231,
-      stage = FakeProtocolStates.D,
+      stage = FakeProtocolStages.D,
       lockOwner = "Fred",
       lockExpirationTime = lockExpires.toGcpTimestamp(),
       details = COMPUTATION_DETAILS
     )
     val computationStageB = computationMutations.insertComputationStage(
       localId = 100,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       nextAttempt = 45,
       creationTime = lastUpdated.minusSeconds(2).toGcpTimestamp(),
       endTime = lastUpdated.minusMillis(200).toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.B)
+      details = computationMutations.detailsFor(FakeProtocolStages.B)
     )
     val computationStageD = computationMutations.insertComputationStage(
       localId = 100,
-      stage = FakeProtocolStates.D,
+      stage = FakeProtocolStages.D,
       nextAttempt = 2,
       creationTime = lastUpdated.toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.D)
+      details = computationMutations.detailsFor(FakeProtocolStages.D)
     )
     databaseClient.write(
       listOf(
@@ -326,7 +326,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       ComputationToken(
         globalId = 21231,
         localId = 100,
-        state = FakeProtocolStates.D,
+        stage = FakeProtocolStages.D,
         owner = "Fred",
         role = DuchyRole.PRIMARY,
         nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -340,7 +340,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `getToken after insert matches returned token`() {
     assertEquals(
-      database.insertComputation(505, FakeProtocolStates.A),
+      database.insertComputation(505, FakeProtocolStages.A),
       database.getToken(505),
       "Expected token returned by inserting new computation to match one retrieved with getToken()"
     )
@@ -351,7 +351,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationToken(
-      localId = 1, globalId = 0, state = FakeProtocolStates.C,
+      localId = 1, globalId = 0, stage = FakeProtocolStages.C,
       owner = "PeterSpacemen", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = lastUpdated.toEpochMilli()
     )
@@ -360,7 +360,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = token.localId,
       updateTime = lastUpdated.toGcpTimestamp(),
       globalId = token.globalId,
-      stage = token.state,
+      stage = token.stage,
       lockOwner = token.owner!!,
       lockExpirationTime = lockExpires.toGcpTimestamp(),
       details = COMPUTATION_DETAILS
@@ -369,7 +369,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = 456789,
       updateTime = lastUpdated.toGcpTimestamp(),
       globalId = 10111213,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       lockOwner = token.owner!!,
       lockExpirationTime = lockExpires.toGcpTimestamp(),
       details = COMPUTATION_DETAILS
@@ -388,7 +388,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(token.state))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
         .set("GlobalComputationId").to(token.globalId)
         .set("LockOwner").to(null as String?)
         .set("LockExpirationTime").to(TEST_INSTANT.toGcpTimestamp())
@@ -410,7 +410,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `enqueue deteleted computation fails`() {
     val token = ComputationToken(
-      localId = 1, globalId = 0, state = FakeProtocolStates.C,
+      localId = 1, globalId = 0, stage = FakeProtocolStages.C,
       owner = "PeterSpacemen", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = 0
     )
@@ -422,7 +422,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1)
     val token = ComputationToken(
-      localId = 1, globalId = 0, state = FakeProtocolStates.C,
+      localId = 1, globalId = 0, stage = FakeProtocolStages.C,
       owner = "PeterSpacemen", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 1,
       lastUpdateTime = lastUpdated.minusSeconds(200).toEpochMilli()
@@ -432,7 +432,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = token.localId,
       updateTime = lastUpdated.toGcpTimestamp(),
       globalId = token.globalId,
-      stage = token.state,
+      stage = token.stage,
       lockOwner = token.owner!!,
       lockExpirationTime = lockExpires.toGcpTimestamp(),
       details = COMPUTATION_DETAILS
@@ -452,22 +452,22 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = 555,
       updateTime = fiveMinutesAgo,
       globalId = 55,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       lockOwner = WRITE_NULL_STRING,
       lockExpirationTime = fiveMinutesAgo,
       details = COMPUTATION_DETAILS
     )
     val enqueuedFiveMinutesAgoStage = computationMutations.insertComputationStage(
       localId = 555,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       nextAttempt = 1,
       creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.A)
+      details = computationMutations.detailsFor(FakeProtocolStages.A)
     )
 
     val enqueuedSixMinutesAgo = computationMutations.insertComputation(
       localId = 66,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       updateTime = sixMinutesAgo,
       globalId = 6,
       lockOwner = WRITE_NULL_STRING,
@@ -476,10 +476,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val enqueuedSixMinutesAgoStage = computationMutations.insertComputationStage(
       localId = 66,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       nextAttempt = 1,
       creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.A)
+      details = computationMutations.detailsFor(FakeProtocolStages.A)
     )
     databaseClient.write(
       listOf(
@@ -491,7 +491,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     assertEquals(
       ComputationToken(
-        localId = 66, globalId = 6, state = FakeProtocolStates.A,
+        localId = 66, globalId = 6, stage = FakeProtocolStages.A,
         owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
         role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
       ),
@@ -513,7 +513,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
     assertEquals(
       ComputationToken(
-        localId = 555, globalId = 55, state = FakeProtocolStates.A,
+        localId = 555, globalId = 55, stage = FakeProtocolStages.A,
         owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
         role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
       ),
@@ -545,7 +545,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val fiveMinutesFromNow = testClock.last().plusSeconds(300).toGcpTimestamp()
     val expiredClaim = computationMutations.insertComputation(
       localId = 111L,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       updateTime = testClock["start"].toGcpTimestamp(),
       globalId = 11,
       lockOwner = "owner-of-the-lock",
@@ -554,14 +554,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val expiredClaimStage = computationMutations.insertComputationStage(
       localId = 111,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       nextAttempt = 2,
       creationTime = fiveMinutesAgo,
-      details = computationMutations.detailsFor(FakeProtocolStates.A)
+      details = computationMutations.detailsFor(FakeProtocolStages.A)
     )
     val expiredClaimAttempt = computationMutations.insertComputationStageAttempt(
       localId = 111,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       attempt = 1,
       beginTime = fiveMinutesAgo
     )
@@ -569,7 +569,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
     val claimed = computationMutations.insertComputation(
       localId = 333,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       updateTime = testClock["start"].toGcpTimestamp(),
       globalId = 33,
       lockOwner = "owner-of-the-lock",
@@ -578,14 +578,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val claimedStage = computationMutations.insertComputationStage(
       localId = 333,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       nextAttempt = 2,
       creationTime = fiveMinutesAgo,
-      details = computationMutations.detailsFor(FakeProtocolStates.A)
+      details = computationMutations.detailsFor(FakeProtocolStages.A)
     )
     val claimedAttempt = computationMutations.insertComputationStageAttempt(
       localId = 333,
-      stage = FakeProtocolStates.A,
+      stage = FakeProtocolStages.A,
       attempt = 1,
       beginTime = fiveMinutesAgo
     )
@@ -594,7 +594,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     // Claim a task that is owned but the lock expired.
     assertEquals(
       ComputationToken(
-        localId = 111, globalId = 11, state = FakeProtocolStates.A,
+        localId = 111, globalId = 11, stage = FakeProtocolStages.A,
         owner = "new-owner", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
         role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = testClock.last().toEpochMilli()
       ),
@@ -628,7 +628,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun renewTask() {
     val lastUpdated = TEST_INSTANT.minusSeconds(355)
     val token = ComputationToken(
-      localId = 4315, globalId = 55, state = FakeProtocolStates.E,
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.E,
       owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = lastUpdated.toEpochMilli()
     )
@@ -637,17 +637,17 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       token.localId,
       lastUpdated.toGcpTimestamp(),
       token.globalId,
-      stage = FakeProtocolStates.E,
+      stage = FakeProtocolStages.E,
       lockOwner = token.owner!!,
       lockExpirationTime = fiveSecondsFromNow,
       details = COMPUTATION_DETAILS
     )
     val stage = computationMutations.insertComputationStage(
       localId = token.localId,
-      stage = FakeProtocolStates.E,
+      stage = FakeProtocolStages.E,
       nextAttempt = 3,
       creationTime = Instant.ofEpochMilli(3456789L).toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.E)
+      details = computationMutations.detailsFor(FakeProtocolStages.E)
     )
     databaseClient.write(listOf(computation, stage))
     assertEquals(
@@ -671,7 +671,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `renewTask for missing computation fails`() {
     val token = ComputationToken(
-      localId = 4315, globalId = 55, state = FakeProtocolStates.E,
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.E,
       owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = 12345L
     )
@@ -681,7 +681,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `renewTask for token with no owner fails`() {
     val token = ComputationToken(
-      localId = 4315, globalId = 55, state = FakeProtocolStates.E,
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.E,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 2, lastUpdateTime = 12345L
     )
@@ -690,12 +690,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   private fun testTransitionOfStageWhere(
     afterTransition: AfterTransition
-  ): ComputationToken<FakeProtocolStates> {
+  ): ComputationToken<FakeProtocolStages> {
     testClock.tickSeconds("stage_b_created")
     testClock.tickSeconds("last_updated")
     testClock.tickSeconds("lock_expires", 100)
     val token = ComputationToken(
-      localId = 4315, globalId = 55, state = FakeProtocolStates.B,
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.B,
       owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 2,
       lastUpdateTime = testClock["last_updated"].toEpochMilli()
@@ -704,31 +704,31 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = token.localId,
       updateTime = testClock["last_updated"].toGcpTimestamp(),
       globalId = token.globalId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       lockOwner = token.owner!!,
       lockExpirationTime = testClock["lock_expires"].toGcpTimestamp(),
       details = COMPUTATION_DETAILS
     )
     val stage = computationMutations.insertComputationStage(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       nextAttempt = 3,
       creationTime = testClock["stage_b_created"].toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.B)
+      details = computationMutations.detailsFor(FakeProtocolStages.B)
     )
     val attempt =
       computationMutations.insertComputationStageAttempt(
         localId = token.localId,
-        stage = FakeProtocolStates.B,
+        stage = FakeProtocolStages.B,
         attempt = 2,
         beginTime = testClock["stage_b_created"].toGcpTimestamp()
       )
     databaseClient.write(listOf(computation, stage, attempt))
     testClock.tickSeconds("update_stage", 100)
     assertEquals(
-      database.updateComputationState(
+      database.updateComputationStage(
         token = token,
-        to = FakeProtocolStates.D,
+        to = FakeProtocolStages.D,
         inputBlobPaths = listOf(),
         outputBlobs = 0,
         afterTransition = afterTransition
@@ -742,7 +742,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     return token
   }
 
-  private fun assertStageTransitioned(token: ComputationToken<FakeProtocolStates>) {
+  private fun assertStageTransitioned(token: ComputationToken<FakeProtocolStages>) {
     assertQueryReturns(
       databaseClient,
       """
@@ -751,7 +751,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.D))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.D))
         .set("UpdateTime").to(testClock["update_stage"].toGcpTimestamp())
         .set("GlobalComputationId").to(token.globalId)
         .build()
@@ -767,27 +767,27 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("CreationTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock["update_stage"].toGcpTimestamp())
         .set("PreviousStage").to(null as Long?)
-        .set("FollowingStage").to(ProtocolStates.enumToLong(FakeProtocolStates.D))
-        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStates.B))
+        .set("FollowingStage").to(ProtocolStages.enumToLong(FakeProtocolStages.D))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStages.B))
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.D))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.D))
         .set("CreationTime").to(testClock["update_stage"].toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
-        .set("PreviousStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("PreviousStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("FollowingStage").to(null as Long?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStates.D))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStages.D))
         .build()
     )
   }
 
   @Test
-  fun `updateComputationState and continue working`() {
+  fun `updateComputationStage and continue working`() {
     val token = testTransitionOfStageWhere(AfterTransition.CONTINUE_WORKING)
 
     assertQueryReturns(
@@ -809,14 +809,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.D))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.D))
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
@@ -825,7 +825,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationState and add to queue`() {
+  fun `updateComputationStage and add to queue`() {
     val token = testTransitionOfStageWhere(AfterTransition.ADD_UNCLAIMED_TO_QUEUE)
 
     assertQueryReturns(
@@ -847,7 +847,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
@@ -856,7 +856,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationState and do not add to queue`() {
+  fun `updateComputationStage and do not add to queue`() {
     val token = testTransitionOfStageWhere(AfterTransition.DO_NOT_ADD_TO_QUEUE)
 
     assertQueryReturns(
@@ -878,14 +878,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.D))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.D))
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
@@ -894,15 +894,15 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `many state transitions`() {
+  fun `many stage transitions`() {
     testClock.tickSeconds("insert_computation", 20)
-    var token = database.insertComputation(12345, FakeProtocolStates.A)
+    var token = database.insertComputation(12345, FakeProtocolStages.A)
     assertNull(database.claimTask("TestJob"))
     database.writeOutputBlobReference(token, BlobRef(0L, "/path/to/output/for/stage/A"))
     testClock.tickSeconds("move_to_B", 21)
-    token = database.updateComputationState(
+    token = database.updateComputationStage(
       token = token,
-      to = FakeProtocolStates.B,
+      to = FakeProtocolStages.B,
       inputBlobPaths = listOf("/path/to/inputs/123"),
       outputBlobs = 1,
       afterTransition = AfterTransition.CONTINUE_WORKING
@@ -910,9 +910,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("write_output_B")
     database.writeOutputBlobReference(token, BlobRef(1L, "/path/to/output/for/stage/B"))
     testClock.tickSeconds("move_to_C", 3)
-    token = database.updateComputationState(
+    token = database.updateComputationStage(
       token = token,
-      to = FakeProtocolStates.C,
+      to = FakeProtocolStages.C,
       inputBlobPaths = listOf(),
       outputBlobs = 1,
       afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
@@ -923,9 +923,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("claimed_in_C", 3)
     token = assertNotNull(database.claimTask("a-second-worker"))
     testClock.tickSeconds("move_to_E", 3)
-    token = database.updateComputationState(
+    token = database.updateComputationStage(
       token = token,
-      to = FakeProtocolStates.E,
+      to = FakeProtocolStages.E,
       inputBlobPaths = listOf("/path/to/inputs/789"),
       outputBlobs = 0,
       afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
@@ -941,7 +941,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.E))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.E))
         .set("UpdateTime").to(testClock.last().toGcpTimestamp())
         .set("GlobalComputationId").to(12345)
         .set("LockOwner").to(null as String?)
@@ -959,43 +959,43 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.A))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.A))
         .set("CreationTime").to(testClock["insert_computation"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_B"].toGcpTimestamp())
         .set("PreviousStage").to(null as Long?)
-        .set("FollowingStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
-        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStates.A))
+        .set("FollowingStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStages.A))
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("CreationTime").to(testClock["move_to_B"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_C"].toGcpTimestamp())
-        .set("PreviousStage").to(ProtocolStates.enumToLong(FakeProtocolStates.A))
-        .set("FollowingStage").to(ProtocolStates.enumToLong(FakeProtocolStates.C))
-        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStates.B))
+        .set("PreviousStage").to(ProtocolStages.enumToLong(FakeProtocolStages.A))
+        .set("FollowingStage").to(ProtocolStages.enumToLong(FakeProtocolStages.C))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStages.B))
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.C))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.C))
         .set("CreationTime").to(testClock["move_to_C"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(testClock["move_to_E"].toGcpTimestamp())
-        .set("PreviousStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
-        .set("FollowingStage").to(ProtocolStates.enumToLong(FakeProtocolStates.E))
-        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStates.C))
+        .set("PreviousStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
+        .set("FollowingStage").to(ProtocolStages.enumToLong(FakeProtocolStages.E))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStages.C))
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.E))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.E))
         .set("CreationTime").to(testClock["move_to_E"].toGcpTimestamp())
         .set("NextAttempt").to(2)
         .set("EndTime").to(null as Timestamp?)
-        .set("PreviousStage").to(ProtocolStates.enumToLong(FakeProtocolStates.C))
+        .set("PreviousStage").to(ProtocolStages.enumToLong(FakeProtocolStages.C))
         .set("FollowingStage").to(null as Long?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStates.E))
+        .set("Details").toProtoBytes(computationMutations.detailsFor(FakeProtocolStages.E))
         .build()
     )
 
@@ -1008,35 +1008,35 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.A))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.A))
         .set("BlobId").to(0L)
         .set("PathToBlob").to("/path/to/output/for/stage/A")
         .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("BlobId").to(0L)
         .set("PathToBlob").to("/path/to/inputs/123")
         .set("DependencyType").to(ComputationBlobDependency.INPUT.ordinal.toLong())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.B))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.B))
         .set("BlobId").to(1L)
         .set("PathToBlob").to("/path/to/output/for/stage/B")
         .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.C))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.C))
         .set("BlobId").to(0L)
         .set("PathToBlob").to("/path/to/output/for/stage/C")
         .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(FakeProtocolStates.E))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.E))
         .set("BlobId").to(0L)
         .set("PathToBlob").to("/path/to/inputs/789")
         .set("DependencyType").to(ComputationBlobDependency.INPUT.ordinal.toLong())
@@ -1045,16 +1045,16 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationState illegal state transition fails`() {
+  fun `updateComputationStage illegal stage transition fails`() {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
-      owner = null, attempt = 1, state = FakeProtocolStates.A,
+      owner = null, attempt = 1, stage = FakeProtocolStages.A,
       globalId = 0, lastUpdateTime = 0
     )
     assertFailsWith<IllegalArgumentException> {
-      database.updateComputationState(
+      database.updateComputationStage(
         token = token,
-        to = FakeProtocolStates.D,
+        to = FakeProtocolStages.D,
         inputBlobPaths = listOf(),
         outputBlobs = 0,
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
@@ -1065,14 +1065,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun readBlobReferences() {
     val token = ComputationToken(
-      localId = 4315, globalId = 55, state = FakeProtocolStates.B,
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.B,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
       updateTime = testClock.last().toGcpTimestamp(),
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       globalId = token.globalId,
       lockOwner = WRITE_NULL_STRING,
       lockExpirationTime = testClock.last().toGcpTimestamp(),
@@ -1080,35 +1080,35 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val stage = computationMutations.insertComputationStage(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       nextAttempt = 3,
       creationTime = testClock.last().toGcpTimestamp(),
-      details = computationMutations.detailsFor(FakeProtocolStates.B)
+      details = computationMutations.detailsFor(FakeProtocolStages.B)
     )
     val inputBlobA = computationMutations.insertComputationBlobReference(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       blobId = 0,
       pathToBlob = "/path/to/blob/A",
       dependencyType = ComputationBlobDependency.INPUT
     )
     val inputBlobB = computationMutations.insertComputationBlobReference(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       blobId = 1,
       pathToBlob = "/path/to/blob/B",
       dependencyType = ComputationBlobDependency.INPUT
     )
     val outputBlobC = computationMutations.insertComputationBlobReference(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       blobId = 2,
       pathToBlob = "/path/to/blob/C",
       dependencyType = ComputationBlobDependency.OUTPUT
     )
     val outputBlobD = computationMutations.insertComputationBlobReference(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       blobId = 3,
       dependencyType = ComputationBlobDependency.OUTPUT
     )
@@ -1144,7 +1144,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val token = ComputationToken(
       globalId = 21231,
       localId = 100,
-      state = FakeProtocolStates.D,
+      stage = FakeProtocolStages.D,
       owner = null,
       role = DuchyRole.PRIMARY,
       nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -1153,7 +1153,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
-      stage = FakeProtocolStates.D,
+      stage = FakeProtocolStages.D,
       updateTime = testClock.last().toGcpTimestamp(),
       globalId = token.globalId,
       lockOwner = WRITE_NULL_STRING,
@@ -1162,7 +1162,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val stage = computationMutations.insertComputationStage(
       localId = token.localId,
-      stage = FakeProtocolStates.D,
+      stage = FakeProtocolStages.D,
       nextAttempt = 1,
       creationTime = testClock.last().toGcpTimestamp(),
       details = FakeProtocolStageDetails.getDefaultInstance()
@@ -1173,7 +1173,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val newDetails = FakeProtocolStageDetails.newBuilder().setName("AnotherName").build()
     val stageWithSpecificDetails = computationMutations.updateComputationStage(
       localId = token.localId,
-      stage = FakeProtocolStates.D,
+      stage = FakeProtocolStages.D,
       details = newDetails
     )
     databaseClient.write(listOf(stageWithSpecificDetails))
@@ -1186,13 +1186,13 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun writeOutputBlobReference() {
     val token = ComputationToken(
-      localId = 4315, globalId = 55, state = FakeProtocolStates.B,
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.B,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
       role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       updateTime = testClock.last().toGcpTimestamp(),
       globalId = token.globalId,
       lockOwner = WRITE_NULL_STRING,
@@ -1201,20 +1201,20 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
     val stage = computationMutations.insertComputationStage(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       nextAttempt = 3,
       creationTime = testClock.last().toGcpTimestamp(),
       details = FakeProtocolStageDetails.getDefaultInstance()
     )
     val outputRef = computationMutations.insertComputationBlobReference(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       blobId = 1234L,
       dependencyType = ComputationBlobDependency.OUTPUT
     )
     val inputRef = computationMutations.insertComputationBlobReference(
       localId = token.localId,
-      stage = FakeProtocolStates.B,
+      stage = FakeProtocolStages.B,
       blobId = 5678L,
       pathToBlob = "/path/to/input/blob",
       dependencyType = ComputationBlobDependency.INPUT
@@ -1230,14 +1230,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(token.state))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
         .set("BlobId").to(1234L)
         .set("PathToBlob").to("/wrote/something/there")
         .set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStates.enumToLong(token.state))
+        .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
         .set("BlobId").to(5678L)
         .set("PathToBlob").to("/path/to/input/blob")
         .set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)

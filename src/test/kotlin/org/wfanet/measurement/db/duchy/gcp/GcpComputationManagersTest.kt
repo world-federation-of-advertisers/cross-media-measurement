@@ -2,10 +2,6 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
-import java.math.BigInteger
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -16,18 +12,22 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
-import org.wfanet.measurement.internal.SketchAggregationState
-import org.wfanet.measurement.internal.SketchAggregationState.COMPLETED
-import org.wfanet.measurement.internal.SketchAggregationState.CREATED
-import org.wfanet.measurement.internal.SketchAggregationState.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationState.TO_APPEND_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
+import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
+import java.math.BigInteger
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -90,7 +90,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         nextWorker = BAVARIA,
         lastUpdateTime = testClock.last().toEpochMilli(),
         role = DuchyRole.SECONDARY,
-        state = COMPLETED
+        stage = COMPLETED
       )
     )
   }
@@ -147,7 +147,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         nextWorker = BAVARIA,
         lastUpdateTime = testClock.last().toEpochMilli(),
         role = DuchyRole.PRIMARY,
-        state = COMPLETED
+        stage = COMPLETED
       )
     )
   }
@@ -155,7 +155,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
 
 /** Data about a single step of a computation. .*/
 data class ComputationStep(
-  val token: ComputationToken<SketchAggregationState>,
+  val token: ComputationToken<SketchAggregationStage>,
   val inputs: List<String>,
   val outputs: List<String?>
 )
@@ -177,9 +177,9 @@ class SingleComputationManager(
   private var token = manager.createComputation(globalId, CREATED)
   val localId by lazy { token.localId }
 
-  fun writeOutputs(stage: SketchAggregationState) {
-    assertEquals(stage, token.state)
-    testClock.tickSeconds("${token.state.name}_$token.attempt_outputs")
+  fun writeOutputs(stage: SketchAggregationStage) {
+    assertEquals(stage, token.stage)
+    testClock.tickSeconds("${token.stage.name}_$token.attempt_outputs")
     manager.readBlobReferences(token, BlobDependencyType.OUTPUT)
       .map { BlobRef(it.key, manager.newBlobPath(token, "outputs")) }
       .forEach { manager.writeAndRecordOutputBlob(token, it, stage.name.toByteArray()) }
@@ -187,10 +187,10 @@ class SingleComputationManager(
 
   /** Runs an operation and checks the returned token from the operation matches the expected. */
   private fun assertTokenChangesTo(
-    expected: ComputationToken<SketchAggregationState>,
-    run: (ComputationStep) -> ComputationToken<SketchAggregationState>
+    expected: ComputationToken<SketchAggregationStage>,
+    run: (ComputationStep) -> ComputationToken<SketchAggregationStage>
   ) {
-    testClock.tickSeconds("${expected.state.name}_$expected.attempt")
+    testClock.tickSeconds("${expected.stage.name}_$expected.attempt")
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed
     // they will be fetched.
     val inputsToCurrentStage by lazy {
@@ -210,7 +210,7 @@ class SingleComputationManager(
     token = result
   }
 
-  fun assertTokenEquals(expected: ComputationToken<SketchAggregationState>) =
+  fun assertTokenEquals(expected: ComputationToken<SketchAggregationStage>) =
     assertEquals(token, expected)
 
   /** Add computation to work queue and verify that it has no owner. */
@@ -231,7 +231,7 @@ class SingleComputationManager(
   inner class FakeRpcService {
     /**
      * Fake receiving a sketch from a [sender], if all sketches have been received
-     * set state to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
+     * set stage to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
     fun receiveSketch(sender: String) {
       val stageDetails = manager.readStageSpecificDetails(token).waitSketchStageDetails
@@ -249,8 +249,8 @@ class SingleComputationManager(
         manager.readBlobReferences(token, BlobDependencyType.OUTPUT).values.count { it == null }
       println("$notWritten")
       if (notWritten == 0) {
-        println("Moving to append sketches state")
-        assertTokenChangesTo(token.copy(state = TO_APPEND_SKETCHES, attempt = 0)) {
+        println("Moving to append sketches stage")
+        assertTokenChangesTo(token.copy(stage = TO_APPEND_SKETCHES, attempt = 0)) {
           manager.transitionComputationToStage(
             it.token,
             it.inputs + it.outputs.requireNoNulls(),
@@ -263,12 +263,12 @@ class SingleComputationManager(
     /** Fakes receiving the concatenated sketch from the incoming duchy. */
     fun receiveConcatenatedSketchGrpc() {
       writeOutputs(WAIT_CONCATENATED)
-      val state =
+      val stage =
         if (token.role == DuchyRole.PRIMARY) TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
         else TO_BLIND_POSITIONS
-      assertTokenChangesTo(token.copy(state = state, attempt = 0)) {
+      assertTokenChangesTo(token.copy(stage = stage, attempt = 0)) {
         manager.transitionComputationToStage(
-          it.token, it.outputs.requireNoNulls(), state
+          it.token, it.outputs.requireNoNulls(), stage
         )
       }
     }
@@ -276,19 +276,19 @@ class SingleComputationManager(
     /** Fakes receiving the joined sketch from the incoming duchy. */
     fun receiveFlagCountsGrpc() {
       writeOutputs(WAIT_FLAG_COUNTS)
-      val state =
+      val stage =
         if (token.role == DuchyRole.PRIMARY) TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
         else TO_DECRYPT_FLAG_COUNTS
-      assertTokenChangesTo(token.copy(state = state, attempt = 0)) {
+      assertTokenChangesTo(token.copy(stage = stage, attempt = 0)) {
         manager.transitionComputationToStage(
-          it.token, it.outputs.requireNoNulls(), state
+          it.token, it.outputs.requireNoNulls(), stage
         )
       }
     }
   }
 
   fun gatherLocalSketches() {
-    assertTokenChangesTo(token.copy(state = TO_ADD_NOISE, attempt = 0, owner = null)) {
+    assertTokenChangesTo(token.copy(stage = TO_ADD_NOISE, attempt = 0, owner = null)) {
       manager.transitionComputationToStage(
         it.token,
         it.outputs.requireNoNulls(),
@@ -298,8 +298,8 @@ class SingleComputationManager(
   }
 
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
-  fun runWaitStage(stage: SketchAggregationState) {
-    assertTokenChangesTo(token.copy(state = stage, attempt = 1, owner = null)) {
+  fun runWaitStage(stage: SketchAggregationStage) {
+    assertTokenChangesTo(token.copy(stage = stage, attempt = 1, owner = null)) {
       manager.transitionComputationToStage(it.token, it.outputs.requireNoNulls(), stage)
     }
   }

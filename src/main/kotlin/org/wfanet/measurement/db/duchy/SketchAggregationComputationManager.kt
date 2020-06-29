@@ -1,20 +1,20 @@
 package org.wfanet.measurement.db.duchy
 
 import org.wfanet.measurement.common.DuchyRole
-import org.wfanet.measurement.internal.SketchAggregationState
-import org.wfanet.measurement.internal.SketchAggregationState.COMPLETED
-import org.wfanet.measurement.internal.SketchAggregationState.CREATED
-import org.wfanet.measurement.internal.SketchAggregationState.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationState.TO_APPEND_SKETCHES
-import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationState.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.SketchAggregationState.UNKNOWN
-import org.wfanet.measurement.internal.SketchAggregationState.UNRECOGNIZED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationState.WAIT_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
+import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.internal.SketchAggregationStage.UNKNOWN
+import org.wfanet.measurement.internal.SketchAggregationStage.UNRECOGNIZED
+import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 
 /**
@@ -23,26 +23,26 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
  * Cascading Legions Cardinality Estimator sketches.
  */
 class SketchAggregationComputationManager(
-  relationalDatabase: ComputationsRelationalDb<SketchAggregationState, ComputationStageDetails>,
-  blobDatabase: ComputationsBlobDb<SketchAggregationState>,
+  relationalDatabase: ComputationsRelationalDb<SketchAggregationStage, ComputationStageDetails>,
+  blobDatabase: ComputationsBlobDb<SketchAggregationStage>,
   private val duchiesInComputation: Int
-) : ComputationManager<SketchAggregationState, ComputationStageDetails>(
+) : ComputationManager<SketchAggregationStage, ComputationStageDetails>(
   relationalDatabase,
   blobDatabase
 ) {
 
   /**
-   * Calls [transitionState] to move to a new stage in a consistent way.
+   * Calls [transitionStage] to move to a new stage in a consistent way.
    *
    * The assumption is this will only be called by a job that is executing the stage of a
    * computation, which will have knowledge of all the data needed as input to the next stage.
    * Most of the time [inputsToNextStage] is the list of outputs of the currently running stage.
    */
   fun transitionComputationToStage(
-    token: ComputationToken<SketchAggregationState>,
+    token: ComputationToken<SketchAggregationStage>,
     inputsToNextStage: List<String> = listOf(),
-    stage: SketchAggregationState
-  ): ComputationToken<SketchAggregationState> {
+    stage: SketchAggregationStage
+  ): ComputationToken<SketchAggregationStage> {
     requireValidRoleForStage(stage, token.role)
     return when (stage) {
       // Stages of computation mapping some number of inputs to single output.
@@ -51,7 +51,7 @@ class SketchAggregationComputationManager(
       TO_BLIND_POSITIONS,
       TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
       TO_DECRYPT_FLAG_COUNTS,
-      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> transitionState(
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> transitionStage(
         token,
         stage,
         inputBlobsPaths = requireNotEmpty(inputsToNextStage),
@@ -60,7 +60,7 @@ class SketchAggregationComputationManager(
       )
       // The primary duchy is waiting for input from all the other duchies. This is a special case
       // of the other wait stages as it has n-1 inputs.
-      WAIT_SKETCHES -> transitionState(
+      WAIT_SKETCHES -> transitionStage(
         token,
         stage,
         // The output of current stage is the results of adding noise to locally stored sketches.
@@ -70,7 +70,7 @@ class SketchAggregationComputationManager(
       )
       // Stages were the duchy is waiting for a single input from the predecessor duchy.
       WAIT_CONCATENATED,
-      WAIT_FLAG_COUNTS -> transitionState(
+      WAIT_FLAG_COUNTS -> transitionStage(
         token,
         stage,
         // Keep a reference to the finished work artifact in case it needs to be resent.
@@ -81,13 +81,13 @@ class SketchAggregationComputationManager(
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
       COMPLETED ->
-        transitionState(token, stage, afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE)
-      // States that we can't transition to ever.
+        transitionStage(token, stage, afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE)
+      // Stages that we can't transition to ever.
       UNRECOGNIZED, UNKNOWN, CREATED -> error("Cannot make transition function to stage $stage")
     }
   }
 
-  private fun requireValidRoleForStage(stage: SketchAggregationState, role: DuchyRole) {
+  private fun requireValidRoleForStage(stage: SketchAggregationStage, role: DuchyRole) {
     when (stage) {
       WAIT_SKETCHES,
       TO_APPEND_SKETCHES,

@@ -8,11 +8,11 @@ import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 
 /** Query for fields needed to make a [ComputationToken] .*/
-class TokenQuery<StateT>(
-  val parseStageEnum: (Long) -> StateT,
+class TokenQuery<StageT>(
+  val parseStageEnum: (Long) -> StageT,
   globalId: Long
 ) :
-  SqlBasedQuery<TokenQueryResult<StateT>> {
+  SqlBasedQuery<TokenQueryResult<StageT>> {
   companion object {
     private const val parameterizedQueryString =
       """
@@ -26,7 +26,7 @@ class TokenQuery<StateT>(
 
   override val sql: Statement =
     Statement.newBuilder(parameterizedQueryString).bind("global_id").to(globalId).build()
-  override fun asResult(struct: Struct): TokenQueryResult<StateT> =
+  override fun asResult(struct: Struct): TokenQueryResult<StageT> =
     TokenQueryResult(
       computationId = struct.getLong("ComputationId"),
       computationStage = parseStageEnum(struct.getLong("ComputationStage")),
@@ -37,10 +37,10 @@ class TokenQuery<StateT>(
     )
 }
 /** @see [TokenQuery.asResult] .*/
-data class TokenQueryResult<StateT>(
+data class TokenQueryResult<StageT>(
   val computationId: Long,
   val lockOwner: String?,
-  val computationStage: StateT,
+  val computationStage: StageT,
   val details: ComputationDetails,
   val updateTime: Timestamp,
   val nextAttempt: Long

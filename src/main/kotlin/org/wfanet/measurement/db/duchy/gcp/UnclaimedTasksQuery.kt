@@ -5,10 +5,10 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 
 /** Queries for computations which may be claimed at a timestamp. */
-class UnclaimedTasksQuery<StateT>(
-  val parseStageEnum: (Long) -> StateT,
+class UnclaimedTasksQuery<StageT>(
+  val parseStageEnum: (Long) -> StageT,
   timestamp: Timestamp
-) : SqlBasedQuery<UnclaimedTaskQueryResult<StateT>> {
+) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
     private const val parameterizedQueryString =
       """
@@ -23,7 +23,7 @@ class UnclaimedTasksQuery<StateT>(
   }
   override val sql: Statement =
     Statement.newBuilder(parameterizedQueryString).bind("current_time").to(timestamp).build()
-  override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StateT> =
+  override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),
       globalId = struct.getLong("GlobalComputationId"),
@@ -33,10 +33,10 @@ class UnclaimedTasksQuery<StateT>(
     )
 }
 /** @see [UnclaimedTasksQuery.asResult] .*/
-data class UnclaimedTaskQueryResult<StateT>(
+data class UnclaimedTaskQueryResult<StageT>(
   val computationId: Long,
   val globalId: Long,
-  val computationStage: StateT,
+  val computationStage: StageT,
   val updateTime: Timestamp,
   val nextAttempt: Long
 )

@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "sketch_aggregation_protocol_state_helper_test",
-    srcs = ["SketchAggregationStatesTest.kt"],
-    test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStatesTest",
+    name = "sketch_aggregation_protocol_stage_helper_test",
+    srcs = ["SketchAggregationStagesTest.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStagesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",

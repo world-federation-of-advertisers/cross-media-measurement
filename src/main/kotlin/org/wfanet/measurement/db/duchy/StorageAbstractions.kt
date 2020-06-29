@@ -10,8 +10,8 @@ data class ComputationToken<StageT : Enum<StageT>>(
   val localId: Long,
   /** The identifier for the computation used across all systems. */
   val globalId: Long,
-  /** The state of the computation when the token was created. */
-  val state: StageT,
+  /** The stage of the computation when the token was created. */
+  val stage: StageT,
   /** Name of knight that owns the lock on the computation. */
   val owner: String?,
   /** Identifier of the duchy that receives work for this computation. */
@@ -27,14 +27,14 @@ data class ComputationToken<StageT : Enum<StageT>>(
 /**
  * Specifies what to do with the lock on a computation after transitioning to a new stage.
  *
- * @see[ComputationsRelationalDb.updateComputationState]
+ * @see[ComputationsRelationalDb.updateComputationStage]
  */
 enum class AfterTransition {
   /** Retain and extend the lock for the current owner. */
   CONTINUE_WORKING,
 
   /**
-   * Add the computation to the work queue, but in an unclaimed state for some
+   * Add the computation to the work queue, but in an unclaimed stage for some
    * worker to claim at a later time.
    */
   ADD_UNCLAIMED_TO_QUEUE,
@@ -63,7 +63,7 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    * A new local identifier is created and returned in the [ComputationToken]. The computation is
    * not added to the queue.
    */
-  fun insertComputation(globalId: Long, initialState: StageT): ComputationToken<StageT>
+  fun insertComputation(globalId: Long, initialStage: StageT): ComputationToken<StageT>
 
   /** Returns a [ComputationToken] for the most recent computation for a [globalId]. */
   fun getToken(globalId: Long): ComputationToken<StageT>?
@@ -87,7 +87,7 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
   fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT>
 
   /**
-   * Transitions a computation to a new state.
+   * Transitions a computation to a new stage.
    *
    * @param[token] The token for the computation
    * @param[to] Stage this computation should transition to.
@@ -97,7 +97,7 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    *    part of the computation so they do not have a reference to the real storage location.
    * @param[afterTransition] The work to be do with the computation after a successful transition.
    */
-  fun updateComputationState(
+  fun updateComputationStage(
     token: ComputationToken<StageT>,
     to: StageT,
     inputBlobPaths: List<String>,

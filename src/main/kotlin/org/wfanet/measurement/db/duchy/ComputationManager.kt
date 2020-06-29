@@ -3,7 +3,7 @@ package org.wfanet.measurement.db.duchy
 import java.io.IOException
 
 /**
- * Manages status and state transitions for ongoing computations.
+ * Manages status and stage transitions for ongoing computations.
  *
  * @param[StageT] enum of the stages of a computation.
  */
@@ -29,37 +29,37 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   }
 
   /**
-   * Transitions the state of an ongoing computation.
+   * Transitions the stage of an ongoing computation.
    *
    * This can be thought of as an atomic transaction, at least on the underlying
    * [ComputationsRelationalDb]. BLOBs are written first via a [ComputationsBlobDb], and then the
-   * state and work queue is updated in a single transaction. The new state for the computation is
-   * in a clean state and is thus ready for whatever processing is required, by a worker. This means
+   * stage and work queue is updated in a single transaction. The new stage for the computation is
+   * in a clean stage and is thus ready for whatever processing is required, by a worker. This means
    * all input BLOBs are present at the end of this operation and all of those BLOBS' references are
-   * known for the state.
+   * known for the stage.
    *
    * Because each task knows the input blobs required to complete it, the set of BLOBs required by
    * the task are all referenced here. The BLOBs should be present before calling this function.
    *
    * @param[token] The task currently being worked
-   * @param[stateAfter] The state to transition the computation to
-   * @param[inputBlobsPaths] List of pathes ot all input BLOBs for the new state. They must exist.
+   * @param[stageAfter] The stage to transition the computation to
+   * @param[inputBlobsPaths] List of pathes ot all input BLOBs for the new stage. They must exist.
    * @param[outputBlobCount] The number of BLOBs which should be written as part of this stage,
    *    this may be useful when a stage is waiting on inputs from multiple other workers.
-   * @param[afterTransition] What to do with the work after transitioning the state.
+   * @param[afterTransition] What to do with the work after transitioning the stage.
    *
-   * @throws [IOException] when state state transition fails
+   * @throws [IOException] when stage stage transition fails
    */
-  fun transitionState(
+  fun transitionStage(
     token: ComputationToken<StageT>,
-    stateAfter: StageT,
+    stageAfter: StageT,
     inputBlobsPaths: List<String> = listOf(),
     outputBlobCount: Int = 0,
     afterTransition: AfterTransition
   ): ComputationToken<StageT> {
-    return relationalDatabase.updateComputationState(
+    return relationalDatabase.updateComputationStage(
       token = token,
-      to = stateAfter,
+      to = stageAfter,
       inputBlobPaths = inputBlobsPaths,
       outputBlobs = outputBlobCount,
       afterTransition = afterTransition

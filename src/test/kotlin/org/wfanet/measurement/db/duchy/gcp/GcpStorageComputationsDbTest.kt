@@ -12,25 +12,25 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
-import org.wfanet.measurement.internal.SketchAggregationState
+import org.wfanet.measurement.internal.SketchAggregationStage
 import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class GcpStorageComputationsDbTest {
-  private lateinit var blobsDb: GcpStorageComputationsDb<SketchAggregationState>
+  private lateinit var blobsDb: GcpStorageComputationsDb<SketchAggregationStage>
   companion object {
     const val TEST_BUCKET = "testing-bucket"
     private val storage: Storage = LocalStorageHelper.getOptions().service
     private val token = ComputationToken(
       localId = 5432L, globalId = 6789, attempt = 1, lastUpdateTime = 1234567891011L,
-      state = SketchAggregationState.TO_DECRYPT_FLAG_COUNTS, nextWorker = "next-one", owner = "me",
+      stage = SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS, nextWorker = "next-one", owner = "me",
       role = DuchyRole.PRIMARY
     )
   }
 
   @Before
   fun setUp() {
-    blobsDb = GcpStorageComputationsDb<SketchAggregationState>(storage, TEST_BUCKET)
+    blobsDb = GcpStorageComputationsDb<SketchAggregationStage>(storage, TEST_BUCKET)
   }
 
   @Test

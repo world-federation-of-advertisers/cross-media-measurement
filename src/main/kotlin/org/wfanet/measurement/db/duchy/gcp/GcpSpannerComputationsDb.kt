@@ -41,10 +41,10 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
 
-  override fun insertComputation(globalId: Long, initialState: StageT): ComputationToken<StageT> {
+  override fun insertComputation(globalId: Long, initialStage: StageT): ComputationToken<StageT> {
     require(
-      computationMutations.validInitialState(initialState)
-    ) { "Invalid initial state $initialState" }
+      computationMutations.validInitialStage(initialStage)
+    ) { "Invalid initial stage $initialStage" }
 
     val localId: Long = localComputationIdGenerator.localId(globalId)
     val computationAtThisDuchy = duchyOrder.positionFor(globalId, duchyName)
@@ -68,22 +68,22 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         lockOwner = WRITE_NULL_STRING,
         lockExpirationTime = WRITE_NULL_TIMESTAMP,
         details = details,
-        stage = initialState
+        stage = initialStage
       )
 
     val computationStageRow =
       computationMutations.insertComputationStage(
         localId = localId,
-        stage = initialState,
+        stage = initialStage,
         creationTime = writeTimestamp,
         nextAttempt = 2,
-        details = computationMutations.detailsFor(initialState)
+        details = computationMutations.detailsFor(initialStage)
       )
 
     val computationStageAttemptRow =
       computationMutations.insertComputationStageAttempt(
         localId = localId,
-        stage = initialState,
+        stage = initialStage,
         attempt = 1,
         beginTime = writeTimestamp
       )
@@ -91,7 +91,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     val blobRefRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = initialState,
+        stage = initialStage,
         blobId = 0,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
@@ -108,7 +108,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     return ComputationToken(
       localId = localId,
       globalId = globalId,
-      state = initialState,
+      stage = initialStage,
       attempt = 1,
       owner = null,
       lastUpdateTime = writeTimestamp.toMillis(),
@@ -126,7 +126,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       // From ComputationsByGlobalId index
       localId = results.computationId,
       // From Computations
-      state = results.computationStage,
+      stage = results.computationStage,
       owner = results.lockOwner,
       lastUpdateTime = results.updateTime.toMillis(),
       role = results.details.role.toDuchyRole(),
@@ -143,11 +143,11 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
           localId = token.localId,
           updateTime = clock.gcpTimestamp(),
           // Release any lock on this computation. The owner says who has the current
-          // lock on the computation, and the expiration time states both if and when the
+          // lock on the computation, and the expiration time stages both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being
           // worked on, but that is not enough to say a knight should pick up the computation
           // as its quest as there are stages which waiting for inputs from other nodes.
-          // A non-null LockExpirationTime states when a computation can be be taken up
+          // A non-null LockExpirationTime stages when a computation can be be taken up
           // by a knight, and by using the commit timestamp we pretty much get the behaviour
           // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
           lockOwner = WRITE_NULL_STRING,
@@ -255,7 +255,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       ?: error("Failed to renew lock on computation (${token.globalId}, it does not exist.")
   }
 
-  override fun updateComputationState(
+  override fun updateComputationStage(
     token: ComputationToken<StageT>,
     to: StageT,
     inputBlobPaths: List<String>,
@@ -263,12 +263,12 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     afterTransition: AfterTransition
   ): ComputationToken<StageT> {
     require(
-      computationMutations.validTransition(token.state, to)
-    ) { "Invalid state transition ${token.state} -> $to" }
+      computationMutations.validTransition(token.stage, to)
+    ) { "Invalid stage transition ${token.stage} -> $to" }
 
     runIfTokenFromLastUpdate(token) { ctx ->
       val unwrittenOutputs =
-        blobIdToPathMap(ctx, token.localId, token.state, BlobDependencyType.OUTPUT)
+        blobIdToPathMap(ctx, token.localId, token.stage, BlobDependencyType.OUTPUT)
           .filterValues { it == null }
       check(unwrittenOutputs.isEmpty()) {
         """
@@ -326,7 +326,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     mutations.add(
       computationMutations.updateComputationStage(
         token.localId,
-        stage = token.state,
+        stage = token.stage,
         followingStage = newStage,
         endTime = writeTime
       )
@@ -335,7 +335,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     mutations.add(
       computationMutations.updateComputationStageAttempt(
         token.localId,
-        token.state,
+        token.stage,
         token.attempt,
         endTime = writeTime
       )
@@ -361,11 +361,11 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       computationMutations.insertComputationStage(
         localId = token.localId,
         stage = newStage,
-        previousStage = token.state,
+        previousStage = token.stage,
         creationTime = writeTime,
         details = computationMutations.detailsFor(newStage),
         // nextAttempt is the number of the current attempt of the stage plus one. Adding an Attempt
-        // to the new stage while transitioning state means that an attempt of that new stage is
+        // to the new stage while transitioning stage means that an attempt of that new stage is
         // ongoing at the end of this transaction. Meaning if for some reason there needs to be
         // another attempt of that stage in the future the next attempt will be #2. Conversely, when
         // an attempt of the new stage is not added because, attemptOfNewStageMutation is null, then
@@ -415,7 +415,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       databaseClient.singleUseReadOnlyTransaction()
         .readRow(
           "ComputationStages",
-          Key.of(token.localId, computationMutations.enumToLong(token.state)),
+          Key.of(token.localId, computationMutations.enumToLong(token.stage)),
           listOf("Details")
         )
         ?.getBytesAsByteArray("Details")
@@ -428,7 +428,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
     return runIfTokenFromLastUpdate(token) { ctx ->
-      blobIdToPathMap(ctx, token.localId, token.state, dependencyType)
+      blobIdToPathMap(ctx, token.localId, token.stage, dependencyType)
     }!!
   }
 
@@ -461,19 +461,19 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     runIfTokenFromLastUpdate(token) { ctx ->
       val type = ctx.readRow(
         "ComputationBlobReferences",
-        Key.of(token.localId, computationMutations.enumToLong(token.state), blobName.name),
+        Key.of(token.localId, computationMutations.enumToLong(token.stage), blobName.name),
         listOf("DependencyType")
       )
         ?.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
         ?: error(
           "No ComputationBlobReferences row for " +
-            "(${token.localId}, ${token.state}, ${blobName.name})"
+            "(${token.localId}, ${token.stage}, ${blobName.name})"
         )
       require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
       ctx.buffer(
         computationMutations.updateComputationBlobReference(
           localId = token.localId,
-          stage = token.state,
+          stage = token.stage,
           blobId = blobName.name,
           pathToBlob = blobName.pathToBlob
         )

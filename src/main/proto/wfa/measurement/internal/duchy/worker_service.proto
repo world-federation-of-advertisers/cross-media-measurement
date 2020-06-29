@@ -6,9 +6,8 @@ option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
 // Service definition for worker to worker communication. The messages passed
-// here cause state transitions.
+// here cause stage transitions.
 service WorkerService {
-
   // Transmits a noisy sparse encrypted sketches needed for a computation to
   // the primary worker. Sketches can exceed the maximum message size so the
   // client should stream requests containing sequential chunks of the sketch.
@@ -19,7 +18,8 @@ service WorkerService {
   // with its non-deterministic private key, and re-encrypt the same value with
   // a deterministic key. Sketches can exceed the maximum message size so the
   // client should stream requests containing sequential chunks of the sketch.
-  rpc BlindPositions(stream BlindPositionsRequest) returns (BlindPositionsResponse) {}
+  rpc BlindPositions(stream BlindPositionsRequest)
+      returns (BlindPositionsResponse) {}
 
   // Decrypt the flag and count values inside the sketch. Sketches can exceed
   // the maximum message size so the client should stream requests containing

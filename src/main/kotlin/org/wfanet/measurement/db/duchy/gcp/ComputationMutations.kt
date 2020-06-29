@@ -4,7 +4,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.protobuf.Message
 import org.wfanet.measurement.db.duchy.ProtocolStageDetails
-import org.wfanet.measurement.db.duchy.ProtocolStateEnumHelper
+import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
@@ -29,10 +29,10 @@ typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
 class ComputationMutations<StageT : Enum<StageT>, StageDetailsT : Message>(
-  stateEnumHelper: ProtocolStateEnumHelper<StageT>,
+  stageEnumHelper: ProtocolStageEnumHelper<StageT>,
   details: ProtocolStageDetails<StageT, StageDetailsT>
 ) :
-  ProtocolStateEnumHelper<StageT> by stateEnumHelper,
+  ProtocolStageEnumHelper<StageT> by stageEnumHelper,
   ProtocolStageDetails<StageT, StageDetailsT> by details {
   /**
    * Appends fields to write in a mutation of the Computations spanner table.
