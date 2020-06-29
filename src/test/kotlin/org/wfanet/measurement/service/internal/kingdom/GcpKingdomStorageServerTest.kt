@@ -11,6 +11,7 @@ import org.wfanet.measurement.common.RandomIdGeneratorImpl
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
+import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
@@ -139,6 +140,21 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     assertThat(result.toList())
       .comparingExpectedFieldsOnly()
       .containsExactly(expected)
+  }
+
+  @Test
+  fun `reportStorage getReport`() = runBlocking<Unit> {
+    val request = GetReportRequest.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
+    val expected = Report.newBuilder().apply {
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      externalScheduleId = EXTERNAL_SCHEDULE_ID
+      externalReportId = EXTERNAL_REPORT_ID
+    }.build()
+
+    val result = reportStorage.getReport(request)
+    assertThat(result)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expected)
   }
 
   @Test
