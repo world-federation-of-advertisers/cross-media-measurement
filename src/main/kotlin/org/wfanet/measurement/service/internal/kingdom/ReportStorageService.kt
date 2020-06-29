@@ -8,6 +8,7 @@ import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
+import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
@@ -17,6 +18,9 @@ import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 class ReportStorageService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
 ) : ReportStorageGrpcKt.ReportStorageCoroutineImplBase() {
+  override suspend fun getReport(request: GetReportRequest): Report =
+    kingdomRelationalDatabase.getReport(ExternalId(request.externalReportId))
+
   override suspend fun createNextReport(request: CreateNextReportRequest): Report =
     kingdomRelationalDatabase.createNextReport(ExternalId(request.externalScheduleId))
 

@@ -17,6 +17,7 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
   var fulfillRequisitionFn: (ExternalId) -> Requisition = { Requisition.getDefaultInstance() }
   var streamRequisitionsFn: (StreamRequisitionsFilter, Long) -> Flow<Requisition> =
     { _, _ -> emptyFlow() }
+  var getReportFn: (ExternalId) -> Report = { Report.getDefaultInstance() }
   var createNextReportFn: (ExternalId) -> Report = { Report.getDefaultInstance() }
   var updateReportStateFn: (ExternalId, ReportState) -> Report =
     { _, _ -> Report.getDefaultInstance() }
@@ -37,6 +38,8 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
     limit: Long
   ): Flow<Requisition> =
     streamRequisitionsFn(filter, limit)
+
+  override fun getReport(externalId: ExternalId): Report = getReportFn(externalId)
 
   override fun createNextReport(externalScheduleId: ExternalId): Report =
     createNextReportFn(externalScheduleId)

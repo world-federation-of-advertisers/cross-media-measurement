@@ -10,6 +10,9 @@ option java_multiple_files = true;
 
 // Internal service for Reports.
 service ReportStorage {
+  // Gets a specific Report.
+  rpc GetReport(GetReportRequest) returns (Report);
+
   // Creates the next Report from a ReportConfigSchedule.
   //
   // If there is already a Report for the schedule with a time window not fully
@@ -29,6 +32,10 @@ service ReportStorage {
   // Associates a Report and a Requisition.
   rpc AssociateRequisition(AssociateRequisitionRequest)
       returns (AssociateRequisitionResponse);
+}
+
+message GetReportRequest {
+  int64 external_report_id = 1;
 }
 
 message CreateNextReportRequest {

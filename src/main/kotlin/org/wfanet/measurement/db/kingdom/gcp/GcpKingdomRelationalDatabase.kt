@@ -52,6 +52,8 @@ class GcpKingdomRelationalDatabase(
       limit
     )
 
+  override fun getReport(externalId: ExternalId): Report = TODO()
+
   override fun createNextReport(externalScheduleId: ExternalId): Report {
     val runner = client.readWriteTransaction()
     runner.run { transactionContext ->

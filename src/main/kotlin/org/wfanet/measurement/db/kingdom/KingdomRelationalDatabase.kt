@@ -33,6 +33,9 @@ interface KingdomRelationalDatabase {
    */
   fun streamRequisitions(filter: StreamRequisitionsFilter, limit: Long): Flow<Requisition>
 
+  /** Returns a Report given its external id. */
+  fun getReport(externalId: ExternalId): Report
+
   /**
    * Creates the next [Report] for a [ReportConfigSchedule].
    *
