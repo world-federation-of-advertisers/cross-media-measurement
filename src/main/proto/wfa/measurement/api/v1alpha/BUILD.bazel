@@ -38,8 +38,8 @@ java_proto_library(
 )
 
 java_and_kt_grpc_library(
-    name = "computation_control_service",
-    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:computation_control_service_proto"],
+    name = "global_computation_service",
+    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_proto"],
 )
 
 java_and_kt_grpc_library(

@@ -215,7 +215,7 @@ cloud_spanner_emulator_binaries(
 
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "d6b42bb0fd73a287110e54203783b9c02e35a5b2",
+    commit = "227755d799d7340716f1c15e167bb5050ed13c83",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
 )
 
