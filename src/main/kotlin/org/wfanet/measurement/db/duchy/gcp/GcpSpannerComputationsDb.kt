@@ -15,11 +15,13 @@ import org.wfanet.measurement.db.duchy.BlobId
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
+import org.wfanet.measurement.db.duchy.EndComputationReason
 import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getBytesAsByteArray
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoEnum
+import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.internal.ComputationBlobDependency
@@ -290,6 +292,70 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       )
     }
     return getToken(token.globalId) ?: error("Computation $token no longer exists.")
+  }
+
+  override fun endComputation(
+    token: ComputationToken<StageT>,
+    endingStage: StageT,
+    endComputationReason: EndComputationReason
+  ) {
+    require(computationMutations.validTerminalStage(endingStage)) {
+      "Invalid terminal stage of computation $endingStage"
+    }
+    runIfTokenFromLastUpdate(token) { ctx ->
+      val writeTime = clock.gcpTimestamp()
+      val details = ctx.readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
+        ?.getProtoMessage("ComputationDetails", ComputationDetails.parser())
+        ?: error("Computation missing $token")
+
+      ctx.buffer(
+        computationMutations.updateComputation(
+          localId = token.localId,
+          updateTime = writeTime,
+          stage = endingStage,
+          lockOwner = WRITE_NULL_STRING,
+          lockExpirationTime = WRITE_NULL_TIMESTAMP,
+          // Add a reason why the computation ended to the details section.
+          details = details.toBuilder().setEndingState(
+            when (endComputationReason) {
+              EndComputationReason.SUCCEEDED -> ComputationDetails.CompletedReason.SUCCEEDED
+              EndComputationReason.FAILED -> ComputationDetails.CompletedReason.FAILED
+              EndComputationReason.CANCELED -> ComputationDetails.CompletedReason.CANCELED
+            }
+          ).build()
+        )
+      )
+      ctx.buffer(
+        computationMutations.updateComputationStage(
+          localId = token.localId,
+          stage = token.stage,
+          endTime = writeTime,
+          followingStage = endingStage
+        )
+      )
+      ctx.buffer(
+        computationMutations.insertComputationStage(
+          localId = token.localId,
+          stage = endingStage,
+          creationTime = writeTime,
+          previousStage = token.stage,
+          nextAttempt = 1,
+          details = computationMutations.detailsFor(endingStage)
+        )
+      )
+      UnfinishedAttemptQuery(computationMutations::longToEnum, token.localId)
+        .execute(ctx)
+        .forEach { unfinished ->
+          ctx.buffer(
+            computationMutations.updateComputationStageAttempt(
+              localId = unfinished.computationId,
+              stage = unfinished.stage,
+              attempt = unfinished.attempt,
+              endTime = writeTime
+            )
+          )
+        }
+    }
   }
 
   private fun mutationsToChangeStages(

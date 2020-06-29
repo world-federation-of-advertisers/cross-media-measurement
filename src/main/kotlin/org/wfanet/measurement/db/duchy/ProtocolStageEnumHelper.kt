@@ -7,6 +7,8 @@ interface ProtocolStageEnumHelper<T : Enum<T>> {
   fun validInitialStage(stage: T): Boolean {
     return stage in validInitialStages
   }
+  val validTerminalStages: Set<T>
+  fun validTerminalStage(stage: T): Boolean = stage in validTerminalStages
 
   val validSuccessors: Map<T, Set<T>>
   /** True if a computation may progress from the [currentStage] to the

@@ -80,8 +80,7 @@ class SketchAggregationComputationManager(
         // Peasant have nothing to do for this stage.
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
-      COMPLETED ->
-        transitionStage(token, stage, afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE)
+      COMPLETED -> error("Computation should be ended with call to endComputation(...)")
       // Stages that we can't transition to ever.
       UNRECOGNIZED, UNKNOWN, CREATED -> error("Cannot make transition function to stage $stage")
     }

@@ -49,6 +49,23 @@ enum class AfterTransition {
 }
 
 /**
+ * Specifies why a computation has ended.
+ *
+ * @see[ComputationsRelationalDb.endComputation]
+ */
+enum class EndComputationReason {
+  /** Computation went the expected execution and succeeded. */
+  SUCCEEDED,
+  /** Computation failed and will not be retried again. */
+  FAILED,
+  /**
+   * The computation was canceled. There were not known issues when it was ended, but results
+   * will not be obtained.
+   */
+  CANCELED
+}
+
+/**
  * Relational database for keeping track of stages of a Computation within an
  * MPC Node.
  *
@@ -104,6 +121,13 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
     outputBlobs: Int,
     afterTransition: AfterTransition
   ): ComputationToken<StageT>
+
+  /** Moves a computation to a terminal state and records the reason why it ended. */
+  fun endComputation(
+    token: ComputationToken<StageT>,
+    endingStage: StageT,
+    endComputationReason: EndComputationReason
+  )
 
   /** Reads mappings of blob names to paths in blob storage. */
   fun readBlobReferences(

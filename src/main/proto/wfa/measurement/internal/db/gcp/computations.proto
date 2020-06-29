@@ -27,4 +27,17 @@ message ComputationDetails {
   // A prefix of all the BLOBs stored for this computation. This is used for
   // cleaning up after a computation when the BLOBs are no longer needed.
   string blobs_storage_prefix = 4;
+
+  enum CompletedReason {
+    UNSPECIFIED = 0;
+    // The computation finished successfully with no errors.
+    SUCCEEDED = 1;
+    // The computation failed and will not be retried any longer.
+    FAILED = 2;
+    // The kingdom no longer wanted the results of the computation.
+    CANCELED = 3;
+  }
+  // The final state of the computation at this duchy. This is only set
+  // when the protocol has finished for the computation.
+  CompletedReason ending_state = 5;
 }

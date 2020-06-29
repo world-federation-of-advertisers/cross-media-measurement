@@ -10,6 +10,7 @@ import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
+import org.wfanet.measurement.db.duchy.EndComputationReason
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.internal.SketchAggregationStage
@@ -78,7 +79,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
 
     computation.claimWorkFor("yet-another-peasant")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS)
-    computation.runWaitStage(COMPLETED)
+    computation.end(reason = EndComputationReason.SUCCEEDED)
 
     computation.assertTokenEquals(
       ComputationToken(
@@ -86,7 +87,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         localId = computation.localId,
         globalId = ID_WHERE_ALSACE_IS_NOT_PRIMARY,
         owner = null,
-        attempt = 1,
+        attempt = 0,
         nextWorker = BAVARIA,
         lastUpdateTime = testClock.last().toEpochMilli(),
         role = DuchyRole.SECONDARY,
@@ -135,7 +136,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
 
     computation.claimWorkFor("yet-another-peasant")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
-    computation.runWaitStage(COMPLETED)
+    computation.end(reason = EndComputationReason.SUCCEEDED)
 
     computation.assertTokenEquals(
       ComputationToken(
@@ -143,7 +144,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         localId = computation.localId,
         globalId = ID_WHERE_ALSACE_IS_PRIMARY,
         owner = null,
-        attempt = 1,
+        attempt = 0,
         nextWorker = BAVARIA,
         lastUpdateTime = testClock.last().toEpochMilli(),
         role = DuchyRole.PRIMARY,
@@ -302,5 +303,10 @@ class SingleComputationManager(
     assertTokenChangesTo(token.copy(stage = stage, attempt = 1, owner = null)) {
       manager.transitionComputationToStage(it.token, it.outputs.requireNoNulls(), stage)
     }
+  }
+
+  fun end(reason: EndComputationReason) {
+    manager.endComputation(token, COMPLETED, reason)
+    token = checkNotNull(manager.getToken(token.globalId)) { "No token for $token" }
   }
 }

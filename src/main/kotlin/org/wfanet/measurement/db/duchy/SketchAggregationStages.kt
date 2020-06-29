@@ -21,27 +21,26 @@ import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
 object SketchAggregationStages :
   ProtocolStageEnumHelper<SketchAggregationStage> {
   override val validInitialStages = setOf(CREATED)
+  override val validTerminalStages = setOf(COMPLETED)
 
   override val validSuccessors =
     mapOf(
-      CREATED to setOf(TO_ADD_NOISE, COMPLETED),
-      TO_ADD_NOISE to setOf(WAIT_SKETCHES, WAIT_CONCATENATED, COMPLETED),
-      WAIT_SKETCHES to setOf(TO_APPEND_SKETCHES, COMPLETED),
-      TO_APPEND_SKETCHES to setOf(WAIT_CONCATENATED, COMPLETED),
+      CREATED to setOf(TO_ADD_NOISE),
+      TO_ADD_NOISE to setOf(WAIT_SKETCHES, WAIT_CONCATENATED),
+      WAIT_SKETCHES to setOf(TO_APPEND_SKETCHES),
+      TO_APPEND_SKETCHES to setOf(WAIT_CONCATENATED),
       WAIT_CONCATENATED to setOf(
         TO_BLIND_POSITIONS,
-        TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
-        COMPLETED
+        TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
       ),
       TO_BLIND_POSITIONS to setOf(WAIT_FLAG_COUNTS, COMPLETED),
-      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS to setOf(WAIT_FLAG_COUNTS, COMPLETED),
+      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS to setOf(WAIT_FLAG_COUNTS),
       WAIT_FLAG_COUNTS to setOf(
         TO_DECRYPT_FLAG_COUNTS,
-        TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
-        COMPLETED
+        TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
       ),
-      TO_DECRYPT_FLAG_COUNTS to setOf(COMPLETED),
-      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS to setOf(COMPLETED)
+      TO_DECRYPT_FLAG_COUNTS to setOf(),
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS to setOf()
     ).withDefault { setOf() }
 
   override fun enumToLong(value: SketchAggregationStage): Long {

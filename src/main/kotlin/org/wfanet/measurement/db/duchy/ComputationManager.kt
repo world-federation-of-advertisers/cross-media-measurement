@@ -67,6 +67,21 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   }
 
   /**
+   * Transitions the stage of an ongoing computation to an ending state.
+   *
+   * @param[token] The task currently being worked
+   * @param[endingStage] The terminal stage to transition the computation to
+   * @param [endComputationReason] The reason why the computation is ending
+   */
+  fun endComputation(
+    token: ComputationToken<StageT>,
+    endingStage: StageT,
+    endComputationReason: EndComputationReason
+  ) {
+    relationalDatabase.endComputation(token, endingStage, endComputationReason)
+  }
+
+  /**
    * Enqueues a computation into the work queue.
    *
    * @throws [IOException] upon failure

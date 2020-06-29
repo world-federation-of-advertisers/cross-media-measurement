@@ -16,6 +16,7 @@ import org.wfanet.measurement.db.duchy.AfterTransition
 import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
+import org.wfanet.measurement.db.duchy.EndComputationReason
 import org.wfanet.measurement.db.duchy.ProtocolStageDetails
 import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
@@ -48,11 +49,10 @@ enum class FakeProtocolStages {
 
 object ProtocolStages : ProtocolStageEnumHelper<FakeProtocolStages> {
   override val validInitialStages = setOf(FakeProtocolStages.A)
+  override val validTerminalStages = setOf(FakeProtocolStages.E)
   override val validSuccessors = mapOf(
-    FakeProtocolStages.A to setOf(FakeProtocolStages.B, FakeProtocolStages.E),
-    FakeProtocolStages.B to setOf(FakeProtocolStages.C, FakeProtocolStages.D),
-    FakeProtocolStages.C to setOf(FakeProtocolStages.E),
-    FakeProtocolStages.D to setOf(FakeProtocolStages.E)
+    FakeProtocolStages.A to setOf(FakeProtocolStages.B),
+    FakeProtocolStages.B to setOf(FakeProtocolStages.C, FakeProtocolStages.D)
   )
 
   override fun enumToLong(value: FakeProtocolStages): Long {
@@ -923,12 +923,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("claimed_in_C", 3)
     token = assertNotNull(database.claimTask("a-second-worker"))
     testClock.tickSeconds("move_to_E", 3)
-    token = database.updateComputationStage(
+    database.endComputation(
       token = token,
-      to = FakeProtocolStages.E,
-      inputBlobPaths = listOf("/path/to/inputs/789"),
-      outputBlobs = 0,
-      afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+      endingStage = FakeProtocolStages.E,
+      endComputationReason = EndComputationReason.SUCCEEDED
     )
     assertNull(database.claimTask("nothing-to-claim"))
 
@@ -991,7 +989,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.E))
         .set("CreationTime").to(testClock["move_to_E"].toGcpTimestamp())
-        .set("NextAttempt").to(2)
+        .set("NextAttempt").to(1)
         .set("EndTime").to(null as Timestamp?)
         .set("PreviousStage").to(ProtocolStages.enumToLong(FakeProtocolStages.C))
         .set("FollowingStage").to(null as Long?)
@@ -1033,13 +1031,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("BlobId").to(0L)
         .set("PathToBlob").to("/path/to/output/for/stage/C")
         .set("DependencyType").to(ComputationBlobDependency.OUTPUT.ordinal.toLong())
-        .build(),
-      Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.E))
-        .set("BlobId").to(0L)
-        .set("PathToBlob").to("/path/to/inputs/789")
-        .set("DependencyType").to(ComputationBlobDependency.INPUT.ordinal.toLong())
         .build()
     )
   }
@@ -1255,6 +1246,139 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     // Blob id doesn't exist
     assertFailsWith<SpannerException> {
       database.writeOutputBlobReference(token, BlobRef(223344L, "/wrote/something/there"))
+    }
+  }
+
+  @Test
+  fun `end successful computation`() {
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.C,
+      owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
+    )
+    val computation = computationMutations.insertComputation(
+      localId = token.localId,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = FakeProtocolStages.C,
+      globalId = token.globalId,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    val stage = computationMutations.insertComputationStage(
+      localId = token.localId,
+      stage = FakeProtocolStages.C,
+      nextAttempt = 3,
+      creationTime = testClock.last().toGcpTimestamp(),
+      details = computationMutations.detailsFor(FakeProtocolStages.C)
+    )
+    testClock.tickSeconds("time-ended")
+    databaseClient.write(listOf(computation, stage))
+    val expectedDetails =
+      COMPUTATION_DETAILS.toBuilder().setEndingState(ComputationDetails.CompletedReason.SUCCEEDED)
+        .build()
+    database.endComputation(token, FakeProtocolStages.E, EndComputationReason.SUCCEEDED)
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
+             LockExpirationTime, ComputationDetails, ComputationDetailsJSON
+      FROM Computations
+      ORDER BY ComputationId DESC
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(FakeProtocolStages.E.ordinal.toLong())
+        .set("UpdateTime").to(testClock.last().toGcpTimestamp())
+        .set("GlobalComputationId").to(token.globalId)
+        .set("LockOwner").to(null as String?)
+        .set("LockExpirationTime").to(null as Timestamp?)
+        .set("ComputationDetails").toProtoBytes(expectedDetails)
+        .set("ComputationDetailsJSON").toProtoJson(expectedDetails)
+        .build()
+    )
+  }
+
+  @Test
+  fun `end failed computation`() {
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.C,
+      owner = "owner-of-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
+    )
+    val computation = computationMutations.insertComputation(
+      localId = token.localId,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = FakeProtocolStages.C,
+      globalId = token.globalId,
+      lockOwner = token.owner!!,
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    val stage = computationMutations.insertComputationStage(
+      localId = token.localId,
+      stage = FakeProtocolStages.C,
+      nextAttempt = 3,
+      creationTime = testClock.last().toGcpTimestamp(),
+      details = computationMutations.detailsFor(FakeProtocolStages.C)
+    )
+    val attempt = computationMutations.insertComputationStageAttempt(
+      localId = token.localId,
+      stage = FakeProtocolStages.C,
+      attempt = 2,
+      beginTime = testClock.last().toGcpTimestamp()
+    )
+    testClock.tickSeconds("time-failed")
+    databaseClient.write(listOf(computation, stage, attempt))
+    val expectedDetails =
+      COMPUTATION_DETAILS.toBuilder().setEndingState(ComputationDetails.CompletedReason.FAILED)
+        .build()
+    database.endComputation(token, FakeProtocolStages.E, EndComputationReason.FAILED)
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
+             LockExpirationTime, ComputationDetails, ComputationDetailsJSON
+      FROM Computations
+      ORDER BY ComputationId DESC
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(FakeProtocolStages.E.ordinal.toLong())
+        .set("UpdateTime").to(testClock.last().toGcpTimestamp())
+        .set("GlobalComputationId").to(token.globalId)
+        .set("LockOwner").to(null as String?)
+        .set("LockExpirationTime").to(null as Timestamp?)
+        .set("ComputationDetails").toProtoBytes(expectedDetails)
+        .set("ComputationDetailsJSON").toProtoJson(expectedDetails)
+        .build()
+    )
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
+      FROM ComputationStageAttempts
+      ORDER BY ComputationStage, Attempt
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolStages.enumToLong(FakeProtocolStages.C))
+        .set("Attempt").to(2)
+        .set("BeginTime").to(testClock["start"].toGcpTimestamp())
+        .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .build()
+    )
+  }
+
+  @Test
+  fun `endComputation throws for non-ending state`() {
+    val token = ComputationToken(
+      localId = 4315, globalId = 55, stage = FakeProtocolStages.C,
+      owner = "owner-of-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
+      role = DuchyRole.PRIMARY, attempt = 1, lastUpdateTime = testClock.last().toEpochMilli()
+    )
+    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+      database.endComputation(token, FakeProtocolStages.B, EndComputationReason.CANCELED)
     }
   }
 }
