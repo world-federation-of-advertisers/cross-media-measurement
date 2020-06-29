@@ -102,7 +102,7 @@ sealed class StreamRequisitionsClause : TerminalClause {
     StreamRequisitionsClause(), GreaterThanClause
 }
 
-/** Base class for Report filter. Never directly instantiated. */
+/** Base class for filtering Report streams. Never directly instantiated. */
 sealed class StreamReportsClause : TerminalClause {
 
   /** Matching Reports must belong to an Advertiser with an external id in [values]. */

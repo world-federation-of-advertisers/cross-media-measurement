@@ -7,19 +7,12 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.internal.kingdom.Report
 
-class ReadReportQuery {
-  fun execute(readContext: ReadContext, externalScheduleId: ExternalId): Report = runBlocking {
-    val whereClause =
-      """
-      WHERE ReportConfigSchedules.ExternalScheduleId = @external_schedule_id
-      ORDER BY CreateTime DESC
-      LIMIT 1
-      """.trimIndent()
-
+class GetReportQuery {
+  fun execute(readContext: ReadContext, externalReportId: ExternalId): Report = runBlocking {
     ReportReader()
       .withBuilder {
-        appendClause(whereClause)
-        bind("external_schedule_id").to(externalScheduleId.value)
+        appendClause("WHERE Reports.ExternalReportId = @external_report_id")
+        bind("external_report_id").to(externalReportId.value)
       }
       .execute(readContext)
       .single()

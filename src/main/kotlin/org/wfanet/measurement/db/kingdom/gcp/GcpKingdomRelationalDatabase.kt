@@ -52,7 +52,8 @@ class GcpKingdomRelationalDatabase(
       limit
     )
 
-  override fun getReport(externalId: ExternalId): Report = TODO()
+  override fun getReport(externalId: ExternalId): Report =
+    GetReportQuery().execute(client.singleUse(), externalId)
 
   override fun createNextReport(externalScheduleId: ExternalId): Report {
     val runner = client.readWriteTransaction()
@@ -61,7 +62,7 @@ class GcpKingdomRelationalDatabase(
     }
     val commitTimestamp: Timestamp = runner.commitTimestamp
 
-    return ReadReportQuery().execute(
+    return ReadLatestReportByScheduleQuery().execute(
       client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp)),
       externalScheduleId
     )
