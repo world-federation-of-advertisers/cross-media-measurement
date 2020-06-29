@@ -35,32 +35,18 @@ class SketchAggregationComputationManager(
    * Calls [transitionState] to move to a new stage in a consistent way.
    *
    * The assumption is this will only be called by a job that is executing the stage of a
-   * computation, which is why the inputs and outputs of the stage are passed in and not retrieved
-   * from storage.
+   * computation, which will have knowledge of all the data needed as input to the next stage.
+   * Most of the time [inputsToNextStage] is the list of outputs of the currently running stage.
    */
   fun transitionComputationToStage(
     token: ComputationToken<SketchAggregationState>,
-    inputsToCurrentStage: List<String>,
-    outputsToCurrentStage: List<String>,
+    inputsToNextStage: List<String> = listOf(),
     stage: SketchAggregationState
   ): ComputationToken<SketchAggregationState> {
     requireValidRoleForStage(stage, token.role)
     return when (stage) {
-      // Stages of the computation reducing all inputs and outputs of the current stage into a
-      // single output.
-      TO_APPEND_SKETCHES -> transitionState(
-        token,
-        stage,
-        // The input to current stage is the set of locally stored sketches with added noise,
-        // the outputs of the current stage are the set of sketches with added noise received
-        // from the other duchies.
-        inputBlobsPaths = requireNotEmpty(inputsToCurrentStage) + requireNotEmpty(
-          outputsToCurrentStage
-        ),
-        outputBlobCount = 1,
-        afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-      )
-      // Stages of computation mapping one input to one output.
+      // Stages of computation mapping some number of inputs to single output.
+      TO_APPEND_SKETCHES,
       TO_ADD_NOISE,
       TO_BLIND_POSITIONS,
       TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
@@ -68,7 +54,7 @@ class SketchAggregationComputationManager(
       TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> transitionState(
         token,
         stage,
-        inputBlobsPaths = requireNotEmpty(outputsToCurrentStage),
+        inputBlobsPaths = requireNotEmpty(inputsToNextStage),
         outputBlobCount = 1,
         afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
       )
@@ -78,7 +64,7 @@ class SketchAggregationComputationManager(
         token,
         stage,
         // The output of current stage is the results of adding noise to locally stored sketches.
-        inputBlobsPaths = requireNotEmpty(outputsToCurrentStage),
+        inputBlobsPaths = requireNotEmpty(inputsToNextStage),
         outputBlobCount = duchiesInComputation - 1,
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
@@ -88,7 +74,7 @@ class SketchAggregationComputationManager(
         token,
         stage,
         // Keep a reference to the finished work artifact in case it needs to be resent.
-        inputBlobsPaths = requireNotEmpty(outputsToCurrentStage),
+        inputBlobsPaths = requireNotEmpty(inputsToNextStage),
         // Requires an output to be written e.g., the sketch sent by the predecessor duchy.
         outputBlobCount = 1,
         // Peasant have nothing to do for this stage.

@@ -249,12 +249,13 @@ class SingleComputationManager(
 
       val notWritten =
         manager.readBlobReferences(token, BlobDependencyType.OUTPUT).values.count { it == null }
+      println("$notWritten")
       if (notWritten == 0) {
+        println("Moving to append sketches state")
         assertTokenChangesTo(token.copy(state = TO_APPEND_SKETCHES, attempt = 0)) {
           manager.transitionComputationToStage(
             it.token,
-            it.inputs,
-            it.outputs.requireNoNulls(),
+            it.inputs + it.outputs.requireNoNulls(),
             TO_APPEND_SKETCHES
           )
         }
@@ -269,7 +270,7 @@ class SingleComputationManager(
         else TO_BLIND_POSITIONS
       assertTokenChangesTo(token.copy(state = state, attempt = 0)) {
         manager.transitionComputationToStage(
-          it.token, it.inputs, it.outputs.requireNoNulls(), state
+          it.token, it.outputs.requireNoNulls(), state
         )
       }
     }
@@ -282,7 +283,7 @@ class SingleComputationManager(
         else TO_DECRYPT_FLAG_COUNTS
       assertTokenChangesTo(token.copy(state = state, attempt = 0)) {
         manager.transitionComputationToStage(
-          it.token, it.inputs, it.outputs.requireNoNulls(), state
+          it.token, it.outputs.requireNoNulls(), state
         )
       }
     }
@@ -292,7 +293,6 @@ class SingleComputationManager(
     assertTokenChangesTo(token.copy(state = TO_ADD_NOISE, attempt = 0, owner = null)) {
       manager.transitionComputationToStage(
         it.token,
-        it.inputs,
         it.outputs.requireNoNulls(),
         TO_ADD_NOISE
       )
@@ -302,7 +302,7 @@ class SingleComputationManager(
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
   fun runWaitStage(stage: SketchAggregationState) {
     assertTokenChangesTo(token.copy(state = stage, attempt = 1, owner = null)) {
-      manager.transitionComputationToStage(it.token, it.inputs, it.outputs.requireNoNulls(), stage)
+      manager.transitionComputationToStage(it.token, it.outputs.requireNoNulls(), stage)
     }
   }
 }
