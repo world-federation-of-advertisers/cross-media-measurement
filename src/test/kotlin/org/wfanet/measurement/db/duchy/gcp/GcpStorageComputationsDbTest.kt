@@ -5,6 +5,7 @@ import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,7 +35,7 @@ class GcpStorageComputationsDbTest {
   }
 
   @Test
-  fun readBlob() {
+  fun readBlob() = runBlocking<Unit> {
     val blobData = "Somedata".toByteArray()
     storage.create(BlobInfo.newBuilder(BlobId.of(TEST_BUCKET, "path")).build(), blobData)
     val data = blobsDb.read(BlobRef(1234L, "path"))
@@ -42,14 +43,14 @@ class GcpStorageComputationsDbTest {
   }
 
   @Test
-  fun `readBlob fails when blob is missing`() {
+  fun `readBlob fails when blob is missing`() = runBlocking<Unit> {
     assertFailsWith<IllegalStateException> {
       blobsDb.read(BlobRef(1234L, "path/to/unwritten/blob"))
     }
   }
 
   @Test
-  fun newPath() {
+  fun newPath() = runBlocking<Unit> {
     val pathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
     assertThat(pathWithRandomSuffix).startsWith("5432/TO_DECRYPT_FLAG_COUNTS/finished_sketch")
     val secondPathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
@@ -58,7 +59,7 @@ class GcpStorageComputationsDbTest {
   }
 
   @Test
-  fun writeBlobPath() {
+  fun writeBlobPath() = runBlocking<Unit> {
     val pathToBlob = "path/to/a/blob"
     val blobData = "data-to-write-to-storage".toByteArray()
     blobsDb.blockingWrite(pathToBlob, blobData)
@@ -66,7 +67,7 @@ class GcpStorageComputationsDbTest {
   }
 
   @Test
-  fun `blob lifecycle`() {
+  fun `blob lifecycle`() = runBlocking {
     val blob1 = "abcdefghijklmnopqrstuvwxyz".toByteArray()
     val blob2 = "123456789011121314151617181920".toByteArray()
     val blob1Path = blobsDb.newBlobPath(token, "my-new-blob")

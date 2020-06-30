@@ -38,7 +38,7 @@ class SketchAggregationComputationManager(
    * computation, which will have knowledge of all the data needed as input to the next stage.
    * Most of the time [inputsToNextStage] is the list of outputs of the currently running stage.
    */
-  fun transitionComputationToStage(
+  suspend fun transitionComputationToStage(
     token: ComputationToken<SketchAggregationStage>,
     inputsToNextStage: List<String> = listOf(),
     stage: SketchAggregationStage

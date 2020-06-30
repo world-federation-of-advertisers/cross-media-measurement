@@ -7,6 +7,12 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
 import com.google.protobuf.Message
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.AfterTransition
@@ -43,7 +49,10 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
 
-  override fun insertComputation(globalId: Long, initialStage: StageT): ComputationToken<StageT> {
+  override suspend fun insertComputation(
+    globalId: Long,
+    initialStage: StageT
+  ): ComputationToken<StageT> {
     require(
       computationMutations.validInitialStage(initialStage)
     ) { "Invalid initial stage $initialStage" }
@@ -119,7 +128,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     )
   }
 
-  override fun getToken(globalId: Long): ComputationToken<StageT>? {
+  override suspend fun getToken(globalId: Long): ComputationToken<StageT>? {
     val query = TokenQuery(computationMutations::longToEnum, globalId)
     val results = query.execute(databaseClient).singleOrNull() ?: return null
 
@@ -138,7 +147,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     )
   }
 
-  override fun enqueue(token: ComputationToken<StageT>) {
+  override suspend fun enqueue(token: ComputationToken<StageT>) {
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(
         computationMutations.updateComputation(
@@ -159,7 +168,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     }
   }
 
-  override fun claimTask(ownerId: String): ComputationToken<StageT>? {
+  override suspend fun claimTask(ownerId: String): ComputationToken<StageT>? {
     /** Claim a specific task represented by the results of running the above sql. */
     fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
       databaseClient.readWriteTransaction().run { ctx ->
@@ -172,15 +181,15 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
           ownerId
         )
       } ?: error("claim for a specific computation ($result) returned a null value")
-    UnclaimedTasksQuery(computationMutations::longToEnum, clock.gcpTimestamp())
+    return UnclaimedTasksQuery(computationMutations::longToEnum, clock.gcpTimestamp())
       .execute(databaseClient)
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the
       // lock is still available. This pattern means only the item which is being updated
       // would need to be locked and not every possible computation that can be worked on.
-      .forEach { if (claimSpecificTask(it)) return getToken(it.globalId) }
-    // Did not acquire the lock on any computation.
-    return null
+      .filter { claimSpecificTask(it) }
+      // If the value is null, no tasks were claimed so there is no token to retrieve.
+      .firstOrNull()?.let { getToken(it.globalId) ?: error("No token for claimed task $it") }
   }
 
   /**
@@ -250,14 +259,14 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
 
   private fun fiveMinutesInTheFuture() = clock.instant().plusSeconds(300).toGcpTimestamp()
 
-  override fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT> {
+  override suspend fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT> {
     val owner = checkNotNull(token.owner) { "Cannot renew lock for computation with no owner." }
     runIfTokenFromLastUpdate(token) { it.buffer(setLockMutation(token.localId, owner)) }
     return getToken(token.globalId)
       ?: error("Failed to renew lock on computation (${token.globalId}, it does not exist.")
   }
 
-  override fun updateComputationStage(
+  override suspend fun updateComputationStage(
     token: ComputationToken<StageT>,
     to: StageT,
     inputBlobPaths: List<String>,
@@ -294,7 +303,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     return getToken(token.globalId) ?: error("Computation $token no longer exists.")
   }
 
-  override fun endComputation(
+  override suspend fun endComputation(
     token: ComputationToken<StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
@@ -345,7 +354,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       )
       UnfinishedAttemptQuery(computationMutations::longToEnum, token.localId)
         .execute(ctx)
-        .forEach { unfinished ->
+        .collect { unfinished ->
           ctx.buffer(
             computationMutations.updateComputationStageAttempt(
               localId = unfinished.computationId,
@@ -476,7 +485,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     return mutations
   }
 
-  override fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT {
+  override suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT {
     return computationMutations.parseDetails(
       databaseClient.singleUseReadOnlyTransaction()
         .readRow(
@@ -489,7 +498,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     )
   }
 
-  override fun readBlobReferences(
+  override suspend fun readBlobReferences(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
@@ -522,7 +531,10 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       .toMap()
   }
 
-  override fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef) {
+  override suspend fun writeOutputBlobReference(
+    token: ComputationToken<StageT>,
+    blobName: BlobRef
+  ) {
     require(blobName.pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $blobName" }
     runIfTokenFromLastUpdate(token) { ctx ->
       val type = ctx.readRow(
@@ -554,16 +566,16 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
    * @return [R] which is the result of the readWriteTransactionBlock
    * @throws IllegalStateException if the token is not for the most recent update.
    */
-  private fun <R> runIfTokenFromLastUpdate(
+  private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationToken<StageT>,
-    readWriteTransactionBlock: (TransactionContext) -> R
+    readWriteTransactionBlock: suspend (TransactionContext) -> R
   ): R? {
     return databaseClient.readWriteTransaction().run { ctx ->
       val current =
         ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
           ?: error("No row for computation (${token.localId})")
       if (current.getTimestamp("UpdateTime").toMillis() == token.lastUpdateTime) {
-        readWriteTransactionBlock(ctx)
+        runBlocking { readWriteTransactionBlock(ctx) }
       } else {
         error("Failed to update, token is from older update time.")
       }

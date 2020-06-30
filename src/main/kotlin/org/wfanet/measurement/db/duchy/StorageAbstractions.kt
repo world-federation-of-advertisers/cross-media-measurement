@@ -80,17 +80,17 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    * A new local identifier is created and returned in the [ComputationToken]. The computation is
    * not added to the queue.
    */
-  fun insertComputation(globalId: Long, initialStage: StageT): ComputationToken<StageT>
+  suspend fun insertComputation(globalId: Long, initialStage: StageT): ComputationToken<StageT>
 
   /** Returns a [ComputationToken] for the most recent computation for a [globalId]. */
-  fun getToken(globalId: Long): ComputationToken<StageT>?
+  suspend fun getToken(globalId: Long): ComputationToken<StageT>?
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.
    *
    * This will release any ownership and locks associated with the computation.
    */
-  fun enqueue(token: ComputationToken<StageT>)
+  suspend fun enqueue(token: ComputationToken<StageT>)
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.
@@ -98,10 +98,10 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    * @param[ownerId] The identifier of the worker process that will own the lock.
    * @return [ComputationToken] work that was claimed. When null, no work was claimed.
    */
-  fun claimTask(ownerId: String): ComputationToken<StageT>?
+  suspend fun claimTask(ownerId: String): ComputationToken<StageT>?
 
   /** Extends the time a computation is locked. */
-  fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT>
+  suspend fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT>
 
   /**
    * Transitions a computation to a new stage.
@@ -114,7 +114,7 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
    *    part of the computation so they do not have a reference to the real storage location.
    * @param[afterTransition] The work to be do with the computation after a successful transition.
    */
-  fun updateComputationStage(
+  suspend fun updateComputationStage(
     token: ComputationToken<StageT>,
     to: StageT,
     inputBlobPaths: List<String>,
@@ -123,23 +123,23 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
   ): ComputationToken<StageT>
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
-  fun endComputation(
+  suspend fun endComputation(
     token: ComputationToken<StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   )
 
   /** Reads mappings of blob names to paths in blob storage. */
-  fun readBlobReferences(
+  suspend fun readBlobReferences(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType = BlobDependencyType.INPUT
   ): Map<BlobId, String?>
 
   /** Reads details for a specific stage of a computation. */
-  fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT
+  suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT
 
   /** Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from a stage. */
-  fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef)
+  suspend fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef)
 }
 
 /**
@@ -153,19 +153,19 @@ data class BlobRef(val name: BlobId, val pathToBlob: String)
 interface ComputationsBlobDb<StageT : Enum<StageT>> {
 
   /** Reads and returns a BLOB from storage */
-  fun read(reference: BlobRef): ByteArray
+  suspend fun read(reference: BlobRef): ByteArray
 
   /** Write a BLOB and ensure it is fully written before returning. */
-  fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.pathToBlob, bytes)
+  suspend fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.pathToBlob, bytes)
 
   /** Write a BLOB and ensure it is fully written before returning. */
-  fun blockingWrite(path: String, bytes: ByteArray)
+  suspend fun blockingWrite(path: String, bytes: ByteArray)
 
   /** Deletes a BLOB */
-  fun delete(reference: BlobRef)
+  suspend fun delete(reference: BlobRef)
 
   /** Returns a path where to write a blob for a computation stage. */
-  fun newBlobPath(token: ComputationToken<StageT>, name: String): String
+  suspend fun newBlobPath(token: ComputationToken<StageT>, name: String): String
 }
 
 /** The way in which a stage depends upon a BLOB. */

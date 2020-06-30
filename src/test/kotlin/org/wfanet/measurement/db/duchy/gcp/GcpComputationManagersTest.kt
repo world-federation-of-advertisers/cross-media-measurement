@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -46,7 +47,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
   }
 
   @Test
-  fun runProtocolAtNonPrimaryWorker() {
+  fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleComputationManager(
       newCascadingLegionsSketchAggregationGcpComputationManager(
@@ -97,7 +98,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
   }
 
   @Test
-  fun runProtocolAtPrimaryWorker() {
+  fun runProtocolAtPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleComputationManager(
       newCascadingLegionsSketchAggregationGcpComputationManager(
@@ -175,10 +176,10 @@ class SingleComputationManager(
   private val testClock: TestClockWithNamedInstants
 ) {
 
-  private var token = manager.createComputation(globalId, CREATED)
+  private var token = runBlocking { manager.createComputation(globalId, CREATED) }
   val localId by lazy { token.localId }
 
-  fun writeOutputs(stage: SketchAggregationStage) {
+  suspend fun writeOutputs(stage: SketchAggregationStage) {
     assertEquals(stage, token.stage)
     testClock.tickSeconds("${token.stage.name}_$token.attempt_outputs")
     manager.readBlobReferences(token, BlobDependencyType.OUTPUT)
@@ -189,23 +190,19 @@ class SingleComputationManager(
   /** Runs an operation and checks the returned token from the operation matches the expected. */
   private fun assertTokenChangesTo(
     expected: ComputationToken<SketchAggregationStage>,
-    run: (ComputationStep) -> ComputationToken<SketchAggregationStage>
-  ) {
+    run: suspend (ComputationStep) -> ComputationToken<SketchAggregationStage>
+  ) = runBlocking {
     testClock.tickSeconds("${expected.stage.name}_$expected.attempt")
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed
     // they will be fetched.
-    val inputsToCurrentStage by lazy {
+    val inputsToCurrentStage =
       manager.readBlobReferences(token, BlobDependencyType.INPUT).map {
         checkNotNull(it.value) {
-          "Unwritten input $it. All blobs must be written before transitioning computation stages."
+          "Unwritten input $it. All blobs must be written before transitioning stages."
         }
       }
-    }
-    // Some stages use the outputs to their predecessor as inputs it itself. If the outputs are
-    // needed they will be fetched.
-    val outputsToCurrentStage by lazy {
-      manager.readBlobReferences(token, BlobDependencyType.OUTPUT).map { it.value }
-    }
+    val outputsToCurrentStage =
+        manager.readBlobReferences(token, BlobDependencyType.OUTPUT).map { it.value }
     val result = run(ComputationStep(token, inputsToCurrentStage, outputsToCurrentStage))
     assertEquals(expected.copy(lastUpdateTime = testClock.last().toEpochMilli()), result)
     token = result
@@ -215,7 +212,7 @@ class SingleComputationManager(
     assertEquals(token, expected)
 
   /** Add computation to work queue and verify that it has no owner. */
-  fun enqueue() {
+  suspend fun enqueue() {
     assertTokenChangesTo(token.copy(owner = null, attempt = 0)) {
       manager.enqueue(token)
       assertNotNull(manager.getToken(token.globalId))
@@ -223,7 +220,7 @@ class SingleComputationManager(
   }
 
   /** Get computation from work queue and verify it is owned by the [workerId]. */
-  fun claimWorkFor(workerId: String) {
+  suspend fun claimWorkFor(workerId: String) {
     assertTokenChangesTo(token.copy(owner = workerId, attempt = 1)) {
       assertNotNull(manager.claimWork(workerId))
     }
@@ -234,7 +231,7 @@ class SingleComputationManager(
      * Fake receiving a sketch from a [sender], if all sketches have been received
      * set stage to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
-    fun receiveSketch(sender: String) {
+    suspend fun receiveSketch(sender: String) {
       val stageDetails = manager.readStageSpecificDetails(token).waitSketchStageDetails
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
@@ -262,7 +259,7 @@ class SingleComputationManager(
     }
 
     /** Fakes receiving the concatenated sketch from the incoming duchy. */
-    fun receiveConcatenatedSketchGrpc() {
+    suspend fun receiveConcatenatedSketchGrpc() {
       writeOutputs(WAIT_CONCATENATED)
       val stage =
         if (token.role == DuchyRole.PRIMARY) TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
@@ -275,7 +272,7 @@ class SingleComputationManager(
     }
 
     /** Fakes receiving the joined sketch from the incoming duchy. */
-    fun receiveFlagCountsGrpc() {
+    suspend fun receiveFlagCountsGrpc() {
       writeOutputs(WAIT_FLAG_COUNTS)
       val stage =
         if (token.role == DuchyRole.PRIMARY) TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
@@ -288,7 +285,7 @@ class SingleComputationManager(
     }
   }
 
-  fun gatherLocalSketches() {
+  suspend fun gatherLocalSketches() {
     assertTokenChangesTo(token.copy(stage = TO_ADD_NOISE, attempt = 0, owner = null)) {
       manager.transitionComputationToStage(
         it.token,
@@ -299,13 +296,13 @@ class SingleComputationManager(
   }
 
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
-  fun runWaitStage(stage: SketchAggregationStage) {
+  suspend fun runWaitStage(stage: SketchAggregationStage) {
     assertTokenChangesTo(token.copy(stage = stage, attempt = 1, owner = null)) {
       manager.transitionComputationToStage(it.token, it.outputs.requireNoNulls(), stage)
     }
   }
 
-  fun end(reason: EndComputationReason) {
+  suspend fun end(reason: EndComputationReason) {
     manager.endComputation(token, COMPLETED, reason)
     token = checkNotNull(manager.getToken(token.globalId)) { "No token for $token" }
   }

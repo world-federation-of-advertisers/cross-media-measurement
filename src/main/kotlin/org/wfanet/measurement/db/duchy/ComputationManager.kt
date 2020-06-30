@@ -17,14 +17,14 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun createComputation(globalId: Long, stage: StageT): ComputationToken<StageT> {
+  suspend fun createComputation(globalId: Long, stage: StageT): ComputationToken<StageT> {
     return relationalDatabase.insertComputation(globalId, stage)
   }
 
   /**
    * Returns a [ComputationToken] for the most recent computation for a [globalId].
    */
-  fun getToken(globalId: Long): ComputationToken<StageT>? {
+  suspend fun getToken(globalId: Long): ComputationToken<StageT>? {
     return relationalDatabase.getToken(globalId)
   }
 
@@ -50,7 +50,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] when stage stage transition fails
    */
-  fun transitionStage(
+  suspend fun transitionStage(
     token: ComputationToken<StageT>,
     stageAfter: StageT,
     inputBlobsPaths: List<String> = listOf(),
@@ -73,7 +73,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * @param[endingStage] The terminal stage to transition the computation to
    * @param [endComputationReason] The reason why the computation is ending
    */
-  fun endComputation(
+  suspend fun endComputation(
     token: ComputationToken<StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
@@ -86,7 +86,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun enqueue(token: ComputationToken<StageT>) {
+  suspend fun enqueue(token: ComputationToken<StageT>) {
     relationalDatabase.enqueue(token)
   }
 
@@ -96,7 +96,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * If the returned value is present, then the task has been claimed for the worker. When absent,
    * no task was claimed.
    */
-  fun claimWork(workerId: String): ComputationToken<StageT>? {
+  suspend fun claimWork(workerId: String): ComputationToken<StageT>? {
     return relationalDatabase.claimTask(workerId)
   }
 
@@ -105,7 +105,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun renewWork(token: ComputationToken<StageT>): ComputationToken<StageT> {
+  suspend fun renewWork(token: ComputationToken<StageT>): ComputationToken<StageT> {
     return relationalDatabase.renewTask(token)
   }
 
@@ -114,7 +114,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun readInputBlobs(c: ComputationToken<StageT>): Map<BlobRef, ByteArray> {
+  suspend fun readInputBlobs(c: ComputationToken<StageT>): Map<BlobRef, ByteArray> {
     return readBlobReferences(
       c,
       BlobDependencyType.INPUT
@@ -135,7 +135,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun readBlobReferences(
+  suspend fun readBlobReferences(
     token: ComputationToken<StageT>,
     dependencyType: BlobDependencyType
   ): Map<BlobId, String?> {
@@ -148,7 +148,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun writeAndRecordOutputBlob(
+  suspend fun writeAndRecordOutputBlob(
     token: ComputationToken<StageT>,
     blobName: BlobRef,
     blob: ByteArray
@@ -158,7 +158,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   }
 
   /** Convenience function to get a path were a new blob may be written. */
-  fun newBlobPath(token: ComputationToken<StageT>, name: String): String =
+  suspend fun newBlobPath(token: ComputationToken<StageT>, name: String): String =
     blobDatabase.newBlobPath(token, name)
 
   /**
@@ -167,7 +167,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailT {
+  suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailT {
     return relationalDatabase.readStageSpecificDetails(token)
   }
 }

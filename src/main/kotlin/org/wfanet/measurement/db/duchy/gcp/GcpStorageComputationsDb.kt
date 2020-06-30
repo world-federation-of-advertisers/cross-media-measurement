@@ -18,21 +18,21 @@ class GcpStorageComputationsDb<StageT : Enum<StageT>>(
   private val bucket: String,
   private val random: Random = Random
 ) : ComputationsBlobDb<StageT> {
-  override fun read(reference: BlobRef): ByteArray =
+  override suspend fun read(reference: BlobRef): ByteArray =
     storage[blobId(reference.pathToBlob)]?.getContent() ?: error("No blob for $reference")
 
-  override fun blockingWrite(path: String, bytes: ByteArray) {
+  override suspend fun blockingWrite(path: String, bytes: ByteArray) {
     storage.create(blobInfo(path), bytes)
   }
 
-  override fun delete(reference: BlobRef) {
+  override suspend fun delete(reference: BlobRef) {
     storage.delete(blobId(reference.pathToBlob))
   }
 
   /**
    * Returns a path to that can be used for writing a Blob of the form localId/stage/name/randomId.
    */
-  override fun newBlobPath(token: ComputationToken<StageT>, name: String): String {
+  override suspend fun newBlobPath(token: ComputationToken<StageT>, name: String): String {
     val hexValue = random.nextLong(until = Long.MAX_VALUE).toString(16)
     return Paths.get(token.localId.toString(), token.stage.name, name, hexValue).toString()
   }

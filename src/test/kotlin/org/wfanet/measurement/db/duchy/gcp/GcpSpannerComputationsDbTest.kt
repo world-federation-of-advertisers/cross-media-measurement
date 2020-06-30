@@ -4,6 +4,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.extensions.proto.ProtoTruth
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -120,7 +121,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `insert two computations`() {
+  fun `insert two computations`() = runBlocking<Unit> {
     val idGenerator = HalfOfGlobalBitsAndTimeStampIdGenerator(testClock)
     val id1 = 0xABCDEF0123
     val resultId1 = database.insertComputation(id1, FakeProtocolStages.A)
@@ -258,7 +259,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `insert computations with same global id fails`() {
+  fun `insert computations with same global id fails`() = runBlocking<Unit> {
     database.insertComputation(123L, FakeProtocolStages.A)
     // This one fails because the same local id is used.
     assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
@@ -267,7 +268,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `insert computation with bad initial stage fails`() {
+  fun `insert computation with bad initial stage fails`() = runBlocking<Unit> {
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
       database.insertComputation(123L, FakeProtocolStages.B)
     }
@@ -283,12 +284,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `getToken for non-existing computation returns null`() {
+  fun `getToken for non-existing computation returns null`() = runBlocking<Unit> {
     assertNull(database.getToken(123))
   }
 
   @Test
-  fun getToken() {
+  fun getToken() = runBlocking<Unit> {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1000)
     val computation = computationMutations.insertComputation(
@@ -338,7 +339,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `getToken after insert matches returned token`() {
+  fun `getToken after insert matches returned token`() = runBlocking<Unit> {
     assertEquals(
       database.insertComputation(505, FakeProtocolStages.A),
       database.getToken(505),
@@ -347,7 +348,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun enqueue() {
+  fun enqueue() = runBlocking<Unit> {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationToken(
@@ -408,7 +409,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `enqueue deteleted computation fails`() {
+  fun `enqueue deteleted computation fails`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 1, globalId = 0, stage = FakeProtocolStages.C,
       owner = "PeterSpacemen", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -418,7 +419,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `enqueue with old token fails`() {
+  fun `enqueue with old token fails`() = runBlocking<Unit> {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1)
     val token = ComputationToken(
@@ -442,7 +443,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun claimTask() {
+  fun claimTask() = runBlocking<Unit> {
     testClock.tickSeconds("6_minutes_ago")
     testClock.tickSeconds("5_minutes_ago", 60)
     testClock.tickSeconds("TimeOfTest", 300)
@@ -538,7 +539,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `claim locked tasks`() {
+  fun `claim locked tasks`() = runBlocking<Unit> {
     testClock.tickSeconds("5_minutes_ago", 60)
     testClock.tickSeconds("TimeOfTest", 300)
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcpTimestamp()
@@ -625,7 +626,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun renewTask() {
+  fun renewTask() = runBlocking<Unit> {
     val lastUpdated = TEST_INSTANT.minusSeconds(355)
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.E,
@@ -669,7 +670,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `renewTask for missing computation fails`() {
+  fun `renewTask for missing computation fails`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.E,
       owner = "the-owner-of-the-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -679,7 +680,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `renewTask for token with no owner fails`() {
+  fun `renewTask for token with no owner fails`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.E,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -690,7 +691,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
 
   private fun testTransitionOfStageWhere(
     afterTransition: AfterTransition
-  ): ComputationToken<FakeProtocolStages> {
+  ): ComputationToken<FakeProtocolStages> = runBlocking {
     testClock.tickSeconds("stage_b_created")
     testClock.tickSeconds("last_updated")
     testClock.tickSeconds("lock_expires", 100)
@@ -739,7 +740,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     // lock is held or the exact configurations of the ComputationStageAttempts because they
     // differ depending on what to do after the transition.
     assertStageTransitioned(token)
-    return token
+    return@runBlocking token
   }
 
   private fun assertStageTransitioned(token: ComputationToken<FakeProtocolStages>) {
@@ -787,7 +788,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationStage and continue working`() {
+  fun `updateComputationStage and continue working`() = runBlocking<Unit> {
     val token = testTransitionOfStageWhere(AfterTransition.CONTINUE_WORKING)
 
     assertQueryReturns(
@@ -894,7 +895,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `many stage transitions`() {
+  fun `many stage transitions`() = runBlocking<Unit> {
     testClock.tickSeconds("insert_computation", 20)
     var token = database.insertComputation(12345, FakeProtocolStages.A)
     assertNull(database.claimTask("TestJob"))
@@ -1036,7 +1037,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationStage illegal stage transition fails`() {
+  fun `updateComputationStage illegal stage transition fails`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 1, nextWorker = "", role = DuchyRole.PRIMARY,
       owner = null, attempt = 1, stage = FakeProtocolStages.A,
@@ -1054,7 +1055,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun readBlobReferences() {
+  fun readBlobReferences() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.B,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -1131,7 +1132,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun readStageSpecificDetails() {
+  fun readStageSpecificDetails() = runBlocking<Unit> {
     val token = ComputationToken(
       globalId = 21231,
       localId = 100,
@@ -1175,7 +1176,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun writeOutputBlobReference() {
+  fun writeOutputBlobReference() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.B,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -1250,7 +1251,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `end successful computation`() {
+  fun `end successful computation`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.C,
       owner = null, nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -1300,7 +1301,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `end failed computation`() {
+  fun `end failed computation`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.C,
       owner = "owner-of-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
@@ -1371,7 +1372,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `endComputation throws for non-ending state`() {
+  fun `endComputation throws for non-ending state`() = runBlocking<Unit> {
     val token = ComputationToken(
       localId = 4315, globalId = 55, stage = FakeProtocolStages.C,
       owner = "owner-of-lock", nextWorker = COMPUTATION_DETAILS.outgoingNodeId,
