@@ -62,6 +62,12 @@ class ServiceMocker<T : AbstractCoroutineServerImpl> {
     mockInternal(method.name, block)
   }
 
+  /** Resets all recorded calls and mocked behavior. */
+  fun reset() {
+    calls.clear()
+    handlers.clear()
+  }
+
   private fun <RequestT : Message> mockInternal(
     methodName: String,
     block: (RequestT) -> Any
