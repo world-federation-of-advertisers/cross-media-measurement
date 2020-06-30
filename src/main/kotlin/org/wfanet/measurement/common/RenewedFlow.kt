@@ -1,5 +1,6 @@
 package org.wfanet.measurement.common
 
+import java.time.Duration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -18,19 +19,26 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * @param[reconnectMillis] how frequently to restart the stream
  * @param[reconnectDelayMillis] after disconnecting, how long to wait until reconnecting
- * @param[producer] callback that will be called repeatedly to produce flows
+ * @param[block] callback that will be called repeatedly to produce flows
  * @return the combined flow
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 fun <T> renewedFlow(
   reconnectMillis: Long,
   reconnectDelayMillis: Long,
-  producer: suspend () -> Flow<T>
+  block: suspend () -> Flow<T>
 ): Flow<T> = flow {
   while (true) {
     withTimeoutOrNull(reconnectMillis) {
-      emitAll(producer())
+      emitAll(block())
     }
     delay(reconnectDelayMillis)
   }
 }
+
+fun <T> renewedFlow(
+  reconnect: Duration,
+  reconnectDelay: Duration,
+  block: suspend () -> Flow<T>
+): Flow<T> =
+  renewedFlow(reconnect.toMillis(), reconnectDelay.toMillis(), block)

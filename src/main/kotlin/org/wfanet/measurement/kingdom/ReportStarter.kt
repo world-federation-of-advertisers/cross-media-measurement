@@ -88,7 +88,7 @@ class ReportStarter(
     retryLoop { reportStarterClient.streamReadyReports() }
 
   private fun <T> retryLoop(block: suspend () -> Flow<T>): Flow<T> =
-    renewedFlow(Duration.ofMinutes(10).toMillis(), 0) {
+    renewedFlow(Duration.ofMinutes(10), Duration.ZERO) {
       throttleAndLogExceptions(block) ?: emptyFlow()
     }
 
