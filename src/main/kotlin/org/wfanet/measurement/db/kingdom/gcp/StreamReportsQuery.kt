@@ -20,7 +20,7 @@ class StreamReportsQuery {
       filter.toSql(reader.builder, StreamReportsFilterSqlConverter)
     }
 
-    reader.builder.appendClause("ORDER BY CreateTime ASC")
+    reader.builder.appendClause("ORDER BY UpdateTime ASC")
 
     if (limit > 0) {
       reader.builder

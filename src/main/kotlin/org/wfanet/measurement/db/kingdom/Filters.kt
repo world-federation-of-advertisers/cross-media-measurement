@@ -70,7 +70,7 @@ fun streamReportsFilter(
   externalReportConfigIds: List<ExternalId>? = null,
   externalScheduleIds: List<ExternalId>? = null,
   states: List<ReportState>? = null,
-  createdAfter: Instant? = null
+  updatedAfter: Instant? = null
 ): StreamReportsFilter =
   allOf(
     listOfNotNull(
@@ -78,7 +78,7 @@ fun streamReportsFilter(
       externalReportConfigIds.ifNotNullOrEmpty(StreamReportsClause::ExternalReportConfigId),
       externalScheduleIds.ifNotNullOrEmpty(StreamReportsClause::ExternalScheduleId),
       states.ifNotNullOrEmpty(StreamReportsClause::State),
-      createdAfter?.let(StreamReportsClause::CreatedAfter)
+      updatedAfter.ifNotNullOrEpoch(StreamReportsClause::UpdatedAfter)
     )
   )
 
@@ -121,10 +121,13 @@ sealed class StreamReportsClause : TerminalClause {
   data class State internal constructor(val values: List<ReportState>) :
     StreamReportsClause(), AnyOfClause
 
-  /** Matching Reports must have been created after [value]. */
-  data class CreatedAfter internal constructor(val value: Instant) :
+  /** Matching Reports must have been updated after [value]. */
+  data class UpdatedAfter internal constructor(val value: Instant) :
     StreamReportsClause(), GreaterThanClause
 }
 
-internal fun <T, V> List<T>?.ifNotNullOrEmpty(block: (List<T>) -> V): V? =
+private fun <T, V> List<T>?.ifNotNullOrEmpty(block: (List<T>) -> V): V? =
   this?.ifEmpty { null }?.let(block)
+
+private fun <V> Instant?.ifNotNullOrEpoch(block: (Instant) -> V): V? =
+  this?.let { if (it == Instant.EPOCH) null else block(it) }

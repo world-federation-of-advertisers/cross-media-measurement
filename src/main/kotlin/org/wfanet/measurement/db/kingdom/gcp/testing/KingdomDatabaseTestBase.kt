@@ -122,6 +122,7 @@ abstract class KingdomDatabaseTestBase :
     externalReportId: Long,
     state: ReportState,
     createTime: Instant? = null,
+    updateTime: Instant? = null,
     windowStartTime: Instant = Instant.EPOCH,
     windowEndTime: Instant = Instant.EPOCH,
     reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
@@ -134,6 +135,7 @@ abstract class KingdomDatabaseTestBase :
         .set("ReportId").to(reportId)
         .set("ExternalReportId").to(externalReportId)
         .set("CreateTime").to(createTime?.toGcpTimestamp() ?: Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime").to(updateTime?.toGcpTimestamp() ?: Value.COMMIT_TIMESTAMP)
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
         .set("State").toProtoEnum(state)

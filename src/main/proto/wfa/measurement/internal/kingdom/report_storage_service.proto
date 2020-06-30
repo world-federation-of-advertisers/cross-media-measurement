@@ -19,7 +19,11 @@ service ReportStorage {
   // elapsed, this will return that Report instead of making a new one.
   rpc CreateNextReport(CreateNextReportRequest) returns (Report);
 
-  // Streams Reports from the database, ordered by create time ascending.
+  // Streams Reports from the database, ordered by update time ascending.
+  //
+  // Note: the stream happens at a snapshot in time, so updates that happen
+  // after the gRPC is started will not be included in the results. This implies
+  // that the stream will eventually run out of Reports to stream and terminate.
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
 
   // Streams "ready" Reports from the database: those that are awaiting
@@ -44,8 +48,7 @@ message CreateNextReportRequest {
 
 message StreamReportsRequest {
   int64 limit = 1;
-
-  Filter filter = 3;
+  Filter filter = 2;
 
   // All repeated fields are individually disjunctions.
   //
@@ -56,7 +59,7 @@ message StreamReportsRequest {
     repeated int64 external_report_config_ids = 4;
     repeated int64 external_schedule_ids = 5;
     repeated Report.ReportState states = 6;
-    google.protobuf.Timestamp created_after = 7;
+    google.protobuf.Timestamp updated_after = 7;
   }
 }
 

@@ -31,7 +31,7 @@ class ReportStorageService(
         externalReportConfigIds = request.filter.externalReportConfigIdsList.map(::ExternalId),
         externalScheduleIds = request.filter.externalScheduleIdsList.map(::ExternalId),
         states = request.filter.statesList,
-        createdAfter = request.filter.createdAfter.toInstant()
+        updatedAfter = request.filter.updatedAfter.toInstant()
       ),
       request.limit
     )

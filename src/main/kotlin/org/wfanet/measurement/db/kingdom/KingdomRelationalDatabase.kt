@@ -49,7 +49,7 @@ interface KingdomRelationalDatabase {
   fun updateReportState(externalReportId: ExternalId, state: ReportState): Report
 
   /**
-   * Streams [Report]s.
+   * Streams [Report]s ordered by ascending update time.
    */
   fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report>
 

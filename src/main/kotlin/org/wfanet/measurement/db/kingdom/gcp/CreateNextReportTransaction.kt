@@ -78,6 +78,7 @@ class CreateNextReportTransaction(
         .set("ReportId").to(randomIdGenerator.generateInternalId().value)
         .set("ExternalReportId").to(randomIdGenerator.generateExternalId().value)
         .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
         .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)

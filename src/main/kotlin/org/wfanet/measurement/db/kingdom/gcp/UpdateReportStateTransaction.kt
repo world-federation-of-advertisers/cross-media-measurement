@@ -2,6 +2,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
+import com.google.cloud.spanner.Value
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.toProtoEnum
@@ -30,6 +31,7 @@ class UpdateReportStateTransaction {
         .set("ScheduleId").to(reportReadResult.scheduleId)
         .set("ReportId").to(reportReadResult.reportId)
         .set("State").toProtoEnum(state)
+        .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         .build()
 
     transactionContext.buffer(mutation)

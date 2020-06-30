@@ -23,6 +23,7 @@ class ReportReader : SpannerReader<ReportReadResult>() {
       "Reports.ReportId",
       "Reports.ExternalReportId",
       "Reports.CreateTime",
+      "Reports.UpdateTime",
       "Reports.WindowStartTime",
       "Reports.WindowEndTime",
       "Reports.State",
@@ -73,6 +74,7 @@ class ReportReader : SpannerReader<ReportReadResult>() {
     externalReportId = struct.getLong("ExternalReportId")
 
     createTime = struct.getTimestamp("CreateTime").toProto()
+    updateTime = struct.getTimestamp("UpdateTime").toProto()
 
     windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
     windowEndTime = struct.getTimestamp("WindowEndTime").toProto()

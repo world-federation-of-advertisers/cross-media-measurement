@@ -98,7 +98,7 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
   @Test
   fun `create time`() = runBlocking<Unit> {
     fun executeWithTimeFilter(time: Instant) =
-      executeToList(streamReportsFilter(createdAfter = time), 100)
+      executeToList(streamReportsFilter(updatedAfter = time), 100)
 
     val all = executeWithTimeFilter(Instant.EPOCH)
 
@@ -134,7 +134,7 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
       externalReportConfigIds = listOf(ExternalId(EXTERNAL_REPORT_CONFIG_ID)),
       externalScheduleIds = listOf(ExternalId(EXTERNAL_SCHEDULE_ID)),
       states = listOf(ReportState.READY_TO_START),
-      createdAfter = Instant.EPOCH
+      updatedAfter = Instant.EPOCH
     )
     assertThat(executeToList(filter, 10))
       .comparingExpectedFieldsOnly()

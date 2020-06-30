@@ -83,8 +83,8 @@ object StreamReportsFilterSqlConverter : SqlConverter<StreamReportsClause> {
     is StreamReportsClause.State ->
       SqlData("Reports.State", "state", enumValueArray(v.values))
 
-    is StreamReportsClause.CreatedAfter ->
-      SqlData("Reports.CreateTime", "create_time", timestampValue(v.value))
+    is StreamReportsClause.UpdatedAfter ->
+      SqlData("Reports.UpdateTime", "update_time", timestampValue(v.value))
   }
 }
 
