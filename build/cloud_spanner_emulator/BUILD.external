@@ -1,0 +1,22 @@
+package(default_visibility = ["//visibility:public"])
+
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+
+RESTRICTIONS = [
+    "@bazel_tools//platforms:x86_64",
+    "@bazel_tools//platforms:linux",
+]
+
+native_binary(
+    name = "emulator",
+    src = "emulator_main",
+    out = "emulator",
+    exec_compatible_with = RESTRICTIONS,
+)
+
+native_binary(
+    name = "emulator_rest",
+    src = "gateway_main",
+    out = "emulator_rest",
+    exec_compatible_with = RESTRICTIONS,
+)

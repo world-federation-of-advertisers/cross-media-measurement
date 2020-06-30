@@ -13,8 +13,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /** Relative runfiles path to Cloud Spanner Emulator binary. */
-private const val EMULATOR_RUNFILES_PATH = "wfa_measurement_system/src/main/kotlin/org/wfanet/" +
-  "measurement/db/gcp/testing/cloud_spanner_emulator"
+private const val EMULATOR_RUNFILES_PATH = "cloud_spanner_emulator/emulator"
 
 private const val EMULATOR_HOSTNAME = "localhost"
 

@@ -1,9 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
-
-native_binary(
-    name = "bazel_binary",
-    src = "bazel",
-    out = "bazel",
-)
