@@ -10,6 +10,7 @@ import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationStageAttemptDetails
 
 /** Tells the mutation to write a null value to a string column. */
 const val WRITE_NULL_STRING = ""
@@ -196,7 +197,8 @@ class ComputationMutations<StageT : Enum<StageT>, StageDetailsT : Message>(
     stage: StageT,
     attempt: Long,
     beginTime: Timestamp? = null,
-    endTime: Timestamp? = null
+    endTime: Timestamp? = null,
+    details: ComputationStageAttemptDetails? = null
   ): Mutation {
     val m = newBuilderFunction("ComputationStageAttempts")
     m.set("ComputationId").to(localId)
@@ -204,6 +206,7 @@ class ComputationMutations<StageT : Enum<StageT>, StageDetailsT : Message>(
     m.set("Attempt").to(attempt)
     beginTime?.let { m.set("BeginTime").to(nonNullValueTimestamp(it)) }
     endTime?.let { m.set("EndTime").to(nonNullValueTimestamp(it)) }
+    details?.let { m.set("Details").toProtoBytes(details).set("DetailsJSON").toProtoJson(details) }
     return m.build()
   }
 
@@ -218,10 +221,11 @@ class ComputationMutations<StageT : Enum<StageT>, StageDetailsT : Message>(
     stage: StageT,
     attempt: Long,
     beginTime: Timestamp,
-    endTime: Timestamp? = null
+    endTime: Timestamp? = null,
+    details: ComputationStageAttemptDetails
   ): Mutation {
     return computationStageAttempt(
-      Mutation::newInsertBuilder, localId, stage, attempt, beginTime, endTime
+      Mutation::newInsertBuilder, localId, stage, attempt, beginTime, endTime, details
     )
   }
 
@@ -236,10 +240,11 @@ class ComputationMutations<StageT : Enum<StageT>, StageDetailsT : Message>(
     stage: StageT,
     attempt: Long,
     beginTime: Timestamp? = null,
-    endTime: Timestamp? = null
+    endTime: Timestamp? = null,
+    details: ComputationStageAttemptDetails? = null
   ): Mutation {
     return computationStageAttempt(
-      Mutation::newUpdateBuilder, localId, stage, attempt, beginTime, endTime
+      Mutation::newUpdateBuilder, localId, stage, attempt, beginTime, endTime, details
     )
   }
 

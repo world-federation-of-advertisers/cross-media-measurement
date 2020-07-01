@@ -41,3 +41,20 @@ message ComputationDetails {
   // when the protocol has finished for the computation.
   CompletedReason ending_state = 5;
 }
+
+// Details about a single attempt of a computation stage.
+message ComputationStageAttemptDetails {
+  enum EndReason {
+    UNSPECIFIED = 0;
+    SUCCEEDED = 1;
+    // The attempt failed due to a caught error while executing.
+    ERROR = 2;
+    // The lock expired and was overtaken by another process.
+    LOCK_OVERWRITTEN = 3;
+    // The computation was cancelled so the results of the stage were
+    // no longer needed.
+    CANCELLED = 4;
+  }
+  // The reason why the attempt of the stage ended.
+  EndReason reason_ended = 1;
+}

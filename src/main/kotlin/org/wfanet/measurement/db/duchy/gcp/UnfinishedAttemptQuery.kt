@@ -2,6 +2,8 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.db.gcp.getProtoMessage
+import org.wfanet.measurement.internal.db.gcp.ComputationStageAttemptDetails
 
 /** Queries for the attempts of stages for a computation that do not have an end time. */
 class UnfinishedAttemptQuery<StageT>(
@@ -11,7 +13,7 @@ class UnfinishedAttemptQuery<StageT>(
   companion object {
     private const val parameterizedQueryString =
       """
-      SELECT ComputationStage, Attempt
+      SELECT ComputationStage, Attempt, Details
       FROM ComputationStageAttempts
       WHERE ComputationId = @local_id
         AND EndTime IS NULL
@@ -23,12 +25,14 @@ class UnfinishedAttemptQuery<StageT>(
     UnfinishedAttemptQueryResult(
       computationId = localId,
       stage = parseStageEnum(struct.getLong("ComputationStage")),
-      attempt = struct.getLong("Attempt")
+      attempt = struct.getLong("Attempt"),
+      details = struct.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
     )
 }
 /** @see [UnfinishedAttemptQuery.asResult] .*/
 data class UnfinishedAttemptQueryResult<StageT>(
   val computationId: Long,
   val stage: StageT,
-  val attempt: Long
+  val attempt: Long,
+  val details: ComputationStageAttemptDetails
 )

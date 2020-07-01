@@ -32,6 +32,7 @@ import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationStageAttemptDetails
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
@@ -95,7 +96,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         localId = localId,
         stage = initialStage,
         attempt = 1,
-        beginTime = writeTimestamp
+        beginTime = writeTimestamp,
+        details = ComputationStageAttemptDetails.getDefaultInstance()
       )
 
     val blobRefRow =
@@ -218,7 +220,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         computationId,
         stage,
         nextAttempt,
-        beginTime = writeTime
+        beginTime = writeTime,
+        details = ComputationStageAttemptDetails.getDefaultInstance()
       )
     )
     // And increment NextAttempt column of the computation stage.
@@ -231,15 +234,27 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
     )
 
     if (currentLockOwnerStruct.getNullableString("LockOwner") != null) {
+      // The current attempt is the one before the nextAttempt
+      val currentAttempt = nextAttempt - 1
+      val details =
+        ctx.readRow(
+          "ComputationStageAttempts",
+          Key.of(computationId, computationMutations.enumToLong(stage), currentAttempt),
+          listOf("Details")
+        )
+          ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+          ?: error("Failed to claim computation $computationId. It does not exist.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
       ctx.buffer(
-        // TODO(fryej): Add a column that captures why an attempt ended.
         computationMutations.updateComputationStageAttempt(
           localId = computationId,
           stage = stage,
-          attempt = nextAttempt - 1, // The current attempt is the one before the nextAttempt
-          endTime = writeTime
+          attempt = currentAttempt,
+          endTime = writeTime,
+          details = details.toBuilder()
+            .setReasonEnded(ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN)
+            .build()
         )
       )
     }
@@ -288,7 +303,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       }
       val writeTime = clock.gcpTimestamp()
 
-      ctx.buffer(mutationsToChangeStages(token, to, writeTime, afterTransition))
+      ctx.buffer(mutationsToChangeStages(ctx, token, to, writeTime, afterTransition))
 
       ctx.buffer(
         mutationsToMakeBlobRefsForNewStage(
@@ -359,7 +374,10 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
               localId = unfinished.computationId,
               stage = unfinished.stage,
               attempt = unfinished.attempt,
-              endTime = writeTime
+              endTime = writeTime,
+              details = unfinished.details.toBuilder()
+                .setReasonEnded(ComputationStageAttemptDetails.EndReason.CANCELLED)
+                .build()
             )
           )
         }
@@ -367,6 +385,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   }
 
   private fun mutationsToChangeStages(
+    ctx: TransactionContext,
     token: ComputationToken<StageT>,
     newStage: StageT,
     writeTime: Timestamp,
@@ -399,19 +418,30 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
 
     mutations.add(
       computationMutations.updateComputationStage(
-        token.localId,
+        localId = token.localId,
         stage = token.stage,
         followingStage = newStage,
         endTime = writeTime
       )
     )
 
+    val attemptDetails =
+      ctx.readRow(
+        "ComputationStageAttempts",
+        Key.of(token.localId, computationMutations.enumToLong(token.stage), token.attempt),
+        listOf("Details")
+      )
+        ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
+        ?: error("No ComputationStageAttempt (${token.localId}, $newStage, ${token.attempt})")
     mutations.add(
       computationMutations.updateComputationStageAttempt(
-        token.localId,
-        token.stage,
-        token.attempt,
-        endTime = writeTime
+        localId = token.localId,
+        stage = token.stage,
+        attempt = token.attempt,
+        endTime = writeTime,
+        details = attemptDetails.toBuilder()
+          .setReasonEnded(ComputationStageAttemptDetails.EndReason.SUCCEEDED)
+          .build()
       )
     )
 
@@ -427,7 +457,8 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
             localId = token.localId,
             stage = newStage,
             attempt = 1,
-            beginTime = writeTime
+            beginTime = writeTime,
+            details = ComputationStageAttemptDetails.getDefaultInstance()
           )
       }
 

@@ -33,6 +33,7 @@ import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.db.gcp.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
 
 /**
@@ -237,7 +238,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationId DESC
       """.trimIndent(),
@@ -247,6 +248,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(1)
         .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId2.localId)
@@ -254,6 +256,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(1)
         .set("BeginTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
   }
@@ -502,13 +505,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
+      SELECT Attempt, BeginTime, EndTime, Details FROM ComputationStageAttempts
       WHERE ComputationId = 66 AND ComputationStage = 0
       """.trimIndent(),
       Struct.newBuilder()
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
 
@@ -524,13 +528,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
+      SELECT Attempt, BeginTime, EndTime, Details FROM ComputationStageAttempts
       WHERE ComputationId = 555 AND ComputationStage = 0
       """.trimIndent(),
       Struct.newBuilder()
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
 
@@ -564,7 +569,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = 111,
       stage = FakeProtocolStages.A,
       attempt = 1,
-      beginTime = fiveMinutesAgo
+      beginTime = fiveMinutesAgo,
+      details = ComputationStageAttemptDetails.getDefaultInstance()
     )
     databaseClient.write(listOf(expiredClaim, expiredClaimStage, expiredClaimAttempt))
 
@@ -588,7 +594,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = 333,
       stage = FakeProtocolStages.A,
       attempt = 1,
-      beginTime = fiveMinutesAgo
+      beginTime = fiveMinutesAgo,
+      details = ComputationStageAttemptDetails.getDefaultInstance()
     )
     databaseClient.write(listOf(claimed, claimedStage, claimedAttempt))
 
@@ -605,7 +612,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT Attempt, BeginTime, EndTime FROM ComputationStageAttempts
+      SELECT Attempt, BeginTime, EndTime, Details FROM ComputationStageAttempts
       WHERE ComputationId = 111 AND ComputationStage = 0
       ORDER BY Attempt
       """.trimIndent(),
@@ -613,11 +620,17 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(1)
         .set("BeginTime").to(fiveMinutesAgo)
         .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN
+          }.build()
+        )
         .build(),
       Struct.newBuilder()
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
 
@@ -722,7 +735,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         localId = token.localId,
         stage = FakeProtocolStages.B,
         attempt = 2,
-        beginTime = testClock["stage_b_created"].toGcpTimestamp()
+        beginTime = testClock["stage_b_created"].toGcpTimestamp(),
+        details = ComputationStageAttemptDetails.getDefaultInstance()
       )
     databaseClient.write(listOf(computation, stage, attempt))
     testClock.tickSeconds("update_stage", 100)
@@ -804,7 +818,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
@@ -814,6 +828,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
+          }.build()
+        )
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -821,6 +840,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
   }
@@ -842,7 +862,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
@@ -852,6 +872,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
+          }.build()
+        )
         .build()
     )
   }
@@ -873,7 +898,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
@@ -883,6 +908,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
+          }.build()
+        )
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -890,6 +920,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcpTimestamp())
         .set("EndTime").to(null as Timestamp?)
+        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
   }
@@ -1327,7 +1358,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       localId = token.localId,
       stage = FakeProtocolStages.C,
       attempt = 2,
-      beginTime = testClock.last().toGcpTimestamp()
+      beginTime = testClock.last().toGcpTimestamp(),
+      details = ComputationStageAttemptDetails.getDefaultInstance()
     )
     testClock.tickSeconds("time-failed")
     databaseClient.write(listOf(computation, stage, attempt))
@@ -1357,7 +1389,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
@@ -1367,6 +1399,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["start"].toGcpTimestamp())
         .set("EndTime").to(testClock.last().toGcpTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.CANCELLED
+          }.build()
+        )
         .build()
     )
   }

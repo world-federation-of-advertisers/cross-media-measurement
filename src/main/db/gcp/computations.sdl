@@ -208,6 +208,18 @@ CREATE TABLE ComputationStageAttempts (
 
   -- When the attempt finished.
   EndTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+
+  -- Serialized bytes of a proto3 protobuf with details about the attempt of
+  --  a computation stage which do not need to be indexed by the database.
+  --
+  -- See the wfa.measurement.internal.db.gcp.ComputationStageAttemptDetails Proto
+  Details BYTES(MAX) NOT NULL,
+
+  -- Serialized bytes of a proto3 protobuf with details about the attempt of
+  --  a computation stage which do not need to be indexed by the database.
+  --
+  -- See the wfa.measurement.internal.db.gcp.ComputationStageAttemptDetails Proto
+  DetailsJSON STRING(MAX) NOT NULL,
 ) PRIMARY KEY (ComputationId, ComputationStage, Attempt),
   INTERLEAVE IN PARENT ComputationStages ON DELETE CASCADE;
 
