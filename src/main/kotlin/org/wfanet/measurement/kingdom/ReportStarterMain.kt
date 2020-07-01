@@ -17,50 +17,44 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportC
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 
-object ReportStarterFlags {
-  val MAX_PARALLELISM = intFlag("max-parallelism", 32)
-  val INTERNAL_SERVICES_TARGET = stringFlag("internal-services-target", "")
-}
+fun main(args: Array<String>) = runBlocking<Unit> {
+  val maxParallelism = intFlag("max-parallelism", 32)
+  val internalServicesTarget = stringFlag("internal-services-target", "")
+  val overloadFactor = doubleFlag("throttler-overload-factor", 1.2)
+  val timeHorizon = durationFlag("throttler-time-horizon", Duration.ofMinutes(2))
+  val pollDelay = durationFlag("throttler-poll-delay", Duration.ofMillis(1))
 
-object ThrottlerFlags {
-  val OVERLOAD_FACTOR = doubleFlag("throttler-overload-factor", 1.2)
-  val TIME_HORIZON = durationFlag("throttler-time-horizon", Duration.ofMinutes(2))
-  val POLL_DELAY = durationFlag("throttler-poll-delay", Duration.ofMillis(1))
-}
+  Flags.parse(args.asIterable())
 
-fun main(args: Array<String>) {
-  runBlocking {
-    Flags.parse(args.asIterable())
+  val channel: ManagedChannel =
+    ManagedChannelBuilder
+      .forTarget(internalServicesTarget.value)
+      .usePlaintext()
+      .build()
 
-    val channel: ManagedChannel =
-      ManagedChannelBuilder
-        .forTarget(ReportStarterFlags.INTERNAL_SERVICES_TARGET.value)
-        .build()
+  val throttler = AdaptiveThrottler(
+    overloadFactor.value,
+    Clock.systemUTC(),
+    timeHorizon.value,
+    pollDelay.value
+  )
 
-    val throttler = AdaptiveThrottler(
-      ThrottlerFlags.OVERLOAD_FACTOR.value,
-      Clock.systemUTC(),
-      ThrottlerFlags.TIME_HORIZON.value,
-      ThrottlerFlags.POLL_DELAY.value
-    )
+  val reportStarterClient = ReportStarterClientImpl(
+    ReportConfigStorageCoroutineStub(channel),
+    ReportConfigScheduleStorageCoroutineStub(channel),
+    ReportStorageCoroutineStub(channel),
+    RequisitionStorageCoroutineStub(channel)
+  )
 
-    val reportStarterClient = ReportStarterClientImpl(
-      ReportConfigStorageCoroutineStub(channel),
-      ReportConfigScheduleStorageCoroutineStub(channel),
-      ReportStorageCoroutineStub(channel),
-      RequisitionStorageCoroutineStub(channel)
-    )
+  val reportStarter = ReportStarter(
+    throttler,
+    maxParallelism.value,
+    reportStarterClient
+  )
 
-    val reportStarter = ReportStarter(
-      throttler,
-      ReportStarterFlags.MAX_PARALLELISM.value,
-      reportStarterClient
-    )
-
-    // We just launch each of the tasks that we want to do in parallel. They each run indefinitely.
-    // TODO: move to separate binaries.
-    launch { reportStarter.createReports() }
-    launch { reportStarter.createRequisitions() }
-    launch { reportStarter.startReports() }
-  }
+  // We just launch each of the tasks that we want to do in parallel. They each run indefinitely.
+  // TODO: move to separate binaries.
+  launch { reportStarter.createReports() }
+  launch { reportStarter.createRequisitions() }
+  launch { reportStarter.startReports() }
 }
