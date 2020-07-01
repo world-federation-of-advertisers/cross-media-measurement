@@ -2,14 +2,14 @@ package org.wfanet.measurement.common
 
 import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertThat
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
 import kotlinx.coroutines.test.runBlockingTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
 
 @RunWith(JUnit4::class)
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -54,9 +54,10 @@ class AdaptiveThrottlerTest {
     assertThat(numExceptions).isIn(4500..5500)
 
     // Should converge around 100qps (and thus take 10,000 / 100 = 100 seconds).
+    // However, since there's randomness involved, we accept a wide range of durations.
     val testDuration = Duration.between(begin, lastAccept)
     assertThat(testDuration)
-      .isIn(Range.open(Duration.ofSeconds(95), Duration.ofSeconds(105)))
+      .isIn(Range.open(Duration.ofSeconds(90), Duration.ofSeconds(110)))
 
     // Ensure all the events actually executed.
     assertThat(events)
