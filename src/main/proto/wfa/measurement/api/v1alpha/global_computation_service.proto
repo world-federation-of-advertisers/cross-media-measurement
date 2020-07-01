@@ -43,6 +43,6 @@ message StreamActiveGlobalComputationsRequest {
 
 // Response message for StreamActiveGlobalComputations method.
 message StreamActiveGlobalComputationsResponse {
-  GlobalComputation global_computations = 1;
+  GlobalComputation global_computation = 1;
   string continuation_token = 2;
 }

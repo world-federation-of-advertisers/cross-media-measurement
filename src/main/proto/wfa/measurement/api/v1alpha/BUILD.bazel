@@ -116,3 +116,12 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
     deps = [":global_computation_proto"],
 )
+
+proto_library(
+    name = "global_computation_status_update_proto",
+    srcs = ["global_computation_status_update.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
