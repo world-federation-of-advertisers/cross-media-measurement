@@ -22,6 +22,7 @@ using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
 using ::private_join_and_compute::Status;
 using ::private_join_and_compute::StatusCode;
+using ::testing::SizeIs;
 using ::wfa::measurement::api::v1alpha::Sketch;
 using ::wfa::measurement::api::v1alpha::SketchConfig;
 using ::wfa::measurement::internal::duchy::ElGamalKeys;
@@ -163,6 +164,8 @@ class TestData {
          .mutable_local_pohlig_hellman_sk() = duchy_1_p_h_key_;
     *blind_one_layer_register_index_request_1.mutable_local_el_gamal_keys() =
         duchy_1_el_gamal_keys_;
+    *blind_one_layer_register_index_request_1
+         .mutable_composite_el_gamal_keys() = client_el_gamal_keys_;
     blind_one_layer_register_index_request_1.set_curve_id(kTestCurveId);
     blind_one_layer_register_index_request_1.mutable_sketch()->append(
         encrypted_sketch);
@@ -177,6 +180,8 @@ class TestData {
          .mutable_local_pohlig_hellman_sk() = duchy_2_p_h_key_;
     *blind_one_layer_register_index_request_2.mutable_local_el_gamal_keys() =
         duchy_2_el_gamal_keys_;
+    *blind_one_layer_register_index_request_2
+         .mutable_composite_el_gamal_keys() = client_el_gamal_keys_;
     blind_one_layer_register_index_request_2.set_curve_id(kTestCurveId);
     blind_one_layer_register_index_request_2.mutable_sketch()->append(
         blind_one_layer_register_index_response_1.sketch().begin(),
@@ -255,6 +260,49 @@ class TestData {
     return final_response;
   }
 };
+
+TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
+  TestData test_data;
+  Sketch plain_sketch = CreateEmptyClceSketch();
+  AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
+  std::vector<unsigned char> encrypted_sketch =
+      test_data.sketch_encrypter->Encrypt(plain_sketch).value();
+
+  // Blind register indexes at duchy 1
+  BlindOneLayerRegisterIndexRequest request;
+  *request.mutable_local_pohlig_hellman_sk() = test_data.duchy_1_p_h_key_;
+  *request.mutable_local_el_gamal_keys() = test_data.duchy_1_el_gamal_keys_;
+  *request.mutable_composite_el_gamal_keys() = test_data.client_el_gamal_keys_;
+  request.set_curve_id(kTestCurveId);
+  request.mutable_sketch()->append(encrypted_sketch.begin(),
+                                   encrypted_sketch.end());
+  StatusOr<BlindOneLayerRegisterIndexResponse> response_1 =
+      BlindOneLayerRegisterIndex(request);
+  StatusOr<BlindOneLayerRegisterIndexResponse> response_2 =
+      BlindOneLayerRegisterIndex(request);
+
+  ASSERT_TRUE(response_1.ok());
+  ASSERT_TRUE(response_2.ok());
+  std::string raw_sketch = request.sketch();
+  std::string blinded_sketch_1 = response_1.value().sketch();
+  std::string blinded_sketch_2 = response_2.value().sketch();
+  ASSERT_THAT(blinded_sketch_1, SizeIs(66 * 3));  // 1 register, 3 ciphertexts
+  ASSERT_THAT(blinded_sketch_2, SizeIs(66 * 3));  // 1 register, 3 ciphertexts
+  // Position changed due to blinding.
+  ASSERT_NE(raw_sketch.substr(0, 66), blinded_sketch_1.substr(0, 66));
+  ASSERT_NE(raw_sketch.substr(0, 66), blinded_sketch_2.substr(0, 66));
+  // Key changed due to re-randomizing.
+  ASSERT_NE(raw_sketch.substr(66, 66), blinded_sketch_1.substr(66, 66));
+  ASSERT_NE(raw_sketch.substr(66, 66), blinded_sketch_2.substr(66, 66));
+  // Count changed due to re-randomizing.
+  ASSERT_NE(raw_sketch.substr(66 * 2, 66), blinded_sketch_1.substr(66 * 2, 66));
+  ASSERT_NE(raw_sketch.substr(66 * 2, 66), blinded_sketch_2.substr(66 * 2, 66));
+  // multiple re-randomizing results should be different.
+  ASSERT_NE(blinded_sketch_1.substr(66, 66),
+            blinded_sketch_2.substr(66, 66));  // Key
+  ASSERT_NE(blinded_sketch_1.substr(66 * 2, 66),
+            blinded_sketch_2.substr(66 * 2, 66));  // Count
+}
 
 TEST(BlindOneLayerRegisterIndex, wrongInputSketchSizeShouldThrow) {
   BlindOneLayerRegisterIndexRequest request;

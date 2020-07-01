@@ -193,8 +193,8 @@ StatusOr<SameKeyAggregator> CreateSameKeyAggregator(
   return result;
 }
 
-// Extract a ciphertext from the head of the string_view.
-StatusOr<ElGamalCiphertext> ExtractCipherTextFromSubstring(
+// Extract an ElGamalCiphertext from a string_view.
+StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
     absl::string_view str) {
   if (str.size() != kBytesPerCipherText) {
     return InternalError("string size doesn't match ciphertext size.");
@@ -204,7 +204,7 @@ StatusOr<ElGamalCiphertext> ExtractCipherTextFromSubstring(
       std::string(str.substr(kBytesPerEcPoint, kBytesPerEcPoint)));
 }
 
-// Extract a KeyCount pair from the head of the string_view.
+// Extract a KeyCountPairCipherText from a string_view.
 StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
     absl::string_view str) {
   if (str.size() != kBytesPerCipherText * 2) {
@@ -212,12 +212,28 @@ StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
         "string size doesn't match keycount pair ciphertext size.");
   }
   KeyCountPairCipherText result;
-  ASSIGN_OR_RETURN(result.key, ExtractCipherTextFromSubstring(
+  ASSIGN_OR_RETURN(result.key, ExtractElGamalCiphertextFromString(
                                    str.substr(0, kBytesPerCipherText)));
   ASSIGN_OR_RETURN(result.count,
-                   ExtractCipherTextFromSubstring(
+                   ExtractElGamalCiphertextFromString(
                        str.substr(kBytesPerCipherText, kBytesPerCipherText)));
   return result;
+}
+
+Status ReRandomizeCiphertextAndAppendToString(
+    const ECGroup& ec_group, const CommutativeElGamal& client_e_g_cipher,
+    absl::string_view ciphertext_string, std::string& result) {
+  ASSIGN_OR_RETURN(ElGamalCiphertext zero,
+                   client_e_g_cipher.EncryptIdentityElement());
+  ASSIGN_OR_RETURN(ElGamalEcPointPair zero_ec,
+                   GetElGamalEcPoints(zero, ec_group));
+  ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                   ExtractElGamalCiphertextFromString(ciphertext_string));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair ciphertext_ec,
+                   GetElGamalEcPoints(ciphertext, ec_group));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair temp,
+                   AddEcPointPairs(zero_ec, ciphertext_ec));
+  return AppendEcPointPairToString(temp, result);
 }
 
 Status ValidateByteSize(absl::string_view data, const int bytes_per_row) {
@@ -246,7 +262,7 @@ StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
       return InternalError("Offset is out of bound");
     }
     ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractCipherTextFromSubstring(
+                     ExtractElGamalCiphertextFromString(
                          sketch.substr(offset, kBytesPerCipherText)));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      composite_cipher.e_g_cipher->Decrypt(ciphertext));
@@ -412,10 +428,21 @@ Status JoinRegistersByIndexAndMergeCounts(
 StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request) {
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
+  // Composite cipher used to blind the positions.
   ASSIGN_OR_RETURN(
       CompositeCipher composite_cipher,
       CreateCompositeCipher(request.curve_id(), request.local_el_gamal_keys(),
                             request.local_pohlig_hellman_sk()));
+  // ElGamal cipher used to re-randomize the keys and counts.
+  ASSIGN_OR_RETURN(
+      std::unique_ptr<CommutativeElGamal> client_e_g_cipher,
+      CommutativeElGamal::CreateFromPublicKey(
+          request.curve_id(),
+          GetPublicKeyStringPair(request.composite_el_gamal_keys())));
+  // Set the ECGroup and Conext.
+  auto ctx = absl::make_unique<Context>();
+  ASSIGN_OR_RETURN(ECGroup ec_group,
+                   ECGroup::Create(request.curve_id(), ctx.get()));
   BlindOneLayerRegisterIndexResponse response;
   *response.mutable_local_pohlig_hellman_sk() =
       composite_cipher.p_h_cipher->GetPrivateKeyBytes();
@@ -424,11 +451,11 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   response_sketch->reserve(request.sketch().size());
   for (size_t offset = 0; offset < request.sketch().size();
        offset += kBytesPerCipherRegister) {
-    if (offset + kBytesPerCipherText > request.sketch().size()) {
+    if (offset + 3 * kBytesPerCipherText > request.sketch().size()) {
       return InternalError("Offset is out of bound");
     }
     ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractCipherTextFromSubstring(
+                     ExtractElGamalCiphertextFromString(
                          request.sketch().substr(offset, kBytesPerCipherText)));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      composite_cipher.e_g_cipher->Decrypt(ciphertext));
@@ -439,10 +466,17 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     // 1. append the blinded register index value.
     response_sketch->append(re_encrypted_p_h.first);
     response_sketch->append(re_encrypted_p_h.second);
-    // 2. keep the original key and count values
-    // Skip the index and append the key and count values.
-    response_sketch->append(request.sketch().substr(
-        offset + kBytesPerCipherText, kBytesPerCipherText * 2));
+    // 2. re-randomize the key and count values and append to the response.
+    RETURN_IF_ERROR(ReRandomizeCiphertextAndAppendToString(
+        ec_group, *client_e_g_cipher.get(),
+        request.sketch().substr(offset + kBytesPerCipherText,
+                                kBytesPerCipherText),
+        *response_sketch));
+    RETURN_IF_ERROR(ReRandomizeCiphertextAndAppendToString(
+        ec_group, *client_e_g_cipher.get(),
+        request.sketch().substr(offset + kBytesPerCipherText * 2,
+                                kBytesPerCipherText),
+        *response_sketch));
   }
   // TODO(wangyaopw): shuffle the sketch before returning.
   return response;
@@ -505,7 +539,7 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     }
     ASSIGN_OR_RETURN(
         ElGamalCiphertext ciphertext,
-        ExtractCipherTextFromSubstring(
+        ExtractElGamalCiphertextFromString(
             request.flag_counts().substr(offset, kBytesPerCipherText)));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      el_gamal_cipher->Decrypt(ciphertext));
@@ -544,7 +578,7 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     }
     ASSIGN_OR_RETURN(
         ElGamalCiphertext flag_ciphertext,
-        ExtractCipherTextFromSubstring(
+        ExtractElGamalCiphertextFromString(
             request.flag_counts().substr(offset, kBytesPerCipherText)));
     ASSIGN_OR_RETURN(std::string flag_plaintext,
                      el_gamal_cipher->Decrypt(flag_ciphertext));
@@ -552,7 +586,7 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     // fail. So we need to check the status before fetching the value.
     ASSIGN_OR_RETURN(
         ElGamalCiphertext count_ciphertext,
-        ExtractCipherTextFromSubstring(request.flag_counts().substr(
+        ExtractElGamalCiphertextFromString(request.flag_counts().substr(
             offset + kBytesPerCipherText, kBytesPerCipherText)));
     StatusOr<std::string> count_plaintext =
         el_gamal_cipher->Decrypt(count_ciphertext);

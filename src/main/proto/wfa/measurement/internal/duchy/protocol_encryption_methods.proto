@@ -74,6 +74,9 @@ message BlindOneLayerRegisterIndexRequest {
   bytes local_pohlig_hellman_sk = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
+  // Public Keys of the composite ElGamal cipher. Used to re-randomize the keys
+  // and counts.
+  ElGamalPublicKeys composite_el_gamal_keys = 5;
 }
 
 // Response of the BlindOneLayerRegisterIndex method.
