@@ -1,4 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -6,16 +7,56 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "spanner_emulator",
+    srcs = [
+        "SpannerDatabase.kt",
+        "SpannerEmulator.kt",
+    ],
+    deps = [
+        "//third_party/java/com/google/api/core",
+        "//third_party/java/com/google/cloud/spanner",
+        "//third_party/kotlin/kotlinx/coroutines:core",
+        "@bazel_tools//tools/java/runfiles",
+    ],
+)
+
+kt_jvm_library(
     name = "testing",
     testonly = True,
-    srcs = glob(["*.kt"]),
+    srcs = glob(
+        ["*.kt"],
+        exclude = [
+            "SpannerEmulator.kt",
+            "SpannerEmulatorMain.kt",
+            "SpannerDatabase.kt",
+        ],
+    ),
     deps = [
+        ":spanner_emulator",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//third_party/java/com/google/api/core",
         "//third_party/java/com/google/cloud/spanner",
         "//third_party/java/org/junit",
         "//third_party/kotlin/kotlin/test",
         "//third_party/kotlin/kotlinx/coroutines:core",
-        "@bazel_tools//tools/java/runfiles",
+    ],
+)
+
+kt_jvm_binary_and_image(
+    name = "spanner_emulator_main",
+    srcs = ["SpannerEmulatorMain.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
+    main_class = "org.wfanet.measurement.db.gcp.testing.SpannerEmulatorMainKt",
+    visibility = ["//visibility:public"],
+    runtime_deps = [
+        # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
+        # See https://github.com/bazelbuild/rules_kotlin/issues/333
+        "//third_party/kotlin/kotlin:stdlib_jdk7",
+    ],
+    deps = [
+        ":spanner_emulator",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//third_party/java/com/google/api/core",
+        "//third_party/java/com/google/cloud/spanner",
     ],
 )

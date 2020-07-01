@@ -36,21 +36,6 @@ private class TemporaryDatabase(
   companion object {
     /** Atomic counter to ensure each test is given its own database to run against. */
     private val testCounter: AtomicInteger = AtomicInteger(0)
-
-    /** Reads a spanner schema file and transforms it into a list of operations to creat a database. */
-    private fun readEmulatorSchema(resourcePath: String): List<String> {
-      return TemporaryDatabase::class.java.getResource(resourcePath).readText().split('\n')
-        // Replace comments and refrences to foreign keys from schema file.
-        .map { it.replace("""(--|CONSTRAINT|FOREIGN|REFERENCES).*$""".toRegex(), "") }
-        // Delete blank lines
-        .filter { it.isNotBlank() }
-        // Rejoin to single sting
-        .joinToString("\n")
-        // and split into operations
-        .split(';')
-        // Removing any blank operations
-        .filter { it.isNotBlank() }
-    }
   }
 
   private lateinit var database: Database
@@ -60,9 +45,9 @@ private class TemporaryDatabase(
   fun init() {
     check(!this::database.isInitialized)
 
-    val databaseName: String = "test-db-${testCounter.incrementAndGet()}"
-    database =
-      spannerInstance.createDatabase(databaseName, readEmulatorSchema(schemaResourcePath)).get()
+    val databaseName = "test-db-${testCounter.incrementAndGet()}"
+    val ddl = TemporaryDatabase::class.java.getResource(schemaResourcePath).readText()
+    database = createDatabase(spannerInstance, ddl, databaseName)
   }
 
   override fun close() {

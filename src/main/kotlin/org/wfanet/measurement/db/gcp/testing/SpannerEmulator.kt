@@ -2,8 +2,6 @@ package org.wfanet.measurement.db.gcp.testing
 
 import com.google.devtools.build.runfiles.Runfiles
 import java.io.File
-import java.lang.AutoCloseable
-import java.lang.Process
 import java.net.ServerSocket
 import java.nio.file.Paths
 import java.time.Duration
