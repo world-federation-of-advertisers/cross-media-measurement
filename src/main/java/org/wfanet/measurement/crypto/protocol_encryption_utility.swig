@@ -1,4 +1,3 @@
-%module ProtocolEncryptionUtility
 %include "exception.i"
 %{
 #include "src/main/cc/measurement/crypto/protocol_encryption_utility_wrapper.h"

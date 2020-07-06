@@ -1,11 +1,8 @@
-load("@rules_java//java:defs.bzl", "java_test")
-
 java_test(
-    name = "tests",
+    name = "ProtocolEncryptionUtilityTest",
     srcs = [
         "ProtocolEncryptionUtilityTest.java",
     ],
-    test_class = "org.wfanet.anysketch.ProtocolEncryptionUtilityTest",
     deps = [
         "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",

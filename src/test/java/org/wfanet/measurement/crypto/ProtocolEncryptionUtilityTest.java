@@ -1,4 +1,4 @@
-package org.wfanet.anysketch;
+package org.wfanet.measurement.crypto;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
@@ -6,11 +6,6 @@ import static org.junit.Assert.assertThrows;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.wfanet.measurement.crypto.ProtocolEncryptionUtility;
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest;
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest;
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest;
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest;
 
 @RunWith(JUnit4.class)
 public class ProtocolEncryptionUtilityTest {
