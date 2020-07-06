@@ -16,6 +16,13 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
  * [StreamReportsQuery], we keep it separate for simplicity.
  */
 class StreamReadyReportsQuery {
+  /**
+   * Streams [Report]s without unfulfilled [Requisition]s.
+   *
+   * @param[readContext] the context in which to perform Spanner reads
+   * @param[limit] how many [Report]s to return -- if zero, there is no limit
+   * @return a [Flow] of [Report]s in an arbitrary order
+   */
   fun execute(
     readContext: ReadContext,
     limit: Long
