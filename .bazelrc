@@ -1,2 +1,8 @@
+# Use C++17 language features.
 build --cxxopt='-std=c++17'
+
+# Target JDK11. See https://github.com/bazelbuild/bazel/issues/6245.
 build --javabase=@bazel_tools//tools/jdk:remote_jdk11
+
+import %workspace%/remote.bazelrc
+import %workspace%/results.bazelrc

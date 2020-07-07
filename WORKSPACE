@@ -201,6 +201,37 @@ load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 # Needed for private-join-and-compute
 grpc_extra_deps()
 
+# @bazel_toolchains
+# For RBE (Foundry).
+
+http_archive(
+    name = "bazel_toolchains",
+    sha256 = "a802b753e127a6f73f3f300db5dd83fb618cd798bc880b6a87db9a8777b7939f",
+    strip_prefix = "bazel-toolchains-3.3.0",
+    urls = [
+        "https://github.com/bazelbuild/bazel-toolchains/releases/download/3.3.0/bazel-toolchains-3.3.0.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/releases/download/3.3.0/bazel-toolchains-3.3.0.tar.gz",
+    ],
+)
+
+load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
+
+# Configuration for RBE (Foundry).
+# We use an image based on `rbe-ubuntu16-04`, with the following additions:
+#   1. The Ubuntu `tzdata` package is installed, with local timezone set to
+#      `America/Los_Angeles`.
+#   2. The Ubuntu `swig` package is installed.
+#   3. JDK 11 is available at `/usr/lib/jvm/remotejdk11_linux`.
+rbe_autoconfig(
+    name = "rbe_default",
+    base_container_digest = "sha256:169876b30f3f8ec0430720d319c7eb8a66268501ca62e2acd4e0e7867d5883df",
+    digest = "sha256:d74a56d26ac77abf054c57cadcec971de5f309fa608a019c2959ceb6da6af7f0",
+    java_home = "/usr/lib/jvm/remotejdk11_linux",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/rbe-ubuntu16-04",
+    use_legacy_platform_definition = False,
+)
+
 # @cloud_spanner_emulator
 
 load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries")

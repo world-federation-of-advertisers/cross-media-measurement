@@ -1,0 +1,11 @@
+# Bazel Results UI
+# See https://cloud.google.com/remote-build-execution/docs/results-ui/result-ui-overview
+
+build:results --bes_backend="buildeventservice.googleapis.com"
+build:results --bes_timeout=60s
+build:results --bes_results_url="https://source.cloud.google.com/results/invocations/"
+
+# Enable authentication. This will pick up application default credentials by
+# default. You can use --google_credentials=some_file.json to use a service
+# account credential instead.
+build:results --google_default_credentials=true
