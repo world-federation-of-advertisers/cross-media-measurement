@@ -3,6 +3,7 @@ syntax = "proto3";
 package wfa.measurement.api.v1alpha;
 
 import "wfa/measurement/api/v1alpha/global_computation.proto";
+import "wfa/measurement/api/v1alpha/global_computation_status_update.proto";
 
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
@@ -28,6 +29,11 @@ service GlobalComputations {
   // still have a prompt reaction when they do occur.
   rpc StreamActiveGlobalComputations(StreamActiveGlobalComputationsRequest)
       returns (stream StreamActiveGlobalComputationsResponse);
+
+  // Stores a status update on a GlobalComputation.
+  rpc CreateGlobalComputationStatusUpdate(
+      CreateGlobalComputationStatusUpdateRequest)
+      returns (GlobalComputationStatusUpdate);
 }
 
 // Request message for GetGlobalComputation method.
@@ -45,4 +51,14 @@ message StreamActiveGlobalComputationsRequest {
 message StreamActiveGlobalComputationsResponse {
   GlobalComputation global_computation = 1;
   string continuation_token = 2;
+}
+
+// Request message for CreateGlobalComputationStatusUpdate.
+message CreateGlobalComputationStatusUpdateRequest {
+  // The GlobalComputation that owns this status update.
+  GlobalComputation.Key parent = 1;
+
+  // The status update. These fields will be ignored: `status_update.key` and
+  // `status_update.create_time`.
+  GlobalComputationStatusUpdate status_update = 2;
 }
