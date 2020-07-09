@@ -1,54 +1,62 @@
 package org.wfanet.measurement.service.internal.duchy.worker
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
-import org.wfanet.measurement.internal.duchy.TraceRequest
-import org.wfanet.measurement.internal.duchy.TraceResponse
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.reduce
+import org.wfanet.measurement.common.DuchyRole
+import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.duchy.BlindPositionsRequest
+import org.wfanet.measurement.internal.duchy.BlindPositionsResponse
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
 
+@ExperimentalCoroutinesApi
 class WorkerServiceImpl(
-  // TODO Eliminate trace method and these arguments.
-  private val workerServiceStub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub,
-  private val nameForLogging: String
+  private val computationManager: SketchAggregationComputationManager
 ) :
   WorkerServiceGrpcKt.WorkerServiceCoroutineImplBase() {
-  // This limits the maximum number of hops that a trace is allowed to make. This is a sanity check
-  // to prevent a caller from requesting traces that just bounce around the system endlessly.
-  private val maxTraceCount = 5
 
-  override suspend fun trace(request: TraceRequest): TraceResponse {
-    if (request.count > maxTraceCount) {
-      throw StatusRuntimeException(
-        Status.INVALID_ARGUMENT
-          .withDescription("Counts greater than $maxTraceCount are not permitted")
-      )
+  override suspend fun blindPositions(
+    requests: Flow<BlindPositionsRequest>
+  ): BlindPositionsResponse {
+    val (id, sketch) =
+      requests.map { it.computationId to it.partialSketch.toByteArray() }.appendAllByteArrays()
+    logger.info("[id=$id]: Received blind position request.")
+    val token = requireNotNull(computationManager.getToken(id)) {
+      "Received BlindPositionsRequest for unknown computation $id"
     }
-    val response =
-      if (request.count > 0) {
-        workerServiceStub.trace(TraceRequest.newBuilder().setCount(request.count - 1).build())
-      } else {
-        null
-      }
-    return TraceResponse.newBuilder()
-      .addHop(
-        TraceResponse.Hop.newBuilder()
-          .setName(nameForLogging)
-          .setCountdown(request.count)
-          .build()
-      )
-      .addAllHop(response?.hopList ?: listOf())
-      .build()
+
+    logger.info("[id=$id]: Saving concatenated sketch.")
+    val (tokenAfterWrite, path) = computationManager.writeReceivedConcatenatedSketch(token, sketch)
+
+    // The next stage to be worked depends upon the duchy'es role in the computation.
+    val nextStage = when (token.role) {
+      DuchyRole.PRIMARY -> SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+      DuchyRole.SECONDARY -> SketchAggregationStage.TO_BLIND_POSITIONS
+    }
+    logger.info("[id=$id]: transitioning to $nextStage")
+    computationManager.transitionComputationToStage(
+      token = tokenAfterWrite,
+      inputsToNextStage = listOf(path),
+      stage = nextStage
+    )
+
+    logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
+    return BlindPositionsResponse.getDefaultInstance() // Ack the request
   }
 
   override suspend fun transmitNoisedSketch(
     requests: Flow<TransmitNoisedSketchRequest>
   ): TransmitNoisedSketchResponse {
+    // TODO: Currently this function is implemented in a way to show a peasant polled for work,
+    // it needs to be updated to store sketches received while in the WAIT_SKETCHES stage.
+
     logger.info("Handling request...")
     var sketch = ByteString.EMPTY
     requests.collect {
@@ -64,3 +72,14 @@ class WorkerServiceImpl(
     val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+/**
+ * Reduces flow of pairs of ids and byte arrays into a single flow of id and concatenated byte
+ * array. This function requires that all ids in the flow are equal.
+ */
+@ExperimentalCoroutinesApi
+private suspend fun Flow<Pair<Long, ByteArray>>.appendAllByteArrays(): Pair<Long, ByteArray> =
+  this.reduce { x, y ->
+    require(x.first == y.first) { "Stream has multiple computations $x and $y" }
+    x.first to (x.second + y.second)
+  }

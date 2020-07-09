@@ -100,6 +100,38 @@ class SketchAggregationComputationManager(
       else -> { /* Stage can be executed at either primary or non-primary */ }
     }
   }
+
+  /**
+   * Writes the concatenated sketch as a blob and update the stage's output blobref to point to
+   * the sketch.
+   *
+   * When the concatenated sketch already exists, no blob is written, but the path to the blob
+   * is returned.
+   *
+   * @return Pair of token after updating blob reference, and path to written blob.
+   */
+  suspend fun writeReceivedConcatenatedSketch(
+    token: ComputationToken<SketchAggregationStage>,
+    sketch: ByteArray
+  ): Pair<ComputationToken<SketchAggregationStage>, String> {
+    require(token.stage == WAIT_CONCATENATED) {
+      "Cannot accept the concatenated sketch while in stage ${token.stage}"
+    }
+    val outputBlob =
+      readBlobReferences(token, BlobDependencyType.OUTPUT).asSequence().single()
+    val existingPath = outputBlob.value
+
+    // Return the path to the already written blob if one exists.
+    if (existingPath != null) return Pair(token, existingPath)
+
+    // Write the blob to a new path if there is not already a reference saved for it in
+    // the relational database.
+    val newPath = newBlobPath(token, "concatenated_sketch")
+    writeAndRecordOutputBlob(token, BlobRef(outputBlob.key, newPath), sketch)
+    val newToken =
+      getToken(token.globalId) ?: error("Computation $token not found after writing output blob")
+    return Pair(newToken, newPath)
+  }
 }
 
 private fun requireNotEmpty(paths: List<String>): List<String> {

@@ -6,13 +6,12 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "gcp",
+    name = "testing",
+    testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//third_party/java/com/google/cloud/spanner",
-        "//third_party/java/picocli",
-        "//third_party/java/com/google/cloud/storage",
-        "//third_party/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
     ],
 )

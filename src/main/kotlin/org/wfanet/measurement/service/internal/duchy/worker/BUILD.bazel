@@ -15,7 +15,9 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal/duchy:worker_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
     ],
 )
 
@@ -24,8 +26,12 @@ kt_jvm_binary_and_image(
     srcs = ["Main.kt"],
     main_class = "org.wfanet.measurement.service.internal.duchy.worker.MainKt",
     visibility = ["//visibility:public"],
+    runtime_deps = ["//third_party/kotlin/kotlin/reflect/jvm"],
     deps = [
         ":worker_service_impl",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
+        "//third_party/java/picocli",
     ],
 )

@@ -12,6 +12,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
+import org.wfanet.measurement.db.duchy.SketchAggregationStages
+import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
+import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt.WorkerServiceCoroutineStub
 import org.wfanet.measurement.service.internal.duchy.worker.WorkerServiceImpl
@@ -29,7 +35,7 @@ class PeasantTest {
 
   @Before
   fun setup() {
-    val workerServiceMap = duchyNames.associateWith { setupWorkerService(it) }
+    val workerServiceMap = duchyNames.associateWith { setupWorkerService() }
     peasants = duchyNames.map { _ ->
       Peasant(workerServiceMap, 1000)
     }
@@ -48,7 +54,7 @@ class PeasantTest {
     ProtoTruth.assertThat(responses).containsExactlyElementsIn(expected).inOrder()
   }
 
-  private fun setupWorkerService(duchyName: String): WorkerServiceCoroutineStub {
+  private fun setupWorkerService(): WorkerServiceCoroutineStub {
     val serverName = InProcessServerBuilder.generateName()
     val client = WorkerServiceCoroutineStub(
       grpcCleanup.register(
@@ -58,7 +64,19 @@ class PeasantTest {
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
-        .addService(WorkerServiceImpl(client, duchyName))
+        .addService(
+          WorkerServiceImpl(
+            SketchAggregationComputationManager(
+              FakeComputationsRelationalDatabase(
+                FakeComputationStorage(),
+                SketchAggregationStages,
+                SketchAggregationStageDetails(duchyNames.subList(1, duchyNames.size))
+              ),
+              FakeComputationsBlobDb(mutableMapOf()),
+              duchyNames.size
+            )
+          )
+        )
         .build()
         .start()
     )

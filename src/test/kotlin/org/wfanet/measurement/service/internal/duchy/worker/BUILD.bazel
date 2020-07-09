@@ -7,6 +7,8 @@ kt_jvm_test(
     deps = [
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/worker:worker_service_impl",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//third_party/java/com/google/common/truth",
         "//third_party/java/com/google/common/truth/extensions/proto",
         "//third_party/java/io/grpc:api",

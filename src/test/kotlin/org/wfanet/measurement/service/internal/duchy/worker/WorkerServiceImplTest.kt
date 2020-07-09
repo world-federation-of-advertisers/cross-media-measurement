@@ -1,108 +1,161 @@
 package org.wfanet.measurement.service.internal.duchy.worker
 
-import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth
-import io.grpc.ManagedChannel
-import io.grpc.Status
+import com.google.protobuf.ByteString
 import io.grpc.StatusException
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.inprocess.InProcessServerBuilder
-import io.grpc.testing.GrpcCleanupRule
+import java.nio.charset.Charset
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.duchy.TraceRequest
-import org.wfanet.measurement.internal.duchy.TraceResponse
+import org.wfanet.measurement.common.DuchyRole
+import org.wfanet.measurement.db.duchy.BlobDependencyType
+import org.wfanet.measurement.db.duchy.BlobRef
+import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
+import org.wfanet.measurement.db.duchy.SketchAggregationStages
+import org.wfanet.measurement.db.duchy.testing.FakeBlobMetadata
+import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
+import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb.Companion.blobPath
+import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
+import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.duchy.BlindPositionsRequest
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
+import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+@ExperimentalCoroutinesApi
 @RunWith(JUnit4::class)
 class WorkerServiceImplTest {
+  private val fakeComputationStorage =
+    FakeComputationStorage<SketchAggregationStage, ComputationStageDetails>()
+  val fakeBlobs = mutableMapOf<String, ByteArray>()
+
+  private val duchyNames = listOf("Alsace", "Bavaria", "Carinthia")
+  val fakeDuchyComputationManger = SketchAggregationComputationManager(
+    FakeComputationsRelationalDatabase(
+      fakeComputationStorage,
+      SketchAggregationStages,
+      SketchAggregationStageDetails(duchyNames.subList(1, duchyNames.size))
+    ),
+    FakeComputationsBlobDb(fakeBlobs),
+    duchyNames.size
+  )
+
   @get:Rule
-  val grpcCleanup = GrpcCleanupRule()
+  val grpcTestServerRule = GrpcTestServerRule {
+    listOf(WorkerServiceImpl(fakeDuchyComputationManger))
+  }
 
-  lateinit var names: List<ServerSetup>
-  lateinit var clients: List<WorkerServiceGrpcKt.WorkerServiceCoroutineStub>
-
-  val namesForLogging = listOf("Alsace", "Bavaria", "Carinthia")
+  lateinit var client: WorkerServiceGrpcKt.WorkerServiceCoroutineStub
 
   @Before
   fun setup() {
-    names = namesForLogging.map {
-      val serverName = InProcessServerBuilder.generateName()
-      val channel = grpcCleanup.register(
-        InProcessChannelBuilder.forName(serverName).directExecutor().build()
+    client = WorkerServiceGrpcKt.WorkerServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  @Test
+  fun `receive blind positions with partial sketches at primary`() = runBlocking<Unit> {
+    val id = 123L
+    fakeComputationStorage
+      .addComputation(
+        id = id,
+        stage = SketchAggregationStage.WAIT_CONCATENATED,
+        role = DuchyRole.PRIMARY,
+        blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
-      ServerSetup(serverName, it, channel)
-    }
-    clients = names.map { (_, _, channel) ->
-      WorkerServiceGrpcKt.WorkerServiceCoroutineStub(channel)
-    }
-    (names zip clients.slice(IntRange(1, namesForLogging.size - 1) + IntRange(0, 0)))
-      .forEach { (name, client) ->
-        grpcCleanup.register(
-          InProcessServerBuilder.forName(name.serverName)
-            .directExecutor()
-            .addService(WorkerServiceImpl(client, name.nameForLogging))
-            .build()
-            .start()
-        )
+    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val part1 = BlindPositionsRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("part1_".toByteString())
+      .build()
+    val part2 = BlindPositionsRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("part2_".toByteString())
+      .build()
+    val part3 = BlindPositionsRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("part3".toByteString())
+      .build()
+    ProtoTruth.assertThat(client.blindPositions(flowOf(part1, part2, part3)))
+      .isEqualToDefaultInstance()
+    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    assertEquals(
+      token.copy(
+        stage = SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS, lastUpdateTime = 2
+      ),
+      tokenAfter
+    )
+    assertEquals(
+      mapOf(
+        BlobRef(
+          0L,
+          blobPath(id, SketchAggregationStage.WAIT_CONCATENATED, "concatenated_sketch")
+        ) to "part1_part2_part3"
+      ),
+      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+        it.value.toString(Charset.defaultCharset())
       }
+    )
   }
 
   @Test
-  fun `trace length 1`() = runBlocking {
-    val expected = TraceResponse.newBuilder()
-      .addHop(
-        TraceResponse.Hop.newBuilder()
-          .setName(namesForLogging.first())
-          .setCountdown(0)
-          .build()
+  fun `receive blind positions at secondary`() = runBlocking<Unit> {
+    val id = 4567L
+    fakeComputationStorage
+      .addComputation(
+        id = id,
+        stage = SketchAggregationStage.WAIT_CONCATENATED,
+        role = DuchyRole.SECONDARY,
+        blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
+    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val sketch = BlindPositionsRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("full_sketch".toByteString())
       .build()
-
-    val response = clients[0].trace(TraceRequest.newBuilder().setCount(0).build())
-
-    ProtoTruth.assertThat(response)
-      .isEqualTo(
-        expected
-      )
+    ProtoTruth.assertThat(client.blindPositions(flowOf(sketch)))
+      .isEqualToDefaultInstance()
+    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    assertEquals(
+      token.copy(stage = SketchAggregationStage.TO_BLIND_POSITIONS, lastUpdateTime = 2),
+      tokenAfter
+    )
+    assertEquals(
+      mapOf(
+        BlobRef(
+          0L,
+          blobPath(id, SketchAggregationStage.WAIT_CONCATENATED, "concatenated_sketch")
+        ) to "full_sketch"
+      ),
+      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+        it.value.toString(Charset.defaultCharset())
+      }
+    )
   }
 
   @Test
-  fun `trace length 6`() {
-    val expected = TraceResponse.newBuilder()
-      .addAllHop(
-        ((namesForLogging + namesForLogging) zip (5 downTo 0))
-          .map { (nameForLogging, countdown) ->
-            TraceResponse.Hop.newBuilder().setName(nameForLogging).setCountdown(countdown).build()
-          }
-      )
+  fun `receive blind positions when not expected`() = runBlocking<Unit> {
+    fakeComputationStorage.addComputation(
+      id = 55,
+      stage = SketchAggregationStage.WAIT_FLAG_COUNTS,
+      role = DuchyRole.SECONDARY,
+      blobs = mutableMapOf()
+    )
+    val sketch = BlindPositionsRequest.newBuilder()
+      .setComputationId(55)
+      .setPartialSketch("full_sketch".toByteString())
       .build()
-
-    val response = runBlocking { clients[0].trace(TraceRequest.newBuilder().setCount(5).build()) }
-
-    ProtoTruth.assertThat(response)
-      .isEqualTo(
-        expected
-      )
-  }
-
-  @Test
-  fun `trace length 7 throws`() {
-    val e = assertFailsWith(StatusException::class) {
-      runBlocking { clients[0].trace(TraceRequest.newBuilder().setCount(6).build()) }
-    }
-
-    Truth.assertThat(e.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertFailsWith<StatusException> { client.blindPositions(flowOf(sketch)) }
   }
 }
 
-data class ServerSetup(
-  val serverName: String,
-  val nameForLogging: String,
-  val channel: ManagedChannel
-)
+private fun String.toByteString(): ByteString = ByteString.copyFrom(this.toByteArray())
