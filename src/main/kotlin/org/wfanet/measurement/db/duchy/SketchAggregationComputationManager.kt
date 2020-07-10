@@ -114,11 +114,15 @@ class SketchAggregationComputationManager(
     token: ComputationToken<SketchAggregationStage>,
     sketch: ByteArray
   ): Pair<ComputationToken<SketchAggregationStage>, String> {
+    val (outputBlobId, existingPath) =
+      readBlobReferences(token, BlobDependencyType.OUTPUT).asSequence().single()
     return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_CONCATENATED,
       nameForBlob = "concatenated_sketch",
       token = token,
-      bytes = sketch
+      bytes = sketch,
+      blobId = outputBlobId,
+      blobPath = existingPath
     )
   }
 
@@ -126,34 +130,58 @@ class SketchAggregationComputationManager(
     token: ComputationToken<SketchAggregationStage>,
     encryptedFlagCounts: ByteArray
   ): Pair<ComputationToken<SketchAggregationStage>, String> {
+    val (outputBlobId, existingPath) =
+      readBlobReferences(token, BlobDependencyType.OUTPUT).asSequence().single()
     return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_FLAG_COUNTS,
       nameForBlob = "encrypted_flag_counts",
       token = token,
-      bytes = encryptedFlagCounts
+      bytes = encryptedFlagCounts,
+      blobId = outputBlobId,
+      blobPath = existingPath
     )
+  }
+
+  suspend fun writeReceivedNoisedSketch(
+    token: ComputationToken<SketchAggregationStage>,
+    sketch: ByteArray,
+    sender: String
+  ): ComputationToken<SketchAggregationStage> {
+    // Get the blob id by looking up the sender in the stage specific details.
+    val stageDetails = readStageSpecificDetails(token).waitSketchStageDetails
+    val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
+    val (_, existingPath) =
+      readBlobReferences(token, BlobDependencyType.OUTPUT).filterKeys { it == blobId }
+        .asSequence().single()
+    val (newToken, _) = writeExpectedBlobIfNotPresent(
+      requiredStage = WAIT_SKETCHES,
+      nameForBlob = "noised_sketch_$sender",
+      token = token,
+      bytes = sketch,
+      blobId = blobId,
+      blobPath = existingPath
+    )
+    return newToken
   }
 
   private suspend fun writeExpectedBlobIfNotPresent(
     requiredStage: SketchAggregationStage,
     nameForBlob: String,
     token: ComputationToken<SketchAggregationStage>,
-    bytes: ByteArray
+    bytes: ByteArray,
+    blobId: BlobId,
+    blobPath: String?
   ): Pair<ComputationToken<SketchAggregationStage>, String> {
     require(token.stage == requiredStage) {
       "Cannot accept $nameForBlob while in stage ${token.stage}"
     }
-    val outputBlob =
-      readBlobReferences(token, BlobDependencyType.OUTPUT).asSequence().single()
-    val existingPath = outputBlob.value
-
     // Return the path to the already written blob if one exists.
-    if (existingPath != null) return Pair(token, existingPath)
+    if (blobPath != null) return Pair(token, blobPath)
 
     // Write the blob to a new path if there is not already a reference saved for it in
     // the relational database.
     val newPath = newBlobPath(token, nameForBlob)
-    writeAndRecordOutputBlob(token, BlobRef(outputBlob.key, newPath), bytes)
+    writeAndRecordOutputBlob(token, BlobRef(blobId, newPath), bytes)
     val newToken =
       getToken(token.globalId) ?: error("Computation $token not found after writing output blob")
     return Pair(newToken, newPath)

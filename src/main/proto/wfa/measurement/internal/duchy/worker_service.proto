@@ -43,6 +43,11 @@ message TransmitNoisedSketchRequest {
   // key, and count. Sketches can exceed the maximum message size so split them
   // into chunks and send a sequence of requests via the stream.
   bytes partial_sketch = 2;
+
+  // The identifier of the sender of the noised sketch which is the name of
+  // the duchy. This identifier much match a known duchy name that is being
+  // used in the computation. It should not contain any whitespace characters.
+  string sender = 3;
 }
 
 message TransmitNoisedSketchResponse {}

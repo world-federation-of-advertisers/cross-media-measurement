@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.BlindPositionsRequest
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.DecryptFlagAndCountRequest
+import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -61,6 +62,96 @@ class WorkerServiceImplTest {
   @Before
   fun setup() {
     client = WorkerServiceGrpcKt.WorkerServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  @Test
+  fun `receive sketches`() = runBlocking<Unit> {
+    val id = 252525L
+    val sender = duchyNames[1]
+    val localSketches =
+      blobPath(id, SketchAggregationStage.WAIT_SKETCHES, "noised_sketch_${duchyNames[0]}")
+    fakeBlobs[localSketches] = "local_sketches".toByteArray()
+    fakeComputationStorage
+      .addComputation(
+        id = id,
+        stage = SketchAggregationStage.WAIT_SKETCHES,
+        role = DuchyRole.PRIMARY,
+        blobs = mutableMapOf(
+          FakeBlobMetadata(0L, BlobDependencyType.INPUT) to localSketches,
+          FakeBlobMetadata(1L, BlobDependencyType.OUTPUT) to null,
+          FakeBlobMetadata(2L, BlobDependencyType.OUTPUT) to null
+        )
+      )
+    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val part1 = TransmitNoisedSketchRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("part1_".toByteString())
+      .setSender(sender)
+      .build()
+    val part2 = TransmitNoisedSketchRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("part2_".toByteString())
+      .setSender(sender)
+      .build()
+    val part3 = TransmitNoisedSketchRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("part3".toByteString())
+      .setSender(sender)
+      .build()
+    ProtoTruth.assertThat(client.transmitNoisedSketch(flowOf(part1, part2, part3)))
+      .isEqualToDefaultInstance()
+    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    assertEquals(
+      // the stage is the same because we are waiting for more sketches
+      token.copy(lastUpdateTime = 1),
+      tokenAfter
+    )
+
+    val secondSender = duchyNames[2]
+    val fullSketch = TransmitNoisedSketchRequest.newBuilder()
+      .setComputationId(id)
+      .setPartialSketch("full_sketch_fit_in_message".toByteString())
+      .setSender(secondSender)
+      .build()
+    ProtoTruth.assertThat(client.transmitNoisedSketch(flowOf(fullSketch)))
+      .isEqualToDefaultInstance()
+    val tokenAfterSecondSketch = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    assertEquals(
+      token.copy(stage = SketchAggregationStage.TO_APPEND_SKETCHES, lastUpdateTime = 3),
+      tokenAfterSecondSketch
+    )
+    assertEquals(
+      mapOf(
+        BlobRef(0L, localSketches) to "local_sketches",
+        BlobRef(
+          1L,
+          blobPath(id, SketchAggregationStage.WAIT_SKETCHES, "noised_sketch_$sender")
+        ) to "part1_part2_part3",
+        BlobRef(
+          2L,
+          blobPath(id, SketchAggregationStage.WAIT_SKETCHES, "noised_sketch_$secondSender")
+        ) to "full_sketch_fit_in_message"
+      ),
+      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+        it.value.toString(Charset.defaultCharset())
+      }
+    )
+  }
+
+  @Test
+  fun `receive noised sketch when not expected`() = runBlocking<Unit> {
+    fakeComputationStorage.addComputation(
+      id = 55,
+      stage = SketchAggregationStage.CREATED,
+      role = DuchyRole.PRIMARY,
+      blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
+    )
+    val sketch = TransmitNoisedSketchRequest.newBuilder()
+      .setComputationId(55)
+      .setPartialSketch("data".toByteString())
+      .setSender(duchyNames.last())
+      .build()
+    assertFailsWith<StatusException> { client.transmitNoisedSketch(flowOf(sketch)) }
   }
 
   @Test
@@ -149,7 +240,7 @@ class WorkerServiceImplTest {
       id = 55,
       stage = SketchAggregationStage.WAIT_FLAG_COUNTS,
       role = DuchyRole.SECONDARY,
-      blobs = mutableMapOf()
+      blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
     )
     val sketch = BlindPositionsRequest.newBuilder()
       .setComputationId(55)
@@ -245,7 +336,7 @@ class WorkerServiceImplTest {
       id = 55,
       stage = SketchAggregationStage.WAIT_SKETCHES,
       role = DuchyRole.SECONDARY,
-      blobs = mutableMapOf()
+      blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
     )
     val sketch = DecryptFlagAndCountRequest.newBuilder()
       .setComputationId(55)

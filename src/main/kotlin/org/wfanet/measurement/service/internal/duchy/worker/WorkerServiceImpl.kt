@@ -1,13 +1,13 @@
 package org.wfanet.measurement.service.internal.duchy.worker
 
-import com.google.protobuf.ByteString
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
 import org.wfanet.measurement.common.DuchyRole
+import org.wfanet.measurement.db.duchy.BlobDependencyType
+import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.BlindPositionsRequest
@@ -37,7 +37,7 @@ class WorkerServiceImpl(
     logger.info("[id=$id]: Saving concatenated sketch.")
     val (tokenAfterWrite, path) = computationManager.writeReceivedConcatenatedSketch(token, sketch)
 
-    // The next stage to be worked depends upon the duchy'es role in the computation.
+    // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
       DuchyRole.PRIMARY -> SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
       DuchyRole.SECONDARY -> SketchAggregationStage.TO_BLIND_POSITIONS
@@ -66,7 +66,7 @@ class WorkerServiceImpl(
     logger.info("[id=$id]: Saving encrypted flags and counts.")
     val (tokenAfterWrite, path) = computationManager.writeReceivedFlagsAndCounts(token, bytes)
 
-    // The next stage to be worked depends upon the duchy'es role in the computation.
+    // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
       DuchyRole.PRIMARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
       DuchyRole.SECONDARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
@@ -85,18 +85,59 @@ class WorkerServiceImpl(
   override suspend fun transmitNoisedSketch(
     requests: Flow<TransmitNoisedSketchRequest>
   ): TransmitNoisedSketchResponse {
-    // TODO: Currently this function is implemented in a way to show a peasant polled for work,
-    // it needs to be updated to store sketches received while in the WAIT_SKETCHES stage.
-
-    logger.info("Handling request...")
-    var sketch = ByteString.EMPTY
-    requests.collect {
-      logger.info("Partial sketch: ${it.partialSketch}")
-      sketch = sketch.concat(it.partialSketch)
+    val (id, sender, bytes) =
+      requests
+        .map {
+          Triple(
+            it.computationId,
+            checkNotNull(it.sender),
+            checkNotNull(it.partialSketch.toByteArray())
+          )
+        }
+        .reduce { x, y ->
+          require(x.first == y.first) {
+            "Stream has multiple computations $x and $y"
+          }
+          require(x.second == y.second) {
+            "Stream has multiple senders $x and $y"
+          }
+          Triple(x.first, x.second, (x.third + y.third))
+        }
+    logger.info("[id=$id]: Received noised sketch request from $sender.")
+    val token = requireNotNull(computationManager.getToken(id)) {
+      "Received TransmitNoisedSketchRequest for unknown computation $id"
     }
-    logger.info("Complete sketch: $sketch")
-    logger.info("Returning response")
-    return TransmitNoisedSketchResponse.getDefaultInstance()
+    require(token.role == DuchyRole.PRIMARY) {
+      "Duchy is not the primary server but received a sketch from $sender for $token"
+    }
+
+    logger.info("[id=$id]: Saving noised sketch from $sender.")
+    val tokenAfterWrite = computationManager.writeReceivedNoisedSketch(token, bytes, sender)
+    enqueueAppendSketchesOperationIfReceivedAllSketches(tokenAfterWrite)
+
+    return TransmitNoisedSketchResponse.getDefaultInstance() // Ack the request
+  }
+
+  private suspend fun enqueueAppendSketchesOperationIfReceivedAllSketches(
+    token: ComputationToken<SketchAggregationStage>
+  ) {
+    val id = token.globalId
+    val sketches =
+      computationManager.readBlobReferences(token, BlobDependencyType.ANY).values
+
+    val sketchesNotYetReceived = sketches.count { it == null }
+    if (sketchesNotYetReceived == 0) {
+      val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES
+      logger.info("[id=$id]: transitioning to $nextStage")
+      computationManager.transitionComputationToStage(
+        token = token,
+        inputsToNextStage = sketches.filterNotNull().toList(),
+        stage = nextStage
+      )
+      logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage.")
+    } else {
+      logger.info("[id=$id]: Saved sketch but still waiting on $sketchesNotYetReceived more.")
+    }
   }
 
   companion object {
