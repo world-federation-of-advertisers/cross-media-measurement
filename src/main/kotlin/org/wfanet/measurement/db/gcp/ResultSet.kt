@@ -28,7 +28,6 @@ fun ResultSet.asSequence(): Sequence<Struct> = sequence {
  */
 fun ResultSet.singleOrNull(): Struct? = asSequence().singleOrNull()
 
-
 /**
  * Returns the unique element in a [ResultSet]. Throws an error if the number of elements is not 1.
  */

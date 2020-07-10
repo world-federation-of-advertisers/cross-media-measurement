@@ -121,17 +121,24 @@ class TestData {
     Context ctx;
     ECGroup ec_group = ECGroup::Create(kTestCurveId, &ctx).value();
     ECPoint duchy_1_public_el_gamal_y_ec =
-        ec_group.CreateECPoint(duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_y()).value();
+        ec_group
+            .CreateECPoint(duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_y())
+            .value();
     ECPoint duchy_2_public_el_gamal_y_ec =
-        ec_group.CreateECPoint(duchy_2_el_gamal_keys_.el_gamal_pk().el_gamal_y()).value();
+        ec_group
+            .CreateECPoint(duchy_2_el_gamal_keys_.el_gamal_pk().el_gamal_y())
+            .value();
     ECPoint duchy_3_public_el_gamal_y_ec =
-        ec_group.CreateECPoint(duchy_3_el_gamal_keys_.el_gamal_pk().el_gamal_y()).value();
+        ec_group
+            .CreateECPoint(duchy_3_el_gamal_keys_.el_gamal_pk().el_gamal_y())
+            .value();
     ECPoint client_public_el_gamal_y_ec =
         duchy_1_public_el_gamal_y_ec.Add(duchy_2_public_el_gamal_y_ec)
             .value()
             .Add(duchy_3_public_el_gamal_y_ec)
             .value();
-    client_el_gamal_keys_.set_el_gamal_g(duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_g());
+    client_el_gamal_keys_.set_el_gamal_g(
+        duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_g());
     client_el_gamal_keys_.set_el_gamal_y(
         client_public_el_gamal_y_ec.ToBytesCompressed().value());
 

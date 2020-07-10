@@ -38,8 +38,8 @@ using ::private_join_and_compute::ECPoint;
 using ::private_join_and_compute::InternalError;
 using ::private_join_and_compute::InvalidArgumentError;
 using ::private_join_and_compute::Status;
-using ::wfa::measurement::internal::duchy::ElGamalPublicKeys;
 using ::wfa::measurement::internal::duchy::ElGamalKeys;
+using ::wfa::measurement::internal::duchy::ElGamalPublicKeys;
 using ElGamalCiphertext = std::pair<std::string, std::string>;
 using FlagCount = ::wfa::measurement::internal::duchy::
     DecryptLastLayerFlagAndCountResponse::FlagCount;
@@ -147,10 +147,11 @@ StatusOr<CompositeCipher> CreateCompositeCipher(
     const std::string& pohlig_hellman_sk) {
   CompositeCipher result;
   // Create the ElGamal cipher using the provided keys.
-  ASSIGN_OR_RETURN(result.e_g_cipher,
-                   CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                       curve_id, GetPublicKeyStringPair(el_gamal_keys.el_gamal_pk()),
-                       el_gamal_keys.el_gamal_sk()));
+  ASSIGN_OR_RETURN(
+      result.e_g_cipher,
+      CommutativeElGamal::CreateFromPublicAndPrivateKeys(
+          curve_id, GetPublicKeyStringPair(el_gamal_keys.el_gamal_pk()),
+          el_gamal_keys.el_gamal_sk()));
   // Create the Pohlig Hellman cipher using the provided key or a random key if
   // no key is provided.
   ASSIGN_OR_RETURN(result.p_h_cipher,
@@ -486,11 +487,12 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
   // Create an ElGamal cipher for decryption.
-  ASSIGN_OR_RETURN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
-                   CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                       request.curve_id(),
-                       GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
-                       request.local_el_gamal_keys().el_gamal_sk()));
+  ASSIGN_OR_RETURN(
+      std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+      CommutativeElGamal::CreateFromPublicAndPrivateKeys(
+          request.curve_id(),
+          GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
+          request.local_el_gamal_keys().el_gamal_sk()));
 
   DecryptOneLayerFlagAndCountResponse response;
   std::string* response_sketch = response.mutable_flag_counts();
@@ -520,11 +522,12 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
   // Create an ElGamal cipher for decryption.
-  ASSIGN_OR_RETURN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
-                   CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                       request.curve_id(),
-                       GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
-                       request.local_el_gamal_keys().el_gamal_sk()));
+  ASSIGN_OR_RETURN(
+      std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+      CommutativeElGamal::CreateFromPublicAndPrivateKeys(
+          request.curve_id(),
+          GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
+          request.local_el_gamal_keys().el_gamal_sk()));
   absl::flat_hash_map<std::string, int> count_lookup_table;
   ASSIGN_OR_RETURN(
       count_lookup_table,

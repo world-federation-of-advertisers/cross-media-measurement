@@ -8,6 +8,7 @@ import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -17,7 +18,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.duchy.TraceRequest
 import org.wfanet.measurement.internal.duchy.TraceResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class WorkerServiceImplTest {
@@ -75,10 +75,12 @@ class WorkerServiceImplTest {
   @Test
   fun `trace length 6`() {
     val expected = TraceResponse.newBuilder()
-      .addAllHop(((namesForLogging + namesForLogging) zip (5 downTo 0))
-        .map { (nameForLogging, countdown) ->
-          TraceResponse.Hop.newBuilder().setName(nameForLogging).setCountdown(countdown).build()
-        })
+      .addAllHop(
+        ((namesForLogging + namesForLogging) zip (5 downTo 0))
+          .map { (nameForLogging, countdown) ->
+            TraceResponse.Hop.newBuilder().setName(nameForLogging).setCountdown(countdown).build()
+          }
+      )
       .build()
 
     val response = runBlocking { clients[0].trace(TraceRequest.newBuilder().setCount(5).build()) }

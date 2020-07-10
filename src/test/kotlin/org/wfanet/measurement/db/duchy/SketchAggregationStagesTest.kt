@@ -1,13 +1,13 @@
 package org.wfanet.measurement.db.duchy
 
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.SketchAggregationStage
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.SketchAggregationStage
 
 @RunWith(JUnit4::class)
 class SketchAggregationStagesTest {

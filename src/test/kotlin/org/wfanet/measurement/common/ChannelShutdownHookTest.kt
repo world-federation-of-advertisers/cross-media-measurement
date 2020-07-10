@@ -5,6 +5,7 @@ import io.grpc.ConnectivityState
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.cancelAndJoin
@@ -20,7 +21,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
-import java.time.Duration
 
 @RunWith(JUnit4::class)
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)

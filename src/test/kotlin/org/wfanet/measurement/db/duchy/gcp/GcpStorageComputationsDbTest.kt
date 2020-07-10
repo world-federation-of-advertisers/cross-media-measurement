@@ -5,6 +5,7 @@ import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -14,7 +15,6 @@ import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.internal.SketchAggregationStage
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class GcpStorageComputationsDbTest {

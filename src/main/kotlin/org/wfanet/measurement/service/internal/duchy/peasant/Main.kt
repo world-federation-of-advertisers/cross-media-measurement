@@ -1,6 +1,7 @@
 package org.wfanet.measurement.service.internal.duchy.peasant
 
 import io.grpc.ManagedChannelBuilder
+import java.time.Duration
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Flags
@@ -8,7 +9,6 @@ import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.durationFlag
 import org.wfanet.measurement.common.stringFlag
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
-import java.time.Duration
 
 fun main(args: Array<String>) {
   val channelShutdownTimeout =

@@ -3,6 +3,7 @@ package org.wfanet.measurement.service.internal.duchy.worker
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.internal.duchy.TraceRequest
@@ -10,7 +11,6 @@ import org.wfanet.measurement.internal.duchy.TraceResponse
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
-import java.util.logging.Logger
 
 class WorkerServiceImpl(
   // TODO Eliminate trace method and these arguments.

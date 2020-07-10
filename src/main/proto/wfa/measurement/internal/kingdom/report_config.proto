@@ -24,4 +24,3 @@ message ReportConfig {
     // TODO: add more states or remove if states don't make sense for report.
   }
 }
-

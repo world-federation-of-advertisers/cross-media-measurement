@@ -51,7 +51,6 @@ class PublisherDataClientTest {
     val response = runBlocking { client.getCombinedPublicKey() }
     assertThat(response).isEqualTo(CombinedPublicKey.getDefaultInstance())
   }
-
 }
 
 class PublisherDataFake : PublisherDataGrpcKt.PublisherDataCoroutineImplBase() {

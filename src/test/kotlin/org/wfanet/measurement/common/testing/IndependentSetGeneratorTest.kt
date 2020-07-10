@@ -1,12 +1,12 @@
 package org.wfanet.measurement.common.testing
 
 import com.google.common.truth.Truth.assertThat
+import java.lang.IllegalArgumentException
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import java.lang.IllegalArgumentException
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class IndependentSetGeneratorTest {
@@ -20,7 +20,8 @@ class IndependentSetGeneratorTest {
       universeSize,
       1,
       1,
-      random)
+      random
+    )
 
     // Generate new Random object with the same seed to generate same numbers.
     val random2 = Random(DEFAULT_SEED)
@@ -33,7 +34,8 @@ class IndependentSetGeneratorTest {
     val setGenerator = generateIndependentSets(
       100,
       100,
-      1)
+      1
+    )
     assertThat(setGenerator.next()).containsExactlyElementsIn(0L..99L)
   }
 
@@ -44,7 +46,8 @@ class IndependentSetGeneratorTest {
       99,
       33,
       10,
-      random)
+      random
+    )
     var size = 0
     while (setGenerator.hasNext()) {
       size++
@@ -61,10 +64,11 @@ class IndependentSetGeneratorTest {
       1000,
       100,
       10,
-      random)
+      random
+    )
     while (setGenerator.hasNext()) {
       val set = setGenerator.next()
-      assertThat(set).containsNoDuplicates();
+      assertThat(set).containsNoDuplicates()
     }
   }
 
@@ -73,7 +77,8 @@ class IndependentSetGeneratorTest {
     val setGenerator = generateIndependentSets(
       100,
       100,
-      1)
+      1
+    )
     setGenerator.next()
 
     assertFailsWith(NoSuchElementException::class, "SetGenerator has no elements left") {
@@ -87,7 +92,8 @@ class IndependentSetGeneratorTest {
       generateIndependentSets(
         10,
         100,
-        1).next()
+        1
+      ).next()
     }
   }
 
@@ -97,7 +103,8 @@ class IndependentSetGeneratorTest {
       generateIndependentSets(
         1,
         1,
-        -10).next()
+        -10
+      ).next()
     }
   }
 
@@ -107,7 +114,8 @@ class IndependentSetGeneratorTest {
       generateIndependentSets(
         -10,
         1,
-        1).next()
+        1
+      ).next()
     }
   }
 }

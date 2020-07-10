@@ -2,6 +2,8 @@ package org.wfanet.measurement.service.internal.duchy.peasant
 
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
+import java.util.logging.Logger
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -9,8 +11,6 @@ import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
-import java.util.logging.Logger
-import kotlin.system.measureTimeMillis
 
 class Peasant(
   private val workerStubs: Map<String, WorkerServiceGrpcKt.WorkerServiceCoroutineStub>,

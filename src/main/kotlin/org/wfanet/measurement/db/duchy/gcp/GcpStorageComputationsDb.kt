@@ -3,11 +3,11 @@ package org.wfanet.measurement.db.duchy.gcp
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
+import java.nio.file.Paths
+import kotlin.random.Random
 import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.ComputationsBlobDb
-import java.nio.file.Paths
-import kotlin.random.Random
 
 /**
  * Implementation of [ComputationsBlobDb] using Google Cloud Storage for interacting with a

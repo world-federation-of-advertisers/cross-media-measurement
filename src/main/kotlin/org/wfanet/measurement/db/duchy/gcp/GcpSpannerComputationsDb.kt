@@ -7,10 +7,10 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
 import com.google.protobuf.Message
+import java.time.Clock
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.DuchyOrder
@@ -32,7 +32,6 @@ import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
-import java.time.Clock
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.

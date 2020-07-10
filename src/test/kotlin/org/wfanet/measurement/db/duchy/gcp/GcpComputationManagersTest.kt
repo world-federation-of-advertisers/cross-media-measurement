@@ -2,6 +2,10 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.Truth.assertThat
+import java.math.BigInteger
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,10 +30,6 @@ import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_CO
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
-import java.math.BigInteger
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -202,7 +202,7 @@ class SingleComputationManager(
         }
       }
     val outputsToCurrentStage =
-        manager.readBlobReferences(token, BlobDependencyType.OUTPUT).map { it.value }
+      manager.readBlobReferences(token, BlobDependencyType.OUTPUT).map { it.value }
     val result = run(ComputationStep(token, inputsToCurrentStage, outputsToCurrentStage))
     assertEquals(expected.copy(lastUpdateTime = testClock.last().toEpochMilli()), result)
     token = result

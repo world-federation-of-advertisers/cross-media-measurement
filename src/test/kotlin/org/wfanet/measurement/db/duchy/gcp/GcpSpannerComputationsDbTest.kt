@@ -4,6 +4,11 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.extensions.proto.ProtoTruth
+import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -29,11 +34,6 @@ import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.ComputationBlobDependency
 import org.wfanet.measurement.internal.db.gcp.ComputationDetails
 import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 
 /**
  * +--------------+

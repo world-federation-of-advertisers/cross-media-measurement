@@ -2,14 +2,14 @@ package org.wfanet.measurement.common
 
 import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.test.runBlockingTest
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.test.runBlockingTest
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)

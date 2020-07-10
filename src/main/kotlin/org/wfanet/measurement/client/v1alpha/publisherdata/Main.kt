@@ -1,6 +1,5 @@
 package org.wfanet.measurement.client.v1alpha.publisherdata
 
-import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey

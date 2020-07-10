@@ -45,13 +45,29 @@ class MinimumIntervalThrottlerTest {
     val m = Mutex(locked = true)
 
     // This should run last.
-    val job1 = launch { println(1); delay(200); println(2); throttler.onReady { order.add("job1") } }
+    val job1 = launch {
+      println(1)
+      delay(200)
+      println(2)
+      throttler.onReady { order.add("job1") }
+    }
 
     // This should run second.
-    val job2 = launch { println(3); delay(100); println(4); throttler.onReady { order.add("job2") } }
+    val job2 = launch {
+      println(3)
+      delay(100)
+      println(4)
+      throttler.onReady { order.add("job2") }
+    }
 
     // This should hit throttler.onReady first, but then get stuck acquiring m.
-    val job3 = launch { println(5); throttler.onReady { println(6); m.withLock { order.add("job3") } } }
+    val job3 = launch {
+      println(5)
+      throttler.onReady {
+        println(6)
+        m.withLock { order.add("job3") }
+      }
+    }
 
     // After waiting 1s, job1 and job2 should be blocked on job3 finishing, which is blocked on
     // acquiring m.
