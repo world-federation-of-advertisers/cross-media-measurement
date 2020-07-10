@@ -12,6 +12,8 @@ import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.BlindPositionsRequest
 import org.wfanet.measurement.internal.duchy.BlindPositionsResponse
+import org.wfanet.measurement.internal.duchy.DecryptFlagAndCountRequest
+import org.wfanet.measurement.internal.duchy.DecryptFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
@@ -49,6 +51,35 @@ class WorkerServiceImpl(
 
     logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
     return BlindPositionsResponse.getDefaultInstance() // Ack the request
+  }
+
+  override suspend fun decryptFlagAndCount(
+    requests: Flow<DecryptFlagAndCountRequest>
+  ): DecryptFlagAndCountResponse {
+    val (id, bytes) =
+      requests.map { it.computationId to it.partialSketch.toByteArray() }.appendAllByteArrays()
+    logger.info("[id=$id]: Received decrypt flags and counts request.")
+    val token = requireNotNull(computationManager.getToken(id)) {
+      "Received DecryptFlagAndCountRequest for unknown computation $id"
+    }
+
+    logger.info("[id=$id]: Saving encrypted flags and counts.")
+    val (tokenAfterWrite, path) = computationManager.writeReceivedFlagsAndCounts(token, bytes)
+
+    // The next stage to be worked depends upon the duchy'es role in the computation.
+    val nextStage = when (token.role) {
+      DuchyRole.PRIMARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+      DuchyRole.SECONDARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+    }
+    logger.info("[id=$id]: transitioning to $nextStage")
+    computationManager.transitionComputationToStage(
+      token = tokenAfterWrite,
+      inputsToNextStage = listOf(path),
+      stage = nextStage
+    )
+
+    logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
+    return DecryptFlagAndCountResponse.getDefaultInstance() // Ack the request
   }
 
   override suspend fun transmitNoisedSketch(

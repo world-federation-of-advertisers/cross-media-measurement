@@ -114,8 +114,34 @@ class SketchAggregationComputationManager(
     token: ComputationToken<SketchAggregationStage>,
     sketch: ByteArray
   ): Pair<ComputationToken<SketchAggregationStage>, String> {
-    require(token.stage == WAIT_CONCATENATED) {
-      "Cannot accept the concatenated sketch while in stage ${token.stage}"
+    return writeExpectedBlobIfNotPresent(
+      requiredStage = WAIT_CONCATENATED,
+      nameForBlob = "concatenated_sketch",
+      token = token,
+      bytes = sketch
+    )
+  }
+
+  suspend fun writeReceivedFlagsAndCounts(
+    token: ComputationToken<SketchAggregationStage>,
+    encryptedFlagCounts: ByteArray
+  ): Pair<ComputationToken<SketchAggregationStage>, String> {
+    return writeExpectedBlobIfNotPresent(
+      requiredStage = WAIT_FLAG_COUNTS,
+      nameForBlob = "encrypted_flag_counts",
+      token = token,
+      bytes = encryptedFlagCounts
+    )
+  }
+
+  private suspend fun writeExpectedBlobIfNotPresent(
+    requiredStage: SketchAggregationStage,
+    nameForBlob: String,
+    token: ComputationToken<SketchAggregationStage>,
+    bytes: ByteArray
+  ): Pair<ComputationToken<SketchAggregationStage>, String> {
+    require(token.stage == requiredStage) {
+      "Cannot accept $nameForBlob while in stage ${token.stage}"
     }
     val outputBlob =
       readBlobReferences(token, BlobDependencyType.OUTPUT).asSequence().single()
@@ -126,8 +152,8 @@ class SketchAggregationComputationManager(
 
     // Write the blob to a new path if there is not already a reference saved for it in
     // the relational database.
-    val newPath = newBlobPath(token, "concatenated_sketch")
-    writeAndRecordOutputBlob(token, BlobRef(outputBlob.key, newPath), sketch)
+    val newPath = newBlobPath(token, nameForBlob)
+    writeAndRecordOutputBlob(token, BlobRef(outputBlob.key, newPath), bytes)
     val newToken =
       getToken(token.globalId) ?: error("Computation $token not found after writing output blob")
     return Pair(newToken, newPath)
