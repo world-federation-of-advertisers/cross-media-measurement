@@ -23,3 +23,15 @@ kt_jvm_test(
         "//third_party/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "independent_set_generator_test",
+    srcs = ["IndependentSetGeneratorTest.kt"],
+    test_class = "org.wfanet.measurement.common.testing.IndependentSetGeneratorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//third_party/java/com/google/common/truth",
+        "//third_party/java/org/junit",
+        "//third_party/kotlin/kotlin/test",
+    ],
+)
