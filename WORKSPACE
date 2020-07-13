@@ -122,24 +122,41 @@ protobuf_deps()
 
 # @io_bazel_rules_docker
 
-# rules_docker needs @bazel_skylib defined.
+# Download the rules_docker repository at release v0.14.4
 http_archive(
-    name = "bazel_skylib",
-    sha256 = "e5d90f0ec952883d56747b7604e2a15ee36e288bb556c3d0ed33e818a4d971f2",
-    strip_prefix = "bazel-skylib-1.0.2",
-    urls = ["https://github.com/bazelbuild/bazel-skylib/archive/1.0.2.tar.gz"],
+    name = "io_bazel_rules_docker",
+    sha256 = "4521794f0fba2e20f3bf15846ab5e01d5332e587e9ce81629c7f96c793bb7036",
+    strip_prefix = "rules_docker-0.14.4",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.14.4/rules_docker-v0.14.4.tar.gz"],
 )
 
-load(":build/io_bazel_rules_docker/repo.bzl", "rules_docker_repo")
-
-rules_docker_repo(
-    sha256 = "3efbd23e195727a67f87b2a04fb4388cc7a11a0c0c2cf33eec225fb8ffbb27ea",
-    version = "0.14.2",
+load(
+    "@io_bazel_rules_docker//repositories:repositories.bzl",
+    container_repositories = "repositories",
 )
 
-load(":build/io_bazel_rules_docker/deps.bzl", "rules_docker_deps")
+container_repositories()
 
-rules_docker_deps()
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
+
+load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
+
+pip_deps()
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_pull",
+)
+
+# Find hashes at https://console.cloud.google.com/gcr/images/distroless/GLOBAL/java?gcrImageListsize=30&pli=1
+container_pull(
+    name = "java_base",
+    digest = "sha256:2315ed1472a09826c1f31ab93ff13ceaa3a4e7d5482f357d15a296b3db0d1c96",
+    registry = "gcr.io",
+    repository = "distroless/java",
+)
 
 load(
     "@io_bazel_rules_docker//kotlin:image.bzl",
