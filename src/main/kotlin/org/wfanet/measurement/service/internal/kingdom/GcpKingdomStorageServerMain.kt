@@ -1,33 +1,52 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
-import org.wfanet.measurement.common.Flags
+import kotlin.properties.Delegates
+import kotlin.reflect.jvm.javaMethod
+import kotlin.system.exitProcess
 import org.wfanet.measurement.common.RandomIdGeneratorImpl
-import org.wfanet.measurement.common.intFlag
-import org.wfanet.measurement.common.stringFlag
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
+import picocli.CommandLine
 
-/** Runs the internal Kingdom storage services in a single server with a Spanner backend. */
-fun main(args: Array<String>) {
-  val port = intFlag("port", 8080)
-  val nameForLogging = stringFlag("name-for-logging", "KingdomStorageServer")
-  val spannerFromFlags = SpannerFromFlags()
-  Flags.parse(args.asIterable())
+private class Flags {
+  @set:CommandLine.Option(
+    names = ["--port", "-p"],
+    description = ["TCP port for gRPC server."],
+    required = true,
+    defaultValue = "8080"
+  )
+  var port by Delegates.notNull<Int>()
+    private set
 
+  @CommandLine.Option(
+    names = ["--server-name"],
+    description = ["Name of the gRPC server for logging purposes."],
+    required = true,
+    defaultValue = "KingdomStorageServer"
+  )
+  lateinit var nameForLogging: String
+    private set
+}
+
+@CommandLine.Command(name = "gcp_kingdom_storage_server", mixinStandardHelpOptions = true)
+private fun run(
+  @CommandLine.Mixin flags: Flags,
+  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
+) {
+  val spannerFromFlags = SpannerFromFlags(spannerFlags)
   val clock = Clock.systemUTC()
 
   val relationalDatabase = GcpKingdomRelationalDatabase(
-    clock,
-    RandomIdGeneratorImpl(clock),
-    spannerFromFlags.databaseClient
+    clock, RandomIdGeneratorImpl(clock), spannerFromFlags.databaseClient
   )
 
-  val server = buildKingdomStorageServer(
-    relationalDatabase,
-    port.value,
-    nameForLogging.value
-  )
+  val server = buildKingdomStorageServer(relationalDatabase, flags.port, flags.nameForLogging)
 
   server.start().blockUntilShutdown()
+}
+
+/** Runs the internal Kingdom storage services in a single server with a Spanner backend. */
+fun main(args: Array<String>) {
+  exitProcess(CommandLine(::run.javaMethod).execute(*args))
 }

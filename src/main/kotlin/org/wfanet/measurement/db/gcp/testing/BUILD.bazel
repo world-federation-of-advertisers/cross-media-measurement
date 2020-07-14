@@ -52,11 +52,13 @@ kt_jvm_binary_and_image(
         # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
         # See https://github.com/bazelbuild/rules_kotlin/issues/333
         "//third_party/kotlin/kotlin:stdlib_jdk7",
+        "//third_party/kotlin/kotlin/reflect/jvm",
     ],
     deps = [
         ":spanner_emulator",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//third_party/java/com/google/api/core",
         "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/picocli",
     ],
 )

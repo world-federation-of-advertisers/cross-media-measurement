@@ -2,60 +2,85 @@ package org.wfanet.measurement.db.gcp.testing
 
 import com.google.cloud.spanner.InstanceConfigId
 import com.google.cloud.spanner.InstanceInfo
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 import java.io.File
-import org.wfanet.measurement.common.Flags
-import org.wfanet.measurement.common.stringFlag
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import kotlin.system.exitProcess
+import picocli.CommandLine
+import kotlin.reflect.jvm.javaMethod
 
-/**
- * Brings up a Spanner emulator and creates an instance and database.
- *
- * Flags:
- *
- *   --spanner-project: the name of the Spanner project to use
- *   --spanner-instance: the name of the Spanner instance to create
- *   --spanner-instance-display-name: the display name of the Spanner instance to create
- *   --spanner-database: the name of the Spanner database to create
- *   --schema-file: path to SDL file
- */
-fun main(args: Array<String>) {
-  val spannerFlags = SpannerFromFlags()
-  val instanceDisplayName = stringFlag("spanner-instance-display-name", "")
-  val schemaFile = stringFlag("schema-file", "")
-  Flags.parse(args.asIterable())
+private class Flags {
+  @CommandLine.Option(
+    names = ["--spanner-instance-display-name"],
+    paramLabel = "<displayName>",
+    description = ["Display name of Spanner instance. Defaults to instance name."]
+  )
+  lateinit var instanceDisplayName: String
+    private set
+  val hasInstanceDisplayName
+    get() = ::instanceDisplayName.isInitialized
+
+  @CommandLine.Option(
+    names = ["--schema-file", "-f"],
+    description = ["Path to SDL file."],
+    required = true
+  )
+  lateinit var schemaFile: File
+    private set
+}
+
+@CommandLine.Command(
+  name = "spanner_emulator_main",
+  description = ["Run Cloud Spanner Emulator on an unused port, creating a temporary database."],
+  mixinStandardHelpOptions = true
+)
+private fun run(
+  @CommandLine.Mixin flags: Flags,
+  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
+) {
+  val spannerFromFlags = SpannerFromFlags(spannerFlags)
 
   SpannerEmulator().use { emulator: SpannerEmulator ->
     emulator.start()
     val emulatorHost = emulator.blockUntilReady()
 
     val spannerOptions =
-      spannerFlags.spannerOptions
-        .toBuilder()
-        .setEmulatorHost(emulatorHost)
-        .build()
+      spannerFromFlags.spannerOptions.toBuilder().setEmulatorHost(emulatorHost).build()
 
     val spanner = spannerOptions.service
-    val databaseId = spannerFlags.databaseId
+    val databaseId = spannerFromFlags.databaseId
 
+    val displayName =
+      if (flags.hasInstanceDisplayName) flags.instanceDisplayName else spannerFlags.instanceName
     val instanceInfo =
       InstanceInfo
         .newBuilder(databaseId.instanceId)
-        .setDisplayName(instanceDisplayName.value)
+        .setDisplayName(displayName)
         .setInstanceConfigId(InstanceConfigId.of(spannerFlags.projectName, "emulator-config"))
         .setNodeCount(1)
         .build()
 
     val instance = spanner.instanceAdminClient.createInstance(instanceInfo).get()
-    println("Created instance")
+    println("Instance ${instance.displayName} created")
 
-    val ddl = File(schemaFile.value).readText()
-    println("Read in schema file: ${schemaFile.value}")
+    val ddl = flags.schemaFile.readText()
+    println("Read in schema file: ${flags.schemaFile.absolutePath}")
 
     createDatabase(instance, ddl, spannerFlags.databaseName)
-    println("Database ${spannerFlags.databaseId} created")
+    println("Database ${spannerFromFlags.databaseId} created")
 
     // Stay alive so the emulator doesn't terminate:
     println("Idling until killed")
-    Object().wait()
+    runBlocking { Channel<Void>().receive() }
   }
+}
+
+/**
+ * Brings up a Spanner emulator and creates an instance and database.
+ *
+ * Specify `--help` option to show usage information.
+ */
+fun main(args: Array<String>) {
+  exitProcess(CommandLine(::run.javaMethod).execute(*args))
 }

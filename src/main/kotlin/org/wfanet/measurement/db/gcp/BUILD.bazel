@@ -11,6 +11,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//third_party/java/com/google/cloud/spanner",
+        "//third_party/java/picocli",
         "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )
