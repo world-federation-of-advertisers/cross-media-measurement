@@ -1,4 +1,5 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -19,15 +20,17 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_binary(
+kt_jvm_binary_and_image(
     name = "mill_task",
     srcs = ["Main.kt"],
     main_class = "org.wfanet.measurement.service.internal.duchy.mill.MainKt",
     visibility = ["//visibility:public"],
+    runtime_deps = [
+        "@io_grpc_grpc_java//netty",
+    ],
     deps = [
         ":mill",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
-        "@io_grpc_grpc_java//netty",
     ],
 )

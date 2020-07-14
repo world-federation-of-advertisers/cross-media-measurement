@@ -20,9 +20,23 @@ container_push(
 )
 
 container_push(
+    name = "push_mill_task_image",
+    format = "Docker",
+    image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill:mill_task_image",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/peasant",
+)
+
+container_push(
     name = "push_gcp_kingdom_storage_server_image",
     format = "Docker",
     image = "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/gcp_kingdom_storage_server",
+)
+
+filegroup(
+    name = "deploy_to_kind_yaml",
+    srcs = ["deploy_to_kind.yaml"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__"],
 )

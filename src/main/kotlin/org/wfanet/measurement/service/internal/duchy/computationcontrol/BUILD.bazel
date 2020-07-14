@@ -16,20 +16,21 @@ kt_jvm_library(
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
     ],
 )
 
 kt_jvm_binary_and_image(
-    name = "computation_stage_data_server",
+    name = "computation_control_server",
     srcs = ["Main.kt"],
     main_class = "org.wfanet.measurement.service.internal.duchy.computationcontrol.MainKt",
     visibility = ["//visibility:public"],
+    runtime_deps = [
+        "@io_grpc_grpc_java//netty",
+    ],
     deps = [
         ":computationcontrol",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
