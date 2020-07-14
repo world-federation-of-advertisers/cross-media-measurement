@@ -70,6 +70,9 @@ class FakeComputationStorage(
     blobs: List<ComputationStageBlobMetadata>,
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
+    require(id !in this) {
+      "Cannot add multiple computations with the same id. $id"
+    }
     this[id] = ComputationToken.newBuilder().apply {
       globalComputationId = id
       // For the purpose of a fake it is fine to use the same id for both local and global ids

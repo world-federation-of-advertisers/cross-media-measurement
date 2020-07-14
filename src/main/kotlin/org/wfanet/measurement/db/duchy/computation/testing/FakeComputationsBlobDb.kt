@@ -19,7 +19,7 @@ import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
 
 /** Testing fake of [ComputationsBlobDb] that is basically an in memory map. */
 class FakeComputationsBlobDb<StageT>(
-  private val fakeComputations: MutableMap<String, ByteArray>
+  private val fakeComputations: MutableMap<String, ByteArray> = mutableMapOf()
 ) : ComputationsBlobDb<StageT> {
   override suspend fun read(reference: BlobRef): ByteArray {
     return fakeComputations[reference.key] ?: error("No blob found")

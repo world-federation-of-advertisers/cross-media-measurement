@@ -1,0 +1,31 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "herald",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+    ],
+)
+
+java_binary(
+    name = "gcp_herald_task",
+    main_class = "org.wfanet.measurement.duchy.herald.MainKt",
+    runtime_deps = [":herald"],
+)
+
+java_image(
+    name = "gcp_herald_task_image",
+    main_class = "org.wfanet.measurement.duchy.mill.MainKt",
+    runtime_deps = [":herald"],
+)
