@@ -6,6 +6,8 @@ import java.time.Instant
 import java.util.ArrayDeque
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import picocli.CommandLine
+import kotlin.properties.Delegates
 
 /**
  * Provides an adaptive throttler.
@@ -27,6 +29,14 @@ class AdaptiveThrottler(
   private val timeHorizon: Duration,
   private val pollDelay: Duration
 ) : Throttler {
+
+  /** Create an [AdaptiveThrottler] from the values set in [Flags]. */
+  constructor(flags: Flags) : this(
+    flags.overloadFactor,
+    Clock.systemUTC(),
+    flags.timeHorizon,
+    flags.throttlePollDelay
+  )
 
   private val requests = ArrayDeque<Instant>()
   private val accepts = ArrayDeque<Instant>()
@@ -68,5 +78,37 @@ class AdaptiveThrottler(
     while (Duration.between(queue.peek(), now) > timeHorizon) {
       queue.poll()
     }
+  }
+
+  /** Command line flags to create an adaptive throttler. */
+  class Flags {
+
+    @set:CommandLine.Option(
+      names = ["--throttler-overload-factor"],
+      required = true,
+      description = ["How much to overload the backend. If the factor is 1.1 it is expected ",
+                     "that 10% of requests will fail due to throttling."],
+      defaultValue = "1.1"
+    )
+    var overloadFactor by Delegates.notNull<Double>()
+      private set
+
+    @CommandLine.Option(
+      names = ["--throttler-time-horizon"],
+      required = true,
+      description = ["Time window to look at to determine proportion of accepted requests."],
+      defaultValue = "2m"
+    )
+    lateinit var timeHorizon: Duration
+      private set
+
+    @CommandLine.Option(
+      names = ["--throttler-poll-delay"],
+      required = true,
+      description = ["How often to retry when throttled."],
+      defaultValue = "1ms"
+    )
+    lateinit var throttlePollDelay: Duration
+      private set
   }
 }
