@@ -8,17 +8,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
-import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
-import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
-import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
+import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
+import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 
 class Mill(
-  private val workerStubs: Map<String, WorkerServiceGrpcKt.WorkerServiceCoroutineStub>,
+  private val workerStubs: Map<String, ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub>,
   private val minimumPollingDelayMillis: Long
 ) {
   // TODO Make this use the ComputationManager to claim work. This is just test code right now.
-  suspend fun pollForWork(): Flow<TransmitNoisedSketchResponse> = flow {
-    logger.info("Starting mill...")
+  suspend fun pollForWork(): Flow<HandleNoisedSketchResponse> = flow {
+    logger.info("Starting Mill...")
 
     while (true) {
       val elapsed = measureTimeMillis {
@@ -26,10 +26,10 @@ class Mill(
         try {
           val response = workerStubs.values
             .first()
-            .transmitNoisedSketch(
+            .handleNoisedSketch(
               "1,2,3".split(',')
                 .map {
-                  TransmitNoisedSketchRequest.newBuilder()
+                  HandleNoisedSketchRequest.newBuilder()
                     .setPartialSketch(ByteString.copyFromUtf8(it))
                     .build()
                 }.asFlow()

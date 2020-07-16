@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.internal.duchy.worker
+package org.wfanet.measurement.service.internal.duchy.computationcontrol
 
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
@@ -27,16 +27,16 @@ import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb.Companion.blobPath
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
 import org.wfanet.measurement.internal.SketchAggregationStage
-import org.wfanet.measurement.internal.duchy.BlindPositionsRequest
+import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.DecryptFlagAndCountRequest
-import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
-import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
+import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
+import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @ExperimentalCoroutinesApi
 @RunWith(JUnit4::class)
-class WorkerServiceImplTest {
+class ComputationControlServiceImplTest {
   private val fakeComputationStorage =
     FakeComputationStorage<SketchAggregationStage, ComputationStageDetails>()
   val fakeBlobs = mutableMapOf<String, ByteArray>()
@@ -54,14 +54,14 @@ class WorkerServiceImplTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(WorkerServiceImpl(fakeDuchyComputationManger))
+    listOf(ComputationControlServiceImpl(fakeDuchyComputationManger))
   }
 
-  lateinit var client: WorkerServiceGrpcKt.WorkerServiceCoroutineStub
+  lateinit var client: ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 
   @Before
   fun setup() {
-    client = WorkerServiceGrpcKt.WorkerServiceCoroutineStub(grpcTestServerRule.channel)
+    client = ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
@@ -83,22 +83,22 @@ class WorkerServiceImplTest {
         )
       )
     val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
-    val part1 = TransmitNoisedSketchRequest.newBuilder()
+    val part1 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
       .setSender(sender)
       .build()
-    val part2 = TransmitNoisedSketchRequest.newBuilder()
+    val part2 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part2_".toByteString())
       .setSender(sender)
       .build()
-    val part3 = TransmitNoisedSketchRequest.newBuilder()
+    val part3 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part3".toByteString())
       .setSender(sender)
       .build()
-    ProtoTruth.assertThat(client.transmitNoisedSketch(flowOf(part1, part2, part3)))
+    ProtoTruth.assertThat(client.handleNoisedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
@@ -108,12 +108,12 @@ class WorkerServiceImplTest {
     )
 
     val secondSender = duchyNames[2]
-    val fullSketch = TransmitNoisedSketchRequest.newBuilder()
+    val fullSketch = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("full_sketch_fit_in_message".toByteString())
       .setSender(secondSender)
       .build()
-    ProtoTruth.assertThat(client.transmitNoisedSketch(flowOf(fullSketch)))
+    ProtoTruth.assertThat(client.handleNoisedSketch(flowOf(fullSketch)))
       .isEqualToDefaultInstance()
     val tokenAfterSecondSketch = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
@@ -146,12 +146,12 @@ class WorkerServiceImplTest {
       role = DuchyRole.PRIMARY,
       blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
     )
-    val sketch = TransmitNoisedSketchRequest.newBuilder()
+    val sketch = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(55)
       .setPartialSketch("data".toByteString())
       .setSender(duchyNames.last())
       .build()
-    assertFailsWith<StatusException> { client.transmitNoisedSketch(flowOf(sketch)) }
+    assertFailsWith<StatusException> { client.handleNoisedSketch(flowOf(sketch)) }
   }
 
   @Test
@@ -165,19 +165,19 @@ class WorkerServiceImplTest {
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
     val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
-    val part1 = BlindPositionsRequest.newBuilder()
+    val part1 = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
       .build()
-    val part2 = BlindPositionsRequest.newBuilder()
+    val part2 = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part2_".toByteString())
       .build()
-    val part3 = BlindPositionsRequest.newBuilder()
+    val part3 = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(client.blindPositions(flowOf(part1, part2, part3)))
+    ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
@@ -210,11 +210,11 @@ class WorkerServiceImplTest {
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
     val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
-    val sketch = BlindPositionsRequest.newBuilder()
+    val sketch = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("full_sketch".toByteString())
       .build()
-    ProtoTruth.assertThat(client.blindPositions(flowOf(sketch)))
+    ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(sketch)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
@@ -242,11 +242,11 @@ class WorkerServiceImplTest {
       role = DuchyRole.SECONDARY,
       blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
     )
-    val sketch = BlindPositionsRequest.newBuilder()
+    val sketch = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(55)
       .setPartialSketch("full_sketch".toByteString())
       .build()
-    assertFailsWith<StatusException> { client.blindPositions(flowOf(sketch)) }
+    assertFailsWith<StatusException> { client.handleConcatenatedSketch(flowOf(sketch)) }
   }
 
   @Test
@@ -260,11 +260,11 @@ class WorkerServiceImplTest {
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
     val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
-    val sketch = DecryptFlagAndCountRequest.newBuilder()
+    val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
-      .setPartialSketch("full_sketch".toByteString())
+      .setPartialData("full_sketch".toByteString())
       .build()
-    ProtoTruth.assertThat(client.decryptFlagAndCount(flowOf(sketch)))
+    ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(sketch)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
@@ -298,19 +298,19 @@ class WorkerServiceImplTest {
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
     val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
-    val part1 = DecryptFlagAndCountRequest.newBuilder()
+    val part1 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
-      .setPartialSketch("part1_".toByteString())
+      .setPartialData("part1_".toByteString())
       .build()
-    val part2 = DecryptFlagAndCountRequest.newBuilder()
+    val part2 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
-      .setPartialSketch("part2_".toByteString())
+      .setPartialData("part2_".toByteString())
       .build()
-    val part3 = DecryptFlagAndCountRequest.newBuilder()
+    val part3 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
-      .setPartialSketch("part3".toByteString())
+      .setPartialData("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(client.decryptFlagAndCount(flowOf(part1, part2, part3)))
+    ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
@@ -338,11 +338,11 @@ class WorkerServiceImplTest {
       role = DuchyRole.SECONDARY,
       blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
     )
-    val sketch = DecryptFlagAndCountRequest.newBuilder()
+    val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(55)
-      .setPartialSketch("data".toByteString())
+      .setPartialData("data".toByteString())
       .build()
-    assertFailsWith<StatusException> { client.decryptFlagAndCount(flowOf(sketch)) }
+    assertFailsWith<StatusException> { client.handleEncryptedFlagsAndCounts(flowOf(sketch)) }
   }
 }
 

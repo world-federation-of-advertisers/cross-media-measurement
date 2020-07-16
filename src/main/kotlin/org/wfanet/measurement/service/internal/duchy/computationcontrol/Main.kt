@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.internal.duchy.worker
+package org.wfanet.measurement.service.internal.duchy.computationcontrol
 
 import kotlin.properties.Delegates
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,7 +9,7 @@ import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import picocli.CommandLine
 
-private class WorkerServiceFlags {
+private class ComputationControlServiceFlags {
   @set:CommandLine.Option(
     names = ["--port", "-p"],
     description = ["TCP port for gRPC server."],
@@ -36,7 +36,7 @@ private class WorkerServiceFlags {
   showDefaultValues = true
 )
 private fun run(
-  @CommandLine.Mixin workerServiceFlags: WorkerServiceFlags,
+  @CommandLine.Mixin computationControlServiceFlags: ComputationControlServiceFlags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags,
   @CommandLine.Mixin cloudStorageFlags: GoogleCloudStorageFromFlags.Flags
 ) {
@@ -45,7 +45,7 @@ private fun run(
   val cloudStorageFromFlags = GoogleCloudStorageFromFlags(cloudStorageFlags)
 
   val computationManager = newCascadingLegionsSketchAggregationGcpComputationManager(
-    duchyName = workerServiceFlags.nameForLogging,
+    duchyName = computationControlServiceFlags.nameForLogging,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
     databaseClient = spannerFromFlags.databaseClient,
@@ -54,10 +54,11 @@ private fun run(
   )
 
   CommonServer(
-    workerServiceFlags.nameForLogging,
-    workerServiceFlags.port,
-    WorkerServiceImpl(computationManager)
-  ).start().blockUntilShutdown()
+    computationControlServiceFlags.nameForLogging,
+    computationControlServiceFlags.port,
+    ComputationControlServiceImpl(computationManager)
+  ) .start() .blockUntilShutdown()
 }
 
+@ExperimentalCoroutinesApi
 fun main(args: Array<String>) = commandLineMain(::run, args)

@@ -18,9 +18,9 @@ import org.wfanet.measurement.db.duchy.SketchAggregationStages
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
-import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
-import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt.WorkerServiceCoroutineStub
-import org.wfanet.measurement.service.internal.duchy.worker.WorkerServiceImpl
+import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
+import org.wfanet.measurement.service.internal.duchy.computationcontrol.ComputationControlServiceImpl
 
 @RunWith(JUnit4::class)
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -35,7 +35,7 @@ class MillTest {
 
   @Before
   fun setup() {
-    val workerServiceMap = duchyNames.associateWith { setupWorkerService() }
+    val workerServiceMap = duchyNames.associateWith { setupComputationControlService() }
     mills = duchyNames.map { _ ->
       Mill(workerServiceMap, 1000)
     }
@@ -46,9 +46,9 @@ class MillTest {
     // TODO: Should be a real test of something.
   }
 
-  private fun setupWorkerService(): WorkerServiceCoroutineStub {
+  private fun setupComputationControlService(): ComputationControlServiceCoroutineStub {
     val serverName = InProcessServerBuilder.generateName()
-    val client = WorkerServiceCoroutineStub(
+    val client = ComputationControlServiceCoroutineStub(
       grpcCleanup.register(
         InProcessChannelBuilder.forName(serverName).directExecutor().build()
       )
@@ -57,7 +57,7 @@ class MillTest {
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
         .addService(
-          WorkerServiceImpl(
+          ComputationControlServiceImpl(
             SketchAggregationComputationManager(
               FakeComputationsRelationalDatabase(
                 FakeComputationStorage(),

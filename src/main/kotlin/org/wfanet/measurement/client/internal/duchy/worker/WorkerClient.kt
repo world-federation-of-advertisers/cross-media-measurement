@@ -3,22 +3,15 @@ package org.wfanet.measurement.client.internal.duchy.worker
 import io.grpc.ManagedChannel
 import java.io.Closeable
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.coroutineScope
-import org.wfanet.measurement.internal.duchy.TraceRequest
-import org.wfanet.measurement.internal.duchy.TraceResponse
-import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 
 class WorkerClient(
   private val channel: ManagedChannel,
-  private val stub: WorkerServiceGrpcKt.WorkerServiceCoroutineStub
+  private val stub: ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 ) :
   Closeable {
 
   override fun close() {
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
-  }
-
-  suspend fun trace(count: Int): TraceResponse = coroutineScope {
-    stub.trace(TraceRequest.newBuilder().setCount(count).build())
   }
 }

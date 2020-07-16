@@ -8,7 +8,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/worker:worker_service_impl",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/workmanagement:work_management_service_impl",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@io_grpc_grpc_java//core",
