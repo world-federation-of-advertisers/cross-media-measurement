@@ -3,6 +3,7 @@ package org.wfanet.measurement.db.duchy.gcp
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
 import java.time.Instant
 import kotlin.test.assertEquals
@@ -162,7 +163,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
+      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner,
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
@@ -221,9 +222,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       databaseClient,
       """
       SELECT ComputationId, COUNT(1) as N
-      FROM ComputationBlobReferences 
+      FROM ComputationBlobReferences
       GROUP BY ComputationId
-      ORDER BY ComputationId DESC  
+      ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(resultId1.localId)
@@ -775,7 +776,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, CreationTime, EndTime, PreviousStage, FollowingStage, 
+      SELECT ComputationId, ComputationStage, CreationTime, EndTime, PreviousStage, FollowingStage,
              Details
       FROM ComputationStages
       ORDER BY ComputationStage
@@ -1313,7 +1314,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
+      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner,
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
@@ -1370,7 +1371,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner, 
+      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner,
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
@@ -1418,5 +1419,55 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
       database.endComputation(token, FakeProtocolStages.B, EndComputationReason.CANCELED)
     }
+  }
+
+  @Test
+  fun `readGlobalComputationIds by stage`() = runBlocking<Unit> {
+    val a = computationMutations.insertComputation(
+      localId = 123,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = FakeProtocolStages.A,
+      globalId = 0xA,
+      lockOwner = "owner",
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    val b = computationMutations.insertComputation(
+      localId = 234,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = FakeProtocolStages.B,
+      globalId = 0xB,
+      lockOwner = "owner",
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    val c = computationMutations.insertComputation(
+      localId = 345,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = FakeProtocolStages.C,
+      globalId = 0xC,
+      lockOwner = "owner",
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    val d = computationMutations.insertComputation(
+      localId = 456,
+      updateTime = testClock.last().toGcpTimestamp(),
+      stage = FakeProtocolStages.D,
+      globalId = 0xD,
+      lockOwner = "owner",
+      lockExpirationTime = testClock.last().toGcpTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    databaseClient.write(listOf(a, b, c, d))
+
+    assertThat(database.readGlobalComputationIds(setOf(FakeProtocolStages.A, FakeProtocolStages.C)))
+      .containsExactly(0xAL, 0xCL)
+    assertThat(database.readGlobalComputationIds(ProtocolStages.validTerminalStages)).isEmpty()
+    assertThat(database.readGlobalComputationIds(ProtocolStages.validInitialStages))
+      .containsExactly(0xAL)
+    assertThat(database.readGlobalComputationIds(
+      FakeProtocolStages.values().toSet().minus(ProtocolStages.validTerminalStages)))
+      .containsExactly(0xAL, 0xBL, 0xCL, 0xDL)
   }
 }

@@ -170,4 +170,15 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
   suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailT {
     return relationalDatabase.readStageSpecificDetails(token)
   }
+
+  /**
+   * Gets a collection of all the global computation ids for a computation in the database
+   * which are in a one of the provided stages.
+   *
+   * @throws [IOException] upon failure
+   */
+  suspend fun readGlobalComputationIds(stages: Set<StageT>): Set<Long> {
+    if (stages.isEmpty()) return setOf()
+    return relationalDatabase.readGlobalComputationIds(stages)
+  }
 }

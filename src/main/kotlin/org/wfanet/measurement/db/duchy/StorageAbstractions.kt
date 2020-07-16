@@ -140,6 +140,13 @@ interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
 
   /** Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from a stage. */
   suspend fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef)
+
+  /**
+   * Gets the global computation ids based on stage.
+   *
+   * @param [stages] return ids for computations only if they are in this stage
+   */
+  suspend fun readGlobalComputationIds(stages: Set<StageT>): Set<Long>
 }
 
 /**

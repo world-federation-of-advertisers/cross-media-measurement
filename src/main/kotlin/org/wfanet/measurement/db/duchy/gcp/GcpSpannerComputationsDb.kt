@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toCollection
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
@@ -610,6 +611,12 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
         error("Failed to update, token is from older update time.")
       }
     }
+  }
+
+  override suspend fun readGlobalComputationIds(stages: Set<StageT>): Set<Long> {
+    return GlobalIdsQuery(computationMutations, stages)
+      .execute(databaseClient)
+      .toCollection(mutableSetOf())
   }
 }
 

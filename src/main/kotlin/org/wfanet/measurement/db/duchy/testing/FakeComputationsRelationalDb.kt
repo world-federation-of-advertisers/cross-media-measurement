@@ -108,6 +108,10 @@ class FakeComputationsRelationalDatabase<StageT : Enum<StageT>, StageDetailsT>(
   override suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT {
     return details.detailsFor(token.stage)
   }
+
+  override suspend fun readGlobalComputationIds(stages: Set<StageT>): Set<Long> =
+    fakeComputations.filter { it.value.token.stage in stages }.map { it.value.token.globalId }
+      .toSet()
 }
 
 data class FakeBlobMetadata(val id: Long, val dependencyType: BlobDependencyType)
@@ -173,7 +177,7 @@ class FakeComputationStorage<StageT : Enum<StageT>, StageDetailsT> :
 
   private fun requireTokenFromCurrent(token: ComputationToken<StageT>): FakeComputation<StageT> {
     val current = this[token.localId]!!
-    require(current.token == token) {"Token provided $token != current token ${current.token}"}
+    require(current.token == token) { "Token provided $token != current token ${current.token}" }
     return current
   }
 }
