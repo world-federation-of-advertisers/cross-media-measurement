@@ -258,12 +258,12 @@ StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
   blinded_register_indexes.reserve(num_registers);
   for (size_t offset = 0; offset < sketch.size();
        offset += kBytesPerCipherRegister) {
-    if (offset > sketch.size()) {
-      return InternalError("Offset is out of bound");
-    }
+    // The size of current_block is guaranteed to be equal to
+    // kBytesPerCipherText
+    absl::string_view current_block =
+        absl::string_view(sketch).substr(offset, kBytesPerCipherText);
     ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractElGamalCiphertextFromString(
-                         sketch.substr(offset, kBytesPerCipherText)));
+                     ExtractElGamalCiphertextFromString(current_block));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      composite_cipher.e_g_cipher->Decrypt(ciphertext));
     ASSIGN_OR_RETURN(
@@ -451,12 +451,14 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   response_sketch->reserve(request.sketch().size());
   for (size_t offset = 0; offset < request.sketch().size();
        offset += kBytesPerCipherRegister) {
-    if (offset + 3 * kBytesPerCipherText > request.sketch().size()) {
-      return InternalError("Offset is out of bound");
-    }
+    // The size of current_block is guaranteed to be equal to
+    // kBytesPerCipherRegister
+    absl::string_view current_block =
+        absl::string_view(request.sketch())
+            .substr(offset, kBytesPerCipherRegister);
     ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
                      ExtractElGamalCiphertextFromString(
-                         request.sketch().substr(offset, kBytesPerCipherText)));
+                         current_block.substr(0, kBytesPerCipherText)));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      composite_cipher.e_g_cipher->Decrypt(ciphertext));
     ASSIGN_OR_RETURN(ElGamalCiphertext re_encrypted_p_h,
@@ -469,13 +471,11 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     // 2. re-randomize the key and count values and append to the response.
     RETURN_IF_ERROR(ReRandomizeCiphertextAndAppendToString(
         ec_group, *client_e_g_cipher.get(),
-        request.sketch().substr(offset + kBytesPerCipherText,
-                                kBytesPerCipherText),
+        current_block.substr(kBytesPerCipherText, kBytesPerCipherText),
         *response_sketch));
     RETURN_IF_ERROR(ReRandomizeCiphertextAndAppendToString(
         ec_group, *client_e_g_cipher.get(),
-        request.sketch().substr(offset + kBytesPerCipherText * 2,
-                                kBytesPerCipherText),
+        current_block.substr(kBytesPerCipherText * 2, kBytesPerCipherText),
         *response_sketch));
   }
   // TODO(wangyaopw): shuffle the sketch before returning.
@@ -534,13 +534,12 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   response_sketch->reserve(request.flag_counts().size());
   for (size_t offset = 0; offset < request.flag_counts().size();
        offset += kBytesPerCipherText) {
-    if (offset > request.flag_counts().size()) {
-      return InternalError("Offset is out of bound");
-    }
-    ASSIGN_OR_RETURN(
-        ElGamalCiphertext ciphertext,
-        ExtractElGamalCiphertextFromString(
-            request.flag_counts().substr(offset, kBytesPerCipherText)));
+    // The size of current_block is guaranteed to be equal to
+    // kBytesPerCipherText
+    absl::string_view current_block = absl::string_view(request.flag_counts())
+                                          .substr(offset, kBytesPerCipherText);
+    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                     ExtractElGamalCiphertextFromString(current_block));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
                      el_gamal_cipher->Decrypt(ciphertext));
     // Append the result to the response.
@@ -573,21 +572,21 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
   DecryptLastLayerFlagAndCountResponse response;
   for (size_t offset = 0; offset < request.flag_counts().size();
        offset += kBytesPerCipherText * 2) {
-    if (offset + kBytesPerCipherText > request.flag_counts().size()) {
-      return InternalError("Offset is out of bound");
-    }
-    ASSIGN_OR_RETURN(
-        ElGamalCiphertext flag_ciphertext,
-        ExtractElGamalCiphertextFromString(
-            request.flag_counts().substr(offset, kBytesPerCipherText)));
+    // The size of current_block is guaranteed to be equal to
+    // kBytesPerCipherText * 2
+    absl::string_view current_block =
+        absl::string_view(request.flag_counts())
+            .substr(offset, kBytesPerCipherText * 2);
+    ASSIGN_OR_RETURN(ElGamalCiphertext flag_ciphertext,
+                     ExtractElGamalCiphertextFromString(
+                         current_block.substr(0, kBytesPerCipherText)));
     ASSIGN_OR_RETURN(std::string flag_plaintext,
                      el_gamal_cipher->Decrypt(flag_ciphertext));
     // Count value 0 is mapping to ECPoint at Infinity, whose decryption would
     // fail. So we need to check the status before fetching the value.
-    ASSIGN_OR_RETURN(
-        ElGamalCiphertext count_ciphertext,
-        ExtractElGamalCiphertextFromString(request.flag_counts().substr(
-            offset + kBytesPerCipherText, kBytesPerCipherText)));
+    ASSIGN_OR_RETURN(ElGamalCiphertext count_ciphertext,
+                     ExtractElGamalCiphertextFromString(current_block.substr(
+                         kBytesPerCipherText, kBytesPerCipherText)));
     StatusOr<std::string> count_plaintext =
         el_gamal_cipher->Decrypt(count_ciphertext);
 
