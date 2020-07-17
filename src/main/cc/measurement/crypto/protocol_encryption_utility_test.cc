@@ -9,7 +9,7 @@
 #include "gmock/gmock.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/any_sketch/sketch_encrypter.h"
+#include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
 
 namespace wfa::measurement::crypto {
@@ -106,7 +106,7 @@ class TestData {
   ElGamalKeys duchy_3_el_gamal_keys_;
   std::string duchy_3_p_h_key_;
   ElGamalPublicKeys client_el_gamal_keys_;  // combined from 3 duchy keys;
-  std::unique_ptr<any_sketch::SketchEncrypter> sketch_encrypter;
+  std::unique_ptr<any_sketch::crypto::SketchEncrypter> sketch_encrypter;
 
   TestData() {
     duchy_1_el_gamal_keys_ = GenerateRandomElGamalKeys(kTestCurveId);
@@ -142,13 +142,13 @@ class TestData {
     client_el_gamal_keys_.set_el_gamal_y(
         client_public_el_gamal_y_ec.ToBytesCompressed().value());
 
-    any_sketch::CiphertextString client_public_key = {
+    any_sketch::crypto::CiphertextString client_public_key = {
         .u = client_el_gamal_keys_.el_gamal_g(),
         .e = client_el_gamal_keys_.el_gamal_y(),
     };
 
     // Create a sketch_encryter for encrypting plaintext any_sketch data.
-    sketch_encrypter = any_sketch::CreateWithPublicKey(
+    sketch_encrypter = any_sketch::crypto::CreateWithPublicKey(
                            kTestCurveId, kMaxFrequency, client_public_key)
                            .value();
   }
@@ -156,7 +156,7 @@ class TestData {
   // Helper function to go through the entire MPC protocol using the input data.
   // The final (flag, count) lists are returned.
   DecryptLastLayerFlagAndCountResponse GoThroughEntireMpcProtocol(
-      const std::vector<unsigned char>& encrypted_sketch) {
+      const std::string& encrypted_sketch) {
     // Blind register indexes at duchy 1
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_1;
     *blind_one_layer_register_index_request_1
@@ -165,7 +165,7 @@ class TestData {
         duchy_1_el_gamal_keys_;
     blind_one_layer_register_index_request_1.set_curve_id(kTestCurveId);
     blind_one_layer_register_index_request_1.mutable_sketch()->append(
-        encrypted_sketch.begin(), encrypted_sketch.end());
+        encrypted_sketch);
     BlindOneLayerRegisterIndexResponse
         blind_one_layer_register_index_response_1 =
             BlindOneLayerRegisterIndex(blind_one_layer_register_index_request_1)
@@ -315,7 +315,7 @@ TEST(EndToEnd, sumOfCountsShouldBeCorrect) {
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 3);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 4);
-  std::vector<unsigned char> encrypted_sketch =
+  std::string encrypted_sketch =
       test_data.sketch_encrypter->Encrypt(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
@@ -333,7 +333,7 @@ TEST(EndToEnd, sumOfCoutsShouldBeCappedByMaximumFrequency) {
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111,
               /* count = */ kMaxFrequency - 2);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 3);
-  std::vector<unsigned char> encrypted_sketch =
+  std::string encrypted_sketch =
       test_data.sketch_encrypter->Encrypt(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
@@ -350,7 +350,7 @@ TEST(EndToEnd, keyCollisionShouldDestroyCount) {
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 222, /* count = */ 2);
-  std::vector<unsigned char> encrypted_sketch =
+  std::string encrypted_sketch =
       test_data.sketch_encrypter->Encrypt(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
@@ -366,7 +366,7 @@ TEST(EndToEnd, zeroCountShouldBeSkipped) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 222, /* count = */ 0);
-  std::vector<unsigned char> encrypted_sketch =
+  std::string encrypted_sketch =
       test_data.sketch_encrypter->Encrypt(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
@@ -392,7 +392,7 @@ TEST(EndToEnd, combinedCases) {
   AddRegister(&plain_sketch, /* index = */ 3, /* key = */ 300, /* count = */ 8);
   AddRegister(&plain_sketch, /* index = */ 4, /* key = */ 400, /* count = */ 0);
 
-  std::vector<unsigned char> encrypted_sketch =
+  std::string encrypted_sketch =
       test_data.sketch_encrypter->Encrypt(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =

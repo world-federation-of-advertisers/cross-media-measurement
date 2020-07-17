@@ -29,7 +29,7 @@ cc_test(
     ],
     deps = [
         ":protocol_encryption_utility",
-        "@any_sketch//src/main/cc/any_sketch:sketch_encrypter",
+        "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
