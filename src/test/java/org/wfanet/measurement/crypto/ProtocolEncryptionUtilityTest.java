@@ -12,7 +12,7 @@ public class ProtocolEncryptionUtilityTest {
 
   static {
     try {
-      System.loadLibrary("protocolencryptionutility");
+      System.loadLibrary("protocol_encryption_utility");
     } catch (UnsatisfiedLinkError e) {
       if (e.getMessage().contains("grte")) {
         throw new RuntimeException(

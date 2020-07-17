@@ -260,8 +260,15 @@ cloud_spanner_emulator_binaries(
     version = "0.8.0",
 )
 
-# Public APIs for measurement system.
+# Rules for swig wrapping.
+git_repository(
+    name = "wfa_rules_swig",
+    commit = "4799cbfa2d0e335208d790729ed4b49d34968245",
+    remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
+    shallow_since = "1595012448 -0700",
+)
 
+# Public APIs for measurement system.
 git_repository(
     name = "wfa_measurement_proto",
     commit = "227755d799d7340716f1c15e167bb5050ed13c83",
@@ -269,7 +276,6 @@ git_repository(
 )
 
 # AnySketch.
-
 git_repository(
     name = "any_sketch",
     commit = "29945ad07f133aaa03c51834cd2e61c1cc30a5a5",

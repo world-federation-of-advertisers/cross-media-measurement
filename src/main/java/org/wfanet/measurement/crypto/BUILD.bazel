@@ -1,47 +1,14 @@
 load("@rules_java//java:defs.bzl", "java_library")
-load("//build/rules_swig:defs.bzl", "java_wrap_cc")
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = ["//src:jvm"])
 
 java_wrap_cc(
-    name = "protocol_encryption_utility_swig",
+    name = "protocol_encryption_utility",
     src = "protocol_encryption_utility.swig",
     module = "ProtocolEncryptionUtility",
     package = "org.wfanet.measurement.crypto",
-    swig_includes = [
-        "//src/main/cc/measurement/crypto:protocol_encryption_utility_wrapper.h",
-    ],
-)
-
-# Create a C++ library from the generated swig C++.
-cc_library(
-    name = "protocol_encryption_utility_swig_cc",
-    srcs = [
-        ":protocol_encryption_utility_swig.cc",
-    ],
     deps = [
         "//src/main/cc/measurement/crypto:protocol_encryption_utility_wrapper",
-        "@bazel_tools//tools/jdk:jni",
-    ],
-    alwayslink = True,
-)
-
-# Wrap the Bazel C++ library as a shared library file that can be referenced from Java.
-cc_binary(
-    name = "libprotocolencryptionutility.so",
-    linkshared = True,
-    deps = [":protocol_encryption_utility_swig_cc"],
-)
-
-java_library(
-    name = "protocol_encryption_utility",
-    srcs = [
-        ":ProtocolEncryptionUtility.java",
-        ":ProtocolEncryptionUtilityJNI.java",
-    ],
-    visibility = ["//src:jvm"],
-    runtime_deps = [":libprotocolencryptionutility.so"],
-    deps = [
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
     ],
 )
