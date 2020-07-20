@@ -37,9 +37,9 @@ kt_jvm_binary_and_image(
     srcs = ["GcpKingdomStorageServerMain.kt"],
     main_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomStorageServerMainKt",
     visibility = ["//visibility:public"],
-    runtime_deps = ["//third_party/kotlin/kotlin/reflect/jvm"],
     deps = [
         ":kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//third_party/java/picocli",
     ],

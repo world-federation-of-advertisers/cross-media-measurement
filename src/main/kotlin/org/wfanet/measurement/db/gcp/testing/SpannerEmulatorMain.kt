@@ -2,13 +2,12 @@ package org.wfanet.measurement.db.gcp.testing
 
 import com.google.cloud.spanner.InstanceConfigId
 import com.google.cloud.spanner.InstanceInfo
+import java.io.File
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
-import java.io.File
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import kotlin.system.exitProcess
 import picocli.CommandLine
-import kotlin.reflect.jvm.javaMethod
 
 private class Flags {
   @CommandLine.Option(
@@ -33,7 +32,8 @@ private class Flags {
 @CommandLine.Command(
   name = "spanner_emulator_main",
   description = ["Run Cloud Spanner Emulator on an unused port, creating a temporary database."],
-  mixinStandardHelpOptions = true
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
 )
 private fun run(
   @CommandLine.Mixin flags: Flags,
@@ -81,6 +81,4 @@ private fun run(
  *
  * Specify `--help` option to show usage information.
  */
-fun main(args: Array<String>) {
-  exitProcess(CommandLine(::run.javaMethod).execute(*args))
-}
+fun main(args: Array<String>) = commandLineMain(::run, args)

@@ -2,9 +2,8 @@ package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
 import kotlin.properties.Delegates
-import kotlin.reflect.jvm.javaMethod
-import kotlin.system.exitProcess
 import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import picocli.CommandLine
@@ -29,7 +28,15 @@ private class Flags {
     private set
 }
 
-@CommandLine.Command(name = "gcp_kingdom_storage_server", mixinStandardHelpOptions = true)
+@CommandLine.Command(
+  name = "gcp_kingdom_storage_server",
+  description = [
+    "Start the internal Kingdom storage services in a single blocking server.",
+    "This brings up its own Cloud Spanner Emulator."
+  ],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
 private fun run(
   @CommandLine.Mixin flags: Flags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
@@ -47,6 +54,4 @@ private fun run(
 }
 
 /** Runs the internal Kingdom storage services in a single server with a Spanner backend. */
-fun main(args: Array<String>) {
-  exitProcess(CommandLine(::run.javaMethod).execute(*args))
-}
+fun main(args: Array<String>) = commandLineMain(::run, args)

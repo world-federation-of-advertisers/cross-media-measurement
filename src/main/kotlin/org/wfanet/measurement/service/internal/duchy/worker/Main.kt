@@ -1,14 +1,13 @@
 package org.wfanet.measurement.service.internal.duchy.worker
 
+import kotlin.properties.Delegates
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.wfanet.measurement.common.CommonServer
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.gcp.newCascadingLegionsSketchAggregationGcpComputationManager
 import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import picocli.CommandLine
-import kotlin.properties.Delegates
-import kotlin.reflect.jvm.javaMethod
-import kotlin.system.exitProcess
 
 private class WorkerServiceFlags {
   @set:CommandLine.Option(
@@ -31,7 +30,11 @@ private class WorkerServiceFlags {
 }
 
 @ExperimentalCoroutinesApi
-@CommandLine.Command(name = "gcp_worker_server", mixinStandardHelpOptions = true)
+@CommandLine.Command(
+  name = "gcp_worker_server",
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
 private fun run(
   @CommandLine.Mixin workerServiceFlags: WorkerServiceFlags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags,
@@ -54,12 +57,7 @@ private fun run(
     workerServiceFlags.nameForLogging,
     workerServiceFlags.port,
     WorkerServiceImpl(computationManager)
-  )
-    .start()
-    .blockUntilShutdown()
+  ).start().blockUntilShutdown()
 }
 
-@ExperimentalCoroutinesApi
-fun main(args: Array<String>) {
-  exitProcess(CommandLine(::run.javaMethod).execute(*args))
-}
+fun main(args: Array<String>) = commandLineMain(::run, args)
