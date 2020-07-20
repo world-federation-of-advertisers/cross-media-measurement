@@ -43,9 +43,9 @@ CREATE TABLE Computations (
   GlobalComputationId INT64 NOT NULL,
 
   -- The identifier of the worker process/task who owns the lock on this
-  -- computation. This field may be null in which case no Knight owns the
+  -- computation. This field may be null in which case no Mill owns the
   -- lock. Depending upon the LockOwner field, the computation is either
-  -- available for a Knight to take up as its quest, or the computation cannot
+  -- available for a Mill to take up as its quest, or the computation cannot
   -- be worked because inputs are required from an external source.
   --
   -- When the lock is owned, it is assumed the computation is being worked on.
@@ -53,7 +53,7 @@ CREATE TABLE Computations (
   -- expires.
   --
   -- For example this could be the identifier of the GCP instance running a
-  -- Knight i.e. `gke-mpc-worker-knight-pool-c8f5637a-rffh`.
+  -- Mill i.e. `gke-mpc-worker-mill-pool-c8f5637a-rffh`.
   LockOwner STRING(MAX),
 
   -- Time the lock on the computation expires. After such a time the
@@ -169,7 +169,7 @@ CREATE TABLE ComputationBlobReferences (
   BlobId INT64 NOT NULL,
 
   -- A reference to the BLOB. This is the way which the BLOB is accessed
-  -- via a Knight job. This is a globally unique name starting with
+  -- via a Mill job. This is a globally unique name starting with
   -- StoredDataPrefix from the parent table.
   PathToBlob STRING(MAX),
 
@@ -185,7 +185,7 @@ CREATE TABLE ComputationBlobReferences (
 -- ComputationStageAttempts
 --   Running history of attempts for running a stage of a computation.
 --   It is generally expected that each stage will be attempted once,
---   but it is possible for Knight to fail mid operation.
+--   but it is possible for Mill to fail mid operation.
 CREATE TABLE ComputationStageAttempts (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,

@@ -12,7 +12,7 @@ data class ComputationToken<StageT : Enum<StageT>>(
   val globalId: Long,
   /** The stage of the computation when the token was created. */
   val stage: StageT,
-  /** Name of knight that owns the lock on the computation. */
+  /** Name of mill that owns the lock on the computation. */
   val owner: String?,
   /** Identifier of the duchy that receives work for this computation. */
   val nextWorker: String,

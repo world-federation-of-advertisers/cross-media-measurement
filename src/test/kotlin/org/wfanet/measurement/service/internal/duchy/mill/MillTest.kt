@@ -42,7 +42,7 @@ class MillTest {
   }
 
   @Test
-  fun `peasant polls for work 3 times`() = runBlocking {
+  fun `mill polls for work 3 times`() = runBlocking {
     // TODO: Should be a real test of something.
   }
 

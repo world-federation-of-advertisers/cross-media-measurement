@@ -41,7 +41,7 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
   private val databaseClient: DatabaseClient,
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
-  private val blobStorageBucket: String = "knight-computation-stage-storage",
+  private val blobStorageBucket: String = "mill-computation-stage-storage",
   private val computationMutations: ComputationMutations<StageT, StageDetailsT>,
   private val clock: Clock = Clock.systemUTC()
 ) : ComputationsRelationalDb<StageT, StageDetailsT> {
@@ -157,10 +157,10 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
           // Release any lock on this computation. The owner says who has the current
           // lock on the computation, and the expiration time stages both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being
-          // worked on, but that is not enough to say a knight should pick up the computation
+          // worked on, but that is not enough to say a mill should pick up the computation
           // as its quest as there are stages which waiting for inputs from other nodes.
           // A non-null LockExpirationTime stages when a computation can be be taken up
-          // by a knight, and by using the commit timestamp we pretty much get the behaviour
+          // by a mill, and by using the commit timestamp we pretty much get the behaviour
           // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = clock.gcpTimestamp()

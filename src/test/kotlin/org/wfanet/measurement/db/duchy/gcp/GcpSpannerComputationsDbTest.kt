@@ -150,14 +150,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       role = ComputationDetails.RoleInComputation.SECONDARY
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "BOHEMIA"
-      blobsStoragePrefix = "knight-computation-stage-storage/${resultId1.localId}"
+      blobsStoragePrefix = "mill-computation-stage-storage/${resultId1.localId}"
     }.build()
 
     val expectedDetails220 = ComputationDetails.newBuilder().apply {
       role = ComputationDetails.RoleInComputation.PRIMARY
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "BOHEMIA"
-      blobsStoragePrefix = "knight-computation-stage-storage/${resultId2.localId}"
+      blobsStoragePrefix = "mill-computation-stage-storage/${resultId2.localId}"
     }.build()
     assertQueryReturns(
       databaseClient,
