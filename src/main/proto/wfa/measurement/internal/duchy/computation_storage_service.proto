@@ -1,0 +1,200 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy;
+
+option java_package = "org.wfanet.measurement.internal.duchy";
+option java_multiple_files = true;
+
+import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
+import "src/main/proto/wfa/measurement/internal/duchy/computation_details.proto";
+import "src/main/proto/wfa/measurement/internal/duchy/computation_token.proto";
+
+// ******************************************************************************
+// **** See add_a_protocol.md for instructions on adding a new MPC protocol. ****
+// ******************************************************************************
+
+// Service for interacting with a computation relational database.
+service ComputationStorageService {
+  // Creates a computation.
+  rpc CreateComputation(CreateComputationRequest)
+      returns (CreateComputationResponse);
+
+  // Gets the ComputationToken for a specific computation by
+  // its global identifier.
+  rpc GetComputationToken(GetComputationTokenRequest)
+      returns (GetComputationTokenResponse);
+
+  // Advances the stage of a computation to another non-terminal stage.
+  // An path to a BLOb for each of the outputs must be written, before
+  // this call will succeed.
+  rpc AdvanceComputationStage(AdvanceComputationStageRequest)
+      returns (AdvanceComputationStageResponse);
+
+  // Finishes a computation, advancing it to a terminal stage.
+  rpc FinishComputation(FinishComputationRequest)
+      returns (FinishComputationResponse);
+
+  // Claims a single work item for a computation type.
+  rpc ClaimWork(ClaimWorkRequest)
+      returns (ClaimWorkResponse);
+
+  // Gets global computation ids for computations matching some criteria.
+  rpc GetComputationIds(GetComputationIdsRequest)
+      returns (GetComputationIdsResponse);
+
+  // Writes the location of an BLOb which is output of the
+  // computation's current stage.
+  rpc RecordOutputBlobPath(RecordOutputBlobPathRequest)
+      returns (RecordOutputBlobPathResponse);
+
+  // Enqueues a computation for work by a Mill.
+  rpc EnqueueComputation(EnqueueComputationRequest)
+      returns (EnqueueComputationResponse);
+}
+
+// Request to create a new computation.
+message CreateComputationRequest {
+  ComputationTypeEnum.ComputationType computation_type = 1;
+  int64 global_computation_id = 2;
+}
+
+message CreateComputationResponse {
+  // Token of the created computation.
+  ComputationToken token = 1;
+}
+
+// Request for a ComputationToken for a specific computation.
+message GetComputationTokenRequest {
+  ComputationTypeEnum.ComputationType computation_type = 1;
+  int64 global_computation_id = 2;
+}
+message GetComputationTokenResponse {
+  ComputationToken token = 1;
+}
+
+// Request to advance the stage of a computation.
+message AdvanceComputationStageRequest {
+  // Token for the computation being updated.
+  ComputationToken token = 1;
+
+  // The stage the computation will be moved into upon success.
+  ComputationStage next_computation_stage = 2;
+
+  // Paths to blobs used as input to that new stage.
+  repeated string input_blobs = 3;
+
+  // Number of outputs expected to be written by the computation stage.
+  int32 outputBlobs = 4;
+
+  // Details to write which are specific to the stage of the computation.
+  ComputationStageDetails stage_details = 5;
+
+  // What to do with the lock on a computation after changing the state.
+  enum AfterTransition {
+    // Not set intentionally.
+    UNSPECIFIED = 0;
+
+    // Retain and extend the lock for the current owner.
+    RETAIN_AND_EXTEND_LOCK = 1;
+
+    // Add the computation to the work queue, but in an unclaimed stage for
+    // some worker to claim at a later time.
+    ADD_UNCLAIMED_TO_QUEUE = 2;
+
+    // Do not add to the work queue, and release any lock on the computation.
+    // There is no work to be done on the computation at this time.
+    // Examples for when to set this include the computation finished or
+    // input from another source is required before continuing.
+    DO_NOT_ADD_TO_QUEUE = 3;
+  }
+  // What to do with the lock on a computation after changing the stage.
+  // Knowing this information at the time of request allows one atomic
+  // operation to change the stage and keep it in the right queue state
+  // with respect to other processes.
+  AfterTransition after_transition = 6;
+}
+message AdvanceComputationStageResponse {
+  ComputationToken token = 1;
+}
+
+// Claims a piece of work for a Mill.
+message ClaimWorkRequest {
+  // The type of computation for which to request work.
+  ComputationTypeEnum.ComputationType computation_type = 1;
+
+  // Name of the owner of the task. This information
+  // is recorded on a computation when claimed.
+  string owner = 2;
+}
+message ClaimWorkResponse {
+  repeated ComputationToken token = 1;
+}
+
+// Request to finish a computation.
+message FinishComputationRequest {
+  // Token for the computation to end.
+  ComputationToken token = 1;
+
+  // Stage to end on (must be a terminal stage of the computation).
+  ComputationStage ending_computation_stage = 2;
+
+  // The reason the computation ended.
+  ComputationDetails.CompletedReason reason = 3;
+}
+message FinishComputationResponse {
+  ComputationToken token = 1;
+}
+
+// Request to get computations matching some filtering criteria.
+message GetComputationIdsRequest {
+  // Computation must be in one of the given stages.
+  repeated ComputationStage stages = 1;
+}
+message GetComputationIdsResponse {
+  // Global identifiers of computations matching the query.
+  repeated int64 global_ids = 1;
+}
+
+// Writes the path to an already written BLOb as output to the stage.
+message RecordOutputBlobPathRequest {
+  ComputationToken token = 1;
+
+  // The identifier of the output blob for the stage. This is
+  // a zero indexed counter. So for most stages this will be
+  // zero as there is only a single output to the stage.
+  int64 output_blob_id = 2;
+
+  // The path to the BLOb to store in the computation database.
+  // Only the path is stored is the relational database, not
+  // the the actual bytes.
+  string blob_path = 3;
+}
+message RecordOutputBlobPathResponse {
+  ComputationToken token = 1;
+}
+
+// Request that a computation is enqueued in the Mill work queue.
+// The lock is released.
+message EnqueueComputationRequest {
+  ComputationToken token = 1;
+}
+// Response to enqueuing a computation. This is an ack
+// of the request which signifies the computation was
+// enqueued.
+message EnqueueComputationResponse {
+  // Intentionally blank
+}

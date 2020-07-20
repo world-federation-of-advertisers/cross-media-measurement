@@ -25,6 +25,19 @@ java_and_kt_grpc_library(
 )
 
 proto_library(
+    name = "computation_protocols_proto",
+    srcs = ["computation_protocols.proto"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto",
+    ],
+)
+
+java_proto_library(
+    name = "computation_protocols_java_proto",
+    deps = [":computation_protocols_proto"],
+)
+
+proto_library(
     name = "computation_details_proto",
     srcs = ["computation_details.proto"],
 )
@@ -32,6 +45,38 @@ proto_library(
 java_proto_library(
     name = "computation_details_java_proto",
     deps = [":computation_details_proto"],
+)
+
+proto_library(
+    name = "computation_storage_service_proto",
+    srcs = ["computation_storage_service.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        ":computation_details_proto",
+        ":computation_protocols_proto",
+        ":computation_token_proto",
+    ],
+)
+
+java_and_kt_grpc_library(
+    name = "computation_storage_service",
+    deps = [":computation_storage_service_proto"],
+)
+
+proto_library(
+    name = "computation_token_proto",
+    srcs = ["computation_token.proto"],
+    deps = [
+        ":computation_blob_dependency_proto",
+        ":computation_details_proto",
+        ":computation_protocols_proto",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto",
+    ],
+)
+
+java_proto_library(
+    name = "computation_token_java_proto",
+    deps = [":computation_token_proto"],
 )
 
 proto_library(
