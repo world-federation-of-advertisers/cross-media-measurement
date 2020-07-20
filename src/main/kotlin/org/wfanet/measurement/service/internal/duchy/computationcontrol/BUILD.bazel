@@ -18,7 +18,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:worker_service_kt_jvm_grpc",
     ],
 )
 
