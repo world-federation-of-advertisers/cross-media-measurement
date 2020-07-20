@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.internal.duchy.peasant
+package org.wfanet.measurement.service.internal.duchy.mill
 
 import io.grpc.ManagedChannelBuilder
 import java.time.Duration
@@ -29,9 +29,9 @@ fun main(args: Array<String>) {
 
   val stub = WorkerServiceGrpcKt.WorkerServiceCoroutineStub(channel)
 
-  val peasant = Peasant(mapOf(Pair("Alsace", stub)), minimumPollingInterval.value.toMillis())
+  val mill = Mill(mapOf(Pair("Alsace", stub)), minimumPollingInterval.value.toMillis())
   runBlocking {
-    peasant.pollForWork().collect {
+    mill.pollForWork().collect {
       // Deliberately empty
     }
   }

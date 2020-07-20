@@ -55,7 +55,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         duchyPublicKeys = publicKeysMap,
         databaseClient = databaseClient,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
-        storageBucket = "test-peasant-bucket",
+        storageBucket = "test-mill-bucket",
         clock = testClock
       ),
       ID_WHERE_ALSACE_IS_NOT_PRIMARY,
@@ -66,19 +66,19 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
     computation.gatherLocalSketches()
     computation.enqueue()
 
-    computation.claimWorkFor("some-peasant")
+    computation.claimWorkFor("some-mill")
     computation.writeOutputs(TO_ADD_NOISE)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
 
-    computation.claimWorkFor("some-other-peasant")
+    computation.claimWorkFor("some-other-mill")
     computation.writeOutputs(TO_BLIND_POSITIONS)
     computation.runWaitStage(WAIT_FLAG_COUNTS)
 
     fakeRpcService.receiveFlagCountsGrpc()
 
-    computation.claimWorkFor("yet-another-peasant")
+    computation.claimWorkFor("yet-another-mill")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS)
     computation.end(reason = EndComputationReason.SUCCEEDED)
 
@@ -106,7 +106,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         duchyPublicKeys = publicKeysMap,
         databaseClient = databaseClient,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
-        storageBucket = "test-peasant-bucket",
+        storageBucket = "test-mill-bucket",
         clock = testClock
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
@@ -117,25 +117,25 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
     computation.gatherLocalSketches()
     computation.enqueue()
 
-    computation.claimWorkFor("some-peasant")
+    computation.claimWorkFor("some-mill")
     computation.writeOutputs(TO_ADD_NOISE)
     computation.runWaitStage(WAIT_SKETCHES)
 
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
-    computation.claimWorkFor("some-peasant")
+    computation.claimWorkFor("some-mill")
     computation.writeOutputs(TO_APPEND_SKETCHES)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
 
-    computation.claimWorkFor("some-other-peasant")
+    computation.claimWorkFor("some-other-mill")
     computation.writeOutputs(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS)
     computation.runWaitStage(WAIT_FLAG_COUNTS)
     fakeRpcService.receiveFlagCountsGrpc()
 
-    computation.claimWorkFor("yet-another-peasant")
+    computation.claimWorkFor("yet-another-mill")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
     computation.end(reason = EndComputationReason.SUCCEEDED)
 

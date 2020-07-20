@@ -1,13 +1,13 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "PeasantTest",
-    srcs = ["PeasantTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.duchy.peasant.PeasantTest",
+    name = "MillTest",
+    srcs = ["MillTest.kt"],
+    test_class = "org.wfanet.measurement.service.internal.duchy.mill.MillTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/peasant",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/worker:worker_service_impl",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/workmanagement:work_management_service_impl",
         "@com_github_jetbrains_kotlin//:kotlin-test",

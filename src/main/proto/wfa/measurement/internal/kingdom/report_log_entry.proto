@@ -95,7 +95,7 @@ message ReportLogDetails {
 }
 
 message DuchyLogDetails {
-  // A self-reported identifier. This might include the peasant hostname or any
+  // A self-reported identifier. This might include the mill hostname or any
   // other information that the duchy decides to add. This is not to be trusted!
   string reported_duchy_id = 1;
 

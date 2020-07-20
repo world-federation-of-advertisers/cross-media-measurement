@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.internal.duchy.peasant
+package org.wfanet.measurement.service.internal.duchy.mill
 
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
@@ -12,17 +12,17 @@ import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.TransmitNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.WorkerServiceGrpcKt
 
-class Peasant(
+class Mill(
   private val workerStubs: Map<String, WorkerServiceGrpcKt.WorkerServiceCoroutineStub>,
   private val minimumPollingDelayMillis: Long
 ) {
   // TODO Make this use the ComputationManager to claim work. This is just test code right now.
   suspend fun pollForWork(): Flow<TransmitNoisedSketchResponse> = flow {
-    logger.info("Starting peasant...")
+    logger.info("Starting mill...")
 
     while (true) {
       val elapsed = measureTimeMillis {
-        logger.info("Peasant polling for work...")
+        logger.info("Mill polling for work...")
         try {
           val response = workerStubs.values
             .first()
@@ -42,7 +42,7 @@ class Peasant(
       }
       if (elapsed < minimumPollingDelayMillis) {
         val delayMillis = minimumPollingDelayMillis - elapsed
-        logger.info("Peasant sleeping for $delayMillis millis")
+        logger.info("Mill sleeping for $delayMillis millis")
         delay(delayMillis)
       }
     }

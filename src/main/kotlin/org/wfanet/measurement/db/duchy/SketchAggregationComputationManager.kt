@@ -77,7 +77,7 @@ class SketchAggregationComputationManager(
         inputBlobsPaths = requireNotEmpty(inputsToNextStage),
         // Requires an output to be written e.g., the sketch sent by the predecessor duchy.
         outputBlobCount = 1,
-        // Peasant have nothing to do for this stage.
+        // Mill have nothing to do for this stage.
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
       COMPLETED -> error("Computation should be ended with call to endComputation(...)")

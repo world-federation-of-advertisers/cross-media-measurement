@@ -6,7 +6,7 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "peasant",
+    name = "mill",
     srcs = glob(
         ["*.kt"],
         exclude = ["Main.kt"],
@@ -20,12 +20,12 @@ kt_jvm_library(
 )
 
 kt_jvm_binary(
-    name = "peasant_task",
+    name = "mill_task",
     srcs = ["Main.kt"],
-    main_class = "org.wfanet.measurement.service.internal.duchy.peasant.MainKt",
+    main_class = "org.wfanet.measurement.service.internal.duchy.mill.MainKt",
     visibility = ["//visibility:public"],
     deps = [
-        ":peasant",
+        ":mill",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/worker:worker_service_impl",
         "@io_grpc_grpc_java//netty",

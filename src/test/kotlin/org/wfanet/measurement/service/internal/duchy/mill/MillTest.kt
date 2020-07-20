@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.internal.duchy.peasant
+package org.wfanet.measurement.service.internal.duchy.mill
 
 import com.google.common.truth.extensions.proto.ProtoTruth
 import io.grpc.inprocess.InProcessChannelBuilder
@@ -24,30 +24,30 @@ import org.wfanet.measurement.service.internal.duchy.worker.WorkerServiceImpl
 
 @RunWith(JUnit4::class)
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-class PeasantTest {
+class MillTest {
   @get:Rule
   val grpcCleanup = GrpcCleanupRule()
 
   private val duchyNames = listOf("Alsace", "Bavaria", "Carinthia")
-  private lateinit var peasants: List<Peasant>
+  private lateinit var mills: List<Mill>
 
-  // TODO Use the ComputationManager to determine what work the peasant needs to do.
+  // TODO Use the ComputationManager to determine what work the mill needs to do.
 
   @Before
   fun setup() {
     val workerServiceMap = duchyNames.associateWith { setupWorkerService() }
-    peasants = duchyNames.map { _ ->
-      Peasant(workerServiceMap, 1000)
+    mills = duchyNames.map { _ ->
+      Mill(workerServiceMap, 1000)
     }
   }
 
   @Test
-  fun `peasant polls for work 3 times`() = runBlocking {
+  fun `mill polls for work 3 times`() = runBlocking {
     val expected = List(3) {
       TransmitNoisedSketchResponse.getDefaultInstance()
     }
 
-    val responses = peasants.first()
+    val responses = mills.first()
       .pollForWork()
       .take(3).toList()
 
