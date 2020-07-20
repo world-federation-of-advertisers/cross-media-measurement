@@ -22,7 +22,7 @@ container_push(
 container_push(
     name = "push_mill_task_image",
     format = "Docker",
-    image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill:mill_task_image",
+    image = "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_task_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/mill",
 )
