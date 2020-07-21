@@ -64,7 +64,7 @@ class SketchAggregationStagesTest {
     assertFalse {
       SketchAggregationStages.validTransition(
         SketchAggregationStage.CREATED,
-        SketchAggregationStage.WAIT_SKETCHES
+        SketchAggregationStage.TO_BLIND_POSITIONS
       )
     }
 

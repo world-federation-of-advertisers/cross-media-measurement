@@ -19,7 +19,7 @@ import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
@@ -60,7 +60,7 @@ class SketchAggregationComputationManager(
     requireValidRoleForStage(stage, token.role)
     return when (stage) {
       // Stages of computation mapping some number of inputs to single output.
-      TO_APPEND_SKETCHES,
+      TO_APPEND_SKETCHES_AND_ADD_NOISE,
       TO_ADD_NOISE,
       TO_BLIND_POSITIONS,
       TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
@@ -73,12 +73,13 @@ class SketchAggregationComputationManager(
         afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
       )
       // The primary duchy is waiting for input from all the other duchies. This is a special case
-      // of the other wait stages as it has n-1 inputs.
+      // of the other wait stages as it has n-1 outputs.
       WAIT_SKETCHES -> transitionStage(
         token,
         stage,
-        // The output of current stage is the results of adding noise to locally stored sketches.
+        // The input of current stage is the list of locally stored requisitions.
         inputBlobsPaths = requireNotEmpty(inputsToNextStage),
+        // The output contains duchiesInComputation-1 sketches from the other duchies.
         outputBlobCount = duchiesInComputation - 1,
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
       )
@@ -103,12 +104,14 @@ class SketchAggregationComputationManager(
   private fun requireValidRoleForStage(stage: SketchAggregationStage, role: DuchyRole) {
     when (stage) {
       WAIT_SKETCHES,
-      TO_APPEND_SKETCHES,
+      TO_APPEND_SKETCHES_AND_ADD_NOISE,
       TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
       TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> require(role == DuchyRole.PRIMARY) {
         "$stage may only be executed by the primary MPC worker."
       }
-      TO_BLIND_POSITIONS, TO_DECRYPT_FLAG_COUNTS -> require(role == DuchyRole.SECONDARY) {
+      TO_ADD_NOISE,
+      TO_BLIND_POSITIONS,
+      TO_DECRYPT_FLAG_COUNTS -> require(role == DuchyRole.SECONDARY) {
         "$stage may only be executed by a non-primary MPC worker."
       }
       else -> { /* Stage can be executed at either primary or non-primary */ }

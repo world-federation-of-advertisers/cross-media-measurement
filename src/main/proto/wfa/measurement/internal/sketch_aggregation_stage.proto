@@ -28,15 +28,16 @@ enum SketchAggregationStage {
   // for the computation stored at the local worker will be collected as part
   // of this stage.
   CREATED = 1;
-  // The worker will add noise to the sketch.
-  TO_ADD_NOISE = 2;
   // The primary worker is waiting for sketches from all the other MPC worker
   // nodes.
-  WAIT_SKETCHES = 3;
+  WAIT_SKETCHES = 2;
+  // The non-primary worker will add noise to the sketch.
+  TO_ADD_NOISE = 3;
   // The primary worker has received all the sketches needed to run the
-  // computation. It will combine them together into a single sketch, i.e.
-  // the first concatenated sketch.
-  TO_APPEND_SKETCHES = 4;
+  // computation. It will combine them and the local requisitions together into
+  // a single sketch, i.e. the first concatenated sketch, and then add noise to
+  // it.
+  TO_APPEND_SKETCHES_AND_ADD_NOISE = 4;
   // The worker is waiting to receive a copy of the concatenated sketch from
   // the previous worker in the ring of workers. The primary worker is the
   // one to first send the concatenated sketch to the next worker, but it

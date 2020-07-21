@@ -19,8 +19,8 @@ import com.google.protobuf.ByteString
 import io.grpc.StatusException
 import java.nio.charset.Charset
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -41,11 +41,11 @@ import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb.Companion.blobPath
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
 import org.wfanet.measurement.internal.SketchAggregationStage
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @ExperimentalCoroutinesApi
@@ -131,7 +131,7 @@ class ComputationControlServiceImplTest {
       .isEqualToDefaultInstance()
     val tokenAfterSecondSketch = assertNotNull(fakeDuchyComputationManger.getToken(id))
     assertEquals(
-      token.copy(stage = SketchAggregationStage.TO_APPEND_SKETCHES, lastUpdateTime = 3),
+      token.copy(stage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE, lastUpdateTime = 3),
       tokenAfterSecondSketch
     )
     assertEquals(

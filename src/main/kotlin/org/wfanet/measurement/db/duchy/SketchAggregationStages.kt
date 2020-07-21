@@ -19,7 +19,7 @@ import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
@@ -39,10 +39,10 @@ object SketchAggregationStages :
 
   override val validSuccessors =
     mapOf(
-      CREATED to setOf(TO_ADD_NOISE),
-      TO_ADD_NOISE to setOf(WAIT_SKETCHES, WAIT_CONCATENATED),
-      WAIT_SKETCHES to setOf(TO_APPEND_SKETCHES),
-      TO_APPEND_SKETCHES to setOf(WAIT_CONCATENATED),
+      CREATED to setOf(WAIT_SKETCHES, TO_ADD_NOISE),
+      TO_ADD_NOISE to setOf(WAIT_CONCATENATED),
+      WAIT_SKETCHES to setOf(TO_APPEND_SKETCHES_AND_ADD_NOISE),
+      TO_APPEND_SKETCHES_AND_ADD_NOISE to setOf(WAIT_CONCATENATED),
       WAIT_CONCATENATED to setOf(
         TO_BLIND_POSITIONS,
         TO_BLIND_POSITIONS_AND_JOIN_REGISTERS

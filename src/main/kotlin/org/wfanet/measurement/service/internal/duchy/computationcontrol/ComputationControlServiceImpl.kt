@@ -24,13 +24,13 @@ import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsResponse
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 
 @ExperimentalCoroutinesApi
 class ComputationControlServiceImpl(
@@ -141,7 +141,7 @@ class ComputationControlServiceImpl(
 
     val sketchesNotYetReceived = sketches.count { it == null }
     if (sketchesNotYetReceived == 0) {
-      val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES
+      val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
       logger.info("[id=$id]: transitioning to $nextStage")
       computationManager.transitionComputationToStage(
         token = token,

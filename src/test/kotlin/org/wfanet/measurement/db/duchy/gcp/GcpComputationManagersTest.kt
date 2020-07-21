@@ -36,7 +36,7 @@ import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES
+import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
@@ -128,18 +128,12 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
     )
     val fakeRpcService = computation.FakeRpcService()
     computation.writeOutputs(CREATED)
-    computation.gatherLocalSketches()
-    computation.enqueue()
-
-    computation.claimWorkFor("some-mill")
-    computation.writeOutputs(TO_ADD_NOISE)
     computation.runWaitStage(WAIT_SKETCHES)
-
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
     computation.claimWorkFor("some-mill")
-    computation.writeOutputs(TO_APPEND_SKETCHES)
+    computation.writeOutputs(TO_APPEND_SKETCHES_AND_ADD_NOISE)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
@@ -262,11 +256,11 @@ class SingleComputationManager(
       println("$notWritten")
       if (notWritten == 0) {
         println("Moving to append sketches stage")
-        assertTokenChangesTo(token.copy(stage = TO_APPEND_SKETCHES, attempt = 0)) {
+        assertTokenChangesTo(token.copy(stage = TO_APPEND_SKETCHES_AND_ADD_NOISE, attempt = 0)) {
           manager.transitionComputationToStage(
             it.token,
             it.inputs + it.outputs.requireNoNulls(),
-            TO_APPEND_SKETCHES
+            TO_APPEND_SKETCHES_AND_ADD_NOISE
           )
         }
       }
