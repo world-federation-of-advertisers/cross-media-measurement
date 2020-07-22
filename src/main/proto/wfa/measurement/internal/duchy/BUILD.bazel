@@ -39,14 +39,3 @@ java_proto_library(
     name = "protocol_encryption_methods_java_proto",
     deps = [":protocol_encryption_methods_proto"],
 )
-
-proto_library(
-    name = "work_management_service_proto",
-    srcs = ["work_management_service.proto"],
-    strip_import_prefix = "/src/main/proto",
-)
-
-java_and_kt_grpc_library(
-    name = "work_management_service",
-    deps = [":work_management_service_proto"],
-)
