@@ -11,6 +11,6 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_stage_details_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
     ],
 )

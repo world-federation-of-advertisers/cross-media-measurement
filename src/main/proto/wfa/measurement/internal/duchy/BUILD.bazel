@@ -4,13 +4,24 @@ load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_library(
-    name = "computation_stage_details_proto",
-    srcs = ["computation_stage_details.proto"],
+    name = "computation_control_service_proto",
+    srcs = ["computation_control_service.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+java_and_kt_grpc_library(
+    name = "computation_control_service",
+    deps = [":computation_control_service_proto"],
+)
+
+proto_library(
+    name = "computation_details_proto",
+    srcs = ["computation_details.proto"],
 )
 
 java_proto_library(
-    name = "computation_stage_details_java_proto",
-    deps = [":computation_stage_details_proto"],
+    name = "computation_details_java_proto",
+    deps = [":computation_details_proto"],
 )
 
 proto_library(
@@ -27,17 +38,6 @@ cc_proto_library(
 java_proto_library(
     name = "protocol_encryption_methods_java_proto",
     deps = [":protocol_encryption_methods_proto"],
-)
-
-proto_library(
-    name = "computation_control_service_proto",
-    srcs = ["computation_control_service.proto"],
-    strip_import_prefix = "/src/main/proto",
-)
-
-java_and_kt_grpc_library(
-    name = "computation_control_service",
-    deps = [":computation_control_service_proto"],
 )
 
 proto_library(

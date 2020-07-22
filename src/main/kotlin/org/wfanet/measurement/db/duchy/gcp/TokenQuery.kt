@@ -5,7 +5,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.internal.db.gcp.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 
 /** Query for fields needed to make a [ComputationToken] .*/
 class TokenQuery<StageT>(

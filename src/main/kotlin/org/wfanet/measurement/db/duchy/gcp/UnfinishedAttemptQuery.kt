@@ -3,7 +3,7 @@ package org.wfanet.measurement.db.duchy.gcp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.internal.db.gcp.ComputationStageAttemptDetails
+import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /** Queries for the attempts of stages for a computation that do not have an end time. */
 class UnfinishedAttemptQuery<StageT>(

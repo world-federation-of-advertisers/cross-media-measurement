@@ -3,17 +3,6 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "computations_proto",
-    srcs = ["computations.proto"],
-    deps = ["//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto"],
-)
-
-java_proto_library(
-    name = "computations_java_proto",
-    deps = [":computations_proto"],
-)
-
-proto_library(
     name = "computation_blob_dependency_proto",
     srcs = ["computation_blob_dependency.proto"],
 )
