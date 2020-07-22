@@ -129,6 +129,7 @@ public class ProtocolEncryptionUtilityTest {
         BlindOneLayerRegisterIndexRequest.newBuilder()
             .setCurveId(CURVE_ID)
             .setLocalElGamalKeys(DUCHY_1_EL_GAMAL_KEYS)
+            .setCompositeElGamalKeys(CLIENT_EL_GAMAL_KEYS)
             .setSketch(encrypted_sketch)
             .build();
     BlindOneLayerRegisterIndexResponse blind_one_layer_register_index_response_1 =
@@ -141,6 +142,7 @@ public class ProtocolEncryptionUtilityTest {
         BlindOneLayerRegisterIndexRequest.newBuilder()
             .setCurveId(CURVE_ID)
             .setLocalElGamalKeys(DUCHY_2_EL_GAMAL_KEYS)
+            .setCompositeElGamalKeys(CLIENT_EL_GAMAL_KEYS)
             .setSketch(blind_one_layer_register_index_response_1.getSketch())
             .build();
     BlindOneLayerRegisterIndexResponse blind_one_layer_register_index_response_2 =
