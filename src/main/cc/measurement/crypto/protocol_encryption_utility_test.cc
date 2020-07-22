@@ -265,7 +265,7 @@ TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyClceSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
-  std::vector<unsigned char> encrypted_sketch =
+  std::string encrypted_sketch =
       test_data.sketch_encrypter->Encrypt(plain_sketch).value();
 
   // Blind register indexes at duchy 1
