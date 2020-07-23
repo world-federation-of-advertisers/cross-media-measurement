@@ -21,4 +21,24 @@
     if (!_status.ok()) return _status; \
   } while (0)
 
+#define ASSIGN_OR_RETURN_ERROR(lhs, rexpr, message)                    \
+  WFA_MEASUREMENT_CRYPTO_UTIL__ASSIGN_OR_RETURN_IMPL_(                 \
+      WFA_MEASUREMENT_CRYPTO_UTIL_MACROS_IMPL_CONCAT_(status_or_value, \
+                                                      __LINE__),       \
+      lhs, rexpr, message)
+
+// Internal helper.
+#define WFA_MEASUREMENT_CRYPTO_UTIL__ASSIGN_OR_RETURN_IMPL_(statusor, lhs,  \
+                                                            rexpr, message) \
+  auto statusor = (rexpr);                                                  \
+  if (ABSL_PREDICT_FALSE(!statusor.ok())) {                                 \
+    return InvalidArgumentError(message);                                   \
+  }                                                                         \
+  lhs = std::move(statusor).value()
+
+// Internal helper for concatenating macro values.
+#define WFA_MEASUREMENT_CRYPTO_UTIL_MACROS_IMPL_CONCAT_INNER_(x, y) x##y
+#define WFA_MEASUREMENT_CRYPTO_UTIL_MACROS_IMPL_CONCAT_(x, y) \
+  WFA_MEASUREMENT_CRYPTO_UTIL_MACROS_IMPL_CONCAT_INNER_(x, y)
+
 #endif  // SRC_MAIN_CC_MEASUREMENT_CRYPTO_UTIL_MACROS_H_

@@ -147,20 +147,24 @@ StatusOr<CompositeCipher> CreateCompositeCipher(
     const std::string& pohlig_hellman_sk) {
   CompositeCipher result;
   // Create the ElGamal cipher using the provided keys.
-  ASSIGN_OR_RETURN(
+  ASSIGN_OR_RETURN_ERROR(
       result.e_g_cipher,
       CommutativeElGamal::CreateFromPublicAndPrivateKeys(
           curve_id, GetPublicKeyStringPair(el_gamal_keys.el_gamal_pk()),
-          el_gamal_keys.el_gamal_sk()));
+          el_gamal_keys.el_gamal_sk()),
+      "Failed to create the local ElGamal cipher, invalid curveId or keys.");
   // Create the Pohlig Hellman cipher using the provided key or a random key if
   // no key is provided.
-  ASSIGN_OR_RETURN(result.p_h_cipher,
-                   pohlig_hellman_sk.empty()
-                       ? ECCommutativeCipher::CreateWithNewKey(
-                             curve_id, ECCommutativeCipher::HashType::SHA256)
-                       : ECCommutativeCipher::CreateFromKey(
-                             curve_id, pohlig_hellman_sk,
-                             ECCommutativeCipher::HashType::SHA256));
+  ASSIGN_OR_RETURN_ERROR(
+      result.p_h_cipher,
+      pohlig_hellman_sk.empty()
+          ? ECCommutativeCipher::CreateWithNewKey(
+                curve_id, ECCommutativeCipher::HashType::SHA256)
+          : ECCommutativeCipher::CreateFromKey(
+                curve_id, pohlig_hellman_sk,
+                ECCommutativeCipher::HashType::SHA256),
+      "Failed to create the local Pohlig Hellman cipher, invalid curveId or "
+      "key.");
   return result;
 }
 
@@ -178,9 +182,12 @@ StatusOr<SameKeyAggregator> CreateSameKeyAggregator(
     const int curve_id, const ElGamalPublicKeys& client_el_gamal_keys) {
   SameKeyAggregator result;
   // Create the client ElGamal cipher using the provided keys.
-  ASSIGN_OR_RETURN(result.client_e_g_cipher,
-                   CommutativeElGamal::CreateFromPublicKey(
-                       curve_id, GetPublicKeyStringPair(client_el_gamal_keys)));
+  ASSIGN_OR_RETURN_ERROR(
+      result.client_e_g_cipher,
+      CommutativeElGamal::CreateFromPublicKey(
+          curve_id, GetPublicKeyStringPair(client_el_gamal_keys)),
+      "Failed to create the client ElGamal cipher, invalid curveId or public "
+      "keys.");
   // Set the ECGroup and Conext.
   result.ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(auto temp_ec_group,
@@ -434,11 +441,12 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
       CreateCompositeCipher(request.curve_id(), request.local_el_gamal_keys(),
                             request.local_pohlig_hellman_sk()));
   // ElGamal cipher used to re-randomize the keys and counts.
-  ASSIGN_OR_RETURN(
+  ASSIGN_OR_RETURN_ERROR(
       std::unique_ptr<CommutativeElGamal> client_e_g_cipher,
       CommutativeElGamal::CreateFromPublicKey(
           request.curve_id(),
-          GetPublicKeyStringPair(request.composite_el_gamal_keys())));
+          GetPublicKeyStringPair(request.composite_el_gamal_keys())),
+      "Failed to create the client ElGamal cipher, invalid curveId or keys.");
   // Set the ECGroup and Conext.
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(ECGroup ec_group,
@@ -525,12 +533,13 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
   // Create an ElGamal cipher for decryption.
-  ASSIGN_OR_RETURN(
+  ASSIGN_OR_RETURN_ERROR(
       std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
       CommutativeElGamal::CreateFromPublicAndPrivateKeys(
           request.curve_id(),
           GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
-          request.local_el_gamal_keys().el_gamal_sk()));
+          request.local_el_gamal_keys().el_gamal_sk()),
+      "Failed to create the local ElGamal cipher, invalid curveId or keys");
 
   DecryptOneLayerFlagAndCountResponse response;
   std::string* response_data = response.mutable_flag_counts();
@@ -565,12 +574,13 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
   // Create an ElGamal cipher for decryption.
-  ASSIGN_OR_RETURN(
+  ASSIGN_OR_RETURN_ERROR(
       std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
       CommutativeElGamal::CreateFromPublicAndPrivateKeys(
           request.curve_id(),
           GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
-          request.local_el_gamal_keys().el_gamal_sk()));
+          request.local_el_gamal_keys().el_gamal_sk()),
+      "Failed to create the local ElGamal cipher, invalid curveId or keys");
   absl::flat_hash_map<std::string, int> count_lookup_table;
   ASSIGN_OR_RETURN(
       count_lookup_table,
