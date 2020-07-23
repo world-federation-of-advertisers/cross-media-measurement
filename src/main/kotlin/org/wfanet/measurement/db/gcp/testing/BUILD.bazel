@@ -13,9 +13,9 @@ kt_jvm_library(
         "SpannerEmulator.kt",
     ],
     deps = [
-        "//third_party/java/com/google/api/core",
-        "//third_party/java/com/google/cloud/spanner",
-        "//third_party/kotlin/kotlinx/coroutines:core",
+        "//imports/java/com/google/api/core",
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "@bazel_tools//tools/java/runfiles",
     ],
 )
@@ -33,12 +33,12 @@ kt_jvm_library(
     ),
     deps = [
         ":spanner_emulator",
+        "//imports/java/com/google/api/core",
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//third_party/java/com/google/api/core",
-        "//third_party/java/com/google/cloud/spanner",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
-        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )
 
@@ -51,14 +51,14 @@ kt_jvm_binary_and_image(
     runtime_deps = [
         # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
         # See https://github.com/bazelbuild/rules_kotlin/issues/333
-        "//third_party/kotlin/kotlin:stdlib_jdk7",
+        "//imports/kotlin/kotlin:stdlib_jdk7",
     ],
     deps = [
         ":spanner_emulator",
+        "//imports/java/com/google/api/core",
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//third_party/java/com/google/api/core",
-        "//third_party/java/com/google/cloud/spanner",
-        "//third_party/java/picocli",
     ],
 )

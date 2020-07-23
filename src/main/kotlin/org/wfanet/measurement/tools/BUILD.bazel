@@ -16,8 +16,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill:mill_task_image.tar",
     ],
     deps = [
-        "//third_party/java/picocli",
-        "//third_party/kotlin/kotlinx/coroutines:core",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "@bazel_tools//tools/java/runfiles",
     ],
 )

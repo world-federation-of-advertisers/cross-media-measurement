@@ -5,14 +5,14 @@ kt_jvm_test(
     srcs = ["ChannelShutdownHookTest.kt"],
     test_class = "org.wfanet.measurement.common.ChannelShutdownHookTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/java/org/mockito",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/test/proto/wfa/measurement/common:fake_service_kt_jvm_grpc",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/java/org/mockito",
-        "//third_party/kotlin/kotlin/test",
-        "//third_party/kotlin/kotlinx/coroutines:core",
-        "//third_party/kotlin/kotlinx/coroutines/test",
         "@io_grpc_grpc_java//core",
         "@io_grpc_grpc_java//testing",
     ],
@@ -23,10 +23,10 @@ kt_jvm_test(
     srcs = ["FlagsTest.kt"],
     test_class = "org.wfanet.measurement.common.FlagsTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -35,10 +35,10 @@ kt_jvm_test(
     srcs = ["IdentifiersTest.kt"],
     test_class = "org.wfanet.measurement.common.IdentifiersTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -47,9 +47,9 @@ kt_jvm_test(
     srcs = ["DuchyOrderTest.kt"],
     test_class = "org.wfanet.measurement.common.DuchyOrderTest",
     deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -58,13 +58,13 @@ kt_jvm_test(
     srcs = ["AdaptiveThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.AdaptiveThrottlerTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
-        "//third_party/kotlin/kotlinx/coroutines:core",
-        "//third_party/kotlin/kotlinx/coroutines/test",
     ],
 )
 
@@ -73,13 +73,13 @@ kt_jvm_test(
     srcs = ["MinimumIntervalThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.MinimumIntervalThrottlerTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
-        "//third_party/kotlin/kotlinx/coroutines:core",
-        "//third_party/kotlin/kotlinx/coroutines/test",
     ],
 )
 
@@ -88,10 +88,10 @@ kt_jvm_test(
     srcs = ["RenewedFlowTest.kt"],
     test_class = "org.wfanet.measurement.common.RenewedFlowTest",
     deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
-        "//third_party/kotlin/kotlinx/coroutines:core",
-        "//third_party/kotlin/kotlinx/coroutines/test",
     ],
 )

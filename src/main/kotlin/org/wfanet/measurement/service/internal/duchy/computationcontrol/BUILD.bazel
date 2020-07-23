@@ -31,10 +31,10 @@ kt_jvm_binary_and_image(
     ],
     deps = [
         ":computationcontrol",
+        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//third_party/java/picocli",
     ],
 )

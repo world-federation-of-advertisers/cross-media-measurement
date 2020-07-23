@@ -9,12 +9,12 @@ kt_jvm_library(
     name = "gcp",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/cloud/storage",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/proto/wfa/measurement/internal/db/gcp:computation_blob_dependency_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
-        "//third_party/java/com/google/cloud/spanner",
-        "//third_party/java/com/google/cloud/storage",
     ],
 )

@@ -5,10 +5,10 @@ kt_jvm_test(
     srcs = ["SketchAggregationStagesTest.kt"],
     test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStagesTest",
     deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -17,11 +17,11 @@ kt_jvm_test(
     srcs = ["SketchAggregationStageDetailsTest.kt"],
     test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStageDetailsTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/com/google/common/truth/extensions/proto",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )

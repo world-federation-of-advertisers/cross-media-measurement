@@ -13,9 +13,9 @@ kt_jvm_binary(
     ],
     main_class = "org.wfanet.measurement.client.v1alpha.publisherdata.MainKt",
     deps = [
+        "//imports/java/io/grpc:api",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
-        "//third_party/java/io/grpc:api",
-        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )

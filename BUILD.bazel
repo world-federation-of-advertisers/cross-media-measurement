@@ -10,9 +10,9 @@ gazelle(name = "gazelle")
 java_library(
     name = "grpc_core",
     exports = [
-        "//third_party/kotlin/kotlinx/coroutines:core",
-        "//third_party/java/com/google/protobuf",
-        "//third_party/java/com/google/protobuf/util",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/java/com/google/protobuf",
+        "//imports/java/com/google/protobuf/util",
 
         # These aren't strictly necessary, but without them, IntelliJ
         # complains. Until we figure out how to fix IntelliJ's Bazel sync,

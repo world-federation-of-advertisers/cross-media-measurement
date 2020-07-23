@@ -4,10 +4,10 @@ java_test(
         "ProtocolEncryptionUtilityTest.java",
     ],
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
         "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
         "@any_sketch//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",

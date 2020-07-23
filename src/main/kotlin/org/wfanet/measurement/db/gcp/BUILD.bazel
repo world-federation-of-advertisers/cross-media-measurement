@@ -9,10 +9,10 @@ kt_jvm_library(
     name = "gcp",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/cloud/storage",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//third_party/java/com/google/cloud/spanner",
-        "//third_party/java/picocli",
-        "//third_party/java/com/google/cloud/storage",
-        "//third_party/kotlin/kotlinx/coroutines:core",
     ],
 )

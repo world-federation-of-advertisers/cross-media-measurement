@@ -8,12 +8,12 @@ package(default_visibility = [
 kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
-    runtime_deps = ["//third_party/kotlin/kotlin/reflect/jvm"],
+    runtime_deps = ["//imports/kotlin/kotlin/reflect/jvm"],
     deps = [
-        "//third_party/java/com/google/protobuf",
-        "//third_party/java/com/google/protobuf/util",
-        "//third_party/java/io/grpc:api",
-        "//third_party/java/picocli",
-        "//third_party/kotlin/kotlinx/coroutines:core",
+        "//imports/java/com/google/protobuf",
+        "//imports/java/com/google/protobuf/util",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

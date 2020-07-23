@@ -5,11 +5,11 @@ kt_jvm_test(
     srcs = ["MockitoHelpersTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.MockitoHelpersTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/java/org/mockito",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/java/org/mockito",
-        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -18,9 +18,9 @@ kt_jvm_test(
     srcs = ["TestClockWithNamedInstantsTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.TestClockWithNamedInstantsTest",
     deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )
 
@@ -29,9 +29,9 @@ kt_jvm_test(
     srcs = ["IndependentSetGeneratorTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.IndependentSetGeneratorTest",
     deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/org/junit",
-        "//third_party/kotlin/kotlin/test",
     ],
 )

@@ -6,12 +6,12 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClientTest",
     deps = [
         "//:grpc_core",
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/io/grpc/inprocess",
+        "//imports/java/io/grpc/testing",
+        "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/client/v1alpha/publisherdata:client",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
-        "//third_party/java/com/google/common/truth",
-        "//third_party/java/com/google/common/truth/extensions/proto",
-        "//third_party/java/io/grpc/inprocess",
-        "//third_party/java/io/grpc/testing",
-        "//third_party/java/org/junit",
     ],
 )
