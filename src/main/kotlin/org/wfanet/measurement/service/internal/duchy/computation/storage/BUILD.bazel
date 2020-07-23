@@ -7,7 +7,7 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "computation_storage_service_impl",
+    name = "storage",
     srcs = glob(
         ["*.kt"],
         exclude = ["Main.kt"],
@@ -27,7 +27,7 @@ kt_jvm_binary_and_image(
         "@io_grpc_grpc_java//netty",
     ],
     deps = [
-        ":computation_storage_service_impl",
+        ":storage",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//imports/java/picocli",
     ],

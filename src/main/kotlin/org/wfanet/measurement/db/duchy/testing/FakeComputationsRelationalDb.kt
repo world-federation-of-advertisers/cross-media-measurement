@@ -112,7 +112,16 @@ class FakeComputationsRelationalDatabase<StageT : Enum<StageT>, StageDetailsT>(
   }
 
   override suspend fun claimTask(ownerId: String): ComputationToken<StageT>? {
-    TODO("Not yet implemented")
+    val claimed = fakeComputations.values.asSequence()
+      .filter { it.token.owner == null }
+      .firstOrNull()
+      ?.token
+      ?: return null
+
+    fakeComputations.changeToken(claimed) {
+      claimed.copy(owner = ownerId)
+    }
+    return fakeComputations[claimed.globalId]?.token ?: error("Missing token ${claimed.globalId}")
   }
 
   override suspend fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT> {
@@ -138,7 +147,7 @@ data class FakeComputation<StageT : Enum<StageT>>(
 class FakeComputationStorage<StageT : Enum<StageT>, StageDetailsT> :
   MutableMap<Long, FakeComputation<StageT>> by mutableMapOf() {
   companion object {
-    private const val NEXT_WORKER = "NEXT_WORKER"
+    const val NEXT_WORKER = "NEXT_WORKER"
   }
 
   /** Adds a fake computation to the fake computation storage. */

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.db.duchy
 
 import org.wfanet.measurement.common.DuchyRole
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 
 /**
  * Information about a computation.
@@ -201,4 +202,11 @@ enum class BlobDependencyType {
    * no mater the type.
    */
   ANY;
+
+  fun toComputationStageBlobDependencyType(): ComputationBlobDependency =
+    when (this) {
+      INPUT -> ComputationBlobDependency.INPUT
+      OUTPUT -> ComputationBlobDependency.OUTPUT
+      else -> error("Conversion of $this to  ComputationBlobDependency::class not supported.")
+    }
 }
