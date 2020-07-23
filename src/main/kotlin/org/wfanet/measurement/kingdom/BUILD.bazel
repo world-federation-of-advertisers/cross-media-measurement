@@ -32,7 +32,7 @@ kt_jvm_library(
 )
 
 kt_jvm_binary(
-    name = "report_starter_main",
+    name = "report_starter",
     srcs = ["ReportStarterMain.kt"],
     main_class = "org.wfanet.measurement.kingdom.ReportStarterMainKt",
     deps = [

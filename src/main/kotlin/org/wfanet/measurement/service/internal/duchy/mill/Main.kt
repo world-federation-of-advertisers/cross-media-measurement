@@ -18,35 +18,58 @@ import io.grpc.ManagedChannelBuilder
 import java.time.Duration
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.Flags
 import org.wfanet.measurement.common.addChannelShutdownHooks
-import org.wfanet.measurement.common.durationFlag
-import org.wfanet.measurement.common.stringFlag
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
+import picocli.CommandLine
 
-fun main(args: Array<String>) {
-  val channelShutdownTimeout =
-    durationFlag("channel-shutdown-timeout", Duration.ofSeconds(5))
-  val minimumPollingInterval =
-    durationFlag("minimum-polling-interval", Duration.ofSeconds(1))
+private class Flags {
+  @CommandLine.Option(
+    names = ["--channel-shutdown-timeout"],
+    defaultValue = "5s"
+  )
+  lateinit var channelShutdownTimeout: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--minimum-polling-interval"],
+    defaultValue = "1s"
+  )
+  lateinit var minimumPollingInterval: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--next-worker"],
+    description = ["The URI of the next WorkerService in the ring."],
+    defaultValue = "localhost:8080"
+  )
+  lateinit var nextWorker: String
+    private set
+}
+
+@CommandLine.Command(
+  name = "mill",
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
+private fun run(@CommandLine.Mixin flags: Flags) {
   // TODO Figure out how to configure a collection of duchies. Config file?
-  // The URI of the next ComputationControlService in the ring.
-  val nextWorker = stringFlag("next-worker", "localhost:8080")
-  Flags.parse(args.asIterable())
 
   val channel =
-    ManagedChannelBuilder.forTarget(nextWorker.value)
+    ManagedChannelBuilder.forTarget(flags.nextWorker)
       .usePlaintext()
       .build()
 
-  addChannelShutdownHooks(Runtime.getRuntime(), channelShutdownTimeout.value, channel)
+  addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, channel)
 
   val stub = ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub(channel)
 
-  val mill = Mill(mapOf(Pair("Alsace", stub)), minimumPollingInterval.value.toMillis())
+  val mill = Mill(mapOf(Pair("Alsace", stub)), minimumPollingInterval.toMillis())
   runBlocking {
     mill.pollForWork().collect {
       // Deliberately empty
     }
   }
 }
+
+fun main(args: Array<String>) = commandLineMain(::run, args)

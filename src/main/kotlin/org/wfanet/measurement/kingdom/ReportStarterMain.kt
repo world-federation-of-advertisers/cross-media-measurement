@@ -18,39 +18,71 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.time.Clock
 import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.AdaptiveThrottler
-import org.wfanet.measurement.common.Flags
-import org.wfanet.measurement.common.doubleFlag
-import org.wfanet.measurement.common.durationFlag
-import org.wfanet.measurement.common.intFlag
-import org.wfanet.measurement.common.stringFlag
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import picocli.CommandLine
 
-fun main(args: Array<String>) = runBlocking<Unit> {
-  val maxParallelism = intFlag("max-parallelism", 32)
-  val internalServicesTarget = stringFlag("internal-services-target", "")
-  val overloadFactor = doubleFlag("throttler-overload-factor", 1.2)
-  val timeHorizon = durationFlag("throttler-time-horizon", Duration.ofMinutes(2))
-  val pollDelay = durationFlag("throttler-poll-delay", Duration.ofMillis(1))
+private class Flags {
+  @set:CommandLine.Option(
+    names = ["--max-parallelism"],
+    defaultValue = "32"
+  )
+  var maxParallelism by Delegates.notNull<Int>()
+    private set
 
-  Flags.parse(args.asIterable())
+  @CommandLine.Option(
+    names = ["--internal-services-target"],
+    required = true
+  )
+  lateinit var internalServicesTarget: String
+    private set
 
+  @set:CommandLine.Option(
+    names = ["--throttler-overload-factor"],
+    defaultValue = "1.2"
+  )
+  var overloadFactor by Delegates.notNull<Double>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--throttler-time-horizon"],
+    defaultValue = "2m"
+  )
+  lateinit var timeHorizon: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--throttler-poll-delay"],
+    defaultValue = "1ms"
+  )
+  lateinit var pollDelay: Duration
+    private set
+}
+
+@CommandLine.Command(
+  name = "report_starter_main",
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
+private fun run(@CommandLine.Mixin flags: Flags) = runBlocking {
   val channel: ManagedChannel =
     ManagedChannelBuilder
-      .forTarget(internalServicesTarget.value)
+      .forTarget(flags.internalServicesTarget)
       .usePlaintext()
       .build()
 
   val throttler = AdaptiveThrottler(
-    overloadFactor.value,
+    flags.overloadFactor,
     Clock.systemUTC(),
-    timeHorizon.value,
-    pollDelay.value
+    flags.timeHorizon,
+    flags.pollDelay
   )
 
   val reportStarterClient = ReportStarterClientImpl(
@@ -62,7 +94,7 @@ fun main(args: Array<String>) = runBlocking<Unit> {
 
   val reportStarter = ReportStarter(
     throttler,
-    maxParallelism.value,
+    flags.maxParallelism,
     reportStarterClient
   )
 
@@ -72,3 +104,5 @@ fun main(args: Array<String>) = runBlocking<Unit> {
   launch { reportStarter.createRequisitions() }
   launch { reportStarter.startReports() }
 }
+
+fun main(args: Array<String>) = commandLineMain(::run, args)
