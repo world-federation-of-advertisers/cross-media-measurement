@@ -16,7 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
+import "wfa/measurement/api/v1alpha/data_provider.proto";
 import "wfa/measurement/api/v1alpha/crypto.proto";
+import "wfa/measurement/api/v1alpha/data_provider_registration_service.proto";
 import "wfa/measurement/api/v1alpha/metric.proto";
 import "wfa/measurement/api/v1alpha/requisition.proto";
 import "wfa/measurement/api/v1alpha/requisition_service.proto";
@@ -31,14 +33,20 @@ service PublisherData {
   rpc GetCombinedPublicKey(GetCombinedPublicKeyRequest)
       returns (CombinedPublicKey) {}
 
-  // Returns the metric requisitions for the specified campaign. This delegates
-  // to the Requisition service.
+  // Returns the metric requisitions for the specified campaign.
+  //
+  // This delegates to the Requisition service.
   rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
       returns (ListMetricRequisitionsResponse) {}
 
-  // Upload a MetricValue in a compact form via streaming.
+  // Uploads a MetricValue in a compact form via streaming.
   rpc UploadMetricValue(stream UploadMetricValueRequest)
       returns (UploadMetricValueResponse) {}
+
+  // Creates (registers) a Campaign in the specified DataProvider's system.
+  //
+  // This delegates to the DataProviderRegistration service.
+  rpc CreateCampaign(CreateCampaignRequest) returns (Campaign) {}
 }
 
 // Request message for GetCombinedPublicKey method.
