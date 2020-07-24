@@ -39,11 +39,11 @@ rules_kotlin_deps(compiler_release = kotlinc_release(
 
 # @com_github_grpc_grpc_kotlin
 
-git_repository(
+http_archive(
     name = "com_github_grpc_grpc_kotlin",
-    commit = "3ce43b8713c080dac60dec0ef0d83367a2cece3b",
-    remote = "https://github.com/fashing/grpc-kotlin",
-    shallow_since = "1590091633 -0400",
+    sha256 = "bfc60770a48aaec1489b4cb7dbf0ff712bed7ed7d2479281d94f56f565832048",
+    strip_prefix = "grpc-kotlin-0.1.4",
+    url = "https://github.com/grpc/grpc-kotlin/archive/v0.1.4.zip",
 )
 
 load(
