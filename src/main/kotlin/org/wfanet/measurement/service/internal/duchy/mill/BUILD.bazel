@@ -30,8 +30,8 @@ kt_jvm_binary_and_image(
     ],
     deps = [
         ":mill",
+        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
-        "//third_party/java/picocli",
     ],
 )

@@ -64,7 +64,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val stub = ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub(channel)
 
-  val mill = Mill(mapOf(Pair("Alsace", stub)), minimumPollingInterval.toMillis())
+  val mill = Mill(mapOf(Pair("Alsace", stub)), flags.minimumPollingInterval.toMillis())
   runBlocking {
     mill.pollForWork().collect {
       // Deliberately empty
