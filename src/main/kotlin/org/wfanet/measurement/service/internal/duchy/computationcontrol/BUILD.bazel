@@ -1,40 +1,37 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/main/docker:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
 ])
 
 kt_jvm_library(
     name = "computationcontrol",
-    srcs = glob(
-        ["*.kt"],
-        exclude = ["Main.kt"],
-    ),
+    srcs = glob(["*.kt"]),
+    runtime_deps = ["@io_grpc_grpc_java//netty"],
     deps = [
         "//:grpc_core",
+        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
     ],
 )
 
-kt_jvm_binary_and_image(
+java_binary(
     name = "computation_control_server",
-    srcs = ["Main.kt"],
     main_class = "org.wfanet.measurement.service.internal.duchy.computationcontrol.MainKt",
-    visibility = ["//visibility:public"],
-    runtime_deps = [
-        "@io_grpc_grpc_java//netty",
-    ],
-    deps = [
-        ":computationcontrol",
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-    ],
+    runtime_deps = [":computationcontrol"],
+)
+
+java_image(
+    name = "computation_control_server_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computationcontrol.MainKt",
+    runtime_deps = [":computationcontrol"],
 )

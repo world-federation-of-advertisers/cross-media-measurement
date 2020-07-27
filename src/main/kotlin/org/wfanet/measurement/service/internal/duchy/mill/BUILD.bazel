@@ -1,37 +1,33 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/main/docker:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
 ])
 
 kt_jvm_library(
     name = "mill",
-    srcs = glob(
-        ["*.kt"],
-        exclude = ["Main.kt"],
-    ),
+    srcs = glob(["*.kt"]),
+    runtime_deps = ["@io_grpc_grpc_java//netty"],
     deps = [
         "//:grpc_core",
+        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
     ],
 )
 
-kt_jvm_binary_and_image(
+java_binary(
     name = "mill_task",
-    srcs = ["Main.kt"],
     main_class = "org.wfanet.measurement.service.internal.duchy.mill.MainKt",
-    visibility = ["//visibility:public"],
-    runtime_deps = [
-        "@io_grpc_grpc_java//netty",
-    ],
-    deps = [
-        ":mill",
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
-    ],
+    runtime_deps = [":mill"],
+)
+
+java_image(
+    name = "mill_task_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.mill.MainKt",
+    runtime_deps = [":mill"],
 )
