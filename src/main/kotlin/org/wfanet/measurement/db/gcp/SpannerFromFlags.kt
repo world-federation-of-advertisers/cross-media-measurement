@@ -24,7 +24,11 @@ class SpannerFromFlags(
   private val flags: Flags
 ) {
   val spannerOptions: SpannerOptions by lazy {
-    SpannerOptions.newBuilder().setProjectId(flags.projectName).build()
+    val builder = SpannerOptions.newBuilder().setProjectId(flags.projectName)
+    if (!flags.spannerEmulatorHost.isBlank()) {
+      builder.setEmulatorHost(flags.spannerEmulatorHost)
+    }
+    builder.build()
   }
 
   val spanner: Spanner by lazy { spannerOptions.service }
@@ -61,5 +65,13 @@ class SpannerFromFlags(
     )
     lateinit var databaseName: String
       private set
+
+    @CommandLine.Option(
+      names = ["--spanner-emulator-host"],
+      description = ["Host name and port of the spanner emulator."],
+      required = false
+    )
+    lateinit var spannerEmulatorHost: String
+    private set
   }
 }
