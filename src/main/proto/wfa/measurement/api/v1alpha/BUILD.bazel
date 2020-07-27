@@ -79,6 +79,8 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
     deps = [
         ":crypto_proto",
+        ":data_provider_proto",
+        ":data_provider_registration_service_proto",
         ":metric_proto",
         ":requisition_proto",
         ":requisition_service_proto",
