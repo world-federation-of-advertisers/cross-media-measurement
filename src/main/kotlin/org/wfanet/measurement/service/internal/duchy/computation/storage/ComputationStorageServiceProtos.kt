@@ -15,14 +15,16 @@
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import org.wfanet.measurement.internal.SketchAggregationStage
-import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationType
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 
@@ -41,7 +43,7 @@ fun ComputationToken.toBlobPath(name: String) =
   "$localComputationId/${computationStage.toName()}_${attempt}_$name"
 
 private fun ComputationStage.toName(): String =
-  when(stageCase) {
+  when (stageCase) {
     ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
       liquidLegionsSketchAggregation.name
     else -> error("Unknown computation type $this")
@@ -70,3 +72,26 @@ fun ComputationToken.toGetComputationTokenResponse(): GetComputationTokenRespons
 /** Wraps a [ComputationToken] in an [RecordOutputBlobPathResponse]. */
 fun ComputationToken.toRecordOutputBlobPathResponse(): RecordOutputBlobPathResponse =
   RecordOutputBlobPathResponse.newBuilder().setToken(this).build()!!
+
+/** Creates a [ComputationStageBlobMetadata] for an input blob. */
+fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
+  ComputationStageBlobMetadata.newBuilder().apply {
+    blobId = id
+    dependencyType = ComputationBlobDependency.INPUT
+    path = key
+  }.build()
+
+/** Creates a [ComputationStageBlobMetadata] for an output blob. */
+fun newOutputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
+  ComputationStageBlobMetadata.newBuilder().apply {
+    blobId = id
+    dependencyType = ComputationBlobDependency.OUTPUT
+    path = key
+  }.build()
+
+/** Creates a [ComputationStageBlobMetadata] for an output blob that doesn't have a key set. */
+fun newEmptyOutputBlobMetadata(id: Long): ComputationStageBlobMetadata =
+  ComputationStageBlobMetadata.newBuilder().apply {
+    blobId = id
+    dependencyType = ComputationBlobDependency.OUTPUT
+  }.build()

@@ -24,13 +24,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
-import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
-import org.wfanet.measurement.db.duchy.SketchAggregationStages
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
-import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.service.internal.duchy.computation.storage.testing.FakeComputationStorageService
 import org.wfanet.measurement.service.internal.duchy.computationcontrol.ComputationControlServiceImpl
+import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 class MillTest {
@@ -40,7 +40,7 @@ class MillTest {
   private val duchyNames = listOf("Alsace", "Bavaria", "Carinthia")
   private lateinit var mills: List<Mill>
 
-  // TODO Use the ComputationManager to determine what work the mill needs to do.
+  // TODO Use the ComputationStorageService to determine what work the mill needs to do.
 
   @Before
   fun setup() {
@@ -48,6 +48,11 @@ class MillTest {
     mills = duchyNames.map {
       Mill(workerServiceMap, 1000)
     }
+  }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    listOf(FakeComputationStorageService(FakeComputationStorage(duchyNames)))
   }
 
   @Test
@@ -68,13 +73,9 @@ class MillTest {
         .addService(
           ComputationControlServiceImpl(
             SketchAggregationComputationManager(
-              FakeComputationsRelationalDatabase(
-                FakeComputationStorage(),
-                SketchAggregationStages,
-                SketchAggregationStageDetails(duchyNames.subList(1, duchyNames.size))
-              ),
+              ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel),
               FakeComputationsBlobDb(mutableMapOf()),
-              duchyNames.size
+              duchyNames
             )
           )
         )

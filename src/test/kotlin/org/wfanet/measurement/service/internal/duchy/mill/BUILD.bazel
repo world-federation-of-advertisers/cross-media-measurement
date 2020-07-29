@@ -7,8 +7,10 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "@com_github_jetbrains_kotlin//:kotlin-test",
         "@io_grpc_grpc_java//core",
         "@io_grpc_grpc_java//testing",

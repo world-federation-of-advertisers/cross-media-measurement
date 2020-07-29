@@ -22,35 +22,35 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.DuchyRole
-import org.wfanet.measurement.db.duchy.BlobDependencyType
-import org.wfanet.measurement.db.duchy.testing.FakeBlobMetadata
+import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
-import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
-import org.wfanet.measurement.internal.duchy.ComputationType
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toAdvanceComputationStageResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toClaimWorkResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toFinishComputationResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetComputationTokenResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toRecordOutputBlobPathResponse
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
 class FakeComputationStorageServiceTest {
 
-  private val fakeService = FakeComputationStorageService(listOf("A", "B", "C", "D"))
+  private val fakeService = FakeComputationStorageService(
+    FakeComputationStorage(listOf("A", "B", "C", "D"))
+  )
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { listOf(fakeService) }
@@ -67,9 +67,9 @@ class FakeComputationStorageServiceTest {
     val id = 1234L
     fakeService.storage.addComputation(
       id,
-      SketchAggregationStage.WAIT_SKETCHES,
-      DuchyRole.PRIMARY,
-      mutableMapOf()
+      SketchAggregationStage.WAIT_SKETCHES.toProtocolStage(),
+      RoleInComputation.PRIMARY,
+      listOf()
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val request = FinishComputationRequest.newBuilder().apply {
@@ -79,30 +79,34 @@ class FakeComputationStorageServiceTest {
     }.build()
 
     assertThat(fakeService.finishComputation(request))
-      .isEqualTo(tokenAtStart.toBuilder().clearStageSpecificDetails().apply {
-        version = 1
-        computationStage = SketchAggregationStage.COMPLETED.toProtocolStage()
-      }.build().toFinishComputationResponse())
+      .isEqualTo(
+        tokenAtStart.toBuilder().clearStageSpecificDetails().apply {
+          version = 1
+          computationStage = SketchAggregationStage.COMPLETED.toProtocolStage()
+        }.build().toFinishComputationResponse()
+      )
   }
 
   @Test
   fun `write reference to output blob and advance stage`() = runBlocking {
     val id = 67890L
     fakeService.storage.addComputation(
-      id, SketchAggregationStage.TO_BLIND_POSITIONS, DuchyRole.SECONDARY,
-      mutableMapOf(
-        FakeBlobMetadata(0L, BlobDependencyType.INPUT) to "an_input_blob",
-        FakeBlobMetadata(1L, BlobDependencyType.OUTPUT) to null
+      id, SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(), RoleInComputation.SECONDARY,
+      listOf(
+        newInputBlobMetadata(id = 0L, key = "an_input_blob"),
+        newEmptyOutputBlobMetadata(id = 1L)
       )
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
 
     val tokenAfterRecordingBlob =
-      client.recordOutputBlobPath(RecordOutputBlobPathRequest.newBuilder().apply {
-        token = tokenAtStart
-        outputBlobId = 1L
-        blobPath = "the_writen_output_blob"
-      }.build()).token
+      client.recordOutputBlobPath(
+        RecordOutputBlobPathRequest.newBuilder().apply {
+          token = tokenAtStart
+          outputBlobId = 1L
+          blobPath = "the_writen_output_blob"
+        }.build()
+      ).token
 
     val request = AdvanceComputationStageRequest.newBuilder().apply {
       token = tokenAfterRecordingBlob
@@ -113,20 +117,15 @@ class FakeComputationStorageServiceTest {
     }.build()
 
     assertThat(fakeService.advanceComputationStage(request))
-      .isEqualTo(tokenAtStart.toBuilder().clearBlobs().clearStageSpecificDetails().apply {
-        version = 2
-        attempt = 1
-        computationStage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
-        addBlobs(ComputationStageBlobMetadata.newBuilder().apply {
-          blobId = 0L
-          dependencyType = ComputationBlobDependency.INPUT
-          path = "inputs_to_new_stage"
-        }.build())
-        addBlobs(ComputationStageBlobMetadata.newBuilder().apply {
-          blobId = 1L
-          dependencyType = ComputationBlobDependency.OUTPUT
-        }.build())
-      }.build().toAdvanceComputationStageResponse())
+      .isEqualTo(
+        tokenAtStart.toBuilder().clearBlobs().clearStageSpecificDetails().apply {
+          version = 2
+          attempt = 1
+          computationStage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
+          addBlobs(newInputBlobMetadata(id = 0L, key = "inputs_to_new_stage"))
+          addBlobs(newEmptyOutputBlobMetadata(id = 1L))
+        }.build().toAdvanceComputationStageResponse()
+      )
   }
 
   @Test
@@ -135,13 +134,22 @@ class FakeComputationStorageServiceTest {
     val completedId = 12341L
     val decryptId = 4342242L
     fakeService.storage.addComputation(
-      blindId, SketchAggregationStage.TO_BLIND_POSITIONS, DuchyRole.SECONDARY, mutableMapOf()
+      blindId,
+      SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      RoleInComputation.SECONDARY,
+      listOf()
     )
     fakeService.storage.addComputation(
-      completedId, SketchAggregationStage.COMPLETED, DuchyRole.SECONDARY, mutableMapOf()
+      completedId,
+      SketchAggregationStage.COMPLETED.toProtocolStage(),
+      RoleInComputation.SECONDARY,
+      listOf()
     )
     fakeService.storage.addComputation(
-      decryptId, SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS, DuchyRole.SECONDARY, mutableMapOf()
+      decryptId,
+      SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
+      RoleInComputation.SECONDARY,
+      listOf()
     )
     val getIdsInMillStagesRequest = GetComputationIdsRequest.newBuilder().apply {
       addAllStages(
@@ -152,9 +160,11 @@ class FakeComputationStorageServiceTest {
       )
     }.build()
     assertThat(client.getComputationIds(getIdsInMillStagesRequest))
-      .isEqualTo(GetComputationIdsResponse.newBuilder().apply {
-        addAllGlobalIds(setOf(blindId, decryptId))
-      }.build())
+      .isEqualTo(
+        GetComputationIdsResponse.newBuilder().apply {
+          addAllGlobalIds(setOf(blindId, decryptId))
+        }.build()
+      )
   }
 
   @Test
@@ -162,16 +172,20 @@ class FakeComputationStorageServiceTest {
     val unclaimed = 12345678L
     val claimed = 23456789L
     fakeService.storage.addComputation(
-      unclaimed, SketchAggregationStage.TO_BLIND_POSITIONS, DuchyRole.SECONDARY, mutableMapOf()
+      unclaimed,
+      SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      RoleInComputation.SECONDARY,
+      listOf()
     )
     val unclaimedAtStart =
       fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeService.storage.addComputation(
-      claimed, SketchAggregationStage.TO_BLIND_POSITIONS, DuchyRole.SECONDARY, mutableMapOf()
+      claimed,
+      SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      RoleInComputation.SECONDARY,
+      listOf()
     )
-    fakeService.storage.changeToken(fakeService.storage[claimed]?.token!!) {
-      fakeService.storage[claimed]?.token?.copy(owner = "lock-owned-on-computation")!!
-    }
+    fakeService.storage.claimedComputationIds.add(claimed)
     val claimedAtStart =
       fakeService.getComputationToken(claimed.toGetTokenRequest()).token
     val owner = "TheOwner"
@@ -182,9 +196,10 @@ class FakeComputationStorageServiceTest {
     assertThat(fakeService.claimWork(request))
       .isEqualTo(
         unclaimedAtStart.toBuilder().setVersion(1).setAttempt(1).build()
-        .toClaimWorkResponse())
+          .toClaimWorkResponse()
+      )
     assertThat(fakeService.claimWork(request)).isEqualToDefaultInstance()
     assertThat(fakeService.getComputationToken(claimed.toGetTokenRequest()))
-      .isEqualTo(claimedAtStart.toClaimWorkResponse())
+      .isEqualTo(claimedAtStart.toGetComputationTokenResponse())
   }
 }

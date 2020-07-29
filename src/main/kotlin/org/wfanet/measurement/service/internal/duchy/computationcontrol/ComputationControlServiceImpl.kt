@@ -18,18 +18,18 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
-import org.wfanet.measurement.common.DuchyRole
-import org.wfanet.measurement.db.duchy.BlobDependencyType
-import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
+import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsResponse
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
+import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 
 class ComputationControlServiceImpl(
   private val computationManager: SketchAggregationComputationManager
@@ -42,7 +42,10 @@ class ComputationControlServiceImpl(
     val (id, sketch) =
       requests.map { it.computationId to it.partialSketch.toByteArray() }.appendAllByteArrays()
     logger.info("[id=$id]: Received blind position request.")
-    val token = requireNotNull(computationManager.getToken(id)) {
+    val token = computationManager.computationStorageClient
+      .getComputationToken(id.toGetTokenRequest())
+      .token
+    require(token.globalComputationId == id) {
       "Received HandleConcatenatedSketchRequest for unknown computation $id"
     }
 
@@ -51,12 +54,13 @@ class ComputationControlServiceImpl(
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
-      DuchyRole.PRIMARY -> SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-      DuchyRole.SECONDARY -> SketchAggregationStage.TO_BLIND_POSITIONS
+      RoleInComputation.PRIMARY -> SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+      RoleInComputation.SECONDARY -> SketchAggregationStage.TO_BLIND_POSITIONS
+      else -> error("Unknown role in computation ${token.role}")
     }
     logger.info("[id=$id]: transitioning to $nextStage")
     computationManager.transitionComputationToStage(
-      token = tokenAfterWrite,
+      storageToken = tokenAfterWrite,
       inputsToNextStage = listOf(path),
       stage = nextStage
     )
@@ -71,8 +75,11 @@ class ComputationControlServiceImpl(
     val (id, bytes) =
       requests.map { it.computationId to it.partialData.toByteArray() }.appendAllByteArrays()
     logger.info("[id=$id]: Received decrypt flags and counts request.")
-    val token = requireNotNull(computationManager.getToken(id)) {
-      "Received HandleEncryptedFlagsAndCountsRequest for unknown computation $id"
+    val token = computationManager.computationStorageClient
+      .getComputationToken(id.toGetTokenRequest())
+      .token
+    require(token.globalComputationId == id) {
+    "Received HandleEncryptedFlagsAndCountsRequest for unknown computation $id"
     }
 
     logger.info("[id=$id]: Saving encrypted flags and counts.")
@@ -80,12 +87,13 @@ class ComputationControlServiceImpl(
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
-      DuchyRole.PRIMARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-      DuchyRole.SECONDARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+      RoleInComputation.PRIMARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+      RoleInComputation.SECONDARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+      else -> error("Unknown role in computation ${token.role}")
     }
     logger.info("[id=$id]: transitioning to $nextStage")
     computationManager.transitionComputationToStage(
-      token = tokenAfterWrite,
+      storageToken = tokenAfterWrite,
       inputsToNextStage = listOf(path),
       stage = nextStage
     )
@@ -116,10 +124,13 @@ class ComputationControlServiceImpl(
           Triple(x.first, x.second, (x.third + y.third))
         }
     logger.info("[id=$id]: Received noised sketch request from $sender.")
-    val token = requireNotNull(computationManager.getToken(id)) {
+    val token = computationManager.computationStorageClient
+      .getComputationToken(id.toGetTokenRequest())
+      .token
+    require(token.globalComputationId == id) {
       "Received HandleNoisedSketchRequest for unknown computation $id"
     }
-    require(token.role == DuchyRole.PRIMARY) {
+    require(token.role == RoleInComputation.PRIMARY) {
       "Duchy is not the primary server but received a sketch from $sender for $token"
     }
 
@@ -131,19 +142,17 @@ class ComputationControlServiceImpl(
   }
 
   private suspend fun enqueueAppendSketchesOperationIfReceivedAllSketches(
-    token: ComputationToken<SketchAggregationStage>
+    token: ComputationToken
   ) {
-    val id = token.globalId
-    val sketches =
-      computationManager.readBlobReferences(token, BlobDependencyType.ANY).values
+    val id = token.globalComputationId
+    val sketchesNotYetReceived = token.blobsList.count { it.path.isEmpty() }
 
-    val sketchesNotYetReceived = sketches.count { it == null }
     if (sketchesNotYetReceived == 0) {
       val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
       logger.info("[id=$id]: transitioning to $nextStage")
       computationManager.transitionComputationToStage(
-        token = token,
-        inputsToNextStage = sketches.filterNotNull().toList(),
+        storageToken = token,
+        inputsToNextStage = token.blobsList.map { it.path }.toList(),
         stage = nextStage
       )
       logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage.")

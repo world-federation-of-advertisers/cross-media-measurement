@@ -14,12 +14,13 @@
 
 package org.wfanet.measurement.service.internal.duchy.computationcontrol
 
+import io.grpc.ManagedChannel
+import io.grpc.ManagedChannelBuilder
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.gcp.newCascadingLegionsSketchAggregationGcpComputationManager
 import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import picocli.CommandLine
 
 private class ComputationControlServiceFlags {
@@ -29,16 +30,23 @@ private class ComputationControlServiceFlags {
     required = true,
     defaultValue = "8080"
   )
-  var port by Delegates.notNull<Int>()
+  var port: Int by Delegates.notNull()
     private set
 
-  @CommandLine.Option(
+  @set:CommandLine.Option(
     names = ["--server-name"],
     description = ["Name of the gRPC server for logging purposes."],
     required = true,
     defaultValue = "WorkerServer"
   )
-  lateinit var nameForLogging: String
+  var nameForLogging: String by Delegates.notNull()
+  private set
+
+  @set:CommandLine.Option(
+    names = ["--computation-storage-service-target"],
+    required = true
+  )
+  var computationStorageServiceTarget: String by Delegates.notNull()
     private set
 }
 
@@ -49,20 +57,24 @@ private class ComputationControlServiceFlags {
 )
 private fun run(
   @CommandLine.Mixin computationControlServiceFlags: ComputationControlServiceFlags,
-  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags,
   @CommandLine.Mixin cloudStorageFlags: GoogleCloudStorageFromFlags.Flags
 ) {
   // TODO: Expand flags and configuration to work on other cloud environments when available.
-  val spannerFromFlags = SpannerFromFlags(spannerFlags)
   val cloudStorageFromFlags = GoogleCloudStorageFromFlags(cloudStorageFlags)
+
+  val channel: ManagedChannel =
+    ManagedChannelBuilder
+      .forTarget(computationControlServiceFlags.computationStorageServiceTarget)
+      .usePlaintext()
+      .build()
 
   val computationManager = newCascadingLegionsSketchAggregationGcpComputationManager(
     duchyName = computationControlServiceFlags.nameForLogging,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
-    databaseClient = spannerFromFlags.databaseClient,
     googleCloudStorageOptions = cloudStorageFromFlags.cloudStorageOptions,
-    storageBucket = cloudStorageFromFlags.bucket
+    storageBucket = cloudStorageFromFlags.bucket,
+    computationStorageServiceChannel = channel
   )
 
   CommonServer(

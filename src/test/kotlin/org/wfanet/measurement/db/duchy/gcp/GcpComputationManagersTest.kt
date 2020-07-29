@@ -15,22 +15,16 @@
 package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
-import com.google.common.truth.Truth.assertThat
-import java.math.BigInteger
-import java.time.Instant
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import com.google.common.truth.extensions.proto.ProtoTruth
 import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.db.duchy.BlobDependencyType
-import org.wfanet.measurement.db.duchy.BlobRef
-import org.wfanet.measurement.db.duchy.ComputationToken
-import org.wfanet.measurement.db.duchy.EndComputationReason
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
+import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
@@ -44,6 +38,26 @@ import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_CO
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
+import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
+import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest
+import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
+import org.wfanet.measurement.internal.duchy.FinishComputationRequest
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.service.internal.duchy.computation.storage.testing.FakeComputationStorageService
+import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
+import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
+import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
+import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import java.math.BigInteger
+import java.time.Instant
+import kotlin.test.assertEquals
 
 @RunWith(JUnit4::class)
 class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -60,6 +74,12 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
         .toMap()
   }
 
+  private val fakeService =
+    FakeComputationStorageService(FakeComputationStorage(duchies.subList(1, 3)))
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { listOf(fakeService) }
+
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
@@ -67,10 +87,9 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       newCascadingLegionsSketchAggregationGcpComputationManager(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
-        databaseClient = databaseClient,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
         storageBucket = "test-mill-bucket",
-        clock = testClock
+        computationStorageServiceChannel = grpcTestServerRule.channel
       ),
       ID_WHERE_ALSACE_IS_NOT_PRIMARY,
       testClock
@@ -94,21 +113,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
 
     computation.claimWorkFor("yet-another-mill")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS)
-    computation.end(reason = EndComputationReason.SUCCEEDED)
-
-    computation.assertTokenEquals(
-      ComputationToken(
-        // Cheat on the generated local id for the computation, it is tested elsewhere.
-        localId = computation.localId,
-        globalId = ID_WHERE_ALSACE_IS_NOT_PRIMARY,
-        owner = null,
-        attempt = 0,
-        nextWorker = BAVARIA,
-        lastUpdateTime = testClock.last().toEpochMilli(),
-        role = DuchyRole.SECONDARY,
-        stage = COMPLETED
-      )
-    )
+    computation.end(reason = CompletedReason.SUCCEEDED)
   }
 
   @Test
@@ -118,17 +123,20 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
       newCascadingLegionsSketchAggregationGcpComputationManager(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
-        databaseClient = databaseClient,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
         storageBucket = "test-mill-bucket",
-        clock = testClock
+        computationStorageServiceChannel = grpcTestServerRule.channel
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
     computation.writeOutputs(CREATED)
-    computation.runWaitStage(WAIT_SKETCHES)
+    computation.waitForSketches(
+      SketchAggregationStageDetails(duchies.subList(1, 3)).detailsFor(
+        WAIT_SKETCHES
+      )
+    )
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
@@ -145,29 +153,15 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
 
     computation.claimWorkFor("yet-another-mill")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
-    computation.end(reason = EndComputationReason.SUCCEEDED)
-
-    computation.assertTokenEquals(
-      ComputationToken(
-        // Cheat on the generated local id for the computation, it is tested elsewhere.
-        localId = computation.localId,
-        globalId = ID_WHERE_ALSACE_IS_PRIMARY,
-        owner = null,
-        attempt = 0,
-        nextWorker = BAVARIA,
-        lastUpdateTime = testClock.last().toEpochMilli(),
-        role = DuchyRole.PRIMARY,
-        stage = COMPLETED
-      )
-    )
+    computation.end(reason = CompletedReason.SUCCEEDED)
   }
 }
 
 /** Data about a single step of a computation. .*/
 data class ComputationStep(
-  val token: ComputationToken<SketchAggregationStage>,
-  val inputs: List<String>,
-  val outputs: List<String?>
+  val token: org.wfanet.measurement.internal.duchy.ComputationToken,
+  val inputs: List<ComputationStageBlobMetadata>,
+  val outputs: List<ComputationStageBlobMetadata>
 )
 
 /**
@@ -184,53 +178,73 @@ class SingleComputationManager(
   private val testClock: TestClockWithNamedInstants
 ) {
 
-  private var token = runBlocking { manager.createComputation(globalId, CREATED) }
-  val localId by lazy { token.localId }
+  private var token: org.wfanet.measurement.internal.duchy.ComputationToken = runBlocking {
+    manager.computationStorageClient.createComputation(
+      CreateComputationRequest.newBuilder().apply {
+        globalComputationId = globalId
+        computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+      }.build()
+    ).token
+  }
+  val localId by lazy { token.localComputationId }
 
   suspend fun writeOutputs(stage: SketchAggregationStage) {
-    assertEquals(stage, token.stage)
-    testClock.tickSeconds("${token.stage.name}_$token.attempt_outputs")
-    manager.readBlobReferences(token, BlobDependencyType.OUTPUT)
-      .map { BlobRef(it.key, manager.newBlobPath(token, "outputs")) }
-      .forEach { manager.writeAndRecordOutputBlob(token, it, stage.name.toByteArray()) }
+    assertEquals(stage.toProtocolStage(), token.computationStage)
+    testClock.tickSeconds(
+      "${token.computationStage.liquidLegionsSketchAggregation}_$token.attempt_outputs"
+    )
+    token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
+      .forEach {
+        token =
+          manager.computationStorageClient.recordOutputBlobPath(
+            RecordOutputBlobPathRequest.newBuilder()
+              .setToken(token)
+              .setOutputBlobId(it.blobId)
+              .setBlobPath(token.toBlobPath("output"))
+              .build()
+          ).token
+      }
   }
 
   /** Runs an operation and checks the returned token from the operation matches the expected. */
   private fun assertTokenChangesTo(
-    expected: ComputationToken<SketchAggregationStage>,
-    run: suspend (ComputationStep) -> ComputationToken<SketchAggregationStage>
+    expected: org.wfanet.measurement.internal.duchy.ComputationToken,
+    run: suspend (ComputationStep) -> org.wfanet.measurement.internal.duchy.ComputationToken
   ) = runBlocking {
-    testClock.tickSeconds("${expected.stage.name}_$expected.attempt")
+    testClock.tickSeconds("${expected.computationStage}_$expected.attempt")
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed
     // they will be fetched.
-    val inputsToCurrentStage =
-      manager.readBlobReferences(token, BlobDependencyType.INPUT).map {
-        checkNotNull(it.value) {
-          "Unwritten input $it. All blobs must be written before transitioning stages."
-        }
-      }
-    val outputsToCurrentStage =
-      manager.readBlobReferences(token, BlobDependencyType.OUTPUT).map { it.value }
+    val inputsToCurrentStage = token.blobsList.ofType(ComputationBlobDependency.INPUT)
+    val outputsToCurrentStage = token.blobsList.ofType(ComputationBlobDependency.OUTPUT)
     val result = run(ComputationStep(token, inputsToCurrentStage, outputsToCurrentStage))
-    assertEquals(expected.copy(lastUpdateTime = testClock.last().toEpochMilli()), result)
+    ProtoTruth.assertThat(result)
+      .isEqualTo(expected.toBuilder().setVersion(token.version + 1).build())
     token = result
   }
 
-  fun assertTokenEquals(expected: ComputationToken<SketchAggregationStage>) =
-    assertEquals(token, expected)
-
   /** Add computation to work queue and verify that it has no owner. */
   suspend fun enqueue() {
-    assertTokenChangesTo(token.copy(owner = null, attempt = 0)) {
-      manager.enqueue(token)
-      assertNotNull(manager.getToken(token.globalId))
+    assertTokenChangesTo(token.toBuilder().setAttempt(0).build()) {
+      manager.computationStorageClient.enqueueComputation(
+        EnqueueComputationRequest.newBuilder().setToken(token).build()
+      )
+      manager.computationStorageClient
+        .getComputationToken(token.globalComputationId.toGetTokenRequest())
+        .token
     }
   }
 
   /** Get computation from work queue and verify it is owned by the [workerId]. */
   suspend fun claimWorkFor(workerId: String) {
-    assertTokenChangesTo(token.copy(owner = workerId, attempt = 1)) {
-      assertNotNull(manager.claimWork(workerId))
+    assertTokenChangesTo(token.toBuilder().setAttempt(1).build()) {
+      val claimed = manager.computationStorageClient.claimWork(
+        ClaimWorkRequest.newBuilder()
+          .setOwner(workerId)
+          .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
+          .build()
+      )
+      ProtoTruth.assertThat(claimed).isNotEqualToDefaultInstance()
+      claimed.tokenList.single()
     }
   }
 
@@ -240,26 +254,35 @@ class SingleComputationManager(
      * set stage to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
     suspend fun receiveSketch(sender: String) {
-      val stageDetails = manager.readStageSpecificDetails(token).waitSketchStageDetails
+      val stageDetails = token.stageSpecificDetails.waitSketchStageDetails
 
-      val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
-      val contents = "message from $sender"
-      val path = manager.newBlobPath(token, sender)
-      manager.writeAndRecordOutputBlob(token, BlobRef(blobId, path), contents.toByteArray())
-
-      assertThat(manager.readBlobReferences(token, BlobDependencyType.OUTPUT)[blobId]).isEqualTo(
-        path
-      )
+      val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender]) - 1
+      val path = token.toBlobPath("sketch_from_$sender")
+      token = manager.computationStorageClient.recordOutputBlobPath(
+        RecordOutputBlobPathRequest.newBuilder()
+          .setToken(token)
+          .setOutputBlobId(blobId)
+          .setBlobPath(path)
+          .build()
+      ).token
 
       val notWritten =
-        manager.readBlobReferences(token, BlobDependencyType.OUTPUT).values.count { it == null }
-      println("$notWritten")
+        token.blobsList.count {
+          it.dependencyType == ComputationBlobDependency.OUTPUT &&
+            it.path.isEmpty()
+        }
       if (notWritten == 0) {
-        println("Moving to append sketches stage")
-        assertTokenChangesTo(token.copy(stage = TO_APPEND_SKETCHES_AND_ADD_NOISE, attempt = 0)) {
+        assertTokenChangesTo(
+          token.outputBlobsToInputBlobs()
+            .addEmptyOutputs(1)
+            .clearStageSpecificDetails()
+            .setComputationStage(
+              TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+            ).setAttempt(0).build()
+        ) {
           manager.transitionComputationToStage(
             it.token,
-            it.inputs + it.outputs.requireNoNulls(),
+            it.inputs.paths() + it.outputs.paths(),
             TO_APPEND_SKETCHES_AND_ADD_NOISE
           )
         }
@@ -270,11 +293,17 @@ class SingleComputationManager(
     suspend fun receiveConcatenatedSketchGrpc() {
       writeOutputs(WAIT_CONCATENATED)
       val stage =
-        if (token.role == DuchyRole.PRIMARY) TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+        if (token.role == RoleInComputation.PRIMARY) TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
         else TO_BLIND_POSITIONS
-      assertTokenChangesTo(token.copy(stage = stage, attempt = 0)) {
+      assertTokenChangesTo(
+        token.outputBlobsToInputBlobs()
+          .addBlobs(newEmptyOutputBlobMetadata(1))
+          .setComputationStage(stage.toProtocolStage())
+          .setAttempt(0)
+          .build()
+      ) {
         manager.transitionComputationToStage(
-          it.token, it.outputs.requireNoNulls(), stage
+          it.token, it.outputs.paths(), stage
         )
       }
     }
@@ -283,35 +312,97 @@ class SingleComputationManager(
     suspend fun receiveFlagCountsGrpc() {
       writeOutputs(WAIT_FLAG_COUNTS)
       val stage =
-        if (token.role == DuchyRole.PRIMARY) TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+        if (token.role == RoleInComputation.PRIMARY) TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
         else TO_DECRYPT_FLAG_COUNTS
-      assertTokenChangesTo(token.copy(stage = stage, attempt = 0)) {
+      assertTokenChangesTo(
+        token
+          .outputBlobsToInputBlobs()
+          .addEmptyOutputs(1)
+          .setComputationStage(stage.toProtocolStage()).setAttempt(0).build()
+      ) {
         manager.transitionComputationToStage(
-          it.token, it.outputs.requireNoNulls(), stage
+          it.token, it.outputs.paths(), stage
         )
       }
     }
   }
 
   suspend fun gatherLocalSketches() {
-    assertTokenChangesTo(token.copy(stage = TO_ADD_NOISE, attempt = 0, owner = null)) {
+    assertTokenChangesTo(
+      token.toBuilder().setComputationStage(TO_ADD_NOISE.toProtocolStage()).setAttempt(0)
+        .addEmptyOutputs(1)
+        .build()
+    ) {
       manager.transitionComputationToStage(
         it.token,
-        it.outputs.requireNoNulls(),
+        it.outputs.paths(),
         TO_ADD_NOISE
       )
     }
   }
 
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
-  suspend fun runWaitStage(stage: SketchAggregationStage) {
-    assertTokenChangesTo(token.copy(stage = stage, attempt = 1, owner = null)) {
-      manager.transitionComputationToStage(it.token, it.outputs.requireNoNulls(), stage)
+  suspend fun waitForSketches(details: ComputationStageDetails) {
+    assertTokenChangesTo(
+      token
+        .outputBlobsToInputBlobs()
+        .addEmptyOutputs(2)
+        .setComputationStage(WAIT_SKETCHES.toProtocolStage())
+        .setAttempt(1)
+        .setStageSpecificDetails(details)
+        .build()
+    ) {
+      manager.transitionComputationToStage(it.token, it.outputs.paths(), WAIT_SKETCHES)
     }
   }
 
-  suspend fun end(reason: EndComputationReason) {
-    manager.endComputation(token, COMPLETED, reason)
-    token = checkNotNull(manager.getToken(token.globalId)) { "No token for $token" }
+  /** Move to a waiting stage and make sure the computation is not in the work queue. */
+  suspend fun runWaitStage(stage: SketchAggregationStage) {
+    assertTokenChangesTo(
+      token
+        .outputBlobsToInputBlobs()
+        .addEmptyOutputs(1)
+        .setComputationStage(stage.toProtocolStage()).setAttempt(1)
+        .build()
+    ) {
+      manager.transitionComputationToStage(it.token, it.outputs.paths(), stage)
+    }
   }
+
+  suspend fun end(reason: CompletedReason) {
+    token = manager.computationStorageClient.finishComputation(
+      FinishComputationRequest.newBuilder()
+        .setToken(token)
+        .setEndingComputationStage(COMPLETED.toProtocolStage())
+        .setReason(reason)
+        .build()
+    ).token
+  }
+}
+
+fun List<ComputationStageBlobMetadata>.paths() = map { it.path }
+fun List<ComputationStageBlobMetadata>.ofType(dependencyType: ComputationBlobDependency) =
+  filter { it.dependencyType == dependencyType }
+
+fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlobs():
+  org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
+  return toBuilder().clearBlobs().addAllBlobs(
+    blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
+      .mapIndexed { index, blob ->
+        blob.toBuilder()
+          .setDependencyType(ComputationBlobDependency.INPUT)
+          .setBlobId(index.toLong())
+          .build()
+      }
+  )
+}
+
+fun org.wfanet.measurement.internal.duchy.ComputationToken.Builder.addEmptyOutputs(
+  n: Int
+): org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
+  val currentMaxIndex = blobsCount.toLong()
+  (0 until n).forEach {
+    addBlobs(newEmptyOutputBlobMetadata(currentMaxIndex + it))
+  }
+  return this
 }
