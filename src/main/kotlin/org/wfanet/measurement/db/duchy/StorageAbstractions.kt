@@ -70,8 +70,10 @@ enum class AfterTransition {
 enum class EndComputationReason {
   /** Computation went the expected execution and succeeded. */
   SUCCEEDED,
+
   /** Computation failed and will not be retried again. */
   FAILED,
+
   /**
    * The computation was canceled. There were not known issues when it was ended, but results
    * will not be obtained.
@@ -184,9 +186,6 @@ interface ComputationsBlobDb<StageT : Enum<StageT>> {
 
   /** Deletes a BLOB */
   suspend fun delete(reference: BlobRef)
-
-  /** Returns a path where to write a blob for a computation stage. */
-  suspend fun newBlobPath(token: ComputationToken<StageT>, name: String): String
 }
 
 /** The way in which a stage depends upon a BLOB. */

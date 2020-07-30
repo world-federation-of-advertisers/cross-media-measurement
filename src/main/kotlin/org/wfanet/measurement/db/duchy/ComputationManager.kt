@@ -15,6 +15,8 @@
 package org.wfanet.measurement.db.duchy
 
 import java.io.IOException
+import java.nio.file.Paths
+import kotlin.random.Random
 
 /**
  * Manages status and stage transitions for ongoing computations.
@@ -171,9 +173,19 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
     relationalDatabase.writeOutputBlobReference(token, blobName)
   }
 
-  /** Convenience function to get a path were a new blob may be written. */
-  suspend fun newBlobPath(token: ComputationToken<StageT>, name: String): String =
-    blobDatabase.newBlobPath(token, name)
+  /**
+   * Convenience function to get a path were a new blob may be written.
+   * Returns a path to that can be used for writing a Blob of the form localId/stage/name/randomId.
+   */
+  fun newBlobPath(
+    // TODO(fashing) This doesn't need the entire token. Refactor it to just the input it needs.
+    token: ComputationToken<StageT>,
+    name: String,
+    random: Random = Random
+  ): String {
+    val hexValue = random.nextLong(until = Long.MAX_VALUE).toString(16)
+    return Paths.get(token.localId.toString(), token.stage.name, name, hexValue).toString()
+  }
 
   /**
    * Reads the specific stage details as a [M] protobuf message for the current stage of a

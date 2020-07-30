@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import kotlin.random.Random
 
 /**
  * [ComputationManager] specific to running the Privacy-Preserving Secure Cardinality and
@@ -39,7 +40,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 class SketchAggregationComputationManager(
   relationalDatabase: ComputationsRelationalDb<SketchAggregationStage, ComputationStageDetails>,
   blobDatabase: ComputationsBlobDb<SketchAggregationStage>,
-  private val duchiesInComputation: Int
+  private val duchiesInComputation: Int,
+  private val blobPathRandom: Random = Random
 ) : ComputationManager<SketchAggregationStage, ComputationStageDetails>(
   relationalDatabase,
   blobDatabase
@@ -197,7 +199,7 @@ class SketchAggregationComputationManager(
 
     // Write the blob to a new path if there is not already a reference saved for it in
     // the relational database.
-    val newPath = newBlobPath(token, nameForBlob)
+    val newPath = newBlobPath(token, nameForBlob, blobPathRandom)
     writeAndRecordOutputBlob(token, BlobRef(blobId, newPath), bytes)
     val newToken =
       getToken(token.globalId) ?: error("Computation $token not found after writing output blob")

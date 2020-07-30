@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.SketchAggregationStage
 @RunWith(JUnit4::class)
 class GcpStorageComputationsDbTest {
   private lateinit var blobsDb: GcpStorageComputationsDb<SketchAggregationStage>
+
   companion object {
     const val TEST_BUCKET = "testing-bucket"
     private val storage: Storage = LocalStorageHelper.getOptions().service
@@ -64,15 +65,6 @@ class GcpStorageComputationsDbTest {
   }
 
   @Test
-  fun newPath() = runBlocking<Unit> {
-    val pathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
-    assertThat(pathWithRandomSuffix).startsWith("5432/TO_DECRYPT_FLAG_COUNTS/finished_sketch")
-    val secondPathWithRandomSuffix = blobsDb.newBlobPath(token, "finished_sketch")
-    assertThat(pathWithRandomSuffix).startsWith("5432/TO_DECRYPT_FLAG_COUNTS/finished_sketch")
-    assertThat(pathWithRandomSuffix).isNotEqualTo(secondPathWithRandomSuffix)
-  }
-
-  @Test
   fun writeBlobPath() = runBlocking<Unit> {
     val pathToBlob = "path/to/a/blob"
     val blobData = "data-to-write-to-storage".toByteArray()
@@ -84,9 +76,9 @@ class GcpStorageComputationsDbTest {
   fun `blob lifecycle`() = runBlocking {
     val blob1 = "abcdefghijklmnopqrstuvwxyz".toByteArray()
     val blob2 = "123456789011121314151617181920".toByteArray()
-    val blob1Path = blobsDb.newBlobPath(token, "my-new-blob")
+    val blob1Path = newBlobPath(token, "my-new-blob")
     val blob1Ref = BlobRef(0L, blob1Path)
-    val blob2Path = blobsDb.newBlobPath(token, "some-other-blob")
+    val blob2Path = newBlobPath(token, "some-other-blob")
     val blob2Ref = BlobRef(1L, blob2Path)
     // Write both blobs using the implementation.
     blobsDb.blockingWrite(blob1Ref, blob1)
@@ -101,3 +93,9 @@ class GcpStorageComputationsDbTest {
     assertThat(blobsDb.read(blob2Ref)).isEqualTo(blob2)
   }
 }
+
+/** A deterministic name for a blob useful for testing. */
+private fun <StageT : Enum<StageT>> newBlobPath(
+  token: ComputationToken<StageT>,
+  name: String
+): String = "${token.localId}/${token.stage}/$name"

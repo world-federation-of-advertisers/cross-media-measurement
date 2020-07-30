@@ -32,13 +32,13 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.BlobDependencyType
 import org.wfanet.measurement.db.duchy.BlobRef
+import org.wfanet.measurement.db.duchy.ComputationToken
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
 import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
 import org.wfanet.measurement.db.duchy.SketchAggregationStages
 import org.wfanet.measurement.db.duchy.testing.FakeBlobMetadata
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
-import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb.Companion.blobPath
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
@@ -47,35 +47,61 @@ import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import kotlin.random.Random
 
 @ExperimentalCoroutinesApi
 @RunWith(JUnit4::class)
 class ComputationControlServiceImplTest {
   private val fakeComputationStorage =
     FakeComputationStorage<SketchAggregationStage, ComputationStageDetails>()
-  val fakeBlobs = mutableMapOf<String, ByteArray>()
+  private val fakeBlobs = mutableMapOf<String, ByteArray>()
+
+  /** Always return the same numbers. */
+  class FakeRandom : Random() {
+    override fun nextBits(bitCount: Int): Int = 42
+  }
 
   private val duchyNames = listOf("Alsace", "Bavaria", "Carinthia")
-  val fakeDuchyComputationManger = SketchAggregationComputationManager(
+  private val fakeDuchyComputationManager = SketchAggregationComputationManager(
     FakeComputationsRelationalDatabase(
       fakeComputationStorage,
       SketchAggregationStages,
       SketchAggregationStageDetails(duchyNames.subList(1, duchyNames.size))
     ),
     FakeComputationsBlobDb(fakeBlobs),
-    duchyNames.size
+    duchyNames.size,
+    FakeRandom()
   )
+
+  /** Blob name made deterministic with fake RNG. */
+  // fun <StageT> blobPath(id: Long, stage: StageT, name: String): String = "$id-$stage-$name"
+  private fun blobPath(id: Long, stage: SketchAggregationStage, name: String): String =
+    fakeDuchyComputationManager.newBlobPath(
+      ComputationToken<SketchAggregationStage>(
+        localId = id,
+        globalId = 0L,
+        stage = stage,
+        owner = "",
+        nextWorker = "",
+        role = DuchyRole.PRIMARY,
+        attempt = 0L,
+        lastUpdateTime = 0L
+      ),
+      name,
+      FakeRandom()
+    )
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ComputationControlServiceImpl(fakeDuchyComputationManger))
+    listOf(ComputationControlServiceImpl(fakeDuchyComputationManager))
   }
 
   lateinit var client: ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 
   @Before
   fun setup() {
-    client = ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
+    client =
+      ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
@@ -96,7 +122,7 @@ class ComputationControlServiceImplTest {
           FakeBlobMetadata(2L, BlobDependencyType.OUTPUT) to null
         )
       )
-    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val token = assertNotNull(fakeDuchyComputationManager.getToken(id))
     val part1 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
@@ -114,7 +140,7 @@ class ComputationControlServiceImplTest {
       .build()
     ProtoTruth.assertThat(client.handleNoisedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val tokenAfter = assertNotNull(fakeDuchyComputationManager.getToken(id))
     assertEquals(
       // the stage is the same because we are waiting for more sketches
       token.copy(lastUpdateTime = 1),
@@ -129,9 +155,12 @@ class ComputationControlServiceImplTest {
       .build()
     ProtoTruth.assertThat(client.handleNoisedSketch(flowOf(fullSketch)))
       .isEqualToDefaultInstance()
-    val tokenAfterSecondSketch = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val tokenAfterSecondSketch = assertNotNull(fakeDuchyComputationManager.getToken(id))
     assertEquals(
-      token.copy(stage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE, lastUpdateTime = 3),
+      token.copy(
+        stage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
+        lastUpdateTime = 3
+      ),
       tokenAfterSecondSketch
     )
     assertEquals(
@@ -146,7 +175,7 @@ class ComputationControlServiceImplTest {
           blobPath(id, SketchAggregationStage.WAIT_SKETCHES, "noised_sketch_$secondSender")
         ) to "full_sketch_fit_in_message"
       ),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      fakeDuchyComputationManager.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -178,7 +207,7 @@ class ComputationControlServiceImplTest {
         role = DuchyRole.PRIMARY,
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
-    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val token = assertNotNull(fakeDuchyComputationManager.getToken(id))
     val part1 = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
@@ -193,7 +222,7 @@ class ComputationControlServiceImplTest {
       .build()
     ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val tokenAfter = assertNotNull(fakeDuchyComputationManager.getToken(id))
     assertEquals(
       token.copy(
         stage = SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS, lastUpdateTime = 2
@@ -207,7 +236,7 @@ class ComputationControlServiceImplTest {
           blobPath(id, SketchAggregationStage.WAIT_CONCATENATED, "concatenated_sketch")
         ) to "part1_part2_part3"
       ),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      fakeDuchyComputationManager.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -223,14 +252,14 @@ class ComputationControlServiceImplTest {
         role = DuchyRole.SECONDARY,
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
-    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val token = assertNotNull(fakeDuchyComputationManager.getToken(id))
     val sketch = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("full_sketch".toByteString())
       .build()
     ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(sketch)))
       .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val tokenAfter = assertNotNull(fakeDuchyComputationManager.getToken(id))
     assertEquals(
       token.copy(stage = SketchAggregationStage.TO_BLIND_POSITIONS, lastUpdateTime = 2),
       tokenAfter
@@ -242,7 +271,7 @@ class ComputationControlServiceImplTest {
           blobPath(id, SketchAggregationStage.WAIT_CONCATENATED, "concatenated_sketch")
         ) to "full_sketch"
       ),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      fakeDuchyComputationManager.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -273,14 +302,14 @@ class ComputationControlServiceImplTest {
         role = DuchyRole.PRIMARY,
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
-    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val token = assertNotNull(fakeDuchyComputationManager.getToken(id))
     val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
       .setPartialData("full_sketch".toByteString())
       .build()
     ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(sketch)))
       .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val tokenAfter = assertNotNull(fakeDuchyComputationManager.getToken(id))
     assertEquals(
       token.copy(
         stage = SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
@@ -295,7 +324,7 @@ class ComputationControlServiceImplTest {
           blobPath(id, SketchAggregationStage.WAIT_FLAG_COUNTS, "encrypted_flag_counts")
         ) to "full_sketch"
       ),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      fakeDuchyComputationManager.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -311,7 +340,7 @@ class ComputationControlServiceImplTest {
         role = DuchyRole.SECONDARY,
         blobs = mutableMapOf(FakeBlobMetadata(0L, BlobDependencyType.OUTPUT) to null)
       )
-    val token = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val token = assertNotNull(fakeDuchyComputationManager.getToken(id))
     val part1 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
       .setPartialData("part1_".toByteString())
@@ -326,7 +355,7 @@ class ComputationControlServiceImplTest {
       .build()
     ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(fakeDuchyComputationManger.getToken(id))
+    val tokenAfter = assertNotNull(fakeDuchyComputationManager.getToken(id))
     assertEquals(
       token.copy(stage = SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS, lastUpdateTime = 2),
       tokenAfter
@@ -338,7 +367,7 @@ class ComputationControlServiceImplTest {
           blobPath(id, SketchAggregationStage.WAIT_FLAG_COUNTS, "encrypted_flag_counts")
         ) to "part1_part2_part3"
       ),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      fakeDuchyComputationManager.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
