@@ -1,0 +1,44 @@
+-- Copyright 2020 The Measurement System Authors
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Cloud Spanner database schema for metric values in a Duchy.
+--
+-- IDs not marked as external are internal to a Duchy. Only external IDs should
+-- be exposed outside of the Duchy, e.g. via API services or user interfaces.
+--
+-- The external IDs are resource IDs from the external API. As the Duchy does
+-- not generate any of these IDs, it can make no assumptions about them other
+-- than what is defined in the API contract. In particular, the only guarantee
+-- about the ID format is that it is a URL-safe string. Furthermore, resource
+-- IDs are only guaranteed to be unique among their siblings under the same
+-- parent.
+
+-- Represents `MetricValue` API resources.
+CREATE TABLE MetricValues (
+  MetricValueId INT64 NOT NULL,
+
+  ExternalDataProviderId STRING(MAX) NOT NULL,
+  ExternalCampaignId STRING(MAX) NOT NULL,
+  ExternalMetricRequisitionId STRING(MAX) NOT NULL,
+
+  -- Key in blob/object storage system.
+  BlobStorageKey STRING(MAX) NOT NULL
+) PRIMARY KEY (MetricValueId);
+
+-- Index for lookups of BlobStorageKey using `MetricValue` resource key.
+CREATE UNIQUE INDEX MetricValuesByExternalId ON MetricValues(
+  ExternalDataProviderId,
+  ExternalCampaignId,
+  ExternalMetricRequisitionId
+) STORING (BlobStorageKey);
