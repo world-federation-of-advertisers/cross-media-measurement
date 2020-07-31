@@ -73,29 +73,34 @@ http_archive(
 )
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
+load("//build/maven:artifacts.bzl", "artifacts")
 
-MAVEN_ARTIFACTS = [
-    "com.google.api.grpc:grpc-google-cloud-pubsub-v1:0.1.24",
-    "com.google.api.grpc:proto-google-cloud-pubsub-v1:0.1.24",
-    "com.google.cloud:google-cloud-core:1.93.5",
-    "com.google.cloud:google-cloud-spanner:1.55.1",
-    "com.google.cloud:google-cloud-storage:1.109.0",
-    "com.google.cloud:google-cloud-nio:0.121.0",
-    "io.grpc:grpc-kotlin-stub:0.1.2",
-    "info.picocli:picocli:4.4.0",
-    "junit:junit:4.13",
-    "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.3.5",
-    "org.mockito:mockito-core:3.3.3",
-]
+KOTLINX_COROUTINES_VERSION = "1.3.8"
 
-MAVEN_ARTIFACTS += IO_GRPC_GRPC_JAVA_ARTIFACTS
+MAVEN_ARTIFACTS = artifacts.list_to_dict(
+    IO_GRPC_GRPC_JAVA_ARTIFACTS +
+    IO_GRPC_GRPC_KOTLIN_ARTIFACTS +
+    COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS,
+)
 
-MAVEN_ARTIFACTS += IO_GRPC_GRPC_KOTLIN_ARTIFACTS
-
-MAVEN_ARTIFACTS += COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS
+MAVEN_ARTIFACTS.update({
+    "com.google.api.grpc:grpc-google-cloud-pubsub-v1": "0.1.24",
+    "com.google.api.grpc:proto-google-cloud-pubsub-v1": "0.1.24",
+    "com.google.cloud:google-cloud-core": "1.93.5",
+    "com.google.cloud:google-cloud-spanner": "1.55.1",
+    "com.google.cloud:google-cloud-storage": "1.109.0",
+    "com.google.cloud:google-cloud-nio": "0.121.0",
+    "io.grpc:grpc-kotlin-stub": "0.1.2",
+    "info.picocli:picocli": "4.4.0",
+    "junit:junit": "4.13",
+    "org.jetbrains.kotlinx:kotlinx-coroutines-core": KOTLINX_COROUTINES_VERSION,
+    "org.jetbrains.kotlinx:kotlinx-coroutines-debug": KOTLINX_COROUTINES_VERSION,
+    "org.jetbrains.kotlinx:kotlinx-coroutines-test": KOTLINX_COROUTINES_VERSION,
+    "org.mockito:mockito-core": "3.3.3",
+})
 
 maven_install(
-    artifacts = MAVEN_ARTIFACTS,
+    artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS),
     fetch_sources = True,
     generate_compat_repositories = True,
     override_targets = dict(

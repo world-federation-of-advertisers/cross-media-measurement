@@ -15,7 +15,6 @@
 package org.wfanet.measurement.service.internal.duchy.computationcontrol
 
 import kotlin.properties.Delegates
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.gcp.newCascadingLegionsSketchAggregationGcpComputationManager
@@ -43,7 +42,6 @@ private class ComputationControlServiceFlags {
     private set
 }
 
-@ExperimentalCoroutinesApi
 @CommandLine.Command(
   name = "gcp_worker_server",
   mixinStandardHelpOptions = true,
@@ -71,8 +69,7 @@ private fun run(
     computationControlServiceFlags.nameForLogging,
     computationControlServiceFlags.port,
     ComputationControlServiceImpl(computationManager)
-  ) .start() .blockUntilShutdown()
+  ).start().blockUntilShutdown()
 }
 
-@ExperimentalCoroutinesApi
 fun main(args: Array<String>) = commandLineMain(::run, args)

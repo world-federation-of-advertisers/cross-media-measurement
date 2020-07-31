@@ -15,6 +15,7 @@
 package org.wfanet.measurement.common
 
 import kotlin.test.assertEquals
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -26,7 +27,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class) // For `runBlockingTest`.
 class RenewedFlowTest {
   @Test
   fun `flow repeats`() = runBlockingTest {

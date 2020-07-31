@@ -15,11 +15,9 @@
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import kotlin.properties.Delegates
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import picocli.CommandLine
-import java.time.Duration
 
 private class ComputationStorageServiceFlags {
   @set:CommandLine.Option(
@@ -41,7 +39,6 @@ private class ComputationStorageServiceFlags {
     private set
 }
 
-@ExperimentalCoroutinesApi
 @CommandLine.Command(
   name = "gcp_computation_storage_server",
   mixinStandardHelpOptions = true,
@@ -54,8 +51,7 @@ private fun run(
     computationStorageServiceFlags.nameForLogging,
     computationStorageServiceFlags.port,
     ComputationStorageServiceImpl()
-  ) .start() .blockUntilShutdown()
+  ).start().blockUntilShutdown()
 }
 
-@ExperimentalCoroutinesApi
 fun main(args: Array<String>) = commandLineMain(::run, args)

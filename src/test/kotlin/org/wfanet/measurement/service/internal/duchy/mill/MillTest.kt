@@ -14,12 +14,9 @@
 
 package org.wfanet.measurement.service.internal.duchy.mill
 
-import com.google.common.truth.extensions.proto.ProtoTruth
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -32,12 +29,10 @@ import org.wfanet.measurement.db.duchy.SketchAggregationStages
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsRelationalDatabase
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.service.internal.duchy.computationcontrol.ComputationControlServiceImpl
 
 @RunWith(JUnit4::class)
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MillTest {
   @get:Rule
   val grpcCleanup = GrpcCleanupRule()
@@ -50,7 +45,7 @@ class MillTest {
   @Before
   fun setup() {
     val workerServiceMap = duchyNames.associateWith { setupComputationControlService() }
-    mills = duchyNames.map { _ ->
+    mills = duchyNames.map {
       Mill(workerServiceMap, 1000)
     }
   }

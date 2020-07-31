@@ -37,7 +37,6 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
 
 @RunWith(JUnit4::class)
-@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ChannelShutdownHookTest {
   @get:Rule
   val grpcCleanup = GrpcCleanupRule()
