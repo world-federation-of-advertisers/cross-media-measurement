@@ -38,6 +38,10 @@ private fun <T> Struct.nullOrValue(
 fun Struct.getNullableString(column: String): String? =
   nullOrValue(column, Type.Code.STRING, Struct::getString)
 
+/** Returns the value of an Array of Structs column even if it is null. */
+fun Struct.getNullableStructList(column: String): MutableList<Struct>? =
+  nullOrValue(column, Type.Code.ARRAY, Struct::getStructList)
+
 /** Returns the value of a Timestamp column even if it is null. */
 fun Struct.getNullableTimestamp(column: String): Timestamp? =
   nullOrValue(column, Type.Code.TIMESTAMP, Struct::getTimestamp)

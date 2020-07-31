@@ -206,7 +206,7 @@ class SketchAggregationComputationManager(
     nameForBlob: String,
     storageToken: StorageToken,
     bytes: ByteArray,
-    blobId: BlobId,
+    blobId: Long,
     existingPath: String
   ): Pair<StorageToken, String> {
     require(storageToken.computationStage.liquidLegionsSketchAggregation == requiredStage) {

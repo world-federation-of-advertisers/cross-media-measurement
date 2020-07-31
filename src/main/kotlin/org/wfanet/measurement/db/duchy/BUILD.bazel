@@ -14,5 +14,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
     ],
 )

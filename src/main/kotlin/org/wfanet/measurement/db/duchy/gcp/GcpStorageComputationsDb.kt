@@ -29,14 +29,14 @@ class GcpStorageComputationsDb<StageT>(
   private val bucket: String
 ) : ComputationsBlobDb<StageT> {
   override suspend fun read(reference: BlobRef): ByteArray =
-    storage[blobId(reference.pathToBlob)]?.getContent() ?: error("No blob for $reference")
+    storage[blobId(reference.key)]?.getContent() ?: error("No blob for $reference")
 
   override suspend fun blockingWrite(path: String, bytes: ByteArray) {
     storage.create(blobInfo(path), bytes)
   }
 
   override suspend fun delete(reference: BlobRef) {
-    storage.delete(blobId(reference.pathToBlob))
+    storage.delete(blobId(reference.key))
   }
 
   private fun blobId(path: String): BlobId = BlobId.of(bucket, path)

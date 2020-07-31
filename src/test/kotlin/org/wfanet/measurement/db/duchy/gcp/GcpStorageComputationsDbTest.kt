@@ -25,9 +25,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.BlobRef
-import org.wfanet.measurement.db.duchy.ComputationToken
+import org.wfanet.measurement.db.duchy.ComputationStorageEditToken
 import org.wfanet.measurement.internal.SketchAggregationStage
 
 @RunWith(JUnit4::class)
@@ -37,10 +36,9 @@ class GcpStorageComputationsDbTest {
   companion object {
     const val TEST_BUCKET = "testing-bucket"
     private val storage: Storage = LocalStorageHelper.getOptions().service
-    private val token = ComputationToken(
-      localId = 5432L, globalId = 6789, attempt = 1, lastUpdateTime = 1234567891011L,
-      stage = SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS, nextWorker = "next-one", owner = "me",
-      role = DuchyRole.PRIMARY
+    private val token = ComputationStorageEditToken(
+      localId = 5432L, attempt = 1, editVersion = 1234567891011L,
+      stage = SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
     )
   }
 
@@ -96,6 +94,6 @@ class GcpStorageComputationsDbTest {
 
 /** A deterministic name for a blob useful for testing. */
 private fun <StageT> newBlobPath(
-  token: ComputationToken<StageT>,
+  token: ComputationStorageEditToken<StageT>,
   name: String
 ): String = "${token.localId}/${token.stage}/$name"

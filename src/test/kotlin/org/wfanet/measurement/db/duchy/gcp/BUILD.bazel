@@ -74,6 +74,23 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "gcp_spanner_computation_token_proto_reader_test",
+    srcs = ["GcpSpannerReadOnlyComputationsRelationalDbTest.kt"],
+    resources = [
+        "//src/main/db/gcp:computations_scehema",
+    ],
+    test_class = "org.wfanet.measurement.db.duchy.gcp.GcpSpannerReadOnlyComputationsRelationalDbTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "gcp_computations_managers_test",
     srcs = ["GcpComputationManagersTest.kt"],
     resources = [

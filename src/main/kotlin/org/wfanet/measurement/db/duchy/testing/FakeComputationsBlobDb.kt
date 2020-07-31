@@ -22,7 +22,7 @@ class FakeComputationsBlobDb<StageT>(
   private val fakeComputations: MutableMap<String, ByteArray>
 ) : ComputationsBlobDb<StageT> {
   override suspend fun read(reference: BlobRef): ByteArray {
-    return fakeComputations[reference.pathToBlob] ?: error("No blob found")
+    return fakeComputations[reference.key] ?: error("No blob found")
   }
 
   override suspend fun blockingWrite(path: String, bytes: ByteArray) {
@@ -30,7 +30,6 @@ class FakeComputationsBlobDb<StageT>(
   }
 
   override suspend fun delete(reference: BlobRef) {
-    fakeComputations.remove(reference.pathToBlob)
+    fakeComputations.remove(reference.key)
   }
 }
-

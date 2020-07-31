@@ -18,9 +18,9 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 
-/** Query for all global computation ids in database. */
+/** Query for all global computation ids in database filtered by stage. */
 class GlobalIdsQuery<StageT>(
-  protocolStageEnumHelper: ProtocolStageEnumHelper<StageT>,
+  toLongFunc: (StageT) -> Long,
   filterToStages: Set<StageT>
 ) : SqlBasedQuery<Long> {
   companion object {
@@ -32,7 +32,7 @@ class GlobalIdsQuery<StageT>(
   }
   override val sql: Statement =
   Statement.newBuilder(parameterizedQuery).bind("stages").toInt64Array(
-    filterToStages.map(protocolStageEnumHelper::enumToLong).toLongArray()
+    filterToStages.map(toLongFunc).toLongArray()
   ).build()
 
   override fun asResult(struct: Struct): Long = struct.getLong("GlobalComputationId")

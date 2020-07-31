@@ -23,8 +23,8 @@ import kotlin.random.Random
  *
  * @param[StageT] enum of the stages of a computation.
  */
-abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
-  private val relationalDatabase: ComputationsRelationalDb<StageT, StageDetailT>,
+abstract class ComputationManager<StageT : Enum<StageT>>(
+  private val relationalDatabase: ComputationsRelationalDb<StageT>,
   private val blobDatabase: ComputationsBlobDb<StageT>
 ) {
 
@@ -33,15 +33,8 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  suspend fun createComputation(globalId: Long, stage: StageT): ComputationToken<StageT> {
-    return relationalDatabase.insertComputation(globalId, stage)
-  }
-
-  /**
-   * Returns a [ComputationToken] for the most recent computation for a [globalId].
-   */
-  suspend fun getToken(globalId: Long): ComputationToken<StageT>? {
-    return relationalDatabase.getToken(globalId)
+  suspend fun createComputation(globalId: Long, stage: StageT) {
+    relationalDatabase.insertComputation(globalId, stage)
   }
 
   /**
@@ -67,15 +60,15 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * @throws [IOException] when stage stage transition fails
    */
   suspend fun transitionStage(
-    token: ComputationToken<StageT>,
+    token: ComputationStorageEditToken<StageT>,
     stageAfter: StageT,
     inputBlobsPaths: List<String> = listOf(),
     outputBlobCount: Int = 0,
     afterTransition: AfterTransition
-  ): ComputationToken<StageT> {
+  ) {
     return relationalDatabase.updateComputationStage(
       token = token,
-      to = stageAfter,
+      nextStage = stageAfter,
       inputBlobPaths = inputBlobsPaths,
       outputBlobs = outputBlobCount,
       afterTransition = afterTransition
@@ -90,7 +83,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * @param [endComputationReason] The reason why the computation is ending
    */
   suspend fun endComputation(
-    token: ComputationToken<StageT>,
+    token: ComputationStorageEditToken<StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   ) {
@@ -102,7 +95,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    *
    * @throws [IOException] upon failure
    */
-  suspend fun enqueue(token: ComputationToken<StageT>) {
+  suspend fun enqueue(token: ComputationStorageEditToken<StageT>) {
     relationalDatabase.enqueue(token)
   }
 
@@ -112,50 +105,8 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * If the returned value is present, then the task has been claimed for the worker. When absent,
    * no task was claimed.
    */
-  suspend fun claimWork(workerId: String): ComputationToken<StageT>? {
+  suspend fun claimWork(workerId: String): Long? {
     return relationalDatabase.claimTask(workerId)
-  }
-
-  /**
-   * Extend the lock time on a computation.
-   *
-   * @throws [IOException] upon failure
-   */
-  suspend fun renewWork(token: ComputationToken<StageT>): ComputationToken<StageT> {
-    return relationalDatabase.renewTask(token)
-  }
-
-  /**
-   * Reads all the input BLOBs required for a computation task.
-   *
-   * @throws [IOException] upon failure
-   */
-  suspend fun readInputBlobs(c: ComputationToken<StageT>): Map<BlobRef, ByteArray> {
-    return readBlobReferences(
-      c,
-      BlobDependencyType.INPUT
-    )
-      .map {
-        BlobRef(
-          it.key,
-          checkNotNull(it.value) { "INPUT BLOB $it missing a path." }
-        )
-      }
-      // TODO: Read input blobs in parallel
-      .map { it to blobDatabase.read(it) }
-      .toMap()
-  }
-
-  /**
-   * Reads BLOB names for a computation task
-   *
-   * @throws [IOException] upon failure
-   */
-  suspend fun readBlobReferences(
-    token: ComputationToken<StageT>,
-    dependencyType: BlobDependencyType
-  ): Map<BlobId, String?> {
-    return relationalDatabase.readBlobReferences(token, dependencyType = dependencyType)
   }
 
   /**
@@ -165,7 +116,7 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    * @throws [IOException] upon failure
    */
   suspend fun writeAndRecordOutputBlob(
-    token: ComputationToken<StageT>,
+    token: ComputationStorageEditToken<StageT>,
     blobName: BlobRef,
     blob: ByteArray
   ) {
@@ -179,32 +130,11 @@ abstract class ComputationManager<StageT : Enum<StageT>, StageDetailT>(
    */
   fun newBlobPath(
     // TODO(fashing) This doesn't need the entire token. Refactor it to just the input it needs.
-    token: ComputationToken<StageT>,
+    token: ComputationStorageEditToken<StageT>,
     name: String,
     random: Random = Random
   ): String {
     val hexValue = random.nextLong(until = Long.MAX_VALUE).toString(16)
     return Paths.get(token.localId.toString(), token.stage.name, name, hexValue).toString()
-  }
-
-  /**
-   * Reads the specific stage details as a [M] protobuf message for the current stage of a
-   * computation.
-   *
-   * @throws [IOException] upon failure
-   */
-  suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailT {
-    return relationalDatabase.readStageSpecificDetails(token)
-  }
-
-  /**
-   * Gets a collection of all the global computation ids for a computation in the database
-   * which are in a one of the provided stages.
-   *
-   * @throws [IOException] upon failure
-   */
-  suspend fun readGlobalComputationIds(stages: Set<StageT>): Set<Long> {
-    if (stages.isEmpty()) return setOf()
-    return relationalDatabase.readGlobalComputationIds(stages)
   }
 }

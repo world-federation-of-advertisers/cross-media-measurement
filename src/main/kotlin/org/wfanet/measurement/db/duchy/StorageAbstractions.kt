@@ -14,29 +14,26 @@
 
 package org.wfanet.measurement.db.duchy
 
-import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationToken
 
 /**
- * Information about a computation.
+ * Information about a computation needed to edit a computation.
  */
-data class ComputationToken<StageT>(
+data class ComputationStorageEditToken<StageT>(
   /** The identifier for the computation used locally. */
   val localId: Long,
-  /** The identifier for the computation used across all systems. */
-  val globalId: Long,
   /** The stage of the computation when the token was created. */
   val stage: StageT,
-  /** Name of mill that owns the lock on the computation. */
-  val owner: String?,
-  /** Identifier of the duchy that receives work for this computation. */
-  val nextWorker: String,
-  /** The role this worker is playing for this computation. */
-  val role: DuchyRole,
   /** The number of the current attempt of this stage for this computation. */
-  val attempt: Long,
-  /** The last time the computation was updated in number of milliseconds since the epoch. */
-  val lastUpdateTime: Long
+  val attempt: Int,
+  /**
+   * The version number of the last known edit to the computation.
+   * The version is a monotonically increasing number used as a guardrail to protect against
+   * concurrent edits to the same computation.
+   */
+  val editVersion: Long
 )
 
 /**
@@ -83,48 +80,58 @@ enum class EndComputationReason {
 }
 
 /**
- * Relational database for keeping track of stages of a Computation within an
- * MPC Node.
+ * Performs read operations on a relational database of computations.
+ */
+interface ReadOnlyComputationsRelationalDb {
+
+  /** Gets a [ComputationToken] for the current state of a computation. */
+  suspend fun readComputationToken(globalId: Long): ComputationToken
+
+  /**
+   * Gets a collection of all the global computation ids for a computation in the database
+   * which are in a one of the provided stages.
+   */
+  suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<Long>
+}
+
+/**
+ * Relational database for keeping track of Computations of a single protocol type as they
+ * progress through stages of a Computation within a Duchy.
  *
  * The database must have strong consistency guarantees as it is used to
  * coordinate assignment of work by pulling jobs.
+ *
+ * @param StageT Object represent a stage of a computation protocol.
  */
-interface ComputationsRelationalDb<StageT, StageDetailsT> {
+interface ComputationsRelationalDb<StageT> {
 
   /**
    * Inserts a new computation for the global identifier.
    *
-   * A new local identifier is created and returned in the [ComputationToken]. The computation is
-   * not added to the queue.
+   * The computation is not added to the queue.
    */
-  suspend fun insertComputation(globalId: Long, initialStage: StageT): ComputationToken<StageT>
-
-  /** Returns a [ComputationToken] for the most recent computation for a [globalId]. */
-  suspend fun getToken(globalId: Long): ComputationToken<StageT>?
+  suspend fun insertComputation(globalId: Long, initialStage: StageT)
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.
    *
    * This will release any ownership and locks associated with the computation.
    */
-  suspend fun enqueue(token: ComputationToken<StageT>)
+  suspend fun enqueue(token: ComputationStorageEditToken<StageT>)
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.
    *
    * @param[ownerId] The identifier of the worker process that will own the lock.
-   * @return [ComputationToken] work that was claimed. When null, no work was claimed.
+   * @return global computation id of work that was claimed. When null, no work was claimed.
    */
-  suspend fun claimTask(ownerId: String): ComputationToken<StageT>?
-
-  /** Extends the time a computation is locked. */
-  suspend fun renewTask(token: ComputationToken<StageT>): ComputationToken<StageT>
+  suspend fun claimTask(ownerId: String): Long?
 
   /**
    * Transitions a computation to a new stage.
    *
    * @param[token] The token for the computation
-   * @param[to] Stage this computation should transition to.
+   * @param[nextStage] Stage this computation should transition to.
    * @param[inputBlobPaths] References to BLOBs that are inputs to this computation stage, all
    *    inputs should be written on transition and should not change.
    * @param[outputBlobs] Number of BLOBs this computation outputs. These are created as
@@ -132,46 +139,31 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
    * @param[afterTransition] The work to be do with the computation after a successful transition.
    */
   suspend fun updateComputationStage(
-    token: ComputationToken<StageT>,
-    to: StageT,
+    token: ComputationStorageEditToken<StageT>,
+    nextStage: StageT,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition
-  ): ComputationToken<StageT>
+  )
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
   suspend fun endComputation(
-    token: ComputationToken<StageT>,
+    token: ComputationStorageEditToken<StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   )
 
-  /** Reads mappings of blob names to paths in blob storage. */
-  suspend fun readBlobReferences(
-    token: ComputationToken<StageT>,
-    dependencyType: BlobDependencyType = BlobDependencyType.INPUT
-  ): Map<BlobId, String?>
-
-  /** Reads details for a specific stage of a computation. */
-  suspend fun readStageSpecificDetails(token: ComputationToken<StageT>): StageDetailsT
-
   /** Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from a stage. */
-  suspend fun writeOutputBlobReference(token: ComputationToken<StageT>, blobName: BlobRef)
-
-  /**
-   * Gets the global computation ids based on stage.
-   *
-   * @param [stages] return ids for computations only if they are in this stage
-   */
-  suspend fun readGlobalComputationIds(stages: Set<StageT>): Set<Long>
+  suspend fun writeOutputBlobReference(token: ComputationStorageEditToken<StageT>, blobRef: BlobRef)
 }
 
 /**
- * The identifier of a Blob */
-typealias BlobId = Long
-
-/** Reference to a named BLOB's storage location. */
-data class BlobRef(val name: BlobId, val pathToBlob: String)
+ * Reference to a BLOB's storage location (key).
+ *
+ * @param idInRelationalDatabase identifier of the blob as stored in the [ComputationsRelationalDb]
+ * @param key object key of the the blob which can be used to retrieve it from the BLOB storage.
+ */
+data class BlobRef(val idInRelationalDatabase: Long, val key: String)
 
 /** BLOBs storage used by a computation. */
 interface ComputationsBlobDb<StageT> {
@@ -180,7 +172,7 @@ interface ComputationsBlobDb<StageT> {
   suspend fun read(reference: BlobRef): ByteArray
 
   /** Write a BLOB and ensure it is fully written before returning. */
-  suspend fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.pathToBlob, bytes)
+  suspend fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.key, bytes)
 
   /** Write a BLOB and ensure it is fully written before returning. */
   suspend fun blockingWrite(path: String, bytes: ByteArray)
