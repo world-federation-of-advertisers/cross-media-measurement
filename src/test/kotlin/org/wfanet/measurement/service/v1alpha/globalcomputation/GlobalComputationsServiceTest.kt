@@ -115,7 +115,7 @@ class GlobalComputationsServiceTest {
 
     fun expectedResponse(id: Long) =
       StreamActiveGlobalComputationsResponse.newBuilder().apply {
-        globalComputationsBuilder.keyBuilder.globalComputationId = ExternalId(id).apiId.value
+        globalComputationBuilder.keyBuilder.globalComputationId = ExternalId(id).apiId.value
       }.build()
 
     reportStorage.mocker.mockStreaming(FakeReportStorage::streamReports) {

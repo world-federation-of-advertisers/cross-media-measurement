@@ -63,7 +63,7 @@ class GlobalComputationService(
           StreamActiveGlobalComputationsResponse.newBuilder().apply {
             continuationToken = ContinuationTokenConverter.encode(lastUpdateTime)
             // TODO: rename proto field to be singular:
-            globalComputations = translateReportToGlobalComputation(report)
+            globalComputation = translateReportToGlobalComputation(report)
           }.build()
         }
     }
