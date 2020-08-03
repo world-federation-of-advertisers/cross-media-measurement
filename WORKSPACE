@@ -75,7 +75,7 @@ http_archive(
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("//build/maven:artifacts.bzl", "artifacts")
 
-KOTLINX_COROUTINES_VERSION = "1.3.5"
+KOTLINX_COROUTINES_VERSION = "1.3.6"
 
 MAVEN_ARTIFACTS = artifacts.list_to_dict(
     IO_GRPC_GRPC_JAVA_ARTIFACTS +
