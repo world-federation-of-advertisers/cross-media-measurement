@@ -39,6 +39,7 @@ import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class) // For Flow APIs
 class GlobalComputationsServiceTest {
   companion object {
     val REPORT: Report = Report.newBuilder().apply {

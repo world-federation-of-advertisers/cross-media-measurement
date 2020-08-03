@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineImplBase
 
+@ExperimentalCoroutinesApi
 class ComputationStorageServiceImpl : ComputationStorageServiceCoroutineImplBase()

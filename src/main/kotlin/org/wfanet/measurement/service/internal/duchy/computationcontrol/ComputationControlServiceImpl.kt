@@ -15,6 +15,7 @@
 package org.wfanet.measurement.service.internal.duchy.computationcontrol
 
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
@@ -31,6 +32,7 @@ import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRespon
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 
+@ExperimentalCoroutinesApi
 class ComputationControlServiceImpl(
   private val computationManager: SketchAggregationComputationManager
 ) :
@@ -161,6 +163,7 @@ class ComputationControlServiceImpl(
  * Reduces flow of pairs of ids and byte arrays into a single flow of id and concatenated byte
  * array. This function requires that all ids in the flow are equal.
  */
+@ExperimentalCoroutinesApi
 private suspend fun Flow<Pair<Long, ByteArray>>.appendAllByteArrays(): Pair<Long, ByteArray> =
   this.reduce { x, y ->
     require(x.first == y.first) { "Stream has multiple computations $x and $y" }

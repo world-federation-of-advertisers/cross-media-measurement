@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
  * @property[maxParallelism] the maximum number of sub-coroutines to use per public API method
  * @property[reportStarterClient] a wrapper around stubs for internal services
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class) // For Flow extension functions.
 class ReportStarter(
   private val throttler: Throttler,
   private val maxParallelism: Int,

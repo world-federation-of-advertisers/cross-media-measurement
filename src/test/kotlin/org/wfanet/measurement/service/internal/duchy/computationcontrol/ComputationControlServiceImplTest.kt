@@ -18,10 +18,10 @@ import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
 import java.nio.charset.Charset
-import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -47,7 +47,9 @@ import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import kotlin.random.Random
 
+@ExperimentalCoroutinesApi
 @RunWith(JUnit4::class)
 class ComputationControlServiceImplTest {
   private val fakeComputationStorage =

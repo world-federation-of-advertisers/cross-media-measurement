@@ -20,14 +20,13 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runBlockingTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class) // For `runBlockingTest`.
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AdaptiveThrottlerTest {
   @Test
   fun onReady() = runBlockingTest {

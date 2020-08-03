@@ -36,6 +36,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * @param[block] callback that will be called repeatedly to produce flows
  * @return the combined flow
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 fun <T> renewedFlow(
   reconnectMillis: Long,
   reconnectDelayMillis: Long,

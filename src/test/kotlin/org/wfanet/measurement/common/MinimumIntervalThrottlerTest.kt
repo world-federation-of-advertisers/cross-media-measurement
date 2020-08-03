@@ -20,7 +20,6 @@ import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -33,7 +32,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-@OptIn(ExperimentalCoroutinesApi::class) // For `runBlockingTest`.
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class) // for runBlockingTest
 class MinimumIntervalThrottlerTest {
   @Test
   fun onReady() = runBlocking<Unit> {
