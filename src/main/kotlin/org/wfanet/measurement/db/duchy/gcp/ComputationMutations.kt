@@ -43,7 +43,7 @@ private fun nonNullValueTimestamp(t: Timestamp) = requireNotNull(timestampOrNull
 typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
-class ComputationMutations<StageT : Enum<StageT>, StageDetailsT : Message>(
+class ComputationMutations<StageT, StageDetailsT : Message>(
   stageEnumHelper: ProtocolStageEnumHelper<StageT>,
   details: ProtocolStageDetails<StageT, StageDetailsT>
 ) :

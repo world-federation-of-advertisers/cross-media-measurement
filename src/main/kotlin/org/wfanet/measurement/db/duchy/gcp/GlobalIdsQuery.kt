@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 
 /** Query for all global computation ids in database. */
-class GlobalIdsQuery<StageT: Enum<StageT>>(
+class GlobalIdsQuery<StageT>(
   protocolStageEnumHelper: ProtocolStageEnumHelper<StageT>,
   filterToStages: Set<StageT>
 ) : SqlBasedQuery<Long> {

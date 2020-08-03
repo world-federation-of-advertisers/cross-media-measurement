@@ -18,7 +18,7 @@ import org.wfanet.measurement.db.duchy.BlobRef
 import org.wfanet.measurement.db.duchy.ComputationsBlobDb
 
 /** Testing fake of [ComputationsBlobDb] that is basically an in memory map. */
-class FakeComputationsBlobDb<StageT : Enum<StageT>>(
+class FakeComputationsBlobDb<StageT>(
   private val fakeComputations: MutableMap<String, ByteArray>
 ) : ComputationsBlobDb<StageT> {
   override suspend fun read(reference: BlobRef): ByteArray {

@@ -52,7 +52,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
  */
-class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
+class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
   private val databaseClient: DatabaseClient,
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
@@ -162,7 +162,6 @@ class GcpSpannerComputationsDb<StageT : Enum<StageT>, StageDetailsT : Message>(
       attempt = results.nextAttempt - 1
     )
   }
-
   override suspend fun enqueue(token: ComputationToken<StageT>) {
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(

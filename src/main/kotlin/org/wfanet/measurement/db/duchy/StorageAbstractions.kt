@@ -20,7 +20,7 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 /**
  * Information about a computation.
  */
-data class ComputationToken<StageT : Enum<StageT>>(
+data class ComputationToken<StageT>(
   /** The identifier for the computation used locally. */
   val localId: Long,
   /** The identifier for the computation used across all systems. */
@@ -89,7 +89,7 @@ enum class EndComputationReason {
  * The database must have strong consistency guarantees as it is used to
  * coordinate assignment of work by pulling jobs.
  */
-interface ComputationsRelationalDb<StageT : Enum<StageT>, StageDetailsT> {
+interface ComputationsRelationalDb<StageT, StageDetailsT> {
 
   /**
    * Inserts a new computation for the global identifier.
@@ -174,7 +174,7 @@ typealias BlobId = Long
 data class BlobRef(val name: BlobId, val pathToBlob: String)
 
 /** BLOBs storage used by a computation. */
-interface ComputationsBlobDb<StageT : Enum<StageT>> {
+interface ComputationsBlobDb<StageT> {
 
   /** Reads and returns a BLOB from storage */
   suspend fun read(reference: BlobRef): ByteArray

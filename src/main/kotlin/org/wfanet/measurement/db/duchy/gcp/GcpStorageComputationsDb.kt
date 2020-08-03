@@ -24,7 +24,7 @@ import org.wfanet.measurement.db.duchy.ComputationsBlobDb
  * Implementation of [ComputationsBlobDb] using Google Cloud Storage for interacting with a
  * single storage bucket.
  */
-class GcpStorageComputationsDb<StageT : Enum<StageT>>(
+class GcpStorageComputationsDb<StageT>(
   private val storage: Storage,
   private val bucket: String
 ) : ComputationsBlobDb<StageT> {

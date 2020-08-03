@@ -19,6 +19,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
+import kotlinx.coroutines.flow.singleOrNull
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

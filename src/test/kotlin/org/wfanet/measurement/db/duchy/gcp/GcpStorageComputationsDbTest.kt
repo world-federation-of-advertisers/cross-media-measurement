@@ -95,7 +95,7 @@ class GcpStorageComputationsDbTest {
 }
 
 /** A deterministic name for a blob useful for testing. */
-private fun <StageT : Enum<StageT>> newBlobPath(
+private fun <StageT> newBlobPath(
   token: ComputationToken<StageT>,
   name: String
 ): String = "${token.localId}/${token.stage}/$name"

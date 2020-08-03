@@ -93,7 +93,7 @@ The database abstraction layer is set up to take multiple protocols into account
 to say the computations backend database can support multiple protocols. To use the
 backend class you will need to implement both
 
-* `interface ProtocolStageEnumHelper<StageT : Enum<StageT>>`
+* `interface ProtocolStageEnumHelper<StageT>`
 * `interfae ProtocolStageDetails<StageT, StageDetailsT>`
 
 for the new protocol. `StageT` is the stages enum defined earlier. `StageDetailsT` is an
