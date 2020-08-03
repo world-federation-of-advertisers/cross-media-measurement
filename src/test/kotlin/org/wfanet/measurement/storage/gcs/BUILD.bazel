@@ -1,0 +1,13 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "CloudStorageClientTest",
+    srcs = ["CloudStorageClientTest.kt"],
+    test_class = "org.wfanet.measurement.storage.gcs.CloudStorageClientTest",
+    deps = [
+        "//imports/java/com/google/cloud/storage/contrib/nio",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)

@@ -16,3 +16,11 @@ package_group(
         "//src/main/kotlin/...",
     ],
 )
+
+package_group(
+    name = "internal_services",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/internal/...",
+    ],
+)

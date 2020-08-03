@@ -1,0 +1,18 @@
+# Blob/object storage specifics for Google Cloud Storage (GCS).
+
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src:internal_services",
+    "//src/test/kotlin/org/wfanet/measurement/storage/gcs:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "gcs",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//imports/java/com/google/cloud/storage",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/storage",
+    ],
+)
