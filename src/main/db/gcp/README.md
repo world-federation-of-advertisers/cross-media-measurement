@@ -42,9 +42,9 @@ We also strip out comments.
 
 ```
 $ gcloud spanner databases \
-    create local_measurement_providers \
+    create local_kingdoms \
     --instance=test-instance \
-    --ddl="$(cat src/main/db/gcp/measurement_provider.sdl \
+    --ddl="$(cat src/main/db/gcp/kingdom.sdl \
              | sed -E 's/(--|CONSTRAINT|FOREIGN|REFERENCES).*$//g')"
 ```
 

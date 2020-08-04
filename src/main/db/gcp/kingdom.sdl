@@ -12,7 +12,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Cloud Spanner database schema for Local Measurement Providers.
+-- Cloud Spanner database schema for the Kingdom.
 --
 -- Table hierarchy:
 --   Root
@@ -37,10 +37,10 @@
 -- expose only External identifiers, and ideally only web-safe base64 versions
 -- of them without padding (e.g. RFC4648's base64url encoding without padding).
 --
--- The schema contains many serialized protos, usually in two formats: JSON and
--- binary. This may be a little surprising that the data is duplicated. In the
--- long run, we intend to deduplicate this. However, in the short term, JSON
--- provides debugging value.
+-- The schema contains many serialized protocol buffers, usually in two formats:
+-- JSON and binary. This may be a little surprising that the data is duplicated.
+-- In the long run, we intend to deduplicate this. However, in the short term,
+-- JSON provides debugging value.
 --
 -- A ReportConfig specifies what statistics to generate reports for. The
 -- ReportConfigSchedules for a ReportConfig determine the frequency with which

@@ -40,8 +40,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
-abstract class KingdomDatabaseTestBase :
-  UsingSpannerEmulator("/src/main/db/gcp/measurement_provider.sdl") {
+abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
 
   companion object {
     @JvmStatic

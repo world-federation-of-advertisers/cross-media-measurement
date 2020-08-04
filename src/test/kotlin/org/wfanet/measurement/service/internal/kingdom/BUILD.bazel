@@ -82,7 +82,7 @@ spanner_emulator_test(
     name = "gcp_kingdom_storage_server_test",
     srcs = ["GcpKingdomStorageServerTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomStorageServerTest",
     deps = [

@@ -17,12 +17,12 @@ kt_jvm_test(
 )
 
 spanner_emulator_test(
-    name = "measurement_provider_schema_test",
-    srcs = ["MeasurementProviderSchemaTest.kt"],
+    name = "kingdom_schema_test",
+    srcs = ["KingdomSchemaTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.MeasurementProviderSchemaTest",
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.KingdomSchemaTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/org/junit",
@@ -34,7 +34,7 @@ spanner_emulator_test(
     name = "associate_requisition_and_report_transaction_test",
     srcs = ["AssociateRequisitionAndReportTransactionTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.AssociateRequisitionAndReportTransactionTest",
     deps = [
@@ -52,7 +52,7 @@ spanner_emulator_test(
     name = "create_requisition_transaction_test",
     srcs = ["CreateRequisitionTransactionTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransactionTest",
     deps = [
@@ -71,7 +71,7 @@ spanner_emulator_test(
     name = "fulfill_requisition_transaction_test",
     srcs = ["FulfillRequisitionTransactionTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.FulfillRequisitionTransactionTest",
     deps = [
@@ -90,7 +90,7 @@ spanner_emulator_test(
     name = "get_report_query_test",
     srcs = ["GetReportQueryTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.GetReportQueryTest",
     deps = [
@@ -109,7 +109,7 @@ spanner_emulator_test(
     name = "read_requisition_templates_query_test",
     srcs = ["ReadRequisitionTemplatesQueryTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.ReadRequisitionTemplatesQueryTest",
     deps = [
@@ -128,7 +128,7 @@ spanner_emulator_test(
     name = "stream_requisitions_query_test",
     srcs = ["StreamRequisitionsQueryTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.StreamRequisitionsQueryTest",
     deps = [
@@ -147,7 +147,7 @@ spanner_emulator_test(
     name = "create_next_report_transaction_test",
     srcs = ["CreateNextReportTransactionTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateNextReportTransactionTest",
     deps = [
@@ -167,7 +167,7 @@ spanner_emulator_test(
     name = "stream_reports_query_test",
     srcs = ["StreamReportsQueryTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.StreamReportsQueryTest",
     deps = [
@@ -186,7 +186,7 @@ spanner_emulator_test(
     name = "stream_ready_reports_query_test",
     srcs = ["StreamReadyReportsQueryTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.StreamReadyReportsQueryTest",
     deps = [
@@ -205,7 +205,7 @@ spanner_emulator_test(
     name = "stream_ready_schedules_query_test",
     srcs = ["StreamReadySchedulesQueryTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.StreamReadySchedulesQueryTest",
     deps = [
@@ -224,7 +224,7 @@ spanner_emulator_test(
     name = "update_report_state_transaction_test",
     srcs = ["UpdateReportStateTransactionTest.kt"],
     resources = [
-        "//src/main/db/gcp:measurement_provider_schema",
+        "//src/main/db/gcp:kingdom_schema",
     ],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.UpdateReportStateTransactionTest",
     deps = [

@@ -6,6 +6,6 @@ filegroup(
 )
 
 filegroup(
-    name = "measurement_provider_schema",
-    srcs = ["measurement_provider.sdl"],
+    name = "kingdom_schema",
+    srcs = ["kingdom.sdl"],
 )
