@@ -28,6 +28,7 @@ import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
@@ -108,4 +109,8 @@ class GcpKingdomRelationalDatabase(
 
   override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> =
     StreamReadySchedulesQuery().execute(client.singleUse(), limit)
+
+  override fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
+    TODO()
+  }
 }

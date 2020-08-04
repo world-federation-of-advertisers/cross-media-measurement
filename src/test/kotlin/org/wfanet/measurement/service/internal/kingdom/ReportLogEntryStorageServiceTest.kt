@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.service.internal.kingdom
 
-import kotlin.test.assertFails
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -38,9 +38,24 @@ class ReportLogEntryStorageServiceTest {
   private val stub by lazy { ReportLogEntryStorageCoroutineStub(grpcTestServerRule.channel) }
 
   @Test
-  fun unimplemented() = runBlocking<Unit> {
-    assertFails {
-      stub.createReportLogEntry(ReportLogEntry.getDefaultInstance())
+  fun success() = runBlocking<Unit> {
+    val request = ReportLogEntry.newBuilder().apply {
+      externalReportId = 123
+    }.build()
+
+    fakeKingdomRelationalDatabase.addReportLogEntryFn = {
+      it.toBuilder().apply {
+        createTimeBuilder.seconds = 456
+      }.build()
     }
+
+    val result = stub.createReportLogEntry(request)
+    assertThat(result)
+      .isEqualTo(
+        ReportLogEntry.newBuilder().apply {
+          externalReportId = 123
+          createTimeBuilder.seconds = 456
+        }.build()
+      )
   }
 }

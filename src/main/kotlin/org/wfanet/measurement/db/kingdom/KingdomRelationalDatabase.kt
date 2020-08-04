@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
@@ -83,4 +84,7 @@ interface KingdomRelationalDatabase {
 
   /** Streams [ReportConfigSchedule]s with a nextReportStartTime in the past. */
   fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule>
+
+  /** Appends a ReportLogEntry to a Report. Returns a copy with all fields filled in. */
+  fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry
 }

@@ -8,6 +8,6 @@ class ReportLogEntryStorageService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
 ) : ReportLogEntryStorageCoroutineImplBase() {
   override suspend fun createReportLogEntry(request: ReportLogEntry): ReportLogEntry {
-    TODO()
+    return kingdomRelationalDatabase.addReportLogEntry(request)
   }
 }
