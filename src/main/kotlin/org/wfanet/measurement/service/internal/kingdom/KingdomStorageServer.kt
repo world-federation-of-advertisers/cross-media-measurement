@@ -24,6 +24,7 @@ fun buildStorageServices(relationalDatabase: KingdomRelationalDatabase): List<Bi
     ReportConfigScheduleStorageService(relationalDatabase),
     ReportConfigStorageService(relationalDatabase),
     ReportStorageService(relationalDatabase),
+    ReportLogEntryStorageService(relationalDatabase),
     RequisitionStorageService(relationalDatabase)
   )
 

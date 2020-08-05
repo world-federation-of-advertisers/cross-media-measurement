@@ -17,9 +17,11 @@ package org.wfanet.measurement.service.internal.kingdom
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Statement
+import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
+import java.time.Instant
 import kotlin.test.todo
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -27,8 +29,10 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.singleOrNull
+import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -47,6 +51,9 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -116,6 +123,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     ReportConfigScheduleStorageCoroutineStub(channel)
   }
   private val reportStorage by lazy { ReportStorageCoroutineStub(channel) }
+  private val reportLogEntryStorage by lazy { ReportLogEntryStorageCoroutineStub(channel) }
   private val requisitionStorage by lazy { RequisitionStorageCoroutineStub(channel) }
 
   @Before
@@ -148,6 +156,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       ReportConfigStorageGrpcKt.serviceDescriptor,
       ReportConfigScheduleStorageGrpcKt.serviceDescriptor,
       ReportStorageGrpcKt.serviceDescriptor,
+      ReportLogEntryStorageGrpcKt.serviceDescriptor,
       RequisitionStorageGrpcKt.serviceDescriptor
     )
 
@@ -331,6 +340,36 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     val spannerResult =
       databaseClient.singleUse()
         .read("ReportRequisitions", KeySet.singleKey(key), listOf("AdvertiserId"))
+        .singleOrNull()
+
+    assertThat(spannerResult).isNotNull()
+  }
+
+  @Test
+  fun `ReportLogEntryStorage CreateReportLogEntry`() = runBlocking<Unit> {
+    val request = ReportLogEntry.newBuilder().apply {
+      externalReportId = EXTERNAL_REPORT_ID
+      sourceBuilder.duchyBuilder.duchyId = "some-duchy"
+    }.build()
+
+    val timeBefore = Instant.now()
+    val result = reportLogEntryStorage.createReportLogEntry(request)
+    val timeAfter = Instant.now()
+
+    assertThat(result)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(request)
+
+    val createTime = result.createTime.toInstant()
+    assertThat(createTime).isIn(Range.open(timeBefore, timeAfter))
+
+    val key = Key.of(
+      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, result.createTime.toGcpTimestamp()
+    )
+
+    val spannerResult =
+      databaseClient.singleUse()
+        .read("ReportLogEntries", KeySet.singleKey(key), listOf("AdvertiserId"))
         .singleOrNull()
 
     assertThat(spannerResult).isNotNull()

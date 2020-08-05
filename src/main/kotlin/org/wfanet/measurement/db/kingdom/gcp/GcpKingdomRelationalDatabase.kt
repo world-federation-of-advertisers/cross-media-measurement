@@ -111,6 +111,13 @@ class GcpKingdomRelationalDatabase(
     StreamReadySchedulesQuery().execute(client.singleUse(), limit)
 
   override fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
-    TODO()
+    val runner = client.readWriteTransaction()
+    runner.run { transactionContext ->
+      CreateReportLogEntryTransaction().execute(transactionContext, reportLogEntry)
+    }
+    val commitTimestamp: Timestamp = runner.commitTimestamp
+    return reportLogEntry.toBuilder().apply {
+      createTime = commitTimestamp.toProto()
+    }.build()
   }
 }

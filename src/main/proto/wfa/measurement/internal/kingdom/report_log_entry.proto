@@ -57,7 +57,7 @@ message ReportLogEntry {
     }
 
     message AdvertiserPrincipal {
-      string external_advertiser_id = 1;
+      int64 external_advertiser_id = 1;
     }
 
     message OfflineProcessPrincipal {
