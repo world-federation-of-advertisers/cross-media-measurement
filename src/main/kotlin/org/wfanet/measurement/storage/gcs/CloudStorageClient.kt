@@ -1,3 +1,17 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.storage.gcs
 
 import com.google.cloud.storage.Blob
@@ -5,25 +19,17 @@ import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
-import java.nio.channels.WritableByteChannel
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.storage.BYTES_PER_MIB
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.asBufferedFlow
 
 /** Size of byte buffer used to read/write blobs from the storage system. */
 private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
@@ -31,22 +37,22 @@ private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
 /** Google Cloud Storage implementation of [StorageClient] for a single bucket. */
 class CloudStorageClient(
   private val cloudStorage: Storage,
-  private val bucketName: String,
-  override val coroutineContext: CoroutineContext = EmptyCoroutineContext
-) : StorageClient<CloudStorageClient.ClientBlob>, CoroutineScope {
+  private val bucketName: String
+) : StorageClient<CloudStorageClient.ClientBlob> {
 
-  override fun createBlobAsync(blobKey: String, content: Flow<Byte>): Deferred<ClientBlob> {
+  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): ClientBlob {
     val blob = cloudStorage.create(BlobInfo.newBuilder(bucketName, blobKey).build())
-    val result = CompletableDeferred<ClientBlob>()
 
-    launch(Dispatchers.IO) {
-      blob.writer().use { byteChannel ->
-        byteChannel.collectFrom(content)
+    blob.writer().use { byteChannel ->
+      content.asBufferedFlow(BYTE_BUFFER_SIZE).collect { buffer ->
+        withContext(Dispatchers.IO) {
+          while (buffer.hasRemaining()) {
+            byteChannel.write(buffer)
+          }
+        }
       }
-      result.complete(ClientBlob(blob))
     }
-
-    return result
+    return ClientBlob(blob.reload())
   }
 
   override fun getBlob(blobKey: String): ClientBlob? {
@@ -56,10 +62,12 @@ class CloudStorageClient(
 
   /** [StorageClient.Blob] implementation for [CloudStorageClient]. */
   inner class ClientBlob(private val blob: Blob) : StorageClient.Blob {
-    @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
-    override fun read(): Flow<Byte> {
-      val byteChannel = blob.reader()
-      return byteChannel.emitAll().flowOn(Dispatchers.IO).onCompletion { byteChannel.close() }
+    override val size: Long
+      get() = blob.size
+
+    override fun read(flowBufferSize: Int): Flow<ByteBuffer> {
+      require(flowBufferSize > 0)
+      return blob.reader().asBufferedFlow(flowBufferSize)
     }
 
     override fun delete() {
@@ -68,48 +76,21 @@ class CloudStorageClient(
   }
 }
 
-/** Flushes the byte buffer to the specified byte channel. */
-private fun ByteBuffer.flush(writeChannel: WritableByteChannel) {
-  flip()
-  while (hasRemaining()) {
-    writeChannel.write(this)
-  }
-  clear()
-}
-
-/** Flushes the byte buffer as a flow. */
-private fun ByteBuffer.flushAsFlow() = flow<Byte> {
-  flip()
-  while (hasRemaining()) {
-    emit(get())
-  }
-  clear()
-}
-
-/** Emits all of the bytes from this byte channel. */
-private fun ReadableByteChannel.emitAll() = flow<Byte> {
-  val buffer = ByteBuffer.allocate(BYTE_BUFFER_SIZE)
-  @Suppress("BlockingMethodInNonBlockingContext") // Should be running in Dispatchers.IO.
-  while (read(buffer) >= 0) {
-    emitAll(buffer.flushAsFlow())
-  }
-}
-
-/** Collects the bytes from the specified flow into this byte channel. */
 @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
-private suspend fun WritableByteChannel.collectFrom(content: Flow<Byte>) {
-  val byteChannel = this
-  val buffer = ByteBuffer.allocate(BYTE_BUFFER_SIZE)
+private fun ReadableByteChannel.asFlow() = flow {
+  var buffer = ByteBuffer.allocate(BYTE_BUFFER_SIZE)
 
-  content.buffer().onEach { byte ->
-    buffer.put(byte)
-    if (!buffer.hasRemaining()) {
-      buffer.flush(byteChannel)
+  // Suppressed for https://youtrack.jetbrains.com/issue/IDEA-223285
+  @Suppress("BlockingMethodInNonBlockingContext")
+  while (read(buffer) >= 0) {
+    if (buffer.position() == 0) {
+      continue
     }
-  }.onCompletion { cause ->
-    // Flush whatever is left in the buffer.
-    if (cause == null && buffer.position() > 0) {
-      buffer.flush(byteChannel)
-    }
-  }.collect()
-}
+    buffer.flip()
+    emit(buffer)
+    buffer = ByteBuffer.allocate(BYTE_BUFFER_SIZE)
+  }
+}.onCompletion { withContext(Dispatchers.IO) { close() } }.flowOn(Dispatchers.IO)
+
+private fun ReadableByteChannel.asBufferedFlow(flowBufferSize: Int) =
+  asFlow().asBufferedFlow(flowBufferSize)

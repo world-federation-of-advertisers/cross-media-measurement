@@ -1,3 +1,17 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.storage.testing
 
 import com.google.common.truth.Truth.assertThat
@@ -9,21 +23,18 @@ import org.junit.Test
 import org.wfanet.measurement.storage.BYTES_PER_MIB
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
-import org.wfanet.measurement.storage.toByteArray
+import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 
 /** Abstract base class for testing implementations of [StorageClient]. */
 abstract class AbstractStorageClientTest<T : StorageClient<*>> {
   protected lateinit var storageClient: T
 
-  @Test fun `createBlob creates new blob`() = runBlocking {
+  @Test fun `createBlob returns new readable blob`() = runBlocking {
     val blobKey = "new-blob"
 
     val blob = storageClient.createBlob(blobKey, testBlobContent)
 
-    // Read it back and verify that they are the same.
-    val readBytes = blob.read().toByteArray()
-    assertThat(readBytes).hasLength(testBlobContent.size)
-    assertThat(readBytes).isEqualTo(testBlobContent)
+    assertThat(blob).contentEqualTo(testBlobContent)
   }
 
   @Test fun `getBlob returns null for non-existant blob`() {
@@ -35,11 +46,18 @@ abstract class AbstractStorageClientTest<T : StorageClient<*>> {
     val blobKey = "blob-to-get"
     storageClient.createBlob(blobKey, testBlobContent)
 
-    val blob = storageClient.getBlob(blobKey)
+    val blob = assertNotNull(storageClient.getBlob(blobKey))
 
-    val readBytes = assertNotNull(blob).read().toByteArray()
-    assertThat(readBytes).hasLength(testBlobContent.size)
-    assertThat(readBytes).isEqualTo(testBlobContent)
+    assertThat(blob).hasSize(testBlobContent.size)
+    assertThat(blob).contentEqualTo(testBlobContent)
+  }
+
+  @Test fun `Blob size returns content size`() = runBlocking {
+    val blobKey = "blob-to-check-size"
+
+    val blob = storageClient.createBlob(blobKey, testBlobContent)
+
+    assertThat(blob).hasSize(testBlobContent.size)
   }
 
   @Test fun `Blob delete deletes blob`() = runBlocking {
