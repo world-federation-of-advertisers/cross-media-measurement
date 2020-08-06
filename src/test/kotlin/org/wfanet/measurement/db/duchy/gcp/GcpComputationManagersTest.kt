@@ -49,8 +49,8 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.testing.FakeComputationStorageService
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
@@ -75,7 +75,9 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
   }
 
   private val fakeService =
-    FakeComputationStorageService(FakeComputationStorage(duchies.subList(1, 3)))
+    ComputationStorageServiceImpl(
+      FakeComputationStorage(duchies.subList(1, 3))
+    )
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { listOf(fakeService) }
@@ -386,16 +388,16 @@ fun List<ComputationStageBlobMetadata>.ofType(dependencyType: ComputationBlobDep
 
 fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlobs():
   org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
-  return toBuilder().clearBlobs().addAllBlobs(
-    blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
-      .mapIndexed { index, blob ->
-        blob.toBuilder()
-          .setDependencyType(ComputationBlobDependency.INPUT)
-          .setBlobId(index.toLong())
-          .build()
-      }
-  )
-}
+    return toBuilder().clearBlobs().addAllBlobs(
+      blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
+        .mapIndexed { index, blob ->
+          blob.toBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(index.toLong())
+            .build()
+        }
+    )
+  }
 
 fun org.wfanet.measurement.internal.duchy.ComputationToken.Builder.addEmptyOutputs(
   n: Int

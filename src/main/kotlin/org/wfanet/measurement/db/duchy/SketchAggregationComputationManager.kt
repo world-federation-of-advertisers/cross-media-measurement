@@ -75,7 +75,10 @@ class SketchAggregationComputationManager(
       nextComputationStage = stage.toProtocolStage()
       addAllInputBlobs(inputsToNextStage)
       outputBlobs = 1
-      stageDetails = liquidLegionsStageDetails.detailsFor(stage)
+      // TODO: Pass request.stageDetails to updateComputationStage for it to write. Currently the
+      //   details are set to a default value based on the stage, which is not so flexible to the
+      //   caller. What to write is in the request but is being ignored.
+      // stageDetails = liquidLegionsStageDetails.detailsFor(stage)
     }
     val request: AdvanceComputationStageRequest = when (stage) {
       // Stages of computation creating a single output without any input blobs.

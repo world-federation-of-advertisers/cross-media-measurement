@@ -17,10 +17,6 @@ package org.wfanet.measurement.service.internal.duchy.computationcontrol
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
-import java.nio.charset.Charset
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -46,13 +42,17 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
+import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.testing.FakeComputationStorageService
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import java.nio.charset.Charset
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceImplTest {
@@ -73,7 +73,9 @@ class ComputationControlServiceImplTest {
       otherDuchyNames
     )
     listOf(
-      FakeComputationStorageService(fakeComputationStorage),
+      ComputationStorageServiceImpl(
+        fakeComputationStorage
+      ),
       ComputationControlServiceImpl(fakeDuchyComputationManger)
     )
   }
@@ -92,7 +94,7 @@ class ComputationControlServiceImplTest {
   fun `receive sketches`() = runBlocking<Unit> {
     val id = 252525L
     val sender = otherDuchyNames[0]
-    val localSketches = "$id/${WAIT_SKETCHES}/noised_sketch_$RUNNING_DUCHY_NAME"
+    val localSketches = "$id/$WAIT_SKETCHES/noised_sketch_$RUNNING_DUCHY_NAME"
     fakeBlobs[localSketches] = "local_sketches".toByteArray()
     fakeComputationStorage
       .addComputation(

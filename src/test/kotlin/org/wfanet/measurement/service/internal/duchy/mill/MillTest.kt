@@ -28,7 +28,7 @@ import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
-import org.wfanet.measurement.service.internal.duchy.computation.storage.testing.FakeComputationStorageService
+import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computationcontrol.ComputationControlServiceImpl
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -52,7 +52,7 @@ class MillTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(FakeComputationStorageService(FakeComputationStorage(duchyNames)))
+    listOf(ComputationStorageServiceImpl(FakeComputationStorage(duchyNames)))
   }
 
   @Test

@@ -8,13 +8,22 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "storage",
-    srcs = glob(
-        ["*.kt"],
-        exclude = ["Main.kt"],
-    ),
+    srcs = ["ComputationStorageServiceProtos.kt"],
     deps = [
         "//:grpc_core",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_storage_service_impl",
+    srcs = ["ComputationStorageServiceImpl.kt"],
+    deps = [
+        ":storage",
+        "//:grpc_core",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
     ],
 )
 
@@ -27,8 +36,9 @@ kt_jvm_binary_and_image(
         "@io_grpc_grpc_java//netty",
     ],
     deps = [
-        ":storage",
-        "//src/main/kotlin/org/wfanet/measurement/common",
+        ":computation_storage_service_impl",
         "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
     ],
 )

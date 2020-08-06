@@ -14,47 +14,35 @@
 
 package org.wfanet.measurement.db.duchy.testing
 
-import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
+import org.wfanet.measurement.db.duchy.BlobRef
+import org.wfanet.measurement.db.duchy.ComputationStorageEditToken
+import org.wfanet.measurement.db.duchy.EndComputationReason
+import org.wfanet.measurement.db.duchy.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 
 /** In memory mapping of computation ids to [ComputationToken]s. */
 class FakeComputationStorage(
   private val otherDuchies: List<String>
-) : MutableMap<Long, ComputationToken> by mutableMapOf() {
+) : MutableMap<Long, ComputationToken> by mutableMapOf(),
+  SingleProtocolDatabase,
+  ProtocolStageEnumHelper<ComputationStage> by LiquidLegionsSketchAggregationProtocol.ComputationStages {
   companion object {
     const val NEXT_WORKER = "NEXT_WORKER"
   }
 
+  override val computationType: ComputationType =
+    ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
   val claimedComputationIds = mutableSetOf<Long>()
-
-  private fun validateStageChange(stage: ComputationStage, nextStage: ComputationStage): Boolean {
-    return when (stage.stageCase) {
-      StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> {
-        LiquidLegionsSketchAggregationProtocol.ComputationStages.validTransition(
-          stage,
-          nextStage
-        )
-      }
-      else -> error("Unsupported computation protocol with stage $stage.")
-    }
-  }
-
-  private fun validEndingStage(stage: ComputationStage): Boolean {
-    return when (stage.stageCase) {
-      StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> {
-        LiquidLegionsSketchAggregationProtocol.ComputationStages.validTerminalStage(stage)
-      }
-      else -> error("Unsupported computation protocol with stage $stage.")
-    }
-  }
 
   private fun stageDetails(stage: ComputationStage): ComputationStageDetails {
     return when (stage.stageCase) {
@@ -64,6 +52,13 @@ class FakeComputationStorage(
       }
       else -> error("Unsupported computation protocol with stage $stage.")
     }
+  }
+
+  override suspend fun insertComputation(globalId: Long, initialStage: ComputationStage) {
+    val role =
+      if ((globalId % 2) == 0L) RoleInComputation.PRIMARY
+      else RoleInComputation.SECONDARY
+    addComputation(globalId, initialStage, role, blobs = listOf())
   }
 
   /** Adds a fake computation to the fake computation storage. */
@@ -98,37 +93,40 @@ class FakeComputationStorage(
    *   replace the [tokenToUpdate]. The version of the token is always incremented.
    */
   private fun updateToken(
-    tokenToUpdate: ComputationToken,
-    changedTokenBuilderFunc: () -> ComputationToken.Builder
+    tokenToUpdate: ComputationStorageEditToken<ComputationStage>,
+    changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder
   ) {
-    requireTokenFromCurrent(tokenToUpdate)
-    this[tokenToUpdate.localComputationId] =
-      changedTokenBuilderFunc().setVersion(tokenToUpdate.version + 1).build()
+    val current = requireTokenFromCurrent(tokenToUpdate)
+    this[tokenToUpdate.localId] =
+      changedTokenBuilderFunc(current).setVersion(tokenToUpdate.editVersion + 1).build()
   }
 
-  private fun requireTokenFromCurrent(token: ComputationToken) {
-    val current = this[token.localComputationId]!!
+  private fun requireTokenFromCurrent(
+    token: ComputationStorageEditToken<ComputationStage>
+  ): ComputationToken {
+    val current = getNonNull(token.localId)
     // Just the last update time is checked because it mimics the way in which a relational database
     // will check the version of the update.
-    require(current.version == token.version) {
+    require(current.version == token.editVersion) {
       "Token provided $token != current token $current"
     }
+    return current
   }
 
-  fun getNonNull(globalId: Long): ComputationToken =
+  private fun getNonNull(globalId: Long): ComputationToken =
     this[globalId] ?: error("No computation for $globalId")
 
-  fun advanceComputationStage(
-    token: ComputationToken,
+  override suspend fun updateComputationStage(
+    token: ComputationStorageEditToken<ComputationStage>,
     nextStage: ComputationStage,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
-    afterTransition: AfterTransition
+    afterTransition: org.wfanet.measurement.db.duchy.AfterTransition
   ) {
-    require(validateStageChange(token.computationStage, nextStage))
-    updateToken(token) {
+    updateToken(token) { existing ->
+      require(validTransition(existing.computationStage, nextStage))
       // The next stage token will be a variant of the current token for the computation.
-      token.toBuilder().apply {
+      existing.toBuilder().apply {
         computationStage = nextStage
 
         clearStageSpecificDetails()
@@ -153,17 +151,17 @@ class FakeComputationStorage(
         )
         // Set attempt number and presence in the queue.
         when (afterTransition) {
-          AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
+          org.wfanet.measurement.db.duchy.AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> {
             attempt = 0
-            claimedComputationIds.remove(token.globalComputationId)
+            claimedComputationIds.remove(existing.globalComputationId)
           }
-          AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
+          org.wfanet.measurement.db.duchy.AfterTransition.DO_NOT_ADD_TO_QUEUE -> {
             attempt = 1
-            claimedComputationIds.remove(token.globalComputationId)
+            claimedComputationIds.remove(existing.globalComputationId)
           }
-          AfterTransition.RETAIN_AND_EXTEND_LOCK -> {
+          org.wfanet.measurement.db.duchy.AfterTransition.CONTINUE_WORKING -> {
             attempt = 1
-            claimedComputationIds.add(token.globalComputationId)
+            claimedComputationIds.add(existing.globalComputationId)
           }
           else -> error("Unknown $afterTransition")
         }
@@ -171,53 +169,66 @@ class FakeComputationStorage(
     }
   }
 
-  fun endComputation(
-    token: ComputationToken,
-    endingStage: ComputationStage
+  override suspend fun endComputation(
+    token: ComputationStorageEditToken<ComputationStage>,
+    endingStage: ComputationStage,
+    endComputationReason: EndComputationReason
   ) {
-    require(validEndingStage(endingStage))
-    updateToken(token) {
-      claimedComputationIds.remove(token.globalComputationId)
-      token.toBuilder().setComputationStage(endingStage)
+    require(validTerminalStage(endingStage))
+    updateToken(token) { existing ->
+      claimedComputationIds.remove(existing.globalComputationId)
+      existing.toBuilder().setComputationStage(endingStage)
     }
   }
 
-  fun writeOutputBlobReference(
-    token: ComputationToken,
-    blobId: Long,
-    path: String
+  override suspend fun writeOutputBlobReference(
+    token: ComputationStorageEditToken<ComputationStage>,
+    blobRef: BlobRef
   ) {
-    updateToken(token) {
-      val existing = newEmptyOutputBlobMetadata(blobId)
+    updateToken(token) { existing ->
+      val existingBlobInToken = newEmptyOutputBlobMetadata(blobRef.idInRelationalDatabase)
       val blobs: MutableSet<ComputationStageBlobMetadata> =
-        getNonNull(token.globalComputationId).blobsList.toMutableSet()
+        getNonNull(existing.globalComputationId).blobsList.toMutableSet()
       // Replace the blob metadata in the token.
-      check(blobs.remove(existing)) { "$existing not in $blobs" }
-      blobs.add(existing.toBuilder().setPath(path).build())
-      token.toBuilder()
+      check(blobs.remove(existingBlobInToken)) { "$existingBlobInToken not in $blobs" }
+      blobs.add(existingBlobInToken.toBuilder().setPath(blobRef.key).build())
+      existing.toBuilder()
         .clearBlobs()
         .addAllBlobs(blobs)
     }
   }
 
-  fun enqueue(id: Long) {
-    val token = getNonNull(id)
-    updateToken(token) {
-      claimedComputationIds.remove(id)
-      token.toBuilder().setVersion(token.version + 1)
+  override suspend fun enqueue(token: ComputationStorageEditToken<ComputationStage>) {
+    updateToken(token) { existing ->
+      claimedComputationIds.remove(existing.globalComputationId)
+      existing.toBuilder()
     }
   }
 
-  fun claimTask(): ComputationToken? {
+  override suspend fun claimTask(ownerId: String): Long? {
     val claimed = values.asSequence()
       .filter { it.globalComputationId !in claimedComputationIds }
+      .map {
+        ComputationStorageEditToken(
+          localId = it.localComputationId,
+          stage = it.computationStage,
+          attempt = it.attempt,
+          editVersion = it.version
+        )
+      }
       .firstOrNull()
       ?: return null
 
-    updateToken(claimed) {
-      claimedComputationIds.add(claimed.globalComputationId)
-      claimed.toBuilder().setAttempt(claimed.attempt + 1)
+    updateToken(claimed) { existing ->
+      claimedComputationIds.add(existing.globalComputationId)
+      existing.toBuilder().setAttempt(claimed.attempt + 1)
     }
-    return getNonNull(claimed.globalComputationId)
+    return claimed.localId
   }
+
+  override suspend fun readComputationToken(globalId: Long): ComputationToken =
+    getNonNull(globalId)
+
+  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<Long> =
+    filterValues { it.computationStage in stages }.keys
 }

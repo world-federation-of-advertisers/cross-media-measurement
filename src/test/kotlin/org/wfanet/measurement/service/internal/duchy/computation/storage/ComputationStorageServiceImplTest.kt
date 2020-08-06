@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computation.storage.testing
+package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,23 +34,14 @@ import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toAdvanceComputationStageResponse
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toClaimWorkResponse
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toFinishComputationResponse
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetComputationTokenResponse
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
-class FakeComputationStorageServiceTest {
+class ComputationStorageServiceImplTest {
+  private val fakeDatabase = FakeComputationStorage(listOf("A", "B", "C", "D"))
 
-  private val fakeService = FakeComputationStorageService(
-    FakeComputationStorage(listOf("A", "B", "C", "D"))
-  )
+  private val fakeService = ComputationStorageServiceImpl(fakeDatabase)
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { listOf(fakeService) }
@@ -65,7 +56,7 @@ class FakeComputationStorageServiceTest {
   @Test
   fun `end failed computation`() = runBlocking {
     val id = 1234L
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       id,
       SketchAggregationStage.WAIT_SKETCHES.toProtocolStage(),
       RoleInComputation.PRIMARY,
@@ -90,7 +81,7 @@ class FakeComputationStorageServiceTest {
   @Test
   fun `write reference to output blob and advance stage`() = runBlocking {
     val id = 67890L
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       id, SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(), RoleInComputation.SECONDARY,
       listOf(
         newInputBlobMetadata(id = 0L, key = "an_input_blob"),
@@ -133,19 +124,19 @@ class FakeComputationStorageServiceTest {
     val blindId = 67890L
     val completedId = 12341L
     val decryptId = 4342242L
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       blindId,
       SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       completedId,
       SketchAggregationStage.COMPLETED.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       decryptId,
       SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
       RoleInComputation.SECONDARY,
@@ -171,7 +162,7 @@ class FakeComputationStorageServiceTest {
   fun `claim task`() = runBlocking {
     val unclaimed = 12345678L
     val claimed = 23456789L
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       unclaimed,
       SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
@@ -179,13 +170,13 @@ class FakeComputationStorageServiceTest {
     )
     val unclaimedAtStart =
       fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
-    fakeService.storage.addComputation(
+    fakeDatabase.addComputation(
       claimed,
       SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
-    fakeService.storage.claimedComputationIds.add(claimed)
+    fakeDatabase.claimedComputationIds.add(claimed)
     val claimedAtStart =
       fakeService.getComputationToken(claimed.toGetTokenRequest()).token
     val owner = "TheOwner"

@@ -17,6 +17,8 @@ package org.wfanet.measurement.db.duchy
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
  * Information about a computation needed to edit a computation.
@@ -155,6 +157,18 @@ interface ComputationsRelationalDb<StageT> {
 
   /** Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from a stage. */
   suspend fun writeOutputBlobReference(token: ComputationStorageEditToken<StageT>, blobRef: BlobRef)
+}
+
+/**
+ * Grouping of a database reader and writer to interact with a database for one type of computation
+ * through [ComputationStage]s.
+ */
+interface SingleProtocolDatabase :
+  ReadOnlyComputationsRelationalDb,
+  ComputationsRelationalDb<ComputationStage>,
+  ProtocolStageEnumHelper<ComputationStage> {
+
+  val computationType: ComputationType
 }
 
 /**

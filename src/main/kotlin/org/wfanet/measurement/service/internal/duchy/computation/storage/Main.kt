@@ -14,10 +14,57 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
-import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.db.duchy.ComputationsRelationalDb
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
+import org.wfanet.measurement.db.duchy.ReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.db.duchy.SingleProtocolDatabase
+import org.wfanet.measurement.db.duchy.gcp.ComputationMutations
+import org.wfanet.measurement.db.duchy.gcp.GcpSpannerComputationsDb
+import org.wfanet.measurement.db.duchy.gcp.GcpSpannerReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
+import kotlin.properties.Delegates
+
+class GcpSingleProtocolDatabase(
+  private val reader: GcpSpannerReadOnlyComputationsRelationalDb,
+  private val writer: GcpSpannerComputationsDb<ComputationStage, ComputationStageDetails>,
+  private val protocolStageEnumHelper: ProtocolStageEnumHelper<ComputationStage>,
+  override val computationType: ComputationType
+) : SingleProtocolDatabase,
+  ReadOnlyComputationsRelationalDb by reader,
+  ComputationsRelationalDb<ComputationStage> by writer,
+  ProtocolStageEnumHelper<ComputationStage> by protocolStageEnumHelper
+
+/** Creates a new Liquid Legions based spanner database client. */
+fun newLiquidLegionsProtocolGapDatabaseClient(
+  spanner: SpannerFromFlags,
+  duchyOrder: DuchyOrder,
+  duchyName: String
+): GcpSingleProtocolDatabase =
+  GcpSingleProtocolDatabase(
+    reader = GcpSpannerReadOnlyComputationsRelationalDb(
+      databaseClient = spanner.databaseClient,
+      computationStagesHelper = LiquidLegionsSketchAggregationProtocol.ComputationStages
+    ),
+    writer = GcpSpannerComputationsDb(
+      databaseClient = spanner.databaseClient,
+      duchyName = duchyName,
+      duchyOrder = duchyOrder,
+      computationMutations = ComputationMutations(
+        LiquidLegionsSketchAggregationProtocol.ComputationStages,
+        LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(listOf())
+      )
+    ),
+    protocolStageEnumHelper = LiquidLegionsSketchAggregationProtocol.ComputationStages,
+    computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+  )
 
 private class ComputationStorageServiceFlags {
   @set:CommandLine.Option(
@@ -37,6 +84,14 @@ private class ComputationStorageServiceFlags {
   )
   var nameForLogging by Delegates.notNull<String>()
     private set
+
+  @set:CommandLine.Option(
+    names = ["--duchy-name"],
+    description = ["Name of the duchy where the server is running."],
+    required = true
+  )
+  var duchyName by Delegates.notNull<String>()
+    private set
 }
 
 @CommandLine.Command(
@@ -45,12 +100,24 @@ private class ComputationStorageServiceFlags {
   showDefaultValues = true
 )
 private fun run(
-  @CommandLine.Mixin computationStorageServiceFlags: ComputationStorageServiceFlags
+  @CommandLine.Mixin computationStorageServiceFlags: ComputationStorageServiceFlags,
+  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
 ) {
+  // Currently this server only accommodates the Liquid Legions protocol running on a GCP
+  // instance. For a new cloud platform there would need to be an instance of
+  // [SingleProtocolDatabase] which can interact with the database offerings of that cloud.
+  // For a new protocol there would need to be implementations of [ProtocolStageEnumHelper]
+  // for the new computation protocol.
+  val gcpDatabaseClient = newLiquidLegionsProtocolGapDatabaseClient(
+    spanner = SpannerFromFlags(spannerFlags),
+    // TODO: Define other duchies via command line flags.
+    duchyOrder = DuchyOrder(setOf()),
+    duchyName = computationStorageServiceFlags.duchyName
+  )
   CommonServer(
     computationStorageServiceFlags.nameForLogging,
     computationStorageServiceFlags.port,
-    ComputationStorageServiceImpl()
+    ComputationStorageServiceImpl(gcpDatabaseClient)
   ).start().blockUntilShutdown()
 }
 

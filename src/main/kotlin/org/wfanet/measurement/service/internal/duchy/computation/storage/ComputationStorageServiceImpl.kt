@@ -14,6 +14,157 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.db.duchy.AfterTransition
+import org.wfanet.measurement.db.duchy.BlobRef
+import org.wfanet.measurement.db.duchy.ComputationStorageEditToken
+import org.wfanet.measurement.db.duchy.EndComputationReason
+import org.wfanet.measurement.db.duchy.SingleProtocolDatabase
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
+import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
+import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
+import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest
+import org.wfanet.measurement.internal.duchy.CreateComputationResponse
+import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
+import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
+import org.wfanet.measurement.internal.duchy.FinishComputationRequest
+import org.wfanet.measurement.internal.duchy.FinishComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
+import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 
-class ComputationStorageServiceImpl : ComputationStorageServiceCoroutineImplBase()
+/** Implementation of the Computation Storage Service. */
+class ComputationStorageServiceImpl(
+  private val computationsDatabase: SingleProtocolDatabase
+) : ComputationStorageServiceCoroutineImplBase() {
+
+  override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
+    grpcRequire(computationsDatabase.computationType == request.computationType) {
+      "May only claim work for ${computationsDatabase.computationType} computations. " +
+        "${request.computationType} is not supported."
+    }
+    val claimed = computationsDatabase.claimTask(request.owner)
+    return if (claimed != null) computationsDatabase.readComputationToken(claimed)
+      .toClaimWorkResponse()
+    else ClaimWorkResponse.getDefaultInstance()
+  }
+
+  override suspend fun createComputation(
+    request: CreateComputationRequest
+  ): CreateComputationResponse {
+    grpcRequire(computationsDatabase.computationType == request.computationType) {
+      "May only create ${computationsDatabase.computationType} computations. " +
+        "${request.computationType} is not supported."
+    }
+    computationsDatabase.insertComputation(
+      request.globalComputationId,
+      computationsDatabase.validInitialStages.first()
+    )
+    return computationsDatabase.readComputationToken(request.globalComputationId)
+      .toCreateComputationResponse()
+  }
+
+  override suspend fun finishComputation(
+    request: FinishComputationRequest
+  ): FinishComputationResponse {
+    computationsDatabase.endComputation(
+      request.token.toDatabaseEditToken(),
+      request.endingComputationStage,
+      when (val it = request.reason) {
+        ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+        ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+        ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+        else -> error("Unknown CompletedReason $it")
+      }
+    )
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)
+      .toFinishComputationResponse()
+  }
+
+  override suspend fun getComputationToken(
+    request: GetComputationTokenRequest
+  ): GetComputationTokenResponse  {
+    grpcRequire(computationsDatabase.computationType == request.computationType) {
+      "May only read tokens for type ${computationsDatabase.computationType}. " +
+        "${request.computationType} is not supported"
+    }
+    return computationsDatabase.readComputationToken(request.globalComputationId)
+      .toGetComputationTokenResponse()
+  }
+
+  override suspend fun recordOutputBlobPath(
+    request: RecordOutputBlobPathRequest
+  ): RecordOutputBlobPathResponse {
+    computationsDatabase.writeOutputBlobReference(
+      request.token.toDatabaseEditToken(),
+      BlobRef(
+        request.outputBlobId,
+        request.blobPath
+      )
+    )
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)
+      .toRecordOutputBlobPathResponse()
+  }
+
+  override suspend fun advanceComputationStage(
+    request: AdvanceComputationStageRequest
+  ): AdvanceComputationStageResponse {
+    // TODO: Pass request.stageDetails to updateComputationStage for it to write. Currently the
+    //   details are set to a default value based on the stage, which is not so flexible to the
+    //   caller. What to write is in the request but is being ignored.
+    grpcRequire(request.stageDetails == ComputationStageDetails.getDefaultInstance()) {
+      "request.stageDetails are not yet supported."
+    }
+    computationsDatabase.updateComputationStage(
+      request.token.toDatabaseEditToken(),
+      request.nextComputationStage,
+      request.inputBlobsList,
+      request.outputBlobs,
+      when (val it = request.afterTransition) {
+        AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+          AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
+          AfterTransition.DO_NOT_ADD_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
+          AfterTransition.CONTINUE_WORKING
+        else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
+      }
+    )
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)
+      .toAdvanceComputationStageResponse()
+  }
+
+  override suspend fun getComputationIds(
+    request: GetComputationIdsRequest
+  ): GetComputationIdsResponse {
+    val ids = computationsDatabase.readGlobalComputationIds(request.stagesList.toSet())
+    return GetComputationIdsResponse.newBuilder()
+      .addAllGlobalIds(ids).build()
+  }
+
+  override suspend fun enqueueComputation(
+    request: EnqueueComputationRequest
+  ): EnqueueComputationResponse {
+    computationsDatabase.enqueue(request.token.toDatabaseEditToken())
+    return EnqueueComputationResponse.getDefaultInstance()
+  }
+}
+
+fun ComputationToken.toDatabaseEditToken(): ComputationStorageEditToken<ComputationStage> =
+  ComputationStorageEditToken(
+    localId = localComputationId,
+    stage = computationStage,
+    attempt = attempt,
+    editVersion = version
+  )

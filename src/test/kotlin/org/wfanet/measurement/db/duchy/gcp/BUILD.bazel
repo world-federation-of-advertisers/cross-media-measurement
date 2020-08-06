@@ -106,8 +106,9 @@ spanner_emulator_test(
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:computation_storage_service_impl",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
     ],
 )
