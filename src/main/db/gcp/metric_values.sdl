@@ -14,10 +14,11 @@
 
 -- Cloud Spanner database schema for metric values in a Duchy.
 --
--- IDs not marked as external are internal to a Duchy. Only external IDs should
--- be exposed outside of the Duchy, e.g. via API services or user interfaces.
+-- IDs not marked as resource or external are internal to the database. Only
+-- external IDs should be exposed outside of the binary that controls the
+-- database, e.g. via services or user interfaces.
 --
--- The external IDs are resource IDs from the external API. As the Duchy does
+-- Resource IDs are IDs in the external resource-oriented API. As the Duchy does
 -- not generate any of these IDs, it can make no assumptions about them other
 -- than what is defined in the API contract. In particular, the only guarantee
 -- about the ID format is that it is a URL-safe string. Furthermore, resource
@@ -27,18 +28,24 @@
 -- Represents `MetricValue` API resources.
 CREATE TABLE MetricValues (
   MetricValueId INT64 NOT NULL,
+  ExternalMetricValueId INT64 NOT NULL,
 
-  ExternalDataProviderId STRING(MAX) NOT NULL,
-  ExternalCampaignId STRING(MAX) NOT NULL,
-  ExternalMetricRequisitionId STRING(MAX) NOT NULL,
+  DataProviderResourceId STRING(MAX) NOT NULL,
+  CampaignResourceId STRING(MAX) NOT NULL,
+  MetricRequisitionResourceId STRING(MAX) NOT NULL,
 
   -- Key in blob/object storage system.
   BlobStorageKey STRING(MAX) NOT NULL
 ) PRIMARY KEY (MetricValueId);
 
--- Index for lookups of BlobStorageKey using `MetricValue` resource key.
+-- Index for row lookups by external ID.
 CREATE UNIQUE INDEX MetricValuesByExternalId ON MetricValues(
-  ExternalDataProviderId,
-  ExternalCampaignId,
-  ExternalMetricRequisitionId
+  ExternalMetricValueId
+);
+
+-- Index for BlobStorageKey lookups using `MetricValue` resource key.
+CREATE UNIQUE INDEX MetricValuesByResourceKey ON MetricValues(
+  DataProviderResourceId,
+  CampaignResourceId,
+  MetricRequisitionResourceId
 ) STORING (BlobStorageKey);
