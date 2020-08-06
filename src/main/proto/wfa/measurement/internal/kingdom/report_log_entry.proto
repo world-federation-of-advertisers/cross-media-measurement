@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 import "src/main/proto/wfa/measurement/internal/kingdom/report.proto";
 import "src/main/proto/wfa/measurement/internal/sketch_aggregation_stage.proto";

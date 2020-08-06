@@ -16,13 +16,12 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
+import "src/main/proto/wfa/measurement/internal/duchy/computation_blob_dependency.proto";
+import "src/main/proto/wfa/measurement/internal/duchy/computation_details.proto";
+import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
+
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
-
-import "src/main/proto/wfa/measurement/internal/sketch_aggregation_stage.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_blob_dependency.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_details.proto";
 
 // A token that summarizes the most commonly used data in when executing
 // a stage of a computation. Tokens are used as the primary data abstraction

@@ -57,7 +57,7 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toRecor
  * @param duchyNames list of all duchies in the computation with the first duchy being the name
  *   of the duchy running Computation Storage Service.
  */
-@ExperimentalCoroutinesApi
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class FakeComputationStorageService(val storage: FakeComputationStorage) :
   ComputationStorageServiceCoroutineImplBase() {
 

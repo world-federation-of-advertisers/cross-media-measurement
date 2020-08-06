@@ -70,7 +70,6 @@ proto_library(
         ":computation_blob_dependency_proto",
         ":computation_details_proto",
         ":computation_protocols_proto",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto",
     ],
 )
 
