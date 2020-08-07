@@ -14,9 +14,8 @@
 
 package org.wfanet.measurement.db.duchy.testing
 
-import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
-import org.wfanet.measurement.db.duchy.SketchAggregationStages
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase
@@ -39,9 +38,9 @@ class FakeComputationStorage(
   private fun validateStageChange(stage: ComputationStage, nextStage: ComputationStage): Boolean {
     return when (stage.stageCase) {
       StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> {
-        SketchAggregationStages.validTransition(
-          stage.liquidLegionsSketchAggregation,
-          nextStage.liquidLegionsSketchAggregation
+        LiquidLegionsSketchAggregationProtocol.ComputationStages.validTransition(
+          stage,
+          nextStage
         )
       }
       else -> error("Unsupported computation protocol with stage $stage.")
@@ -51,7 +50,7 @@ class FakeComputationStorage(
   private fun validEndingStage(stage: ComputationStage): Boolean {
     return when (stage.stageCase) {
       StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> {
-        SketchAggregationStages.validTerminalStage(stage.liquidLegionsSketchAggregation)
+        LiquidLegionsSketchAggregationProtocol.ComputationStages.validTerminalStage(stage)
       }
       else -> error("Unsupported computation protocol with stage $stage.")
     }
@@ -60,7 +59,8 @@ class FakeComputationStorage(
   private fun stageDetails(stage: ComputationStage): ComputationStageDetails {
     return when (stage.stageCase) {
       StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> {
-        SketchAggregationStageDetails(otherDuchies).detailsFor(stage.liquidLegionsSketchAggregation)
+        LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(otherDuchies)
+          .detailsFor(stage)
       }
       else -> error("Unsupported computation protocol with stage $stage.")
     }

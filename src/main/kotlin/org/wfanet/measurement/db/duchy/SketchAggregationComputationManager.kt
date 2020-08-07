@@ -52,8 +52,8 @@ class SketchAggregationComputationManager(
   otherDuchies: List<String>
 ) {
 
-  val liquidLegionsStageDetails: SketchAggregationStageDetails =
-    SketchAggregationStageDetails(otherDuchies)
+  val liquidLegionsStageDetails: LiquidLegionsSketchAggregationProtocol.EnumStages.Details =
+    LiquidLegionsSketchAggregationProtocol.EnumStages.Details(otherDuchies)
 
   private val otherDuchiesInComputation: Int = otherDuchies.size
 

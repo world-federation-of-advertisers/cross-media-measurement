@@ -17,6 +17,7 @@ package org.wfanet.measurement.db.duchy.gcp
 import com.google.cloud.spanner.DatabaseClient
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toCollection
+import org.wfanet.measurement.db.duchy.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.duchy.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -26,17 +27,16 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
  */
 class GcpSpannerReadOnlyComputationsRelationalDb(
   private val databaseClient: DatabaseClient,
-  private val parseLongFunc: (Long) -> ComputationStage,
-  private val convertToLong: (ComputationStage) -> Long
+  private val computationStagesHelper: ProtocolStageEnumHelper<ComputationStage>
 ) : ReadOnlyComputationsRelationalDb {
 
   override suspend fun readComputationToken(globalId: Long): ComputationToken =
-    ComputationTokenProtoQuery(parseLongFunc, globalId)
+    ComputationTokenProtoQuery(computationStagesHelper::longToEnum, globalId)
       .execute(databaseClient)
       .single()
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<Long> =
-    GlobalIdsQuery(convertToLong, stages)
+    GlobalIdsQuery(computationStagesHelper::enumToLong, stages)
       .execute(databaseClient)
       .toCollection(mutableSetOf())
 }

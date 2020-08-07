@@ -21,8 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
-import org.wfanet.measurement.db.duchy.SketchAggregationStages
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.internal.SketchAggregationStage
@@ -55,15 +54,11 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
 
   private val computationMutations =
     ComputationMutations(
-      SketchAggregationStages,
-      SketchAggregationStageDetails(listOf(NEXT_DUCHY_IN_RING, THIRD_DUCHY_IN_RING))
+      LiquidLegionsSketchAggregationProtocol.EnumStages,
+      LiquidLegionsSketchAggregationProtocol.EnumStages.Details(
+        listOf(NEXT_DUCHY_IN_RING, THIRD_DUCHY_IN_RING)
+      )
     )
-
-  private fun parseLiquidLegionsStageFromLong(value: Long) =
-    computationMutations.longToEnum(value).toProtocolStage()
-
-  private fun longFromLiquidLegionsStage(stage: ComputationStage) =
-    computationMutations.enumToLong(stage.liquidLegionsSketchAggregation)
 
   private lateinit var liquidLegionsSketchAggregationSpannerReader:
     GcpSpannerReadOnlyComputationsRelationalDb
@@ -73,8 +68,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     liquidLegionsSketchAggregationSpannerReader =
       GcpSpannerReadOnlyComputationsRelationalDb(
         databaseClient,
-        ::parseLiquidLegionsStageFromLong,
-        ::longFromLiquidLegionsStage
+        LiquidLegionsSketchAggregationProtocol.ComputationStages
       )
   }
 

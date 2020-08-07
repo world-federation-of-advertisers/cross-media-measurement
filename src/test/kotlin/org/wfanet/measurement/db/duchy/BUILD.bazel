@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "sketch_aggregation_protocol_stage_helper_test",
-    srcs = ["SketchAggregationStagesTest.kt"],
-    test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStagesTest",
+    name = "liquid_legions_sketch_aggregation_protocol_stage_helper_test",
+    srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesTest.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocolEnumStagesTest",
     deps = [
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
@@ -13,9 +13,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "sketch_aggregation_stage_details_test",
-    srcs = ["SketchAggregationStageDetailsTest.kt"],
-    test_class = "org.wfanet.measurement.db.duchy.SketchAggregationStageDetailsTest",
+    name = "liquid_legions_sketch_aggregation_stage_details_test",
+    srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesDetails.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocolEnumStagesDetails",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",

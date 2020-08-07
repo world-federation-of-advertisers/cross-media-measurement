@@ -23,11 +23,11 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
 
 @RunWith(JUnit4::class)
-class SketchAggregationStageDetailsTest {
+class LiquidLegionsSketchAggregationProtocolEnumStagesDetails {
 
   @Test
   fun `stage defaults and conversions`() {
-    val d = SketchAggregationStageDetails(listOf("A", "B", "C"))
+    val d = LiquidLegionsSketchAggregationProtocol.EnumStages.Details(listOf("A", "B", "C"))
     for (stage in SketchAggregationStage.values()) {
       val expected =
         when (stage) {

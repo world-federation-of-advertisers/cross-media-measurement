@@ -22,8 +22,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
-import org.wfanet.measurement.db.duchy.SketchAggregationStageDetails
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.internal.SketchAggregationStage
@@ -133,7 +133,7 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
     val fakeRpcService = computation.FakeRpcService()
     computation.writeOutputs(CREATED)
     computation.waitForSketches(
-      SketchAggregationStageDetails(duchies.subList(1, 3)).detailsFor(
+      LiquidLegionsSketchAggregationProtocol.EnumStages.Details(duchies.subList(1, 3)).detailsFor(
         WAIT_SKETCHES
       )
     )
