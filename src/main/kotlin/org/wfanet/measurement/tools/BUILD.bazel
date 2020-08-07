@@ -12,7 +12,7 @@ kt_jvm_library(
     ],
     data = [
         "//src/main/docker:deploy_to_kind_yaml",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol:computation_control_server_image.tar",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol:liquid_legions_computation_control_server_image.tar",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill:mill_task_image.tar",
     ],
     deps = [

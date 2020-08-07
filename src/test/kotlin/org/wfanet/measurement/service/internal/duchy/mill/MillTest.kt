@@ -29,7 +29,7 @@ import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
-import org.wfanet.measurement.service.internal.duchy.computationcontrol.ComputationControlServiceImpl
+import org.wfanet.measurement.service.internal.duchy.computationcontrol.LiquidLegionsComputationControlServiceImpl
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
@@ -71,7 +71,7 @@ class MillTest {
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
         .addService(
-          ComputationControlServiceImpl(
+          LiquidLegionsComputationControlServiceImpl(
             LiquidLegionsSketchAggregationComputationStorageClients(
               ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel),
               FakeComputationsBlobDb(mutableMapOf()),

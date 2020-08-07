@@ -8,7 +8,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:computation_storage_service_impl",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computationcontrol:liquid_legions_computation_control_service_impl",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "@com_github_jetbrains_kotlin//:kotlin-test",

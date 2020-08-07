@@ -31,7 +31,7 @@ import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 
-class ComputationControlServiceImpl(
+class LiquidLegionsComputationControlServiceImpl(
   private val clients: LiquidLegionsSketchAggregationComputationStorageClients
 ) :
   ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase() {

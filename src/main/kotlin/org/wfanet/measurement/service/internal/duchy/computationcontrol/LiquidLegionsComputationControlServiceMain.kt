@@ -80,7 +80,7 @@ private fun run(
   CommonServer(
     computationControlServiceFlags.nameForLogging,
     computationControlServiceFlags.port,
-    ComputationControlServiceImpl(storageClients)
+    LiquidLegionsComputationControlServiceImpl(storageClients)
   ).start().blockUntilShutdown()
 }
 

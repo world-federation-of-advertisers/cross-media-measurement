@@ -55,7 +55,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
-class ComputationControlServiceImplTest {
+class LiquidLegionsComputationControlServiceImplTest {
   val fakeBlobs = mutableMapOf<String, ByteArray>()
 
   companion object {
@@ -76,7 +76,7 @@ class ComputationControlServiceImplTest {
       ComputationStorageServiceImpl(
         fakeComputationStorage
       ),
-      ComputationControlServiceImpl(computationStorageClients)
+      LiquidLegionsComputationControlServiceImpl(computationStorageClients)
     )
   }
 
