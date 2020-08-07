@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.db.duchy
 
-import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
@@ -155,7 +154,7 @@ interface ComputationsRelationalDb<StageT> {
     endComputationReason: EndComputationReason
   )
 
-  /** Writes the reference to a BLOB needed for [BlobDependencyType.OUTPUT] from a stage. */
+  /** Writes the reference to a BLOB needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(token: ComputationStorageEditToken<StageT>, blobRef: BlobRef)
 }
 
@@ -193,26 +192,4 @@ interface ComputationsBlobDb<StageT> {
 
   /** Deletes a BLOB */
   suspend fun delete(reference: BlobRef)
-}
-
-/** The way in which a stage depends upon a BLOB. */
-enum class BlobDependencyType {
-  /** BLOB is used as an input to the computation stage. */
-  INPUT,
-
-  /** BLOB is an output of the computation stage. */
-  OUTPUT,
-
-  /**
-   * ONLY makes sense when reading blobs from the database. Read all blobs
-   * no mater the type.
-   */
-  ANY;
-
-  fun toComputationStageBlobDependencyType(): ComputationBlobDependency =
-    when (this) {
-      INPUT -> ComputationBlobDependency.INPUT
-      OUTPUT -> ComputationBlobDependency.OUTPUT
-      else -> error("Conversion of $this to  ComputationBlobDependency::class not supported.")
-    }
 }
