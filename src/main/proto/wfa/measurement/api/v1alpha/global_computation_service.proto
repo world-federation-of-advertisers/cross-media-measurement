@@ -18,6 +18,7 @@ package wfa.measurement.api.v1alpha;
 
 import "wfa/measurement/api/v1alpha/global_computation.proto";
 import "wfa/measurement/api/v1alpha/global_computation_status_update.proto";
+import "wfa/measurement/api/v1alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
@@ -48,6 +49,11 @@ service GlobalComputations {
   rpc CreateGlobalComputationStatusUpdate(
       CreateGlobalComputationStatusUpdateRequest)
       returns (GlobalComputationStatusUpdate);
+
+  // Confirms that a Duchy is ready to begin a Computation. This implies that
+  // all data necessary for the computation is accessible.
+  rpc ConfirmGlobalComputation(ConfirmGlobalComputationRequest)
+      returns (ConfirmGlobalComputationResponse);
 }
 
 // Request message for GetGlobalComputation method.
@@ -75,4 +81,22 @@ message CreateGlobalComputationStatusUpdateRequest {
   // The status update. These fields will be ignored: `status_update.key` and
   // `status_update.create_time`.
   GlobalComputationStatusUpdate status_update = 2;
+}
+
+message ConfirmGlobalComputationRequest {
+  GlobalComputation.Key key = 1;
+
+  // A list of the MetricRequisitions that the Duchy is providing for the
+  // computation. By including a MetricRequisition in this list, the Duchy is
+  // affirming that all data for the MetricRequisition is accessible and ready
+  // to use in the MPC.
+  //
+  // If a Duchy omits a MetricRequisition that the Kingdom believes it should
+  // have, the GlobalComputation will revert to state CREATED and the missing
+  // MetricRequisitions will be marked as unfulfilled.
+  repeated MetricRequisition.Key ready_requisitions = 2;
+}
+
+message ConfirmGlobalComputationResponse {
+  // Deliberately empty.
 }

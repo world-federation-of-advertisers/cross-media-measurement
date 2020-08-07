@@ -110,6 +110,7 @@ proto_library(
     name = "global_computation_proto",
     srcs = ["global_computation.proto"],
     strip_import_prefix = "/src/main/proto",
+    deps = [":requisition_proto"],
 )
 
 proto_library(
@@ -119,6 +120,7 @@ proto_library(
     deps = [
         ":global_computation_proto",
         ":global_computation_status_update_proto",
+        ":requisition_proto",
     ],
 )
 

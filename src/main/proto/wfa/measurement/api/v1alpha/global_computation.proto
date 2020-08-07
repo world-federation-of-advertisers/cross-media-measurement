@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
+import "wfa/measurement/api/v1alpha/requisition.proto";
+
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "GlobalComputationProto";
@@ -36,23 +38,30 @@ message GlobalComputation {
     // Computation has been created and is ready to start.
     CREATED = 1;
 
+    // The computation is waiting for Duchies to confirm that they are ready to
+    // start the MPC protocol.
+    CONFIRMING = 2;
+
     // Computation is in progress.
-    RUNNING = 2;
+    RUNNING = 3;
 
     // Computation was previously running but has been suspended.
-    SUSPENDED = 3;
+    SUSPENDED = 4;
 
     // Computation completed successfully. Terminal state.
-    SUCCEEDED = 4;
+    SUCCEEDED = 5;
 
     // Computation was cancelled. Terminal state.
-    CANCELLED = 5;
+    CANCELLED = 6;
 
     // Computation completed unsuccessfully. Terminal state.
-    FAILED = 6;
+    FAILED = 7;
   }
   // Current state of the computation. Output only.
   State state = 2;
+
+  // Which MetricRequisitions are used in this computation.
+  repeated MetricRequisition.Key metric_requisitions = 3;
 
   // TODO: add additional fields to show Duchies what to compute.
 }
