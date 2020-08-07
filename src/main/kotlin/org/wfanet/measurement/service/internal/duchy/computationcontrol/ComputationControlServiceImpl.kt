@@ -60,7 +60,7 @@ class ComputationControlServiceImpl(
     }
     logger.info("[id=$id]: transitioning to $nextStage")
     computationManager.transitionComputationToStage(
-      storageToken = tokenAfterWrite,
+      computationToken = tokenAfterWrite,
       inputsToNextStage = listOf(path),
       stage = nextStage
     )
@@ -93,7 +93,7 @@ class ComputationControlServiceImpl(
     }
     logger.info("[id=$id]: transitioning to $nextStage")
     computationManager.transitionComputationToStage(
-      storageToken = tokenAfterWrite,
+      computationToken = tokenAfterWrite,
       inputsToNextStage = listOf(path),
       stage = nextStage
     )
@@ -151,7 +151,7 @@ class ComputationControlServiceImpl(
       val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
       logger.info("[id=$id]: transitioning to $nextStage")
       computationManager.transitionComputationToStage(
-        storageToken = token,
+        computationToken = token,
         inputsToNextStage = token.blobsList.map { it.path }.toList(),
         stage = nextStage
       )

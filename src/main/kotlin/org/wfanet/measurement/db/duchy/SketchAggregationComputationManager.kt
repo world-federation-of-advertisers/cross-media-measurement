@@ -34,13 +34,12 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 
-// TODO: Delete the org.wfanet.measurement.db.duchy.ComputationToken and remove this alias
-typealias StorageToken = org.wfanet.measurement.internal.duchy.ComputationToken
 /**
  * [ComputationManager] specific to running the Privacy-Preserving Secure Cardinality and
  * Frequency Estimation protocol using sparse representation of
@@ -65,13 +64,13 @@ class SketchAggregationComputationManager(
    * Most of the time [inputsToNextStage] is the list of outputs of the currently running stage.
    */
   suspend fun transitionComputationToStage(
-    storageToken: StorageToken,
+    computationToken: ComputationToken,
     inputsToNextStage: List<String> = listOf(),
     stage: SketchAggregationStage
-  ): StorageToken {
-    requireValidRoleForStage(stage, storageToken.role)
+  ): ComputationToken {
+    requireValidRoleForStage(stage, computationToken.role)
     val advanceStageRequestBuilder = AdvanceComputationStageRequest.newBuilder().apply {
-      token = storageToken
+      token = computationToken
       nextComputationStage = stage.toProtocolStage()
       addAllInputBlobs(inputsToNextStage)
       outputBlobs = 1
@@ -150,15 +149,15 @@ class SketchAggregationComputationManager(
    * @return Pair of token after updating blob reference, and path to written blob.
    */
   suspend fun writeReceivedConcatenatedSketch(
-    token: StorageToken,
+    computationToken: ComputationToken,
     sketch: ByteArray
-  ): Pair<StorageToken, String> {
+  ): Pair<ComputationToken, String> {
     val onlyOutputBlob =
-      token.blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
+      computationToken.blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
     return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_CONCATENATED,
       nameForBlob = "concatenated_sketch",
-      storageToken = token,
+      storageToken = computationToken,
       bytes = sketch,
       blobId = onlyOutputBlob.blobId,
       existingPath = onlyOutputBlob.path
@@ -166,15 +165,15 @@ class SketchAggregationComputationManager(
   }
 
   suspend fun writeReceivedFlagsAndCounts(
-    token: StorageToken,
+    computationToken: ComputationToken,
     encryptedFlagCounts: ByteArray
-  ): Pair<StorageToken, String> {
+  ): Pair<ComputationToken, String> {
     val onlyOutputBlob =
-      token.blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
+      computationToken.blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
     return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_FLAG_COUNTS,
       nameForBlob = "encrypted_flag_counts",
-      storageToken = token,
+      storageToken = computationToken,
       bytes = encryptedFlagCounts,
       blobId = onlyOutputBlob.blobId,
       existingPath = onlyOutputBlob.path
@@ -182,21 +181,21 @@ class SketchAggregationComputationManager(
   }
 
   suspend fun writeReceivedNoisedSketch(
-    storageToken: StorageToken,
+    computationToken: ComputationToken,
     sketch: ByteArray,
     sender: String
-  ): StorageToken {
+  ): ComputationToken {
     // Get the blob id by looking up the sender in the stage specific details.
-    val stageDetails = storageToken.stageSpecificDetails.waitSketchStageDetails
+    val stageDetails = computationToken.stageSpecificDetails.waitSketchStageDetails
     val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
-    val outputBlob = storageToken.blobsList.single {
+    val outputBlob = computationToken.blobsList.single {
       it.dependencyType == ComputationBlobDependency.OUTPUT &&
         it.blobId == blobId
     }
     val (newToken, _) = writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_SKETCHES,
       nameForBlob = "noised_sketch_$sender",
-      storageToken = storageToken,
+      storageToken = computationToken,
       bytes = sketch,
       blobId = blobId,
       existingPath = outputBlob.path
@@ -207,11 +206,11 @@ class SketchAggregationComputationManager(
   private suspend fun writeExpectedBlobIfNotPresent(
     requiredStage: SketchAggregationStage,
     nameForBlob: String,
-    storageToken: StorageToken,
+    storageToken: ComputationToken,
     bytes: ByteArray,
     blobId: Long,
     existingPath: String
-  ): Pair<StorageToken, String> {
+  ): Pair<ComputationToken, String> {
     require(storageToken.computationStage.liquidLegionsSketchAggregation == requiredStage) {
       "Cannot accept $nameForBlob while in stage ${storageToken.computationStage}"
     }
@@ -236,7 +235,7 @@ class SketchAggregationComputationManager(
     return Pair(newToken, newPath)
   }
 
-  suspend fun readInputBlobs(token: StorageToken): Map<ComputationStageBlobMetadata, ByteArray> =
+  suspend fun readInputBlobs(token: ComputationToken): Map<ComputationStageBlobMetadata, ByteArray> =
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.INPUT }
       .map { it to blobDatabase.read(BlobRef(it.blobId, it.path)) }
       .toMap()
