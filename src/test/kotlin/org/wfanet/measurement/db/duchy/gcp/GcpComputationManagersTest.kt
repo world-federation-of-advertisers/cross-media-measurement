@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationProtocol
-import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.internal.SketchAggregationStage
@@ -85,8 +85,8 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleComputationManager(
-      newCascadingLegionsSketchAggregationGcpComputationManager(
+    val computation = SingleLiquidLegionsComputation(
+      newLiquidLegionsSketchAggregationGcpComputationStorageClients(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
@@ -121,8 +121,8 @@ class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/comput
   @Test
   fun runProtocolAtPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleComputationManager(
-      newCascadingLegionsSketchAggregationGcpComputationManager(
+    val computation = SingleLiquidLegionsComputation(
+      newLiquidLegionsSketchAggregationGcpComputationStorageClients(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
         googleCloudStorageOptions = LocalStorageHelper.getOptions(),
@@ -174,14 +174,14 @@ data class ComputationStep(
  * Because it is a view of a single computation, the computation token is saved after each
  * operation.
  */
-class SingleComputationManager(
-  private val manager: SketchAggregationComputationManager,
+class SingleLiquidLegionsComputation(
+  private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
   globalId: Long,
   private val testClock: TestClockWithNamedInstants
 ) {
 
   private var token: org.wfanet.measurement.internal.duchy.ComputationToken = runBlocking {
-    manager.computationStorageClient.createComputation(
+    storageClients.computationStorageClient.createComputation(
       CreateComputationRequest.newBuilder().apply {
         globalComputationId = globalId
         computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
@@ -198,7 +198,7 @@ class SingleComputationManager(
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
       .forEach {
         token =
-          manager.computationStorageClient.recordOutputBlobPath(
+          storageClients.computationStorageClient.recordOutputBlobPath(
             RecordOutputBlobPathRequest.newBuilder()
               .setToken(token)
               .setOutputBlobId(it.blobId)
@@ -227,10 +227,10 @@ class SingleComputationManager(
   /** Add computation to work queue and verify that it has no owner. */
   suspend fun enqueue() {
     assertTokenChangesTo(token.toBuilder().setAttempt(0).build()) {
-      manager.computationStorageClient.enqueueComputation(
+      storageClients.computationStorageClient.enqueueComputation(
         EnqueueComputationRequest.newBuilder().setToken(token).build()
       )
-      manager.computationStorageClient
+      storageClients.computationStorageClient
         .getComputationToken(token.globalComputationId.toGetTokenRequest())
         .token
     }
@@ -239,7 +239,7 @@ class SingleComputationManager(
   /** Get computation from work queue and verify it is owned by the [workerId]. */
   suspend fun claimWorkFor(workerId: String) {
     assertTokenChangesTo(token.toBuilder().setAttempt(1).build()) {
-      val claimed = manager.computationStorageClient.claimWork(
+      val claimed = storageClients.computationStorageClient.claimWork(
         ClaimWorkRequest.newBuilder()
           .setOwner(workerId)
           .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
@@ -260,7 +260,7 @@ class SingleComputationManager(
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender]) - 1
       val path = token.toBlobPath("sketch_from_$sender")
-      token = manager.computationStorageClient.recordOutputBlobPath(
+      token = storageClients.computationStorageClient.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder()
           .setToken(token)
           .setOutputBlobId(blobId)
@@ -282,7 +282,7 @@ class SingleComputationManager(
               TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
             ).setAttempt(0).build()
         ) {
-          manager.transitionComputationToStage(
+          storageClients.transitionComputationToStage(
             it.token,
             it.inputs.paths() + it.outputs.paths(),
             TO_APPEND_SKETCHES_AND_ADD_NOISE
@@ -304,7 +304,7 @@ class SingleComputationManager(
           .setAttempt(0)
           .build()
       ) {
-        manager.transitionComputationToStage(
+        storageClients.transitionComputationToStage(
           it.token, it.outputs.paths(), stage
         )
       }
@@ -322,7 +322,7 @@ class SingleComputationManager(
           .addEmptyOutputs(1)
           .setComputationStage(stage.toProtocolStage()).setAttempt(0).build()
       ) {
-        manager.transitionComputationToStage(
+        storageClients.transitionComputationToStage(
           it.token, it.outputs.paths(), stage
         )
       }
@@ -335,7 +335,7 @@ class SingleComputationManager(
         .addEmptyOutputs(1)
         .build()
     ) {
-      manager.transitionComputationToStage(
+      storageClients.transitionComputationToStage(
         it.token,
         it.outputs.paths(),
         TO_ADD_NOISE
@@ -354,7 +354,7 @@ class SingleComputationManager(
         .setStageSpecificDetails(details)
         .build()
     ) {
-      manager.transitionComputationToStage(it.token, it.outputs.paths(), WAIT_SKETCHES)
+      storageClients.transitionComputationToStage(it.token, it.outputs.paths(), WAIT_SKETCHES)
     }
   }
 
@@ -367,12 +367,12 @@ class SingleComputationManager(
         .setComputationStage(stage.toProtocolStage()).setAttempt(1)
         .build()
     ) {
-      manager.transitionComputationToStage(it.token, it.outputs.paths(), stage)
+      storageClients.transitionComputationToStage(it.token, it.outputs.paths(), stage)
     }
   }
 
   suspend fun end(reason: CompletedReason) {
-    token = manager.computationStorageClient.finishComputation(
+    token = storageClients.computationStorageClient.finishComputation(
       FinishComputationRequest.newBuilder()
         .setToken(token)
         .setEndingComputationStage(COMPLETED.toProtocolStage())

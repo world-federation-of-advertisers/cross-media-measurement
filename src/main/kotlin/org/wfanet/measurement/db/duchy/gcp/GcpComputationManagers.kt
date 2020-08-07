@@ -16,17 +16,17 @@ package org.wfanet.measurement.db.duchy.gcp
 
 import com.google.cloud.storage.StorageOptions
 import io.grpc.Channel
-import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import java.math.BigInteger
 
 typealias GoogleCloudStorageOptions = StorageOptions
 
 /**
- * Constructs a ComputationManager specific to combining Cascading Legions Cardinality Estimator
+ * Constructs a storage clients specific to combining Liquid Legions Cardinality Estimator
  * sketches implemented to run in Google Cloud Platform.
  *
- * @param duchyName name of the duchy running the computation manager
+ * @param duchyName name of the duchy running using the clients
  * @param duchyPublicKeys mapping of the name of each duchy to its ECC El Gamal public key
  * @param googleCloudStorageOptions Options specific to connecting with Google Cloud Storage
  * @param storageBucket name of the Google Cloud Storage bucket where computation stage input and
@@ -34,15 +34,15 @@ typealias GoogleCloudStorageOptions = StorageOptions
  * @param computationStorageServiceChannel gRPC channel to communicate with the Computation Storage
  *  Service
  */
-fun newCascadingLegionsSketchAggregationGcpComputationManager(
+fun newLiquidLegionsSketchAggregationGcpComputationStorageClients(
   duchyName: String,
   duchyPublicKeys: Map<String, BigInteger>,
   googleCloudStorageOptions: GoogleCloudStorageOptions =
     GoogleCloudStorageOptions.getDefaultInstance(),
   storageBucket: String,
   computationStorageServiceChannel: Channel
-): SketchAggregationComputationManager {
-  return SketchAggregationComputationManager(
+): LiquidLegionsSketchAggregationComputationStorageClients {
+  return LiquidLegionsSketchAggregationComputationStorageClients(
     ComputationStorageServiceCoroutineStub(computationStorageServiceChannel),
     GcpStorageComputationsDb(
       googleCloudStorageOptions.service,

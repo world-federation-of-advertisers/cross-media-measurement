@@ -23,7 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
@@ -72,7 +72,7 @@ class MillTest {
         .directExecutor()
         .addService(
           ComputationControlServiceImpl(
-            SketchAggregationComputationManager(
+            LiquidLegionsSketchAggregationComputationStorageClients(
               ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel),
               FakeComputationsBlobDb(mutableMapOf()),
               duchyNames

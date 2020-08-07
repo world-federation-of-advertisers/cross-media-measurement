@@ -18,7 +18,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
-import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
@@ -32,7 +32,7 @@ import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 
 class ComputationControlServiceImpl(
-  private val computationManager: SketchAggregationComputationManager
+  private val clients: LiquidLegionsSketchAggregationComputationStorageClients
 ) :
   ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase() {
 
@@ -42,7 +42,7 @@ class ComputationControlServiceImpl(
     val (id, sketch) =
       requests.map { it.computationId to it.partialSketch.toByteArray() }.appendAllByteArrays()
     logger.info("[id=$id]: Received blind position request.")
-    val token = computationManager.computationStorageClient
+    val token = clients.computationStorageClient
       .getComputationToken(id.toGetTokenRequest())
       .token
     require(token.globalComputationId == id) {
@@ -50,7 +50,7 @@ class ComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving concatenated sketch.")
-    val (tokenAfterWrite, path) = computationManager.writeReceivedConcatenatedSketch(token, sketch)
+    val (tokenAfterWrite, path) = clients.writeReceivedConcatenatedSketch(token, sketch)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
@@ -59,7 +59,7 @@ class ComputationControlServiceImpl(
       else -> error("Unknown role in computation ${token.role}")
     }
     logger.info("[id=$id]: transitioning to $nextStage")
-    computationManager.transitionComputationToStage(
+    clients.transitionComputationToStage(
       computationToken = tokenAfterWrite,
       inputsToNextStage = listOf(path),
       stage = nextStage
@@ -75,7 +75,7 @@ class ComputationControlServiceImpl(
     val (id, bytes) =
       requests.map { it.computationId to it.partialData.toByteArray() }.appendAllByteArrays()
     logger.info("[id=$id]: Received decrypt flags and counts request.")
-    val token = computationManager.computationStorageClient
+    val token = clients.computationStorageClient
       .getComputationToken(id.toGetTokenRequest())
       .token
     require(token.globalComputationId == id) {
@@ -83,7 +83,7 @@ class ComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving encrypted flags and counts.")
-    val (tokenAfterWrite, path) = computationManager.writeReceivedFlagsAndCounts(token, bytes)
+    val (tokenAfterWrite, path) = clients.writeReceivedFlagsAndCounts(token, bytes)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
@@ -92,7 +92,7 @@ class ComputationControlServiceImpl(
       else -> error("Unknown role in computation ${token.role}")
     }
     logger.info("[id=$id]: transitioning to $nextStage")
-    computationManager.transitionComputationToStage(
+    clients.transitionComputationToStage(
       computationToken = tokenAfterWrite,
       inputsToNextStage = listOf(path),
       stage = nextStage
@@ -124,7 +124,7 @@ class ComputationControlServiceImpl(
           Triple(x.first, x.second, (x.third + y.third))
         }
     logger.info("[id=$id]: Received noised sketch request from $sender.")
-    val token = computationManager.computationStorageClient
+    val token = clients.computationStorageClient
       .getComputationToken(id.toGetTokenRequest())
       .token
     require(token.globalComputationId == id) {
@@ -135,7 +135,7 @@ class ComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving noised sketch from $sender.")
-    val tokenAfterWrite = computationManager.writeReceivedNoisedSketch(token, bytes, sender)
+    val tokenAfterWrite = clients.writeReceivedNoisedSketch(token, bytes, sender)
     enqueueAppendSketchesOperationIfReceivedAllSketches(tokenAfterWrite)
 
     return HandleNoisedSketchResponse.getDefaultInstance() // Ack the request
@@ -150,7 +150,7 @@ class ComputationControlServiceImpl(
     if (sketchesNotYetReceived == 0) {
       val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
       logger.info("[id=$id]: transitioning to $nextStage")
-      computationManager.transitionComputationToStage(
+      clients.transitionComputationToStage(
         computationToken = token,
         inputsToNextStage = token.blobsList.map { it.path }.toList(),
         stage = nextStage

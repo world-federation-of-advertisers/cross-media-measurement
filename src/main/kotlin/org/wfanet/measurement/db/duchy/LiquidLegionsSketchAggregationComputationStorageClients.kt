@@ -41,11 +41,12 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 
 /**
- * [ComputationManager] specific to running the Privacy-Preserving Secure Cardinality and
+ *
+ * Storage clients specific to running the Privacy-Preserving Secure Cardinality and
  * Frequency Estimation protocol using sparse representation of
- * Cascading Legions Cardinality Estimator sketches.
+ * Liquid Legions Cardinality Estimator sketches.
  */
-class SketchAggregationComputationManager(
+class LiquidLegionsSketchAggregationComputationStorageClients(
   val computationStorageClient: ComputationStorageServiceCoroutineStub,
   private val blobDatabase: ComputationsBlobDb<SketchAggregationStage>,
   otherDuchies: List<String>

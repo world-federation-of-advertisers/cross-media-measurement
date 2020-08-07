@@ -19,7 +19,7 @@ import io.grpc.ManagedChannelBuilder
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.db.duchy.gcp.newCascadingLegionsSketchAggregationGcpComputationManager
+import org.wfanet.measurement.db.duchy.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
 import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
 import picocli.CommandLine
 
@@ -68,7 +68,7 @@ private fun run(
       .usePlaintext()
       .build()
 
-  val computationManager = newCascadingLegionsSketchAggregationGcpComputationManager(
+  val storageClients = newLiquidLegionsSketchAggregationGcpComputationStorageClients(
     duchyName = computationControlServiceFlags.nameForLogging,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
@@ -80,7 +80,7 @@ private fun run(
   CommonServer(
     computationControlServiceFlags.nameForLogging,
     computationControlServiceFlags.port,
-    ComputationControlServiceImpl(computationManager)
+    ComputationControlServiceImpl(storageClients)
   ).start().blockUntilShutdown()
 }
 

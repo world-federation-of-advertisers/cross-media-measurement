@@ -24,7 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.duchy.SketchAggregationComputationManager
+import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.SketchAggregationStage
@@ -67,7 +67,7 @@ class ComputationControlServiceImplTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { channel ->
-    fakeDuchyComputationManger = SketchAggregationComputationManager(
+    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
       ComputationStorageServiceCoroutineStub(channel),
       FakeComputationsBlobDb(fakeBlobs),
       otherDuchyNames
@@ -76,11 +76,12 @@ class ComputationControlServiceImplTest {
       ComputationStorageServiceImpl(
         fakeComputationStorage
       ),
-      ComputationControlServiceImpl(fakeDuchyComputationManger)
+      ComputationControlServiceImpl(computationStorageClients)
     )
   }
 
-  private lateinit var fakeDuchyComputationManger: SketchAggregationComputationManager
+  private lateinit var computationStorageClients:
+    LiquidLegionsSketchAggregationComputationStorageClients
   private lateinit var storageClient: ComputationStorageServiceCoroutineStub
   lateinit var client: ComputationControlServiceCoroutineStub
 
@@ -106,7 +107,7 @@ class ComputationControlServiceImplTest {
           newEmptyOutputBlobMetadata(id = 1),
           newEmptyOutputBlobMetadata(id = 2)
         ),
-        stageDetails = fakeDuchyComputationManger
+        stageDetails = computationStorageClients
           .liquidLegionsStageDetails.detailsFor(WAIT_SKETCHES)
       )
     val token = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
@@ -170,7 +171,7 @@ class ComputationControlServiceImplTest {
         sender1InputToAddNoise to "part1_part2_part3",
         sender2InputToAddNoise to "full_sketch_fit_in_message"
       ),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfterSecondSketch).mapValues {
+      computationStorageClients.readInputBlobs(tokenAfterSecondSketch).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -229,7 +230,7 @@ class ComputationControlServiceImplTest {
     )
     assertEquals(
       mapOf(input to "part1_part2_part3"),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -264,7 +265,7 @@ class ComputationControlServiceImplTest {
     )
     assertEquals(
       mapOf(input to "full_sketch"),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -314,7 +315,7 @@ class ComputationControlServiceImplTest {
     )
     assertEquals(
       mapOf(input to "full_sketch"),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
@@ -357,7 +358,7 @@ class ComputationControlServiceImplTest {
     )
     assertEquals(
       mapOf(input to "part1_part2_part3"),
-      fakeDuchyComputationManger.readInputBlobs(tokenAfter).mapValues {
+      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
         it.value.toString(Charset.defaultCharset())
       }
     )
