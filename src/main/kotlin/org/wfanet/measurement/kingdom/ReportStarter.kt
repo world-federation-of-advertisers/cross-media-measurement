@@ -84,7 +84,7 @@ class ReportStarter(
     streamReadyReports()
       .parallelCollect(maxParallelism) { report ->
         throttleAndLogExceptions {
-          reportStarterClient.updateReportState(report, ReportState.READY_TO_START)
+          reportStarterClient.updateReportState(report, ReportState.AWAITING_DUCHY_CONFIRMATION)
         }
       }
   }

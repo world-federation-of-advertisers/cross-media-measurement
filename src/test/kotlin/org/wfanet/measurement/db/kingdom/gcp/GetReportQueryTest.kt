@@ -42,7 +42,7 @@ class GetReportQueryTest : KingdomDatabaseTestBase() {
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
     insertReport(
       ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
-      state = ReportState.READY_TO_START
+      state = ReportState.IN_PROGRESS
     )
   }
 
@@ -57,7 +57,7 @@ class GetReportQueryTest : KingdomDatabaseTestBase() {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
       externalScheduleId = EXTERNAL_SCHEDULE_ID
       externalReportId = EXTERNAL_REPORT_ID
-      state = ReportState.READY_TO_START
+      state = ReportState.IN_PROGRESS
     }.build()
 
     assertThat(report)

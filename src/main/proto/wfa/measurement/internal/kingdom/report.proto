@@ -33,10 +33,11 @@ message Report {
     // All Requisitions are created and associated, but some are unfulfilled.
     AWAITING_REQUISITION_FULFILLMENT = 2;
 
-    // All Requisitions are associated and fulfilled.
-    READY_TO_START = 3;
+    // All Requisitions are associated and fulfilled. Duchies must confirm that
+    // they are ready to start.
+    AWAITING_DUCHY_CONFIRMATION = 3;
 
-    // Each duchy has been successfully told to start the computation.
+    // Duchies may proceed with the computation.
     IN_PROGRESS = 4;
 
     // Terminal states

@@ -125,6 +125,6 @@ class ReportStarterTest {
       .streamReadyReports()
 
     verify(reportStarterClient, atLeast(15))
-      .updateReportState(same(REPORT), eq(ReportState.READY_TO_START))
+      .updateReportState(same(REPORT), eq(ReportState.AWAITING_DUCHY_CONFIRMATION))
   }
 }

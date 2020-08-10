@@ -139,7 +139,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     )
     insertReport(
       ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
-      ReportState.READY_TO_START
+      ReportState.IN_PROGRESS
     )
 
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)

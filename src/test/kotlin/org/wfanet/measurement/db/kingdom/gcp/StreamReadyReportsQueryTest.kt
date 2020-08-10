@@ -137,7 +137,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `ignores Reports in other states`() = runBlocking<Unit> {
-    insertReportInState(ReportState.READY_TO_START)
+    insertReportInState(ReportState.AWAITING_DUCHY_CONFIRMATION)
     insertRequisitionInState(RequisitionState.FULFILLED)
     assertThat(streamReadyReportsToList()).isEmpty()
   }

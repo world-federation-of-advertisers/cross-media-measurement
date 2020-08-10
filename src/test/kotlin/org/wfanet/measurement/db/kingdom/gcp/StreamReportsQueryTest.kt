@@ -79,7 +79,7 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
     fun insertReportWithIds(reportId: Long, externalReportId: Long) =
       insertReport(
         ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, reportId, externalReportId,
-        state = ReportState.READY_TO_START
+        state = ReportState.IN_PROGRESS
       )
 
     insertReportWithIds(REPORT_ID1, EXTERNAL_REPORT_ID1)
@@ -147,7 +147,7 @@ class StreamReportsQueryTest : KingdomDatabaseTestBase() {
       externalAdvertiserIds = listOf(ExternalId(EXTERNAL_ADVERTISER_ID)),
       externalReportConfigIds = listOf(ExternalId(EXTERNAL_REPORT_CONFIG_ID)),
       externalScheduleIds = listOf(ExternalId(EXTERNAL_SCHEDULE_ID)),
-      states = listOf(ReportState.READY_TO_START),
+      states = listOf(ReportState.IN_PROGRESS),
       updatedAfter = Instant.EPOCH
     )
     assertThat(executeToList(filter, 10))

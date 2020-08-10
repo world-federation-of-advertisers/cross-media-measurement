@@ -79,8 +79,8 @@ class GlobalComputationService(
   private fun translateState(reportState: ReportState): State =
     when (reportState) {
       ReportState.AWAITING_REQUISITION_CREATION,
-      ReportState.AWAITING_REQUISITION_FULFILLMENT,
-      ReportState.READY_TO_START -> State.CREATED
+      ReportState.AWAITING_REQUISITION_FULFILLMENT -> State.CREATED
+      ReportState.AWAITING_DUCHY_CONFIRMATION -> State.CONFIRMING
       ReportState.IN_PROGRESS -> State.RUNNING
       ReportState.SUCCEEDED -> State.SUCCEEDED
       ReportState.FAILED -> State.FAILED
@@ -94,7 +94,7 @@ class GlobalComputationService(
     when (reportState) {
       ReportState.AWAITING_REQUISITION_CREATION,
       ReportState.AWAITING_REQUISITION_FULFILLMENT,
-      ReportState.READY_TO_START,
+      ReportState.AWAITING_DUCHY_CONFIRMATION,
       ReportState.IN_PROGRESS -> StateType.NONTERMINAL
       ReportState.SUCCEEDED,
       ReportState.FAILED,
