@@ -15,13 +15,19 @@
 package org.wfanet.measurement.storage
 
 import java.nio.ByteBuffer
+import java.nio.channels.ReadableByteChannel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.withContext
 
 const val BYTES_PER_MIB = 1024 * 1024
+
 const val DEFAULT_FLOW_BUFFER_SIZE = 4096 // 4 KiB
 
 /**
@@ -53,7 +59,7 @@ suspend fun <B : StorageClient.Blob> StorageClient<B>.createBlob(
   content: ByteArray
 ): B = createBlob(blobKey, content.asBufferedFlow())
 
-/** Reads all of this [Blob] content into a [ByteArray]. */
+/** Reads all of this [StorageClient.Blob] content into a [ByteArray]. */
 suspend fun StorageClient.Blob.readAll(): ByteArray {
   check(size <= Int.MAX_VALUE) { "Blob cannot fit in a single byte array" }
 
@@ -125,3 +131,23 @@ fun Flow<ByteBuffer>.asBufferedFlow(flowBufferSize: Int) = flow<ByteBuffer> {
     }
   }
 }
+
+@OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
+fun ReadableByteChannel.asFlow(channelBufferSize: Int) = flow {
+  var buffer = ByteBuffer.allocate(channelBufferSize)
+
+  // Suppressed for https://youtrack.jetbrains.com/issue/IDEA-223285
+  @Suppress("BlockingMethodInNonBlockingContext")
+  while (read(buffer) >= 0) {
+    if (buffer.position() == 0) {
+      // Nothing was read, so we may have a non-blocking channel that nothing
+      // can be written to right now. Suspend this coroutine to avoid
+      // monopolizing the thread.
+      delay(1L)
+      continue
+    }
+    buffer.flip()
+    emit(buffer)
+    buffer = ByteBuffer.allocate(channelBufferSize)
+  }
+}.onCompletion { withContext(Dispatchers.IO) { close() } }.flowOn(Dispatchers.IO)

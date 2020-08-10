@@ -20,16 +20,14 @@ import com.google.cloud.storage.Storage
 import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.storage.BYTES_PER_MIB
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.asBufferedFlow
+import org.wfanet.measurement.storage.asFlow
 
 /** Size of byte buffer used to read/write blobs from the storage system. */
 private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
@@ -47,7 +45,12 @@ class CloudStorageClient(
       content.asBufferedFlow(BYTE_BUFFER_SIZE).collect { buffer ->
         withContext(Dispatchers.IO) {
           while (buffer.hasRemaining()) {
-            byteChannel.write(buffer)
+            if (byteChannel.write(buffer) == 0) {
+              // Nothing was written, so we may have a non-blocking channel
+              // that nothing can be written to right now. Suspend this
+              // coroutine to avoid monopolizing the thread.
+              delay(1L)
+            }
           }
         }
       }
@@ -76,21 +79,5 @@ class CloudStorageClient(
   }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
-private fun ReadableByteChannel.asFlow() = flow {
-  var buffer = ByteBuffer.allocate(BYTE_BUFFER_SIZE)
-
-  // Suppressed for https://youtrack.jetbrains.com/issue/IDEA-223285
-  @Suppress("BlockingMethodInNonBlockingContext")
-  while (read(buffer) >= 0) {
-    if (buffer.position() == 0) {
-      continue
-    }
-    buffer.flip()
-    emit(buffer)
-    buffer = ByteBuffer.allocate(BYTE_BUFFER_SIZE)
-  }
-}.onCompletion { withContext(Dispatchers.IO) { close() } }.flowOn(Dispatchers.IO)
-
 private fun ReadableByteChannel.asBufferedFlow(flowBufferSize: Int) =
-  asFlow().asBufferedFlow(flowBufferSize)
+  asFlow(BYTE_BUFFER_SIZE).asBufferedFlow(flowBufferSize)

@@ -2,9 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(
     default_testonly = True,
-    default_visibility = [
-        "//src/test/kotlin/org/wfanet/measurement/storage:__subpackages__",
-    ],
+    default_visibility = ["//src:jvm_test"],
 )
 
 kt_jvm_library(
@@ -15,6 +13,7 @@ kt_jvm_library(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/storage",
     ],
 )
