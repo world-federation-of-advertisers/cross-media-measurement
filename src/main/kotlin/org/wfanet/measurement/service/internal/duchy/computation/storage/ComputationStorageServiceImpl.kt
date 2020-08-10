@@ -120,12 +120,6 @@ class ComputationStorageServiceImpl(
   override suspend fun advanceComputationStage(
     request: AdvanceComputationStageRequest
   ): AdvanceComputationStageResponse {
-    // TODO: Pass request.stageDetails to updateComputationStage for it to write. Currently the
-    //   details are set to a default value based on the stage, which is not so flexible to the
-    //   caller. What to write is in the request but is being ignored.
-    grpcRequire(request.stageDetails == ComputationStageDetails.getDefaultInstance()) {
-      "request.stageDetails are not yet supported."
-    }
     computationsDatabase.updateComputationStage(
       request.token.toDatabaseEditToken(),
       request.nextComputationStage,
@@ -139,7 +133,8 @@ class ComputationStorageServiceImpl(
         AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
           AfterTransition.CONTINUE_WORKING
         else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
-      }
+      },
+      request.stageDetails
     )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)
       .toAdvanceComputationStageResponse()

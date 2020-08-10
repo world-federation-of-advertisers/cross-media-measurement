@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.db.duchy
 
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import java.io.IOException
 import java.nio.file.Paths
 import kotlin.random.Random
@@ -24,7 +25,7 @@ import kotlin.random.Random
  * @param[StageT] enum of the stages of a computation.
  */
 abstract class ComputationManager<StageT : Enum<StageT>>(
-  private val relationalDatabase: ComputationsRelationalDb<StageT>,
+  private val relationalDatabase: ComputationsRelationalDb<StageT, ComputationStageDetails>,
   private val blobDatabase: ComputationsBlobDb<StageT>
 ) {
 
@@ -56,6 +57,7 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
    * @param[outputBlobCount] The number of BLOBs which should be written as part of this stage,
    *    this may be useful when a stage is waiting on inputs from multiple other workers.
    * @param[afterTransition] What to do with the work after transitioning the stage.
+   * @param[nextStageDetails] details specific to the next stage to include in the database.
    *
    * @throws [IOException] when stage stage transition fails
    */
@@ -64,14 +66,16 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
     stageAfter: StageT,
     inputBlobsPaths: List<String> = listOf(),
     outputBlobCount: Int = 0,
-    afterTransition: AfterTransition
+    afterTransition: AfterTransition,
+    nextStageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
     return relationalDatabase.updateComputationStage(
       token = token,
       nextStage = stageAfter,
       inputBlobPaths = inputBlobsPaths,
       outputBlobs = outputBlobCount,
-      afterTransition = afterTransition
+      afterTransition = afterTransition,
+      nextStageDetails = nextStageDetails
     )
   }
 

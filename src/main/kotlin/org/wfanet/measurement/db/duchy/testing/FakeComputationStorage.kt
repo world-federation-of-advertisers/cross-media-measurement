@@ -121,7 +121,8 @@ class FakeComputationStorage(
     nextStage: ComputationStage,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
-    afterTransition: org.wfanet.measurement.db.duchy.AfterTransition
+    afterTransition: org.wfanet.measurement.db.duchy.AfterTransition,
+    nextStageDetails: ComputationStageDetails
   ) {
     updateToken(token) { existing ->
       require(validTransition(existing.computationStage, nextStage))
@@ -130,9 +131,8 @@ class FakeComputationStorage(
         computationStage = nextStage
 
         clearStageSpecificDetails()
-        val details = stageDetails(nextStage)
-        if (details != ComputationStageDetails.getDefaultInstance()) {
-          stageSpecificDetails = details
+        if (nextStageDetails != ComputationStageDetails.getDefaultInstance()) {
+          stageSpecificDetails = nextStageDetails
         }
 
         // The blob metadata will always be different.

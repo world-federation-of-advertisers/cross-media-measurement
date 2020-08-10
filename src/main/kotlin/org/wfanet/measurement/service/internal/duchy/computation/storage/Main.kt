@@ -39,7 +39,7 @@ class GcpSingleProtocolDatabase(
   override val computationType: ComputationType
 ) : SingleProtocolDatabase,
   ReadOnlyComputationsRelationalDb by reader,
-  ComputationsRelationalDb<ComputationStage> by writer,
+  ComputationsRelationalDb<ComputationStage, ComputationStageDetails> by writer,
   ProtocolStageEnumHelper<ComputationStage> by protocolStageEnumHelper
 
 /** Creates a new Liquid Legions based spanner database client. */

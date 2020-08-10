@@ -54,7 +54,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
   private val blobStorageBucket: String = "mill-computation-stage-storage",
   private val computationMutations: ComputationMutations<StageT, StageDetailsT>,
   private val clock: Clock = Clock.systemUTC()
-) : ComputationsRelationalDb<StageT> {
+) : ComputationsRelationalDb<StageT, StageDetailsT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
@@ -258,7 +258,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     nextStage: StageT,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
-    afterTransition: AfterTransition
+    afterTransition: AfterTransition,
+    nextStageDetails: StageDetailsT
   ) {
     require(
       computationMutations.validTransition(token.stage, nextStage)
@@ -275,7 +276,9 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       }
       val writeTime = clock.gcpTimestamp()
 
-      ctx.buffer(mutationsToChangeStages(ctx, token, nextStage, writeTime, afterTransition))
+      ctx.buffer(
+        mutationsToChangeStages(ctx, token, nextStage, writeTime, afterTransition, nextStageDetails)
+      )
 
       ctx.buffer(
         mutationsToMakeBlobRefsForNewStage(
@@ -360,7 +363,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     token: ComputationStorageEditToken<StageT>,
     newStage: StageT,
     writeTime: Timestamp,
-    afterTransition: AfterTransition
+    afterTransition: AfterTransition,
+    nextStageDetails: StageDetailsT
   ): List<Mutation> {
     val mutations = arrayListOf<Mutation>()
 
@@ -439,7 +443,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         stage = newStage,
         previousStage = token.stage,
         creationTime = writeTime,
-        details = computationMutations.detailsFor(newStage),
+        details = nextStageDetails,
         // nextAttempt is the number of the current attempt of the stage plus one. Adding an Attempt
         // to the new stage while transitioning stage means that an attempt of that new stage is
         // ongoing at the end of this transaction. Meaning if for some reason there needs to be

@@ -587,7 +587,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       nextStage = FakeProtocolStages.D,
       inputBlobPaths = listOf(),
       outputBlobs = 0,
-      afterTransition = afterTransition
+      afterTransition = afterTransition,
+      nextStageDetails = computationMutations.detailsFor(FakeProtocolStages.D)
     )
     // Ensure the Computation and ComputationStage were updated. This does not check if the
     // lock is held or the exact configurations of the ComputationStageAttempts because they
@@ -776,7 +777,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         nextStage = FakeProtocolStages.D,
         inputBlobPaths = listOf(),
         outputBlobs = 0,
-        afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
+        afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE,
+        nextStageDetails = computationMutations.detailsFor(FakeProtocolStages.D)
       )
     }
   }

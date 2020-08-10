@@ -15,8 +15,8 @@
 package org.wfanet.measurement.db.duchy
 
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
@@ -104,7 +104,7 @@ interface ReadOnlyComputationsRelationalDb {
  *
  * @param StageT Object represent a stage of a computation protocol.
  */
-interface ComputationsRelationalDb<StageT> {
+interface ComputationsRelationalDb<StageT, StageDetailsT> {
 
   /**
    * Inserts a new computation for the global identifier.
@@ -138,13 +138,15 @@ interface ComputationsRelationalDb<StageT> {
    * @param[outputBlobs] Number of BLOBs this computation outputs. These are created as
    *    part of the computation so they do not have a reference to the real storage location.
    * @param[afterTransition] The work to be do with the computation after a successful transition.
+   * @param[nextStageDetails] Details specific to the next stage.
    */
   suspend fun updateComputationStage(
     token: ComputationStorageEditToken<StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
-    afterTransition: AfterTransition
+    afterTransition: AfterTransition,
+    nextStageDetails: StageDetailsT
   )
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
@@ -164,7 +166,7 @@ interface ComputationsRelationalDb<StageT> {
  */
 interface SingleProtocolDatabase :
   ReadOnlyComputationsRelationalDb,
-  ComputationsRelationalDb<ComputationStage>,
+  ComputationsRelationalDb<ComputationStage, ComputationStageDetails>,
   ProtocolStageEnumHelper<ComputationStage> {
 
   val computationType: ComputationType
