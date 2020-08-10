@@ -109,5 +109,21 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
-  ],
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerMetricValueDatabaseTest",
+    srcs = ["SpannerMetricValueDatabaseTest.kt"],
+    resources = [
+        "//src/main/db/gcp:metric_values_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.duchy.gcp.SpannerMetricValueDatabaseTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+    ],
 )

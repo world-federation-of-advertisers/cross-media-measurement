@@ -9,3 +9,8 @@ filegroup(
     name = "kingdom_schema",
     srcs = ["kingdom.sdl"],
 )
+
+filegroup(
+    name = "metric_values_schema",
+    srcs = ["metric_values.sdl"],
+)
