@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
-import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -55,8 +55,10 @@ class LiquidLegionsComputationControlServiceImpl(
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
-      RoleInComputation.PRIMARY -> SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-      RoleInComputation.SECONDARY -> SketchAggregationStage.TO_BLIND_POSITIONS
+      RoleInComputation.PRIMARY ->
+        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+      RoleInComputation.SECONDARY ->
+        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
       else -> error("Unknown role in computation ${token.role}")
     }
     logger.info("[id=$id]: transitioning to $nextStage")
@@ -80,7 +82,7 @@ class LiquidLegionsComputationControlServiceImpl(
       .getComputationToken(id.toGetTokenRequest())
       .token
     require(token.globalComputationId == id) {
-    "Received HandleEncryptedFlagsAndCountsRequest for unknown computation $id"
+      "Received HandleEncryptedFlagsAndCountsRequest for unknown computation $id"
     }
 
     logger.info("[id=$id]: Saving encrypted flags and counts.")
@@ -88,8 +90,10 @@ class LiquidLegionsComputationControlServiceImpl(
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
-      RoleInComputation.PRIMARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-      RoleInComputation.SECONDARY -> SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+      RoleInComputation.PRIMARY ->
+        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+      RoleInComputation.SECONDARY ->
+        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
       else -> error("Unknown role in computation ${token.role}")
     }
     logger.info("[id=$id]: transitioning to $nextStage")
@@ -149,7 +153,7 @@ class LiquidLegionsComputationControlServiceImpl(
     val sketchesNotYetReceived = token.blobsList.count { it.path.isEmpty() }
 
     if (sketchesNotYetReceived == 0) {
-      val nextStage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+      val nextStage = LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
       logger.info("[id=$id]: transitioning to $nextStage")
       clients.transitionComputationToStage(
         computationToken = token,

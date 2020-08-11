@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
-import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -28,7 +28,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 
-fun SketchAggregationStage.toProtocolStage(): ComputationStage =
+fun LiquidLegionsSketchAggregationStage.toProtocolStage(): ComputationStage =
   ComputationStage.newBuilder().setLiquidLegionsSketchAggregation(this).build()
 
 fun Long.toGetTokenRequest(

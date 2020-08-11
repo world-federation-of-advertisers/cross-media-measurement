@@ -17,6 +17,10 @@ package org.wfanet.measurement.service.internal.duchy.computationcontrol
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
+import java.nio.charset.Charset
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -27,13 +31,13 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
-import org.wfanet.measurement.internal.SketchAggregationStage
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -49,10 +53,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobP
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import java.nio.charset.Charset
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class LiquidLegionsComputationControlServiceImplTest {
@@ -181,7 +181,7 @@ class LiquidLegionsComputationControlServiceImplTest {
   fun `receive noised sketch when not expected`() = runBlocking<Unit> {
     fakeComputationStorage.addComputation(
       id = 55,
-      stage = SketchAggregationStage.CREATED.toProtocolStage(),
+      stage = LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
@@ -199,7 +199,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     fakeComputationStorage
       .addComputation(
         id = id,
-        stage = SketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
+        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
@@ -242,7 +242,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     fakeComputationStorage
       .addComputation(
         id = id,
-        stage = SketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
+        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
@@ -275,7 +275,7 @@ class LiquidLegionsComputationControlServiceImplTest {
   fun `receive concatenated sketch when not expected`() = runBlocking<Unit> {
     fakeComputationStorage.addComputation(
       id = 55,
-      stage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
+      stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
@@ -292,7 +292,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     fakeComputationStorage
       .addComputation(
         id = id,
-        stage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
+        stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
@@ -327,7 +327,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     fakeComputationStorage
       .addComputation(
         id = id,
-        stage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
+        stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )

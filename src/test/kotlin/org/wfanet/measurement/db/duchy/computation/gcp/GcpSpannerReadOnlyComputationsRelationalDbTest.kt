@@ -16,6 +16,7 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -24,7 +25,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -33,7 +34,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmpt
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
-import java.time.Instant
 
 @RunWith(JUnit4::class)
 class GcpSpannerReadOnlyComputationsRelationalDbTest :
@@ -81,28 +81,28 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       updateTime = lastUpdated.toGcpTimestamp(),
       globalId = globalId,
-      stage = SketchAggregationStage.WAIT_SKETCHES,
+      stage = LiquidLegionsSketchAggregationStage.WAIT_SKETCHES,
       details = DETAILS_WHEN_PRIMARY
     )
     val waitSketchesComputationStageRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = SketchAggregationStage.WAIT_SKETCHES,
+      stage = LiquidLegionsSketchAggregationStage.WAIT_SKETCHES,
       nextAttempt = 2,
       creationTime = lastUpdated.minusSeconds(2).toGcpTimestamp(),
       endTime = lastUpdated.minusMillis(200).toGcpTimestamp(),
-      details = computationMutations.detailsFor(SketchAggregationStage.WAIT_SKETCHES)
+      details = computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_SKETCHES)
     )
     val outputBlob1ForWaitSketchesComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = SketchAggregationStage.WAIT_SKETCHES,
+        stage = LiquidLegionsSketchAggregationStage.WAIT_SKETCHES,
         blobId = 0L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
     val outputBlob2ForWaitSketchesComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = SketchAggregationStage.WAIT_SKETCHES,
+        stage = LiquidLegionsSketchAggregationStage.WAIT_SKETCHES,
         blobId = 1L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
@@ -121,13 +121,14 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
         globalComputationId = globalId
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregation(SketchAggregationStage.WAIT_SKETCHES)
+          .setLiquidLegionsSketchAggregation(LiquidLegionsSketchAggregationStage.WAIT_SKETCHES)
           .build()
         role = DETAILS_WHEN_PRIMARY.role
         nextDuchy = DETAILS_WHEN_PRIMARY.outgoingNodeId
         attempt = 1
         version = lastUpdated.toEpochMilli()
-        stageSpecificDetails = computationMutations.detailsFor(SketchAggregationStage.WAIT_SKETCHES)
+        stageSpecificDetails =
+          computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_SKETCHES)
         addBlobs(newEmptyOutputBlobMetadata(0L))
         addBlobs(newEmptyOutputBlobMetadata(1L))
       }.build()
@@ -145,36 +146,37 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       updateTime = lastUpdated.toGcpTimestamp(),
       globalId = globalId,
-      stage = SketchAggregationStage.WAIT_CONCATENATED,
+      stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
       details = DETAILS_WHEN_SECONDARY
     )
     val toAddNoiseComputationStageRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = SketchAggregationStage.TO_ADD_NOISE,
+      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
       nextAttempt = 45,
       creationTime = lastUpdated.minusSeconds(2).toGcpTimestamp(),
       endTime = lastUpdated.minusMillis(200).toGcpTimestamp(),
-      details = computationMutations.detailsFor(SketchAggregationStage.TO_ADD_NOISE)
+      details = computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.TO_ADD_NOISE)
     )
     val outputBlobForToAddNoiseComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = SketchAggregationStage.TO_ADD_NOISE,
+        stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
         blobId = 0L,
         dependencyType = ComputationBlobDependency.OUTPUT,
         pathToBlob = "blob-key"
       )
     val waitConcatenatedComputationStageRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = SketchAggregationStage.WAIT_CONCATENATED,
+      stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
       nextAttempt = 2,
       creationTime = lastUpdated.toGcpTimestamp(),
-      details = computationMutations.detailsFor(SketchAggregationStage.WAIT_CONCATENATED)
+      details =
+        computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
     )
     val inputBlobForWaitConcatenatedComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = SketchAggregationStage.WAIT_CONCATENATED,
+        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
         blobId = 33L,
         dependencyType = ComputationBlobDependency.INPUT,
         pathToBlob = "blob-key"
@@ -182,7 +184,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val outputBlobForWaitConcatenatedComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = SketchAggregationStage.WAIT_CONCATENATED,
+        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
         blobId = 44L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
@@ -201,14 +203,14 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
         globalComputationId = globalId
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregation(SketchAggregationStage.WAIT_CONCATENATED)
+          .setLiquidLegionsSketchAggregation(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
           .build()
         role = DETAILS_WHEN_SECONDARY.role
         nextDuchy = DETAILS_WHEN_SECONDARY.outgoingNodeId
         attempt = 1
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =
-          computationMutations.detailsFor(SketchAggregationStage.WAIT_CONCATENATED)
+          computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
         addBlobs(newInputBlobMetadata(33L, "blob-key"))
         addBlobs(newEmptyOutputBlobMetadata(44L))
       }.build()
@@ -219,7 +221,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val writenOutputBlobForWaitConcatenatedComputationStageRow =
       computationMutations.updateComputationBlobReference(
         localId = localId,
-        stage = SketchAggregationStage.WAIT_CONCATENATED,
+        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
         blobId = 44L,
         pathToBlob = "written-output-key"
       )
@@ -241,28 +243,28 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val toAddNoiseRow = computationMutations.insertComputation(
       localId = 123,
       updateTime = lastUpdatedTimeStamp,
-      stage = SketchAggregationStage.TO_ADD_NOISE,
+      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
       globalId = 0xA,
       details = DETAILS_WHEN_SECONDARY
     )
     val toBlindPositionsRow = computationMutations.insertComputation(
       localId = 234,
       updateTime = lastUpdatedTimeStamp,
-      stage = SketchAggregationStage.TO_BLIND_POSITIONS,
+      stage = LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS,
       globalId = 0xB,
       details = DETAILS_WHEN_SECONDARY
     )
     val toAppendAndAddNoiseRow = computationMutations.insertComputation(
       localId = 345,
       updateTime = lastUpdatedTimeStamp,
-      stage = SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
+      stage = LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
       globalId = 0xC,
       details = DETAILS_WHEN_PRIMARY
     )
     val completedRow = computationMutations.insertComputation(
       localId = 456,
       updateTime = lastUpdatedTimeStamp,
-      stage = SketchAggregationStage.COMPLETED,
+      stage = LiquidLegionsSketchAggregationStage.COMPLETED,
       globalId = 0xD,
       details = DETAILS_WHEN_PRIMARY
     )
@@ -278,8 +280,8 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     assertThat(
       liquidLegionsSketchAggregationSpannerReader.readGlobalComputationIds(
         setOf(
-          SketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
-          SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+          LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
+          LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
         )
       )
     ).containsExactly(0xAL, 0xCL)

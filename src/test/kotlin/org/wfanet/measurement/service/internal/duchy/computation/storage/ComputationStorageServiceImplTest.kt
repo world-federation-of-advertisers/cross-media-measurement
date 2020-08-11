@@ -23,7 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
-import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -58,14 +58,14 @@ class ComputationStorageServiceImplTest {
     val id = 1234L
     fakeDatabase.addComputation(
       id,
-      SketchAggregationStage.WAIT_SKETCHES.toProtocolStage(),
+      LiquidLegionsSketchAggregationStage.WAIT_SKETCHES.toProtocolStage(),
       RoleInComputation.PRIMARY,
       listOf()
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val request = FinishComputationRequest.newBuilder().apply {
       token = tokenAtStart
-      endingComputationStage = SketchAggregationStage.COMPLETED.toProtocolStage()
+      endingComputationStage = LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage()
       reason = ComputationDetails.CompletedReason.FAILED
     }.build()
 
@@ -73,7 +73,7 @@ class ComputationStorageServiceImplTest {
       .isEqualTo(
         tokenAtStart.toBuilder().clearStageSpecificDetails().apply {
           version = 1
-          computationStage = SketchAggregationStage.COMPLETED.toProtocolStage()
+          computationStage = LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage()
         }.build().toFinishComputationResponse()
       )
   }
@@ -82,7 +82,9 @@ class ComputationStorageServiceImplTest {
   fun `write reference to output blob and advance stage`() = runBlocking {
     val id = 67890L
     fakeDatabase.addComputation(
-      id, SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(), RoleInComputation.SECONDARY,
+      id,
+      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      RoleInComputation.SECONDARY,
       listOf(
         newInputBlobMetadata(id = 0L, key = "an_input_blob"),
         newEmptyOutputBlobMetadata(id = 1L)
@@ -101,7 +103,7 @@ class ComputationStorageServiceImplTest {
 
     val request = AdvanceComputationStageRequest.newBuilder().apply {
       token = tokenAfterRecordingBlob
-      nextComputationStage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
+      nextComputationStage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
       addAllInputBlobs(listOf("inputs_to_new_stage"))
       outputBlobs = 1
       afterTransition = AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE
@@ -112,7 +114,7 @@ class ComputationStorageServiceImplTest {
         tokenAtStart.toBuilder().clearBlobs().clearStageSpecificDetails().apply {
           version = 2
           attempt = 1
-          computationStage = SketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
+          computationStage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
           addBlobs(newInputBlobMetadata(id = 0L, key = "inputs_to_new_stage"))
           addBlobs(newEmptyOutputBlobMetadata(id = 1L))
         }.build().toAdvanceComputationStageResponse()
@@ -126,27 +128,27 @@ class ComputationStorageServiceImplTest {
     val decryptId = 4342242L
     fakeDatabase.addComputation(
       blindId,
-      SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
     fakeDatabase.addComputation(
       completedId,
-      SketchAggregationStage.COMPLETED.toProtocolStage(),
+      LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
     fakeDatabase.addComputation(
       decryptId,
-      SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
+      LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
     val getIdsInMillStagesRequest = GetComputationIdsRequest.newBuilder().apply {
       addAllStages(
         setOf(
-          SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
-          SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage()
+          LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+          LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage()
         )
       )
     }.build()
@@ -164,7 +166,7 @@ class ComputationStorageServiceImplTest {
     val claimed = 23456789L
     fakeDatabase.addComputation(
       unclaimed,
-      SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
@@ -172,7 +174,7 @@ class ComputationStorageServiceImplTest {
       fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
       claimed,
-      SketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )

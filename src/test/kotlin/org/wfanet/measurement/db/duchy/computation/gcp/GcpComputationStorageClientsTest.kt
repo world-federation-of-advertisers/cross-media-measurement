@@ -16,28 +16,32 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.extensions.proto.ProtoTruth
+import java.math.BigInteger
+import java.time.Instant
+import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
-import org.wfanet.measurement.internal.SketchAggregationStage
-import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
-import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
@@ -55,9 +59,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobP
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import java.math.BigInteger
-import java.time.Instant
-import kotlin.test.assertEquals
 
 @RunWith(JUnit4::class)
 class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
@@ -97,23 +98,25 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
-    computation.writeOutputs(CREATED)
-    computation.gatherLocalSketches()
     computation.enqueue()
+    computation.claimWorkFor("mill-1")
+    computation.writeOutputs(TO_CONFIRM_REQUISITIONS)
+    computation.runWaitStage(WAIT_TO_START, numOfOutput = 0)
+    computation.start()
 
-    computation.claimWorkFor("some-mill")
+    computation.claimWorkFor("mill-2")
     computation.writeOutputs(TO_ADD_NOISE)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
 
-    computation.claimWorkFor("some-other-mill")
+    computation.claimWorkFor("mill-3")
     computation.writeOutputs(TO_BLIND_POSITIONS)
     computation.runWaitStage(WAIT_FLAG_COUNTS)
 
     fakeRpcService.receiveFlagCountsGrpc()
 
-    computation.claimWorkFor("yet-another-mill")
+    computation.claimWorkFor("mill-4")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS)
     computation.end(reason = CompletedReason.SUCCEEDED)
   }
@@ -133,7 +136,10 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
-    computation.writeOutputs(CREATED)
+
+    computation.enqueue()
+    computation.claimWorkFor("mill-1")
+    computation.writeOutputs(TO_CONFIRM_REQUISITIONS)
     computation.waitForSketches(
       LiquidLegionsSketchAggregationProtocol.EnumStages.Details(duchies.subList(1, 3)).detailsFor(
         WAIT_SKETCHES
@@ -142,18 +148,18 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
-    computation.claimWorkFor("some-mill")
+    computation.claimWorkFor("mill-2")
     computation.writeOutputs(TO_APPEND_SKETCHES_AND_ADD_NOISE)
     computation.runWaitStage(WAIT_CONCATENATED)
 
     fakeRpcService.receiveConcatenatedSketchGrpc()
 
-    computation.claimWorkFor("some-other-mill")
+    computation.claimWorkFor("mill-3")
     computation.writeOutputs(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS)
     computation.runWaitStage(WAIT_FLAG_COUNTS)
     fakeRpcService.receiveFlagCountsGrpc()
 
-    computation.claimWorkFor("yet-another-mill")
+    computation.claimWorkFor("mill-4")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
     computation.end(reason = CompletedReason.SUCCEEDED)
   }
@@ -190,7 +196,7 @@ class SingleLiquidLegionsComputation(
   }
   val localId by lazy { token.localComputationId }
 
-  suspend fun writeOutputs(stage: SketchAggregationStage) {
+  suspend fun writeOutputs(stage: LiquidLegionsSketchAggregationStage) {
     assertEquals(stage.toProtocolStage(), token.computationStage)
     testClock.tickSeconds(
       "${token.computationStage.liquidLegionsSketchAggregation}_$token.attempt_outputs"
@@ -258,7 +264,7 @@ class SingleLiquidLegionsComputation(
     suspend fun receiveSketch(sender: String) {
       val stageDetails = token.stageSpecificDetails.waitSketchStageDetails
 
-      val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender]) - 1
+      val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
       val path = token.toBlobPath("sketch_from_$sender")
       token = storageClients.computationStorageClient.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder()
@@ -275,7 +281,7 @@ class SingleLiquidLegionsComputation(
         }
       if (notWritten == 0) {
         assertTokenChangesTo(
-          token.outputBlobsToInputBlobs()
+          token.outputBlobsToInputBlobs(keepInputs = true)
             .addEmptyOutputs(1)
             .clearStageSpecificDetails()
             .setComputationStage(
@@ -329,20 +335,6 @@ class SingleLiquidLegionsComputation(
     }
   }
 
-  suspend fun gatherLocalSketches() {
-    assertTokenChangesTo(
-      token.toBuilder().setComputationStage(TO_ADD_NOISE.toProtocolStage()).setAttempt(0)
-        .addEmptyOutputs(1)
-        .build()
-    ) {
-      storageClients.transitionComputationToStage(
-        it.token,
-        it.outputs.paths(),
-        TO_ADD_NOISE
-      )
-    }
-  }
-
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
   suspend fun waitForSketches(details: ComputationStageDetails) {
     assertTokenChangesTo(
@@ -358,12 +350,25 @@ class SingleLiquidLegionsComputation(
     }
   }
 
+  suspend fun start() {
+    assertTokenChangesTo(
+      token
+        .outputBlobsToInputBlobs(keepInputs = true)
+        .addEmptyOutputs(1)
+        .setComputationStage(TO_ADD_NOISE.toProtocolStage())
+        .setAttempt(0)
+        .build()
+    ) {
+      storageClients.transitionComputationToStage(it.token, it.inputs.paths(), TO_ADD_NOISE)
+    }
+  }
+
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
-  suspend fun runWaitStage(stage: SketchAggregationStage) {
+  suspend fun runWaitStage(stage: LiquidLegionsSketchAggregationStage, numOfOutput: Int = 1) {
     assertTokenChangesTo(
       token
         .outputBlobsToInputBlobs()
-        .addEmptyOutputs(1)
+        .addEmptyOutputs(numOfOutput)
         .setComputationStage(stage.toProtocolStage()).setAttempt(1)
         .build()
     ) {
@@ -386,10 +391,12 @@ fun List<ComputationStageBlobMetadata>.paths() = map { it.path }
 fun List<ComputationStageBlobMetadata>.ofType(dependencyType: ComputationBlobDependency) =
   filter { it.dependencyType == dependencyType }
 
-fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlobs():
+fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlobs(
+  keepInputs: Boolean = false
+):
   org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
     return toBuilder().clearBlobs().addAllBlobs(
-      blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
+      blobsList.filter { keepInputs || it.dependencyType == ComputationBlobDependency.OUTPUT }
         .mapIndexed { index, blob ->
           blob.toBuilder()
             .setDependencyType(ComputationBlobDependency.INPUT)

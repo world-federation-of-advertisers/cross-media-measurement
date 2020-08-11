@@ -18,9 +18,9 @@ import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
-import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
+import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase
@@ -36,7 +36,8 @@ class FakeComputationStorage(
   private val otherDuchies: List<String>
 ) : MutableMap<Long, ComputationToken> by mutableMapOf(),
   SingleProtocolDatabase,
-  ProtocolStageEnumHelper<ComputationStage> by LiquidLegionsSketchAggregationProtocol.ComputationStages {
+  ProtocolStageEnumHelper<ComputationStage> by
+  LiquidLegionsSketchAggregationProtocol.ComputationStages {
   companion object {
     const val NEXT_WORKER = "NEXT_WORKER"
   }
@@ -59,7 +60,7 @@ class FakeComputationStorage(
     val role =
       if ((globalId % 2) == 0L) RoleInComputation.PRIMARY
       else RoleInComputation.SECONDARY
-    addComputation(globalId, initialStage, role, blobs = listOf())
+    addComputation(globalId, initialStage, role, listOf(newEmptyOutputBlobMetadata(id = 0L)))
   }
 
   /** Adds a fake computation to the fake computation storage. */
@@ -80,8 +81,9 @@ class FakeComputationStorage(
       nextDuchy = NEXT_WORKER
       attempt = 0
       addAllBlobs(blobs)
-      if (stageDetails != ComputationStageDetails.getDefaultInstance())
+      if (stageDetails != ComputationStageDetails.getDefaultInstance()) {
         stageSpecificDetails = stageDetails
+      }
     }.build()
   }
 

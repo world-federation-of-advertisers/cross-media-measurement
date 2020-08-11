@@ -79,6 +79,8 @@ message ComputationStageDetails {
   oneof stage_specific {
     // Details specific to the WAIT_SKETCHES stage.
     WaitSketchesStageDetails wait_sketch_stage_details = 1;
+    // Details specific to the TO_CONFIRM_REQUISITIONS stage.
+    ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details = 2;
   }
 }
 
@@ -93,4 +95,17 @@ message WaitSketchesStageDetails {
   // found in this map is updated with the local copy of the blob. When all
   // the output references have a path the worker can move onto the next stage.
   map<string, int64> external_duchy_local_blob_id = 1;
+}
+
+// The details used to run a TO_CONFIRM_REQUISITIONS stage.
+message ToConfirmRequisitionsStageDetails {
+  // The keys to identity a requisition in the MetricValue database
+  message RequisitionKey {
+    string data_provider_id = 1;
+    string campaign_id = 2;
+    string metric_requisition_id = 3;
+  }
+
+  // list of local requisitions that are required for this computation.
+  repeated RequisitionKey keys = 1;
 }

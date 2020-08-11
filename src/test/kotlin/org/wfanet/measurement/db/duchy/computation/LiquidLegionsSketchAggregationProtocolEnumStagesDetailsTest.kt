@@ -18,7 +18,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
 
@@ -28,10 +28,10 @@ class LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest {
   @Test
   fun `stage defaults and conversions`() {
     val d = LiquidLegionsSketchAggregationProtocol.EnumStages.Details(listOf("A", "B", "C"))
-    for (stage in SketchAggregationStage.values()) {
+    for (stage in LiquidLegionsSketchAggregationStage.values()) {
       val expected =
         when (stage) {
-          SketchAggregationStage.WAIT_SKETCHES ->
+          LiquidLegionsSketchAggregationStage.WAIT_SKETCHES ->
             ComputationStageDetails.newBuilder()
               .setWaitSketchStageDetails(
                 WaitSketchesStageDetails.newBuilder()

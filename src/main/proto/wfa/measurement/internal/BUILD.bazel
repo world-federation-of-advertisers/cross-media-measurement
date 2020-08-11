@@ -4,7 +4,7 @@ package(default_visibility = ["//:__subpackages__"])
 
 proto_library(
     name = "sketch_aggregation_stage_proto",
-    srcs = ["sketch_aggregation_stage.proto"],
+    srcs = ["liquid_legions_sketch_aggregation_stage.proto"],
 )
 
 java_proto_library(

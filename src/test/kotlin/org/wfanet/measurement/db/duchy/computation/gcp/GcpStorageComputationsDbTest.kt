@@ -27,24 +27,24 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
-import org.wfanet.measurement.internal.SketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 
 @RunWith(JUnit4::class)
 class GcpStorageComputationsDbTest {
-  private lateinit var blobsDb: GcpStorageComputationsDb<SketchAggregationStage>
+  private lateinit var blobsDb: GcpStorageComputationsDb<LiquidLegionsSketchAggregationStage>
 
   companion object {
     const val TEST_BUCKET = "testing-bucket"
     private val storage: Storage = LocalStorageHelper.getOptions().service
     private val token = ComputationStorageEditToken(
       localId = 5432L, attempt = 1, editVersion = 1234567891011L,
-      stage = SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+      stage = LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
     )
   }
 
   @Before
   fun setUp() {
-    blobsDb = GcpStorageComputationsDb<SketchAggregationStage>(storage, TEST_BUCKET)
+    blobsDb = GcpStorageComputationsDb<LiquidLegionsSketchAggregationStage>(storage, TEST_BUCKET)
   }
 
   @Test

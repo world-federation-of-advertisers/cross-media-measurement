@@ -14,20 +14,21 @@
 
 package org.wfanet.measurement.db.duchy.computation
 
-import org.wfanet.measurement.internal.SketchAggregationStage
-import org.wfanet.measurement.internal.SketchAggregationStage.COMPLETED
-import org.wfanet.measurement.internal.SketchAggregationStage.CREATED
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.SketchAggregationStage.UNKNOWN
-import org.wfanet.measurement.internal.SketchAggregationStage.UNRECOGNIZED
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.SketchAggregationStage.WAIT_SKETCHES
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.UNRECOGNIZED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -48,7 +49,7 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toProto
  */
 class LiquidLegionsSketchAggregationComputationStorageClients(
   val computationStorageClient: ComputationStorageServiceCoroutineStub,
-  private val blobDatabase: ComputationsBlobDb<SketchAggregationStage>,
+  private val blobDatabase: ComputationsBlobDb<LiquidLegionsSketchAggregationStage>,
   otherDuchies: List<String>
 ) {
 
@@ -66,61 +67,74 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
    */
   suspend fun transitionComputationToStage(
     computationToken: ComputationToken,
-    inputsToNextStage: List<String> = listOf(),
-    stage: SketchAggregationStage
+    inputsToNextStage: List<String>,
+    stage: LiquidLegionsSketchAggregationStage
   ): ComputationToken {
     requireValidRoleForStage(stage, computationToken.role)
-    val advanceStageRequestBuilder = AdvanceComputationStageRequest.newBuilder().apply {
-      token = computationToken
-      nextComputationStage = stage.toProtocolStage()
-      addAllInputBlobs(inputsToNextStage)
-      outputBlobs = 1
-      stageDetails = liquidLegionsStageDetails.detailsFor(stage)
-    }
-    val request: AdvanceComputationStageRequest = when (stage) {
-      // Stages of computation creating a single output without any input blobs.
-      TO_ADD_NOISE ->
-        advanceStageRequestBuilder.apply {
-          outputBlobs = 1
-          afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-        }.build()
-      // Stages of computation mapping some number of inputs to single output.
+    requireNotEmpty(inputsToNextStage)
+    val request: AdvanceComputationStageRequest =
+      AdvanceComputationStageRequest.newBuilder().apply {
+        token = computationToken
+        nextComputationStage = stage.toProtocolStage()
+        addAllInputBlobs(inputsToNextStage)
+        stageDetails = liquidLegionsStageDetails.detailsFor(stage)
+        afterTransition = afterTransitionForStage(stage)
+        outputBlobs = outputBlobsForStage(stage)
+      }.build()
+    return computationStorageClient.advanceComputationStage(request).token
+  }
+
+  private fun outputBlobsForStage(stage: LiquidLegionsSketchAggregationStage): Int =
+    when (stage) {
+      WAIT_TO_START ->
+        // There is no output in this stage, the input is forwarded to the next stage as input.
+        0
+      WAIT_CONCATENATED,
+      WAIT_FLAG_COUNTS,
+      TO_ADD_NOISE,
       TO_APPEND_SKETCHES_AND_ADD_NOISE,
       TO_BLIND_POSITIONS,
       TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
       TO_DECRYPT_FLAG_COUNTS,
       TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
-        advanceStageRequestBuilder.apply {
-          requireNotEmpty(inputBlobsList)
-          outputBlobs = 1
-          afterTransition = AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-        }.build()
-      // The primary duchy is waiting for input from all the other duchies. This is a special case
-      // of the other wait stages as it has n-1 outputs.
+        // The output is the intermediate computation result either received from another duchy
+        // or computed locally.
+        1
       WAIT_SKETCHES ->
-        advanceStageRequestBuilder.apply {
-          // The output contains otherDuchiesInComputation sketches from the other duchies.
-          outputBlobs = otherDuchiesInComputation
-          afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
-        }.build()
-      // Stages were the duchy is waiting for a single input from the predecessor duchy.
-      WAIT_CONCATENATED,
-      WAIT_FLAG_COUNTS ->
-        advanceStageRequestBuilder.apply {
-          requireNotEmpty(inputBlobsList)
-          // Requires an output to be written e.g., the sketch sent by the predecessor duchy.
-          outputBlobs = 1
-          // Mill have nothing to do for this stage.
-          afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE
-        }.build()
+        // The output contains otherDuchiesInComputation sketches from the other duchies.
+        otherDuchiesInComputation
+      // Mill have nothing to do for this stage.
       COMPLETED -> error("Computation should be ended with call to endComputation(...)")
       // Stages that we can't transition to ever.
-      UNRECOGNIZED, UNKNOWN, CREATED -> error("Cannot make transition function to stage $stage")
+      UNRECOGNIZED, SKETCH_AGGREGATION_STAGE_UNKNOWN, TO_CONFIRM_REQUISITIONS ->
+        error("Cannot make transition function to stage $stage")
     }
-    return computationStorageClient.advanceComputationStage(request).token
-  }
 
-  private fun requireValidRoleForStage(stage: SketchAggregationStage, role: RoleInComputation) {
+  private fun afterTransitionForStage(stage: LiquidLegionsSketchAggregationStage): AfterTransition =
+    when (stage) {
+      // Stages of computation mapping some number of inputs to single output.
+      TO_ADD_NOISE,
+      TO_APPEND_SKETCHES_AND_ADD_NOISE,
+      TO_BLIND_POSITIONS,
+      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+      TO_DECRYPT_FLAG_COUNTS,
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+        AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+      WAIT_TO_START,
+      WAIT_SKETCHES,
+      WAIT_CONCATENATED,
+      WAIT_FLAG_COUNTS ->
+        AfterTransition.DO_NOT_ADD_TO_QUEUE
+      COMPLETED -> error("Computation should be ended with call to endComputation(...)")
+      // Stages that we can't transition to ever.
+      UNRECOGNIZED, SKETCH_AGGREGATION_STAGE_UNKNOWN, TO_CONFIRM_REQUISITIONS ->
+        error("Cannot make transition function to stage $stage")
+    }
+
+  private fun requireValidRoleForStage(
+    stage: LiquidLegionsSketchAggregationStage,
+    role: RoleInComputation
+  ) {
     when (stage) {
       WAIT_SKETCHES,
       TO_APPEND_SKETCHES_AND_ADD_NOISE,
@@ -128,12 +142,14 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
       TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS -> require(role == RoleInComputation.PRIMARY) {
         "$stage may only be executed by the primary MPC worker."
       }
+      WAIT_TO_START,
       TO_ADD_NOISE,
       TO_BLIND_POSITIONS,
       TO_DECRYPT_FLAG_COUNTS -> require(role == RoleInComputation.SECONDARY) {
         "$stage may only be executed by a non-primary MPC worker."
       }
-      else -> { /* Stage can be executed at either primary or non-primary */ }
+      else -> { /* Stage can be executed at either primary or non-primary */
+      }
     }
   }
 
@@ -209,7 +225,7 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
   }
 
   private suspend fun writeExpectedBlobIfNotPresent(
-    requiredStage: SketchAggregationStage,
+    requiredStage: LiquidLegionsSketchAggregationStage,
     nameForBlob: String,
     computationToken: ComputationToken,
     bytes: ByteArray,
