@@ -1,0 +1,20 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "MetricValuesServiceTest",
+    srcs = ["MetricValuesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.MetricValuesServiceTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)

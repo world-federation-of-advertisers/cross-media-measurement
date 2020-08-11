@@ -1,0 +1,20 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//src:internal_services"])
+
+kt_jvm_library(
+    name = "metricvalues",
+    srcs = glob(["*.kt"]),
+    exports = [
+        "//src/main/kotlin/org/wfanet/measurement/storage:metric_value_store",
+    ],
+    deps = [
+        "//imports/java/com/google/protobuf",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/kotlin/org/wfanet/measurement/storage:metric_value_store",
+        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
+    ],
+)

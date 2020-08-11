@@ -1,4 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@com_github_grpc_grpc_kotlin//:kt_jvm_grpc.bzl", "kt_jvm_grpc_library")
 load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
 
 package(default_visibility = ["//:__subpackages__"])
@@ -102,4 +103,21 @@ proto_library(
 java_proto_library(
     name = "metric_value_java_proto",
     deps = [":metric_value_proto"],
+)
+
+proto_library(
+    name = "metric_values_service_proto",
+    srcs = ["metric_values_service.proto"],
+    deps = [":metric_value_proto"],
+)
+
+java_proto_library(
+    name = "metric_values_service_java_proto",
+    deps = [":metric_values_service_proto"],
+)
+
+kt_jvm_grpc_library(
+    name = "metric_values_service_kt_jvm_grpc",
+    srcs = [":metric_values_service_proto"],
+    deps = [":metric_values_service_java_proto"],
 )
