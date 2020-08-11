@@ -23,14 +23,14 @@ load("//build/com_google_truth_truth:repo.bzl", "COM_GOOGLE_TRUTH_TRUTH_ARTIFACT
 
 # @io_bazel_rules_kotlin
 
-load(":build/io_bazel_rules_kotlin/repo.bzl", "kotlinc_release", "rules_kotin_repo")
+load("//build/io_bazel_rules_kotlin:repo.bzl", "kotlinc_release", "rules_kotin_repo")
 
 rules_kotin_repo(
     sha256 = "da0e6e1543fcc79e93d4d93c3333378f3bd5d29e82c1bc2518de0dbe048e6598",
     version = "legacy-1.4.0-rc3",
 )
 
-load(":build/io_bazel_rules_kotlin/deps.bzl", "rules_kotlin_deps")
+load("//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
 
 rules_kotlin_deps(compiler_release = kotlinc_release(
     sha256 = "ccd0db87981f1c0e3f209a1a4acb6778f14e63fe3e561a98948b5317e526cc6c",
@@ -173,7 +173,7 @@ kotlin_image_repositories()
 
 # @com_google_private_join_and_compute
 
-load(":build/com_google_private_join_and_compute/repo.bzl", "private_join_and_compute_repo")
+load("//build/com_google_private_join_and_compute:repo.bzl", "private_join_and_compute_repo")
 
 private_join_and_compute_repo(
     commit = "b040c117663747c7d0f3fae082a613ca8bf60943",
