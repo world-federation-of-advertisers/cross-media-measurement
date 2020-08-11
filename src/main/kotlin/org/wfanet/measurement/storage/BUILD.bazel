@@ -1,24 +1,30 @@
 # Blob/object storage.
 
+load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-package(default_visibility = [
-    ":storage_packages",
-    "//src:internal_services",
-])
-
-package_group(
-    name = "storage_packages",
-    packages = [
-        "//src/main/kotlin/org/wfanet/measurement/storage/...",
-        "//src/test/kotlin/org/wfanet/measurement/storage/...",
+kt_jvm_library(
+    name = "client",
+    srcs = ["StorageClient.kt"],
+    visibility = [
+        ":__subpackages__",
+        test_target(":__subpackages__"),
+        "//src:internal_services",
+    ],
+    deps = [
+        "//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 
 kt_jvm_library(
-    name = "storage",
-    srcs = glob(["*.kt"]),
+    name = "metric_value_store",
+    srcs = ["MetricValueStore.kt"],
+    visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:__subpackages__",
+    ],
     deps = [
+        ":client",
         "//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

@@ -13,6 +13,6 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/cloud/storage",
         "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/storage",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
