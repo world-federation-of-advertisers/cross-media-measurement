@@ -15,6 +15,7 @@
 package org.wfanet.measurement.service.v1alpha.globalcomputation
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -23,18 +24,27 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.api.v1alpha.SketchAggregationMpc
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportLogDetails
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
+import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportLogEntryStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -54,12 +64,17 @@ class GlobalComputationsServiceTest {
   }
 
   private val reportStorage = FakeReportStorage()
+  private val reportLogEntryStorage = FakeReportLogEntryStorage()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { channel ->
     listOf(
       reportStorage,
-      GlobalComputationService(ReportStorageCoroutineStub(channel))
+      reportLogEntryStorage,
+      GlobalComputationService(
+        ReportStorageCoroutineStub(channel),
+        ReportLogEntryStorageCoroutineStub(channel)
+      )
     )
   }
 
@@ -160,5 +175,61 @@ class GlobalComputationsServiceTest {
         expectedStreamReportsRequest(1003)
       )
       .inOrder()
+  }
+
+  @Test
+  fun createGlobalComputationStatusUpdate() = runBlocking<Unit> {
+    val request = CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
+      parentBuilder.globalComputationId = ExternalId(111).apiId.value
+      statusUpdateBuilder.apply {
+        selfReportedIdentifier = "some-self-reported-duchy-identifier"
+        stageDetailsBuilder.apply {
+          sketchAggregationStage = SketchAggregationMpc.SketchAggregationStage.TO_BLIND_POSITIONS
+          startBuilder.seconds = 222
+          attemptNumber = 333
+        }
+        updateMessage = "some-update-message"
+        errorDetailsBuilder.apply {
+          errorTimeBuilder.seconds = 444
+          errorType = GlobalComputationStatusUpdate.ErrorDetails.ErrorType.TRANSIENT
+          errorMessage = "some-error-message"
+        }
+      }
+    }.build()
+
+    val expectedResult =
+      request.statusUpdate.toBuilder()
+        .setCreateTime(Instant.ofEpochSecond(555).toProtoTime())
+        .build()
+
+    val expectedReportLogEntry = ReportLogEntry.newBuilder().apply {
+      externalReportId = 111
+      sourceBuilder.duchyBuilder.duchyId = "TODO: get from credential"
+      reportLogDetailsBuilder.apply {
+        duchyLogDetailsBuilder.apply {
+          reportedDuchyId = "some-self-reported-duchy-identifier"
+          stage = SketchAggregationStage.TO_BLIND_POSITIONS
+          stageStartBuilder.seconds = 222
+          stageAttemptNumber = 333
+        }
+        reportMessage = "some-update-message"
+        errorDetailsBuilder.apply {
+          errorTimeBuilder.seconds = 444
+          errorType = ReportLogDetails.ErrorDetails.ErrorType.TRANSIENT
+          errorMessage = "some-error-message"
+          stacktrace = "TODO: propagate stack trace"
+        }
+      }
+    }.build()
+
+    reportLogEntryStorage.mocker.mock(FakeReportLogEntryStorage::createReportLogEntry) {
+      it.toBuilder().setCreateTime(Instant.ofEpochSecond(555).toProtoTime()).build()
+    }
+
+    assertThat(stub.createGlobalComputationStatusUpdate(request))
+      .isEqualTo(expectedResult)
+
+    assertThat(reportLogEntryStorage.mocker.callsForMethod("createReportLogEntry"))
+      .containsExactly(expectedReportLogEntry)
   }
 }

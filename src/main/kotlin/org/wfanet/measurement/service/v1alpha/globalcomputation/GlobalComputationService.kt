@@ -20,9 +20,12 @@ import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType as ApiErrorType
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
@@ -33,14 +36,19 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportLogDetails.ErrorDetails.ErrorType
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 
 class GlobalComputationService(
-  private val reportStorageStub: ReportStorageCoroutineStub
+  private val reportStorageStub: ReportStorageCoroutineStub,
+  private val reportLogEntryStorageStub: ReportLogEntryStorageCoroutineStub
 ) : GlobalComputationsCoroutineImplBase() {
   override suspend fun getGlobalComputation(
     request: GetGlobalComputationRequest
@@ -62,11 +70,48 @@ class GlobalComputationService(
         .map { report ->
           StreamActiveGlobalComputationsResponse.newBuilder().apply {
             continuationToken = ContinuationTokenConverter.encode(lastUpdateTime)
-            // TODO: rename proto field to be singular:
             globalComputation = translateReportToGlobalComputation(report)
           }.build()
         }
     }
+  }
+
+  override suspend fun createGlobalComputationStatusUpdate(
+    request: CreateGlobalComputationStatusUpdateRequest
+  ): GlobalComputationStatusUpdate {
+    val reportLogEntry = ReportLogEntry.newBuilder().apply {
+      externalReportId = getExternalReportId(request.parent.globalComputationId).value
+      sourceBuilder.duchyBuilder.duchyId = "TODO: get from credential"
+      reportLogDetailsBuilder.apply {
+        duchyLogDetailsBuilder.apply {
+          reportedDuchyId = request.statusUpdate.selfReportedIdentifier
+
+          val stageDetails = request.statusUpdate.stageDetails
+          stage = SketchAggregationStage.forNumber(stageDetails.sketchAggregationStageValue)
+          stageStart = stageDetails.start
+          stageAttemptNumber = stageDetails.attemptNumber
+        }
+
+        reportMessage = request.statusUpdate.updateMessage
+
+        if (request.hasStatusUpdate()) {
+          val errorDetails = request.statusUpdate.errorDetails
+          errorDetailsBuilder.apply {
+            errorTime = errorDetails.errorTime
+            errorMessage = errorDetails.errorMessage
+            stacktrace = "TODO: propagate stack trace"
+            errorType = when (errorDetails.errorType!!) {
+              ApiErrorType.TRANSIENT -> ErrorType.TRANSIENT
+              ApiErrorType.PERMANENT -> ErrorType.PERMANENT
+              ApiErrorType.ERROR_TYPE_UNKNOWN,
+              ApiErrorType.UNRECOGNIZED -> ErrorType.ERROR_TYPE_UNKNOWN
+            }
+          }
+        }
+      }
+    }.build()
+    val createdReportLogEntry = reportLogEntryStorageStub.createReportLogEntry(reportLogEntry)
+    return request.statusUpdate.toBuilder().setCreateTime(createdReportLogEntry.createTime).build()
   }
 
   private fun translateReportToGlobalComputation(report: Report): GlobalComputation =
