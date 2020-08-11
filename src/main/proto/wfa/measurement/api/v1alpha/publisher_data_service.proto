@@ -69,15 +69,6 @@ message UploadMetricValueRequest {
 
   // The chunk message for this streaming request.
   message Chunk {
-    // The offset in number of bytes of the total data for a Metric. This
-    // **must** be equal to the sum of the size of all previous chunk data sent
-    // in this streaming request.
-    int64 offset_bytes = 1;
-
-    // Whether this is the final Chunk for a Metric. It is an error to send a
-    // subsequent Chunk for a Metric after one where this value is `true`.
-    bool final_chunk = 2;
-
     // The portion of the data for this Chunk. Required.
     //
     // If the corresponding MetricDefinition is a sketch, this is the register
@@ -86,7 +77,7 @@ message UploadMetricValueRequest {
     // middle of a single register.
     //
     // (--TODO(sanjayvas): Document requirements for chunk data size. --)
-    bytes data = 3;
+    bytes data = 1;
   }
 
   // Request message payload. Exactly one of these must be specified.
