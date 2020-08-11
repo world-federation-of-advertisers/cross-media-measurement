@@ -251,6 +251,10 @@ CREATE TABLE Requisitions (
 
   State                  INT64 NOT NULL,  -- RequisitionState proto enum
 
+  -- When a Requisition is fulfilled, this is set to the Duchy that fulfilled
+  -- the Requisition.
+  DuchyId                STRING(MAX),
+
   -- RequisitionDetails serialized proto
   RequisitionDetails     BYTES(MAX),
   RequisitionDetailsJson STRING(MAX),

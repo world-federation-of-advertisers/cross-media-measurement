@@ -33,6 +33,7 @@ message Requisition {
   google.protobuf.Timestamp window_end_time = 6;
 
   RequisitionState state = 7;
+  string duchy_id = 10;
 
   RequisitionDetails requisition_details = 8;
   string requisition_details_json = 9;

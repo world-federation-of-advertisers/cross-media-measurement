@@ -38,6 +38,7 @@ service RequisitionStorage {
 
 message FulfillRequisitionRequest {
   int64 external_requisition_id = 1;
+  string duchy_id = 2;
 }
 
 message StreamRequisitionsRequest {

@@ -17,6 +17,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
@@ -91,36 +92,52 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() {
+    updateExistingRequisitionState(RequisitionState.UNFULFILLED)
+    val requisition: Requisition? =
+      databaseClient.readWriteTransaction().run { transactionContext ->
+        FulfillRequisitionTransaction()
+          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID), "some-duchy")
+      }
+
     val expectedRequisition: Requisition =
       REQUISITION
         .toBuilder()
         .setState(RequisitionState.FULFILLED)
+        .setDuchyId("some-duchy")
         .build()
 
-    for (state in listOf(RequisitionState.FULFILLED, RequisitionState.UNFULFILLED)) {
-      updateExistingRequisitionState(state)
-      val requisition: Requisition? =
-        databaseClient.readWriteTransaction().run { transactionContext ->
-          FulfillRequisitionTransaction()
-            .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID))
-        }
-      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
-      assertThat(readAllRequisitionsInSpanner())
-        .comparingExpectedFieldsOnly()
-        .containsExactly(expectedRequisition)
-    }
+    assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
+    assertThat(readAllRequisitionsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(expectedRequisition)
   }
 
   @Test
-  fun `missing requisition`() {
+  fun `already fulfilled`() {
+    updateExistingRequisitionState(RequisitionState.FULFILLED)
+    val existingRequisitions = readAllRequisitionsInSpanner()
     databaseClient.readWriteTransaction().run { transactionContext ->
-      assertFailsWith<NoSuchElementException> {
+      assertFails {
         FulfillRequisitionTransaction()
-          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1))
+          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID), "some-duchy")
       }
     }
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
-      .containsExactly(REQUISITION)
+      .containsExactlyElementsIn(existingRequisitions)
+  }
+
+  @Test
+  fun `missing requisition`() {
+    val existingRequisitions = readAllRequisitionsInSpanner()
+    databaseClient.readWriteTransaction().run { transactionContext ->
+      assertFailsWith<NoSuchElementException> {
+        FulfillRequisitionTransaction()
+          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1), "some-duchy")
+      }
+    }
+    assertThat(readAllRequisitionsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactlyElementsIn(existingRequisitions)
   }
 }

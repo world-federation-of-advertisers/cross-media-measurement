@@ -41,7 +41,7 @@ interface KingdomRelationalDatabase {
   /**
    * Updates the state of a [Requisition] to [RequisitionState.FULFILLED].
    */
-  suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition
+  suspend fun fulfillRequisition(externalRequisitionId: ExternalId, duchyId: String): Requisition
 
   /**
    * Streams [Requisition]s.

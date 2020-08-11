@@ -27,10 +27,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
  * Marks a Requisition in Spanner as fulfilled (with state [RequisitionState.FULFILLED]).
  */
 class FulfillRequisitionTransaction {
-  private data class ReadResult(
-    val requisitionId: Long,
-    val requisition: Requisition
-  )
   /**
    * Runs the transaction body.
    *
@@ -41,11 +37,29 @@ class FulfillRequisitionTransaction {
    */
   fun execute(
     transactionContext: TransactionContext,
-    externalRequisitionId: ExternalId
+    externalRequisitionId: ExternalId,
+    duchyId: String
   ): Requisition {
     val readResult = runBlocking { readRequisition(transactionContext, externalRequisitionId) }
-    updateState(transactionContext, readResult)
-    return readResult.requisition.toBuilder().setState(RequisitionState.FULFILLED).build()
+
+    require(readResult.requisition.state == RequisitionState.UNFULFILLED) {
+      "Requisition $externalRequisitionId is not UNFULFILLED: $readResult"
+    }
+
+    val mutation: Mutation =
+      Mutation.newUpdateBuilder("Requisitions")
+        .set("DataProviderId").to(readResult.dataProviderId)
+        .set("CampaignId").to(readResult.campaignId)
+        .set("RequisitionId").to(readResult.requisitionId)
+        .set("State").toProtoEnum(RequisitionState.FULFILLED)
+        .set("DuchyId").to(duchyId)
+        .build()
+    transactionContext.buffer(mutation)
+
+    return readResult.requisition.toBuilder()
+      .setState(RequisitionState.FULFILLED)
+      .setDuchyId(duchyId)
+      .build()
   }
 
   private suspend fun readRequisition(
@@ -59,18 +73,4 @@ class FulfillRequisitionTransaction {
       }
       .execute(transactionContext)
       .single()
-
-  private fun updateState(
-    transactionContext: TransactionContext,
-    readResult: RequisitionReadResult
-  ) {
-    val mutation: Mutation =
-      Mutation.newUpdateBuilder("Requisitions")
-        .set("DataProviderId").to(readResult.dataProviderId)
-        .set("CampaignId").to(readResult.campaignId)
-        .set("RequisitionId").to(readResult.requisitionId)
-        .set("State").toProtoEnum(RequisitionState.FULFILLED)
-        .build()
-    transactionContext.buffer(mutation)
-  }
 }

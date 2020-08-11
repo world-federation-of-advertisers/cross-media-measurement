@@ -54,7 +54,7 @@ class GlobalComputationService(
     request: StreamActiveGlobalComputationsRequest
   ): Flow<StreamActiveGlobalComputationsResponse> {
     var lastUpdateTime = ContinuationTokenConverter.decode(request.continuationToken)
-    return renewedFlow(Duration.ofHours(1), Duration.ofSeconds(10)) {
+    return renewedFlow(Duration.ofHours(1), Duration.ofSeconds(1)) {
       streamActiveReports(lastUpdateTime)
         .onEach {
           lastUpdateTime = maxOf(lastUpdateTime, it.updateTime.toInstant())

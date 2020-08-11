@@ -20,5 +20,6 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message ReportDetails {
-  // TODO: add fields
+  repeated string confirmed_duchies = 1;
+  repeated string unconfirmed_duchies = 2;
 }

@@ -28,12 +28,15 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
+import org.wfanet.measurement.service.v1alpha.common.duchyAuthFromContext
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toV1Api
 
 class RequisitionService(
-  private val internalRequisitionStub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+  private val internalRequisitionStub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub,
+  private val duchyAuthProvider: () -> DuchyAuth = ::duchyAuthFromContext
 ) : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
 
   override suspend fun fulfillMetricRequisition(
@@ -43,6 +46,7 @@ class RequisitionService(
     val internalRequest =
       FulfillRequisitionRequest.newBuilder()
         .setExternalRequisitionId(externalId.value)
+        .setDuchyId(duchyAuthProvider().authenticatedDuchyId)
         .build()
     return internalRequisitionStub.fulfillRequisition(internalRequest).toV1Api()
   }

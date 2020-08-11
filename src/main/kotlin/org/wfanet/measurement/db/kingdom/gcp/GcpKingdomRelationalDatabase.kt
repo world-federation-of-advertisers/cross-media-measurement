@@ -52,9 +52,12 @@ class GcpKingdomRelationalDatabase(
       createRequisitionTransaction.execute(transactionContext, requisition)
     } ?: requisition
 
-  override suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition =
+  override suspend fun fulfillRequisition(
+    externalRequisitionId: ExternalId,
+    duchyId: String
+  ): Requisition =
     client.runReadWriteTransaction { transactionContext ->
-      FulfillRequisitionTransaction().execute(transactionContext, externalRequisitionId)
+      FulfillRequisitionTransaction().execute(transactionContext, externalRequisitionId, duchyId)
     }
 
   override fun streamRequisitions(

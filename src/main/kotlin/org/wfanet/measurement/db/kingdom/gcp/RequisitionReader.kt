@@ -35,6 +35,7 @@ class RequisitionReader : SpannerReader<RequisitionReadResult>() {
            Requisitions.WindowStartTime,
            Requisitions.WindowEndTime,
            Requisitions.State,
+           Requisitions.DuchyId,
            Requisitions.RequisitionDetails,
            Requisitions.RequisitionDetailsJson,
            DataProviders.ExternalDataProviderId,
@@ -63,6 +64,11 @@ class RequisitionReader : SpannerReader<RequisitionReadResult>() {
     windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
 
     state = struct.getProtoEnum("State", RequisitionState::forNumber)
+
+    if (!struct.isNull("DuchyId")) {
+      duchyId = struct.getString("DuchyId")
+    }
+
     requisitionDetails = struct.getProtoMessage(
       "RequisitionDetails", RequisitionDetails.parser()
     )

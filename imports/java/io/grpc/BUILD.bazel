@@ -4,3 +4,8 @@ alias(
     name = "api",
     actual = "@io_grpc_grpc_java//api",
 )
+
+alias(
+    name = "context",
+    actual = "@io_grpc_grpc_java//context",
+)

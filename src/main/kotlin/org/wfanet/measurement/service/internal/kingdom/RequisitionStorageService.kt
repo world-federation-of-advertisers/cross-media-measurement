@@ -39,7 +39,10 @@ class RequisitionStorageService(
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
-    return kingdomRelationalDatabase.fulfillRequisition(ExternalId(request.externalRequisitionId))
+    return kingdomRelationalDatabase.fulfillRequisition(
+      ExternalId(request.externalRequisitionId),
+      request.duchyId
+    )
   }
 
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {

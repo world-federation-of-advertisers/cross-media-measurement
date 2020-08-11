@@ -109,11 +109,14 @@ class RequisitionStorageServiceTest {
     val request: FulfillRequisitionRequest =
       FulfillRequisitionRequest.newBuilder()
         .setExternalRequisitionId(12345)
+        .setDuchyId("some-duchy")
         .build()
 
     var capturedExternalRequisitionId: ExternalId? = null
-    fakeKingdomRelationalDatabase.fulfillRequisitionFn = {
-      capturedExternalRequisitionId = it
+    var capturedDuchyId: String? = null
+    fakeKingdomRelationalDatabase.fulfillRequisitionFn = { externalRequisitionId, duchyId ->
+      capturedExternalRequisitionId = externalRequisitionId
+      capturedDuchyId = duchyId
       REQUISITION
     }
 
@@ -122,6 +125,9 @@ class RequisitionStorageServiceTest {
 
     assertThat(capturedExternalRequisitionId)
       .isEqualTo(ExternalId(12345))
+
+    assertThat(capturedDuchyId)
+      .isEqualTo("some-duchy")
   }
 
   @Test

@@ -29,7 +29,8 @@ import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
   var writeNewRequisitionFn: (Requisition) -> Requisition = { it }
-  var fulfillRequisitionFn: (ExternalId) -> Requisition = { Requisition.getDefaultInstance() }
+  var fulfillRequisitionFn: (ExternalId, String) -> Requisition =
+    { _, _ -> Requisition.getDefaultInstance() }
   var streamRequisitionsFn: (StreamRequisitionsFilter, Long) -> Flow<Requisition> =
     { _, _ -> emptyFlow() }
   var getReportFn: (ExternalId) -> Report = { Report.getDefaultInstance() }
@@ -46,8 +47,11 @@ class FakeKingdomRelationalDatabase : KingdomRelationalDatabase {
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
     writeNewRequisitionFn(requisition)
 
-  override suspend fun fulfillRequisition(externalRequisitionId: ExternalId): Requisition =
-    fulfillRequisitionFn(externalRequisitionId)
+  override suspend fun fulfillRequisition(
+    externalRequisitionId: ExternalId,
+    duchyId: String
+  ): Requisition =
+    fulfillRequisitionFn(externalRequisitionId, duchyId)
 
   override fun streamRequisitions(
     filter: StreamRequisitionsFilter,

@@ -28,6 +28,8 @@ data class ExternalId(val value: Long) {
   }
 
   val apiId: ApiId by lazy { ApiId(value.toByteArray().base64UrlEncode()) }
+
+  override fun toString(): String = "ExternalId($value / ${apiId.value})"
 }
 
 /**

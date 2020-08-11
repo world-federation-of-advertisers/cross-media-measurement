@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.Requisit
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
@@ -71,6 +72,9 @@ class RequisitionServiceTest {
         campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
         metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
       }.build()
+
+    const val DUCHY_ID: String = "some-duchy-id"
+    val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
   }
 
   private val requisitionStorage = FakeRequisitionStorage()
@@ -80,7 +84,8 @@ class RequisitionServiceTest {
     listOf(
       requisitionStorage,
       RequisitionService(
-        RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel)
+        RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel),
+        DUCHY_AUTH_PROVIDER
       )
     )
   }
@@ -116,6 +121,7 @@ class RequisitionServiceTest {
       .containsExactly(
         FulfillRequisitionRequest.newBuilder()
           .setExternalRequisitionId(REQUISITION.externalRequisitionId)
+          .setDuchyId(DUCHY_ID)
           .build()
       )
   }
