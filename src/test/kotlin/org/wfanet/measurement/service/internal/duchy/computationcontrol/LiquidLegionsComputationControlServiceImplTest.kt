@@ -24,9 +24,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
-import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
+import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
 import org.wfanet.measurement.internal.SketchAggregationStage.TO_BLIND_POSITIONS

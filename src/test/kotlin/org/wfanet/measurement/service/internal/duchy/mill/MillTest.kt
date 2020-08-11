@@ -23,9 +23,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.db.duchy.testing.FakeComputationStorage
-import org.wfanet.measurement.db.duchy.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
+import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl

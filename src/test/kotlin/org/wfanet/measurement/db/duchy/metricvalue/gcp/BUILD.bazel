@@ -1,0 +1,18 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "SpannerMetricValueDatabaseTest",
+    srcs = ["SpannerMetricValueDatabaseTest.kt"],
+    resources = [
+        "//src/main/db/gcp:metric_values_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabaseTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+    ],
+)

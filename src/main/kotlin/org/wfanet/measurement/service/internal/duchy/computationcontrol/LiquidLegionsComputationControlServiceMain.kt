@@ -19,7 +19,7 @@ import io.grpc.ManagedChannelBuilder
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.db.duchy.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
+import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
 import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
 import picocli.CommandLine
 

@@ -21,7 +21,7 @@ kt_jvm_library(
     deps = [
         ":storage",
         "//:grpc_core",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
     ],
@@ -39,6 +39,6 @@ kt_jvm_binary_and_image(
         ":computation_storage_service_impl",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
     ],
 )

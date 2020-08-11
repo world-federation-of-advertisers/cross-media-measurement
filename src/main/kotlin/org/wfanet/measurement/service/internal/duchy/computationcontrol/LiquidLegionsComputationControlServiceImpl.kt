@@ -18,8 +18,8 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
-import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.db.duchy.singleOutputBlobMetadata
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation

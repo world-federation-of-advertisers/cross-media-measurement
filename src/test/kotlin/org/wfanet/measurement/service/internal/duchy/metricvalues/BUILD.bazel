@@ -12,7 +12,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlin/test",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
