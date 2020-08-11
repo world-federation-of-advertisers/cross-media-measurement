@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
 import org.wfanet.measurement.db.duchy.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.db.duchy.singleOutputBlobMetadata
 import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
@@ -50,7 +51,7 @@ class LiquidLegionsComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving concatenated sketch.")
-    val (tokenAfterWrite, path) = clients.writeReceivedConcatenatedSketch(token, sketch)
+    val tokenAfterWrite = clients.writeReceivedConcatenatedSketch(token, sketch)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
@@ -61,7 +62,7 @@ class LiquidLegionsComputationControlServiceImpl(
     logger.info("[id=$id]: transitioning to $nextStage")
     clients.transitionComputationToStage(
       computationToken = tokenAfterWrite,
-      inputsToNextStage = listOf(path),
+      inputsToNextStage = listOf(tokenAfterWrite.singleOutputBlobMetadata().path),
       stage = nextStage
     )
 
@@ -83,7 +84,7 @@ class LiquidLegionsComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving encrypted flags and counts.")
-    val (tokenAfterWrite, path) = clients.writeReceivedFlagsAndCounts(token, bytes)
+    val tokenAfterWrite = clients.writeReceivedFlagsAndCounts(token, bytes)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
@@ -94,7 +95,7 @@ class LiquidLegionsComputationControlServiceImpl(
     logger.info("[id=$id]: transitioning to $nextStage")
     clients.transitionComputationToStage(
       computationToken = tokenAfterWrite,
-      inputsToNextStage = listOf(path),
+      inputsToNextStage = listOf(tokenAfterWrite.singleOutputBlobMetadata().path),
       stage = nextStage
     )
 

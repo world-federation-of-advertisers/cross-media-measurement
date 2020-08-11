@@ -23,8 +23,8 @@ import java.math.BigInteger
 typealias GoogleCloudStorageOptions = StorageOptions
 
 /**
- * Constructs a storage clients specific to combining Liquid Legions Cardinality Estimator
- * sketches implemented to run in Google Cloud Platform.
+ * Constructs [LiquidLegionsSketchAggregationComputationStorageClients] specific to combining
+ * Liquid Legions Cardinality Estimator sketches implemented to run in Google Cloud Platform.
  *
  * @param duchyName name of the duchy running using the clients
  * @param duchyPublicKeys mapping of the name of each duchy to its ECC El Gamal public key

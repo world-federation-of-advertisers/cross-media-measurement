@@ -60,7 +60,7 @@ import java.time.Instant
 import kotlin.test.assertEquals
 
 @RunWith(JUnit4::class)
-class GcpComputationManagersTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
+class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
 
   companion object {
     const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = 0xFEED5L

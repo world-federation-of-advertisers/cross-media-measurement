@@ -138,46 +138,54 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
   }
 
   /**
-   * Writes the concatenated sketch as a blob and update the stage's output blobref to point to
-   * the sketch.
+   * Writes the concatenated sketch as an output blob to the current stage.
    *
-   * When the concatenated sketch already exists, no blob is written, but the path to the blob
-   * is returned.
-   *
-   * @return Pair of token after updating blob reference, and path to written blob.
+   * @return [ComputationToken] after updating blob reference. When the output already exists,
+   * no blob is written, but the returned token will have a path to the previously written blob.
    */
   suspend fun writeReceivedConcatenatedSketch(
     computationToken: ComputationToken,
     sketch: ByteArray
-  ): Pair<ComputationToken, String> {
-    val onlyOutputBlob =
-      computationToken.blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
+  ): ComputationToken {
+    val onlyOutputBlob = computationToken.singleOutputBlobMetadata()
     return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_CONCATENATED,
       nameForBlob = "concatenated_sketch",
-      storageToken = computationToken,
+      computationToken = computationToken,
       bytes = sketch,
       blobId = onlyOutputBlob.blobId,
       existingPath = onlyOutputBlob.path
     )
   }
 
+  /**
+   * Writes the encrypted flag and counts as a blob as an output blob to the current stage.
+   *
+   * @return [ComputationToken] after updating blob reference. When the output already exists,
+   * no blob is written, but the returned token will have a path to the previously written blob.
+   */
   suspend fun writeReceivedFlagsAndCounts(
     computationToken: ComputationToken,
     encryptedFlagCounts: ByteArray
-  ): Pair<ComputationToken, String> {
-    val onlyOutputBlob =
-      computationToken.blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
+  ): ComputationToken {
+    val onlyOutputBlob = computationToken.singleOutputBlobMetadata()
     return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_FLAG_COUNTS,
       nameForBlob = "encrypted_flag_counts",
-      storageToken = computationToken,
+      computationToken = computationToken,
       bytes = encryptedFlagCounts,
       blobId = onlyOutputBlob.blobId,
       existingPath = onlyOutputBlob.path
     )
   }
 
+  /**
+   * Writes the encrypted sketch with added noise from another duchy as an output blob to the
+   * current stage.
+   *
+   * @return [ComputationToken] after updating blob reference. When the output already exists,
+   * no blob is written, but the returned token will have a path to the previously written blob.
+   */
   suspend fun writeReceivedNoisedSketch(
     computationToken: ComputationToken,
     sketch: ByteArray,
@@ -190,50 +198,53 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
       it.dependencyType == ComputationBlobDependency.OUTPUT &&
         it.blobId == blobId
     }
-    val (newToken, _) = writeExpectedBlobIfNotPresent(
+    return writeExpectedBlobIfNotPresent(
       requiredStage = WAIT_SKETCHES,
       nameForBlob = "noised_sketch_$sender",
-      storageToken = computationToken,
+      computationToken = computationToken,
       bytes = sketch,
       blobId = blobId,
       existingPath = outputBlob.path
     )
-    return newToken
   }
 
   private suspend fun writeExpectedBlobIfNotPresent(
     requiredStage: SketchAggregationStage,
     nameForBlob: String,
-    storageToken: ComputationToken,
+    computationToken: ComputationToken,
     bytes: ByteArray,
     blobId: Long,
     existingPath: String
-  ): Pair<ComputationToken, String> {
-    require(storageToken.computationStage.liquidLegionsSketchAggregation == requiredStage) {
-      "Cannot accept $nameForBlob while in stage ${storageToken.computationStage}"
+  ): ComputationToken {
+    require(computationToken.computationStage.liquidLegionsSketchAggregation == requiredStage) {
+      "Cannot accept $nameForBlob while in stage ${computationToken.computationStage}"
     }
     // Return the path to the already written blob if one exists.
-    if (existingPath.isNotEmpty()) return Pair(storageToken, existingPath)
+    if (existingPath.isNotEmpty()) return computationToken
 
     // Write the blob to a new path if there is not already a reference saved for it in
     // the relational database.
-    val newPath = storageToken.toBlobPath(nameForBlob)
+    val newPath = computationToken.toBlobPath(nameForBlob)
     blobDatabase.blockingWrite(newPath, bytes)
     computationStorageClient.recordOutputBlobPath(
       RecordOutputBlobPathRequest.newBuilder().apply {
-        token = storageToken
+        token = computationToken
         outputBlobId = blobId
         blobPath = newPath
       }.build()
     )
-    val newToken =
-      computationStorageClient.getComputationToken(
-        storageToken.globalComputationId.toGetTokenRequest()
-      ).token
-    return Pair(newToken, newPath)
+    return computationStorageClient.getComputationToken(
+      computationToken.globalComputationId.toGetTokenRequest()
+    ).token
   }
 
-  suspend fun readInputBlobs(token: ComputationToken): Map<ComputationStageBlobMetadata, ByteArray> =
+  /**
+   * Returns a map of [ComputationStageBlobMetadata] to the actual bytes of the BLOB for all inputs
+   * to the stage.
+   */
+  suspend fun readInputBlobs(
+    token: ComputationToken
+  ): Map<ComputationStageBlobMetadata, ByteArray> =
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.INPUT }
       .map { it to blobDatabase.read(BlobRef(it.blobId, it.path)) }
       .toMap()
@@ -243,3 +254,13 @@ private fun requireNotEmpty(paths: List<String>): List<String> {
   require(paths.isNotEmpty()) { "Passed paths to input blobs is empty" }
   return paths
 }
+
+/**
+ * Returns the single [ComputationStageBlobMetadata] of type output from a token. Throws an
+ * error if there are not any output blobs or if there are more than one.
+ *
+ * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
+ * case the path will be empty.
+ */
+fun ComputationToken.singleOutputBlobMetadata(): ComputationStageBlobMetadata =
+  blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }

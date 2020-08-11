@@ -91,12 +91,12 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "gcp_computations_managers_test",
-    srcs = ["GcpComputationManagersTest.kt"],
+    name = "gcp_computation_storage_clients_test",
+    srcs = ["GcpComputationStorageClientsTest.kt"],
     resources = [
         "//src/main/db/gcp:computations_scehema",
     ],
-    test_class = "org.wfanet.measurement.db.duchy.gcp.GcpComputationManagersTest",
+    test_class = "org.wfanet.measurement.db.duchy.gcp.GcpComputationStorageClientsTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/cloud/storage",
