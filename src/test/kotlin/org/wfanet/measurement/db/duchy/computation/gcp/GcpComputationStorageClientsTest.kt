@@ -252,7 +252,7 @@ class SingleLiquidLegionsComputation(
           .build()
       )
       ProtoTruth.assertThat(claimed).isNotEqualToDefaultInstance()
-      claimed.tokenList.single()
+      claimed.token
     }
   }
 

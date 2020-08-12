@@ -54,10 +54,9 @@ class LiquidLegionsMill(
         .setOwner(millId)
         .build()
       val claimWorkResponse: ClaimWorkResponse =
-        // TODO: change the claimWork() to only return one computation
         storageClients.computationStorageClient.claimWork(claimWorkRequest)
-      if (claimWorkResponse.tokenList.isNotEmpty()) {
-        val token: ComputationToken = claimWorkResponse.getToken(0)
+      if (claimWorkResponse.hasToken()) {
+        val token: ComputationToken = claimWorkResponse.token
         when (token.computationStage.liquidLegionsSketchAggregation) {
           LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS ->
             confirmRequisitions(token)

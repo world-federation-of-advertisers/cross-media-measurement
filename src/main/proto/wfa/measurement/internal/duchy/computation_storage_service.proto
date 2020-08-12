@@ -16,16 +16,16 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
+import "src/main/proto/wfa/measurement/internal/duchy/computation_details.proto";
+import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
+import "src/main/proto/wfa/measurement/internal/duchy/computation_token.proto";
+
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
-import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_details.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_token.proto";
-
-// ******************************************************************************
-// **** See add_a_protocol.md for instructions on adding a new MPC protocol. ****
-// ******************************************************************************
+// *****************************************************************************
+// *** See add_a_protocol.md for instructions on adding a new MPC protocol.  ***
+// *****************************************************************************
 
 // Service for interacting with a computation relational database.
 service ComputationStorageService {
@@ -49,8 +49,7 @@ service ComputationStorageService {
       returns (FinishComputationResponse);
 
   // Claims a single work item for a computation type.
-  rpc ClaimWork(ClaimWorkRequest)
-      returns (ClaimWorkResponse);
+  rpc ClaimWork(ClaimWorkRequest) returns (ClaimWorkResponse);
 
   // Gets global computation ids for computations matching some criteria.
   rpc GetComputationIds(GetComputationIdsRequest)
@@ -141,7 +140,9 @@ message ClaimWorkRequest {
   string owner = 2;
 }
 message ClaimWorkResponse {
-  repeated ComputationToken token = 1;
+  // The token of the computation being claimed. The response would be empty if
+  // no computation is available.
+  ComputationToken token = 1;
 }
 
 // Request to finish a computation.

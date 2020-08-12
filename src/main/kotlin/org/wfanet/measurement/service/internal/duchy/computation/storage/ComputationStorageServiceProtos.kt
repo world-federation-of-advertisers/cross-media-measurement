@@ -59,7 +59,7 @@ fun ComputationToken.toCreateComputationResponse(): CreateComputationResponse =
 
 /** Wraps a [ComputationToken] in an [ClaimWorkResponse]. */
 fun ComputationToken.toClaimWorkResponse(): ClaimWorkResponse =
-  ClaimWorkResponse.newBuilder().addToken(this).build()!!
+  ClaimWorkResponse.newBuilder().setToken(this).build()!!
 
 /** Wraps a [ComputationToken] in an [FinishComputationResponse]. */
 fun ComputationToken.toFinishComputationResponse(): FinishComputationResponse =
