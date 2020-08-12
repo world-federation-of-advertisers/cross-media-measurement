@@ -64,7 +64,7 @@ fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlockin
     flags.pollDelay
   )
 
-  val reportStarterClient = ReportStarterClientImpl(
+  val reportStarterClient = DaemonDatabaseServicesClientImpl(
     ReportConfigStorageCoroutineStub(channel),
     ReportConfigScheduleStorageCoroutineStub(channel),
     ReportStorageCoroutineStub(channel),

@@ -14,12 +14,12 @@ import org.wfanet.measurement.common.renewedFlow
  *
  * @property[throttler] a throttler to rate-limit gRPCs
  * @property[maxParallelism] the maximum number of sub-coroutines to use per public API method
- * @property[reportStarterClient] a wrapper around stubs for internal services
+ * @property[daemonDatabaseServicesClient] a wrapper around stubs for internal services
  */
 class Daemon(
   val throttler: Throttler,
   val maxParallelism: Int,
-  val reportStarterClient: ReportStarterClient
+  val daemonDatabaseServicesClient: DaemonDatabaseServicesClient
 ) {
   fun <T> retryLoop(block: suspend () -> Flow<T>): Flow<T> =
     renewedFlow(Duration.ofMinutes(10), Duration.ZERO) {

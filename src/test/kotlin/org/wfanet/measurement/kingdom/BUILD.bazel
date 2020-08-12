@@ -49,9 +49,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_starter_client_impl_test",
-    srcs = ["ReportStarterClientImplTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.ReportStarterClientImplTest",
+    name = "daemon_database_services_client_impl_test",
+    srcs = ["DaemonDatabaseServicesClientImplTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.DaemonDatabaseServicesClientImplTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",

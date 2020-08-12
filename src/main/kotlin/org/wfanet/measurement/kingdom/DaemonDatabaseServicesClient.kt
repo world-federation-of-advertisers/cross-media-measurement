@@ -20,13 +20,47 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.Requisition
 
-interface ReportStarterClient {
+/**
+ * Database abstractions necessary for Kingdom daemons.
+ *
+ * While the daemons could directly construct and send RPCs, this layer makes the daemons simpler
+ * and makes testing behaviors in isolation easier.
+ */
+interface DaemonDatabaseServicesClient {
+  /** Creates the next [Report] for a [ReportConfigSchedule]. */
   suspend fun createNextReport(reportConfigSchedule: ReportConfigSchedule)
+
+  /**
+   * Lists all the [Requisition]s necessary for a [Report].
+   *
+   * These Requisitions may or may not already exist in storage -- so each should be passed through
+   * [createRequisition] to ensure they exist.
+   */
   suspend fun buildRequisitionsForReport(report: Report): List<Requisition>
+
+  /** Persists a [Requisition] to the database. */
   suspend fun createRequisition(requisition: Requisition): Requisition
+
+  /** Links a [Requisition] and a [Report] in the database. */
   suspend fun associateRequisitionToReport(requisition: Requisition, report: Report)
+
+  /** Updates the state of [report] in the database to [newState]. */
   suspend fun updateReportState(report: Report, newState: ReportState)
+
+  /**
+   * Provides a stream of [Report]s in the given state.
+   *
+   * The stream may end and will need to be reconnected to pick up on [Report]s newly in [state].
+   */
   fun streamReportsInState(state: ReportState): Flow<Report>
+
+  /**
+   * Provides a stream of [Report]s where all necessary [Requisition]s are fulfilled.
+   *
+   * TODO: rename to a better name.
+   */
   fun streamReadyReports(): Flow<Report>
+
+  /** Provides a stream of [ReportConfigSchedule]s that need new [Report]s. */
   fun streamReadySchedules(): Flow<ReportConfigSchedule>
 }

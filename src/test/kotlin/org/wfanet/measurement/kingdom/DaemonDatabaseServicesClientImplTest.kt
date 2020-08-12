@@ -45,7 +45,7 @@ import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
-class ReportStarterClientImplTest {
+class DaemonDatabaseServicesClientImplTest {
 
   private val fakeReportConfigStorage = FakeReportConfigStorage()
   private val fakeReportConfigScheduleStorage = FakeReportConfigScheduleStorage()
@@ -62,9 +62,9 @@ class ReportStarterClientImplTest {
     )
   }
 
-  private val reportStarterClient: ReportStarterClient by lazy {
+  private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient by lazy {
     val channel = grpcTestServerRule.channel
-    ReportStarterClientImpl(
+    DaemonDatabaseServicesClientImpl(
       ReportConfigStorageCoroutineStub(channel),
       ReportConfigScheduleStorageCoroutineStub(channel),
       ReportStorageCoroutineStub(channel),
@@ -83,7 +83,7 @@ class ReportStarterClientImplTest {
         .setExternalScheduleId(12345)
         .build()
 
-    reportStarterClient.createNextReport(schedule)
+    daemonDatabaseServicesClient.createNextReport(schedule)
 
     val expectedRequest =
       CreateNextReportRequest.newBuilder()
@@ -123,7 +123,7 @@ class ReportStarterClientImplTest {
       requisitionDetails = requisitionTemplate.requisitionDetails
     }.build()
 
-    assertThat(reportStarterClient.buildRequisitionsForReport(report))
+    assertThat(daemonDatabaseServicesClient.buildRequisitionsForReport(report))
       .containsExactly(expectedRequisition)
 
     val expectedRequest =
@@ -144,7 +144,7 @@ class ReportStarterClientImplTest {
       outputRequisition
     }
 
-    assertThat(reportStarterClient.createRequisition(inputRequisition))
+    assertThat(daemonDatabaseServicesClient.createRequisition(inputRequisition))
       .isEqualTo(outputRequisition)
 
     assertThat(fakeRequisitionStorage.mocker.callsForMethod("createRequisition"))
@@ -160,7 +160,7 @@ class ReportStarterClientImplTest {
     val requisition = Requisition.newBuilder().setExternalRequisitionId(1).build()
     val report = Report.newBuilder().setExternalReportId(2).build()
 
-    reportStarterClient.associateRequisitionToReport(requisition, report)
+    daemonDatabaseServicesClient.associateRequisitionToReport(requisition, report)
 
     val expectedRequest = AssociateRequisitionRequest.newBuilder().apply {
       externalRequisitionId = 1
@@ -179,7 +179,7 @@ class ReportStarterClientImplTest {
     val report = Report.newBuilder().setExternalReportId(1).build()
     val newState = ReportState.IN_PROGRESS
 
-    reportStarterClient.updateReportState(report, newState)
+    daemonDatabaseServicesClient.updateReportState(report, newState)
 
     val expectedRequest =
       UpdateReportStateRequest.newBuilder()
@@ -202,7 +202,7 @@ class ReportStarterClientImplTest {
     }
 
     val state = ReportState.AWAITING_REQUISITION_FULFILLMENT
-    val outputReports = reportStarterClient.streamReportsInState(state)
+    val outputReports = daemonDatabaseServicesClient.streamReportsInState(state)
 
     assertThat(outputReports.toList())
       .containsExactly(report1, report2, report3)
@@ -227,7 +227,7 @@ class ReportStarterClientImplTest {
       flowOf(report1, report2, report3)
     }
 
-    val outputReports = reportStarterClient.streamReadyReports()
+    val outputReports = daemonDatabaseServicesClient.streamReadyReports()
 
     assertThat(outputReports.toList())
       .containsExactly(report1, report2, report3)
@@ -246,7 +246,7 @@ class ReportStarterClientImplTest {
       flowOf(schedule1, schedule2, schedule3)
     }
 
-    val outputSchedules = reportStarterClient.streamReadySchedules()
+    val outputSchedules = daemonDatabaseServicesClient.streamReadySchedules()
 
     assertThat(outputSchedules.toList())
       .containsExactly(schedule1, schedule2, schedule3)

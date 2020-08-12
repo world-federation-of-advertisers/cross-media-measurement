@@ -24,10 +24,13 @@ suspend fun Daemon.runReportStarter() {
   streamReadyReports()
     .parallelCollect(maxParallelism) { report ->
       throttleAndLog {
-        reportStarterClient.updateReportState(report, ReportState.AWAITING_DUCHY_CONFIRMATION)
+        daemonDatabaseServicesClient.updateReportState(
+          report,
+          ReportState.AWAITING_DUCHY_CONFIRMATION
+        )
       }
     }
 }
 
 private fun Daemon.streamReadyReports(): Flow<Report> =
-  retryLoop { reportStarterClient.streamReadyReports() }
+  retryLoop { daemonDatabaseServicesClient.streamReadyReports() }

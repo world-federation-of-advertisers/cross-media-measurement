@@ -9,10 +9,10 @@ suspend fun Daemon.runReportMaker() {
   streamReadySchedules()
     .parallelCollect(maxParallelism) { schedule ->
       throttleAndLog {
-        reportStarterClient.createNextReport(schedule)
+        daemonDatabaseServicesClient.createNextReport(schedule)
       }
     }
 }
 
 private fun Daemon.streamReadySchedules(): Flow<ReportConfigSchedule> =
-  retryLoop { reportStarterClient.streamReadySchedules() }
+  retryLoop { daemonDatabaseServicesClient.streamReadySchedules() }

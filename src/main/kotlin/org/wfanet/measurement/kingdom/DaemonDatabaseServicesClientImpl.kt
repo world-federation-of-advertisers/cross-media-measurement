@@ -33,12 +33,12 @@ import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 
-class ReportStarterClientImpl(
+class DaemonDatabaseServicesClientImpl(
   private val reportConfigStorage: ReportConfigStorageCoroutineStub,
   private val reportConfigScheduleStorage: ReportConfigScheduleStorageCoroutineStub,
   private val reportStorage: ReportStorageCoroutineStub,
   private val requisitionStorage: RequisitionStorageCoroutineStub
-) : ReportStarterClient {
+) : DaemonDatabaseServicesClient {
   override suspend fun createNextReport(reportConfigSchedule: ReportConfigSchedule) {
     val request =
       CreateNextReportRequest.newBuilder()
