@@ -20,6 +20,7 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message ReportDetails {
+  // Before a Report can be started, each Duchy involved needs to confirm its
+  // readiness. This holds the list of Duchies that are ready.
   repeated string confirmed_duchies = 1;
-  repeated string unconfirmed_duchies = 2;
 }
