@@ -15,6 +15,7 @@
 package org.wfanet.measurement.service.v1alpha.globalcomputation
 
 import com.google.protobuf.Timestamp
+import io.grpc.Status
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,7 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType as ApiErrorType
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm as ApiMpcAlgorithm
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
@@ -36,6 +38,7 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.DuchyLogDetails.MpcAlgorithm
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -44,10 +47,13 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
+import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
+import org.wfanet.measurement.service.v1alpha.common.duchyAuthFromContext
 
 class GlobalComputationService(
   private val reportStorageStub: ReportStorageCoroutineStub,
-  private val reportLogEntryStorageStub: ReportLogEntryStorageCoroutineStub
+  private val reportLogEntryStorageStub: ReportLogEntryStorageCoroutineStub,
+  private val duchyAuthProvider: () -> DuchyAuth = ::duchyAuthFromContext
 ) : GlobalComputationsCoroutineImplBase() {
   override suspend fun getGlobalComputation(
     request: GetGlobalComputationRequest
@@ -80,13 +86,15 @@ class GlobalComputationService(
   ): GlobalComputationStatusUpdate {
     val reportLogEntry = ReportLogEntry.newBuilder().apply {
       externalReportId = getExternalReportId(request.parent.globalComputationId).value
-      sourceBuilder.duchyBuilder.duchyId = "TODO: get from credential"
+      sourceBuilder.duchyBuilder.duchyId = duchyAuthProvider().authenticatedDuchyId
       reportLogDetailsBuilder.apply {
         duchyLogDetailsBuilder.apply {
           reportedDuchyId = request.statusUpdate.selfReportedIdentifier
 
           val stageDetails = request.statusUpdate.stageDetails
-          // TODO: set stage_number, stage_name, and algorithm
+          algorithm = stageDetails.algorithm.toStorageMpcAlgorithm()
+          stageNumber = stageDetails.stageNumber
+          stageName = stageDetails.stageName
           stageStart = stageDetails.start
           stageAttemptNumber = stageDetails.attemptNumber
         }
@@ -99,12 +107,7 @@ class GlobalComputationService(
             errorTime = errorDetails.errorTime
             errorMessage = errorDetails.errorMessage
             stacktrace = "TODO: propagate stack trace"
-            errorType = when (errorDetails.errorType!!) {
-              ApiErrorType.TRANSIENT -> ErrorType.TRANSIENT
-              ApiErrorType.PERMANENT -> ErrorType.PERMANENT
-              ApiErrorType.ERROR_TYPE_UNKNOWN,
-              ApiErrorType.UNRECOGNIZED -> ErrorType.ERROR_TYPE_UNKNOWN
-            }
+            errorType = errorDetails.errorType.toStorageErrorType()
           }
         }
       }
@@ -112,40 +115,6 @@ class GlobalComputationService(
     val createdReportLogEntry = reportLogEntryStorageStub.createReportLogEntry(reportLogEntry)
     return request.statusUpdate.toBuilder().setCreateTime(createdReportLogEntry.createTime).build()
   }
-
-  private fun translateReportToGlobalComputation(report: Report): GlobalComputation =
-    GlobalComputation.newBuilder().apply {
-      keyBuilder.globalComputationId = ExternalId(report.externalReportId).apiId.value
-      state = translateState(report.state)
-      // TODO: populate more fields once they're added.
-    }.build()
-
-  private fun translateState(reportState: ReportState): State =
-    when (reportState) {
-      ReportState.AWAITING_REQUISITION_CREATION,
-      ReportState.AWAITING_REQUISITION_FULFILLMENT -> State.CREATED
-      ReportState.AWAITING_DUCHY_CONFIRMATION -> State.CONFIRMING
-      ReportState.IN_PROGRESS -> State.RUNNING
-      ReportState.SUCCEEDED -> State.SUCCEEDED
-      ReportState.FAILED -> State.FAILED
-      ReportState.CANCELLED -> State.CANCELLED
-      ReportState.REPORT_STATE_UNKNOWN,
-      ReportState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
-    }
-
-  private enum class StateType { TERMINAL, NONTERMINAL, INVALID }
-  private fun getStateType(reportState: ReportState): StateType =
-    when (reportState) {
-      ReportState.AWAITING_REQUISITION_CREATION,
-      ReportState.AWAITING_REQUISITION_FULFILLMENT,
-      ReportState.AWAITING_DUCHY_CONFIRMATION,
-      ReportState.IN_PROGRESS -> StateType.NONTERMINAL
-      ReportState.SUCCEEDED,
-      ReportState.FAILED,
-      ReportState.CANCELLED -> StateType.TERMINAL
-      ReportState.REPORT_STATE_UNKNOWN,
-      ReportState.UNRECOGNIZED -> StateType.INVALID
-    }
 
   private suspend fun getReport(externalReportId: ExternalId): Report {
     val request =
@@ -170,11 +139,64 @@ class GlobalComputationService(
 
     return reportStorageStub.streamReports(request)
   }
-
-  companion object {
-    object ContinuationTokenConverter {
-      fun encode(time: Instant): String = time.toProtoTime().toByteArray().base64UrlEncode()
-      fun decode(token: String): Instant = Timestamp.parseFrom(token.base64UrlDecode()).toInstant()
-    }
-  }
 }
+
+private object ContinuationTokenConverter {
+  fun encode(time: Instant): String = time.toProtoTime().toByteArray().base64UrlEncode()
+  fun decode(token: String): Instant = Timestamp.parseFrom(token.base64UrlDecode()).toInstant()
+}
+
+private fun translateState(reportState: ReportState): State =
+  when (reportState) {
+    ReportState.AWAITING_REQUISITION_CREATION,
+    ReportState.AWAITING_REQUISITION_FULFILLMENT -> State.CREATED
+    ReportState.AWAITING_DUCHY_CONFIRMATION -> State.CONFIRMING
+    ReportState.IN_PROGRESS -> State.RUNNING
+    ReportState.SUCCEEDED -> State.SUCCEEDED
+    ReportState.FAILED -> State.FAILED
+    ReportState.CANCELLED -> State.CANCELLED
+    ReportState.REPORT_STATE_UNKNOWN,
+    ReportState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
+  }
+
+private enum class StateType { TERMINAL, NONTERMINAL, INVALID }
+private fun getStateType(reportState: ReportState): StateType =
+  when (reportState) {
+    ReportState.AWAITING_REQUISITION_CREATION,
+    ReportState.AWAITING_REQUISITION_FULFILLMENT,
+    ReportState.AWAITING_DUCHY_CONFIRMATION,
+    ReportState.IN_PROGRESS -> StateType.NONTERMINAL
+    ReportState.SUCCEEDED,
+    ReportState.FAILED,
+    ReportState.CANCELLED -> StateType.TERMINAL
+    ReportState.REPORT_STATE_UNKNOWN,
+    ReportState.UNRECOGNIZED -> StateType.INVALID
+  }
+
+private fun translateReportToGlobalComputation(report: Report): GlobalComputation =
+  GlobalComputation.newBuilder().apply {
+    keyBuilder.globalComputationId = ExternalId(report.externalReportId).apiId.value
+    state = translateState(report.state)
+    // TODO: populate more fields once they're added.
+  }.build()
+
+private fun ApiMpcAlgorithm.toStorageMpcAlgorithm(): MpcAlgorithm =
+  when (this) {
+    ApiMpcAlgorithm.LIQUID_LEGIONS -> MpcAlgorithm.LIQUID_LEGIONS
+    ApiMpcAlgorithm.UNRECOGNIZED,
+    ApiMpcAlgorithm.MPC_ALGORITHM_UNKNOWN ->
+      throw Status.INVALID_ARGUMENT
+        .withDescription("Invalid algorithm: $this")
+        .asException()
+  }
+
+private fun ApiErrorType.toStorageErrorType(): ErrorType =
+  when (this) {
+    ApiErrorType.TRANSIENT -> ErrorType.TRANSIENT
+    ApiErrorType.PERMANENT -> ErrorType.PERMANENT
+    ApiErrorType.ERROR_TYPE_UNKNOWN,
+    ApiErrorType.UNRECOGNIZED ->
+      throw Status.INVALID_ARGUMENT
+        .withDescription("Invalid error_type: $this")
+        .asException()
+  }
