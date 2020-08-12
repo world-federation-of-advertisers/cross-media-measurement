@@ -57,7 +57,6 @@ proto_and_java_proto_library(
     name = "report_log_entry",
     deps = [
         ":report_proto",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

@@ -35,7 +35,6 @@ import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -208,7 +207,6 @@ class GlobalComputationsServiceTest {
       reportLogDetailsBuilder.apply {
         duchyLogDetailsBuilder.apply {
           reportedDuchyId = "some-self-reported-duchy-identifier"
-          stage = SketchAggregationStage.TO_BLIND_POSITIONS
           stageStartBuilder.seconds = 222
           stageAttemptNumber = 333
         }

@@ -36,7 +36,6 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.SketchAggregationStage
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -87,7 +86,7 @@ class GlobalComputationService(
           reportedDuchyId = request.statusUpdate.selfReportedIdentifier
 
           val stageDetails = request.statusUpdate.stageDetails
-          stage = SketchAggregationStage.forNumber(stageDetails.sketchAggregationStageValue)
+          // TODO: set stage_number, stage_name, and algorithm
           stageStart = stageDetails.start
           stageAttemptNumber = stageDetails.attemptNumber
         }
