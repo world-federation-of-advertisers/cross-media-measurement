@@ -31,20 +31,20 @@ class AssociateRequisitionAndReportTransaction {
     val reportFuture = async { ReportReader.forExternalId(transactionContext, externalReportId)!! }
     val requisitionFuture = async { readRequisition(transactionContext, externalRequisitionId) }
 
-    val report = reportFuture.await()
-    val requisition = requisitionFuture.await()
+    val reportReadResult = reportFuture.await()
+    val requisitionReadResult = requisitionFuture.await()
 
     // This uses an InsertOrUpdate to avoid crashing if it already exists. This can't actually
     // update the row because the entire thing is part of the PK.
     transactionContext.buffer(
       Mutation.newInsertOrUpdateBuilder("ReportRequisitions")
-        .set("AdvertiserId").to(report.advertiserId)
-        .set("ReportConfigId").to(report.reportConfigId)
-        .set("ScheduleId").to(report.scheduleId)
-        .set("ReportId").to(report.reportId)
-        .set("DataProviderId").to(requisition.dataProviderId)
-        .set("CampaignId").to(requisition.campaignId)
-        .set("RequisitionId").to(requisition.requisitionId)
+        .set("AdvertiserId").to(reportReadResult.advertiserId)
+        .set("ReportConfigId").to(reportReadResult.reportConfigId)
+        .set("ScheduleId").to(reportReadResult.scheduleId)
+        .set("ReportId").to(reportReadResult.reportId)
+        .set("DataProviderId").to(requisitionReadResult.dataProviderId)
+        .set("CampaignId").to(requisitionReadResult.campaignId)
+        .set("RequisitionId").to(requisitionReadResult.requisitionId)
         .build()
     )
   }
