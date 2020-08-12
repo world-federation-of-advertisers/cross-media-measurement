@@ -16,45 +16,45 @@ package org.wfanet.measurement.kingdom
 
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.atLeast
-import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.same
 import com.nhaarman.mockitokotlin2.stub
 import com.nhaarman.mockitokotlin2.verify
 import java.util.concurrent.CountDownLatch
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.launchAndCancelWithLatch
-import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
-private val REPORT: Report = Report.getDefaultInstance()
+private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.getDefaultInstance()
 
 @RunWith(JUnit4::class)
-class ReportStarterTest {
+class ReportMakerTest {
   private val reportStarterClient: ReportStarterClient = mock()
   private val daemon = Daemon(FakeThrottler(), 100, reportStarterClient)
 
   @Test
-  fun startReports() = runBlocking<Unit> {
+  fun createReports() = runBlocking<Unit> {
     val latch = CountDownLatch(15)
-    reportStarterClient.stub {
-      on { streamReadyReports() }
-        .thenReturn(flowOf(REPORT, REPORT, REPORT))
 
-      onBlocking { updateReportState(any(), any()) }
+    reportStarterClient.stub {
+      on { streamReadySchedules() }
+        .thenReturn((1..10).map { SCHEDULE }.asFlow())
+
+      onBlocking { createNextReport(any()) }
         .then { latch.countDown() }
     }
 
-    launchAndCancelWithLatch(latch) { daemon.runReportStarter() }
+    launchAndCancelWithLatch(latch) { daemon.runReportMaker() }
 
-    verify(reportStarterClient, atLeast(5))
-      .streamReadyReports()
+    verify(reportStarterClient, atLeast(2))
+      .streamReadySchedules()
 
     verify(reportStarterClient, atLeast(15))
-      .updateReportState(same(REPORT), eq(Report.ReportState.AWAITING_DUCHY_CONFIRMATION))
+      .createNextReport(same(SCHEDULE))
   }
 }

@@ -18,12 +18,12 @@ import org.wfanet.measurement.common.commandLineMain
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "report_starter",
+  name = "report_maker",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: DaemonFlags) {
-  runDaemon(flags, Daemon::runReportStarter)
+  runDaemon(flags, Daemon::runReportMaker)
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

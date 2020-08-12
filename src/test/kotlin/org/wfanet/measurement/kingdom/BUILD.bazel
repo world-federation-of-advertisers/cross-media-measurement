@@ -1,10 +1,43 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "report_maker_test",
+    srcs = ["ReportMakerTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.ReportMakerTest",
+    deps = [
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "report_starter_test",
     srcs = ["ReportStarterTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.ReportStarterTest",
     deps = [
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "requisition_linker_test",
+    srcs = ["RequisitionLinkerTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.RequisitionLinkerTest",
+    deps = [
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//imports/kotlin/kotlin/test",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",

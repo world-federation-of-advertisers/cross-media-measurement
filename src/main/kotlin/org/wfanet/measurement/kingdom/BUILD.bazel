@@ -32,9 +32,37 @@ kt_jvm_library(
 )
 
 kt_jvm_binary(
+    name = "report_maker",
+    srcs = ["ReportMakerMain.kt"],
+    main_class = "org.wfanet.measurement.kingdom.ReportMakerMainKt",
+    deps = [
+        ":kingdom",
+        "//:grpc_core",
+        "//imports/java/io/grpc:api",
+        "//imports/java/io/grpc/netty",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_binary(
     name = "report_starter",
     srcs = ["ReportStarterMain.kt"],
     main_class = "org.wfanet.measurement.kingdom.ReportStarterMainKt",
+    deps = [
+        ":kingdom",
+        "//:grpc_core",
+        "//imports/java/io/grpc:api",
+        "//imports/java/io/grpc/netty",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_binary(
+    name = "requisition_linker",
+    srcs = ["RequisitionLinkerMain.kt"],
+    main_class = "org.wfanet.measurement.kingdom.RequisitionLinkerMainKt",
     deps = [
         ":kingdom",
         "//:grpc_core",

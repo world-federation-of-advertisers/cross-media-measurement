@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom
 
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.atLeast
-import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.same
 import com.nhaarman.mockitokotlin2.stub
@@ -30,31 +29,46 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.launchAndCancelWithLatch
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Requisition
 
 private val REPORT: Report = Report.getDefaultInstance()
+private val REQUISITION: Requisition = Requisition.getDefaultInstance()
 
 @RunWith(JUnit4::class)
-class ReportStarterTest {
+class RequisitionLinkerTest {
   private val reportStarterClient: ReportStarterClient = mock()
   private val daemon = Daemon(FakeThrottler(), 100, reportStarterClient)
 
   @Test
-  fun startReports() = runBlocking<Unit> {
+  fun createRequisitions() = runBlocking<Unit> {
     val latch = CountDownLatch(15)
+
     reportStarterClient.stub {
-      on { streamReadyReports() }
+      on { streamReportsInState(any()) }
         .thenReturn(flowOf(REPORT, REPORT, REPORT))
 
-      onBlocking { updateReportState(any(), any()) }
+      onBlocking { buildRequisitionsForReport(any()) }
+        .thenReturn(listOf(REQUISITION, REQUISITION))
+
+      onBlocking { createRequisition(any()) }
+        .thenReturn(REQUISITION)
+
+      onBlocking { associateRequisitionToReport(any(), any()) }
         .then { latch.countDown() }
     }
 
-    launchAndCancelWithLatch(latch) { daemon.runReportStarter() }
+    launchAndCancelWithLatch(latch) { daemon.runRequisitionLinker() }
 
     verify(reportStarterClient, atLeast(5))
-      .streamReadyReports()
+      .streamReportsInState(Report.ReportState.AWAITING_REQUISITION_CREATION)
+
+    verify(reportStarterClient, atLeast(5))
+      .buildRequisitionsForReport(same(REPORT))
 
     verify(reportStarterClient, atLeast(15))
-      .updateReportState(same(REPORT), eq(Report.ReportState.AWAITING_DUCHY_CONFIRMATION))
+      .createRequisition(same(REQUISITION))
+
+    verify(reportStarterClient, atLeast(15))
+      .associateRequisitionToReport(same(REQUISITION), same(REPORT))
   }
 }
