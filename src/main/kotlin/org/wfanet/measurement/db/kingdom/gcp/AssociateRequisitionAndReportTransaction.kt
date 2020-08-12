@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
+import org.wfanet.measurement.db.gcp.toProtoEnum
+import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 class AssociateRequisitionAndReportTransaction {
   fun execute(
@@ -47,6 +50,18 @@ class AssociateRequisitionAndReportTransaction {
         .set("RequisitionId").to(requisitionReadResult.requisitionId)
         .build()
     )
+
+    if (requisitionReadResult.requisition.state == RequisitionState.PERMANENTLY_UNAVAILABLE) {
+      transactionContext.buffer(
+        Mutation.newUpdateBuilder("Reports")
+          .set("AdvertiserId").to(reportReadResult.advertiserId)
+          .set("ReportConfigId").to(reportReadResult.reportConfigId)
+          .set("ScheduleId").to(reportReadResult.scheduleId)
+          .set("ReportId").to(reportReadResult.reportId)
+          .set("State").toProtoEnum(Report.ReportState.FAILED)
+          .build()
+      )
+    }
   }
 
   private suspend fun readRequisition(

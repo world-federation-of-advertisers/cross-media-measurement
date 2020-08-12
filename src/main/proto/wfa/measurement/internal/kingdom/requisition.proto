@@ -40,7 +40,19 @@ message Requisition {
 
   enum RequisitionState {
     REQUISITION_STATE_UNKNOWN = 0;
+
+    // Initial state of a Requisition. This means that the Requisition is
+    // created but there is no guarantee that the data requested in the
+    // Requisition has been computed or is available.
     UNFULFILLED = 1;
+
+    // Data for the Requisition has been computed and is ready to be used in
+    // computations.
     FULFILLED = 2;
+
+    // A Data Provider has indicated that the data for the Requisition cannot be
+    // computed. This is a terminal state; any Reports using this Requisition
+    // will be placed in a permanent failure state as well.
+    PERMANENTLY_UNAVAILABLE = 3;
   }
 }

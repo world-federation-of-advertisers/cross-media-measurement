@@ -38,6 +38,10 @@ class UpdateReportStateTransaction {
       return reportReadResult.report
     }
 
+    require(!reportReadResult.report.state.isTerminal) {
+      "Report $externalReportId is in a terminal state: ${reportReadResult.report}"
+    }
+
     val mutation: Mutation =
       Mutation.newUpdateBuilder("Reports")
         .set("AdvertiserId").to(reportReadResult.advertiserId)
@@ -53,3 +57,17 @@ class UpdateReportStateTransaction {
     return reportReadResult.report.toBuilder().setState(state).build()
   }
 }
+
+private val ReportState.isTerminal: Boolean
+  get() = when (this) {
+    ReportState.AWAITING_REQUISITION_CREATION,
+    ReportState.AWAITING_REQUISITION_FULFILLMENT,
+    ReportState.AWAITING_DUCHY_CONFIRMATION,
+    ReportState.IN_PROGRESS -> false
+
+    ReportState.SUCCEEDED,
+    ReportState.FAILED,
+    ReportState.CANCELLED,
+    ReportState.UNRECOGNIZED,
+    ReportState.REPORT_STATE_UNKNOWN -> true
+  }
