@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.testing
+package org.wfanet.measurement.loadtest
 
 import kotlin.random.Random
 
@@ -37,6 +37,6 @@ fun generateIndependentSets(
         set.add(t)
       }
     }
-    yield(set.toList())
+    yield(set.toSet())
   }
 }

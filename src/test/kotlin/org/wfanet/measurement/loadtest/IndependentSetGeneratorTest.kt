@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.testing
+package org.wfanet.measurement.loadtest
 
 import com.google.common.truth.Truth.assertThat
 import java.lang.IllegalArgumentException
@@ -39,7 +39,7 @@ class IndependentSetGeneratorTest {
 
     // Generate new Random object with the same seed to generate same numbers.
     val random2 = Random(DEFAULT_SEED)
-    val expected = List(1) { random2.nextLong(universeSize) }
+    val expected = setOf(random2.nextLong(universeSize))
     assertThat(setGenerator.next()).isEqualTo(expected)
   }
 
