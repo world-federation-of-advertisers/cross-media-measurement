@@ -19,7 +19,6 @@ package wfa.measurement.api.v1alpha;
 import "wfa/measurement/api/v1alpha/data_provider.proto";
 import "wfa/measurement/api/v1alpha/crypto.proto";
 import "wfa/measurement/api/v1alpha/data_provider_registration_service.proto";
-import "wfa/measurement/api/v1alpha/metric.proto";
 import "wfa/measurement/api/v1alpha/requisition.proto";
 import "wfa/measurement/api/v1alpha/requisition_service.proto";
 
@@ -60,7 +59,7 @@ message UploadMetricValueRequest {
   // The header message for this streaming request.
   message Header {
     // Resource key of the MetricValue. Required.
-    MetricValue.Key key = 1;
+    MetricRequisition.Key key = 1;
 
     // Resource key of the combined public key used to encrypt any sketch
     // registers.

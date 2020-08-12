@@ -46,7 +46,10 @@ proto_library(
     name = "metric_proto",
     srcs = ["metric.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":encrypted_sketch_proto"],
+    deps = [
+        ":encrypted_sketch_proto",
+        ":requisition_proto",
+    ],
 )
 
 proto_library(
@@ -81,7 +84,6 @@ proto_library(
         ":crypto_proto",
         ":data_provider_proto",
         ":data_provider_registration_service_proto",
-        ":metric_proto",
         ":requisition_proto",
         ":requisition_service_proto",
     ],
