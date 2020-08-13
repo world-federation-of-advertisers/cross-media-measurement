@@ -56,11 +56,21 @@ class FakeComputationStorage(
     }
   }
 
-  override suspend fun insertComputation(globalId: Long, initialStage: ComputationStage) {
+  override suspend fun insertComputation(
+    globalId: Long,
+    initialStage: ComputationStage,
+    stageDetails: ComputationStageDetails
+  ) {
     val role =
       if ((globalId % 2) == 0L) RoleInComputation.PRIMARY
       else RoleInComputation.SECONDARY
-    addComputation(globalId, initialStage, role, listOf(newEmptyOutputBlobMetadata(id = 0L)))
+    addComputation(
+      id = globalId,
+      stage = initialStage,
+      role = role,
+      stageDetails = stageDetails,
+      blobs = listOf(newEmptyOutputBlobMetadata(id = 0L))
+    )
   }
 
   /** Adds a fake computation to the fake computation storage. */

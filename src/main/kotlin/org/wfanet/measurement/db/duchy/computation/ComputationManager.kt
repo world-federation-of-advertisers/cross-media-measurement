@@ -34,8 +34,8 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
    *
    * @throws [IOException] upon failure
    */
-  suspend fun createComputation(globalId: Long, stage: StageT) {
-    relationalDatabase.insertComputation(globalId, stage)
+  suspend fun createComputation(globalId: Long, stage: StageT, details: ComputationStageDetails) {
+    relationalDatabase.insertComputation(globalId, stage, details)
   }
 
   /**

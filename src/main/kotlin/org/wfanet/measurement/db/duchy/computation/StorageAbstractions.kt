@@ -111,7 +111,7 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
    *
    * The computation is not added to the queue.
    */
-  suspend fun insertComputation(globalId: Long, initialStage: StageT)
+  suspend fun insertComputation(globalId: Long, initialStage: StageT, stageDetails: StageDetailsT)
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.

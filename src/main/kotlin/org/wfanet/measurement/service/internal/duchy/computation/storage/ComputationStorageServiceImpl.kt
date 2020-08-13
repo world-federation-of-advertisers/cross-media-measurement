@@ -66,7 +66,8 @@ class ComputationStorageServiceImpl(
     }
     computationsDatabase.insertComputation(
       request.globalComputationId,
-      computationsDatabase.validInitialStages.first()
+      computationsDatabase.validInitialStages.first(),
+      request.stageDetails
     )
     return computationsDatabase.readComputationToken(request.globalComputationId)
       .toCreateComputationResponse()

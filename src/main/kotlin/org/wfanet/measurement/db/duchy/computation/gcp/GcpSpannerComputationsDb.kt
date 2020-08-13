@@ -61,7 +61,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
 
   override suspend fun insertComputation(
     globalId: Long,
-    initialStage: StageT
+    initialStage: StageT,
+    stageDetails: StageDetailsT
   ) {
     require(
       computationMutations.validInitialStage(initialStage)
@@ -98,7 +99,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         stage = initialStage,
         creationTime = writeTimestamp,
         nextAttempt = 2,
-        details = computationMutations.detailsFor(initialStage)
+        details = stageDetails
       )
 
     val computationStageAttemptRow =
