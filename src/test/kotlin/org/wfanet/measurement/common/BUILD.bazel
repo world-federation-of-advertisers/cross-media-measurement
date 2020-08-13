@@ -95,3 +95,17 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_test(
+    name = "CountDownLatchTest",
+    srcs = ["CountDownLatchTest.kt"],
+    test_class = "org.wfanet.measurement.common.CountDownLatchTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
