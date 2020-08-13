@@ -219,7 +219,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("concatenated_sketch"))
+    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
     val output = newEmptyOutputBlobMetadata(id = 1)
 
     ProtoTruth.assertThat(tokenAfter).isEqualTo(
@@ -254,7 +254,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(sketch)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("concatenated_sketch"))
+    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
     val output = newEmptyOutputBlobMetadata(id = 1)
 
     ProtoTruth.assertThat(tokenAfter).isEqualTo(
@@ -304,7 +304,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(sketch)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("encrypted_flag_counts"))
+    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
     val output = newEmptyOutputBlobMetadata(id = 1)
 
     ProtoTruth.assertThat(tokenAfter).isEqualTo(
@@ -347,7 +347,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("encrypted_flag_counts"))
+    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
     val output = newEmptyOutputBlobMetadata(id = 1)
 
     ProtoTruth.assertThat(tokenAfter).isEqualTo(

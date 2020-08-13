@@ -154,48 +154,6 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
   }
 
   /**
-   * Writes the concatenated sketch as an output blob to the current stage.
-   *
-   * @return [ComputationToken] after updating blob reference. When the output already exists,
-   * no blob is written, but the returned token will have a path to the previously written blob.
-   */
-  suspend fun writeReceivedConcatenatedSketch(
-    computationToken: ComputationToken,
-    sketch: ByteArray
-  ): ComputationToken {
-    val onlyOutputBlob = computationToken.singleOutputBlobMetadata()
-    return writeExpectedBlobIfNotPresent(
-      requiredStage = WAIT_CONCATENATED,
-      nameForBlob = "concatenated_sketch",
-      computationToken = computationToken,
-      bytes = sketch,
-      blobId = onlyOutputBlob.blobId,
-      existingPath = onlyOutputBlob.path
-    )
-  }
-
-  /**
-   * Writes the encrypted flag and counts as a blob as an output blob to the current stage.
-   *
-   * @return [ComputationToken] after updating blob reference. When the output already exists,
-   * no blob is written, but the returned token will have a path to the previously written blob.
-   */
-  suspend fun writeReceivedFlagsAndCounts(
-    computationToken: ComputationToken,
-    encryptedFlagCounts: ByteArray
-  ): ComputationToken {
-    val onlyOutputBlob = computationToken.singleOutputBlobMetadata()
-    return writeExpectedBlobIfNotPresent(
-      requiredStage = WAIT_FLAG_COUNTS,
-      nameForBlob = "encrypted_flag_counts",
-      computationToken = computationToken,
-      bytes = encryptedFlagCounts,
-      blobId = onlyOutputBlob.blobId,
-      existingPath = onlyOutputBlob.path
-    )
-  }
-
-  /**
    * Writes the encrypted sketch with added noise from another duchy as an output blob to the
    * current stage.
    *
@@ -221,6 +179,27 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
       bytes = sketch,
       blobId = blobId,
       existingPath = outputBlob.path
+    )
+  }
+
+  /**
+   * Writes the data as a single output blob to the current stage.
+   *
+   * @return [ComputationToken] after updating blob reference. When the output already exists,
+   * no blob is written, but the returned token will have a path to the previously written blob.
+   */
+  suspend fun writeSingleOutputBlob(
+    computationToken: ComputationToken,
+    data: ByteArray
+  ): ComputationToken {
+    val onlyOutputBlob = computationToken.singleOutputBlobMetadata()
+    return writeExpectedBlobIfNotPresent(
+      requiredStage = computationToken.computationStage.liquidLegionsSketchAggregation,
+      nameForBlob = "output",
+      computationToken = computationToken,
+      bytes = data,
+      blobId = onlyOutputBlob.blobId,
+      existingPath = onlyOutputBlob.path
     )
   }
 

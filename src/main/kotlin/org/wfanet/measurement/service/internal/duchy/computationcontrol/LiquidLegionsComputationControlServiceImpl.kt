@@ -51,7 +51,7 @@ class LiquidLegionsComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving concatenated sketch.")
-    val tokenAfterWrite = clients.writeReceivedConcatenatedSketch(token, sketch)
+    val tokenAfterWrite = clients.writeSingleOutputBlob(token, sketch)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
@@ -86,7 +86,7 @@ class LiquidLegionsComputationControlServiceImpl(
     }
 
     logger.info("[id=$id]: Saving encrypted flags and counts.")
-    val tokenAfterWrite = clients.writeReceivedFlagsAndCounts(token, bytes)
+    val tokenAfterWrite = clients.writeSingleOutputBlob(token, bytes)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (token.role) {
