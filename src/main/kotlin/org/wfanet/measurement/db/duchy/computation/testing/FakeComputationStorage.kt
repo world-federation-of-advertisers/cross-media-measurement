@@ -23,7 +23,6 @@ import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -45,16 +44,6 @@ class FakeComputationStorage(
   override val computationType: ComputationType =
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
   val claimedComputationIds = mutableSetOf<Long>()
-
-  private fun stageDetails(stage: ComputationStage): ComputationStageDetails {
-    return when (stage.stageCase) {
-      StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> {
-        LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(otherDuchies)
-          .detailsFor(stage)
-      }
-      else -> error("Unsupported computation protocol with stage $stage.")
-    }
-  }
 
   override suspend fun insertComputation(
     globalId: Long,
