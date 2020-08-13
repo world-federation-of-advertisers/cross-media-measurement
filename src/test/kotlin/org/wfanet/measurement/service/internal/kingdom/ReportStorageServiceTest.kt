@@ -16,6 +16,11 @@ package org.wfanet.measurement.service.internal.kingdom
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.check
+import com.nhaarman.mockitokotlin2.eq
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.verify
 import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -25,58 +30,53 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.kingdom.StreamReportsFilter
+import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
-import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+private val REPORT: Report = Report.newBuilder().apply {
+  externalAdvertiserId = 1
+  externalReportConfigId = 2
+  externalScheduleId = 3
+  externalReportId = 4
+  createTimeBuilder.seconds = 567
+  state = ReportState.FAILED
+}.build()
+
 @RunWith(JUnit4::class)
 class ReportStorageServiceTest {
 
-  companion object {
-    val REPORT: Report = Report.newBuilder().apply {
-      externalAdvertiserId = 1
-      externalReportConfigId = 2
-      externalScheduleId = 3
-      externalReportId = 4
-      createTimeBuilder.seconds = 567
-      state = ReportState.FAILED
-    }.build()
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
+    onBlocking { getReport(any()) }.thenReturn(REPORT)
+    on { createNextReport(any()) }.thenReturn(REPORT)
+    on { updateReportState(any(), any()) }.thenReturn(REPORT)
+    on { streamReports(any(), any()) }.thenReturn(flowOf(REPORT, REPORT))
+    on { streamReadyReports(any()) }.thenReturn(flowOf(REPORT, REPORT))
   }
-
-  private val fakeKingdomRelationalDatabase = FakeKingdomRelationalDatabase()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ReportStorageService(fakeKingdomRelationalDatabase))
+    listOf(ReportStorageService(kingdomRelationalDatabase))
   }
 
-  private val stub: ReportStorageGrpcKt.ReportStorageCoroutineStub by lazy {
-    ReportStorageGrpcKt.ReportStorageCoroutineStub(grpcTestServerRule.channel)
-  }
+  private val stub by lazy { ReportStorageCoroutineStub(grpcTestServerRule.channel) }
 
   @Test
   fun getReport() = runBlocking<Unit> {
     val request = GetReportRequest.newBuilder().setExternalReportId(12345).build()
 
-    var capturedExternalId: ExternalId? = null
-    fakeKingdomRelationalDatabase.getReportFn = {
-      capturedExternalId = it
-      REPORT
-    }
-
     assertThat(stub.getReport(request)).isEqualTo(REPORT)
-    assertThat(capturedExternalId).isEqualTo(ExternalId(12345))
+    verify(kingdomRelationalDatabase).getReport(ExternalId(12345))
   }
 
   @Test
@@ -86,17 +86,9 @@ class ReportStorageServiceTest {
         externalScheduleId = 12345
       }.build()
 
-    var capturedExternalScheduleId: ExternalId? = null
-    fakeKingdomRelationalDatabase.createNextReportFn = {
-      capturedExternalScheduleId = it
-      REPORT
-    }
+    assertThat(stub.createNextReport(request)).isEqualTo(REPORT)
 
-    assertThat(stub.createNextReport(request))
-      .isEqualTo(REPORT)
-
-    assertThat(capturedExternalScheduleId)
-      .isEqualTo(ExternalId(12345))
+    verify(kingdomRelationalDatabase).createNextReport(ExternalId(12345))
   }
 
   @Test
@@ -107,18 +99,10 @@ class ReportStorageServiceTest {
         state = REPORT.state
       }.build()
 
-    var capturedExternalReportId: ExternalId? = null
-    var capturedState: ReportState? = null
-
-    fakeKingdomRelationalDatabase.updateReportStateFn = { externalReportId, reportState ->
-      capturedExternalReportId = externalReportId
-      capturedState = reportState
-      REPORT
-    }
-
     assertThat(stub.updateReportState(request)).isEqualTo(REPORT)
-    assertThat(capturedExternalReportId).isEqualTo(ExternalId(REPORT.externalReportId))
-    assertThat(capturedState).isEqualTo(REPORT.state)
+
+    verify(kingdomRelationalDatabase)
+      .updateReportState(ExternalId(REPORT.externalReportId), REPORT.state)
   }
 
   @Test
@@ -136,15 +120,6 @@ class ReportStorageServiceTest {
         }
       }.build()
 
-    var capturedFilter: StreamReportsFilter? = null
-    var capturedLimit: Long = 0
-
-    fakeKingdomRelationalDatabase.streamReportsFn = { filter, limit ->
-      capturedFilter = filter
-      capturedLimit = limit
-      flowOf(REPORT, REPORT)
-    }
-
     assertThat(stub.streamReports(request).toList())
       .containsExactly(REPORT, REPORT)
 
@@ -156,8 +131,10 @@ class ReportStorageServiceTest {
       updatedAfter = Instant.ofEpochSecond(12345)
     )
 
-    assertThat(capturedFilter?.clauses).containsExactlyElementsIn(expectedFilter.clauses)
-    assertThat(capturedLimit).isEqualTo(10)
+    verify(kingdomRelationalDatabase).streamReports(
+      check { assertThat(it.clauses).containsExactlyElementsIn(expectedFilter.clauses) },
+      eq(10)
+    )
   }
 
   @Test
@@ -165,17 +142,10 @@ class ReportStorageServiceTest {
     val request: StreamReadyReportsRequest =
       StreamReadyReportsRequest.newBuilder().setLimit(10L).build()
 
-    var capturedLimit: Long = 0
-
-    fakeKingdomRelationalDatabase.streamReadyReportsFn = { limit ->
-      capturedLimit = limit
-      flowOf(REPORT, REPORT)
-    }
-
     assertThat(stub.streamReadyReports(request).toList())
       .containsExactly(REPORT, REPORT)
 
-    assertThat(capturedLimit).isEqualTo(10)
+    verify(kingdomRelationalDatabase).streamReadyReports(10)
   }
 
   @Test
@@ -185,18 +155,10 @@ class ReportStorageServiceTest {
       externalRequisitionId = 2
     }.build()
 
-    var capturedExternalRequisitionId: ExternalId? = null
-    var capturedExternalReportId: ExternalId? = null
-    fakeKingdomRelationalDatabase.associateRequisitionToReportFn = {
-      externalRequisitionId, externalReportId ->
-      capturedExternalRequisitionId = externalRequisitionId
-      capturedExternalReportId = externalReportId
-    }
-
     assertThat(stub.associateRequisition(request))
       .isEqualTo(AssociateRequisitionResponse.getDefaultInstance())
 
-    assertThat(capturedExternalReportId).isEqualTo(ExternalId(1))
-    assertThat(capturedExternalRequisitionId).isEqualTo(ExternalId(2))
+    verify(kingdomRelationalDatabase)
+      .associateRequisitionToReport(ExternalId(2), ExternalId(1))
   }
 }

@@ -15,24 +15,35 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Timestamp
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.mock
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+private const val EXTERNAL_REPORT_ID = 123L
+private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()
+
 @RunWith(JUnit4::class)
 class ReportLogEntryStorageServiceTest {
 
-  private val fakeKingdomRelationalDatabase = FakeKingdomRelationalDatabase()
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
+    on { addReportLogEntry(any()) }
+      .thenAnswer {
+        it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()
+      }
+  }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ReportLogEntryStorageService(fakeKingdomRelationalDatabase))
+    listOf(ReportLogEntryStorageService(kingdomRelationalDatabase))
   }
 
   private val stub by lazy { ReportLogEntryStorageCoroutineStub(grpcTestServerRule.channel) }
@@ -40,21 +51,15 @@ class ReportLogEntryStorageServiceTest {
   @Test
   fun success() = runBlocking<Unit> {
     val request = ReportLogEntry.newBuilder().apply {
-      externalReportId = 123
+      externalReportId = EXTERNAL_REPORT_ID
     }.build()
-
-    fakeKingdomRelationalDatabase.addReportLogEntryFn = {
-      it.toBuilder().apply {
-        createTimeBuilder.seconds = 456
-      }.build()
-    }
 
     val result = stub.createReportLogEntry(request)
     assertThat(result)
       .isEqualTo(
         ReportLogEntry.newBuilder().apply {
-          externalReportId = 123
-          createTimeBuilder.seconds = 456
+          externalReportId = EXTERNAL_REPORT_ID
+          createTime = CREATE_TIME
         }.build()
       )
   }

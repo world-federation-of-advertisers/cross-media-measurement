@@ -15,7 +15,9 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import kotlin.test.assertEquals
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -23,24 +25,25 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.kingdom.testing.FakeKingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+private val SCHEDULE1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
+private val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
+
 @RunWith(JUnit4::class)
 class ReportConfigScheduleStorageServiceTest {
-  companion object {
-    val SCHEDULE1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
-    val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
+    on { streamReadySchedules(any()) }
+      .thenReturn(flowOf(SCHEDULE1, SCHEDULE2))
   }
-
-  private val fakeKingdomRelationalDatabase = FakeKingdomRelationalDatabase()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ReportConfigScheduleStorageService(fakeKingdomRelationalDatabase))
+    listOf(ReportConfigScheduleStorageService(kingdomRelationalDatabase))
   }
 
   private val stub: ReportConfigScheduleStorageCoroutineStub by lazy {
@@ -52,15 +55,9 @@ class ReportConfigScheduleStorageServiceTest {
     val limit = 123L
     val request = StreamReadyReportConfigSchedulesRequest.newBuilder().setLimit(limit).build()
 
-    var capturedLimit: Long? = null
-    fakeKingdomRelationalDatabase.streamReadySchedulesFn = {
-      capturedLimit = it
-      flowOf(SCHEDULE1, SCHEDULE2)
-    }
-
     assertThat(stub.streamReadyReportConfigSchedules(request).toList())
       .containsExactly(SCHEDULE1, SCHEDULE2)
 
-    assertEquals(limit, capturedLimit)
+    verify(kingdomRelationalDatabase).streamReadySchedules(limit)
   }
 }
