@@ -21,6 +21,8 @@ import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationResponse
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
@@ -38,6 +40,7 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails.MpcAlgorithm
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -114,6 +117,20 @@ class GlobalComputationService(
     }.build()
     val createdReportLogEntry = reportLogEntryStorageStub.createReportLogEntry(reportLogEntry)
     return request.statusUpdate.toBuilder().setCreateTime(createdReportLogEntry.createTime).build()
+  }
+
+  override suspend fun confirmGlobalComputation(
+    request: ConfirmGlobalComputationRequest
+  ): ConfirmGlobalComputationResponse {
+    val confirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
+      externalReportId = ApiId(request.key.globalComputationId).externalId.value
+      duchyId = duchyAuthProvider().authenticatedDuchyId
+      addAllExternalRequisitionIds(
+        request.readyRequisitionsList.map { ApiId(it.metricRequisitionId).externalId.value }
+      )
+    }.build()
+    reportStorageStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
+    return ConfirmGlobalComputationResponse.getDefaultInstance()
   }
 
   private suspend fun getReport(externalReportId: ExternalId): Report {

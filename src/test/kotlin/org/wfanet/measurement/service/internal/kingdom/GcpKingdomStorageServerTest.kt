@@ -378,6 +378,9 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   // TODO(efoxepstein): add remaining test cases.
 
   @Test
+  fun `ReportStorage ConfirmDuchyReadiness`() = todo {}
+
+  @Test
   fun `RequisitionStorage CreateRequisition`() = todo {}
 
   @Test

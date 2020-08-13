@@ -24,6 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
@@ -34,6 +35,8 @@ import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
+import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessResponse
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -237,5 +240,37 @@ class GlobalComputationsServiceTest {
 
     assertThat(reportLogEntryStorage.mocker.callsForMethod("createReportLogEntry"))
       .containsExactly(expectedReportLogEntry)
+  }
+
+  @Test
+  fun confirmGlobalComputation() = runBlocking<Unit> {
+    val request = ConfirmGlobalComputationRequest.newBuilder().apply {
+      keyBuilder.globalComputationId = ExternalId(1111).apiId.value
+      addReadyRequisitionsBuilder().apply {
+        dataProviderId = ExternalId(2222).apiId.value
+        campaignId = ExternalId(3333).apiId.value
+        metricRequisitionId = ExternalId(4444).apiId.value
+      }
+      addReadyRequisitionsBuilder().apply {
+        dataProviderId = ExternalId(5555).apiId.value
+        campaignId = ExternalId(6666).apiId.value
+        metricRequisitionId = ExternalId(7777).apiId.value
+      }
+    }.build()
+
+    reportStorage.mocker.mock(FakeReportStorage::confirmDuchyReadiness) {
+      ConfirmDuchyReadinessResponse.getDefaultInstance()
+    }
+
+    stub.confirmGlobalComputation(request)
+
+    val expectedConfirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
+      externalReportId = ExternalId(1111).value
+      duchyId = DUCHY_ID
+      addAllExternalRequisitionIds(listOf(ExternalId(4444).value, ExternalId(7777).value))
+    }.build()
+
+    assertThat(reportStorage.mocker.callsForMethod("confirmDuchyReadiness"))
+      .containsExactly(expectedConfirmDuchyReadinessRequest)
   }
 }

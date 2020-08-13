@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.testing.ServiceMocker
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
+import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
+import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -47,5 +49,10 @@ class FakeReportStorage : ReportStorageCoroutineImplBase() {
     mocker.handleCall(request)
 
   override suspend fun updateReportState(request: UpdateReportStateRequest): Report =
+    mocker.handleCall(request)
+
+  override suspend fun confirmDuchyReadiness(
+    request: ConfirmDuchyReadinessRequest
+  ): ConfirmDuchyReadinessResponse =
     mocker.handleCall(request)
 }
