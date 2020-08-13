@@ -87,4 +87,18 @@ interface KingdomRelationalDatabase {
 
   /** Appends a ReportLogEntry to a Report. Returns a copy with all fields filled in. */
   fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry
+
+  /**
+   * Confirms that [duchyId] is ready to start work on the Report for [externalReportId].
+   *
+   * @param[externalReportId] the Report
+   * @param[duchyId] the stable Duchy identifier
+   * @param[externalRequisitionIds] the [Requisition]s for which this Duchy is providing data
+   * @throws[IllegalArgumentException] if [externalRequisitionIds] is not exactly what is expected
+   **/
+  fun confirmDuchyReadiness(
+    externalReportId: ExternalId,
+    duchyId: String,
+    externalRequisitionIds: Iterable<ExternalId>
+  )
 }

@@ -34,6 +34,7 @@ import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
+import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -160,5 +161,23 @@ class ReportStorageServiceTest {
 
     verify(kingdomRelationalDatabase)
       .associateRequisitionToReport(ExternalId(2), ExternalId(1))
+  }
+
+  @Test
+  fun confirmDuchyReadiness() = runBlocking<Unit> {
+    val request = ConfirmDuchyReadinessRequest.newBuilder().apply {
+      externalReportId = 1
+      duchyId = "some-duchy"
+      addAllExternalRequisitionIds(listOf(2, 3, 4))
+    }.build()
+
+    stub.confirmDuchyReadiness(request)
+
+    verify(kingdomRelationalDatabase)
+      .confirmDuchyReadiness(
+        eq(ExternalId(1)),
+        eq("some-duchy"),
+        check { assertThat(it).containsExactly(ExternalId(2), ExternalId(3), ExternalId(4)) }
+      )
   }
 }

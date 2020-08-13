@@ -123,4 +123,12 @@ class GcpKingdomRelationalDatabase(
       createTime = commitTimestamp.toProto()
     }.build()
   }
+
+  override fun confirmDuchyReadiness(
+    externalReportId: ExternalId,
+    duchyId: String,
+    externalRequisitionIds: Iterable<ExternalId>
+  ) {
+    TODO("Not yet implemented")
+  }
 }
