@@ -99,6 +99,6 @@ interface KingdomRelationalDatabase {
   fun confirmDuchyReadiness(
     externalReportId: ExternalId,
     duchyId: String,
-    externalRequisitionIds: Iterable<ExternalId>
+    externalRequisitionIds: Set<ExternalId>
   )
 }

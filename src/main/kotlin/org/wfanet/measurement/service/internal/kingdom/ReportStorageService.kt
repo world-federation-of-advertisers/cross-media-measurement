@@ -74,7 +74,7 @@ class ReportStorageService(
     kingdomRelationalDatabase.confirmDuchyReadiness(
       ExternalId(request.externalReportId),
       request.duchyId,
-      request.externalRequisitionIdsList.map(::ExternalId)
+      request.externalRequisitionIdsList.map(::ExternalId).toSet()
     )
     return ConfirmDuchyReadinessResponse.getDefaultInstance()
   }

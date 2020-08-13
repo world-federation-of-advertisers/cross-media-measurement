@@ -127,8 +127,11 @@ class GcpKingdomRelationalDatabase(
   override fun confirmDuchyReadiness(
     externalReportId: ExternalId,
     duchyId: String,
-    externalRequisitionIds: Iterable<ExternalId>
+    externalRequisitionIds: Set<ExternalId>
   ) {
-    TODO("Not yet implemented")
+    client.runReadWriteTransaction { transactionContext ->
+      ConfirmDuchyReadinessTransaction()
+        .execute(transactionContext, externalReportId, duchyId, externalRequisitionIds)
+    }
   }
 }

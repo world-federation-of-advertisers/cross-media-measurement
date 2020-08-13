@@ -201,6 +201,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     windowStartTime: Instant = Instant.EPOCH,
     windowEndTime: Instant = Instant.EPOCH,
     state: RequisitionState = RequisitionState.UNFULFILLED,
+    duchyId: String? = null,
     requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   ) {
     write(
@@ -213,6 +214,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
         .set("State").toProtoEnum(state)
+        .set("DuchyId").to(duchyId)
         .set("RequisitionDetails").toProtoBytes(requisitionDetails)
         .set("RequisitionDetailsJson").toProtoJson(requisitionDetails)
         .build()
