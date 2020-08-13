@@ -16,8 +16,9 @@ package org.wfanet.measurement.duchy.mill
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
+import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.AdaptiveThrottler
+import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
@@ -32,7 +33,6 @@ import picocli.CommandLine
 )
 private fun run(
   @CommandLine.Mixin millFlags: MillFlags,
-  @CommandLine.Mixin throttlerFlags: AdaptiveThrottler.Flags,
   @CommandLine.Mixin cloudStorageFlags: GoogleCloudStorageFromFlags.Flags
 ) {
   // TODO: Expand flags and configuration to work on other cloud environments when available.
@@ -68,11 +68,23 @@ private fun run(
   val clientMap =
     mapOf(millFlags.otherDuchyNameOne to clientOne, millFlags.otherDuchyNameTwo to clientTwo)
 
-  val mill = LiquidLegionsMill(
-    millFlags.millId, storageClients, clientMap, AdaptiveThrottler(throttlerFlags)
+  val cryptoKeySet = CryptoKeySet(
+    ownPublicAndPrivateKeys = millFlags.duchyLocalElGamalKey.toElGamalKeys(),
+    otherDuchyPublicKeys = mapOf(
+      millFlags.otherDuchyNameOne to millFlags.otherDuchyPublicElGamalKeyOne.toElGamalPublicKeys(),
+      millFlags.otherDuchyNameTwo to millFlags.otherDuchyPublicElGamalKeyTwo.toElGamalPublicKeys()
+    ),
+    clientPublicKey = millFlags.combinedPublicElGamalKey.toElGamalPublicKeys(),
+    curveId = millFlags.ellipticCurveId
   )
 
-  runBlocking { mill.processComputationQueue() }
+  val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), millFlags.pollingInterval)
+  val cryptoWorker = LiquidLegionsCryptoWorkerImpl()
+  val mill = LiquidLegionsMill(
+    millFlags.millId, storageClients, clientMap, cryptoKeySet, cryptoWorker, pollingThrottler
+  )
+
+  runBlocking { mill.continuallyProcessComputationQueue() }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

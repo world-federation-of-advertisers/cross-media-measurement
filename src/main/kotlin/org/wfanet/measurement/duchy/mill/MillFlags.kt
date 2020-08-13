@@ -57,6 +57,14 @@ class MillFlags {
     private set
 
   @set:CommandLine.Option(
+    names = ["--other-duchy-public-elgamal-key-one"],
+    description = ["The public ElGamal key (132 byte HEX string) in Duchy one"],
+    required = true
+  )
+  var otherDuchyPublicElGamalKeyOne by Delegates.notNull<String>()
+    private set
+
+  @set:CommandLine.Option(
     names = ["--other-duchy-name-two"],
     description = ["The recognized name of Duchy two"],
     required = true,
@@ -72,6 +80,14 @@ class MillFlags {
     defaultValue = "localhost:8082"
   )
   var otherDuchyComputationControlServiceTwo by Delegates.notNull<String>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--other-duchy-public-elgamal-key-two"],
+    description = ["The public ElGamal key (132 byte HEX string) in Duchy two"],
+    required = true
+  )
+  var otherDuchyPublicElGamalKeyTwo by Delegates.notNull<String>()
     private set
 
   @set:CommandLine.Option(
@@ -106,7 +122,7 @@ class MillFlags {
     description = ["The id of the elliptic curve to work on in all crypto operations."],
     required = true
   )
-  var ellipticCurveId by Delegates.notNull<Int>()
+  var ellipticCurveId by Delegates.notNull<Long>()
     private set
 
   @set:CommandLine.Option(

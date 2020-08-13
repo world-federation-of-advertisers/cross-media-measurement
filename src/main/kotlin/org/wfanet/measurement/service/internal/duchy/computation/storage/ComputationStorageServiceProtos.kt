@@ -18,6 +18,7 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -72,6 +73,10 @@ fun ComputationToken.toGetComputationTokenResponse(): GetComputationTokenRespons
 /** Wraps a [ComputationToken] in an [RecordOutputBlobPathResponse]. */
 fun ComputationToken.toRecordOutputBlobPathResponse(): RecordOutputBlobPathResponse =
   RecordOutputBlobPathResponse.newBuilder().setToken(this).build()!!
+
+/** Extract the list of output blob paths from a [ComputationToken]. */
+fun ComputationToken.outputPathList(): List<String> =
+  this.blobsList.filter { it.dependencyType == OUTPUT }.map { it.path }
 
 /** Creates a [ComputationStageBlobMetadata] for an input blob. */
 fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =

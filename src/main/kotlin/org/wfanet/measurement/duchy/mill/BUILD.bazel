@@ -14,6 +14,7 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//imports/java/picocli",
+        "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
         "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
@@ -21,6 +22,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+        "@com_google_protobuf//:protobuf_java",
     ],
 )
 

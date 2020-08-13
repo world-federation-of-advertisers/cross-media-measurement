@@ -14,15 +14,20 @@
 
 package org.wfanet.measurement.duchy.mill
 
+import com.google.protobuf.ByteString
 import java.util.logging.Logger
-import org.wfanet.measurement.common.Throttler
+import kotlinx.coroutines.flow.flowOf
+import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
+import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -39,75 +44,124 @@ class LiquidLegionsMill(
   private val millId: String,
   private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
   private val workerStubs: Map<String, ComputationControlServiceCoroutineStub>,
-  private val throttler: Throttler
+  private val cryptoKeySet: CryptoKeySet,
+  private val cryptoWorker: LiquidLegionsCryptoWorker,
+  private val throttler: MinimumIntervalThrottler
 ) {
-
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 
-  suspend fun processComputationQueue() {
+  suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
-    throttler.onReady {
-      val claimWorkRequest = ClaimWorkRequest.newBuilder()
-        .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
-        .setOwner(millId)
-        .build()
-      val claimWorkResponse: ClaimWorkResponse =
-        storageClients.computationStorageClient.claimWork(claimWorkRequest)
-      if (claimWorkResponse.hasToken()) {
-        val token: ComputationToken = claimWorkResponse.token
-        when (token.computationStage.liquidLegionsSketchAggregation) {
-          LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS ->
-            confirmRequisitions(token)
-          LiquidLegionsSketchAggregationStage.TO_ADD_NOISE ->
-            addNoise(token)
-          LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
-            appendSketchesAndAddNoise(token)
-          LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
-            blindPositions(token)
-          LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
-            decryptFlagCountsAndComputeMetrics(token)
-          LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS ->
-            decryptFlagCounts(token)
-          else -> error("Unexpected stage for mill to process: $token")
-        }
+    throttler.onReady { pollAndProcessNextComputation() }
+  }
+
+  suspend fun pollAndProcessNextComputation() {
+    val claimWorkRequest = ClaimWorkRequest.newBuilder()
+      .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
+      .setOwner(millId)
+      .build()
+    val claimWorkResponse: ClaimWorkResponse =
+      storageClients.computationStorageClient.claimWork(claimWorkRequest)
+    if (claimWorkResponse.hasToken()) {
+      val token: ComputationToken = claimWorkResponse.token
+      when (token.computationStage.liquidLegionsSketchAggregation) {
+        LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS ->
+          confirmRequisitions()
+        LiquidLegionsSketchAggregationStage.TO_ADD_NOISE ->
+          addNoise()
+        LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
+          appendSketchesAndAddNoise()
+        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS ->
+          blindPositions(token)
+        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
+          blindPositionsAndJoinRegisters()
+        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+          decryptFlagCountsAndComputeMetrics()
+        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS ->
+          decryptFlagCounts()
+        else -> error("Unexpected stage for mill to process: $token")
       }
     }
   }
 
   /** Process computation in the TO_ADD_NOISE stage */
-  private suspend fun confirmRequisitions(token: ComputationToken) {
+  private suspend fun confirmRequisitions() {
     TODO("Not yet implemented")
   }
 
   /** Process computation in the TO_ADD_NOISE stage */
-  private suspend fun addNoise(token: ComputationToken) {
+  private suspend fun addNoise() {
     TODO("Not yet implemented")
   }
 
   /** Process computation in the TO_APPEND_SKETCHES_AND_ADD_NOISE stage */
-  private suspend fun appendSketchesAndAddNoise(token: ComputationToken) {
+  private suspend fun appendSketchesAndAddNoise() {
     TODO("Not yet implemented")
   }
 
   /** Process computation in the TO_BLIND_POSITIONS stage */
-  private suspend fun blindPositions(token: ComputationToken) {
-    TODO("Not yet implemented")
+  private suspend fun blindPositions(token: ComputationToken): ComputationToken {
+    // TODO: Use cached result if it exists
+    // TODO: Catch permanent errors and terminate the Computation
+
+    val cryptoRequest = BlindOneLayerRegisterIndexRequest.newBuilder()
+      .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+      .setCurveId(cryptoKeySet.curveId)
+      .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+      .setSketch(readAndCombineAllInputBlobs(token, 1))
+      .build()
+
+    val result: ByteString =
+      cryptoWorker.BlindOneLayerRegisterIndex(
+        cryptoRequest
+      )
+        .sketch
+
+    // Cache the result to the local blob store as the output of this stage.
+    val tokenAfterCaching = storageClients.writeSingleOutputBlob(token, result.toByteArray())
+
+    // Pass the computation to the next duchy.
+    // TODO: partition the result to chunks to send
+    val requestToNextDuchy = HandleConcatenatedSketchRequest.newBuilder()
+      .setComputationId(tokenAfterCaching.globalComputationId)
+      .setPartialSketch(result)
+      .build()
+
+    (workerStubs[tokenAfterCaching.nextDuchy] ?: error("Can not find the target of the next duchy"))
+      .handleConcatenatedSketch(
+        flowOf(
+          requestToNextDuchy
+        )
+      )
+    return storageClients.transitionComputationToStage(
+      tokenAfterCaching,
+      inputsToNextStage = tokenAfterCaching.outputPathList(),
+      stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+    )
   }
 
   /** Process computation in the TO_BLIND_POSITIONS_AND_JOIN_REGISTERS stage */
-  private suspend fun blindPositionsAndJoinRegisters(token: ComputationToken) {
+  private suspend fun blindPositionsAndJoinRegisters() {
     TODO("Not yet implemented")
   }
 
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS stage */
-  private suspend fun decryptFlagCounts(token: ComputationToken) {
+  private suspend fun decryptFlagCounts() {
     TODO("Not yet implemented")
   }
 
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS stage */
-  private suspend fun decryptFlagCountsAndComputeMetrics(token: ComputationToken) {
+  private suspend fun decryptFlagCountsAndComputeMetrics() {
     TODO("Not yet implemented")
+  }
+
+  private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
+    val blobMap = storageClients.readInputBlobs(token)
+    require(blobMap.size == count) {
+      "Unexpected number of input blobs. expected $count, actual ${blobMap.size}."
+    }
+    return ByteString.copyFrom(blobMap.values.fold(ByteArray(0)) { acc, e -> acc.plus(e) })
   }
 }
