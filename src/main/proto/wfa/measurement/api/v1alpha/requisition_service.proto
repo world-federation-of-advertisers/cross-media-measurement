@@ -31,29 +31,24 @@ option java_outer_classname = "RequisitionServiceProto";
 // This service is internal to the measurement system, and not directly exposed
 // to outside entities.
 service Requisition {
-  // Creates a MetricRequisition for the specified Campaign.
-  rpc CreateMetricRequisition(CreateMetricRequisitionRequest)
-      returns (MetricRequisition) {}
-
   // Returns the metric requisitions for the specified Campaign.
   rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
-      returns (ListMetricRequisitionsResponse) {}
+      returns (ListMetricRequisitionsResponse);
 
   // Changes the state of a MetricRequisition to FULFILLED.
   //
   // This is a state transition method (see https://aip.dev/216).
-  rpc FulfillMetricRequisition(FulfillMetricsRequisitionRequest)
-      returns (MetricRequisition) {}
-}
+  rpc FulfillMetricRequisition(FulfillMetricRequisitionRequest)
+      returns (MetricRequisition);
 
-// Request message for CreateMetricsRequisition method.
-message CreateMetricRequisitionRequest {
-  // Resource key of the parent Campaign. Required.
-  Campaign.Key parent = 1;
-
-  // The MetricsRequisition to create. Required. The `key` field will be
-  // ignored, and the system will assign an ID.
-  MetricRequisition metrics_requisition = 2;
+  // Marks a MetricRequisition as permanently unfulfillable. This is a terminal
+  // state for the MetricRequisition and all computations that rely on the
+  // MetricRequisition will fail. Consequently, this should only be used for
+  // permanent failures, not transient errors.
+  //
+  // This is a state transition method (see https://aip.dev/216).
+  rpc RefuseMetricRequisition(RefuseMetricRequisitionRequest)
+      returns (MetricRequisition);
 }
 
 // Request message for ListMetricRequisitions method.
@@ -93,8 +88,45 @@ message ListMetricRequisitionsResponse {
 }
 
 // Request message for FulfillMetricsRequisition method.
-message FulfillMetricsRequisitionRequest {
-  // The resource key of the MetricsRequisition to attempt to mark as fulfilled.
+message FulfillMetricRequisitionRequest {
+  // Resource key of the MetricRequisition to mark as fulfilled.
   // Required.
   MetricRequisition.Key key = 1;
+}
+
+// Request message for RefuseMetricRequisition method.
+message RefuseMetricRequisitionRequest {
+  // Resource key of the MetricRequisition to mark as permanently unfulfillable.
+  // Required.
+  MetricRequisition.Key key = 1;
+
+  // Why the MetricRequisition cannot be fulfilled.
+  Justification justification = 2;
+
+  // Human-readable string adding more context to the provided Justification.
+  // This should NOT include sensitive information.
+  //
+  // Example: "Data Provider X does not support Virtual ID model line Y".
+  string justification_message = 3;
+
+  enum Justification {
+    JUSTIFICATION_UNKNOWN = 0;
+
+    // The Campaign is not known to the Data Provider. This should only happen
+    // if the Campaign once existed and then was deleted.
+    UNKNOWN_CAMPAIGN = 1;
+
+    // The data required to fulfill this MetricRequisition is permanently
+    // inaccessible or lost. If the data is unavailable because it's too old,
+    // prefer TIME_INTERVAL_TOO_DISTANT.
+    DATA_UNAVAILABLE = 2;
+
+    // The `MetricRequisition.metric_definition` specifies a configuration that
+    // the Data Provider does not support.
+    METRIC_DEFINITION_UNSUPPORTED = 3;
+
+    // The data requested is sufficiently old that the Data Provider no longer
+    // retains it. This is similar to DATA_UNAVAILABLE, but more specific.
+    TIME_INTERVAL_TOO_DISTANT = 4;
+  }
 }
