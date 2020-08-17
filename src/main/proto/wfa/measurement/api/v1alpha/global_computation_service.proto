@@ -53,7 +53,11 @@ service GlobalComputations {
   // Confirms that a Duchy is ready to begin a Computation. This implies that
   // all data necessary for the computation is accessible.
   rpc ConfirmGlobalComputation(ConfirmGlobalComputationRequest)
-      returns (ConfirmGlobalComputationResponse);
+      returns (GlobalComputation);
+
+  // Notes that a GlobalComputation is finished and submits results for it.
+  rpc FinishGlobalComputation(FinishGlobalComputationRequest)
+      returns (GlobalComputation);
 }
 
 // Request message for GetGlobalComputation method.
@@ -97,6 +101,7 @@ message ConfirmGlobalComputationRequest {
   repeated MetricRequisition.Key ready_requisitions = 2;
 }
 
-message ConfirmGlobalComputationResponse {
-  // Deliberately empty.
+message FinishGlobalComputationRequest {
+  GlobalComputation.Key key = 1;
+  GlobalComputation.Result result = 2;
 }

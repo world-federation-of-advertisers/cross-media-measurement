@@ -64,4 +64,11 @@ message GlobalComputation {
   repeated MetricRequisition.Key metric_requisitions = 3;
 
   // TODO: add additional fields to show Duchies what to compute.
+
+  // Set if and only if the `state` is `SUCCEEDED`.
+  Result result = 4;
+
+  message Result {
+    // TODO: add fields.
+  }
 }
