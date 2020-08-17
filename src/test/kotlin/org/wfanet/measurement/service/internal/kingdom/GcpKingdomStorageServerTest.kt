@@ -21,7 +21,6 @@ import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
-import java.time.Instant
 import kotlin.test.todo
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -352,9 +351,9 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       sourceBuilder.duchyBuilder.duchyId = "some-duchy"
     }.build()
 
-    val timeBefore = Instant.now()
+    val timeBefore = currentSpannerTimestamp
     val result = reportLogEntryStorage.createReportLogEntry(request)
-    val timeAfter = Instant.now()
+    val timeAfter = currentSpannerTimestamp
 
     assertThat(result)
       .comparingExpectedFieldsOnly()

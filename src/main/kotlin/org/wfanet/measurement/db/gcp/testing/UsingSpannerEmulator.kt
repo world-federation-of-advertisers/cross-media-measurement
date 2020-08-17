@@ -15,8 +15,12 @@
 package org.wfanet.measurement.db.gcp.testing
 
 import com.google.cloud.spanner.DatabaseClient
+import com.google.cloud.spanner.Statement
+import java.time.Instant
 import org.junit.ClassRule
 import org.junit.Rule
+import org.wfanet.measurement.db.gcp.single
+import org.wfanet.measurement.db.gcp.toInstant
 
 /**
  * Base class for JUnit4 tests using Cloud Spanner databases running in a test
@@ -46,6 +50,11 @@ abstract class UsingSpannerEmulator(schemaResourcePath: String) {
 
   val databaseClient: DatabaseClient
     get() = spannerEmulator.getDatabaseClient(spannerDatabase.databaseId)
+
+  val currentSpannerTimestamp: Instant
+    get() =
+      databaseClient.singleUse().executeQuery(Statement.of("SELECT CURRENT_TIMESTAMP()"))
+        .single().getTimestamp(0).toInstant()
 
   companion object {
     @ClassRule
