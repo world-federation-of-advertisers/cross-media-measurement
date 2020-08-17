@@ -63,12 +63,20 @@ message GlobalComputation {
   // Which MetricRequisitions are used in this computation.
   repeated MetricRequisition.Key metric_requisitions = 3;
 
-  // TODO: add additional fields to show Duchies what to compute.
+  // All of the `metric_requisitions` are guaranteed to have an identical
+  // metric definition to this:
+  MetricDefinition metric_definition = 4;
 
   // Set if and only if the `state` is `SUCCEEDED`.
-  Result result = 4;
+  Result result = 5;
 
+  // Individual result values are set only if they are required to be computed
+  // by `metric_definition`.
   message Result {
-    // TODO: add fields.
+    int64 reach = 1;
+
+    // Histogram: maps frequencies to counts. For example, a map entry
+    // {key: 4 value: 7} means that 7 users were exposed 4 times.
+    map<int64, int64> frequency = 2;
   }
 }
