@@ -1,0 +1,52 @@
+load("//build:defs.bzl", "test_target")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+package(default_visibility = [
+    ":__subpackages__",
+    test_target(":__subpackages__"),
+])
+
+kt_jvm_library(
+    name = "publisher_data_service",
+    srcs = ["PublisherDataService.kt"],
+    deps = [
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_registration_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v1alpha:metric_java_proto",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "publisher_data_server",
+    srcs = ["PublisherDataServer.kt"],
+    deps = [
+        ":publisher_data_service",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "PublisherDataServer",
+    main_class = "org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataServerKt",
+    runtime_deps = [
+        ":publisher_data_server",
+        "//imports/java/io/grpc/netty",
+    ],
+)
+
+java_image(
+    name = "publisher_data_server_image",
+    main_class = "org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataServerKt",
+    visibility = ["//src/main/docker:__subpackages__"],
+    runtime_deps = [
+        ":publisher_data_server",
+        "//imports/java/io/grpc/netty",
+    ],
+)

@@ -4,6 +4,14 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_push")
 # 'bazel build' builds the tarball, 'bazel run' will actually push it.
 
 container_push(
+    name = "push_publisher_data_server_image",
+    format = "Docker",
+    image = "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/publisherdata",
+)
+
+container_push(
     name = "push_requisition_server_image",
     format = "Docker",
     image = "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image",
