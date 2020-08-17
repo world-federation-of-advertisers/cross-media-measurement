@@ -19,7 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.check
+import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.stub
 import com.nhaarman.mockitokotlin2.times
@@ -94,10 +94,11 @@ class PublisherDataServiceTest {
     val response = runBlocking { service.listMetricRequisitions(request) }
 
     assertThat(response).isEqualTo(expectedResponse)
-    verifyBlocking(requisitionServiceMock, times(1)) {
-      listMetricRequisitions(
-        check { assertThat(it).isEqualTo(request) }
-      )
+    argumentCaptor<ListMetricRequisitionsRequest>() {
+      verifyBlocking(requisitionServiceMock, times(1)) {
+        listMetricRequisitions(capture())
+      }
+      assertThat(firstValue).isEqualTo(request)
     }
   }
 
