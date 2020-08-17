@@ -20,6 +20,10 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
+option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "SketchProto";
+
 // Truncated discretized exponential distrbution.
 // https://en.wikipedia.org/wiki/Exponential_distribution
 message ExponentialDistribution {
