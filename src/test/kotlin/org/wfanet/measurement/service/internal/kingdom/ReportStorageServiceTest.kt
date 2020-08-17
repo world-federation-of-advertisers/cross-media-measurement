@@ -63,6 +63,7 @@ class ReportStorageServiceTest {
     on { updateReportState(any(), any()) }.thenReturn(REPORT)
     on { streamReports(any(), any()) }.thenReturn(flowOf(REPORT, REPORT))
     on { streamReadyReports(any()) }.thenReturn(flowOf(REPORT, REPORT))
+    onBlocking { confirmDuchyReadiness(any(), any(), any()) }.thenReturn(REPORT)
   }
 
   @get:Rule
@@ -171,7 +172,8 @@ class ReportStorageServiceTest {
       addAllExternalRequisitionIds(listOf(2, 3, 4))
     }.build()
 
-    stub.confirmDuchyReadiness(request)
+    assertThat(stub.confirmDuchyReadiness(request))
+      .isEqualTo(REPORT)
 
     verify(kingdomRelationalDatabase)
       .confirmDuchyReadiness(

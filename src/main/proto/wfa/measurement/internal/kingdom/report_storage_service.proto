@@ -52,8 +52,7 @@ service ReportStorage {
       returns (AssociateRequisitionResponse);
 
   // Confirms that a Duchy is ready to perform the computations for a Report.
-  rpc ConfirmDuchyReadiness(ConfirmDuchyReadinessRequest)
-      returns (ConfirmDuchyReadinessResponse);
+  rpc ConfirmDuchyReadiness(ConfirmDuchyReadinessRequest) returns (Report);
 }
 
 message GetReportRequest {
@@ -103,8 +102,4 @@ message ConfirmDuchyReadinessRequest {
   int64 external_report_id = 1;
   string duchy_id = 2;
   repeated int64 external_requisition_ids = 3;
-}
-
-message ConfirmDuchyReadinessResponse {
-  // Deliberately empty.
 }

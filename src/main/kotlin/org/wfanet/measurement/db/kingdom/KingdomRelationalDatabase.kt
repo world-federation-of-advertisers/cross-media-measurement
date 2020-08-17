@@ -94,11 +94,12 @@ interface KingdomRelationalDatabase {
    * @param[externalReportId] the Report
    * @param[duchyId] the stable Duchy identifier
    * @param[externalRequisitionIds] the [Requisition]s for which this Duchy is providing data
+   * @return the modified Report
    * @throws[IllegalArgumentException] if [externalRequisitionIds] is not exactly what is expected
    **/
-  fun confirmDuchyReadiness(
+  suspend fun confirmDuchyReadiness(
     externalReportId: ExternalId,
     duchyId: String,
     externalRequisitionIds: Set<ExternalId>
-  )
+  ): Report
 }

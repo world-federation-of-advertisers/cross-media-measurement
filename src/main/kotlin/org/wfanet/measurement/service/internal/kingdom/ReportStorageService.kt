@@ -22,7 +22,6 @@ import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
-import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -70,12 +69,11 @@ class ReportStorageService(
 
   override suspend fun confirmDuchyReadiness(
     request: ConfirmDuchyReadinessRequest
-  ): ConfirmDuchyReadinessResponse {
-    kingdomRelationalDatabase.confirmDuchyReadiness(
+  ): Report {
+    return kingdomRelationalDatabase.confirmDuchyReadiness(
       ExternalId(request.externalReportId),
       request.duchyId,
       request.externalRequisitionIdsList.map(::ExternalId).toSet()
     )
-    return ConfirmDuchyReadinessResponse.getDefaultInstance()
   }
 }

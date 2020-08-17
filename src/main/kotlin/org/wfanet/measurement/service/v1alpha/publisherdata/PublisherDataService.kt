@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.CreateCampaignRequest
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
-import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
+import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -68,7 +68,7 @@ class PublisherDataService(
     )
 
     val requisition = requisitionClient.fulfillMetricRequisition(
-      FulfillMetricsRequisitionRequest.newBuilder().apply {
+      FulfillMetricRequisitionRequest.newBuilder().apply {
         key = internalMetricValue.resourceKey.toRequisitionKey()
       }.build()
     )

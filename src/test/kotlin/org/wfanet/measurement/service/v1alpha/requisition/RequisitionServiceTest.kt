@@ -24,7 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
+import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -100,7 +100,7 @@ class RequisitionServiceTest {
       REQUISITION
     }
 
-    val request = FulfillMetricsRequisitionRequest.newBuilder().apply {
+    val request = FulfillMetricRequisitionRequest.newBuilder().apply {
       keyBuilder.apply {
         dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
         campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value

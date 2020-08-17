@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationResponse
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
@@ -63,7 +62,7 @@ class GlobalComputationService(
   ): GlobalComputation {
     val externalReportId = getExternalReportId(request.key.globalComputationId)
     val report = getReport(externalReportId)
-    return translateReportToGlobalComputation(report)
+    return report.toGlobalComputation()
   }
 
   override fun streamActiveGlobalComputations(
@@ -78,7 +77,7 @@ class GlobalComputationService(
         .map { report ->
           StreamActiveGlobalComputationsResponse.newBuilder().apply {
             continuationToken = ContinuationTokenConverter.encode(lastUpdateTime)
-            globalComputation = translateReportToGlobalComputation(report)
+            globalComputation = report.toGlobalComputation()
           }.build()
         }
     }
@@ -121,7 +120,7 @@ class GlobalComputationService(
 
   override suspend fun confirmGlobalComputation(
     request: ConfirmGlobalComputationRequest
-  ): ConfirmGlobalComputationResponse {
+  ): GlobalComputation {
     val confirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
       externalReportId = ApiId(request.key.globalComputationId).externalId.value
       duchyId = duchyAuthProvider().authenticatedDuchyId
@@ -129,8 +128,8 @@ class GlobalComputationService(
         request.readyRequisitionsList.map { ApiId(it.metricRequisitionId).externalId.value }
       )
     }.build()
-    reportStorageStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
-    return ConfirmGlobalComputationResponse.getDefaultInstance()
+    val report = reportStorageStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
+    return report.toGlobalComputation()
   }
 
   private suspend fun getReport(externalReportId: ExternalId): Report {
@@ -190,12 +189,14 @@ private fun getStateType(reportState: ReportState): StateType =
     ReportState.UNRECOGNIZED -> StateType.INVALID
   }
 
-private fun translateReportToGlobalComputation(report: Report): GlobalComputation =
-  GlobalComputation.newBuilder().apply {
+private fun Report.toGlobalComputation(): GlobalComputation {
+  val report = this
+  return GlobalComputation.newBuilder().apply {
     keyBuilder.globalComputationId = ExternalId(report.externalReportId).apiId.value
     state = translateState(report.state)
     // TODO: populate more fields once they're added.
   }.build()
+}
 
 private fun ApiMpcAlgorithm.toStorageMpcAlgorithm(): MpcAlgorithm =
   when (this) {

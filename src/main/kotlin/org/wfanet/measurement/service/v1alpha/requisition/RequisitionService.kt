@@ -16,7 +16,7 @@ package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v1alpha.FulfillMetricsRequisitionRequest
+import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -40,7 +40,7 @@ class RequisitionService(
 ) : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
 
   override suspend fun fulfillMetricRequisition(
-    request: FulfillMetricsRequisitionRequest
+    request: FulfillMetricRequisitionRequest
   ): MetricRequisition {
     val externalId = ApiId(request.key.metricRequisitionId).externalId
     val internalRequest =

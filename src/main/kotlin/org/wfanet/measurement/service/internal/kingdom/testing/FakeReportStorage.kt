@@ -19,7 +19,6 @@ import org.wfanet.measurement.common.testing.ServiceMocker
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
-import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -53,6 +52,6 @@ class FakeReportStorage : ReportStorageCoroutineImplBase() {
 
   override suspend fun confirmDuchyReadiness(
     request: ConfirmDuchyReadinessRequest
-  ): ConfirmDuchyReadinessResponse =
+  ): Report =
     mocker.handleCall(request)
 }

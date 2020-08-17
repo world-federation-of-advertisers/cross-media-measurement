@@ -36,7 +36,6 @@ import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
-import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessResponse
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
@@ -258,11 +257,10 @@ class GlobalComputationsServiceTest {
       }
     }.build()
 
-    reportStorage.mocker.mock(FakeReportStorage::confirmDuchyReadiness) {
-      ConfirmDuchyReadinessResponse.getDefaultInstance()
-    }
+    reportStorage.mocker.mock(FakeReportStorage::confirmDuchyReadiness) { REPORT }
 
-    stub.confirmGlobalComputation(request)
+    assertThat(stub.confirmGlobalComputation(request))
+      .isEqualTo(GLOBAL_COMPUTATION)
 
     val expectedConfirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
       externalReportId = ExternalId(1111).value

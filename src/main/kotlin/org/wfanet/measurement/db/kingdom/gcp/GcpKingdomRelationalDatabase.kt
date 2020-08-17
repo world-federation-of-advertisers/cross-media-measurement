@@ -124,14 +124,20 @@ class GcpKingdomRelationalDatabase(
     }.build()
   }
 
-  override fun confirmDuchyReadiness(
+  override suspend fun confirmDuchyReadiness(
     externalReportId: ExternalId,
     duchyId: String,
     externalRequisitionIds: Set<ExternalId>
-  ) {
-    client.runReadWriteTransaction { transactionContext ->
+  ): Report {
+    // TODO: this uses two reads that could be collapsed into one.
+    val runner = client.readWriteTransaction()
+    runner.run { transactionContext ->
       ConfirmDuchyReadinessTransaction()
         .execute(transactionContext, externalReportId, duchyId, externalRequisitionIds)
     }
+    val commitTimestamp: Timestamp = runner.commitTimestamp
+    val readContext = client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp))
+    val reportReadResult = ReportReader.forExternalId(readContext, externalReportId)
+    return requireNotNull(reportReadResult).report
   }
 }
