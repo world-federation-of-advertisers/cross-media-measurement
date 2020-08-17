@@ -243,6 +243,18 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.INPUT }
       .map { it to blobDatabase.read(BlobRef(it.blobId, it.path)) }
       .toMap()
+
+  /**
+   * Returns the bytes of the single output blob of the stage, or null if the output path doesn't
+   * exist yet.
+   */
+  suspend fun readSingleOutputBlob(
+    token: ComputationToken
+  ): ByteArray? {
+    val singleOutputBlob = token.singleOutputBlobMetadata()
+    return if (singleOutputBlob.path.isEmpty()) null
+    else blobDatabase.read(BlobRef(singleOutputBlob.blobId, singleOutputBlob.path))
+  }
 }
 
 private fun requireNotEmpty(paths: List<String>): List<String> {
