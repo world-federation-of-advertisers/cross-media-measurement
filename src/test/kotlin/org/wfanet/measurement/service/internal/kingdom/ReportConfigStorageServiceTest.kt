@@ -19,7 +19,6 @@ import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
 import kotlinx.coroutines.runBlocking
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,9 +26,7 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 private const val EXTERNAL_REPORT_CONFIG_ID = 1L
 
@@ -53,12 +50,7 @@ class ReportConfigStorageServiceTest {
       .thenReturn(listOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
   }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ReportConfigStorageService(kingdomRelationalDatabase))
-  }
-
-  private val stub by lazy { ReportConfigStorageCoroutineStub(grpcTestServerRule.channel) }
+  private val service = ReportConfigStorageService(kingdomRelationalDatabase)
 
   @Test
   fun listRequisitionTemplates() = runBlocking<Unit> {
@@ -73,7 +65,7 @@ class ReportConfigStorageServiceTest {
         .addRequisitionTemplates(REQUISITION_TEMPLATE2)
         .build()
 
-    assertThat(stub.listRequisitionTemplates(request))
+    assertThat(service.listRequisitionTemplates(request))
       .ignoringRepeatedFieldOrder()
       .isEqualTo(expectedResponse)
 

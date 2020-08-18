@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
@@ -70,19 +69,16 @@ class GlobalComputationsServiceTest {
   private val reportLogEntryStorage = FakeReportLogEntryStorage()
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { channel ->
-    listOf(
-      reportStorage,
-      reportLogEntryStorage,
-      GlobalComputationService(
-        ReportStorageCoroutineStub(channel),
-        ReportLogEntryStorageCoroutineStub(channel),
-        DUCHY_AUTH_PROVIDER
-      )
-    )
-  }
+  val grpcTestServerRule = GrpcTestServerRule { listOf(reportStorage, reportLogEntryStorage) }
 
-  private val stub by lazy { GlobalComputationsCoroutineStub(grpcTestServerRule.channel) }
+  private val channel = grpcTestServerRule.channel
+
+  private val service =
+    GlobalComputationService(
+      ReportStorageCoroutineStub(channel),
+      ReportLogEntryStorageCoroutineStub(channel),
+      DUCHY_AUTH_PROVIDER
+    )
 
   @Test
   fun getGlobalComputation() = runBlocking<Unit> {
@@ -107,7 +103,7 @@ class GlobalComputationsServiceTest {
 
       reportStorage.mocker.mock(FakeReportStorage::getReport) { report }
 
-      assertThat(stub.getGlobalComputation(request))
+      assertThat(service.getGlobalComputation(request))
         .isEqualTo(expectedComputation)
 
       assertThat(reportStorage.mocker.callsForMethod("getReport"))
@@ -142,7 +138,7 @@ class GlobalComputationsServiceTest {
 
     val requestBuilder = StreamActiveGlobalComputationsRequest.newBuilder()
 
-    val flow = stub.streamActiveGlobalComputations(requestBuilder.build())
+    val flow = service.streamActiveGlobalComputations(requestBuilder.build())
 
     assertThat(flow.take(5).toList())
       .comparingExpectedFieldsOnly()
@@ -234,7 +230,7 @@ class GlobalComputationsServiceTest {
       it.toBuilder().setCreateTime(Instant.ofEpochSecond(6666).toProtoTime()).build()
     }
 
-    assertThat(stub.createGlobalComputationStatusUpdate(request))
+    assertThat(service.createGlobalComputationStatusUpdate(request))
       .isEqualTo(expectedResult)
 
     assertThat(reportLogEntryStorage.mocker.callsForMethod("createReportLogEntry"))
@@ -259,7 +255,7 @@ class GlobalComputationsServiceTest {
 
     reportStorage.mocker.mock(FakeReportStorage::confirmDuchyReadiness) { REPORT }
 
-    assertThat(stub.confirmGlobalComputation(request))
+    assertThat(service.confirmGlobalComputation(request))
       .isEqualTo(GLOBAL_COMPUTATION)
 
     val expectedConfirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {

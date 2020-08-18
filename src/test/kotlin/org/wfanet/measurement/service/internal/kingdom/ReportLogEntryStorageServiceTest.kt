@@ -19,14 +19,11 @@ import com.google.protobuf.Timestamp
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
 import kotlinx.coroutines.runBlocking
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 private const val EXTERNAL_REPORT_ID = 123L
 private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()
@@ -41,12 +38,7 @@ class ReportLogEntryStorageServiceTest {
       }
   }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ReportLogEntryStorageService(kingdomRelationalDatabase))
-  }
-
-  private val stub by lazy { ReportLogEntryStorageCoroutineStub(grpcTestServerRule.channel) }
+  private val service = ReportLogEntryStorageService(kingdomRelationalDatabase)
 
   @Test
   fun success() = runBlocking<Unit> {
@@ -54,7 +46,7 @@ class ReportLogEntryStorageServiceTest {
       externalReportId = EXTERNAL_REPORT_ID
     }.build()
 
-    val result = stub.createReportLogEntry(request)
+    val result = service.createReportLogEntry(request)
     assertThat(result)
       .isEqualTo(
         ReportLogEntry.newBuilder().apply {

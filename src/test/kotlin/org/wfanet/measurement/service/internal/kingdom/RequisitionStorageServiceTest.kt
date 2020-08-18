@@ -26,7 +26,6 @@ import kotlin.test.assertFails
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -36,9 +35,7 @@ import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 class RequisitionStorageServiceTest {
@@ -59,12 +56,7 @@ class RequisitionStorageServiceTest {
     on { streamRequisitions(any(), any()) }.thenReturn(flowOf(REQUISITION, REQUISITION))
   }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    listOf(RequisitionStorageService(kingdomRelationalDatabase))
-  }
-
-  private val stub by lazy { RequisitionStorageCoroutineStub(grpcTestServerRule.channel) }
+  private val service = RequisitionStorageService(kingdomRelationalDatabase)
 
   @Test
   fun `createRequisition fails with id`() = runBlocking<Unit> {
@@ -75,7 +67,7 @@ class RequisitionStorageServiceTest {
       state = RequisitionState.UNFULFILLED
     }.build()
 
-    assertFails { stub.createRequisition(requisition) }
+    assertFails { service.createRequisition(requisition) }
   }
 
   @Test
@@ -86,7 +78,7 @@ class RequisitionStorageServiceTest {
       state = RequisitionState.FULFILLED
     }.build()
 
-    assertFails { stub.createRequisition(requisition) }
+    assertFails { service.createRequisition(requisition) }
   }
 
   @Test
@@ -97,7 +89,7 @@ class RequisitionStorageServiceTest {
       state = RequisitionState.UNFULFILLED
     }.build()
 
-    assertThat(stub.createRequisition(inputRequisition))
+    assertThat(service.createRequisition(inputRequisition))
       .isEqualTo(REQUISITION)
 
     verify(kingdomRelationalDatabase)
@@ -112,7 +104,7 @@ class RequisitionStorageServiceTest {
         .setDuchyId("some-duchy")
         .build()
 
-    assertThat(stub.fulfillRequisition(request))
+    assertThat(service.fulfillRequisition(request))
       .isEqualTo(REQUISITION)
 
     verify(kingdomRelationalDatabase)
@@ -132,7 +124,7 @@ class RequisitionStorageServiceTest {
         }
       }.build()
 
-    assertThat(stub.streamRequisitions(request).toList())
+    assertThat(service.streamRequisitions(request).toList())
       .containsExactly(REQUISITION, REQUISITION)
 
     val expectedFilter = streamRequisitionsFilter(

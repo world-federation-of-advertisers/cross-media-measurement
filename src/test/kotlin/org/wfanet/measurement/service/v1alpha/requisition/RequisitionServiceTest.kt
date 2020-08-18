@@ -28,7 +28,6 @@ import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.toJson
@@ -80,19 +79,14 @@ class RequisitionServiceTest {
   private val requisitionStorage = FakeRequisitionStorage()
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { channel ->
-    listOf(
-      requisitionStorage,
-      RequisitionService(
-        RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel),
-        DUCHY_AUTH_PROVIDER
-      )
-    )
-  }
+  val grpcTestServerRule = GrpcTestServerRule { listOf(requisitionStorage) }
 
-  private val stub: RequisitionCoroutineStub by lazy {
-    RequisitionCoroutineStub(grpcTestServerRule.channel)
-  }
+  private val channel = grpcTestServerRule.channel
+  private val service =
+    RequisitionService(
+      RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel),
+      DUCHY_AUTH_PROVIDER
+    )
 
   @Test
   fun fulfillMetricRequisition() = runBlocking<Unit> {
@@ -108,7 +102,7 @@ class RequisitionServiceTest {
       }
     }.build()
 
-    val result = stub.fulfillMetricRequisition(request)
+    val result = service.fulfillMetricRequisition(request)
 
     val expected = MetricRequisition.newBuilder().apply {
       key = REQUISITION_API_KEY
@@ -151,7 +145,7 @@ class RequisitionServiceTest {
       pageToken = ""
     }.build()
 
-    val result = stub.listMetricRequisitions(request)
+    val result = service.listMetricRequisitions(request)
 
     val expected = ListMetricRequisitionsResponse.newBuilder().apply {
       addMetricRequisitionsBuilder().apply {
@@ -199,7 +193,7 @@ class RequisitionServiceTest {
       pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }.build()
 
-    val result = stub.listMetricRequisitions(request)
+    val result = service.listMetricRequisitions(request)
     val expected = ListMetricRequisitionsResponse.getDefaultInstance()
 
     assertThat(result).isEqualTo(expected)

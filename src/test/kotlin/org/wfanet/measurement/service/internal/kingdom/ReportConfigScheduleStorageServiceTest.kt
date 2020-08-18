@@ -21,15 +21,12 @@ import com.nhaarman.mockitokotlin2.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 private val SCHEDULE1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
 private val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
@@ -41,21 +38,14 @@ class ReportConfigScheduleStorageServiceTest {
       .thenReturn(flowOf(SCHEDULE1, SCHEDULE2))
   }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    listOf(ReportConfigScheduleStorageService(kingdomRelationalDatabase))
-  }
-
-  private val stub: ReportConfigScheduleStorageCoroutineStub by lazy {
-    ReportConfigScheduleStorageCoroutineStub(grpcTestServerRule.channel)
-  }
+  private val service = ReportConfigScheduleStorageService(kingdomRelationalDatabase)
 
   @Test
   fun streamReadySchedules() = runBlocking<Unit> {
     val limit = 123L
     val request = StreamReadyReportConfigSchedulesRequest.newBuilder().setLimit(limit).build()
 
-    assertThat(stub.streamReadyReportConfigSchedules(request).toList())
+    assertThat(service.streamReadyReportConfigSchedules(request).toList())
       .containsExactly(SCHEDULE1, SCHEDULE2)
 
     verify(kingdomRelationalDatabase).streamReadySchedules(limit)
