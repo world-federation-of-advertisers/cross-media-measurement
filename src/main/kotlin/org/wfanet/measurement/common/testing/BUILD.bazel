@@ -16,7 +16,6 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//imports/java/org/junit",
-        "//imports/java/org/mockito",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],

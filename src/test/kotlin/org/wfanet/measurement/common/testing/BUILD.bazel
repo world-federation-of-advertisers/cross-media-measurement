@@ -1,19 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "mockito_helpers_test",
-    srcs = ["MockitoHelpersTest.kt"],
-    test_class = "org.wfanet.measurement.common.testing.MockitoHelpersTest",
-    deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/java/org/mockito",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ],
-)
-
-kt_jvm_test(
     name = "test_clock_with_named_instants_test",
     srcs = ["TestClockWithNamedInstantsTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.TestClockWithNamedInstantsTest",
