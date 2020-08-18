@@ -18,7 +18,9 @@ import com.google.protobuf.ByteString
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -54,7 +56,7 @@ class LiquidLegionsMill(
 
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
-    throttler.onReady { pollAndProcessNextComputation() }
+    logAndSuppressExceptionSuspend { throttler.onReady { pollAndProcessNextComputation() } }
   }
 
   suspend fun pollAndProcessNextComputation() {
@@ -103,41 +105,43 @@ class LiquidLegionsMill(
 
   /** Process computation in the TO_BLIND_POSITIONS stage */
   private suspend fun blindPositions(token: ComputationToken): ComputationToken {
-    // TODO: Use cached result if it exists
     // TODO: Catch permanent errors and terminate the Computation
 
-    val cryptoRequest = BlindOneLayerRegisterIndexRequest.newBuilder()
-      .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
-      .setCurveId(cryptoKeySet.curveId)
-      .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
-      .setSketch(readAndCombineAllInputBlobs(token, 1))
-      .build()
-
-    val result: ByteString =
-      cryptoWorker.BlindOneLayerRegisterIndex(
-        cryptoRequest
-      )
-        .sketch
-
-    // Cache the result to the local blob store as the output of this stage.
-    val tokenAfterCaching = storageClients.writeSingleOutputBlob(token, result.toByteArray())
+    val cachedResult: CachedResult =
+      if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
+        // Reuse cached result if it exists
+        CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
+      } else {
+        // compute a new result if no cache exists
+        val newResult = cryptoWorker.BlindOneLayerRegisterIndex(
+          BlindOneLayerRegisterIndexRequest.newBuilder()
+            .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+            .setCurveId(cryptoKeySet.curveId)
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setSketch(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        ).sketch
+        // cache the newly computed results
+        val newToken = storageClients.writeSingleOutputBlob(token, newResult.toByteArray())
+        CachedResult(newResult, newToken)
+      }
 
     // Pass the computation to the next duchy.
     // TODO: partition the result to chunks to send
     val requestToNextDuchy = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(tokenAfterCaching.globalComputationId)
-      .setPartialSketch(result)
+      .setComputationId(cachedResult.token.globalComputationId)
+      .setPartialSketch(cachedResult.data)
       .build()
 
-    (workerStubs[tokenAfterCaching.nextDuchy] ?: error("Can not find the target of the next duchy"))
+    (workerStubs[cachedResult.token.nextDuchy] ?: error("Cannot find the target of the next duchy"))
       .handleConcatenatedSketch(
         flowOf(
           requestToNextDuchy
         )
       )
     return storageClients.transitionComputationToStage(
-      tokenAfterCaching,
-      inputsToNextStage = tokenAfterCaching.outputPathList(),
+      cachedResult.token,
+      inputsToNextStage = cachedResult.token.outputPathList(),
       stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
     )
   }
@@ -164,4 +168,6 @@ class LiquidLegionsMill(
     }
     return ByteString.copyFrom(blobMap.values.fold(ByteArray(0)) { acc, e -> acc.plus(e) })
   }
+
+  private data class CachedResult(val data: ByteString, val token: ComputationToken)
 }

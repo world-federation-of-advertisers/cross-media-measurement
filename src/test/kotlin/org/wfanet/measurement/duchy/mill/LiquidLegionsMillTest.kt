@@ -47,12 +47,13 @@ import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
+import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 class LiquidLegionsMillTest {
 
-  private val liquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =
+  private val mockLiquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val fakeBlobs = mutableMapOf<String, ByteArray>()
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
@@ -66,7 +67,7 @@ class LiquidLegionsMillTest {
       otherDuchyNames
     )
     listOf(
-      liquidLegionsComputationControl,
+      mockLiquidLegionsComputationControl,
       ComputationStorageServiceImpl(fakeComputationStorage)
     )
   }
@@ -98,7 +99,62 @@ class LiquidLegionsMillTest {
   }
 
   @Test
-  fun `to blind positions`() = runBlocking<Unit> {
+  fun `to blind positions using cached result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val inputBlobPath = "to_blind_position/input"
+    val outputBlobPath = "to_blind_position/output"
+    val computationId = 1111L
+    fakeComputationStorage.addComputation(
+      id = computationId,
+      stage = TO_BLIND_POSITIONS.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(
+        newInputBlobMetadata(0L, inputBlobPath),
+        newOutputBlobMetadata(1L, outputBlobPath)
+      )
+    )
+    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
+    fakeBlobs[outputBlobPath] = "cached result".toByteArray()
+
+    lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
+    whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
+      val request: Flow<HandleConcatenatedSketchRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      HandleConcatenatedSketchResponse.getDefaultInstance()
+    }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val expectTokenAfterProcess =
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(computationId)
+        .setLocalComputationId(computationId)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FLAG_COUNTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(INPUT)
+            .setBlobId(0)
+            .setPath("to_blind_position/output")
+        )
+        .addBlobs(ComputationStageBlobMetadata.newBuilder().setDependencyType(OUTPUT).setBlobId(1))
+        .setNextDuchy("NEXT_WORKER")
+        .setVersion(2) // CreateComputation + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
+    assertEquals(expectTokenAfterProcess, fakeComputationStorage[computationId]!!)
+
+    assertThat(computationControlRequests).containsExactly(
+      HandleConcatenatedSketchRequest.newBuilder()
+        .setPartialSketch(ByteString.copyFromUtf8("cached result"))
+        .setComputationId(computationId).build()
+    )
+  }
+
+  @Test
+  fun `to blind positions using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val inputBlobPath = "to_blind_position/input"
     val computationId = 1111L
@@ -114,7 +170,7 @@ class LiquidLegionsMillTest {
     fakeBlobs[inputBlobPath] = "sketch".toByteArray()
 
     lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
-    whenever(liquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
+    whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
       val request: Flow<HandleConcatenatedSketchRequest> = it.getArgument(0)
       computationControlRequests = runBlocking { request.toList() }
       HandleConcatenatedSketchResponse.getDefaultInstance()
@@ -138,7 +194,7 @@ class LiquidLegionsMillTest {
         )
         .addBlobs(ComputationStageBlobMetadata.newBuilder().setDependencyType(OUTPUT).setBlobId(1))
         .setNextDuchy("NEXT_WORKER")
-        .setVersion(3)
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
         .setRole(RoleInComputation.SECONDARY)
         .build()
     val expectOutputBlob = "sketch-BlindedOneLayerRegisterIndex"
