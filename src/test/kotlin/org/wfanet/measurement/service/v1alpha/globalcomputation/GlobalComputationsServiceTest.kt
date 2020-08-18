@@ -15,6 +15,14 @@
 package org.wfanet.measurement.service.v1alpha.globalcomputation
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.nhaarman.mockitokotlin2.UseConstructor
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.argumentCaptor
+import com.nhaarman.mockitokotlin2.inOrder
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.times
+import com.nhaarman.mockitokotlin2.verify
+import com.nhaarman.mockitokotlin2.whenever
 import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
@@ -24,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.Mockito
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
@@ -41,11 +50,11 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportLogDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportLogEntryStorage
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
 
@@ -65,8 +74,10 @@ private val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
 
 @RunWith(JUnit4::class)
 class GlobalComputationsServiceTest {
-  private val reportStorage = FakeReportStorage()
-  private val reportLogEntryStorage = FakeReportLogEntryStorage()
+  private val reportStorage: ReportStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
+  private val reportLogEntryStorage: ReportLogEntryStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { listOf(reportStorage, reportLogEntryStorage) }
@@ -101,19 +112,22 @@ class GlobalComputationsServiceTest {
       val report = REPORT.toBuilder().setState(reportState).build()
       val expectedComputation = GLOBAL_COMPUTATION.toBuilder().setState(computationState).build()
 
-      reportStorage.mocker.mock(FakeReportStorage::getReport) { report }
+      whenever(reportStorage.getReport(any())).thenReturn(report)
 
       assertThat(service.getGlobalComputation(request))
         .isEqualTo(expectedComputation)
 
-      assertThat(reportStorage.mocker.callsForMethod("getReport"))
-        .containsExactly(
-          GetReportRequest.newBuilder()
-            .setExternalReportId(REPORT.externalReportId)
-            .build()
-        )
+      argumentCaptor<GetReportRequest> {
+        verify(reportStorage).getReport(capture())
+        assertThat(firstValue)
+          .isEqualTo(
+            GetReportRequest.newBuilder()
+              .setExternalReportId(REPORT.externalReportId)
+              .build()
+          )
+      }
 
-      reportStorage.mocker.reset()
+      Mockito.reset(reportStorage)
     }
   }
 
@@ -132,13 +146,14 @@ class GlobalComputationsServiceTest {
         globalComputationBuilder.keyBuilder.globalComputationId = ExternalId(id).apiId.value
       }.build()
 
-    reportStorage.mocker.mockStreaming(FakeReportStorage::streamReports) {
-      flowOf(nextReport(), nextReport())
-    }
+    whenever(reportStorage.streamReports(any()))
+      .thenAnswer {
+        flowOf(nextReport(), nextReport())
+      }
 
-    val requestBuilder = StreamActiveGlobalComputationsRequest.newBuilder()
-
-    val flow = service.streamActiveGlobalComputations(requestBuilder.build())
+    val flow = service.streamActiveGlobalComputations(
+      StreamActiveGlobalComputationsRequest.getDefaultInstance()
+    )
 
     assertThat(flow.take(5).toList())
       .comparingExpectedFieldsOnly()
@@ -167,14 +182,19 @@ class GlobalComputationsServiceTest {
         }
       }.build()
 
-    assertThat(reportStorage.mocker.callsForMethod("streamReports"))
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(
-        expectedStreamReportsRequest(0),
-        expectedStreamReportsRequest(1001),
-        expectedStreamReportsRequest(1003)
-      )
-      .inOrder()
+    inOrder(reportStorage) {
+      argumentCaptor<StreamReportsRequest> {
+        verify(reportStorage, times(3)).streamReports(capture())
+        assertThat(allValues)
+          .ignoringRepeatedFieldOrder()
+          .containsExactly(
+            expectedStreamReportsRequest(0),
+            expectedStreamReportsRequest(1001),
+            expectedStreamReportsRequest(1003)
+          )
+          .inOrder()
+      }
+    }
   }
 
   @Test
@@ -226,15 +246,22 @@ class GlobalComputationsServiceTest {
       }
     }.build()
 
-    reportLogEntryStorage.mocker.mock(FakeReportLogEntryStorage::createReportLogEntry) {
-      it.toBuilder().setCreateTime(Instant.ofEpochSecond(6666).toProtoTime()).build()
-    }
+    whenever(reportLogEntryStorage.createReportLogEntry(any()))
+      .thenAnswer {
+        it.getArgument<ReportLogEntry>(0)
+          .toBuilder()
+          .setCreateTime(Instant.ofEpochSecond(6666).toProtoTime())
+          .build()
+      }
 
     assertThat(service.createGlobalComputationStatusUpdate(request))
       .isEqualTo(expectedResult)
 
-    assertThat(reportLogEntryStorage.mocker.callsForMethod("createReportLogEntry"))
-      .containsExactly(expectedReportLogEntry)
+    argumentCaptor<ReportLogEntry> {
+      verify(reportLogEntryStorage).createReportLogEntry(capture())
+      assertThat(firstValue)
+        .isEqualTo(expectedReportLogEntry)
+    }
   }
 
   @Test
@@ -253,7 +280,8 @@ class GlobalComputationsServiceTest {
       }
     }.build()
 
-    reportStorage.mocker.mock(FakeReportStorage::confirmDuchyReadiness) { REPORT }
+    whenever(reportStorage.confirmDuchyReadiness(any()))
+      .thenReturn(REPORT)
 
     assertThat(service.confirmGlobalComputation(request))
       .isEqualTo(GLOBAL_COMPUTATION)
@@ -264,7 +292,10 @@ class GlobalComputationsServiceTest {
       addAllExternalRequisitionIds(listOf(ExternalId(4444).value, ExternalId(7777).value))
     }.build()
 
-    assertThat(reportStorage.mocker.callsForMethod("confirmDuchyReadiness"))
-      .containsExactly(expectedConfirmDuchyReadinessRequest)
+    argumentCaptor<ConfirmDuchyReadinessRequest> {
+      verify(reportStorage).confirmDuchyReadiness(capture())
+      assertThat(firstValue)
+        .isEqualTo(expectedConfirmDuchyReadinessRequest)
+    }
   }
 }
