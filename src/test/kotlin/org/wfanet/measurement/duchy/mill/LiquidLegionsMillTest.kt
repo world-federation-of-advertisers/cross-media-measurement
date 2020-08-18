@@ -11,11 +11,18 @@
 
 package org.wfanet.measurement.duchy.mill
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.nhaarman.mockitokotlin2.UseConstructor
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.whenever
 import java.nio.charset.Charset
 import java.time.Clock
 import java.time.Duration
 import kotlin.test.assertEquals
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -29,13 +36,14 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BL
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
-import org.wfanet.measurement.service.internal.duchy.computation.control.testing.FakeLiquidLegionsComputationControl
+import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
@@ -44,7 +52,8 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 class LiquidLegionsMillTest {
 
-  private val liquidLegionsComputationControl = FakeLiquidLegionsComputationControl()
+  private val liquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
   private val fakeBlobs = mutableMapOf<String, ByteArray>()
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
   private val cryptoWorker = FakeLiquidLegionsCryptoWorker()
@@ -89,8 +98,8 @@ class LiquidLegionsMillTest {
   }
 
   @Test
-  fun `to blind positions`() = runBlocking {
-    // Stage 0. preparing the storage
+  fun `to blind positions`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
     val inputBlobPath = "to_blind_position/input"
     val computationId = 1111L
     fakeComputationStorage.addComputation(
@@ -103,6 +112,13 @@ class LiquidLegionsMillTest {
       )
     )
     fakeBlobs[inputBlobPath] = "sketch".toByteArray()
+
+    lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
+    whenever(liquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
+      val request: Flow<HandleConcatenatedSketchRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      HandleConcatenatedSketchResponse.getDefaultInstance()
+    }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -132,13 +148,10 @@ class LiquidLegionsMillTest {
       fakeBlobs["1111/TO_BLIND_POSITIONS_1_output"]!!.toString(Charset.defaultCharset())
     )
 
-    assertEquals(
-      liquidLegionsComputationControl.lastRequestStream,
-      listOf(
-        HandleConcatenatedSketchRequest.newBuilder().setPartialSketch(
-          ByteString.copyFromUtf8(expectOutputBlob)
-        ).setComputationId(computationId).build()
-      )
+    assertThat(computationControlRequests).containsExactly(
+      HandleConcatenatedSketchRequest.newBuilder()
+        .setPartialSketch(ByteString.copyFromUtf8(expectOutputBlob))
+        .setComputationId(computationId).build()
     )
   }
 
