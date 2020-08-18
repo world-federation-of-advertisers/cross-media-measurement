@@ -140,4 +140,13 @@ class MillFlags {
   )
   var millId by Delegates.notNull<String>()
     private set
+
+  @set:CommandLine.Option(
+    names = ["--bytes-per-chunk"],
+    description = ["The number of bytes in a chunk when sending result to other duchy."],
+    required = true,
+    defaultValue = "2_000_000"
+  )
+  var chunkSize by Delegates.notNull<Int>()
+    private set
 }

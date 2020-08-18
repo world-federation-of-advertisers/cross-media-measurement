@@ -94,7 +94,8 @@ class LiquidLegionsMillTest {
         workerStubs,
         cryptoKeySet,
         cryptoWorker,
-        throttler
+        throttler,
+        chunkSize = 20
       )
   }
 
@@ -206,7 +207,10 @@ class LiquidLegionsMillTest {
 
     assertThat(computationControlRequests).containsExactly(
       HandleConcatenatedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8(expectOutputBlob))
+        .setPartialSketch(ByteString.copyFromUtf8("sketch-BlindedOneLay")) // Chunk 1, size 20
+        .setComputationId(computationId).build(),
+      HandleConcatenatedSketchRequest.newBuilder()
+        .setPartialSketch(ByteString.copyFromUtf8("erRegisterIndex")) // Chunk 2, the rest
         .setComputationId(computationId).build()
     )
   }

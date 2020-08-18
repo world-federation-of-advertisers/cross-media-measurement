@@ -81,7 +81,13 @@ private fun run(
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), millFlags.pollingInterval)
   val cryptoWorker = LiquidLegionsCryptoWorkerImpl()
   val mill = LiquidLegionsMill(
-    millFlags.millId, storageClients, clientMap, cryptoKeySet, cryptoWorker, pollingThrottler
+    millId = millFlags.millId,
+    storageClients = storageClients,
+    workerStubs = clientMap,
+    cryptoKeySet = cryptoKeySet,
+    cryptoWorker = cryptoWorker,
+    throttler = pollingThrottler,
+    chunkSize = millFlags.chunkSize
   )
 
   runBlocking { mill.continuallyProcessComputationQueue() }

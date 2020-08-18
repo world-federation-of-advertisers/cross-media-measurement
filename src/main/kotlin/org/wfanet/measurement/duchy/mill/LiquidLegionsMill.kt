@@ -16,7 +16,9 @@ package org.wfanet.measurement.duchy.mill
 
 import com.google.protobuf.ByteString
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
@@ -39,8 +41,11 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.outputP
  *    table and blob store.
  * @param[workerStubs] A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
+ * @param[cryptoKeySet] The set of crypto keys used in the computation
+ * @param[cryptoWorker] The cryptoWorker that performs the actual computation.
  * @param[throttler] A throttler used to rate limit the frequency of the mill polling from the
  *    computation table
+ * @param[chunkSize] The size of data chunk when sending result to other duchies.
  */
 class LiquidLegionsMill(
   private val millId: String,
@@ -48,7 +53,8 @@ class LiquidLegionsMill(
   private val workerStubs: Map<String, ComputationControlServiceCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsCryptoWorker,
-  private val throttler: MinimumIntervalThrottler
+  private val throttler: MinimumIntervalThrottler,
+  private val chunkSize: Int = 2_000_000
 ) {
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
@@ -127,17 +133,15 @@ class LiquidLegionsMill(
       }
 
     // Pass the computation to the next duchy.
-    // TODO: partition the result to chunks to send
-    val requestToNextDuchy = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(cachedResult.token.globalComputationId)
-      .setPartialSketch(cachedResult.data)
-      .build()
-
     (workerStubs[cachedResult.token.nextDuchy] ?: error("Cannot find the target of the next duchy"))
       .handleConcatenatedSketch(
-        flowOf(
-          requestToNextDuchy
-        )
+        cachedResult.data.chunkedFlow()
+          .map {
+            HandleConcatenatedSketchRequest.newBuilder()
+              .setComputationId(cachedResult.token.globalComputationId)
+              .setPartialSketch(it)
+              .build()
+          }
       )
     return storageClients.transitionComputationToStage(
       cachedResult.token,
@@ -167,6 +171,13 @@ class LiquidLegionsMill(
       "Unexpected number of input blobs. expected $count, actual ${blobMap.size}."
     }
     return ByteString.copyFrom(blobMap.values.fold(ByteArray(0)) { acc, e -> acc.plus(e) })
+  }
+
+  /** Partition a bytestring to a flow of chunks. */
+  private fun ByteString.chunkedFlow(): Flow<ByteString> = flow {
+    for (begin in 0 until size() step chunkSize) {
+      emit(substring(begin, minOf(size(), begin + chunkSize)))
+    }
   }
 
   private data class CachedResult(val data: ByteString, val token: ComputationToken)
