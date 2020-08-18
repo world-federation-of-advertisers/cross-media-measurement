@@ -16,7 +16,7 @@ package org.wfanet.measurement.loadtest
 
 import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
-import wfa.measurement.api.v1alpha.SketchOuterClass.Sketch
+import org.wfanet.measurement.api.v1alpha.Sketch
 
 /** Interface for E2E Correctness Test */
 interface Correctness {
