@@ -64,12 +64,12 @@ fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlockin
     flags.pollDelay
   )
 
-  val reportStarterClient = DaemonDatabaseServicesClientImpl(
+  val databaseClient = DaemonDatabaseServicesClientImpl(
     ReportConfigStorageCoroutineStub(channel),
     ReportConfigScheduleStorageCoroutineStub(channel),
     ReportStorageCoroutineStub(channel),
     RequisitionStorageCoroutineStub(channel)
   )
 
-  Daemon(throttler, flags.maxParallelism, reportStarterClient).block()
+  Daemon(throttler, flags.maxParallelism, databaseClient).block()
 }

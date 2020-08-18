@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
@@ -45,6 +47,7 @@ import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
 import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+@RunWith(JUnit4::class)
 class DaemonDatabaseServicesClientImplTest {
 
   private val fakeReportConfigStorage = FakeReportConfigStorage()

@@ -1,4 +1,5 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library", "kt_jvm_test")
+load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
     name = "report_maker_test",
@@ -71,5 +72,36 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_storage_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_template_java_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "in_process_kingdom_integration_test",
+    testonly = True,
+    srcs = ["InProcessKingdomIntegrationTest.kt"],
+    deps = [
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition",
+    ],
+)
+
+spanner_emulator_test(
+    name = "gcp_in_process_kingdom_integration_test",
+    srcs = ["GcpInProcessKingdomIntegrationTest.kt"],
+    resources = [
+        "//src/main/db/gcp:kingdom_schema",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.GcpInProcessKingdomIntegrationTest",
+    deps = [
+        ":in_process_kingdom_integration_test",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
     ],
 )

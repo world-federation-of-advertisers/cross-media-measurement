@@ -38,16 +38,22 @@ class GrpcTestServerRule(
         .build()
     )
 
-  override fun apply(base: Statement?, description: Description?): Statement {
-    val serverBuilder =
-      InProcessServerBuilder.forName(serverName)
-        .intercept(GrpcExceptionLogger())
-        .directExecutor()
+  override fun apply(base: Statement, description: Description): Statement {
+    val newStatement = object : Statement() {
+      override fun evaluate() {
+        val serverBuilder =
+          InProcessServerBuilder.forName(serverName)
+            .intercept(GrpcExceptionLogger())
+            .directExecutor()
 
-    servicesFactory(channel).forEach { serverBuilder.addService(it) }
+        servicesFactory(channel).forEach { serverBuilder.addService(it) }
 
-    grpcCleanupRule.register(serverBuilder.build().start())
+        grpcCleanupRule.register(serverBuilder.build().start())
 
-    return grpcCleanupRule.apply(base, description)
+        base.evaluate()
+      }
+    }
+
+    return grpcCleanupRule.apply(newStatement, description)
   }
 }
