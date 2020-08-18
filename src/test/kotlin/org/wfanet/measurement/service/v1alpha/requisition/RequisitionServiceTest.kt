@@ -16,6 +16,12 @@ package org.wfanet.measurement.service.v1alpha.requisition
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
+import com.nhaarman.mockitokotlin2.UseConstructor
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.argumentCaptor
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.verify
+import com.nhaarman.mockitokotlin2.whenever
 import java.time.Instant
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -36,47 +42,44 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
 
+private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+private val WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
+
+private val IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
+
+private val REQUISITION: Requisition = Requisition.newBuilder().apply {
+  externalDataProviderId = 1
+  externalCampaignId = 2
+  externalRequisitionId = 3
+  createTime = CREATE_TIME
+  state = RequisitionState.FULFILLED
+  windowStartTime = WINDOW_START_TIME
+  windowEndTime = WINDOW_END_TIME
+  requisitionDetails = IRRELEVANT_DETAILS
+  requisitionDetailsJson = IRRELEVANT_DETAILS.toJson()
+}.build()
+
+private val REQUISITION_API_KEY: MetricRequisition.Key =
+  MetricRequisition.Key.newBuilder().apply {
+    dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+    campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+    metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
+  }.build()
+
+private const val DUCHY_ID: String = "some-duchy-id"
+private val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
+
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
-
-  companion object {
-    var CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-    private var WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
-    private var WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
-
-    private var IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
-
-    var REQUISITION: Requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = 1
-      externalCampaignId = 2
-      externalRequisitionId = 3
-      createTime = CREATE_TIME
-      state = RequisitionState.FULFILLED
-      windowStartTime = WINDOW_START_TIME
-      windowEndTime = WINDOW_END_TIME
-      requisitionDetails = IRRELEVANT_DETAILS
-      requisitionDetailsJson = IRRELEVANT_DETAILS.toJson()
-    }.build()
-
-    val REQUISITION_API_KEY: MetricRequisition.Key =
-      MetricRequisition.Key.newBuilder().apply {
-        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
-        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
-        metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
-      }.build()
-
-    const val DUCHY_ID: String = "some-duchy-id"
-    val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
-  }
-
-  private val requisitionStorage = FakeRequisitionStorage()
+  private val requisitionStorage: RequisitionStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { listOf(requisitionStorage) }
@@ -84,15 +87,14 @@ class RequisitionServiceTest {
   private val channel = grpcTestServerRule.channel
   private val service =
     RequisitionService(
-      RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub(channel),
+      RequisitionStorageCoroutineStub(channel),
       DUCHY_AUTH_PROVIDER
     )
 
   @Test
   fun fulfillMetricRequisition() = runBlocking<Unit> {
-    requisitionStorage.mocker.mock(RequisitionStorageCoroutineImplBase::fulfillRequisition) {
-      REQUISITION
-    }
+    whenever(requisitionStorage.fulfillRequisition(any()))
+      .thenReturn(REQUISITION)
 
     val request = FulfillMetricRequisitionRequest.newBuilder().apply {
       keyBuilder.apply {
@@ -111,24 +113,22 @@ class RequisitionServiceTest {
 
     assertThat(result).isEqualTo(expected)
 
-    assertThat(requisitionStorage.mocker.callsForMethod("fulfillRequisition"))
-      .containsExactly(
+    argumentCaptor<FulfillRequisitionRequest> {
+      verify(requisitionStorage).fulfillRequisition(capture())
+
+      assertThat(firstValue).isEqualTo(
         FulfillRequisitionRequest.newBuilder()
           .setExternalRequisitionId(REQUISITION.externalRequisitionId)
           .setDuchyId(DUCHY_ID)
           .build()
       )
+    }
   }
 
   @Test
   fun `listMetricRequisitions without page token`() = runBlocking<Unit> {
-    requisitionStorage
-      .mocker
-      .mockStreaming(
-        RequisitionStorageCoroutineImplBase::streamRequisitions
-      ) {
-        flowOf(REQUISITION, REQUISITION)
-      }
+    whenever(requisitionStorage.streamRequisitions(any()))
+      .thenReturn(flowOf(REQUISITION, REQUISITION))
 
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
       parentBuilder.apply {
@@ -163,9 +163,9 @@ class RequisitionServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(expected)
 
-    assertThat(requisitionStorage.mocker.callsForMethod("streamRequisitions"))
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(
+    argumentCaptor<StreamRequisitionsRequest> {
+      verify(requisitionStorage).streamRequisitions(capture())
+      assertThat(firstValue).isEqualTo(
         StreamRequisitionsRequest.newBuilder().apply {
           limit = 2
           filterBuilder.apply {
@@ -175,13 +175,13 @@ class RequisitionServiceTest {
           }
         }.build()
       )
+    }
   }
 
   @Test
   fun `listMetricRequisitions with page token`() = runBlocking<Unit> {
-    requisitionStorage
-      .mocker
-      .mockStreaming(RequisitionStorageCoroutineImplBase::streamRequisitions) { emptyFlow() }
+    whenever(requisitionStorage.streamRequisitions(any()))
+      .thenReturn(emptyFlow())
 
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
       parentBuilder.apply {
@@ -198,18 +198,21 @@ class RequisitionServiceTest {
 
     assertThat(result).isEqualTo(expected)
 
-    assertThat(requisitionStorage.mocker.callsForMethod("streamRequisitions"))
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(
-        StreamRequisitionsRequest.newBuilder().apply {
-          limit = 1
-          filterBuilder.apply {
-            addStates(RequisitionState.UNFULFILLED)
-            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
-            addExternalCampaignIds(REQUISITION.externalCampaignId)
-            createdAfter = CREATE_TIME
-          }
-        }.build()
-      )
+    argumentCaptor<StreamRequisitionsRequest> {
+      verify(requisitionStorage).streamRequisitions(capture())
+      assertThat(firstValue)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          StreamRequisitionsRequest.newBuilder().apply {
+            limit = 1
+            filterBuilder.apply {
+              addStates(RequisitionState.UNFULFILLED)
+              addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+              addExternalCampaignIds(REQUISITION.externalCampaignId)
+              createdAfter = CREATE_TIME
+            }
+          }.build()
+        )
+    }
   }
 }
