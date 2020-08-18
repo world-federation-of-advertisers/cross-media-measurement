@@ -1,6 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@com_github_grpc_grpc_kotlin//:kt_jvm_grpc.bzl", "kt_jvm_grpc_library")
-load("//src/main/proto/wfa/measurement:macros.bzl", "java_and_kt_grpc_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -20,9 +20,9 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
 )
 
-java_and_kt_grpc_library(
-    name = "computation_control_service",
-    deps = [":computation_control_service_proto"],
+kt_jvm_grpc_and_java_proto_library(
+    name = "computation_control_service_kt_jvm_grpc",
+    srcs = [":computation_control_service_proto"],
 )
 
 proto_library(
@@ -59,9 +59,9 @@ proto_library(
     ],
 )
 
-java_and_kt_grpc_library(
-    name = "computation_storage_service",
-    deps = [":computation_storage_service_proto"],
+kt_jvm_grpc_and_java_proto_library(
+    name = "computation_storage_service_kt_jvm_grpc",
+    srcs = [":computation_storage_service_proto"],
 )
 
 proto_library(
@@ -111,13 +111,7 @@ proto_library(
     deps = [":metric_value_proto"],
 )
 
-java_proto_library(
-    name = "metric_values_service_java_proto",
-    deps = [":metric_values_service_proto"],
-)
-
-kt_jvm_grpc_library(
+kt_jvm_grpc_and_java_proto_library(
     name = "metric_values_service_kt_jvm_grpc",
     srcs = [":metric_values_service_proto"],
-    deps = [":metric_values_service_java_proto"],
 )
