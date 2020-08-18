@@ -5,9 +5,6 @@ package(default_visibility = ["//src:internal_services"])
 kt_jvm_library(
     name = "metricvalues",
     srcs = glob(["*.kt"]),
-    exports = [
-        "//src/main/kotlin/org/wfanet/measurement/storage:metric_value_store",
-    ],
     deps = [
         "//imports/java/com/google/protobuf",
         "//imports/kotlin/kotlinx/coroutines:core",

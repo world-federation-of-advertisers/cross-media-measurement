@@ -16,12 +16,20 @@ kt_jvm_library(
     ],
 )
 
+package_group(
+    name = "metric_values_service",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues/...",
+    ],
+)
+
 kt_jvm_library(
     name = "metric_value_store",
     srcs = ["MetricValueStore.kt"],
     visibility = [
         test_target(":__pkg__"),
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:__subpackages__",
+        ":metric_values_service",
     ],
     deps = [
         ":client",

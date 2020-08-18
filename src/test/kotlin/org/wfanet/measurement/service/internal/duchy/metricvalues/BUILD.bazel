@@ -15,6 +15,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "//src/main/kotlin/org/wfanet/measurement/storage:metric_value_store",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )

@@ -14,9 +14,8 @@
 
 package org.wfanet.measurement.storage
 
-import kotlinx.coroutines.flow.Flow
 import java.nio.ByteBuffer
-import java.util.UUID
+import kotlinx.coroutines.flow.Flow
 
 private const val BLOB_KEY_PREFIX = "metric-values"
 
@@ -28,7 +27,7 @@ private const val BLOB_KEY_PREFIX = "metric-values"
  */
 class MetricValueStore(
   private val storageClient: StorageClient<*>,
-  private val generateBlobKey: () -> String = { UUID.randomUUID().toString() }
+  private val generateBlobKey: () -> String
 ) {
 
   /**
