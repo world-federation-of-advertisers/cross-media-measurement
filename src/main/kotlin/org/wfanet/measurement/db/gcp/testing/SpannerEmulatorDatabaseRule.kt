@@ -15,51 +15,53 @@
 package org.wfanet.measurement.db.gcp.testing
 
 import com.google.cloud.spanner.Database
-import com.google.cloud.spanner.DatabaseId
-import com.google.cloud.spanner.Instance
+import com.google.cloud.spanner.DatabaseClient
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.rules.TestRule
 import org.wfanet.measurement.common.testing.CloseableResource
 
 /**
- * JUnit rule for [SpannerEmulator] instance.
+ * JUnit rule exposing a temporary Google Cloud Spanner database.
+ *
+ * All instances share a single [SpannerEmulator].
  */
-class SpannerEmulatorDatabaseRule(spannerInstance: Instance, schemaResourcePath: String) :
-  DatabaseRule by DatabaseRuleImpl(spannerInstance, schemaResourcePath)
+class SpannerEmulatorDatabaseRule(schemaResourcePath: String) :
+  DatabaseRule by DatabaseRuleImpl(schemaResourcePath)
 
 private interface DatabaseRule : TestRule {
-  val databaseId: DatabaseId
+  val databaseClient: DatabaseClient
 }
 
-private class DatabaseRuleImpl(spannerInstance: Instance, schemaResourcePath: String) :
+private class DatabaseRuleImpl(schemaResourcePath: String) :
   DatabaseRule,
-  CloseableResource<TemporaryDatabase>({ TemporaryDatabase(spannerInstance, schemaResourcePath) }) {
+  CloseableResource<TemporaryDatabase>({ TemporaryDatabase(schemaResourcePath) }) {
 
-  override val databaseId: DatabaseId
-    get() = resource.databaseId
+  override val databaseClient: DatabaseClient
+    get() = resource.databaseClient
 }
 
-private class TemporaryDatabase(spannerInstance: Instance, schemaResourcePath: String) :
+private class TemporaryDatabase(schemaResourcePath: String) :
   AutoCloseable {
 
   private val database: Database
   init {
     val databaseName = "test-db-${instanceCounter.incrementAndGet()}"
-    val ddl = TemporaryDatabase::class.java.getResource(schemaResourcePath).readText()
-    database = createDatabase(spannerInstance, ddl, databaseName)
+    val ddl = javaClass.getResource(schemaResourcePath).readText()
+    database = createDatabase(emulator.instance, ddl, databaseName)
   }
 
-  val databaseId: DatabaseId
-    get() = database.id
+  val databaseClient: DatabaseClient by lazy {
+    emulator.getDatabaseClient(database.id)
+  }
 
   override fun close() {
-    if (database.exists()) {
-      database.drop()
-    }
+    database.drop()
   }
 
   companion object {
     /** Atomic counter to ensure each instance has a unique name. */
     private val instanceCounter = AtomicInteger(0)
+
+    private val emulator = EmulatorWithInstance()
   }
 }

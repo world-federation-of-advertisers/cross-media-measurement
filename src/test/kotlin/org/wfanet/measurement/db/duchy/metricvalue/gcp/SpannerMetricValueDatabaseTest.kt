@@ -16,14 +16,12 @@ package org.wfanet.measurement.db.duchy.metricvalue.gcp
 
 import com.google.cloud.spanner.DatabaseClient
 import org.junit.Before
-import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.testing.AbstractMetricValueDatabaseTest
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorRule
 
 private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
 
@@ -34,18 +32,13 @@ class SpannerMetricValueDatabaseTest :
 
   @Rule
   @JvmField
-  val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator.instance, SCHEMA_RESOURCE_PATH)
+  val spannerDatabase = SpannerEmulatorDatabaseRule(SCHEMA_RESOURCE_PATH)
+
   val databaseClient: DatabaseClient
-    get() = spannerEmulator.getDatabaseClient(spannerDatabase.databaseId)
+    get() = spannerDatabase.databaseClient
 
   @Before fun initMetricValueDb() {
     fixedIdGenerator = FixedIdGenerator()
     metricValueDb = SpannerMetricValueDatabase(databaseClient, fixedIdGenerator)
-  }
-
-  companion object {
-    @ClassRule
-    @JvmField
-    val spannerEmulator = SpannerEmulatorRule()
   }
 }
