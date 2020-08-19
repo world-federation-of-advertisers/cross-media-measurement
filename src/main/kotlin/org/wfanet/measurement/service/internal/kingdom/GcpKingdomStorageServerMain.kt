@@ -16,6 +16,8 @@ package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.DuchyIdFlags
+import org.wfanet.measurement.common.DuchyIds
 import org.wfanet.measurement.common.RandomIdGeneratorImpl
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
@@ -53,8 +55,11 @@ private class Flags {
 )
 private fun run(
   @CommandLine.Mixin flags: Flags,
-  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
+  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags,
+  @CommandLine.Mixin duchyIdFlags: DuchyIdFlags
 ) {
+  DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+
   val spannerFromFlags = SpannerFromFlags(spannerFlags)
   val clock = Clock.systemUTC()
 

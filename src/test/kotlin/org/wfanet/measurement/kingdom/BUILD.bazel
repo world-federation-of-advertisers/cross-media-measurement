@@ -86,8 +86,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_service",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_service",
     ],
 )
 

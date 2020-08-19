@@ -1,5 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -7,11 +7,8 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "requisition",
-    srcs = glob(
-        ["*.kt"],
-        exclude = ["Main.kt"],
-    ),
+    name = "requisition_service",
+    srcs = ["RequisitionService.kt"],
     deps = [
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/common",
@@ -24,12 +21,32 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_binary_and_image(
+kt_jvm_library(
     name = "requisition_server",
-    srcs = ["Main.kt"],
-    main_class = "org.wfanet.measurement.service.v1alpha.requisition.MainKt",
-    visibility = ["//visibility:public"],
+    srcs = ["RequisitionServer.kt"],
     deps = [
-        ":requisition",
+        ":requisition_service",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "RequisitionServer",
+    main_class = "org.wfanet.measurement.service.v1alpha.requisition.RequisitionServerKt",
+    runtime_deps = [
+        ":requisition_server",
+        "//imports/java/io/grpc/netty",
+    ],
+)
+
+java_image(
+    name = "requisition_server_image",
+    main_class = "org.wfanet.measurement.service.v1alpha.requisition.RequisitionServerKt",
+    visibility = ["//src/main/docker:__subpackages__"],
+    runtime_deps = [
+        ":requisition_server",
+        "//imports/java/io/grpc/netty",
     ],
 )

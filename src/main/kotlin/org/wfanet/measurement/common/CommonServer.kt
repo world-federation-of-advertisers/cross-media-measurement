@@ -20,6 +20,8 @@ import io.grpc.ServerBuilder
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.properties.Delegates
+import picocli.CommandLine
 
 class CommonServer(
   private val nameForLogging: String,
@@ -63,7 +65,21 @@ class CommonServer(
     server.awaitTermination()
   }
 
+  class Flags {
+    @set:CommandLine.Option(
+      names = ["--port", "-p"],
+      description = ["TCP port for gRPC server."],
+      defaultValue = "8080"
+    )
+    var port by Delegates.notNull<Int>()
+      private set
+  }
+
   companion object {
     private val logger = Logger.getLogger(this::class.java.name)
+
+    /** Constructs a [CommonServer] from command-line flags. */
+    fun fromFlags(flags: Flags, nameForLogging: String, vararg services: BindableService) =
+      CommonServer(nameForLogging, flags.port, *services)
   }
 }

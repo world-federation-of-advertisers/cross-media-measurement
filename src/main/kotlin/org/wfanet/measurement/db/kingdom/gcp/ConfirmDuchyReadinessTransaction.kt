@@ -5,6 +5,7 @@ import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
+import org.wfanet.measurement.common.DuchyIds
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.db.gcp.single
@@ -18,6 +19,8 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 
 /**
  * Confirms a Duchy's readiness for a [Report].
+ *
+ * If all Duchies are ready, the [Report] is put into state [ReportState.IN_PROGRESS].
  */
 class ConfirmDuchyReadinessTransaction {
   /**
@@ -26,8 +29,7 @@ class ConfirmDuchyReadinessTransaction {
    * @param[transactionContext] the transaction to use
    * @param[externalReportId] the [Report]
    * @param[duchyId] the Duchy
-   * @param[externalRequisitionIds] the complete list of [Requisition]s that the Duchy is providing
-   *                                for the computation
+   * @param[externalRequisitionIds] all [Requisition]s the Duchy is providing for the computation
    * @throws[IllegalArgumentException] if [externalRequisitionIds] is not what is expected
    */
   fun execute(
@@ -107,19 +109,26 @@ class ConfirmDuchyReadinessTransaction {
   }
 
   private fun updateReportDetailsMutation(readResult: Struct, duchyId: String): Mutation {
+    require(duchyId in DuchyIds.ALL) {
+      "Duchy id '$duchyId' not in list of valid duchies: ${DuchyIds.ALL}"
+    }
+
     val reportDetails =
       readResult.getProtoMessage("ReportDetails", ReportDetails.parser())
         .toBuilder()
         .addConfirmedDuchies(duchyId)
         .build()
 
-    return Mutation.newUpdateBuilder("Reports")
-      .set("AdvertiserId").to(readResult.getLong("AdvertiserId"))
-      .set("ReportConfigId").to(readResult.getLong("ReportConfigId"))
-      .set("ScheduleId").to(readResult.getLong("ScheduleId"))
-      .set("ReportId").to(readResult.getLong("ReportId"))
-      .set("ReportDetails").toProtoBytes(reportDetails)
-      .set("ReportDetailsJson").toProtoJson(reportDetails)
-      .build()
+    return Mutation.newUpdateBuilder("Reports").apply {
+      set("AdvertiserId").to(readResult.getLong("AdvertiserId"))
+      set("ReportConfigId").to(readResult.getLong("ReportConfigId"))
+      set("ScheduleId").to(readResult.getLong("ScheduleId"))
+      set("ReportId").to(readResult.getLong("ReportId"))
+      set("ReportDetails").toProtoBytes(reportDetails)
+      set("ReportDetailsJson").toProtoJson(reportDetails)
+      if (reportDetails.confirmedDuchiesCount == DuchyIds.size) {
+        set("State").toProtoEnum(ReportState.IN_PROGRESS)
+      }
+    }.build()
   }
 }

@@ -91,6 +91,8 @@ interface KingdomRelationalDatabase {
   /**
    * Confirms that [duchyId] is ready to start work on the Report for [externalReportId].
    *
+   * If all duchies are ready, then the Report is transitioned into state [ReportState.IN_PROGRESS].
+   *
    * @param[externalReportId] the Report
    * @param[duchyId] the stable Duchy identifier
    * @param[externalRequisitionIds] the [Requisition]s for which this Duchy is providing data

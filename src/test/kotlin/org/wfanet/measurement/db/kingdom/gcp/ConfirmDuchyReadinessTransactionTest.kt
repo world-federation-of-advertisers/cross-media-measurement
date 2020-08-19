@@ -19,10 +19,12 @@ import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.testing.DuchyIdSetter
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -52,7 +54,12 @@ private const val OTHER_DUCHY_ID = "other-duchy-id"
 
 @RunWith(JUnit4::class)
 class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
-  lateinit var originalReport: Report
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID, OTHER_DUCHY_ID)
+
+  private lateinit var originalReport: Report
+
+  private val originalReportBuilder: Report.Builder
+    get() = originalReport.toBuilder()
 
   @Before
   fun populateDatabase() {
@@ -73,15 +80,16 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
     originalReport = readAllReportsInSpanner().single()
   }
 
-  private fun assertReportIsTheSameExceptWithConfirmedDuchies(vararg confirmedDuchies: String) {
-    val expectedReport = originalReport.toBuilder().apply {
-      reportDetailsBuilder.clearConfirmedDuchies()
-      reportDetailsBuilder.addAllConfirmedDuchies(confirmedDuchies.asList())
-    }.build()
+  private fun Report.Builder.withConfirmedDuchies(vararg confirmedDuchies: String): Report.Builder {
+    reportDetailsBuilder.clearConfirmedDuchies()
+    reportDetailsBuilder.addAllConfirmedDuchies(confirmedDuchies.asList())
+    return this
+  }
 
+  private fun assertReportInDatabaseIs(report: Report.Builder) {
     assertThat(readAllReportsInSpanner())
       .ignoringFields(Report.REPORT_DETAILS_JSON_FIELD_NUMBER)
-      .containsExactly(expectedReport)
+      .containsExactly(report.build())
   }
 
   private fun insertFulfilledRequisition(
@@ -106,13 +114,16 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun runConfirmDuchyReadinessTransaction(vararg requisitions: Long) {
+  private fun runConfirmDuchyReadinessTransaction(
+    duchyId: String,
+    vararg requisitions: Long
+  ) {
     databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
       ConfirmDuchyReadinessTransaction()
         .execute(
           transactionContext,
           ExternalId(EXTERNAL_REPORT_ID),
-          DUCHY_ID,
+          duchyId,
           requisitions.map(::ExternalId).toSet()
         )
     }
@@ -126,15 +137,25 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
     insertFulfilledRequisition(REQUISITION_ID2, EXTERNAL_REQUISITION_ID2, DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID2)
 
-    runConfirmDuchyReadinessTransaction(EXTERNAL_REQUISITION_ID1, EXTERNAL_REQUISITION_ID2)
+    runConfirmDuchyReadinessTransaction(
+      DUCHY_ID, EXTERNAL_REQUISITION_ID1, EXTERNAL_REQUISITION_ID2
+    )
 
-    assertReportIsTheSameExceptWithConfirmedDuchies(DUCHY_ID)
+    assertReportInDatabaseIs(originalReportBuilder.withConfirmedDuchies(DUCHY_ID))
+
+    runConfirmDuchyReadinessTransaction(OTHER_DUCHY_ID)
+
+    assertReportInDatabaseIs(
+      originalReportBuilder
+        .setState(ReportState.IN_PROGRESS)
+        .withConfirmedDuchies(DUCHY_ID, OTHER_DUCHY_ID)
+    )
   }
 
   @Test
   fun `no requisitions`() {
-    runConfirmDuchyReadinessTransaction()
-    assertReportIsTheSameExceptWithConfirmedDuchies(DUCHY_ID)
+    runConfirmDuchyReadinessTransaction(DUCHY_ID)
+    assertReportInDatabaseIs(originalReportBuilder.withConfirmedDuchies(DUCHY_ID))
   }
 
   @Test
@@ -143,17 +164,18 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
     linkRequisitionToReport(REQUISITION_ID1)
 
     assertFails {
-      runConfirmDuchyReadinessTransaction()
+      runConfirmDuchyReadinessTransaction(DUCHY_ID)
     }
-    assertReportIsTheSameExceptWithConfirmedDuchies(/* Expect no confirmed Duchies. */)
+    assertReportInDatabaseIs(originalReportBuilder)
   }
 
   @Test
   fun `call has extra Requisitions that it owns but not linked`() {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     assertFails {
-      runConfirmDuchyReadinessTransaction(EXTERNAL_REQUISITION_ID1)
+      runConfirmDuchyReadinessTransaction(DUCHY_ID, EXTERNAL_REQUISITION_ID1)
     }
+    assertReportInDatabaseIs(originalReportBuilder)
   }
 
   @Test
@@ -161,9 +183,9 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, OTHER_DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
     assertFails {
-      runConfirmDuchyReadinessTransaction(EXTERNAL_REQUISITION_ID1)
+      runConfirmDuchyReadinessTransaction(DUCHY_ID, EXTERNAL_REQUISITION_ID1)
     }
-    assertReportIsTheSameExceptWithConfirmedDuchies(/* Expect no confirmed Duchies. */)
+    assertReportInDatabaseIs(originalReportBuilder)
   }
 
   @Test
@@ -182,9 +204,9 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
     originalReport = readAllReportsInSpanner().single()
 
     assertFails {
-      runConfirmDuchyReadinessTransaction()
+      runConfirmDuchyReadinessTransaction(DUCHY_ID)
     }
 
-    assertReportIsTheSameExceptWithConfirmedDuchies(/* Expect no confirmed Duchies. */)
+    assertReportInDatabaseIs(originalReportBuilder)
   }
 }

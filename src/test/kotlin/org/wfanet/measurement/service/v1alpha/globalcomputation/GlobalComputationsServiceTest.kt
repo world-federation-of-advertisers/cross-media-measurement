@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails
@@ -74,6 +75,9 @@ private val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
 
 @RunWith(JUnit4::class)
 class GlobalComputationsServiceTest {
+  @get:Rule
+  val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
+
   private val reportStorage: ReportStorageCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val reportLogEntryStorage: ReportLogEntryStorageCoroutineImplBase =

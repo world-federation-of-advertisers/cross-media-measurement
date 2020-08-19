@@ -9,13 +9,20 @@ import io.grpc.ServerInterceptor
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import org.wfanet.measurement.common.DuchyIds
 
 /**
  * Details about an authenticated Duchy.
  *
- * @property[authenticatedDuchyId] Stable identifier for a duchy. Null if unauthenticated.
+ * @property[authenticatedDuchyId] Stable identifier for a duchy.
  */
-data class DuchyAuth(val authenticatedDuchyId: String)
+data class DuchyAuth(val authenticatedDuchyId: String) {
+  init {
+    require(authenticatedDuchyId in DuchyIds.ALL) {
+      "Duchy $authenticatedDuchyId is unknown; known Duchies are ${DuchyIds.ALL}"
+    }
+  }
+}
 
 val duchyAuthFromContext: DuchyAuth
   get() = requireNotNull(DUCHY_AUTH_CONTEXT_KEY.get())

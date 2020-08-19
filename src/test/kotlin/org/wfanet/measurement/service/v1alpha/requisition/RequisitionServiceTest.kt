@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
@@ -78,6 +79,9 @@ private val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
+  @get:Rule
+  val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
+
   private val requisitionStorage: RequisitionStorageCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 

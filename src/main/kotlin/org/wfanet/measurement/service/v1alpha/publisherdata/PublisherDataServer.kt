@@ -15,7 +15,6 @@
 package org.wfanet.measurement.service.v1alpha.publisherdata
 
 import io.grpc.ManagedChannelBuilder
-import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.CommonServer
@@ -24,22 +23,6 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import picocli.CommandLine
 
 private class Flags {
-  @set:CommandLine.Option(
-    names = ["--port", "-p"],
-    description = ["TCP port for gRPC server."],
-    defaultValue = "8080"
-  )
-  var port by Delegates.notNull<Int>()
-    private set
-
-  @CommandLine.Option(
-    names = ["--server-name"],
-    description = ["Name of the gRPC server for logging purposes."],
-    defaultValue = "PublisherDataServer"
-  )
-  lateinit var nameForLogging: String
-    private set
-
   @CommandLine.Option(
     names = ["--metric-values-service-target"],
     description = ["gRPC target (authority string or URI) for MetricValues service."],
@@ -71,7 +54,10 @@ private class Flags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(@CommandLine.Mixin flags: Flags) {
+private fun run(
+  @CommandLine.Mixin flags: Flags,
+  @CommandLine.Mixin commonServerFlags: CommonServer.Flags
+) {
   val metricValuesClient = MetricValuesCoroutineStub(
     ManagedChannelBuilder.forTarget(flags.metricValuesServiceTarget).build()
   )
@@ -82,11 +68,12 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     ManagedChannelBuilder.forTarget(flags.registrationServiceTarget).build()
   )
 
-  CommonServer(
-    flags.nameForLogging,
-    flags.port,
-    PublisherDataService(metricValuesClient, requisitionClient, registrationClient)
-  ).start().blockUntilShutdown()
+  val service = PublisherDataService(metricValuesClient, requisitionClient, registrationClient)
+
+  CommonServer
+    .fromFlags(commonServerFlags, "PublisherDataServer", service)
+    .start()
+    .blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
