@@ -26,23 +26,16 @@ import org.junit.runners.model.Statement
  * that [after][org.junit.rules.ExternalResource.after] is invoked if
  * [before][org.junit.rules.ExternalResource.before] throws an exception.
  */
-open class CloseableResource<T : AutoCloseable>(lazyResource: () -> T) : TestRule {
-  protected val resource by lazy { lazyResource() }
+open class CloseableResource<T : AutoCloseable>(private val createResource: () -> T) : TestRule {
+  protected lateinit var resource: T
+    private set
 
   override fun apply(base: Statement, description: Description) = object : Statement() {
     override fun evaluate() {
-      try {
-        resource.use {
-          before()
-          base.evaluate()
-        }
-      } finally {
-        after()
-      }
+      check(!::resource.isInitialized)
+
+      resource = createResource()
+      resource.use { base.evaluate() }
     }
   }
-
-  open fun before() {}
-
-  open fun after() {}
 }

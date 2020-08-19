@@ -37,36 +37,29 @@ private class DatabaseRuleImpl(spannerInstance: Instance, schemaResourcePath: St
 
   override val databaseId: DatabaseId
     get() = resource.databaseId
-
-  override fun before() {
-    resource.init()
-  }
 }
 
-private class TemporaryDatabase(
-  private val spannerInstance: Instance,
-  private val schemaResourcePath: String
-) : AutoCloseable {
-  companion object {
-    /** Atomic counter to ensure each test is given its own database to run against. */
-    private val testCounter: AtomicInteger = AtomicInteger(0)
-  }
+private class TemporaryDatabase(spannerInstance: Instance, schemaResourcePath: String) :
+  AutoCloseable {
 
-  private lateinit var database: Database
-  val databaseId: DatabaseId
-    get() = database.id
-
-  fun init() {
-    check(!this::database.isInitialized)
-
-    val databaseName = "test-db-${testCounter.incrementAndGet()}"
+  private val database: Database
+  init {
+    val databaseName = "test-db-${instanceCounter.incrementAndGet()}"
     val ddl = TemporaryDatabase::class.java.getResource(schemaResourcePath).readText()
     database = createDatabase(spannerInstance, ddl, databaseName)
   }
 
+  val databaseId: DatabaseId
+    get() = database.id
+
   override fun close() {
-    if (this::database.isInitialized) {
+    if (database.exists()) {
       database.drop()
     }
+  }
+
+  companion object {
+    /** Atomic counter to ensure each instance has a unique name. */
+    private val instanceCounter = AtomicInteger(0)
   }
 }

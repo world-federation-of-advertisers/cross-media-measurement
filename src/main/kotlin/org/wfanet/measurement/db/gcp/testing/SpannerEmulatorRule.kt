@@ -39,41 +39,27 @@ private class EmulatorRuleImpl : EmulatorRule,
   override val instance
     get() = resource.instance
 
-  override fun before() {
-    resource.init()
-  }
-
   override fun getDatabaseClient(databaseId: DatabaseId): DatabaseClient =
-    resource.spanner.getDatabaseClient(databaseId)
+    resource.getDatabaseClient(databaseId)
 }
 
 /**
  * [AutoCloseable] resource wrapping a temporary [SpannerEmulator] with a single [Instance].
  */
 private class TemporaryEmulatorInstance : AutoCloseable {
-  companion object {
-    private const val PROJECT_ID = "test-project"
-    private const val INSTANCE_NAME = "test-instance"
-    private const val INSTANCE_DISPLAY_NAME = "Test Instance"
-    private const val INSTANCE_CONFIG = "emulator-config"
-  }
+  private val spannerEmulator = SpannerEmulator().apply { start() }
 
-  private lateinit var spannerEmulator: SpannerEmulator
-  lateinit var spanner: Spanner
-    private set
-  lateinit var instance: Instance
-    private set
-
-  fun init() {
-    check(!this::spannerEmulator.isInitialized)
-
-    spannerEmulator = SpannerEmulator()
-    spannerEmulator.start()
+  private val spanner: Spanner
+  init {
     val emulatorHost = spannerEmulator.blockUntilReady()
 
     val spannerOptions =
       SpannerOptions.newBuilder().setProjectId(PROJECT_ID).setEmulatorHost(emulatorHost).build()
     spanner = spannerOptions.service
+  }
+
+  val instance: Instance
+  init {
     instance = spanner.instanceAdminClient.createInstance(
       InstanceInfo
         .newBuilder(InstanceId.of(PROJECT_ID, INSTANCE_NAME))
@@ -85,14 +71,18 @@ private class TemporaryEmulatorInstance : AutoCloseable {
   }
 
   override fun close() {
-    if (this::instance.isInitialized) {
-      instance.delete()
-    }
-    if (this::spanner.isInitialized) {
-      spanner.close()
-    }
-    if (this::spannerEmulator.isInitialized) {
-      spannerEmulator.close()
-    }
+    instance.delete()
+    spanner.close()
+    spannerEmulator.close()
+  }
+
+  fun getDatabaseClient(databaseId: DatabaseId): DatabaseClient =
+    spanner.getDatabaseClient(databaseId)
+
+  companion object {
+    private const val PROJECT_ID = "test-project"
+    private const val INSTANCE_NAME = "test-instance"
+    private const val INSTANCE_DISPLAY_NAME = "Test Instance"
+    private const val INSTANCE_CONFIG = "emulator-config"
   }
 }
