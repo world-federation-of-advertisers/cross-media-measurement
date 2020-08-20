@@ -26,12 +26,12 @@ kt_jvm_library(
 
 java_binary(
     name = "liquid_legions_computation_control_server",
-    main_class = "org.wfanet.measurement.service.internal.duchy.computationcontrol.LiquidLegionsComputationControlServiceMainKt",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.LiquidLegionsComputationControlServiceMainKt",
     runtime_deps = [":liquid_legions_computation_control_service_impl"],
 )
 
 java_image(
     name = "liquid_legions_computation_control_server_image",
-    main_class = "org.wfanet.measurement.service.internal.duchy.computationcontrol.LiquidLegionsComputationControlServiceMainKt",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.LiquidLegionsComputationControlServiceMainKt",
     runtime_deps = [":liquid_legions_computation_control_service_impl"],
 )

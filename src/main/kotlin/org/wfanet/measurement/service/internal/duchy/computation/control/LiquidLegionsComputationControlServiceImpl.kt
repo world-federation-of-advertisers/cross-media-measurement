@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computationcontrol
+package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
