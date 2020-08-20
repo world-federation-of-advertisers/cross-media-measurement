@@ -15,17 +15,17 @@
 package org.wfanet.measurement.duchy.herald
 
 import io.grpc.ManagedChannelBuilder
+import java.time.Clock
+import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
-import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
+import org.wfanet.measurement.storage.gcs.CloudStorageFromFlags
 import picocli.CommandLine
-import java.time.Clock
-import java.time.Duration
-import kotlin.properties.Delegates
 
 private class HeraldFlags {
   @set:CommandLine.Option(
@@ -80,13 +80,13 @@ private class HeraldFlags {
 private fun run(
   @CommandLine.Mixin heraldFlags: HeraldFlags,
   // TODO: Break dependence on google cloud storage, it is not actually used.
-  @CommandLine.Mixin cloudStorageFlags: GoogleCloudStorageFromFlags.Flags
+  @CommandLine.Mixin cloudStorageFlags: CloudStorageFromFlags.Flags
 ) {
   val storageChannel =
     ManagedChannelBuilder.forTarget(heraldFlags.computationStorageServiceTarget)
       .usePlaintext()
       .build()
-  val cloudStorage = GoogleCloudStorageFromFlags(cloudStorageFlags)
+  val cloudStorage = CloudStorageFromFlags(cloudStorageFlags)
   val storageClients = newLiquidLegionsSketchAggregationGcpComputationStorageClients(
     duchyName = heraldFlags.duchyName,
     // TODO: Pass public keys of all duchies to the computation manager

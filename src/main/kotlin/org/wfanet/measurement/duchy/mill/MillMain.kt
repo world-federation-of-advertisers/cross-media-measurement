@@ -22,8 +22,8 @@ import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
-import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
+import org.wfanet.measurement.storage.gcs.CloudStorageFromFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -33,10 +33,10 @@ import picocli.CommandLine
 )
 private fun run(
   @CommandLine.Mixin millFlags: MillFlags,
-  @CommandLine.Mixin cloudStorageFlags: GoogleCloudStorageFromFlags.Flags
+  @CommandLine.Mixin cloudStorageFlags: CloudStorageFromFlags.Flags
 ) {
   // TODO: Expand flags and configuration to work on other cloud environments when available.
-  val cloudStorageFromFlags = GoogleCloudStorageFromFlags(cloudStorageFlags)
+  val cloudStorageFromFlags = CloudStorageFromFlags(cloudStorageFlags)
 
   val channel: ManagedChannel =
     ManagedChannelBuilder

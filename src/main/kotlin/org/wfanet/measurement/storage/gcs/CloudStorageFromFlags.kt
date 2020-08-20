@@ -12,17 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.storage.gcs
 
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import picocli.CommandLine
 
 /**
- * Flags used to interact with a single bucket in Google Cloud Storage.
+ * Client access provider for Google Cloud Storage via command-line flags.
  */
-class GoogleCloudStorageFromFlags(
-  flags: Flags
-) {
+class CloudStorageFromFlags(private val flags: Flags) {
+  /** [StorageOptions] created from flag values. */
+  @Deprecated(message = "Don't reference the options, just access the service property.")
+  val cloudStorageOptions: StorageOptions
+    get() = storageOptions
+
+  private val storageOptions: StorageOptions by lazy {
+    StorageOptions.newBuilder()
+      .setProjectId(flags.projectName)
+      .build()
+  }
+
+  val storage: Storage
+    get() = storageOptions.service
+
+  val bucket: String
+    get() = flags.bucket
 
   class Flags {
     @CommandLine.Option(
@@ -32,21 +47,13 @@ class GoogleCloudStorageFromFlags(
     )
     lateinit var projectName: String
       private set
+
     @CommandLine.Option(
       names = ["--google-cloud-storage-bucket"],
       description = ["Name of the Google Cloud Storage project to use."],
       required = true
     )
-    lateinit var storageBucket: String
+    lateinit var bucket: String
       private set
   }
-
-  /** [StorageOptions] created from flag values. */
-  val cloudStorageOptions: StorageOptions by lazy {
-    StorageOptions.newBuilder()
-      .setProjectId(flags.projectName)
-      .build()
-  }
-
-  val bucket: String by lazy { flags.storageBucket }
 }

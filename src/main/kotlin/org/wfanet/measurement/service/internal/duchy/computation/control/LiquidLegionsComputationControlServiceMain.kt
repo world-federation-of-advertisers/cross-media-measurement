@@ -20,7 +20,7 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
-import org.wfanet.measurement.db.gcp.GoogleCloudStorageFromFlags
+import org.wfanet.measurement.storage.gcs.CloudStorageFromFlags
 import picocli.CommandLine
 
 private class ComputationControlServiceFlags {
@@ -40,7 +40,7 @@ private class ComputationControlServiceFlags {
     defaultValue = "WorkerServer"
   )
   var nameForLogging: String by Delegates.notNull()
-  private set
+    private set
 
   @set:CommandLine.Option(
     names = ["--computation-storage-service-target"],
@@ -57,10 +57,10 @@ private class ComputationControlServiceFlags {
 )
 private fun run(
   @CommandLine.Mixin computationControlServiceFlags: ComputationControlServiceFlags,
-  @CommandLine.Mixin cloudStorageFlags: GoogleCloudStorageFromFlags.Flags
+  @CommandLine.Mixin cloudStorageFlags: CloudStorageFromFlags.Flags
 ) {
   // TODO: Expand flags and configuration to work on other cloud environments when available.
-  val cloudStorageFromFlags = GoogleCloudStorageFromFlags(cloudStorageFlags)
+  val cloudStorageFromFlags = CloudStorageFromFlags(cloudStorageFlags)
 
   val channel: ManagedChannel =
     ManagedChannelBuilder
