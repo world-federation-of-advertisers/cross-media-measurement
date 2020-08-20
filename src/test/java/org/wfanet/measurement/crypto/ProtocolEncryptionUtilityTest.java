@@ -26,6 +26,13 @@ import org.junit.runners.JUnit4;
 import org.wfanet.anysketch.crypto.EncryptSketchRequest;
 import org.wfanet.anysketch.crypto.EncryptSketchResponse;
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter;
+import org.wfanet.measurement.api.v1alpha.Sketch;
+import org.wfanet.measurement.api.v1alpha.Sketch.Register;
+import org.wfanet.measurement.api.v1alpha.SketchConfig;
+import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec;
+import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator;
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest;
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse;
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest;
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse;
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest;
@@ -37,11 +44,6 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest;
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse;
 import org.wfanet.measurement.internal.duchy.ElGamalKeys;
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKeys;
-import org.wfanet.measurement.api.v1alpha.Sketch;
-import org.wfanet.measurement.api.v1alpha.Sketch.Register;
-import org.wfanet.measurement.api.v1alpha.SketchConfig;
-import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec;
-import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator;
 
 @RunWith(JUnit4.class)
 public class ProtocolEncryptionUtilityTest {
@@ -138,13 +140,20 @@ public class ProtocolEncryptionUtilityTest {
   // The final (flag, count) lists are returned.
   private DecryptLastLayerFlagAndCountResponse goThroughEntireMpcProtocol(
       ByteString encrypted_sketch) throws Exception {
+    // Duchy 1 add noise to the sketch
+    AddNoiseToSketchRequest addNoiseToSketchRequest =
+        AddNoiseToSketchRequest.newBuilder().setSketch(encrypted_sketch).build();
+    AddNoiseToSketchResponse addNoiseToSketchResponse =
+        AddNoiseToSketchResponse.parseFrom(
+            ProtocolEncryptionUtility.AddNoiseToSketch(addNoiseToSketchRequest.toByteArray()));
+
     // Blind register indexes at duchy 1
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_1 =
         BlindOneLayerRegisterIndexRequest.newBuilder()
             .setCurveId(CURVE_ID)
             .setLocalElGamalKeys(DUCHY_1_EL_GAMAL_KEYS)
             .setCompositeElGamalKeys(CLIENT_EL_GAMAL_KEYS)
-            .setSketch(encrypted_sketch)
+            .setSketch(addNoiseToSketchResponse.getSketch())
             .build();
     BlindOneLayerRegisterIndexResponse blind_one_layer_register_index_response_1 =
         BlindOneLayerRegisterIndexResponse.parseFrom(

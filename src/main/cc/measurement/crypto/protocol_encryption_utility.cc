@@ -633,4 +633,15 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
   return response;
 };
 
+StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
+    const AddNoiseToSketchRequest& request) {
+  AddNoiseToSketchResponse response;
+  *response.mutable_sketch() = request.sketch();
+  // TODO: actually add noise to the sketch.
+  //  For the POC, we only shuffle the registers.
+  RETURN_IF_ERROR(util::SortStringByBlock<kBytesPerCipherRegister>(
+      *response.mutable_sketch()));
+  return response;
+}
+
 }  // namespace wfa::measurement::crypto

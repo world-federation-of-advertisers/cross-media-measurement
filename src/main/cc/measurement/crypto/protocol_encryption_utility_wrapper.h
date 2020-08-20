@@ -24,6 +24,9 @@
 // protocol_encryption_utility methods.
 namespace wfa::measurement::crypto {
 
+private_join_and_compute::StatusOr<std::string> AddNoiseToSketch(
+    const std::string& serialized_request);
+
 private_join_and_compute::StatusOr<std::string> BlindOneLayerRegisterIndex(
     const std::string& serialized_request);
 

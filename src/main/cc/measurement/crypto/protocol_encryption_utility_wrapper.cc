@@ -20,6 +20,18 @@
 
 namespace wfa::measurement::crypto {
 
+private_join_and_compute::StatusOr<std::string> AddNoiseToSketch(
+    const std::string& serialized_request) {
+  AddNoiseToSketchRequest request_proto;
+  if (!request_proto.ParseFromString(serialized_request)) {
+    return private_join_and_compute::InternalError(
+        "failed to parse the AddNoiseToSketchRequest proto.");
+  }
+  ASSIGN_OR_RETURN(AddNoiseToSketchResponse result,
+                   AddNoiseToSketch(request_proto));
+  return result.SerializeAsString();
+};
+
 private_join_and_compute::StatusOr<std::string> BlindOneLayerRegisterIndex(
     const std::string& serialized_request) {
   BlindOneLayerRegisterIndexRequest request_proto;

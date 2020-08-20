@@ -21,6 +21,8 @@
 namespace wfa::measurement::crypto {
 
 using ::private_join_and_compute::StatusOr;
+using ::wfa::measurement::internal::duchy::AddNoiseToSketchRequest;
+using ::wfa::measurement::internal::duchy::AddNoiseToSketchResponse;
 using ::wfa::measurement::internal::duchy::
     BlindLastLayerIndexThenJoinRegistersRequest;
 using ::wfa::measurement::internal::duchy::
@@ -31,6 +33,10 @@ using ::wfa::measurement::internal::duchy::DecryptLastLayerFlagAndCountRequest;
 using ::wfa::measurement::internal::duchy::DecryptLastLayerFlagAndCountResponse;
 using ::wfa::measurement::internal::duchy::DecryptOneLayerFlagAndCountRequest;
 using ::wfa::measurement::internal::duchy::DecryptOneLayerFlagAndCountResponse;
+
+// Add noise registers to the input sketch.
+StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
+    const AddNoiseToSketchRequest& request);
 
 // Blind (one layer) all register indexes of a sketch. Only 3-tuple
 // (register_index, fingerprint, count) registers are supported.

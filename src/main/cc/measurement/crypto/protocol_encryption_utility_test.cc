@@ -183,6 +183,14 @@ class TestData {
   // The final (flag, count) lists are returned.
   DecryptLastLayerFlagAndCountResponse GoThroughEntireMpcProtocol(
       const std::string& encrypted_sketch) {
+    // Duchy 1 add noise to the sketch
+    AddNoiseToSketchRequest add_noise_to_sketch_request;
+    *add_noise_to_sketch_request.mutable_sketch() = encrypted_sketch;
+    AddNoiseToSketchResponse add_noise_to_sketch_response =
+        AddNoiseToSketch(add_noise_to_sketch_request).value();
+    EXPECT_THAT(add_noise_to_sketch_response.sketch(),
+                IsBlockSorted(kBytesPerEncryptedRegister));
+
     // Blind register indexes at duchy 1
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_1;
     *blind_one_layer_register_index_request_1
@@ -192,8 +200,8 @@ class TestData {
     *blind_one_layer_register_index_request_1
          .mutable_composite_el_gamal_keys() = client_el_gamal_keys_;
     blind_one_layer_register_index_request_1.set_curve_id(kTestCurveId);
-    blind_one_layer_register_index_request_1.mutable_sketch()->append(
-        encrypted_sketch);
+    *blind_one_layer_register_index_request_1.mutable_sketch() =
+        add_noise_to_sketch_response.sketch();
     BlindOneLayerRegisterIndexResponse
         blind_one_layer_register_index_response_1 =
             BlindOneLayerRegisterIndex(blind_one_layer_register_index_request_1)
