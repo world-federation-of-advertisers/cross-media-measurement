@@ -42,7 +42,8 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails
@@ -57,7 +58,6 @@ import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorage
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
 
 private val REPORT: Report = Report.newBuilder().apply {
   externalAdvertiserId = 1
@@ -71,7 +71,7 @@ private val GLOBAL_COMPUTATION: GlobalComputation = GlobalComputation.newBuilder
 }.build()
 
 private const val DUCHY_ID = "some-duchy-id"
-private val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
+private val DUCHY_AUTH_PROVIDER = { DuchyIdentity(DUCHY_ID) }
 
 @RunWith(JUnit4::class)
 class GlobalComputationsServiceTest {

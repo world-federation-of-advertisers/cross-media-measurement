@@ -1,4 +1,4 @@
-package org.wfanet.measurement.service.v1alpha.common
+package org.wfanet.measurement.common.identity
 
 import io.grpc.Context
 import io.grpc.Contexts
@@ -9,29 +9,29 @@ import io.grpc.ServerInterceptor
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import org.wfanet.measurement.common.DuchyIds
 
 /**
  * Details about an authenticated Duchy.
  *
- * @property[authenticatedDuchyId] Stable identifier for a duchy.
+ * @property[id] Stable identifier for a duchy.
  */
-data class DuchyAuth(val authenticatedDuchyId: String) {
+data class DuchyIdentity(val id: String) {
   init {
-    require(authenticatedDuchyId in DuchyIds.ALL) {
-      "Duchy $authenticatedDuchyId is unknown; known Duchies are ${DuchyIds.ALL}"
+    require(id in DuchyIds.ALL) {
+      "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}"
     }
   }
 }
 
-val duchyAuthFromContext: DuchyAuth
-  get() = requireNotNull(DUCHY_AUTH_CONTEXT_KEY.get())
+val duchyIdentityFromContext: DuchyIdentity
+  get() = requireNotNull(DUCHY_IDENTITY_CONTEXT_KEY.get())
 
-private val DUCHY_AUTH_CONTEXT_KEY: Context.Key<DuchyAuth> = Context.key("duchy_auth")
-private val DUCHY_ID_METADATA_KEY = Metadata.Key.of("duchy_id", Metadata.ASCII_STRING_MARSHALLER)
+private const val KEY_NAME = "duchy-identity"
+private val DUCHY_IDENTITY_CONTEXT_KEY: Context.Key<DuchyIdentity> = Context.key(KEY_NAME)
+private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
 
 /**
- * Add an interceptor that sets DuchyAuth in the context.
+ * Add an interceptor that sets DuchyIdentity in the context.
  *
  * Note that this doesn't provide any guarantees that the Duchy is who it claims to be -- that is
  * still required.
@@ -57,7 +57,7 @@ class DuchyServerIdentityInterceptor : ServerInterceptor {
       return object : ServerCall.Listener<ReqT>() {}
     }
 
-    val context = Context.current().withValue(DUCHY_AUTH_CONTEXT_KEY, DuchyAuth(duchyId))
+    val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
     return Contexts.interceptCall(context, call, headers, next)
   }
 }

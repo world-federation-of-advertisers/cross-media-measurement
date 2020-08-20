@@ -19,10 +19,11 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
 import org.wfanet.measurement.storage.gcs.CloudStorageFromFlags
 import picocli.CommandLine
@@ -30,7 +31,7 @@ import picocli.CommandLine
 private class HeraldFlags {
   @set:CommandLine.Option(
     names = ["--duchy-name"],
-    description = ["Name of the gRPC server for logging purposes."],
+    description = ["Stable unique Duchy identifier"],
     required = true,
     defaultValue = "WorkerServer"
   )
@@ -101,8 +102,9 @@ private fun run(
       .usePlaintext()
       .build()
   addChannelShutdownHooks(Runtime.getRuntime(), heraldFlags.channelShutdownTimeout, channel)
+
   val globalComputationsServiceClient =
-    GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub(channel)
+    attachDuchyIdentityHeaders(GlobalComputationsCoroutineStub(channel), heraldFlags.duchyName)
 
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), heraldFlags.pollingInterval)
   val herald = LiquidLegionsHerald(

@@ -10,6 +10,8 @@ kt_jvm_library(
     name = "herald",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
         "//src/main/kotlin/org/wfanet/measurement/storage/gcs:from_flags",

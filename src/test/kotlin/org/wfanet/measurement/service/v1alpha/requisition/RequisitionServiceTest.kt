@@ -36,7 +36,8 @@ import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
@@ -47,7 +48,6 @@ import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.Requisit
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
@@ -75,7 +75,7 @@ private val REQUISITION_API_KEY: MetricRequisition.Key =
   }.build()
 
 private const val DUCHY_ID: String = "some-duchy-id"
-private val DUCHY_AUTH_PROVIDER = { DuchyAuth(DUCHY_ID) }
+private val DUCHY_AUTH_PROVIDER = { DuchyIdentity(DUCHY_ID) }
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {

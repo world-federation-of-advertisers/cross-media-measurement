@@ -14,15 +14,27 @@
 
 package org.wfanet.measurement.service.v1alpha.publisherdata
 
+import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
+import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import picocli.CommandLine
 
 private class Flags {
+  // TODO: extract to a common flag mixin to share with Herald
+  @set:CommandLine.Option(
+    names = ["--duchy-name"],
+    description = ["Stable unique Duchy identifier."],
+    required = true
+  )
+  var duchyName: String by Delegates.notNull()
+    private set
+
   @CommandLine.Option(
     names = ["--metric-values-service-target"],
     description = ["gRPC target (authority string or URI) for MetricValues service."],
@@ -58,15 +70,16 @@ private fun run(
   @CommandLine.Mixin flags: Flags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags
 ) {
-  val metricValuesClient = MetricValuesCoroutineStub(
-    ManagedChannelBuilder.forTarget(flags.metricValuesServiceTarget).build()
-  )
-  val requisitionClient = RequisitionCoroutineStub(
-    ManagedChannelBuilder.forTarget(flags.requisitionServiceTarget).build()
-  )
-  val registrationClient = DataProviderRegistrationCoroutineStub(
-    ManagedChannelBuilder.forTarget(flags.registrationServiceTarget).build()
-  )
+  val metricValuesClient = MetricValuesCoroutineStub(makeChannel(flags.metricValuesServiceTarget))
+
+  val requisitionClient =
+    attachDuchyIdentityHeaders(
+      RequisitionCoroutineStub(makeChannel(flags.requisitionServiceTarget)),
+      flags.duchyName
+    )
+
+  val registrationClient =
+    DataProviderRegistrationCoroutineStub(makeChannel(flags.registrationServiceTarget))
 
   val service = PublisherDataService(metricValuesClient, requisitionClient, registrationClient)
 
@@ -75,5 +88,8 @@ private fun run(
     .start()
     .blockUntilShutdown()
 }
+
+private fun makeChannel(target: String): ManagedChannel =
+  ManagedChannelBuilder.forTarget(target).build()
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

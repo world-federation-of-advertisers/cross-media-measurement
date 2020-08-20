@@ -36,6 +36,8 @@ import org.wfanet.measurement.common.ApiId
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
@@ -49,13 +51,11 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
-import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
-import org.wfanet.measurement.service.v1alpha.common.duchyAuthFromContext
 
 class GlobalComputationService(
   private val reportStorageStub: ReportStorageCoroutineStub,
   private val reportLogEntryStorageStub: ReportLogEntryStorageCoroutineStub,
-  private val duchyAuthProvider: () -> DuchyAuth = ::duchyAuthFromContext
+  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : GlobalComputationsCoroutineImplBase() {
   override suspend fun getGlobalComputation(
     request: GetGlobalComputationRequest
@@ -88,7 +88,7 @@ class GlobalComputationService(
   ): GlobalComputationStatusUpdate {
     val reportLogEntry = ReportLogEntry.newBuilder().apply {
       externalReportId = getExternalReportId(request.parent.globalComputationId).value
-      sourceBuilder.duchyBuilder.duchyId = duchyAuthProvider().authenticatedDuchyId
+      sourceBuilder.duchyBuilder.duchyId = duchyIdentityProvider().id
       reportLogDetailsBuilder.apply {
         duchyLogDetailsBuilder.apply {
           reportedDuchyId = request.statusUpdate.selfReportedIdentifier
@@ -123,7 +123,7 @@ class GlobalComputationService(
   ): GlobalComputation {
     val confirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
       externalReportId = ApiId(request.key.globalComputationId).externalId.value
-      duchyId = duchyAuthProvider().authenticatedDuchyId
+      duchyId = duchyIdentityProvider().id
       addAllExternalRequisitionIds(
         request.readyRequisitionsList.map { ApiId(it.metricRequisitionId).externalId.value }
       )

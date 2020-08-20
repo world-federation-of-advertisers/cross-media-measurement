@@ -16,10 +16,10 @@ package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
 import kotlin.properties.Delegates
-import org.wfanet.measurement.common.DuchyIdFlags
-import org.wfanet.measurement.common.DuchyIds
 import org.wfanet.measurement.common.RandomIdGeneratorImpl
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.identity.DuchyIdFlags
+import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import picocli.CommandLine

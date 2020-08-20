@@ -1,4 +1,4 @@
-package org.wfanet.measurement.common
+package org.wfanet.measurement.common.identity
 
 import picocli.CommandLine
 
@@ -13,7 +13,7 @@ object DuchyIds {
     get() = ALL.size
 
   fun setDuchyIdsFromFlags(duchyIdFlags: DuchyIdFlags) {
-    require(!::ALL.isInitialized)
+    require(!DuchyIds::ALL.isInitialized)
     require(duchyIdFlags.duchyIds.isNotEmpty())
     ALL = duchyIdFlags.duchyIds.toSet()
   }

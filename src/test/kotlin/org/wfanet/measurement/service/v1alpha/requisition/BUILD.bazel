@@ -11,6 +11,7 @@ kt_jvm_test(
         "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",

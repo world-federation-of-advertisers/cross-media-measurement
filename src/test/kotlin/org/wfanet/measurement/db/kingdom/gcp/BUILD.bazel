@@ -81,6 +81,7 @@ spanner_emulator_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
     ],

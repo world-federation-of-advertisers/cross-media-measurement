@@ -18,6 +18,7 @@ import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
@@ -26,7 +27,6 @@ import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorage
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.service.internal.kingdom.buildStorageServices
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.service.v1alpha.common.DuchyAuth
 import org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationService
 import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
 
@@ -41,7 +41,7 @@ abstract class InProcessKingdomIntegrationTest {
   abstract val rules: List<TestRule>
 
   private var duchyId: String = "some-duchy"
-  private val duchyIdProvider = { DuchyAuth(duchyId) }
+  private val duchyIdProvider = { DuchyIdentity(duchyId) }
 
   private val databaseServices = GrpcTestServerRule {
     buildStorageServices(kingdomRelationalDatabase)

@@ -24,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
