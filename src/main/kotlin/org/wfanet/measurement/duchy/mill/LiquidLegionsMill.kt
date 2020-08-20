@@ -24,13 +24,19 @@ import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
+import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
 
 /**
@@ -84,11 +90,11 @@ class LiquidLegionsMill(
         LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS ->
           blindPositions(token)
         LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
-          blindPositionsAndJoinRegisters()
+          blindPositionsAndJoinRegisters(token)
         LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
           decryptFlagCountsAndComputeMetrics()
         LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS ->
-          decryptFlagCounts()
+          decryptFlagCounts(token)
         else -> error("Unexpected stage for mill to process: $token")
       }
     }
@@ -113,7 +119,7 @@ class LiquidLegionsMill(
   private suspend fun blindPositions(token: ComputationToken): ComputationToken {
     // TODO: Catch permanent errors and terminate the Computation
 
-    val cachedResult: CachedResult =
+    val (bytes, nextToken) =
       if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
         // Reuse cached result if it exists
         CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
@@ -133,31 +139,105 @@ class LiquidLegionsMill(
       }
 
     // Pass the computation to the next duchy.
-    (workerStubs[cachedResult.token.nextDuchy] ?: error("Cannot find the target of the next duchy"))
+    (workerStubs[nextToken.nextDuchy] ?: error("Cannot find the target of the next duchy"))
       .handleConcatenatedSketch(
-        cachedResult.data.chunkedFlow()
+        bytes.chunkedFlow()
           .map {
             HandleConcatenatedSketchRequest.newBuilder()
-              .setComputationId(cachedResult.token.globalComputationId)
+              .setComputationId(nextToken.globalComputationId)
               .setPartialSketch(it)
               .build()
           }
       )
     return storageClients.transitionComputationToStage(
-      cachedResult.token,
-      inputsToNextStage = cachedResult.token.outputPathList(),
+      nextToken,
+      inputsToNextStage = nextToken.outputPathList(),
       stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
     )
   }
 
   /** Process computation in the TO_BLIND_POSITIONS_AND_JOIN_REGISTERS stage */
-  private suspend fun blindPositionsAndJoinRegisters() {
-    TODO("Not yet implemented")
+  private suspend fun blindPositionsAndJoinRegisters(token: ComputationToken): ComputationToken {
+    val (bytes, nextToken) =
+      if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
+        // Reuse cached result if it exists
+        CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
+      } else {
+        // compute a new result if no cache exists
+        val newResult = cryptoWorker.BlindLastLayerIndexThenJoinRegisters(
+          BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
+            .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+            .setCurveId(cryptoKeySet.curveId)
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setSketch(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        ).flagCounts
+        // cache the newly computed results
+        val newToken = storageClients.writeSingleOutputBlob(token, newResult.toByteArray())
+        CachedResult(newResult, newToken)
+      }
+
+    // Pass the computation to the next duchy.
+    (workerStubs[nextToken.nextDuchy] ?: error("Cannot find the target of the next duchy"))
+      .handleEncryptedFlagsAndCounts(
+        bytes.chunkedFlow()
+          .map {
+            HandleEncryptedFlagsAndCountsRequest.newBuilder()
+              .setComputationId(nextToken.globalComputationId)
+              .setPartialData(it)
+              .build()
+          }
+      )
+    return storageClients.transitionComputationToStage(
+      nextToken,
+      inputsToNextStage = nextToken.outputPathList(),
+      stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+    )
   }
 
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS stage */
-  private suspend fun decryptFlagCounts() {
-    TODO("Not yet implemented")
+  private suspend fun decryptFlagCounts(token: ComputationToken): ComputationToken {
+    val (bytes, nextToken) =
+      if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
+        // Reuse cached result if it exists
+        CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
+      } else {
+        // compute a new result if no cache exists
+        val newResult = cryptoWorker.DecryptOneLayerFlagAndCount(
+          DecryptOneLayerFlagAndCountRequest.newBuilder()
+            .setCurveId(cryptoKeySet.curveId)
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        ).flagCounts
+        // cache the newly computed results
+        val newToken = storageClients.writeSingleOutputBlob(token, newResult.toByteArray())
+        CachedResult(newResult, newToken)
+      }
+
+    // Pass the computation to the next duchy.
+    (workerStubs[nextToken.nextDuchy] ?: error("Cannot find the target of the next duchy"))
+      .handleEncryptedFlagsAndCounts(
+        bytes.chunkedFlow()
+          .map {
+            HandleEncryptedFlagsAndCountsRequest.newBuilder()
+              .setComputationId(nextToken.globalComputationId)
+              .setPartialData(it)
+              .build()
+          }
+      )
+    // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
+    return storageClients.computationStorageClient.finishComputation(
+      FinishComputationRequest.newBuilder()
+        .setToken(nextToken)
+        .setEndingComputationStage(
+          ComputationStage.newBuilder()
+            .setLiquidLegionsSketchAggregation(LiquidLegionsSketchAggregationStage.COMPLETED)
+        )
+        .setReason(CompletedReason.SUCCEEDED)
+        .build()
+    )
+      .token
   }
 
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS stage */
@@ -180,5 +260,5 @@ class LiquidLegionsMill(
     }
   }
 
-  private data class CachedResult(val data: ByteString, val token: ComputationToken)
+  private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
 }

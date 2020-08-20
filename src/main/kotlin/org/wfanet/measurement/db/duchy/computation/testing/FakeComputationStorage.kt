@@ -182,7 +182,7 @@ class FakeComputationStorage(
     require(validTerminalStage(endingStage))
     updateToken(token) { existing ->
       claimedComputationIds.remove(existing.globalComputationId)
-      existing.toBuilder().setComputationStage(endingStage)
+      existing.toBuilder().setComputationStage(endingStage).clearBlobs()
     }
   }
 

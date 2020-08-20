@@ -32,7 +32,10 @@ import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.duchy.mill.testing.FakeLiquidLegionsCryptoWorker
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
@@ -44,6 +47,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
+import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
+import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
@@ -211,6 +216,124 @@ class LiquidLegionsMillTest {
         .setComputationId(computationId).build(),
       HandleConcatenatedSketchRequest.newBuilder()
         .setPartialSketch(ByteString.copyFromUtf8("erRegisterIndex")) // Chunk 2, the rest
+        .setComputationId(computationId).build()
+    )
+  }
+
+  @Test
+  fun `to blind positions and merge register using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val inputBlobPath = "TO_BLIND_POSITIONS_AND_JOIN_REGISTERS/input"
+    val computationId = 1111L
+    fakeComputationStorage.addComputation(
+      id = computationId,
+      stage = TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(
+        newInputBlobMetadata(0L, inputBlobPath),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+    fakeBlobs[inputBlobPath] = "data".toByteArray()
+
+    lateinit var computationControlRequests: List<HandleEncryptedFlagsAndCountsRequest>
+    whenever(mockLiquidLegionsComputationControl.handleEncryptedFlagsAndCounts(any())).thenAnswer {
+      val request: Flow<HandleEncryptedFlagsAndCountsRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      HandleEncryptedFlagsAndCountsResponse.getDefaultInstance()
+    }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val expectTokenAfterProcess =
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(computationId)
+        .setLocalComputationId(computationId)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FLAG_COUNTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(INPUT)
+            .setBlobId(0)
+            .setPath("1111/TO_BLIND_POSITIONS_AND_JOIN_REGISTERS_1_output")
+        )
+        .addBlobs(ComputationStageBlobMetadata.newBuilder().setDependencyType(OUTPUT).setBlobId(1))
+        .setNextDuchy("NEXT_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
+    val expectOutputBlob = "data-BlindedLastLayerIndexThenJoinRegisters"
+    assertEquals(expectTokenAfterProcess, fakeComputationStorage[computationId]!!)
+    assertEquals(
+      expectOutputBlob,
+      fakeBlobs["1111/TO_BLIND_POSITIONS_AND_JOIN_REGISTERS_1_output"]!!.toString(Charset.defaultCharset())
+    )
+
+    assertThat(computationControlRequests).containsExactly(
+      HandleEncryptedFlagsAndCountsRequest.newBuilder()
+        .setPartialData(ByteString.copyFromUtf8("data-BlindedLastLaye")) // Chunk 1, size 20
+        .setComputationId(computationId).build(),
+      HandleEncryptedFlagsAndCountsRequest.newBuilder()
+        .setPartialData(ByteString.copyFromUtf8("rIndexThenJoinRegist")) // Chunk 2, size 20
+        .setComputationId(computationId).build(),
+      HandleEncryptedFlagsAndCountsRequest.newBuilder()
+        .setPartialData(ByteString.copyFromUtf8("ers")) // Chunk 3, the rest
+        .setComputationId(computationId).build()
+    )
+  }
+
+  @Test
+  fun `to decrypt FlagCounts using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val inputBlobPath = "TO_DECRYPT_FLAG_COUNTS/input"
+    val computationId = 1111L
+    fakeComputationStorage.addComputation(
+      id = computationId,
+      stage = TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(
+        newInputBlobMetadata(0L, inputBlobPath),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+    fakeBlobs[inputBlobPath] = "data".toByteArray()
+
+    lateinit var computationControlRequests: List<HandleEncryptedFlagsAndCountsRequest>
+    whenever(mockLiquidLegionsComputationControl.handleEncryptedFlagsAndCounts(any())).thenAnswer {
+      val request: Flow<HandleEncryptedFlagsAndCountsRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      HandleEncryptedFlagsAndCountsResponse.getDefaultInstance()
+    }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val expectTokenAfterProcess =
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(computationId)
+        .setLocalComputationId(computationId)
+        .setAttempt(1)
+        .setComputationStage(COMPLETED.toProtocolStage())
+        .setNextDuchy("NEXT_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
+    val expectOutputBlob = "data-DecryptedOneLayerFlagAndCount"
+    assertEquals(expectTokenAfterProcess, fakeComputationStorage[computationId]!!)
+    assertEquals(
+      expectOutputBlob,
+      fakeBlobs["1111/TO_DECRYPT_FLAG_COUNTS_1_output"]!!.toString(Charset.defaultCharset())
+    )
+
+    assertThat(computationControlRequests).containsExactly(
+      HandleEncryptedFlagsAndCountsRequest.newBuilder()
+        .setPartialData(ByteString.copyFromUtf8("data-DecryptedOneLay")) // Chunk 1, size 20
+        .setComputationId(computationId).build(),
+      HandleEncryptedFlagsAndCountsRequest.newBuilder()
+        .setPartialData(ByteString.copyFromUtf8("erFlagAndCount")) // Chunk 2, the rest
         .setComputationId(computationId).build()
     )
   }
