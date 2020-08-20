@@ -20,7 +20,7 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
-import org.wfanet.measurement.storage.gcs.CloudStorageFromFlags
+import org.wfanet.measurement.storage.gcs.GcsFromFlags
 import picocli.CommandLine
 
 private class ComputationControlServiceFlags {
@@ -57,10 +57,10 @@ private class ComputationControlServiceFlags {
 )
 private fun run(
   @CommandLine.Mixin computationControlServiceFlags: ComputationControlServiceFlags,
-  @CommandLine.Mixin cloudStorageFlags: CloudStorageFromFlags.Flags
+  @CommandLine.Mixin gcsFlags: GcsFromFlags.Flags
 ) {
   // TODO: Expand flags and configuration to work on other cloud environments when available.
-  val cloudStorageFromFlags = CloudStorageFromFlags(cloudStorageFlags)
+  val googleCloudStorage = GcsFromFlags(gcsFlags)
 
   val channel: ManagedChannel =
     ManagedChannelBuilder
@@ -72,8 +72,8 @@ private fun run(
     duchyName = computationControlServiceFlags.nameForLogging,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
-    googleCloudStorageOptions = cloudStorageFromFlags.cloudStorageOptions,
-    storageBucket = cloudStorageFromFlags.bucket,
+    googleCloudStorageOptions = googleCloudStorage.cloudStorageOptions,
+    storageBucket = googleCloudStorage.bucket,
     computationStorageServiceChannel = channel
   )
 

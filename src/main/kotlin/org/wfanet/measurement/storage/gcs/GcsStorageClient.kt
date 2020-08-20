@@ -32,14 +32,17 @@ import org.wfanet.measurement.storage.asFlow
 /** Size of byte buffer used to read/write blobs from the storage system. */
 private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
 
-/** Google Cloud Storage implementation of [StorageClient] for a single bucket. */
-class CloudStorageClient(
-  private val cloudStorage: Storage,
+/**
+ * Google Cloud Storage (GCS) implementation of [StorageClient] for a single
+ * bucket.
+ */
+class GcsStorageClient(
+  private val storage: Storage,
   private val bucketName: String
-) : StorageClient<CloudStorageClient.ClientBlob> {
+) : StorageClient<GcsStorageClient.ClientBlob> {
 
   override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): ClientBlob {
-    val blob = cloudStorage.create(BlobInfo.newBuilder(bucketName, blobKey).build())
+    val blob = storage.create(BlobInfo.newBuilder(bucketName, blobKey).build())
 
     blob.writer().use { byteChannel ->
       content.asBufferedFlow(BYTE_BUFFER_SIZE).collect { buffer ->
@@ -59,11 +62,11 @@ class CloudStorageClient(
   }
 
   override fun getBlob(blobKey: String): ClientBlob? {
-    val blob: Blob? = cloudStorage.get(bucketName, blobKey)
+    val blob: Blob? = storage.get(bucketName, blobKey)
     return if (blob == null) null else ClientBlob(blob)
   }
 
-  /** [StorageClient.Blob] implementation for [CloudStorageClient]. */
+  /** [StorageClient.Blob] implementation for [GcsStorageClient]. */
   inner class ClientBlob(private val blob: Blob) : StorageClient.Blob {
     override val size: Long
       get() = blob.size

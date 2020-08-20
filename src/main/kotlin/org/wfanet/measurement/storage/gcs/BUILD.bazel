@@ -14,7 +14,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "client",
-    srcs = ["CloudStorageClient.kt"],
+    srcs = ["GcsStorageClient.kt"],
     deps = [
         "//imports/java/com/google/cloud/storage",
         "//imports/kotlin/kotlinx/coroutines:core",
@@ -24,7 +24,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "from_flags",
-    srcs = ["CloudStorageFromFlags.kt"],
+    srcs = ["GcsFromFlags.kt"],
     deps = [
         "//imports/java/com/google/cloud/storage",
         "//imports/java/picocli",

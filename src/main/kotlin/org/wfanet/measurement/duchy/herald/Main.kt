@@ -25,7 +25,7 @@ import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
-import org.wfanet.measurement.storage.gcs.CloudStorageFromFlags
+import org.wfanet.measurement.storage.gcs.GcsFromFlags
 import picocli.CommandLine
 
 private class HeraldFlags {
@@ -81,19 +81,19 @@ private class HeraldFlags {
 private fun run(
   @CommandLine.Mixin heraldFlags: HeraldFlags,
   // TODO: Break dependence on google cloud storage, it is not actually used.
-  @CommandLine.Mixin cloudStorageFlags: CloudStorageFromFlags.Flags
+  @CommandLine.Mixin gcsFlags: GcsFromFlags.Flags
 ) {
   val storageChannel =
     ManagedChannelBuilder.forTarget(heraldFlags.computationStorageServiceTarget)
       .usePlaintext()
       .build()
-  val cloudStorage = CloudStorageFromFlags(cloudStorageFlags)
+  val googleCloudStorage = GcsFromFlags(gcsFlags)
   val storageClients = newLiquidLegionsSketchAggregationGcpComputationStorageClients(
     duchyName = heraldFlags.duchyName,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
-    googleCloudStorageOptions = cloudStorage.cloudStorageOptions,
-    storageBucket = cloudStorage.bucket,
+    googleCloudStorageOptions = googleCloudStorage.cloudStorageOptions,
+    storageBucket = googleCloudStorage.bucket,
     computationStorageServiceChannel = storageChannel
   )
 

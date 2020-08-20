@@ -21,11 +21,11 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
 
 @RunWith(JUnit4::class)
-class CloudStorageClientTest : AbstractStorageClientTest<CloudStorageClient>() {
+class GcsStorageClientTest : AbstractStorageClientTest<GcsStorageClient>() {
   @Before
   fun initClient() {
     val storage = LocalStorageHelper.getOptions().service
-    storageClient = CloudStorageClient(storage, BUCKET)
+    storageClient = GcsStorageClient(storage, BUCKET)
   }
 
   companion object {
