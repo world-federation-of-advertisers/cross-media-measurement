@@ -15,21 +15,30 @@
 package org.wfanet.measurement.duchy.mill
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
+import java.nio.charset.Charset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
+import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -37,6 +46,10 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
+import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
+import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
+import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
 
 /**
@@ -45,17 +58,21 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.outputP
  * @param[millId] The identifier of this mill, used to claim a work.
  * @param[storageClients] clients that have access to local computation storage, i.e., spanner
  *    table and blob store.
+ * @param[metricValuesClient] client of the own duchy's MetricValuesService.
+ * @param[globalComputationsClient] client of the kingdom's GlobalComputationsService.
  * @param[workerStubs] A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
- * @param[cryptoKeySet] The set of crypto keys used in the computation
+ * @param[cryptoKeySet] The set of crypto keys used in the computation.
  * @param[cryptoWorker] The cryptoWorker that performs the actual computation.
  * @param[throttler] A throttler used to rate limit the frequency of the mill polling from the
- *    computation table
+ *    computation table.
  * @param[chunkSize] The size of data chunk when sending result to other duchies.
  */
 class LiquidLegionsMill(
   private val millId: String,
   private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
+  private val metricValuesClient: MetricValuesCoroutineStub,
+  private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val workerStubs: Map<String, ComputationControlServiceCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsCryptoWorker,
@@ -81,28 +98,71 @@ class LiquidLegionsMill(
     if (claimWorkResponse.hasToken()) {
       val token: ComputationToken = claimWorkResponse.token
       when (token.computationStage.liquidLegionsSketchAggregation) {
-        LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS ->
-          confirmRequisitions()
-        LiquidLegionsSketchAggregationStage.TO_ADD_NOISE ->
+        LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
+          confirmRequisitions(token)
+        LiquidLegionsStage.TO_ADD_NOISE ->
           addNoise()
-        LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
+        LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
           appendSketchesAndAddNoise()
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS ->
+        LiquidLegionsStage.TO_BLIND_POSITIONS ->
           blindPositions(token)
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
+        LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
           blindPositionsAndJoinRegisters(token)
-        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+        LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
           decryptFlagCountsAndComputeMetrics()
-        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS ->
+        LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS ->
           decryptFlagCounts(token)
         else -> error("Unexpected stage for mill to process: $token")
       }
     }
   }
 
-  /** Process computation in the TO_ADD_NOISE stage */
-  private suspend fun confirmRequisitions() {
-    TODO("Not yet implemented")
+  /** Process computation in the TO_CONFIRM_REQUISITIONS stage */
+  private suspend fun confirmRequisitions(token: ComputationToken): ComputationToken {
+    val requisitionsToConfirm =
+      token.stageSpecificDetails.toConfirmRequisitionsStageDetails.keysList
+    val availableRequisitions = mutableSetOf<RequisitionKey>()
+    val bytesLists = mutableListOf<ByteString>()
+    requisitionsToConfirm.forEach {
+      try {
+        // Call the MetricValuesService to get the requisition
+        metricValuesClient.streamMetricValue(it.toStreamMetricValueRequest())
+          .filter { response -> response.hasChunk() }
+          .map { response -> response.chunk.data }
+          .toList(bytesLists)
+        availableRequisitions.add(it)
+      } catch (e: StatusException) {
+        // Do nothing for NOT_FOUND and DATA_LOSS errors.
+        if (e.status.code !in listOf(Status.Code.NOT_FOUND, Status.Code.DATA_LOSS)) {
+          throw e
+        }
+      }
+    }
+
+    globalComputationsClient.confirmGlobalComputation(
+      availableRequisitions.toConfirmGlobalComputationRequest()
+    )
+
+    return if (availableRequisitions.size != requisitionsToConfirm.size) {
+      logger.warning(
+        "Computation failed due to missing requisitions: " +
+          "$token, $requisitionsToConfirm, $availableRequisitions"
+      )
+      completeComputation(token, CompletedReason.FAILED)
+    } else {
+      val bytes =
+        bytesLists
+          .joinToString(separator = "") { it.toString(Charset.defaultCharset()) }
+          .toByteArray(Charset.defaultCharset())
+      // cache the combined local requisitions to blob store.
+      val nextToken = storageClients.writeSingleOutputBlob(token, bytes)
+      storageClients.transitionComputationToStage(
+        nextToken,
+        inputsToNextStage = nextToken.outputPathList(),
+        stage = if (nextToken.role == RoleInComputation.PRIMARY)
+          LiquidLegionsStage.WAIT_SKETCHES else LiquidLegionsStage.WAIT_TO_START
+      )
+    }
   }
 
   /** Process computation in the TO_ADD_NOISE stage */
@@ -152,7 +212,7 @@ class LiquidLegionsMill(
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+      stage = LiquidLegionsStage.WAIT_FLAG_COUNTS
     )
   }
 
@@ -191,7 +251,7 @@ class LiquidLegionsMill(
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+      stage = LiquidLegionsStage.WAIT_FLAG_COUNTS
     )
   }
 
@@ -227,17 +287,7 @@ class LiquidLegionsMill(
           }
       )
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
-    return storageClients.computationStorageClient.finishComputation(
-      FinishComputationRequest.newBuilder()
-        .setToken(nextToken)
-        .setEndingComputationStage(
-          ComputationStage.newBuilder()
-            .setLiquidLegionsSketchAggregation(LiquidLegionsSketchAggregationStage.COMPLETED)
-        )
-        .setReason(CompletedReason.SUCCEEDED)
-        .build()
-    )
-      .token
+    return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS stage */
@@ -259,6 +309,46 @@ class LiquidLegionsMill(
       emit(substring(begin, minOf(size(), begin + chunkSize)))
     }
   }
+
+  private suspend fun completeComputation(token: ComputationToken, reason: CompletedReason):
+    ComputationToken {
+      return storageClients.computationStorageClient.finishComputation(
+        FinishComputationRequest.newBuilder()
+          .setToken(token)
+          .setEndingComputationStage(
+            ComputationStage.newBuilder()
+              .setLiquidLegionsSketchAggregation(LiquidLegionsStage.COMPLETED)
+          )
+          .setReason(reason)
+          .build()
+      )
+        .token
+    }
+
+  private fun RequisitionKey.toStreamMetricValueRequest(): StreamMetricValueRequest {
+    return StreamMetricValueRequest.newBuilder()
+      .setResourceKey(
+        ResourceKey.newBuilder()
+          .setDataProviderResourceId(dataProviderId)
+          .setCampaignResourceId(campaignId)
+          .setMetricRequisitionResourceId(metricRequisitionId)
+      )
+      .build()
+  }
+
+  private fun MutableSet<RequisitionKey>.toConfirmGlobalComputationRequest():
+    ConfirmGlobalComputationRequest {
+      return ConfirmGlobalComputationRequest.newBuilder()
+        .addAllReadyRequisitions(
+          this.map { key ->
+            MetricRequisition.Key.newBuilder()
+              .setCampaignId(key.campaignId)
+              .setDataProviderId(key.dataProviderId)
+              .setMetricRequisitionId(key.metricRequisitionId)
+              .build()
+          }
+        ).build()
+    }
 
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
 }

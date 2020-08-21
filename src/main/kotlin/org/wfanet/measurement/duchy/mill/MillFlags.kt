@@ -74,6 +74,22 @@ class MillFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--metric-values-service-target"],
+    description = ["Address and port of the same duchy's MetricValuesService"],
+    required = true
+  )
+  lateinit var metricValuesServiceTarget: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--global-computations-service-target"],
+    description = ["Address and port of the Kingdom's Global Computations Service"],
+    required = true
+  )
+  lateinit var globalComputationsServiceTarget: String
+    private set
+
+  @set:CommandLine.Option(
     names = ["--mill-id"],
     description = ["The Identifier of the Mill."],
     required = true,
