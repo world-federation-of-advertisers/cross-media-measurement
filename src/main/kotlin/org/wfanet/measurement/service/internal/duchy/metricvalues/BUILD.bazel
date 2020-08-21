@@ -1,10 +1,13 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
-package(default_visibility = ["//src:internal_services"])
+package(default_visibility = [test_target(":__pkg__")])
 
 kt_jvm_library(
-    name = "metricvalues",
-    srcs = glob(["*.kt"]),
+    name = "service",
+    srcs = ["MetricValuesService.kt"],
     deps = [
         "//imports/java/com/google/protobuf",
         "//imports/kotlin/kotlinx/coroutines:core",
@@ -13,4 +16,40 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/storage:metric_value_store",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
     ],
+)
+
+kt_jvm_library(
+    name = "server",
+    srcs = ["MetricValuesServer.kt"],
+    deps = [
+        ":service",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue",
+        "//src/main/kotlin/org/wfanet/measurement/storage:metric_value_store",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcp_server",
+    srcs = ["GcpMetricValuesServer.kt"],
+    deps = [
+        ":server",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+    ],
+)
+
+java_binary(
+    name = "GcpMetricValuesServer",
+    main_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.GcpMetricValuesServerKt",
+    runtime_deps = [":gcp_server"],
+)
+
+java_image(
+    name = "gcp_server_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.GcpMetricValuesServerKt",
+    visibility = ["//src/main/docker:__subpackages__"],
+    runtime_deps = [":gcp_server"],
 )

@@ -1,0 +1,58 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package org.wfanet.measurement.service.internal.duchy.metricvalues
+
+import java.time.Clock
+import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
+import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.storage.gcs.GcsFromFlags
+import org.wfanet.measurement.storage.gcs.GcsStorageClient
+import picocli.CommandLine
+
+/**
+ * Implementation of [MetricValuesServer] using Google Cloud Platform (GCP)
+ * components.
+ *
+ * In particular, Google Cloud Spanner for database and Google Cloud Storage for
+ * storage.
+ */
+@CommandLine.Command(
+  name = "GcpMetricValuesServer",
+  description = ["Run server daemon for ${MetricValuesServer.SERVICE_NAME} service."],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
+private class GcpMetricValuesServer : MetricValuesServer() {
+  @CommandLine.Mixin
+  private lateinit var gcsFlags: GcsFromFlags.Flags
+
+  @CommandLine.Mixin
+  private lateinit var spannerFlags: SpannerFromFlags.Flags
+
+  override fun run() {
+    val clock = Clock.systemUTC()
+    val spanner = SpannerFromFlags(spannerFlags)
+    val googleCloudStorage = GcsFromFlags(gcsFlags)
+
+    val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGeneratorImpl(clock))
+    val storageClient = GcsStorageClient.fromFlags(googleCloudStorage)
+
+    run(metricValueDb, storageClient)
+  }
+}
+
+fun main(args: Array<String>) = commandLineMain(GcpMetricValuesServer(), args)

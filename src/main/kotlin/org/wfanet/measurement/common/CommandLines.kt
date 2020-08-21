@@ -23,13 +23,33 @@ import picocli.CommandLine
 /**
  * A `main` function for a [CommandLine] application.
  *
- * @param command A function annotated with [@Command][CommandLine.Command] to execute.
+ * @param command A function annotated with [@Command][CommandLine.Command]
+ *     to execute.
  * @param args Command-line arguments.
  */
 fun commandLineMain(command: KFunction<*>, args: Array<String>) {
-  exitProcess(
-    CommandLine(command.javaMethod)
-      .registerConverter(Duration::class.java) { it.toDuration() }
-      .execute(*args)
-  )
+  exitProcess(command.toCommandLine().execute(*args))
+}
+
+/**
+ * A `main` function for a [CommandLine] application.
+ *
+ * @param command A [Runnable] annotated with [@Command][CommandLine.Command] to
+ *     execute.
+ * @param args Command-line arguments.
+ */
+fun commandLineMain(command: Runnable, args: Array<String>) {
+  exitProcess(command.toCommandLine().execute(*args))
+}
+
+private fun KFunction<*>.toCommandLine(): CommandLine {
+  return CommandLine(javaMethod).apply { registerConverters() }
+}
+
+private fun Runnable.toCommandLine(): CommandLine {
+  return CommandLine(this).apply { registerConverters() }
+}
+
+private fun CommandLine.registerConverters() {
+  registerConverter(Duration::class.java) { it.toDuration() }
 }

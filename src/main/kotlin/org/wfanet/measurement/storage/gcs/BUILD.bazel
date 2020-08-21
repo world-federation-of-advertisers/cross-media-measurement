@@ -13,20 +13,12 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "client",
-    srcs = ["GcsStorageClient.kt"],
-    deps = [
-        "//imports/java/com/google/cloud/storage",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/storage:client",
-    ],
-)
-
-kt_jvm_library(
-    name = "from_flags",
-    srcs = ["GcsFromFlags.kt"],
+    name = "gcs",
+    srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/com/google/cloud/storage",
         "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

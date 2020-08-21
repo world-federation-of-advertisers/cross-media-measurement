@@ -7,7 +7,7 @@ kt_jvm_test(
     deps = [
         "//imports/java/com/google/cloud/storage/contrib/nio",
         "//imports/java/org/junit",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs:client",
+        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )

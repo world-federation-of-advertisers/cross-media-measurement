@@ -80,6 +80,11 @@ class GcsStorageClient(
       check(blob.delete()) { "Failed to delete blob ${blob.blobId}" }
     }
   }
+
+  companion object {
+    /** Constructs a [GcsStorageClient] from command-line flags. */
+    fun fromFlags(gcs: GcsFromFlags) = GcsStorageClient(gcs.storage, gcs.bucket)
+  }
 }
 
 private fun ReadableByteChannel.asBufferedFlow(flowBufferSize: Int) =
