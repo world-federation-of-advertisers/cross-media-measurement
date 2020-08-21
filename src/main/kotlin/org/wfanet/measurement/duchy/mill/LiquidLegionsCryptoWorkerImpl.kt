@@ -29,7 +29,7 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
  * An implementation of the LiquidLegionsCryptoWorker using the JNI c++ protocol_encryption_utility
  * library.
  */
-class LiquidLegionsCryptoWorkerImpl() : LiquidLegionsCryptoWorker {
+class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
 
   init {
     val lib = File(
