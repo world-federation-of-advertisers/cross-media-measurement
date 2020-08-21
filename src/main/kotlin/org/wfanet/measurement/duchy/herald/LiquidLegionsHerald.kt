@@ -24,12 +24,13 @@ import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.db.duchy.computation.advanceLiquidLegionsComputationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
@@ -46,13 +47,17 @@ import java.util.logging.Logger
  * out of the WAIT_TO_START stage once the kingdom has gotten confirmation from all duchies that
  * they are able to start the computation.
  *
- * @param storageClients manages interactions with computations storage service.
+ * @param computationStorageClient manages interactions with computations storage service.
  * @param globalComputationsClient stub for communicating with the Global Computations Service
  */
 class LiquidLegionsHerald(
-  private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
+  otherDuchiesInComputation: List<String>,
+  private val computationStorageClient: ComputationStorageServiceCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub
 ) {
+
+  private val liquidLegionsStageDetails =
+    LiquidLegionsSketchAggregationProtocol.EnumStages.Details(otherDuchiesInComputation)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually
@@ -93,12 +98,12 @@ class LiquidLegionsHerald(
     // storage service/database layer would reject any invalid state changes to the data.
     logger.info("Getting all local computations that are waiting to start.")
     val waitingToStart =
-      storageClients.computationStorageClient
+      computationStorageClient
         .getComputationIds(getComputationIdsWaitingToStartRequest)
         .globalIdsList.toSet()
     logger.info("Getting all active local computations.")
     val allActive =
-      storageClients.computationStorageClient.getComputationIds(getActiveComputationIdsRequest)
+      computationStorageClient.getComputationIds(getActiveComputationIdsRequest)
         .globalIdsList.toSet()
 
     var lastProcessedContinuationToken = continuationToken
@@ -139,7 +144,7 @@ class LiquidLegionsHerald(
     globalId: Long,
     requisitionsAtThisDuchy: List<RequisitionKey>
   ) =
-    storageClients.computationStorageClient.createComputation(
+    computationStorageClient.createComputation(
       CreateComputationRequest.newBuilder().apply {
         computationType = COMPUTATION_TYPE
         globalComputationId = globalId
@@ -151,7 +156,7 @@ class LiquidLegionsHerald(
 
   /** Starts a computation that is in WAIT_TO_START. */
   private suspend fun start(globalId: Long) {
-    val token = storageClients.computationStorageClient
+    val token = computationStorageClient
       .getComputationToken(globalId.toGetTokenRequest(COMPUTATION_TYPE)).token
     check(token.role == ComputationDetails.RoleInComputation.SECONDARY) {
       "[id=$globalId]: Computations in the WAIT_TO_START stage should have SECONDARY role. " +
@@ -160,12 +165,13 @@ class LiquidLegionsHerald(
     check(token.computationStage.liquidLegionsSketchAggregation == WAIT_TO_START) {
       "[id=$globalId]: expected stage to be WAIT_TO_START, was ${token.computationStage}"
     }
-    storageClients.transitionComputationToStage(
+    computationStorageClient.advanceLiquidLegionsComputationStage(
       computationToken = token,
       // The inputs of WAIT_TO_START are copies of the sketches stored locally. These are the very
       // sketches required for the TO_ADD_NOISE step of the computation.
       inputsToNextStage = token.blobsList.filter { it.dependencyType == INPUT }.map { it.path },
-      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
+      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
+      liquidLegionsStageDetails = liquidLegionsStageDetails
     )
   }
 

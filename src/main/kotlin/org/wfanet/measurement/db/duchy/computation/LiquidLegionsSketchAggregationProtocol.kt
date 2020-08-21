@@ -88,7 +88,7 @@ object LiquidLegionsSketchAggregationProtocol {
     }
 
     /** Translates [LiquidLegionsSketchAggregationStage]s into [ComputationStageDetails]. */
-    class Details(private val otherDuchies: List<String>) :
+    class Details(val otherDuchies: List<String>) :
       ProtocolStageDetails<LiquidLegionsSketchAggregationStage, ComputationStageDetails> {
       override fun detailsFor(stage: LiquidLegionsSketchAggregationStage): ComputationStageDetails {
         return when (stage) {

@@ -31,15 +31,13 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt
+import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
@@ -56,29 +54,22 @@ internal class LiquidLegionsHeraldTest {
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { channel ->
-    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
-      ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub(channel),
-      FakeComputationsBlobDb(),
-      otherDuchyNames
-    )
-    listOf(
-      globalComputations,
-      ComputationStorageServiceImpl(fakeComputationStorage)
-    )
+  val grpcTestServerRule = GrpcTestServerRule {
+    listOf(globalComputations, ComputationStorageServiceImpl(fakeComputationStorage))
   }
 
-  private lateinit var computationStorageClients:
-    LiquidLegionsSketchAggregationComputationStorageClients
+  private val storageServiceStub: ComputationStorageServiceCoroutineStub by lazy {
+    ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel)
+  }
 
-  private val stub: GlobalComputationsCoroutineStub by lazy {
+  private val globalComputationsStub: GlobalComputationsCoroutineStub by lazy {
     GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private lateinit var herald: LiquidLegionsHerald
   @Before
   fun initHerald() {
-    herald = LiquidLegionsHerald(computationStorageClients, stub)
+    herald = LiquidLegionsHerald(otherDuchyNames, storageServiceStub, globalComputationsStub)
   }
 
   @Test
@@ -165,9 +156,9 @@ internal class LiquidLegionsHeraldTest {
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: ComputationAtKingdom) =
     globalComputations.stub {
-      onBlocking {streamActiveGlobalComputations(any()) }
+      onBlocking { streamActiveGlobalComputations(any()) }
         .thenReturn(computations.toList().map { it.streamedResponse }.asFlow())
-      }
+    }
 
   companion object {
     const val EMPTY_TOKEN = ""
