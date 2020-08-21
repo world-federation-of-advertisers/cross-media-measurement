@@ -16,7 +16,7 @@ package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
 import kotlin.properties.Delegates
-import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
@@ -64,7 +64,7 @@ private fun run(
   val clock = Clock.systemUTC()
 
   val relationalDatabase = GcpKingdomRelationalDatabase(
-    clock, RandomIdGeneratorImpl(clock), spannerFromFlags.databaseClient
+    clock, RandomIdGenerator(clock), spannerFromFlags.databaseClient
   )
 
   val server = buildKingdomStorageServer(relationalDatabase, flags.port, flags.nameForLogging)

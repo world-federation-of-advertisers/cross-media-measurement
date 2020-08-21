@@ -23,8 +23,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
-import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
@@ -73,7 +73,7 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
     val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
   }
 
-  object FakeIdGenerator : RandomIdGenerator {
+  object FakeIdGenerator : IdGenerator {
     override fun generateInternalId(): InternalId = InternalId(NEW_REQUISITION_ID)
     override fun generateExternalId(): ExternalId = ExternalId(NEW_EXTERNAL_REQUISITION_ID)
   }

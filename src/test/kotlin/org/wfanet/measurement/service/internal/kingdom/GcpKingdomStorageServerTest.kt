@@ -27,7 +27,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.singleOrNull
@@ -107,7 +107,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   private val relationalDatabase =
-    GcpKingdomRelationalDatabase(Clock.systemUTC(), RandomIdGeneratorImpl(Clock.systemUTC())) {
+    GcpKingdomRelationalDatabase(Clock.systemUTC(), RandomIdGenerator(Clock.systemUTC())) {
       databaseClient
     }
 

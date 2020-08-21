@@ -23,8 +23,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
-import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
@@ -53,7 +53,7 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
 
   private val clock = TestClockWithNamedInstants(Instant.now())
 
-  object FakeIdGenerator : RandomIdGenerator {
+  object FakeIdGenerator : IdGenerator {
     override fun generateInternalId(): InternalId = InternalId(REPORT_ID)
     override fun generateExternalId(): ExternalId = ExternalId(EXTERNAL_REPORT_ID)
   }

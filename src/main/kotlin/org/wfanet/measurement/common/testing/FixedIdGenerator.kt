@@ -15,11 +15,11 @@
 package org.wfanet.measurement.common.testing
 
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
-import org.wfanet.measurement.common.RandomIdGenerator
 
-/** A [RandomIdGenerator] that outputs fixed, settable IDs. */
-class FixedIdGenerator : RandomIdGenerator {
+/** A [IdGenerator] that outputs fixed, settable IDs. */
+class FixedIdGenerator : IdGenerator {
   var internalId = InternalId(123456789)
   var externalId = ExternalId(987654321)
 

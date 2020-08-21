@@ -24,7 +24,7 @@ import java.time.temporal.TemporalAmount
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
@@ -38,7 +38,7 @@ import org.wfanet.measurement.internal.kingdom.TimePeriod
 
 class CreateNextReportTransaction(
   private val clock: Clock,
-  private val randomIdGenerator: RandomIdGenerator
+  private val idGenerator: IdGenerator
 ) {
 
   fun execute(transactionContext: TransactionContext, externalScheduleId: ExternalId) {
@@ -89,8 +89,8 @@ class CreateNextReportTransaction(
         .set("AdvertiserId").to(scheduleReadResult.advertiserId)
         .set("ReportConfigId").to(scheduleReadResult.reportConfigId)
         .set("ScheduleId").to(scheduleReadResult.scheduleId)
-        .set("ReportId").to(randomIdGenerator.generateInternalId().value)
-        .set("ExternalReportId").to(randomIdGenerator.generateExternalId().value)
+        .set("ReportId").to(idGenerator.generateInternalId().value)
+        .set("ExternalReportId").to(idGenerator.generateExternalId().value)
         .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())

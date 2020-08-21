@@ -20,7 +20,7 @@ import com.google.cloud.spanner.TimestampBound
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
@@ -34,18 +34,18 @@ import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 class GcpKingdomRelationalDatabase(
   clock: Clock,
-  randomIdGenerator: RandomIdGenerator,
+  idGenerator: IdGenerator,
   lazyClient: () -> DatabaseClient
 ) : KingdomRelationalDatabase {
   private val client: DatabaseClient by lazy { lazyClient() }
-  private val createRequisitionTransaction = CreateRequisitionTransaction(randomIdGenerator)
-  private val createNextReportTransaction = CreateNextReportTransaction(clock, randomIdGenerator)
+  private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
+  private val createNextReportTransaction = CreateNextReportTransaction(clock, idGenerator)
 
   constructor(
     clock: Clock,
-    randomIdGenerator: RandomIdGenerator,
+    idGenerator: IdGenerator,
     client: DatabaseClient
-  ) : this(clock, randomIdGenerator, { client })
+  ) : this(clock, idGenerator, { client })
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
     client.runReadWriteTransaction { transactionContext ->

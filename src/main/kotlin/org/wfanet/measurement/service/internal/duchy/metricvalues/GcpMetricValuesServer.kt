@@ -15,7 +15,7 @@
 package org.wfanet.measurement.service.internal.duchy.metricvalues
 
 import java.time.Clock
-import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
@@ -48,7 +48,7 @@ private class GcpMetricValuesServer : MetricValuesServer() {
     val spanner = SpannerFromFlags(spannerFlags)
     val googleCloudStorage = GcsFromFlags(gcsFlags)
 
-    val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGeneratorImpl(clock))
+    val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGenerator(clock))
     val storageClient = GcsStorageClient.fromFlags(googleCloudStorage)
 
     run(metricValueDb, storageClient)

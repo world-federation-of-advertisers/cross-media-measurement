@@ -14,17 +14,18 @@
 
 package org.wfanet.measurement.common
 
-/**
- * Interface for ID generation.
- */
-interface RandomIdGenerator {
-  /**
-   * Generates a random internal id.
-   */
-  fun generateInternalId(): InternalId
+import java.time.Clock
+import kotlin.math.abs
+import kotlin.random.Random
 
-  /**
-   * Generates a random external id.
-   */
-  fun generateExternalId(): ExternalId
+class RandomIdGenerator(
+  private val clock: Clock = Clock.systemUTC(),
+  private val random: Random = Random.Default
+) : IdGenerator {
+  override fun generateInternalId(): InternalId = InternalId(generateLong())
+
+  override fun generateExternalId(): ExternalId = ExternalId(generateLong())
+
+  private fun generateLong(): Long =
+    abs((random.nextLong() shl 32) or (clock.millis() and 0xFFFFFFFF))
 }

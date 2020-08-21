@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.spannerDispatcher
@@ -38,7 +38,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
  *
  * Idempotency is determined by the Data Provider, Campaign, time window, and RequisitionDetails.
  */
-class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenerator) {
+class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
   data class ParentKey(
     val dataProviderId: Long,
     val campaignId: Long
@@ -120,8 +120,8 @@ class CreateRequisitionTransaction(private val randomIdGenerator: RandomIdGenera
     Mutation.newInsertBuilder("Requisitions")
       .set("DataProviderId").to(parentKey.dataProviderId)
       .set("CampaignId").to(parentKey.campaignId)
-      .set("RequisitionId").to(randomIdGenerator.generateInternalId().value)
-      .set("ExternalRequisitionId").to(randomIdGenerator.generateExternalId().value)
+      .set("RequisitionId").to(idGenerator.generateInternalId().value)
+      .set("ExternalRequisitionId").to(idGenerator.generateExternalId().value)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)

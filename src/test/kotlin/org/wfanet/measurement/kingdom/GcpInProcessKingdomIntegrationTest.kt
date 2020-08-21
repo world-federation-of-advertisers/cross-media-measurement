@@ -2,7 +2,7 @@ package org.wfanet.measurement.kingdom
 
 import com.google.cloud.spanner.DatabaseClient
 import java.time.Clock
-import org.wfanet.measurement.common.RandomIdGeneratorImpl
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
@@ -18,7 +18,7 @@ class GcpInProcessKingdomIntegrationTest : InProcessKingdomIntegrationTest() {
   override val kingdomRelationalDatabase: KingdomRelationalDatabase by lazy {
     GcpKingdomRelationalDatabase(
       Clock.systemUTC(),
-      RandomIdGeneratorImpl(Clock.systemUTC()),
+      RandomIdGenerator(Clock.systemUTC()),
       databaseClient
     )
   }
