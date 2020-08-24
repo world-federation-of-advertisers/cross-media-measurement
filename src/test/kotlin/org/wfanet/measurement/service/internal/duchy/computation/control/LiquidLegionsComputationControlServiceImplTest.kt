@@ -16,11 +16,8 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
+import io.grpc.ServerInterceptors
 import io.grpc.StatusException
-import java.nio.charset.Charset
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -28,6 +25,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.DuchyServerIdentityInterceptor
+import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
+import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
@@ -53,9 +53,16 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobP
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import java.nio.charset.Charset
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class LiquidLegionsComputationControlServiceImplTest {
+
+  @get:Rule
+  val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *otherDuchyNames.toTypedArray())
   val fakeBlobs = mutableMapOf<String, ByteArray>()
 
   companion object {
@@ -66,35 +73,48 @@ class LiquidLegionsComputationControlServiceImplTest {
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { channel ->
-    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
-      ComputationStorageServiceCoroutineStub(channel),
-      FakeComputationsBlobDb(fakeBlobs),
-      otherDuchyNames
-    )
-    listOf(
-      ComputationStorageServiceImpl(
-        fakeComputationStorage
-      ),
-      LiquidLegionsComputationControlServiceImpl(computationStorageClients)
-    )
-  }
+  val grpcTestServerRule = GrpcTestServerRule(
+    serverServiceDefinitionsFactory = { channel ->
+      computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
+        ComputationStorageServiceCoroutineStub(channel),
+        FakeComputationsBlobDb(fakeBlobs),
+        otherDuchyNames
+      )
+      listOf(
+        ServerInterceptors.interceptForward(
+          LiquidLegionsComputationControlServiceImpl(computationStorageClients),
+          DuchyServerIdentityInterceptor()
+        )
+      )
+    },
+    servicesFactory = { listOf(ComputationStorageServiceImpl(fakeComputationStorage)) }
+  )
 
   private lateinit var computationStorageClients:
     LiquidLegionsSketchAggregationComputationStorageClients
   private lateinit var storageClient: ComputationStorageServiceCoroutineStub
-  lateinit var client: ComputationControlServiceCoroutineStub
+  lateinit var bavariaClient: ComputationControlServiceCoroutineStub
+  lateinit var carinthiaClient: ComputationControlServiceCoroutineStub
 
   @Before
   fun setup() {
-    storageClient = ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel)
-    client = ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
+    storageClient = attachDuchyIdentityHeaders(
+      ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel),
+      RUNNING_DUCHY_NAME
+    )
+    bavariaClient = attachDuchyIdentityHeaders(
+      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel),
+      otherDuchyNames[0]
+    )
+    carinthiaClient = attachDuchyIdentityHeaders(
+      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel),
+      otherDuchyNames[1]
+    )
   }
 
   @Test
   fun `receive sketches`() = runBlocking<Unit> {
     val id = 252525L
-    val sender = otherDuchyNames[0]
     val localSketches = "$id/$WAIT_SKETCHES/noised_sketch_$RUNNING_DUCHY_NAME"
     fakeBlobs[localSketches] = "local_sketches".toByteArray()
     fakeComputationStorage
@@ -114,40 +134,35 @@ class LiquidLegionsComputationControlServiceImplTest {
     val part1 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
-      .setSender(sender)
       .build()
     val part2 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part2_".toByteString())
-      .setSender(sender)
       .build()
     val part3 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part3".toByteString())
-      .setSender(sender)
       .build()
-    ProtoTruth.assertThat(client.handleNoisedSketch(flowOf(part1, part2, part3)))
+    ProtoTruth.assertThat(bavariaClient.handleNoisedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
 
     ProtoTruth.assertThat(tokenAfter.computationStage).isEqualTo(WAIT_SKETCHES.toProtocolStage())
 
-    val secondSender = otherDuchyNames[1]
     val fullSketch = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("full_sketch_fit_in_message".toByteString())
-      .setSender(secondSender)
       .build()
-    ProtoTruth.assertThat(client.handleNoisedSketch(flowOf(fullSketch)))
+    ProtoTruth.assertThat(carinthiaClient.handleNoisedSketch(flowOf(fullSketch)))
       .isEqualToDefaultInstance()
     val tokenAfterSecondSketch =
       assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
 
     val localInputToAddNoise = newInputBlobMetadata(id = 0L, key = localSketches)
     val sender1InputToAddNoise =
-      newInputBlobMetadata(id = 1L, key = token.toBlobPath("noised_sketch_$sender"))
+      newInputBlobMetadata(id = 1L, key = token.toBlobPath("noised_sketch_Bavaria"))
     val sender2InputToAddNoise =
-      newInputBlobMetadata(id = 2L, key = token.toBlobPath("noised_sketch_$secondSender"))
+      newInputBlobMetadata(id = 2L, key = token.toBlobPath("noised_sketch_Carinthia"))
     val outputOfToAddNoise = newEmptyOutputBlobMetadata(id = 3L)
 
     ProtoTruth.assertThat(tokenAfterSecondSketch).isEqualTo(
@@ -188,9 +203,8 @@ class LiquidLegionsComputationControlServiceImplTest {
     val sketch = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(55)
       .setPartialSketch("data".toByteString())
-      .setSender(otherDuchyNames.last())
       .build()
-    assertFailsWith<StatusException> { client.handleNoisedSketch(flowOf(sketch)) }
+    assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
   }
 
   @Test
@@ -216,7 +230,7 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialSketch("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(part1, part2, part3)))
+    ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(part1, part2, part3)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
     val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
@@ -251,7 +265,7 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialSketch("full_sketch".toByteString())
       .build()
-    ProtoTruth.assertThat(client.handleConcatenatedSketch(flowOf(sketch)))
+    ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(sketch)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
     val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
@@ -283,7 +297,7 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(55)
       .setPartialSketch("full_sketch".toByteString())
       .build()
-    assertFailsWith<StatusException> { client.handleConcatenatedSketch(flowOf(sketch)) }
+    assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
   }
 
   @Test
@@ -301,7 +315,7 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialData("full_sketch".toByteString())
       .build()
-    ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(sketch)))
+    ProtoTruth.assertThat(carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch)))
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
     val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
@@ -344,7 +358,15 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialData("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(client.handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3)))
+    ProtoTruth.assertThat(
+      carinthiaClient.handleEncryptedFlagsAndCounts(
+        flowOf(
+          part1,
+          part2,
+          part3
+        )
+      )
+    )
       .isEqualToDefaultInstance()
     val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
     val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
@@ -376,7 +398,9 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(55)
       .setPartialData("data".toByteString())
       .build()
-    assertFailsWith<StatusException> { client.handleEncryptedFlagsAndCounts(flowOf(sketch)) }
+    assertFailsWith<StatusException> {
+      carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch))
+    }
   }
 }
 

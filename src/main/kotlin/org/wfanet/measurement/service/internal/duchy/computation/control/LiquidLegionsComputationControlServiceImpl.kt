@@ -14,14 +14,15 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.reduce
+import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt
+import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
@@ -31,11 +32,12 @@ import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRespon
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
+import java.util.logging.Logger
 
 class LiquidLegionsComputationControlServiceImpl(
-  private val clients: LiquidLegionsSketchAggregationComputationStorageClients
-) :
-  ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase() {
+  private val clients: LiquidLegionsSketchAggregationComputationStorageClients,
+  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
+) : ComputationControlServiceCoroutineImplBase() {
 
   override suspend fun handleConcatenatedSketch(
     requests: Flow<HandleConcatenatedSketchRequest>
@@ -110,24 +112,10 @@ class LiquidLegionsComputationControlServiceImpl(
   override suspend fun handleNoisedSketch(
     requests: Flow<HandleNoisedSketchRequest>
   ): HandleNoisedSketchResponse {
-    val (id, sender, bytes) =
-      requests
-        .map {
-          Triple(
-            it.computationId,
-            checkNotNull(it.sender),
-            checkNotNull(it.partialSketch.toByteArray())
-          )
-        }
-        .reduce { x, y ->
-          require(x.first == y.first) {
-            "Stream has multiple computations $x and $y"
-          }
-          require(x.second == y.second) {
-            "Stream has multiple senders $x and $y"
-          }
-          Triple(x.first, x.second, (x.third + y.third))
-        }
+    val (id, bytes) =
+      requests.map { it.computationId to it.partialSketch.toByteArray() }.appendAllByteArrays()
+
+    val sender = duchyIdentityProvider().id
     logger.info("[id=$id]: Received noised sketch request from $sender.")
     val token = clients.computationStorageClient
       .getComputationToken(id.toGetTokenRequest())

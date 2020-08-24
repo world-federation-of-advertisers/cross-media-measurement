@@ -16,6 +16,7 @@ package org.wfanet.measurement.service.testing
 
 import io.grpc.BindableService
 import io.grpc.ManagedChannel
+import io.grpc.ServerServiceDefinition
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
@@ -25,6 +26,8 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.GrpcExceptionLogger
 
 class GrpcTestServerRule(
+  private val serverServiceDefinitionsFactory:
+    (ManagedChannel) -> List<ServerServiceDefinition> = { listOf() },
   private val servicesFactory: (ManagedChannel) -> List<BindableService>
 ) : TestRule {
   private val grpcCleanupRule: GrpcCleanupRule = GrpcCleanupRule()
@@ -47,6 +50,7 @@ class GrpcTestServerRule(
             .directExecutor()
 
         servicesFactory(channel).forEach { serverBuilder.addService(it) }
+        serverServiceDefinitionsFactory(channel).forEach { serverBuilder.addService(it) }
 
         grpcCleanupRule.register(serverBuilder.build().start())
 

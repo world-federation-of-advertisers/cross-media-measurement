@@ -53,9 +53,9 @@ service ComputationControlService {
       returns (HandleEncryptedFlagsAndCountsResponse) {}
 }
 
-// Transmit sketches for a computation from a secondary duchy to the primary worker.
-// The primary expects a sketch from all secondary duchies. This request is
-// essentially storing a mapping of (computation_id, sender) -> sketch.
+// Transmit sketches for a computation from a secondary duchy to the primary
+// worker. The primary expects a sketch from all secondary duchies. This request
+// is essentially storing a mapping of (computation_id, sender) -> sketch.
 message HandleNoisedSketchRequest {
   // The globally unique identifier of the multi-party computation.
   uint64 computation_id = 1;
@@ -64,11 +64,6 @@ message HandleNoisedSketchRequest {
   // key, and count. Sketches can exceed the maximum message size so split them
   // into chunks and send a sequence of requests via the stream.
   bytes partial_sketch = 2;
-
-  // The identifier of the sender of the noised sketch which is the name of
-  // the duchy. This identifier much match a known duchy name that is being
-  // used in the computation. It should not contain any whitespace characters.
-  string sender = 3;
 }
 
 message HandleNoisedSketchResponse {
@@ -93,10 +88,10 @@ message HandleConcatenatedSketchResponse {
   // Deliberately empty
 }
 
-// Transmits the encrypted flag and count pairs from the combined sketch to another
-// duchy. A duchy expects to see this message once per computation and only from
-// its predecessor in ring for the computation.
-// This request is essentially storing a mapping of (computation_id) -> pairs.
+// Transmits the encrypted flag and count pairs from the combined sketch to
+// another duchy. A duchy expects to see this message once per computation and
+// only from its predecessor in ring for the computation. This request is
+// essentially storing a mapping of (computation_id) -> pairs.
 message HandleEncryptedFlagsAndCountsRequest {
   // The globally unique identifier of the multi-party computation.
   uint64 computation_id = 1;
