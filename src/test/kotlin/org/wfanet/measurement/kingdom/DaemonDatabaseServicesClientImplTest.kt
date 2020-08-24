@@ -15,6 +15,11 @@
 package org.wfanet.measurement.kingdom
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.nhaarman.mockitokotlin2.UseConstructor
+import com.nhaarman.mockitokotlin2.any
+import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.verify
+import com.nhaarman.mockitokotlin2.whenever
 import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -23,45 +28,50 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
+import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportConfigScheduleStorage
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportConfigStorage
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeReportStorage
-import org.wfanet.measurement.service.internal.kingdom.testing.FakeRequisitionStorage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)
 class DaemonDatabaseServicesClientImplTest {
 
-  private val fakeReportConfigStorage = FakeReportConfigStorage()
-  private val fakeReportConfigScheduleStorage = FakeReportConfigScheduleStorage()
-  private val fakeReportStorage = FakeReportStorage()
-  private val fakeRequisitionStorage = FakeRequisitionStorage()
+  private val reportConfigStorage: ReportConfigStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
+  private val reportConfigScheduleStorage: ReportConfigScheduleStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
+  private val reportStorage: ReportStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
+  private val requisitionStorage: RequisitionStorageCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     listOf(
-      fakeReportConfigStorage,
-      fakeReportConfigScheduleStorage,
-      fakeReportStorage,
-      fakeRequisitionStorage
+      reportConfigStorage,
+      reportConfigScheduleStorage,
+      reportStorage,
+      requisitionStorage
     )
   }
 
@@ -77,10 +87,6 @@ class DaemonDatabaseServicesClientImplTest {
 
   @Test
   fun createNextReport() = runBlocking<Unit> {
-    fakeReportStorage.mocker.mock(FakeReportStorage::createNextReport) {
-      Report.getDefaultInstance()
-    }
-
     val schedule =
       ReportConfigSchedule.newBuilder()
         .setExternalScheduleId(12345)
@@ -88,13 +94,9 @@ class DaemonDatabaseServicesClientImplTest {
 
     daemonDatabaseServicesClient.createNextReport(schedule)
 
-    val expectedRequest =
-      CreateNextReportRequest.newBuilder()
-        .setExternalScheduleId(12345)
-        .build()
-
-    assertThat(fakeReportStorage.mocker.callsForMethod("createNextReport"))
-      .containsExactly(expectedRequest)
+    val expectedRequest = CreateNextReportRequest.newBuilder().setExternalScheduleId(12345).build()
+    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::createNextReport)
+      .isEqualTo(expectedRequest)
   }
 
   @Test
@@ -105,11 +107,12 @@ class DaemonDatabaseServicesClientImplTest {
       requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 3
     }.build()
 
-    fakeReportConfigStorage.mocker.mock(FakeReportConfigStorage::listRequisitionTemplates) {
-      ListRequisitionTemplatesResponse.newBuilder()
-        .addRequisitionTemplates(requisitionTemplate)
-        .build()
-    }
+    whenever(reportConfigStorage.listRequisitionTemplates(any()))
+      .thenReturn(
+        ListRequisitionTemplatesResponse.newBuilder()
+          .addRequisitionTemplates(requisitionTemplate)
+          .build()
+      )
 
     val report = Report.newBuilder()
       .setExternalReportConfigId(4)
@@ -130,12 +133,13 @@ class DaemonDatabaseServicesClientImplTest {
       .containsExactly(expectedRequisition)
 
     val expectedRequest =
-      ListRequisitionTemplatesRequest.newBuilder()
-        .setExternalReportConfigId(4)
-        .build()
+      ListRequisitionTemplatesRequest.newBuilder().setExternalReportConfigId(4).build()
 
-    assertThat(fakeReportConfigStorage.mocker.callsForMethod("listRequisitionTemplates"))
-      .containsExactly(expectedRequest)
+    verifyProtoArgument(
+      reportConfigStorage,
+      ReportConfigStorageCoroutineImplBase::listRequisitionTemplates
+    )
+      .isEqualTo(expectedRequest)
   }
 
   @Test
@@ -143,23 +147,18 @@ class DaemonDatabaseServicesClientImplTest {
     val inputRequisition = Requisition.newBuilder().setExternalDataProviderId(1).build()
     val outputRequisition = Requisition.newBuilder().setExternalDataProviderId(2).build()
 
-    fakeRequisitionStorage.mocker.mock(FakeRequisitionStorage::createRequisition) {
-      outputRequisition
-    }
+    whenever(requisitionStorage.createRequisition(any()))
+      .thenReturn(outputRequisition)
 
     assertThat(daemonDatabaseServicesClient.createRequisition(inputRequisition))
       .isEqualTo(outputRequisition)
 
-    assertThat(fakeRequisitionStorage.mocker.callsForMethod("createRequisition"))
-      .containsExactly(inputRequisition)
+    verifyProtoArgument(requisitionStorage, RequisitionStorageCoroutineImplBase::createRequisition)
+      .isEqualTo(inputRequisition)
   }
 
   @Test
   fun associateRequisitionToReport() = runBlocking<Unit> {
-    fakeReportStorage.mocker.mock(FakeReportStorage::associateRequisition) {
-      AssociateRequisitionResponse.getDefaultInstance()
-    }
-
     val requisition = Requisition.newBuilder().setExternalRequisitionId(1).build()
     val report = Report.newBuilder().setExternalReportId(2).build()
 
@@ -170,14 +169,14 @@ class DaemonDatabaseServicesClientImplTest {
       externalReportId = 2
     }.build()
 
-    assertThat(fakeReportStorage.mocker.callsForMethod("associateRequisition"))
-      .containsExactly(expectedRequest)
+    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::associateRequisition)
+      .isEqualTo(expectedRequest)
   }
 
   @Test
   fun updateReportState() = runBlocking<Unit> {
     val outputReport = Report.getDefaultInstance()
-    fakeReportStorage.mocker.mock(FakeReportStorage::updateReportState) { outputReport }
+    whenever(reportStorage.updateReportState(any())).thenReturn(outputReport)
 
     val report = Report.newBuilder().setExternalReportId(1).build()
     val newState = ReportState.IN_PROGRESS
@@ -190,8 +189,8 @@ class DaemonDatabaseServicesClientImplTest {
         .setState(newState)
         .build()
 
-    assertThat(fakeReportStorage.mocker.callsForMethod("updateReportState"))
-      .containsExactly(expectedRequest)
+    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::updateReportState)
+      .isEqualTo(expectedRequest)
   }
 
   @Test
@@ -200,9 +199,8 @@ class DaemonDatabaseServicesClientImplTest {
     val report2 = Report.newBuilder().setExternalReportId(2).build()
     val report3 = Report.newBuilder().setExternalReportId(3).build()
 
-    fakeReportStorage.mocker.mockStreaming(FakeReportStorage::streamReports) {
-      flowOf(report1, report2, report3)
-    }
+    whenever(reportStorage.streamReports(any()))
+      .thenReturn(flowOf(report1, report2, report3))
 
     val state = ReportState.AWAITING_REQUISITION_FULFILLMENT
     val outputReports = daemonDatabaseServicesClient.streamReportsInState(state)
@@ -215,9 +213,12 @@ class DaemonDatabaseServicesClientImplTest {
       filterBuilder.addStates(state)
     }.build()
 
-    assertThat(fakeReportStorage.mocker.callsForMethod("streamReports"))
+    val actualRequest = captureFirst<StreamReportsRequest> {
+      verify(reportStorage).streamReports(capture())
+    }
+    assertThat(actualRequest)
       .comparingExpectedFieldsOnly()
-      .containsExactly(expectedRequest)
+      .isEqualTo(expectedRequest)
   }
 
   @Test
@@ -226,9 +227,8 @@ class DaemonDatabaseServicesClientImplTest {
     val report2 = Report.newBuilder().setExternalReportId(2).build()
     val report3 = Report.newBuilder().setExternalReportId(3).build()
 
-    fakeReportStorage.mocker.mockStreaming(FakeReportStorage::streamReadyReports) {
-      flowOf(report1, report2, report3)
-    }
+    whenever(reportStorage.streamReadyReports(any()))
+      .thenReturn(flowOf(report1, report2, report3))
 
     val outputReports = daemonDatabaseServicesClient.streamReadyReports()
 
@@ -243,11 +243,8 @@ class DaemonDatabaseServicesClientImplTest {
     val schedule2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
     val schedule3 = ReportConfigSchedule.newBuilder().setExternalScheduleId(3).build()
 
-    fakeReportConfigScheduleStorage.mocker.mockStreaming(
-      FakeReportConfigScheduleStorage::streamReadyReportConfigSchedules
-    ) {
-      flowOf(schedule1, schedule2, schedule3)
-    }
+    whenever(reportConfigScheduleStorage.streamReadyReportConfigSchedules(any()))
+      .thenReturn(flowOf(schedule1, schedule2, schedule3))
 
     val outputSchedules = daemonDatabaseServicesClient.streamReadySchedules()
 

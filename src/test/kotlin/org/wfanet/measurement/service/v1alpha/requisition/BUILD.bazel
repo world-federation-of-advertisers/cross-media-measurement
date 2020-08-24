@@ -13,7 +13,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_service",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",

@@ -15,7 +15,10 @@ kt_jvm_library(
     ],
     deps = [
         "//:grpc_core",
+        "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/org/junit",
+        "//imports/java/org/mockito",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],

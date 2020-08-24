@@ -19,11 +19,10 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
 
 /** A [IdGenerator] that outputs fixed, settable IDs. */
-class FixedIdGenerator : IdGenerator {
-  var internalId = InternalId(123456789)
-  var externalId = ExternalId(987654321)
-
+class FixedIdGenerator(
+  var internalId: InternalId = InternalId(123456789),
+  var externalId: ExternalId = ExternalId(987654321)
+) : IdGenerator {
   override fun generateInternalId() = internalId
-
   override fun generateExternalId() = externalId
 }
