@@ -25,6 +25,9 @@ import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
+import org.wfanet.measurement.internal.kingdom.Advertiser
+import org.wfanet.measurement.internal.kingdom.Campaign
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
@@ -40,6 +43,9 @@ class GcpKingdomRelationalDatabase(
   private val client: DatabaseClient by lazy { lazyClient() }
   private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
   private val createNextReportTransaction = CreateNextReportTransaction(clock, idGenerator)
+  private val createAdvertiserTransaction = CreateAdvertiserTransaction(idGenerator)
+  private val createCampaignTransaction = CreateCampaignTransaction(idGenerator)
+  private val createDataProviderTransaction = CreateDataProviderTransaction(idGenerator)
 
   constructor(
     clock: Clock,
@@ -139,5 +145,32 @@ class GcpKingdomRelationalDatabase(
     val readContext = client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp))
     val reportReadResult = ReportReader.forExternalId(readContext, externalReportId)
     return requireNotNull(reportReadResult).report
+  }
+
+  override fun createDataProvider(): DataProvider {
+    return client.runReadWriteTransaction { transactionContext ->
+      createDataProviderTransaction.execute(transactionContext)
+    }
+  }
+
+  override fun createAdvertiser(): Advertiser {
+    return client.runReadWriteTransaction { transactionContext ->
+      createAdvertiserTransaction.execute(transactionContext)
+    }
+  }
+
+  override fun createCampaign(
+    externalDataProviderId: ExternalId,
+    externalAdvertiserId: ExternalId,
+    providedCampaignId: String
+  ): Campaign {
+    return client.runReadWriteTransaction { transactionContext ->
+      createCampaignTransaction.execute(
+        transactionContext,
+        externalDataProviderId,
+        externalAdvertiserId,
+        providedCampaignId
+      )
+    }
   }
 }

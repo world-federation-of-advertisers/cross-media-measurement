@@ -5,6 +5,18 @@ load(":macros.bzl", "proto_and_java_proto_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_and_java_proto_library(
+    name = "advertiser",
+)
+
+proto_and_java_proto_library(
+    name = "campaign",
+)
+
+proto_and_java_proto_library(
+    name = "data_provider",
+)
+
+proto_and_java_proto_library(
     name = "repetition_spec",
     deps = [
         ":time_period_proto",

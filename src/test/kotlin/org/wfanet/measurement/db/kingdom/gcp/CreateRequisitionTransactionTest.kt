@@ -23,8 +23,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
@@ -32,51 +32,47 @@ import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
+private const val DATA_PROVIDER_ID = 1L
+private const val EXTERNAL_DATA_PROVIDER_ID = 2L
+private const val CAMPAIGN_ID = 3L
+private const val EXTERNAL_CAMPAIGN_ID = 4L
+
+private const val REQUISITION_ID = 5L
+private const val EXTERNAL_REQUISITION_ID = 6L
+private const val NEW_REQUISITION_ID = 7L
+private const val NEW_EXTERNAL_REQUISITION_ID = 8L
+
+private const val ADVERTISER_ID = 9L
+
+private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
+private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
+
+private val REQUISITION_DETAILS = KingdomDatabaseTestBase.buildRequisitionDetails(10101L)
+private val NEW_REQUISITION_DETAILS = KingdomDatabaseTestBase.buildRequisitionDetails(20202L)
+
+private val REQUISITION: Requisition = Requisition.newBuilder().apply {
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalCampaignId = EXTERNAL_CAMPAIGN_ID
+  externalRequisitionId = EXTERNAL_REQUISITION_ID
+  windowStartTime = WINDOW_START_TIME.toProtoTime()
+  windowEndTime = WINDOW_END_TIME.toProtoTime()
+  state = RequisitionState.UNFULFILLED
+  requisitionDetails = REQUISITION_DETAILS
+  requisitionDetailsJson = REQUISITION_DETAILS.toJson()
+}.build()
+
+private val INPUT_REQUISITION: Requisition =
+  REQUISITION.toBuilder()
+    .clearExternalRequisitionId()
+    .build()
+
+private val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
+
 @RunWith(JUnit4::class)
 class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val DATA_PROVIDER_ID = 1L
-    const val EXTERNAL_DATA_PROVIDER_ID = 2L
-    const val CAMPAIGN_ID = 3L
-    const val EXTERNAL_CAMPAIGN_ID = 4L
-
-    const val REQUISITION_ID = 5L
-    const val EXTERNAL_REQUISITION_ID = 6L
-    const val NEW_REQUISITION_ID = 7L
-    const val NEW_EXTERNAL_REQUISITION_ID = 8L
-
-    const val ADVERTISER_ID = 9L
-    const val EXTERNAL_REPORT_CONFIG_ID = 10L
-
-    val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
-    val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
-
-    val REQUISITION_DETAILS = buildRequisitionDetails(10101L)
-    val NEW_REQUISITION_DETAILS = buildRequisitionDetails(20202L)
-
-    val REQUISITION: Requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalCampaignId = EXTERNAL_CAMPAIGN_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-      windowStartTime = WINDOW_START_TIME.toProtoTime()
-      windowEndTime = WINDOW_END_TIME.toProtoTime()
-      state = RequisitionState.UNFULFILLED
-      requisitionDetails = REQUISITION_DETAILS
-      requisitionDetailsJson = REQUISITION_DETAILS.toJson()
-    }.build()
-
-    val INPUT_REQUISITION: Requisition =
-      REQUISITION.toBuilder()
-        .clearExternalRequisitionId()
-        .build()
-
-    val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
-  }
-
-  object FakeIdGenerator : IdGenerator {
-    override fun generateInternalId(): InternalId = InternalId(NEW_REQUISITION_ID)
-    override fun generateExternalId(): ExternalId = ExternalId(NEW_EXTERNAL_REQUISITION_ID)
-  }
+  private val idGenerator =
+    FixedIdGenerator(InternalId(NEW_REQUISITION_ID), ExternalId(NEW_EXTERNAL_REQUISITION_ID))
+  private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
 
   @Before
   fun populateDatabase() {
@@ -93,8 +89,6 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       requisitionDetails = REQUISITION_DETAILS
     )
   }
-
-  private val createRequisitionTransaction = CreateRequisitionTransaction(FakeIdGenerator)
 
   @Test
   fun `requisition already exists`() {

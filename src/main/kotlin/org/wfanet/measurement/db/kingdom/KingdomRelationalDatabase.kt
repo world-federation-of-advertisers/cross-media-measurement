@@ -16,6 +16,9 @@ package org.wfanet.measurement.db.kingdom
 
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.internal.kingdom.Advertiser
+import org.wfanet.measurement.internal.kingdom.Campaign
+import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
@@ -104,4 +107,28 @@ interface KingdomRelationalDatabase {
     duchyId: String,
     externalRequisitionIds: Set<ExternalId>
   ): Report
+
+  /**
+   * Registers a Data Provider.
+   */
+  fun createDataProvider(): DataProvider
+
+  /**
+   * Registers an Advertiser.
+   */
+  fun createAdvertiser(): Advertiser
+
+  /**
+   * Registers a Campaign.
+   *
+   * @param[externalDataProviderId] the Data Provider providing data for the campaign
+   * @param[externalAdvertiserId] the Advertiser owning of the campaign
+   * @param[providedCampaignId] user-provided, unvalidated name of the campaign (for display in UIs)
+   * @return the created [Campaign]
+   */
+  fun createCampaign(
+    externalDataProviderId: ExternalId,
+    externalAdvertiserId: ExternalId,
+    providedCampaignId: String
+  ): Campaign
 }

@@ -49,6 +49,60 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "create_advertiser_transaction_test",
+    srcs = ["CreateAdvertiserTransactionTest.kt"],
+    resources = [
+        "//src/main/db/gcp:kingdom_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateAdvertiserTransactionTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "create_campaign_transaction_test",
+    srcs = ["CreateCampaignTransactionTest.kt"],
+    resources = [
+        "//src/main/db/gcp:kingdom_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateCampaignTransactionTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "create_data_provider_transaction_test",
+    srcs = ["CreateDataProviderTransactionTest.kt"],
+    resources = [
+        "//src/main/db/gcp:kingdom_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateDataProviderTransactionTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "create_requisition_transaction_test",
     srcs = ["CreateRequisitionTransactionTest.kt"],
     resources = [
@@ -80,8 +134,8 @@ spanner_emulator_test(
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
     ],
