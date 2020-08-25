@@ -149,43 +149,48 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialSketch("full_sketch_fit_in_message".toByteString())
       .build()
-    ProtoTruth.assertThat(carinthiaClient.handleNoisedSketch(flowOf(fullSketch)))
-      .isEqualToDefaultInstance()
-    val tokenAfterSecondSketch =
-      assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    // Test the idempotency of receiving the same request by sending and checking results multiple
+    // times. The token should be the same each time because only the first request makes changes
+    // to the database.
+    repeat(times = 2) {
+      ProtoTruth.assertThat(carinthiaClient.handleNoisedSketch(flowOf(fullSketch)))
+        .isEqualToDefaultInstance()
+      val tokenAfterSecondSketch =
+        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
 
-    val localInputToAddNoise = newInputBlobMetadata(id = 0L, key = localSketches)
-    val sender1InputToAddNoise =
-      newInputBlobMetadata(id = 1L, key = token.toBlobPath("noised_sketch_Bavaria"))
-    val sender2InputToAddNoise =
-      newInputBlobMetadata(id = 2L, key = token.toBlobPath("noised_sketch_Carinthia"))
-    val outputOfToAddNoise = newEmptyOutputBlobMetadata(id = 3L)
+      val localInputToAddNoise = newInputBlobMetadata(id = 0L, key = localSketches)
+      val sender1InputToAddNoise =
+        newInputBlobMetadata(id = 1L, key = token.toBlobPath("noised_sketch_Bavaria"))
+      val sender2InputToAddNoise =
+        newInputBlobMetadata(id = 2L, key = token.toBlobPath("noised_sketch_Carinthia"))
+      val outputOfToAddNoise = newEmptyOutputBlobMetadata(id = 3L)
 
-    ProtoTruth.assertThat(tokenAfterSecondSketch).isEqualTo(
-      copyOf(
-        tokenAfter,
-        withBlobs = listOf(
-          localInputToAddNoise,
-          sender1InputToAddNoise,
-          sender2InputToAddNoise,
-          outputOfToAddNoise
+      ProtoTruth.assertThat(tokenAfterSecondSketch).isEqualTo(
+        copyOf(
+          tokenAfter,
+          withBlobs = listOf(
+            localInputToAddNoise,
+            sender1InputToAddNoise,
+            sender2InputToAddNoise,
+            outputOfToAddNoise
+          )
         )
+          .setComputationStage(TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage())
+          .setVersion(3)
+          .clearStageSpecificDetails()
+          .build()
       )
-        .setComputationStage(TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage())
-        .setVersion(3)
-        .clearStageSpecificDetails()
-        .build()
-    )
-    assertEquals(
-      mapOf(
-        localInputToAddNoise to "local_sketches",
-        sender1InputToAddNoise to "part1_part2_part3",
-        sender2InputToAddNoise to "full_sketch_fit_in_message"
-      ),
-      computationStorageClients.readInputBlobs(tokenAfterSecondSketch).mapValues {
-        it.value.toString(Charset.defaultCharset())
-      }
-    )
+      assertEquals(
+        mapOf(
+          localInputToAddNoise to "local_sketches",
+          sender1InputToAddNoise to "part1_part2_part3",
+          sender2InputToAddNoise to "full_sketch_fit_in_message"
+        ),
+        computationStorageClients.readInputBlobs(tokenAfterSecondSketch).mapValues {
+          it.value.toString(Charset.defaultCharset())
+        }
+      )
+    }
   }
 
   @Test
@@ -226,24 +231,30 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialSketch("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(part1, part2, part3)))
-      .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
-    val output = newEmptyOutputBlobMetadata(id = 1)
+    // Test the idempotency of receiving the same request by sending and checking results multiple
+    // times. The token should be the same each time because only the first request makes changes
+    // to the database.
+    repeat(times = 2) {
+      ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(part1, part2, part3)))
+        .isEqualToDefaultInstance()
+      val tokenAfter =
+        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+      val output = newEmptyOutputBlobMetadata(id = 1)
 
-    ProtoTruth.assertThat(tokenAfter).isEqualTo(
-      copyOf(token, withBlobs = listOf(input, output))
-        .setComputationStage(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage())
-        .setVersion(2)
-        .build()
-    )
-    assertEquals(
-      mapOf(input to "part1_part2_part3"),
-      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-        it.value.toString(Charset.defaultCharset())
-      }
-    )
+      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+        copyOf(token, withBlobs = listOf(input, output))
+          .setComputationStage(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage())
+          .setVersion(2)
+          .build()
+      )
+      assertEquals(
+        mapOf(input to "part1_part2_part3"),
+        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
+          it.value.toString(Charset.defaultCharset())
+        }
+      )
+    }
   }
 
   @Test
@@ -261,31 +272,37 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialSketch("full_sketch".toByteString())
       .build()
-    ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(sketch)))
-      .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
-    val output = newEmptyOutputBlobMetadata(id = 1)
+    // Test the idempotency of receiving the same request by sending and checking results multiple
+    // times. The token should be the same each time because only the first request makes changes
+    // to the database.
+    repeat(times = 2) {
+      ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(sketch)))
+        .isEqualToDefaultInstance()
+      val tokenAfter =
+        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+      val output = newEmptyOutputBlobMetadata(id = 1)
 
-    ProtoTruth.assertThat(tokenAfter).isEqualTo(
-      copyOf(token, withBlobs = listOf(input, output))
-        .setComputationStage(TO_BLIND_POSITIONS.toProtocolStage())
-        .setVersion(2)
-        .build()
-    )
-    assertEquals(
-      mapOf(input to "full_sketch"),
-      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-        it.value.toString(Charset.defaultCharset())
-      }
-    )
+      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+        copyOf(token, withBlobs = listOf(input, output))
+          .setComputationStage(TO_BLIND_POSITIONS.toProtocolStage())
+          .setVersion(2)
+          .build()
+      )
+      assertEquals(
+        mapOf(input to "full_sketch"),
+        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
+          it.value.toString(Charset.defaultCharset())
+        }
+      )
+    }
   }
 
   @Test
   fun `receive concatenated sketch when not expected`() = runBlocking<Unit> {
     fakeComputationStorage.addComputation(
       id = 55,
-      stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
+      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
@@ -311,24 +328,31 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialData("full_sketch".toByteString())
       .build()
-    ProtoTruth.assertThat(carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch)))
-      .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
-    val output = newEmptyOutputBlobMetadata(id = 1)
 
-    ProtoTruth.assertThat(tokenAfter).isEqualTo(
-      copyOf(token, withBlobs = listOf(input, output))
-        .setComputationStage(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage())
-        .setVersion(2)
-        .build()
-    )
-    assertEquals(
-      mapOf(input to "full_sketch"),
-      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-        it.value.toString(Charset.defaultCharset())
-      }
-    )
+    // Test the idempotency of receiving the same request by sending and checking results multiple
+    // times. The token should be the same each time because only the first request makes changes
+    // to the database.
+    repeat(times = 2) {
+      ProtoTruth.assertThat(carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch)))
+        .isEqualToDefaultInstance()
+      val tokenAfter =
+        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+      val output = newEmptyOutputBlobMetadata(id = 1)
+
+      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+        copyOf(token, withBlobs = listOf(input, output))
+          .setComputationStage(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage())
+          .setVersion(2)
+          .build()
+      )
+      assertEquals(
+        mapOf(input to "full_sketch"),
+        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
+          it.value.toString(Charset.defaultCharset())
+        }
+      )
+    }
   }
 
   @Test
@@ -354,32 +378,31 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId(id)
       .setPartialData("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(
-      carinthiaClient.handleEncryptedFlagsAndCounts(
-        flowOf(
-          part1,
-          part2,
-          part3
-        )
-      )
-    )
-      .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-    val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
-    val output = newEmptyOutputBlobMetadata(id = 1)
+    // Test the idempotency of receiving the same request by sending and checking results multiple
+    // times. The token should be the same each time because only the first request makes changes
+    // to the database.
+    repeat(times = 2) {
+      ProtoTruth.assertThat(
+        carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3))
+      ).isEqualToDefaultInstance()
+      val tokenAfter =
+        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+      val output = newEmptyOutputBlobMetadata(id = 1)
 
-    ProtoTruth.assertThat(tokenAfter).isEqualTo(
-      copyOf(token, withBlobs = listOf(input, output))
-        .setComputationStage(TO_DECRYPT_FLAG_COUNTS.toProtocolStage())
-        .setVersion(2)
-        .build()
-    )
-    assertEquals(
-      mapOf(input to "part1_part2_part3"),
-      computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-        it.value.toString(Charset.defaultCharset())
-      }
-    )
+      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+        copyOf(token, withBlobs = listOf(input, output))
+          .setComputationStage(TO_DECRYPT_FLAG_COUNTS.toProtocolStage())
+          .setVersion(2)
+          .build()
+      )
+      assertEquals(
+        mapOf(input to "part1_part2_part3"),
+        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
+          it.value.toString(Charset.defaultCharset())
+        }
+      )
+    }
   }
 
   @Test

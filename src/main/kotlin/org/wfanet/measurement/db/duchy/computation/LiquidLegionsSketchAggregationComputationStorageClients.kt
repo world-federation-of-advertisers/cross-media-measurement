@@ -15,7 +15,6 @@
 package org.wfanet.measurement.db.duchy.computation
 
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
@@ -70,19 +69,12 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
     sketch: ByteArray,
     sender: String
   ): ComputationToken {
-    // Get the blob id by looking up the sender in the stage specific details.
-    val stageDetails = computationToken.stageSpecificDetails.waitSketchStageDetails
-    val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
-    val outputBlob = computationToken.blobsList.single {
-      it.dependencyType == ComputationBlobDependency.OUTPUT &&
-        it.blobId == blobId
-    }
+    val outputBlob = computationToken.toNoisedSketchBlobMetadataFor(sender)
     return writeExpectedBlobIfNotPresent(
-      requiredStage = WAIT_SKETCHES,
       nameForBlob = "noised_sketch_$sender",
       computationToken = computationToken,
       bytes = sketch,
-      blobId = blobId,
+      blobId = outputBlob.blobId,
       existingPath = outputBlob.path
     )
   }
@@ -99,7 +91,6 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
   ): ComputationToken {
     val onlyOutputBlob = computationToken.singleOutputBlobMetadata()
     return writeExpectedBlobIfNotPresent(
-      requiredStage = computationToken.computationStage.liquidLegionsSketchAggregation,
       nameForBlob = "output",
       computationToken = computationToken,
       bytes = data,
@@ -109,16 +100,12 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
   }
 
   private suspend fun writeExpectedBlobIfNotPresent(
-    requiredStage: LiquidLegionsSketchAggregationStage,
     nameForBlob: String,
     computationToken: ComputationToken,
     bytes: ByteArray,
     blobId: Long,
     existingPath: String
   ): ComputationToken {
-    require(computationToken.computationStage.liquidLegionsSketchAggregation == requiredStage) {
-      "Cannot accept $nameForBlob while in stage ${computationToken.computationStage}"
-    }
     // Return the path to the already written blob if one exists.
     if (existingPath.isNotEmpty()) return computationToken
 
@@ -171,3 +158,22 @@ class LiquidLegionsSketchAggregationComputationStorageClients(
  */
 fun ComputationToken.singleOutputBlobMetadata(): ComputationStageBlobMetadata =
   blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
+
+/**
+ * Returns the [ComputationStageBlobMetadata] for the output blob that should hold data sent by
+ * the [sender].
+ *
+ * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
+ * case the path will be empty.
+ */
+fun ComputationToken.toNoisedSketchBlobMetadataFor(
+  sender: String
+): ComputationStageBlobMetadata {
+  // Get the blob id by looking up the sender in the stage specific details.
+  val stageDetails = stageSpecificDetails.waitSketchStageDetails
+  val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
+  return blobsList.single {
+    it.dependencyType == ComputationBlobDependency.OUTPUT &&
+      it.blobId == blobId
+  }
+}

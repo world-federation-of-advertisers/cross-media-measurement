@@ -15,6 +15,15 @@
 package org.wfanet.measurement.common
 
 import com.google.protobuf.ByteString
+import java.nio.ByteBuffer
+
+/** Copies all bytes in a list of [ByteString]s into a [ByteArray]. */
+fun List<ByteString>.toByteArray(): ByteArray {
+  // Allocate a ByteBuffer large enough for all the bytes in all the byte strings.
+  val buffer = ByteBuffer.allocate(sumBy { it.size })
+  forEach { byteString -> byteString.copyTo(buffer) }
+  return buffer.array()
+}
 
 /** Returns a [ByteArray] containing all of the elements in this [Sequence]. */
 fun Sequence<Byte>.toByteArray(size: Int): ByteArray {
