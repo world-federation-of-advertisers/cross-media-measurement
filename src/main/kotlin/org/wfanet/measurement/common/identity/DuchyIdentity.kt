@@ -42,7 +42,7 @@ private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STR
  * To install in a server, wrap a service with:
  *    yourService.withDuchyIdentities()
  *
- * On the client side, use [attachDuchyIdentityHeaders].
+ * On the client side, use [withDuchyId].
  */
 class DuchyServerIdentityInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
@@ -81,10 +81,10 @@ fun ServerServiceDefinition.withDuchyIdentities(): ServerServiceDefinition =
  * Sets metadata key "duchy_id" on all outgoing requests.
  *
  * Usage:
- *   val someStub = attachDuchyIdentityHeaders(SomeServiceCoroutineStub(channel), "MyDuchyId")
+ *   val someStub = SomeServiceCoroutineStub(channel).withDuchyId("MyDuchyId")
  */
-fun <T : AbstractStub<T>> attachDuchyIdentityHeaders(stub: T, duchyId: String): T {
+fun <T : AbstractStub<T>> T.withDuchyId(duchyId: String): T {
   val metadata = Metadata()
   metadata.put(DUCHY_ID_METADATA_KEY, duchyId)
-  return MetadataUtils.attachHeaders(stub, metadata)
+  return MetadataUtils.attachHeaders(this, metadata)
 }

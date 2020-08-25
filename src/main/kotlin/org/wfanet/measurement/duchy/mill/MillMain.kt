@@ -16,16 +16,16 @@ package org.wfanet.measurement.duchy.mill
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
+import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
+import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.storage.gcs.GcsFromFlags
 import picocli.CommandLine
-import java.time.Clock
 
 @CommandLine.Command(
   name = "mill_main ",
@@ -64,14 +64,14 @@ private fun run(
   addChannelShutdownHooks(Runtime.getRuntime(), millFlags.channelShutdownTimeout, channelOne)
   addChannelShutdownHooks(Runtime.getRuntime(), millFlags.channelShutdownTimeout, channelTwo)
 
-  val clientOne = attachDuchyIdentityHeaders(
-    ComputationControlServiceCoroutineStub(channelOne),
-    millFlags.nameOfDuchy
-  )
-  val clientTwo = attachDuchyIdentityHeaders(
-    ComputationControlServiceCoroutineStub(channelTwo),
-    millFlags.nameOfDuchy
-  )
+  val clientOne =
+    ComputationControlServiceCoroutineStub(channelOne)
+      .withDuchyId(millFlags.nameOfDuchy)
+
+  val clientTwo =
+    ComputationControlServiceCoroutineStub(channelTwo)
+      .withDuchyId(millFlags.nameOfDuchy)
+
   val clientMap =
     mapOf(millFlags.otherDuchyNameOne to clientOne, millFlags.otherDuchyNameTwo to clientTwo)
 

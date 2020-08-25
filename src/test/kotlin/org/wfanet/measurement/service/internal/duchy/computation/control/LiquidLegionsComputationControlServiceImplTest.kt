@@ -28,8 +28,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
@@ -95,18 +95,17 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Before
   fun setup() {
-    storageClient = attachDuchyIdentityHeaders(
-      ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel),
-      RUNNING_DUCHY_NAME
-    )
-    bavariaClient = attachDuchyIdentityHeaders(
-      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel),
-      otherDuchyNames[0]
-    )
-    carinthiaClient = attachDuchyIdentityHeaders(
-      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel),
-      otherDuchyNames[1]
-    )
+    storageClient =
+      ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel)
+        .withDuchyId(RUNNING_DUCHY_NAME)
+
+    bavariaClient =
+      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
+        .withDuchyId(otherDuchyNames[0])
+
+    carinthiaClient =
+      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
+        .withDuchyId(otherDuchyNames[1])
   }
 
   @Test

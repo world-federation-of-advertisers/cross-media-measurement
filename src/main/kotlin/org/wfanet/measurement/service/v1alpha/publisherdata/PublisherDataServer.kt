@@ -21,7 +21,7 @@ import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataPro
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
+import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import picocli.CommandLine
 
@@ -73,10 +73,8 @@ private fun run(
   val metricValuesClient = MetricValuesCoroutineStub(makeChannel(flags.metricValuesServiceTarget))
 
   val requisitionClient =
-    attachDuchyIdentityHeaders(
-      RequisitionCoroutineStub(makeChannel(flags.requisitionServiceTarget)),
-      flags.duchyName
-    )
+    RequisitionCoroutineStub(makeChannel(flags.requisitionServiceTarget))
+      .withDuchyId(flags.duchyName)
 
   val registrationClient =
     DataProviderRegistrationCoroutineStub(makeChannel(flags.registrationServiceTarget))

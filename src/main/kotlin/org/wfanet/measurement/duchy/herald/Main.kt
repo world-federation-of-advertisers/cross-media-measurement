@@ -15,17 +15,17 @@
 package org.wfanet.measurement.duchy.herald
 
 import io.grpc.ManagedChannelBuilder
+import java.time.Clock
+import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
+import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import picocli.CommandLine
-import java.time.Clock
-import java.time.Duration
-import kotlin.properties.Delegates
 
 private class HeraldFlags {
   @set:CommandLine.Option(
@@ -85,8 +85,10 @@ private fun run(
       .usePlaintext()
       .build()
   addChannelShutdownHooks(Runtime.getRuntime(), heraldFlags.channelShutdownTimeout, channel)
+
   val globalComputationsServiceClient =
-    attachDuchyIdentityHeaders(GlobalComputationsCoroutineStub(channel), heraldFlags.duchyName)
+    GlobalComputationsCoroutineStub(channel)
+      .withDuchyId(heraldFlags.duchyName)
 
   val storageChannel =
     ManagedChannelBuilder.forTarget(heraldFlags.computationStorageServiceTarget)
