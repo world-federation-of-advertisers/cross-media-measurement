@@ -47,20 +47,24 @@ message ComputationToken {
   // This is used to figure where to send results of a stage.
   string next_duchy = 6;
 
+  // Identifier of the primary duchy of this computation.
+  // This is used to figure where to send the initial sketch.
+  string primary_duchy = 7;
+
   // Version of the last update to this computation. The version
   // is used to stop write contention from multiple processes.
   // This version is monotonically increasing and is checked against
   // the current value before any writes, and will change with every write.
-  int64 version = 7;
+  int64 version = 8;
 
   // The role the duchy is playing in the computation. Depending on the
   // role a duchy may be expected to execute different logic at different
   // steps of the computation.
-  ComputationDetails.RoleInComputation role = 8;
+  ComputationDetails.RoleInComputation role = 9;
 
   // Details pertinent to the specific stage of a computation. Not
   // all stages will have details.
-  ComputationStageDetails stage_specific_details = 9;
+  ComputationStageDetails stage_specific_details = 10;
 }
 
 // Metadata about a BLOb for a particular stage of the computation.

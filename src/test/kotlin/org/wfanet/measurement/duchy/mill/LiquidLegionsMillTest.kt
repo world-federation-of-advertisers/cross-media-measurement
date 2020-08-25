@@ -146,6 +146,7 @@ class LiquidLegionsMillTest {
         )
         .addBlobs(ComputationStageBlobMetadata.newBuilder().setDependencyType(OUTPUT).setBlobId(1))
         .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(2) // CreateComputation + transitionStage
         .setRole(RoleInComputation.SECONDARY)
         .build()
@@ -199,6 +200,7 @@ class LiquidLegionsMillTest {
         )
         .addBlobs(ComputationStageBlobMetadata.newBuilder().setDependencyType(OUTPUT).setBlobId(1))
         .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
         .setRole(RoleInComputation.SECONDARY)
         .build()
@@ -260,6 +262,7 @@ class LiquidLegionsMillTest {
         )
         .addBlobs(ComputationStageBlobMetadata.newBuilder().setDependencyType(OUTPUT).setBlobId(1))
         .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
         .setRole(RoleInComputation.SECONDARY)
         .build()
@@ -318,6 +321,7 @@ class LiquidLegionsMillTest {
         .setAttempt(1)
         .setComputationStage(COMPLETED.toProtocolStage())
         .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
         .setRole(RoleInComputation.SECONDARY)
         .build()

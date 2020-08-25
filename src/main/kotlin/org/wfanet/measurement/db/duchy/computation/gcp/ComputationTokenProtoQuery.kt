@@ -33,7 +33,7 @@ class ComputationTokenProtoQuery(
   val parseStageEnum: (Long) -> ComputationStage,
   globalId: Long
 ) :
-    SqlBasedQuery<ComputationToken> {
+  SqlBasedQuery<ComputationToken> {
   companion object {
     private const val parameterizedQueryString =
       """
@@ -75,6 +75,7 @@ class ComputationTokenProtoQuery(
       computationStage = parseStageEnum(struct.getLong("ComputationStage"))
       attempt = struct.getLong("NextAttempt").toInt() - 1
       nextDuchy = computationDetails.outgoingNodeId
+      primaryDuchy = computationDetails.primaryNodeId
       version = struct.getTimestamp("UpdateTime").toMillis()
       role = computationDetails.role
       stageSpecificDetails = stageDetails

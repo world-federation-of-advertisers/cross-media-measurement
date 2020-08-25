@@ -38,9 +38,11 @@ message ComputationDetails {
   string incoming_node_id = 2;
   // The domain name of the duchy where outputs are sent for the computation.
   string outgoing_node_id = 3;
+  // The domain name of the primary duchy of this computation.
+  string primary_node_id = 4;
   // A prefix of all the BLOBs stored for this computation. This is used for
   // cleaning up after a computation when the BLOBs are no longer needed.
-  string blobs_storage_prefix = 4;
+  string blobs_storage_prefix = 5;
 
   enum CompletedReason {
     UNSPECIFIED = 0;
@@ -53,7 +55,7 @@ message ComputationDetails {
   }
   // The final state of the computation at this duchy. This is only set
   // when the protocol has finished for the computation.
-  CompletedReason ending_state = 5;
+  CompletedReason ending_state = 6;
 }
 
 // Details about a single attempt of a computation stage.

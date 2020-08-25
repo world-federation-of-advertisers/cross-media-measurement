@@ -39,6 +39,7 @@ class FakeComputationStorage(
   LiquidLegionsSketchAggregationProtocol.ComputationStages {
   companion object {
     const val NEXT_WORKER = "NEXT_WORKER"
+    const val PRIMARY_WORKER = "PRIMARY_WORKER"
   }
 
   override val computationType: ComputationType =
@@ -81,6 +82,7 @@ class FakeComputationStorage(
       version = 0
       setRole(role)
       nextDuchy = NEXT_WORKER
+      primaryDuchy = PRIMARY_WORKER
       attempt = 0
       addAllBlobs(blobs)
       if (stageDetails != ComputationStageDetails.getDefaultInstance()) {

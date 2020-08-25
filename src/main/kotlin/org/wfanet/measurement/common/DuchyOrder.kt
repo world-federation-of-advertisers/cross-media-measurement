@@ -55,12 +55,18 @@ class DuchyOrder(nodes: Set<Duchy>) {
           else -> DuchyRole.SECONDARY
         },
       prev = ordered.wrapAroundGet(indexOfThisDuchy - 1),
-      next = ordered.wrapAroundGet(indexOfThisDuchy + 1)
+      next = ordered.wrapAroundGet(indexOfThisDuchy + 1),
+      primary = ordered[0]
     )
   }
 }
 
-data class DuchyPosition(val role: DuchyRole, val prev: String, val next: String)
+data class DuchyPosition(
+  val role: DuchyRole,
+  val prev: String,
+  val next: String,
+  val primary: String
+)
 
 /** Gets the index % size item of list. */
 private fun List<String>.wrapAroundGet(index: Int): String {

@@ -78,6 +78,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       }
       incomingNodeId = computationAtThisDuchy.prev
       outgoingNodeId = computationAtThisDuchy.next
+      primaryNodeId = computationAtThisDuchy.primary
       blobsStoragePrefix = "$blobStorageBucket/$localId"
     }.build()
 
