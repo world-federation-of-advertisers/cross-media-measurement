@@ -18,7 +18,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
 import com.nhaarman.mockitokotlin2.whenever
@@ -38,6 +37,8 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
@@ -117,16 +118,13 @@ class RequisitionServiceTest {
 
     assertThat(result).isEqualTo(expected)
 
-    argumentCaptor<FulfillRequisitionRequest> {
-      verify(requisitionStorage).fulfillRequisition(capture())
-
-      assertThat(firstValue).isEqualTo(
+    verifyProtoArgument(requisitionStorage, RequisitionStorageCoroutineImplBase::fulfillRequisition)
+      .isEqualTo(
         FulfillRequisitionRequest.newBuilder()
           .setExternalRequisitionId(REQUISITION.externalRequisitionId)
           .setDuchyId(DUCHY_ID)
           .build()
       )
-    }
   }
 
   @Test
@@ -167,9 +165,11 @@ class RequisitionServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(expected)
 
-    argumentCaptor<StreamRequisitionsRequest> {
+    val requisitionStorageRequest = captureFirst<StreamRequisitionsRequest> {
       verify(requisitionStorage).streamRequisitions(capture())
-      assertThat(firstValue).isEqualTo(
+    }
+    assertThat(requisitionStorageRequest)
+      .isEqualTo(
         StreamRequisitionsRequest.newBuilder().apply {
           limit = 2
           filterBuilder.apply {
@@ -179,7 +179,6 @@ class RequisitionServiceTest {
           }
         }.build()
       )
-    }
   }
 
   @Test
@@ -202,21 +201,21 @@ class RequisitionServiceTest {
 
     assertThat(result).isEqualTo(expected)
 
-    argumentCaptor<StreamRequisitionsRequest> {
+    val requisitionStorageRequest = captureFirst<StreamRequisitionsRequest> {
       verify(requisitionStorage).streamRequisitions(capture())
-      assertThat(firstValue)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          StreamRequisitionsRequest.newBuilder().apply {
-            limit = 1
-            filterBuilder.apply {
-              addStates(RequisitionState.UNFULFILLED)
-              addExternalDataProviderIds(REQUISITION.externalDataProviderId)
-              addExternalCampaignIds(REQUISITION.externalCampaignId)
-              createdAfter = CREATE_TIME
-            }
-          }.build()
-        )
     }
+    assertThat(requisitionStorageRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        StreamRequisitionsRequest.newBuilder().apply {
+          limit = 1
+          filterBuilder.apply {
+            addStates(RequisitionState.UNFULFILLED)
+            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+            addExternalCampaignIds(REQUISITION.externalCampaignId)
+            createdAfter = CREATE_TIME
+          }
+        }.build()
+      )
   }
 }

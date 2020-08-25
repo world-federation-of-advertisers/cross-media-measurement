@@ -21,7 +21,6 @@ import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.inOrder
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verify
 import com.nhaarman.mockitokotlin2.whenever
 import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
@@ -44,6 +43,7 @@ import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails
@@ -124,15 +124,12 @@ class GlobalComputationsServiceTest {
       assertThat(service.getGlobalComputation(request))
         .isEqualTo(expectedComputation)
 
-      argumentCaptor<GetReportRequest> {
-        verify(reportStorage).getReport(capture())
-        assertThat(firstValue)
-          .isEqualTo(
-            GetReportRequest.newBuilder()
-              .setExternalReportId(REPORT.externalReportId)
-              .build()
-          )
-      }
+      verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::getReport)
+        .isEqualTo(
+          GetReportRequest.newBuilder()
+            .setExternalReportId(REPORT.externalReportId)
+            .build()
+        )
 
       Mockito.reset(reportStorage)
     }
@@ -264,11 +261,10 @@ class GlobalComputationsServiceTest {
     assertThat(service.createGlobalComputationStatusUpdate(request))
       .isEqualTo(expectedResult)
 
-    argumentCaptor<ReportLogEntry> {
-      verify(reportLogEntryStorage).createReportLogEntry(capture())
-      assertThat(firstValue)
-        .isEqualTo(expectedReportLogEntry)
-    }
+    verifyProtoArgument(
+      reportLogEntryStorage, ReportLogEntryStorageCoroutineImplBase::createReportLogEntry
+    )
+      .isEqualTo(expectedReportLogEntry)
   }
 
   @Test
@@ -299,10 +295,7 @@ class GlobalComputationsServiceTest {
       addAllExternalRequisitionIds(listOf(ExternalId(4444).value, ExternalId(7777).value))
     }.build()
 
-    argumentCaptor<ConfirmDuchyReadinessRequest> {
-      verify(reportStorage).confirmDuchyReadiness(capture())
-      assertThat(firstValue)
-        .isEqualTo(expectedConfirmDuchyReadinessRequest)
-    }
+    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::confirmDuchyReadiness)
+      .isEqualTo(expectedConfirmDuchyReadinessRequest)
   }
 }
