@@ -77,6 +77,7 @@ kt_jvm_library(
     srcs = ["InProcessKingdomIntegrationTest.kt"],
     deps = [
         "//imports/java/org/junit",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/kingdom",

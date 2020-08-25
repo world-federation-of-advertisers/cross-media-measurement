@@ -1,25 +1,35 @@
 package org.wfanet.measurement.kingdom
 
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
+import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
+import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
@@ -69,8 +79,17 @@ abstract class InProcessKingdomIntegrationTest {
       .around(apiServices)
   }
 
-  private val requisitionsApi = RequisitionCoroutineStub(apiServices.channel)
-  private val globalComputationsApi = GlobalComputationsCoroutineStub(apiServices.channel)
+  private val requisitionsStub =
+    attachDuchyIdentityHeaders(
+      RequisitionCoroutineStub(apiServices.channel),
+      duchyId
+    )
+
+  private val globalComputationsStub =
+    attachDuchyIdentityHeaders(
+      GlobalComputationsCoroutineStub(apiServices.channel),
+      duchyId
+    )
 
   private val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
   private val daemonDatabaseServicesClient = DaemonDatabaseServicesClientImpl(
@@ -100,23 +119,76 @@ abstract class InProcessKingdomIntegrationTest {
 
   @Test
   fun noop() {
-    // Ensure that everything loads up properly.
-    assert(true)
+    // Ensure @Before/@After work.
   }
 
+  @Ignore // TODO: remove this @Ignore
   @Test
-  fun `entire computation`() {
-    // TODO: add APIs to kingdomRelationalDatabase so this test case can insert Advertisers,
-    // DataProviders, ReportConfigs, etc.
+  fun `entire computation`() = runBlocking {
+    val advertiser = kingdomRelationalDatabase.createAdvertiser()
+    val dataProvider1 = kingdomRelationalDatabase.createDataProvider()
+    val dataProvider2 = kingdomRelationalDatabase.createDataProvider()
 
-    // 1. Insert an advertiser
-    // 2. Insert some data providers
-    // 3. Insert some campaigns
-    // 4. Create a ReportConfig
-    // 5. Create a ReportConfigSchedule
-    // 6. Wait until Requisitions are created and mark those as fulfilled.
-    // 7. Wait until a GlobalComputation is ready to be confirmed and confirm it.
-    // 8. Wait until the GlobalComputation is ready to be started and then report that it's done.
-    // 9. Ensure that the GlobalComputation is done.
+    val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
+    val externalDataProviderId1 = ExternalId(dataProvider1.externalDataProviderId)
+    val externalDataProviderId2 = ExternalId(dataProvider2.externalDataProviderId)
+
+    val campaign1 = kingdomRelationalDatabase.createCampaign(
+      externalDataProviderId1,
+      externalAdvertiserId,
+      "Springtime Sale Campaign"
+    )
+    assertThat(campaign1)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(Campaign.newBuilder().setProvidedCampaignId("Springtime Sale Campaign").build())
+
+    val campaign2 = kingdomRelationalDatabase.createCampaign(
+      externalDataProviderId2,
+      externalAdvertiserId,
+      "Summer Savings Campaign"
+    )
+    assertThat(campaign2)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(Campaign.newBuilder().setProvidedCampaignId("Summer Savings Campaign").build())
+
+    // TODO: add APIs to kingdomRelationalDatabase to insert ReportConfigs and Schedules, and do so.
+
+    val requisitions = waitForRequisitions(2)
+
+    for (requisition in requisitions) {
+      requisitionsStub.fulfillMetricRequisition(
+        FulfillMetricRequisitionRequest.newBuilder().apply {
+          key = requisition.key
+        }.build()
+      )
+    }
+
+    // TODO: wait for a GlobalComputation to be ready
+    // TODO: confirm the GlobalComputation
+    // TODO: wait for the GlobalComputation to be marked as started
+    // TODO: report that the GlobalComputation is done
+    // TODO: ensure that the GlobalComputation is marked as done
+  }
+
+  private suspend fun waitForRequisitions(numberOfRequisitions: Int): List<MetricRequisition> =
+    withTimeout(3_000) {
+      waitForSize(numberOfRequisitions) {
+        delay(200)
+        readRequisitions(numberOfRequisitions)
+      }
+    }
+
+  private suspend fun readRequisitions(limit: Int): List<MetricRequisition> {
+    val request = ListMetricRequisitionsRequest.newBuilder().setPageSize(limit).build()
+    val response = requisitionsStub.listMetricRequisitions(request)
+    return response.metricRequisitionsList
+  }
+
+  private suspend fun <T> waitForSize(size: Int, block: suspend () -> List<T>): List<T> {
+    var items: List<T> = emptyList()
+    while (items.size < size) {
+      items = block()
+    }
+    return items
   }
 }
