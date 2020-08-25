@@ -79,6 +79,8 @@ kt_jvm_library(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",

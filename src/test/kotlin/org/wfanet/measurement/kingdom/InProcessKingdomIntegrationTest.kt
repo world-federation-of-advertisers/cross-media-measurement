@@ -27,7 +27,9 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutine
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.identity.DuchyIdentity
-import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
+import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
@@ -54,7 +56,7 @@ abstract class InProcessKingdomIntegrationTest {
   private val duchyIdProvider = { DuchyIdentity(duchyId) }
 
   private val databaseServices = GrpcTestServerRule {
-    buildStorageServices(kingdomRelationalDatabase)
+    buildStorageServices(kingdomRelationalDatabase).forEach(this::addService)
   }
 
   private val reportConfigStorage = ReportConfigStorageCoroutineStub(databaseServices.channel)
@@ -65,10 +67,12 @@ abstract class InProcessKingdomIntegrationTest {
   private val requisitionStorage = RequisitionStorageCoroutineStub(databaseServices.channel)
 
   private val apiServices = GrpcTestServerRule {
-    listOf(
-      GlobalComputationService(reportStorage, reportLogEntryStorage, duchyIdProvider),
-      RequisitionService(requisitionStorage)
+    addService(
+      GlobalComputationService(reportStorage, reportLogEntryStorage, duchyIdProvider)
+        .withDuchyIdentities()
     )
+
+    addService(RequisitionService(requisitionStorage).withDuchyIdentities())
   }
 
   @get:Rule
@@ -77,19 +81,13 @@ abstract class InProcessKingdomIntegrationTest {
       .fold(RuleChain.emptyRuleChain()) { chain, rule -> chain.around(rule) }
       .around(databaseServices)
       .around(apiServices)
+      .around(DuchyIdSetter(duchyId))
   }
 
   private val requisitionsStub =
-    attachDuchyIdentityHeaders(
-      RequisitionCoroutineStub(apiServices.channel),
-      duchyId
-    )
-
+    RequisitionCoroutineStub(apiServices.channel).withDuchyId(duchyId)
   private val globalComputationsStub =
-    attachDuchyIdentityHeaders(
-      GlobalComputationsCoroutineStub(apiServices.channel),
-      duchyId
-    )
+    GlobalComputationsCoroutineStub(apiServices.channel).withDuchyId(duchyId)
 
   private val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
   private val daemonDatabaseServicesClient = DaemonDatabaseServicesClientImpl(
