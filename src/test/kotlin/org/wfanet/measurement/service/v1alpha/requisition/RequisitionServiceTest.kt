@@ -86,7 +86,7 @@ class RequisitionServiceTest {
     mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { listOf(requisitionStorage) }
+  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionStorage) }
 
   private val channel = grpcTestServerRule.channel
   private val service =

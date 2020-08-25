@@ -44,7 +44,7 @@ class ComputationStorageServiceImplTest {
   private val fakeService = ComputationStorageServiceImpl(fakeDatabase)
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { listOf(fakeService) }
+  val grpcTestServerRule = GrpcTestServerRule { addService(fakeService) }
 
   lateinit var client: ComputationStorageServiceCoroutineStub
 

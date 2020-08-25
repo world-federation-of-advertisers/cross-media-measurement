@@ -59,7 +59,9 @@ class PublisherDataServiceTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(metricValuesServiceMock, requisitionServiceMock, registrationServiceMock)
+    addService(metricValuesServiceMock)
+    addService(requisitionServiceMock)
+    addService(registrationServiceMock)
   }
 
   private val service: PublisherDataService

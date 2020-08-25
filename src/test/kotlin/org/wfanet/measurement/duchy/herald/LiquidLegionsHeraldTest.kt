@@ -55,7 +55,8 @@ internal class LiquidLegionsHeraldTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(globalComputations, ComputationStorageServiceImpl(fakeComputationStorage))
+    addService(globalComputations)
+    addService(ComputationStorageServiceImpl(fakeComputationStorage))
   }
 
   private val storageServiceStub: ComputationStorageServiceCoroutineStub by lazy {

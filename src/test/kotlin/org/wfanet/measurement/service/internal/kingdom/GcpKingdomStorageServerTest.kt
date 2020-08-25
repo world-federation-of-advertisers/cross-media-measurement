@@ -113,7 +113,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
 
   @get:Rule
   val grpcTestServer = GrpcTestServerRule {
-    buildStorageServices(relationalDatabase)
+    buildStorageServices(relationalDatabase).forEach(this::addService)
   }
 
   private val channel by lazy { grpcTestServer.channel }

@@ -81,7 +81,7 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
     )
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { listOf(fakeService) }
+  val grpcTestServerRule = GrpcTestServerRule { addService(fakeService) }
 
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {

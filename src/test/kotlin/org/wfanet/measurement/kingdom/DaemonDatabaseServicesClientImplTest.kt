@@ -67,12 +67,10 @@ class DaemonDatabaseServicesClientImplTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    listOf(
-      reportConfigStorage,
-      reportConfigScheduleStorage,
-      reportStorage,
-      requisitionStorage
-    )
+    addService(reportConfigStorage)
+    addService(reportConfigScheduleStorage)
+    addService(reportStorage)
+    addService(requisitionStorage)
   }
 
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient by lazy {

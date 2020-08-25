@@ -16,8 +16,11 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
-import io.grpc.ServerInterceptors
 import io.grpc.StatusException
+import java.nio.charset.Charset
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -25,9 +28,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.identity.DuchyServerIdentityInterceptor
 import org.wfanet.measurement.common.identity.attachDuchyIdentityHeaders
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
@@ -53,17 +56,13 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobP
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import java.nio.charset.Charset
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 
 @RunWith(JUnit4::class)
 class LiquidLegionsComputationControlServiceImplTest {
 
   @get:Rule
   val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *otherDuchyNames.toTypedArray())
-  val fakeBlobs = mutableMapOf<String, ByteArray>()
+  private val fakeBlobs = mutableMapOf<String, ByteArray>()
 
   companion object {
     private const val RUNNING_DUCHY_NAME = "Alsace"
@@ -73,22 +72,20 @@ class LiquidLegionsComputationControlServiceImplTest {
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule(
-    serverServiceDefinitionsFactory = { channel ->
-      computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
-        ComputationStorageServiceCoroutineStub(channel),
-        FakeComputationsBlobDb(fakeBlobs),
-        otherDuchyNames
-      )
-      listOf(
-        ServerInterceptors.interceptForward(
-          LiquidLegionsComputationControlServiceImpl(computationStorageClients),
-          DuchyServerIdentityInterceptor()
-        )
-      )
-    },
-    servicesFactory = { listOf(ComputationStorageServiceImpl(fakeComputationStorage)) }
-  )
+  val grpcTestServerRule = GrpcTestServerRule {
+    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
+      ComputationStorageServiceCoroutineStub(channel),
+      FakeComputationsBlobDb(fakeBlobs),
+      otherDuchyNames
+    )
+
+    addService(
+      LiquidLegionsComputationControlServiceImpl(computationStorageClients)
+        .withDuchyIdentities()
+    )
+
+    addService(ComputationStorageServiceImpl(fakeComputationStorage))
+  }
 
   private lateinit var computationStorageClients:
     LiquidLegionsSketchAggregationComputationStorageClients

@@ -26,10 +26,17 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.GrpcExceptionLogger
 
 class GrpcTestServerRule(
-  private val serverServiceDefinitionsFactory:
-    (ManagedChannel) -> List<ServerServiceDefinition> = { listOf() },
-  private val servicesFactory: (ManagedChannel) -> List<BindableService>
+  private val addServices: Builder.() -> Unit
 ) : TestRule {
+  class Builder(val channel: ManagedChannel, private val serverBuilder: InProcessServerBuilder) {
+    fun addService(service: BindableService) {
+      serverBuilder.addService(service)
+    }
+    fun addService(service: ServerServiceDefinition) {
+      serverBuilder.addService(service)
+    }
+  }
+
   private val grpcCleanupRule: GrpcCleanupRule = GrpcCleanupRule()
   private val serverName = InProcessServerBuilder.generateName()
 
@@ -49,11 +56,8 @@ class GrpcTestServerRule(
             .intercept(GrpcExceptionLogger())
             .directExecutor()
 
-        servicesFactory(channel).forEach { serverBuilder.addService(it) }
-        serverServiceDefinitionsFactory(channel).forEach { serverBuilder.addService(it) }
-
+        Builder(channel, serverBuilder).addServices()
         grpcCleanupRule.register(serverBuilder.build().start())
-
         base.evaluate()
       }
     }

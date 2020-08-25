@@ -84,7 +84,10 @@ class GlobalComputationsServiceTest {
     mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { listOf(reportStorage, reportLogEntryStorage) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(reportStorage)
+    addService(reportLogEntryStorage)
+  }
 
   private val channel = grpcTestServerRule.channel
 

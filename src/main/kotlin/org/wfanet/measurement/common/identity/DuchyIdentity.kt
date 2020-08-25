@@ -1,11 +1,14 @@
 package org.wfanet.measurement.common.identity
 
+import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
+import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
@@ -36,8 +39,8 @@ private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STR
  * Note that this doesn't provide any guarantees that the Duchy is who it claims to be -- that is
  * still required.
  *
- * To install in a server, wrap your Service with:
- *    ServerInterceptors.interceptForward(yourService, DuchyServerIdentityInterceptor())
+ * To install in a server, wrap a service with:
+ *    yourService.withDuchyIdentities()
  *
  * On the client side, use [attachDuchyIdentityHeaders].
  */
@@ -61,6 +64,18 @@ class DuchyServerIdentityInterceptor : ServerInterceptor {
     return Contexts.interceptCall(context, call, headers, next)
   }
 }
+
+/**
+ * Convenience helper for [DuchyServerIdentityInterceptor].
+ */
+fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
+
+/**
+ * Convenience helper for [DuchyServerIdentityInterceptor].
+ */
+fun ServerServiceDefinition.withDuchyIdentities(): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
 
 /**
  * Sets metadata key "duchy_id" on all outgoing requests.

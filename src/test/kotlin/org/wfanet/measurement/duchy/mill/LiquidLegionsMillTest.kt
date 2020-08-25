@@ -65,16 +65,15 @@ class LiquidLegionsMillTest {
   private val cryptoWorker = FakeLiquidLegionsCryptoWorker()
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { channel ->
+  val grpcTestServerRule = GrpcTestServerRule {
     computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
       ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub(channel),
       FakeComputationsBlobDb(fakeBlobs),
       otherDuchyNames
     )
-    listOf(
-      mockLiquidLegionsComputationControl,
-      ComputationStorageServiceImpl(fakeComputationStorage)
-    )
+
+    addService(mockLiquidLegionsComputationControl)
+    addService(ComputationStorageServiceImpl(fakeComputationStorage))
   }
 
   private lateinit var computationStorageClients:
@@ -268,7 +267,8 @@ class LiquidLegionsMillTest {
     assertEquals(expectTokenAfterProcess, fakeComputationStorage[computationId]!!)
     assertEquals(
       expectOutputBlob,
-      fakeBlobs["1111/TO_BLIND_POSITIONS_AND_JOIN_REGISTERS_1_output"]!!.toString(Charset.defaultCharset())
+      fakeBlobs["1111/TO_BLIND_POSITIONS_AND_JOIN_REGISTERS_1_output"]!!
+        .toString(Charset.defaultCharset())
     )
 
     assertThat(computationControlRequests).containsExactly(
