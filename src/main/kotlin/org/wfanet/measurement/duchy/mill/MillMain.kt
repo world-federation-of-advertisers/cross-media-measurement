@@ -48,7 +48,7 @@ private fun run(
     duchyName = millFlags.nameOfDuchy,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
-    googleCloudStorageOptions = googleCloudStorage.cloudStorageOptions,
+    googleCloudStorage = googleCloudStorage.storage,
     storageBucket = googleCloudStorage.bucket,
     computationStorageServiceChannel = channel
   )

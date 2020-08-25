@@ -90,7 +90,7 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
       newLiquidLegionsSketchAggregationGcpComputationStorageClients(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
-        googleCloudStorageOptions = LocalStorageHelper.getOptions(),
+        googleCloudStorage = LocalStorageHelper.getOptions().service,
         storageBucket = "test-mill-bucket",
         computationStorageServiceChannel = grpcTestServerRule.channel
       ),
@@ -128,7 +128,7 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
       newLiquidLegionsSketchAggregationGcpComputationStorageClients(
         ALSACE,
         duchyPublicKeys = publicKeysMap,
-        googleCloudStorageOptions = LocalStorageHelper.getOptions(),
+        googleCloudStorage = LocalStorageHelper.getOptions().service,
         storageBucket = "test-mill-bucket",
         computationStorageServiceChannel = grpcTestServerRule.channel
       ),

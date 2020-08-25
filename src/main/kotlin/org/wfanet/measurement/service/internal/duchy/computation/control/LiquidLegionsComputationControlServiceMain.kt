@@ -16,12 +16,12 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
-import kotlin.properties.Delegates
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
 import org.wfanet.measurement.storage.gcs.GcsFromFlags
 import picocli.CommandLine
+import kotlin.properties.Delegates
 
 private class ComputationControlServiceFlags {
   @set:CommandLine.Option(
@@ -72,7 +72,7 @@ private fun run(
     duchyName = computationControlServiceFlags.nameForLogging,
     // TODO: Pass public keys of all duchies to the computation manager
     duchyPublicKeys = mapOf(),
-    googleCloudStorageOptions = googleCloudStorage.cloudStorageOptions,
+    googleCloudStorage = googleCloudStorage.storage,
     storageBucket = googleCloudStorage.bucket,
     computationStorageServiceChannel = channel
   )

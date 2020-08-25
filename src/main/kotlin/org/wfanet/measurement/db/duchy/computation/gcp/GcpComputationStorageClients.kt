@@ -14,13 +14,11 @@
 
 package org.wfanet.measurement.db.duchy.computation.gcp
 
-import com.google.cloud.storage.StorageOptions
+import com.google.cloud.storage.Storage
 import io.grpc.Channel
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import java.math.BigInteger
-
-typealias GoogleCloudStorageOptions = StorageOptions
 
 /**
  * Constructs [LiquidLegionsSketchAggregationComputationStorageClients] specific to combining
@@ -28,7 +26,7 @@ typealias GoogleCloudStorageOptions = StorageOptions
  *
  * @param duchyName name of the duchy running using the clients
  * @param duchyPublicKeys mapping of the name of each duchy to its ECC El Gamal public key
- * @param googleCloudStorageOptions Options specific to connecting with Google Cloud Storage
+ * @param googleCloudStorage Google Cloud [Storage] service
  * @param storageBucket name of the Google Cloud Storage bucket where computation stage input and
  *     output blobs are written.
  * @param computationStorageServiceChannel gRPC channel to communicate with the Computation Storage
@@ -37,17 +35,13 @@ typealias GoogleCloudStorageOptions = StorageOptions
 fun newLiquidLegionsSketchAggregationGcpComputationStorageClients(
   duchyName: String,
   duchyPublicKeys: Map<String, BigInteger>,
-  googleCloudStorageOptions: GoogleCloudStorageOptions =
-    GoogleCloudStorageOptions.getDefaultInstance(),
+  googleCloudStorage: Storage,
   storageBucket: String,
   computationStorageServiceChannel: Channel
 ): LiquidLegionsSketchAggregationComputationStorageClients {
   return LiquidLegionsSketchAggregationComputationStorageClients(
     ComputationStorageServiceCoroutineStub(computationStorageServiceChannel),
-    GcpStorageComputationsDb(
-      googleCloudStorageOptions.service,
-      bucket = storageBucket
-    ),
+    GcpStorageComputationsDb(googleCloudStorage, storageBucket),
     duchyPublicKeys.keys.minus(duchyName).toList()
   )
 }

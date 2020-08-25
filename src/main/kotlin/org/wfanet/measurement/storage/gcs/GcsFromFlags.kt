@@ -22,10 +22,6 @@ import picocli.CommandLine
  * Client access provider for Google Cloud Storage (GCS) via command-line flags.
  */
 class GcsFromFlags(private val flags: Flags) {
-  /** [StorageOptions] created from flag values. */
-  @Deprecated(message = "Don't reference the options, just access the service property.")
-  val cloudStorageOptions: StorageOptions
-    get() = storageOptions
 
   private val storageOptions: StorageOptions by lazy {
     StorageOptions.newBuilder()
