@@ -16,7 +16,6 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
-import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.toProtoEnum
@@ -65,12 +64,10 @@ class FulfillRequisitionTransaction {
   private suspend fun readRequisition(
     transactionContext: TransactionContext,
     externalRequisitionId: ExternalId
-  ): RequisitionReadResult =
-    RequisitionReader()
-      .withBuilder {
-        append("WHERE ExternalRequisitionId = @external_requisition_id")
-        bind("external_requisition_id").to(externalRequisitionId.value)
-      }
-      .execute(transactionContext)
-      .single()
+  ): RequisitionReader.Result {
+    val result = RequisitionReader.forExternalId(transactionContext, externalRequisitionId)
+    return requireNotNull(result) {
+      "Requisition $externalRequisitionId not found"
+    }
+  }
 }

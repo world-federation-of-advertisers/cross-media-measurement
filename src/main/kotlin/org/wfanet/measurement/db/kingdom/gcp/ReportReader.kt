@@ -28,7 +28,50 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 /**
  * Reads [Report] protos from Spanner.
  */
-class ReportReader : SpannerReader<ReportReadResult>() {
+class ReportReader : SpannerReader<ReportReader.Result>() {
+  data class Result(
+    val report: Report,
+    val advertiserId: Long,
+    val reportConfigId: Long,
+    val scheduleId: Long,
+    val reportId: Long
+  )
+
+  override val baseSql: String =
+    """
+    SELECT $SELECT_COLUMNS_SQL
+    FROM Reports
+    JOIN Advertisers USING (AdvertiserId)
+    JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)
+    JOIN ReportConfigSchedules USING (AdvertiserId, ReportConfigId, ScheduleId)
+    """.trimIndent()
+
+  override suspend fun translate(struct: Struct): Result =
+    Result(
+      buildReport(struct),
+      struct.getLong("AdvertiserId"),
+      struct.getLong("ReportConfigId"),
+      struct.getLong("ScheduleId"),
+      struct.getLong("ReportId")
+    )
+
+  private fun buildReport(struct: Struct): Report = Report.newBuilder().apply {
+    externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
+    externalReportConfigId = struct.getLong("ExternalReportConfigId")
+    externalScheduleId = struct.getLong("ExternalScheduleId")
+    externalReportId = struct.getLong("ExternalReportId")
+
+    createTime = struct.getTimestamp("CreateTime").toProto()
+    updateTime = struct.getTimestamp("UpdateTime").toProto()
+
+    windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
+    windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
+    state = struct.getProtoEnum("State", ReportState::forNumber)
+
+    reportDetails = struct.getProtoMessage("ReportDetails", ReportDetails.parser())
+    reportDetailsJson = struct.getString("ReportDetailsJson")
+  }.build()
+
   companion object {
     private val SELECT_COLUMNS = listOf(
       "Reports.AdvertiserId",
@@ -53,7 +96,7 @@ class ReportReader : SpannerReader<ReportReadResult>() {
     suspend fun forExternalId(
       readContext: ReadContext,
       externalReportId: ExternalId
-    ): ReportReadResult? =
+    ): Result? =
       ReportReader()
         .withBuilder {
           appendClause("WHERE Reports.ExternalReportId = @external_report_id")
@@ -62,47 +105,4 @@ class ReportReader : SpannerReader<ReportReadResult>() {
         .execute(readContext)
         .singleOrNull()
   }
-
-  override val baseSql: String =
-    """
-    SELECT $SELECT_COLUMNS_SQL
-    FROM Reports
-    JOIN Advertisers USING (AdvertiserId)
-    JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)
-    JOIN ReportConfigSchedules USING (AdvertiserId, ReportConfigId, ScheduleId)
-    """.trimIndent()
-
-  override suspend fun translate(struct: Struct): ReportReadResult =
-    ReportReadResult(
-      buildReport(struct),
-      struct.getLong("AdvertiserId"),
-      struct.getLong("ReportConfigId"),
-      struct.getLong("ScheduleId"),
-      struct.getLong("ReportId")
-    )
-
-  private fun buildReport(struct: Struct): Report = Report.newBuilder().apply {
-    externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
-    externalReportConfigId = struct.getLong("ExternalReportConfigId")
-    externalScheduleId = struct.getLong("ExternalScheduleId")
-    externalReportId = struct.getLong("ExternalReportId")
-
-    createTime = struct.getTimestamp("CreateTime").toProto()
-    updateTime = struct.getTimestamp("UpdateTime").toProto()
-
-    windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
-    windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
-    state = struct.getProtoEnum("State", ReportState::forNumber)
-
-    reportDetails = struct.getProtoMessage("ReportDetails", ReportDetails.parser())
-    reportDetailsJson = struct.getString("ReportDetailsJson")
-  }.build()
 }
-
-data class ReportReadResult(
-  val report: Report,
-  val advertiserId: Long,
-  val reportConfigId: Long,
-  val scheduleId: Long,
-  val reportId: Long
-)

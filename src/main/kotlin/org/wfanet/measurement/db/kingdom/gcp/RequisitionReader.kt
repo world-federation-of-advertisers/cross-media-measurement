@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.db.kingdom.gcp
 
+import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -24,7 +27,14 @@ import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 /**
  * Reads [Requisition] protos (and their internal primary keys) from Spanner.
  */
-class RequisitionReader : SpannerReader<RequisitionReadResult>() {
+class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
+  data class Result(
+    val requisition: Requisition,
+    val dataProviderId: Long,
+    val campaignId: Long,
+    val requisitionId: Long
+  )
+
   override val baseSql: String =
     """
     SELECT Requisitions.DataProviderId,
@@ -45,8 +55,8 @@ class RequisitionReader : SpannerReader<RequisitionReadResult>() {
     JOIN Campaigns USING (DataProviderId, CampaignId)
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): RequisitionReadResult =
-    RequisitionReadResult(
+  override suspend fun translate(struct: Struct): Result =
+    Result(
       requisition = buildRequisition(struct),
       dataProviderId = struct.getLong("DataProviderId"),
       campaignId = struct.getLong("CampaignId"),
@@ -74,11 +84,20 @@ class RequisitionReader : SpannerReader<RequisitionReadResult>() {
     )
     requisitionDetailsJson = struct.getString("RequisitionDetailsJson")
   }.build()
-}
 
-data class RequisitionReadResult(
-  val requisition: Requisition,
-  val dataProviderId: Long,
-  val campaignId: Long,
-  val requisitionId: Long
-)
+  companion object {
+    /** Returns a [Result] given an external advertiser id, or null if no such id exists. */
+    suspend fun forExternalId(
+      readContext: ReadContext,
+      externalRequisitionId: ExternalId
+    ): Result? {
+      return RequisitionReader()
+        .withBuilder {
+          append("WHERE ExternalRequisitionId = @external_requisition_id")
+          bind("external_requisition_id").to(externalRequisitionId.value)
+        }
+        .execute(readContext)
+        .singleOrNull()
+    }
+  }
+}

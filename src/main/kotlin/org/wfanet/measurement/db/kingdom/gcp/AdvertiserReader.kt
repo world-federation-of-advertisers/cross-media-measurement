@@ -7,7 +7,12 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.internal.kingdom.Advertiser
 
-class AdvertiserReader : SpannerReader<AdvertiserReadResult>() {
+class AdvertiserReader : SpannerReader<AdvertiserReader.Result>() {
+  data class Result(
+    val advertiser: Advertiser,
+    val advertiserId: Long
+  )
+
   override val baseSql: String =
     """
     SELECT
@@ -18,8 +23,8 @@ class AdvertiserReader : SpannerReader<AdvertiserReadResult>() {
     FROM Advertisers
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): AdvertiserReadResult =
-    AdvertiserReadResult(buildAdvertiser(struct), struct.getLong("AdvertiserId"))
+  override suspend fun translate(struct: Struct): Result =
+    Result(buildAdvertiser(struct), struct.getLong("AdvertiserId"))
 
   private fun buildAdvertiser(struct: Struct): Advertiser = Advertiser.newBuilder().apply {
     externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
@@ -27,13 +32,13 @@ class AdvertiserReader : SpannerReader<AdvertiserReadResult>() {
 
   companion object {
     /**
-     * Returns an [AdvertiserReadResult] given an external advertiser id, or null if no such id
+     * Returns a [Result] given an external advertiser id, or null if no such id
      * exists.
      */
     suspend fun forExternalId(
       readContext: ReadContext,
       externalAdvertiserId: ExternalId
-    ): AdvertiserReadResult? {
+    ): Result? {
       return AdvertiserReader()
         .withBuilder {
           appendClause("WHERE Advertisers.ExternalAdvertiserId = @external_advertiser_id")
@@ -44,9 +49,3 @@ class AdvertiserReader : SpannerReader<AdvertiserReadResult>() {
     }
   }
 }
-
-// TODO: move into AdvertiserReader.
-data class AdvertiserReadResult(
-  val advertiser: Advertiser,
-  val advertiserId: Long
-)

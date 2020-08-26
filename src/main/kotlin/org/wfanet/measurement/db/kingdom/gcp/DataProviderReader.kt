@@ -7,7 +7,12 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
-class DataProviderReader : SpannerReader<DataProviderReadResult>() {
+class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
+  data class Result(
+    val dataProvider: DataProvider,
+    val dataProviderId: Long
+  )
+
   override val baseSql: String =
     """
     SELECT
@@ -18,25 +23,19 @@ class DataProviderReader : SpannerReader<DataProviderReadResult>() {
     FROM DataProviders
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): DataProviderReadResult =
-    DataProviderReadResult(
-      buildDataProvider(struct),
-      struct.getLong("DataProviderId")
-    )
+  override suspend fun translate(struct: Struct): Result =
+    Result(buildDataProvider(struct), struct.getLong("DataProviderId"))
 
   private fun buildDataProvider(struct: Struct): DataProvider = DataProvider.newBuilder().apply {
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
   }.build()
 
   companion object {
-    /**
-     * Returns a [DataProviderReadResult] given an external advertiser id, or null if no such id
-     * exists.
-     */
+    /** Returns a [Result] given an external advertiser id, or null if no such id exists. */
     suspend fun forExternalId(
       readContext: ReadContext,
       externalDataProviderId: ExternalId
-    ): DataProviderReadResult? {
+    ): Result? {
       return DataProviderReader()
         .withBuilder {
           appendClause("WHERE DataProviders.ExternalDataProviderId = @external_data_provider_id")
@@ -47,8 +46,3 @@ class DataProviderReader : SpannerReader<DataProviderReadResult>() {
     }
   }
 }
-
-data class DataProviderReadResult(
-  val dataProvider: DataProvider,
-  val dataProviderId: Long
-)

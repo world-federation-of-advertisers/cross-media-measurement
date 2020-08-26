@@ -18,7 +18,6 @@ import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
 import kotlin.test.assertFails
-import kotlin.test.assertFailsWith
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -131,7 +130,7 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
   fun `missing requisition`() {
     val existingRequisitions = readAllRequisitionsInSpanner()
     databaseClient.readWriteTransaction().run { transactionContext ->
-      assertFailsWith<NoSuchElementException> {
+      assertFails {
         FulfillRequisitionTransaction()
           .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1), "some-duchy")
       }

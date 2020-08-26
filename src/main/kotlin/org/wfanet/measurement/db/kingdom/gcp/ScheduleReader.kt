@@ -23,7 +23,15 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 /**
  * Reads [ReportConfigSchedule] protos (and primary key) from Spanner.
  */
-class ScheduleReader : SpannerReader<ScheduleReadResult>() {
+class ScheduleReader : SpannerReader<ScheduleReader.Result>() {
+  data class Result(
+    val schedule: ReportConfigSchedule,
+    val advertiserId: Long,
+    val reportConfigId: Long,
+    val scheduleId: Long,
+    val reportConfigDetails: ReportConfigDetails
+  )
+
   override val baseSql: String =
     """
     SELECT Advertisers.ExternalAdvertiserId,
@@ -41,13 +49,14 @@ class ScheduleReader : SpannerReader<ScheduleReadResult>() {
     JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): ScheduleReadResult =
-    ScheduleReadResult(
-      buildSchedule(struct),
-      struct.getLong("AdvertiserId"),
-      struct.getLong("ReportConfigId"),
-      struct.getLong("ScheduleId"),
-      struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
+  override suspend fun translate(struct: Struct): Result =
+    Result(
+      schedule = buildSchedule(struct),
+      advertiserId = struct.getLong("AdvertiserId"),
+      reportConfigId = struct.getLong("ReportConfigId"),
+      scheduleId = struct.getLong("ScheduleId"),
+      reportConfigDetails =
+        struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
     )
 
   private fun buildSchedule(struct: Struct): ReportConfigSchedule =
@@ -61,11 +70,3 @@ class ScheduleReader : SpannerReader<ScheduleReadResult>() {
       repetitionSpecJson = struct.getString("RepetitionSpecJson")
     }.build()
 }
-
-data class ScheduleReadResult(
-  val schedule: ReportConfigSchedule,
-  val advertiserId: Long,
-  val reportConfigId: Long,
-  val scheduleId: Long,
-  val reportConfigDetails: ReportConfigDetails
-)

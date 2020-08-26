@@ -67,7 +67,7 @@ class AssociateRequisitionAndReportTransaction {
   private suspend fun readRequisition(
     transactionContext: TransactionContext,
     externalRequisitionId: ExternalId
-  ): RequisitionReadResult =
+  ): RequisitionReader.Result =
     RequisitionReader()
       .withBuilder {
         appendClause("WHERE Requisitions.ExternalRequisitionId = @external_requisition_id")

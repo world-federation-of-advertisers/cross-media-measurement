@@ -24,7 +24,7 @@ class CreateReportLogEntryTransaction {
   }
 }
 
-private fun ReportLogEntry.toInsertMutation(reportReadResult: ReportReadResult): Mutation =
+private fun ReportLogEntry.toInsertMutation(reportReadResult: ReportReader.Result): Mutation =
   Mutation.newInsertBuilder("ReportLogEntries")
     .set("AdvertiserId").to(reportReadResult.advertiserId)
     .set("ReportConfigId").to(reportReadResult.reportConfigId)
