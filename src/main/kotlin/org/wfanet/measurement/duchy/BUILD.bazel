@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    ":__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "flags",
+    srcs = glob(["*Flags.kt"]),
+    deps = [
+        "//imports/java/picocli",
+    ],
+)

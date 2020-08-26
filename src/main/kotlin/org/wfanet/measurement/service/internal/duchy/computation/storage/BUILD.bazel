@@ -1,5 +1,6 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -22,16 +23,14 @@ kt_jvm_library(
         ":storage",
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
     ],
 )
 
-kt_jvm_binary_and_image(
-    name = "computation_storage_server",
+kt_jvm_library(
+    name = "gcp_computation_storage_server",
     srcs = ["Main.kt"],
-    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.MainKt",
-    visibility = ["//visibility:public"],
     runtime_deps = [
         "@io_grpc_grpc_java//netty",
     ],
@@ -39,6 +38,22 @@ kt_jvm_binary_and_image(
         ":computation_storage_service_impl",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
     ],
+)
+
+java_binary(
+    name = "GcpComputationStorageServer",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.MainKt",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":gcp_computation_storage_server"],
+)
+
+java_image(
+    name = "gcp_computation_storage_server_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.MainKt",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":gcp_computation_storage_server"],
 )

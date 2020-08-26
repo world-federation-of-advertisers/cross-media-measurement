@@ -17,24 +17,24 @@ package org.wfanet.measurement.duchy.herald
 import io.grpc.ManagedChannelBuilder
 import java.time.Clock
 import java.time.Duration
-import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import picocli.CommandLine
 
-private class HeraldFlags {
-  @set:CommandLine.Option(
-    names = ["--duchy-name"],
-    description = ["Stable unique Duchy identifier"],
-    required = true,
-    defaultValue = "WorkerServer"
-  )
-  var duchyName: String by Delegates.notNull()
+private class Flags {
+  @CommandLine.Mixin
+  lateinit var duchy: CommonDuchyFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
     private set
 
   @CommandLine.Option(
@@ -68,7 +68,7 @@ private class HeraldFlags {
     names = ["--computation-storage-service-target"],
     required = true
   )
-  var computationStorageServiceTarget: String by Delegates.notNull()
+  lateinit var computationStorageServiceTarget: String
     private set
 }
 
@@ -77,30 +77,35 @@ private class HeraldFlags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(
-  @CommandLine.Mixin heraldFlags: HeraldFlags
-) {
+private fun run(@CommandLine.Mixin flags: Flags) {
+  val duchyName = flags.duchy.duchyName
+  val duchyPublicKeyMap = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
+  require(duchyPublicKeyMap.containsKey(duchyName)) {
+    "Public key not specified for Duchy $duchyName"
+  }
+  val otherDuchyNames = duchyPublicKeyMap.keys.filter { it != duchyName }
+
   val channel =
-    ManagedChannelBuilder.forTarget(heraldFlags.globalComputationsService)
+    ManagedChannelBuilder.forTarget(flags.globalComputationsService)
       .usePlaintext()
       .build()
-  addChannelShutdownHooks(Runtime.getRuntime(), heraldFlags.channelShutdownTimeout, channel)
+  addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, channel)
 
   val globalComputationsServiceClient =
     GlobalComputationsCoroutineStub(channel)
-      .withDuchyId(heraldFlags.duchyName)
+      .withDuchyId(flags.duchy.duchyName)
 
   val storageChannel =
-    ManagedChannelBuilder.forTarget(heraldFlags.computationStorageServiceTarget)
+    ManagedChannelBuilder.forTarget(flags.computationStorageServiceTarget)
       .usePlaintext()
       .build()
 
   val herald = LiquidLegionsHerald(
-    otherDuchiesInComputation = listOf(),
+    otherDuchiesInComputation = otherDuchyNames,
     computationStorageClient = ComputationStorageServiceCoroutineStub(storageChannel),
     globalComputationsClient = globalComputationsServiceClient
   )
-  val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), heraldFlags.pollingInterval)
+  val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }
 }
 

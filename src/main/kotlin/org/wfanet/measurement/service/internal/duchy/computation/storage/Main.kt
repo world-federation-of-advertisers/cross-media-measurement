@@ -17,6 +17,8 @@ package org.wfanet.measurement.service.internal.duchy.computation.storage
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.crypto.toDuchyOrder
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
@@ -26,11 +28,11 @@ import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
-import kotlin.properties.Delegates
 
 class GcpSingleProtocolDatabase(
   private val reader: GcpSpannerReadOnlyComputationsRelationalDb,
@@ -66,31 +68,21 @@ fun newLiquidLegionsProtocolGapDatabaseClient(
     computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
   )
 
-private class ComputationStorageServiceFlags {
-  @set:CommandLine.Option(
-    names = ["--port", "-p"],
-    description = ["TCP port for gRPC server."],
-    required = true,
-    defaultValue = "8080"
-  )
-  var port by Delegates.notNull<Int>()
+private class Flags {
+  @CommandLine.Mixin
+  lateinit var server: CommonServer.Flags
     private set
 
-  @set:CommandLine.Option(
-    names = ["--server-name"],
-    description = ["Name of the gRPC server for logging purposes."],
-    required = true,
-    defaultValue = "ComputationStorageServer"
-  )
-  var nameForLogging by Delegates.notNull<String>()
+  @CommandLine.Mixin
+  lateinit var duchy: CommonDuchyFlags
     private set
 
-  @set:CommandLine.Option(
-    names = ["--duchy-name"],
-    description = ["Name of the duchy where the server is running."],
-    required = true
-  )
-  var duchyName by Delegates.notNull<String>()
+  @CommandLine.Mixin
+  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var spanner: SpannerFromFlags.Flags
     private set
 }
 
@@ -99,24 +91,26 @@ private class ComputationStorageServiceFlags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(
-  @CommandLine.Mixin computationStorageServiceFlags: ComputationStorageServiceFlags,
-  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
-) {
+private fun run(@CommandLine.Mixin flags: Flags) {
+  val duchyName = flags.duchy.duchyName
+  val duchyPublicKeyMap = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
+  require(duchyPublicKeyMap.containsKey(duchyName)) {
+    "Public key not specified for Duchy $duchyName"
+  }
+
   // Currently this server only accommodates the Liquid Legions protocol running on a GCP
   // instance. For a new cloud platform there would need to be an instance of
   // [SingleProtocolDatabase] which can interact with the database offerings of that cloud.
   // For a new protocol there would need to be implementations of [ProtocolStageEnumHelper]
   // for the new computation protocol.
   val gcpDatabaseClient = newLiquidLegionsProtocolGapDatabaseClient(
-    spanner = SpannerFromFlags(spannerFlags),
-    // TODO: Define other duchies via command line flags.
-    duchyOrder = DuchyOrder(setOf()),
-    duchyName = computationStorageServiceFlags.duchyName
+    spanner = SpannerFromFlags(flags.spanner),
+    duchyOrder = duchyPublicKeyMap.toDuchyOrder(),
+    duchyName = duchyName
   )
-  CommonServer(
-    computationStorageServiceFlags.nameForLogging,
-    computationStorageServiceFlags.port,
+  CommonServer.fromFlags(
+    flags.server,
+    "GcpComputationStorageServer",
     ComputationStorageServiceImpl(gcpDatabaseClient)
   ).start().blockUntilShutdown()
 }

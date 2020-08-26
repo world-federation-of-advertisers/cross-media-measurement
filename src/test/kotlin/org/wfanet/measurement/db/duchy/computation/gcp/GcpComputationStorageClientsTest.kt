@@ -16,7 +16,6 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.extensions.proto.ProtoTruth
-import java.math.BigInteger
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
@@ -24,7 +23,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.common.withPadding
+import org.wfanet.measurement.crypto.DuchyPublicKeyMap
+import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
@@ -60,24 +63,25 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+private const val ELLIPTIC_CURVE_ID = 415 // prime256v1
+private val EL_GAMAL_GENERATOR =
+  byteStringOf(
+    0x96, 0x20, 0x45, 0x16, 0x33, 0x9B, 0x7D, 0xD4, 0x33, 0xB0, 0x35, 0xCD, 0x09, 0x6A, 0x03, 0xD8,
+    0xF3, 0x42, 0x7D, 0x86, 0x3C, 0x94, 0x5C, 0x0E, 0x14, 0x11, 0xC6, 0x35, 0x30, 0xC8, 0xEA, 0x88,
+    0xAD
+  )
+private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = 0xFEED5L
+private const val ID_WHERE_ALSACE_IS_PRIMARY = 0x41324132444
+private const val ALSACE = "Alsace"
+private const val BAVARIA = "Bavaria"
+private const val CARINTHIA = "Carinthia"
+private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
+
 @RunWith(JUnit4::class)
 class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
-
-  companion object {
-    const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = 0xFEED5L
-    const val ID_WHERE_ALSACE_IS_PRIMARY = 0x41324132444
-    const val ALSACE = "Alsace"
-    const val BAVARIA = "Bavaria"
-    const val CARINTHIA = "Carinthia"
-    private val duchies = listOf(ALSACE, BAVARIA, CARINTHIA)
-    private val publicKeysMap =
-      duchies.mapIndexed { idx, name -> name to BigInteger.valueOf(idx.toLong()) }
-        .toMap()
-  }
-
   private val fakeService =
     ComputationStorageServiceImpl(
-      FakeComputationStorage(duchies.subList(1, 3))
+      FakeComputationStorage(DUCHIES.subList(1, 3))
     )
 
   @get:Rule
@@ -141,7 +145,7 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
     computation.claimWorkFor("mill-1")
     computation.writeOutputs(TO_CONFIRM_REQUISITIONS)
     computation.waitForSketches(
-      LiquidLegionsSketchAggregationProtocol.EnumStages.Details(duchies.subList(1, 3)).detailsFor(
+      LiquidLegionsSketchAggregationProtocol.EnumStages.Details(DUCHIES.subList(1, 3)).detailsFor(
         WAIT_SKETCHES
       )
     )
@@ -162,6 +166,17 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
     computation.claimWorkFor("mill-4")
     computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
     computation.end(reason = CompletedReason.SUCCEEDED)
+  }
+
+  companion object {
+    private val publicKeysMap: DuchyPublicKeyMap =
+      DUCHIES.mapIndexed { idx, name ->
+        name to ElGamalPublicKey(
+          ELLIPTIC_CURVE_ID,
+          EL_GAMAL_GENERATOR,
+          byteStringOf(idx).withPadding(ElGamalPublicKey.ELEMENT_SIZE)
+        )
+      }.toMap()
   }
 }
 

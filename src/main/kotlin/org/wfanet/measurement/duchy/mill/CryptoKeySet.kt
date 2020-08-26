@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.mill
 
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.crypto.ElGamalKeyPair
+import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.ElGamalKeys
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKeys
 
@@ -29,7 +31,7 @@ data class CryptoKeySet(
   // The client ElGamal public keys combined from all duchies' public keys.
   val clientPublicKey: ElGamalPublicKeys,
   // The id of the elliptic curve
-  val curveId: Long
+  val curveId: Int
 )
 
 // The bytes of keys in the private_join_and_compute crypto library.
@@ -76,4 +78,18 @@ private fun hexToByteString(hexString: String): ByteString? {
     result[i] = decimal.toByte()
   }
   return ByteString.copyFrom(result)
+}
+
+fun ElGamalPublicKey.toProtoMessage(): ElGamalPublicKeys {
+  return ElGamalPublicKeys.newBuilder().apply {
+    elGamalG = generator
+    elGamalY = element
+  }.build()
+}
+
+fun ElGamalKeyPair.toProtoMessage(): ElGamalKeys {
+  return ElGamalKeys.newBuilder().apply {
+    elGamalPk = publicKey.toProtoMessage()
+    elGamalSk = secretKey
+  }.build()
 }

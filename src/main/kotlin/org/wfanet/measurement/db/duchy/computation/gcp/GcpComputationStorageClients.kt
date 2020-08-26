@@ -16,9 +16,9 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.storage.Storage
 import io.grpc.Channel
+import org.wfanet.measurement.crypto.DuchyPublicKeyMap
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
-import java.math.BigInteger
 
 /**
  * Constructs [LiquidLegionsSketchAggregationComputationStorageClients] specific to combining
@@ -34,7 +34,7 @@ import java.math.BigInteger
  */
 fun newLiquidLegionsSketchAggregationGcpComputationStorageClients(
   duchyName: String,
-  duchyPublicKeys: Map<String, BigInteger>,
+  duchyPublicKeys: DuchyPublicKeyMap,
   googleCloudStorage: Storage,
   storageBucket: String,
   computationStorageServiceChannel: Channel

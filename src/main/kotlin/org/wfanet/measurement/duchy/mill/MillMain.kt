@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.mill
 
+import com.google.common.io.BaseEncoding
+import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.time.Clock
@@ -22,6 +24,8 @@ import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.crypto.ElGamalKeyPair
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.storage.gcs.GcsFromFlags
@@ -36,6 +40,12 @@ private fun run(
   @CommandLine.Mixin millFlags: MillFlags,
   @CommandLine.Mixin gcsFlags: GcsFromFlags.Flags
 ) {
+  val duchyName = millFlags.duchy.duchyName
+  val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(millFlags.duchyPublicKeys).latest
+  require(latestDuchyPublicKeys.containsKey(duchyName)) {
+    "Public key not specified for Duchy $duchyName"
+  }
+
   // TODO: Expand flags and configuration to work on other cloud environments when available.
   val googleCloudStorage = GcsFromFlags(gcsFlags)
 
@@ -45,44 +55,33 @@ private fun run(
       .usePlaintext()
       .build()
   val storageClients = newLiquidLegionsSketchAggregationGcpComputationStorageClients(
-    duchyName = millFlags.nameOfDuchy,
-    // TODO: Pass public keys of all duchies to the computation manager
-    duchyPublicKeys = mapOf(),
+    duchyName = millFlags.duchy.duchyName,
+    duchyPublicKeys = latestDuchyPublicKeys,
     googleCloudStorage = googleCloudStorage.storage,
     storageBucket = googleCloudStorage.bucket,
     computationStorageServiceChannel = channel
   )
 
-  val channelOne =
-    ManagedChannelBuilder.forTarget(millFlags.otherDuchyComputationControlServiceOne)
-      .usePlaintext()
-      .build()
-  val channelTwo =
-    ManagedChannelBuilder.forTarget(millFlags.otherDuchyComputationControlServiceTwo)
-      .usePlaintext()
-      .build()
-  addChannelShutdownHooks(Runtime.getRuntime(), millFlags.channelShutdownTimeout, channelOne)
-  addChannelShutdownHooks(Runtime.getRuntime(), millFlags.channelShutdownTimeout, channelTwo)
+  val clientMap = millFlags.computationControlServiceTargets.mapValues {
+    val otherDuchyChannel = ManagedChannelBuilder.forTarget(it.value).build()
+    addChannelShutdownHooks(
+      Runtime.getRuntime(),
+      millFlags.channelShutdownTimeout,
+      otherDuchyChannel
+    )
+    ComputationControlServiceCoroutineStub(otherDuchyChannel).withDuchyId(duchyName)
+  }
 
-  val clientOne =
-    ComputationControlServiceCoroutineStub(channelOne)
-      .withDuchyId(millFlags.nameOfDuchy)
-
-  val clientTwo =
-    ComputationControlServiceCoroutineStub(channelTwo)
-      .withDuchyId(millFlags.nameOfDuchy)
-
-  val clientMap =
-    mapOf(millFlags.otherDuchyNameOne to clientOne, millFlags.otherDuchyNameTwo to clientTwo)
-
+  val keyPair =
+    ElGamalKeyPair(
+      latestDuchyPublicKeys.getValue(duchyName),
+      ByteString.copyFrom(BaseEncoding.base16().decode(millFlags.duchySecretKey))
+    )
   val cryptoKeySet = CryptoKeySet(
-    ownPublicAndPrivateKeys = millFlags.duchyLocalElGamalKey.toElGamalKeys(),
-    otherDuchyPublicKeys = mapOf(
-      millFlags.otherDuchyNameOne to millFlags.otherDuchyPublicElGamalKeyOne.toElGamalPublicKeys(),
-      millFlags.otherDuchyNameTwo to millFlags.otherDuchyPublicElGamalKeyTwo.toElGamalPublicKeys()
-    ),
-    clientPublicKey = millFlags.combinedPublicElGamalKey.toElGamalPublicKeys(),
-    curveId = millFlags.ellipticCurveId
+    ownPublicAndPrivateKeys = keyPair.toProtoMessage(),
+    otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value.toProtoMessage() },
+    clientPublicKey = latestDuchyPublicKeys.combinedPublicKey.toProtoMessage(),
+    curveId = latestDuchyPublicKeys.combinedPublicKey.ellipticCurveId
   )
 
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), millFlags.pollingInterval)

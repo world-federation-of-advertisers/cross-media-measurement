@@ -16,23 +16,22 @@ package org.wfanet.measurement.service.v1alpha.publisherdata
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
-import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import picocli.CommandLine
 
 private class Flags {
-  // TODO: extract to a common flag mixin to share with Herald
-  @set:CommandLine.Option(
-    names = ["--duchy-name"],
-    description = ["Stable unique Duchy identifier."],
-    required = true
-  )
-  var duchyName: String by Delegates.notNull()
+  @CommandLine.Mixin
+  lateinit var duchy: CommonDuchyFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var server: CommonServer.Flags
     private set
 
   @CommandLine.Option(
@@ -66,15 +65,12 @@ private class Flags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(
-  @CommandLine.Mixin flags: Flags,
-  @CommandLine.Mixin commonServerFlags: CommonServer.Flags
-) {
+private fun run(@CommandLine.Mixin flags: Flags) {
   val metricValuesClient = MetricValuesCoroutineStub(makeChannel(flags.metricValuesServiceTarget))
 
   val requisitionClient =
     RequisitionCoroutineStub(makeChannel(flags.requisitionServiceTarget))
-      .withDuchyId(flags.duchyName)
+      .withDuchyId(flags.duchy.duchyName)
 
   val registrationClient =
     DataProviderRegistrationCoroutineStub(makeChannel(flags.registrationServiceTarget))
@@ -82,7 +78,7 @@ private fun run(
   val service = PublisherDataService(metricValuesClient, requisitionClient, registrationClient)
 
   CommonServer
-    .fromFlags(commonServerFlags, "PublisherDataServer", service)
+    .fromFlags(flags.server, "PublisherDataServer", service)
     .start()
     .blockUntilShutdown()
 }

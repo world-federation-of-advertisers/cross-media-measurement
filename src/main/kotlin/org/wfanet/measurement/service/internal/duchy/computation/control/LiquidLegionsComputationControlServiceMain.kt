@@ -18,68 +18,70 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.gcp.newLiquidLegionsSketchAggregationGcpComputationStorageClients
+import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.storage.gcs.GcsFromFlags
 import picocli.CommandLine
-import kotlin.properties.Delegates
+
+private const val SERVER_NAME = "LiquidLegionsComputationControlServer"
 
 private class ComputationControlServiceFlags {
-  @set:CommandLine.Option(
-    names = ["--port", "-p"],
-    description = ["TCP port for gRPC server."],
-    required = true,
-    defaultValue = "8080"
-  )
-  var port: Int by Delegates.notNull()
+  @CommandLine.Mixin
+  lateinit var server: CommonServer.Flags
     private set
 
-  @set:CommandLine.Option(
-    names = ["--server-name"],
-    description = ["Name of the gRPC server for logging purposes."],
-    required = true,
-    defaultValue = "WorkerServer"
-  )
-  var nameForLogging: String by Delegates.notNull()
+  @CommandLine.Mixin
+  lateinit var duchy: CommonDuchyFlags
     private set
 
-  @set:CommandLine.Option(
+  @CommandLine.Mixin
+  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
+    private set
+
+  @CommandLine.Option(
     names = ["--computation-storage-service-target"],
     required = true
   )
-  var computationStorageServiceTarget: String by Delegates.notNull()
+  lateinit var computationStorageServiceTarget: String
     private set
 }
 
 @CommandLine.Command(
-  name = "gcp_worker_server",
+  name = SERVER_NAME,
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 private fun run(
-  @CommandLine.Mixin computationControlServiceFlags: ComputationControlServiceFlags,
+  @CommandLine.Mixin flags: ComputationControlServiceFlags,
   @CommandLine.Mixin gcsFlags: GcsFromFlags.Flags
 ) {
+  val duchyName = flags.duchy.duchyName
+  val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
+  require(latestDuchyPublicKeys.containsKey(duchyName)) {
+    "Public key not specified for Duchy $duchyName"
+  }
+
   // TODO: Expand flags and configuration to work on other cloud environments when available.
   val googleCloudStorage = GcsFromFlags(gcsFlags)
 
   val channel: ManagedChannel =
     ManagedChannelBuilder
-      .forTarget(computationControlServiceFlags.computationStorageServiceTarget)
+      .forTarget(flags.computationStorageServiceTarget)
       .usePlaintext()
       .build()
 
   val storageClients = newLiquidLegionsSketchAggregationGcpComputationStorageClients(
-    duchyName = computationControlServiceFlags.nameForLogging,
-    // TODO: Pass public keys of all duchies to the computation manager
-    duchyPublicKeys = mapOf(),
+    duchyName = duchyName,
+    duchyPublicKeys = latestDuchyPublicKeys,
     googleCloudStorage = googleCloudStorage.storage,
     storageBucket = googleCloudStorage.bucket,
     computationStorageServiceChannel = channel
   )
 
-  CommonServer(
-    computationControlServiceFlags.nameForLogging,
-    computationControlServiceFlags.port,
+  CommonServer.fromFlags(
+    flags.server,
+    SERVER_NAME,
     LiquidLegionsComputationControlServiceImpl(storageClients)
   ).start().blockUntilShutdown()
 }

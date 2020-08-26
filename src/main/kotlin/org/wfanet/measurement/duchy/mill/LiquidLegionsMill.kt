@@ -128,7 +128,7 @@ class LiquidLegionsMill(
         val newResult = cryptoWorker.BlindOneLayerRegisterIndex(
           BlindOneLayerRegisterIndexRequest.newBuilder()
             .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
-            .setCurveId(cryptoKeySet.curveId)
+            .setCurveId(cryptoKeySet.curveId.toLong())
             .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
@@ -167,7 +167,7 @@ class LiquidLegionsMill(
         val newResult = cryptoWorker.BlindLastLayerIndexThenJoinRegisters(
           BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
             .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
-            .setCurveId(cryptoKeySet.curveId)
+            .setCurveId(cryptoKeySet.curveId.toLong())
             .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
@@ -205,7 +205,7 @@ class LiquidLegionsMill(
         // compute a new result if no cache exists
         val newResult = cryptoWorker.DecryptOneLayerFlagAndCount(
           DecryptOneLayerFlagAndCountRequest.newBuilder()
-            .setCurveId(cryptoKeySet.curveId)
+            .setCurveId(cryptoKeySet.curveId.toLong())
             .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .build()
