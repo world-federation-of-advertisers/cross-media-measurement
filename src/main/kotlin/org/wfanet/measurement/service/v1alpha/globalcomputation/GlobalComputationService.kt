@@ -76,7 +76,7 @@ class GlobalComputationService(
         }
         .map { report ->
           StreamActiveGlobalComputationsResponse.newBuilder().apply {
-            continuationToken = ContinuationTokenConverter.encode(lastUpdateTime)
+            continuationToken = ContinuationTokenConverter.encode(report.updateTime.toInstant())
             globalComputation = report.toGlobalComputation()
           }.build()
         }
