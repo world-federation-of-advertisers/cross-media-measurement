@@ -32,17 +32,19 @@ class GrpcExceptionLogger : ServerInterceptor {
     return next.startCall(LoggingCall(call), headers)
   }
 
-  private class LoggingCall<ReqT, RespT>(call: ServerCall<ReqT, RespT>) :
+  private class LoggingCall<ReqT, RespT>(private val call: ServerCall<ReqT, RespT>) :
     SimpleForwardingServerCall<ReqT, RespT>(call) {
-    companion object {
-      private val logger = Logger.getLogger(this::class.java.name)
-    }
 
     override fun close(status: Status, trailers: Metadata) {
       if (status.cause != null) {
-        logger.log(Level.SEVERE, "gRPC exception:", status.cause)
+        val method = call.methodDescriptor.fullMethodName
+        logger.log(Level.SEVERE, "gRPC exception in method $method: ", status.cause)
       }
       super.close(status, trailers)
+    }
+
+    companion object {
+      private val logger = Logger.getLogger(this::class.java.name)
     }
   }
 }
