@@ -214,10 +214,6 @@ class LiquidLegionsComputationControlServiceImpl(
           }
           wipeFlow = wipeFlowPredicate(token)
           tokenToReturn = token
-        } else {
-          grpcRequire(tokenToReturn?.globalComputationId == value.first, Status.INVALID_ARGUMENT) {
-            "Stream has multiple ids ${tokenToReturn?.globalComputationId} and ${value.first}"
-          }
         }
         // Filter out all elements in the flow if it matched the wipeFlowPredicate
         // This will make the toCollection call basically a noop. Without this we would

@@ -58,6 +58,8 @@ service ComputationControlService {
 // is essentially storing a mapping of (computation_id, sender) -> sketch.
 message HandleNoisedSketchRequest {
   // The globally unique identifier of the multi-party computation.
+  // Only the first message in the request stream needs to set this value, it
+  // will be ignored on all other requests in the stream.
   uint64 computation_id = 1;
 
   // The sketch contains a list of registers each is a three tuple of position,
@@ -76,6 +78,8 @@ message HandleNoisedSketchResponse {
 // This request is essentially storing a mapping of (computation_id) -> sketch.
 message HandleConcatenatedSketchRequest {
   // The globally unique identifier of the multi-party computation.
+  // Only the first message in the request stream needs to set this value, it
+  // will be ignored on all other requests in the stream.
   uint64 computation_id = 1;
 
   // The sketch contains a list of registers each is a three tuple of position,
@@ -94,6 +98,8 @@ message HandleConcatenatedSketchResponse {
 // essentially storing a mapping of (computation_id) -> pairs.
 message HandleEncryptedFlagsAndCountsRequest {
   // The globally unique identifier of the multi-party computation.
+  // Only the first message in the request stream needs to set this value, it
+  // will be ignored on all other requests in the stream.
   uint64 computation_id = 1;
 
   // The data is a list of flag count pairs. These pairs can exceed the maximum

@@ -134,11 +134,9 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setPartialSketch("part1_".toByteString())
       .build()
     val part2 = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(id)
       .setPartialSketch("part2_".toByteString())
       .build()
     val part3 = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(id)
       .setPartialSketch("part3".toByteString())
       .build()
     ProtoTruth.assertThat(bavariaClient.handleNoisedSketch(flowOf(part1, part2, part3)))
@@ -217,44 +215,10 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `bad request stream`() = runBlocking<Unit> {
-    var exception =
+    val exception =
       assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf()) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Empty request stream")
-    val id = 252525L
-    val localSketches = "$id/$WAIT_SKETCHES/noised_sketch_$RUNNING_DUCHY_NAME"
-    fakeComputationStorage
-      .addComputation(
-        id = id,
-        stage = WAIT_SKETCHES.toProtocolStage(),
-        role = RoleInComputation.PRIMARY,
-        blobs = listOf(
-          newInputBlobMetadata(id = 0, key = localSketches),
-          newEmptyOutputBlobMetadata(id = 1),
-          newEmptyOutputBlobMetadata(id = 2)
-        ),
-        stageDetails = computationStorageClients
-          .liquidLegionsStageDetails.detailsFor(WAIT_SKETCHES)
-      )
-    val sketch = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialSketch("data".toByteString())
-      .build()
-    val sketch2 = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(id + 1)
-      .setPartialSketch("more data".toByteString())
-      .build()
-    exception =
-      assertFailsWith<StatusException> {
-        carinthiaClient.handleNoisedSketch(
-          flowOf(
-            sketch,
-            sketch2
-          )
-        )
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Stream has multiple ids")
   }
 
   @Test
@@ -273,11 +237,9 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setPartialSketch("part1_".toByteString())
       .build()
     val part2 = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(id)
       .setPartialSketch("part2_".toByteString())
       .build()
     val part3 = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(id)
       .setPartialSketch("part3".toByteString())
       .build()
     // Test the idempotency of receiving the same request by sending and checking results multiple
@@ -425,11 +387,9 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setPartialData("part1_".toByteString())
       .build()
     val part2 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId(id)
       .setPartialData("part2_".toByteString())
       .build()
     val part3 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId(id)
       .setPartialData("part3".toByteString())
       .build()
     // Test the idempotency of receiving the same request by sending and checking results multiple
