@@ -2,8 +2,8 @@ package org.wfanet.measurement.kingdom
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.pairAll
-import org.wfanet.measurement.common.parallelCollect
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
@@ -11,10 +11,13 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 suspend fun Daemon.runRequisitionLinker() {
   streamReportsAwaitingRequisitionCreation()
     .pairAll { report -> daemonDatabaseServicesClient.buildRequisitionsForReport(report).asFlow() }
-    .parallelCollect(maxParallelism) { (report, requisition) ->
+    .collect { (report, requisition) ->
       throttleAndLog {
-        daemonDatabaseServicesClient.createRequisition(requisition)
-        daemonDatabaseServicesClient.associateRequisitionToReport(requisition, report)
+        logger.info("Creating requisition: $requisition")
+        val actualRequisition = daemonDatabaseServicesClient.createRequisition(requisition)
+
+        logger.info("Associating requisition $actualRequisition to report $report")
+        daemonDatabaseServicesClient.associateRequisitionToReport(actualRequisition, report)
       }
     }
 }

@@ -15,14 +15,16 @@
 package org.wfanet.measurement.kingdom
 
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.parallelCollect
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
-/** Streams Reports with no unfulfilled Requisitions and marks them as ready to start in parallel */
+/** Streams Reports with no unfulfilled Requisitions and marks them as ready to start. */
 suspend fun Daemon.runReportStarter() {
   streamReadyReports()
-    .parallelCollect(maxParallelism) { report ->
+    .onEach { logger.info("Report is ready: $it") }
+    .collect { report ->
       throttleAndLog {
         daemonDatabaseServicesClient.updateReportState(
           report,
@@ -32,5 +34,6 @@ suspend fun Daemon.runReportStarter() {
     }
 }
 
-private fun Daemon.streamReadyReports(): Flow<Report> =
-  retryLoop { daemonDatabaseServicesClient.streamReadyReports() }
+private fun Daemon.streamReadyReports(): Flow<Report> = retryLoop {
+  daemonDatabaseServicesClient.streamReadyReports()
+}

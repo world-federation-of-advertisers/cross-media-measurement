@@ -32,7 +32,8 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 private val REPORT: Report = Report.getDefaultInstance()
-private val REQUISITION: Requisition = Requisition.getDefaultInstance()
+private val REQUISITION1: Requisition = Requisition.newBuilder().setExternalRequisitionId(1).build()
+private val REQUISITION2: Requisition = Requisition.newBuilder().setExternalRequisitionId(2).build()
 
 @RunWith(JUnit4::class)
 class RequisitionLinkerTest {
@@ -48,10 +49,10 @@ class RequisitionLinkerTest {
         .thenReturn(flowOf(REPORT, REPORT, REPORT))
 
       onBlocking { buildRequisitionsForReport(any()) }
-        .thenReturn(listOf(REQUISITION, REQUISITION))
+        .thenReturn(listOf(REQUISITION1, REQUISITION1))
 
       onBlocking { createRequisition(any()) }
-        .thenReturn(REQUISITION)
+        .thenReturn(REQUISITION2)
 
       onBlocking { associateRequisitionToReport(any(), any()) }
         .then { latch.countDown() }
@@ -59,16 +60,17 @@ class RequisitionLinkerTest {
 
     launchAndCancelWithLatch(latch) { daemon.runRequisitionLinker() }
 
-    verify(daemonDatabaseServicesClient, atLeast(5))
+    // TODO: use captors and ProtoTruth here
+    verify(daemonDatabaseServicesClient, atLeast(1))
       .streamReportsInState(Report.ReportState.AWAITING_REQUISITION_CREATION)
 
     verify(daemonDatabaseServicesClient, atLeast(5))
       .buildRequisitionsForReport(same(REPORT))
 
     verify(daemonDatabaseServicesClient, atLeast(15))
-      .createRequisition(same(REQUISITION))
+      .createRequisition(same(REQUISITION1))
 
     verify(daemonDatabaseServicesClient, atLeast(15))
-      .associateRequisitionToReport(same(REQUISITION), same(REPORT))
+      .associateRequisitionToReport(same(REQUISITION2), same(REPORT))
   }
 }
