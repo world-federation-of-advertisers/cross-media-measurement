@@ -285,7 +285,7 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    commit = "baf23579a62edea2d587fb0f267eb665cd581622",
+    commit = "4a3ac17cf86c6036d69f035610f8fc6756b0a899",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     shallow_since = "1597162208 +0000",
 )

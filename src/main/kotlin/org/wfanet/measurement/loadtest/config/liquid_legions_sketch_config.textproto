@@ -1,0 +1,29 @@
+# proto-file: src/main/proto/wfa/measurement/api/v1alpha/sketch.proto
+# proto-message: SketchConfig
+indexes {
+  name: "Index"
+  distribution {
+    exponential {
+      rate: 23.0
+      num_values: 330000
+    }
+  }
+}
+values {
+  name: "SamplingIndicator"
+  aggregator: UNIQUE
+  distribution {
+    uniform {
+      num_values: 10000000  # 10M
+    }
+  }
+}
+values {
+  name: "Frequency"
+  aggregator: SUM
+  distribution {
+    oracle {
+      key: "frequency"
+    }
+  }
+}

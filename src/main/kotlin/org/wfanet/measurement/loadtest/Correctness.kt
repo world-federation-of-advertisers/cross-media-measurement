@@ -16,13 +16,19 @@ package org.wfanet.measurement.loadtest
 
 import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
+import org.wfanet.anysketch.SketchProtos
 import org.wfanet.measurement.api.v1alpha.Sketch
+import org.wfanet.measurement.api.v1alpha.SketchConfig
+import org.wfanet.measurement.storage.StorageClient
 
 /** Interface for E2E Correctness Test */
 interface Correctness {
 
+  /** Number of campaigns to generate reach and sketch for. */
+  val campaignCount: Int
+
   /** Size of the unique reach set per campaign. */
-  val setSize: Int
+  val generatedSetSize: Int
 
   /** Universe size to uniformly distribute numbers for reach set [0, universeSize). */
   val universeSize: Long
@@ -32,6 +38,12 @@ interface Correctness {
 
   /** Output directory to store sketches and estimates e.g. correctness/[runId]. */
   val outputDir: String
+
+  /** [SketchConfig] with necessary parameters to generate [Sketch]. */
+  val sketchConfig: SketchConfig
+
+  /** Instance of a [StorageClient] to store sketches and estimates.  */
+  val storageClient: StorageClient
 
   /**
    * Generates a sequence of sets, each with [setSize] distinct values in [0, universeSize).
@@ -64,10 +76,10 @@ interface Correctness {
   /**
    * Stores raw Sketch proto into a local file and returns the path.
    *
-   * @param[sketch] Sketch proto
-   * @return String path of written file e.g. correctness/[runId]/sketches.txt
+   * @param[AnySketch] object
+   * @return String path of written file e.g. correctness/[runId]/sketches.textproto
    */
-  suspend fun storeSketch(sketch: Sketch): String
+  suspend fun storeSketch(anySketch: AnySketch): String
 
   /**
    * Stores encrypted Sketch proto into a local file and returns the path.
@@ -87,7 +99,8 @@ interface Correctness {
 
   /** Sends encrypted [Sketch] proto to Publisher Data Service. */
   suspend fun sendToServer(encryptedSketch: ByteString)
+}
 
-  /** Converts the [AnySketch] object into a [Sketch] proto. */
-  fun AnySketch.toSketchProto(): Sketch
+fun AnySketch.toSketchProto(sketchConfig: SketchConfig): Sketch {
+  return SketchProtos.fromAnySketch(this, sketchConfig)
 }

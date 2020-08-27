@@ -9,7 +9,9 @@ kt_jvm_library(
     name = "loadtest",
     srcs = glob(["*.kt"]),
     deps = [
-        "@any_sketch//src/main/java/org/wfanet/anysketch:any_sketch",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@any_sketch//src/main/java/org/wfanet/anysketch",
+        "@any_sketch//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",
     ],
 )

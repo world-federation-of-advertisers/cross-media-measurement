@@ -15,7 +15,6 @@
 package org.wfanet.measurement.loadtest
 
 import com.google.common.truth.Truth.assertThat
-import java.lang.IllegalArgumentException
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -27,12 +26,11 @@ class IndependentSetGeneratorTest {
   private val DEFAULT_SEED = 1L
 
   @Test
-  fun set_with_same_seed_first_value_match_succeeds() {
+  fun `set with same seed first value match succeeds`() {
     val random = Random(DEFAULT_SEED)
     val universeSize: Long = 1000000
     val setGenerator = generateIndependentSets(
       universeSize,
-      1,
       1,
       random
     )
@@ -40,96 +38,74 @@ class IndependentSetGeneratorTest {
     // Generate new Random object with the same seed to generate same numbers.
     val random2 = Random(DEFAULT_SEED)
     val expected = setOf(random2.nextLong(universeSize))
-    assertThat(setGenerator.next()).isEqualTo(expected)
+    assertThat(setGenerator.first()).isEqualTo(expected)
   }
 
   @Test
-  fun set_contains_0_to_n_values_succeeds() {
+  fun `set contains 0 to n values succeeds`() {
     val setGenerator = generateIndependentSets(
       100,
-      100,
-      1
+      100
     )
-    assertThat(setGenerator.next()).containsExactlyElementsIn(0L..99L)
+    assertThat(setGenerator.first()).containsExactlyElementsIn(0L..99L)
   }
 
   @Test
-  fun set_size_succeeds() {
+  fun `set size succeeds`() {
     val random = Random(DEFAULT_SEED)
     val setGenerator = generateIndependentSets(
       99,
       33,
-      10,
       random
-    )
+    ).take(10)
     var size = 0
-    while (setGenerator.hasNext()) {
+    setGenerator.forEach {
       size++
-      val set = setGenerator.next()
-      assertThat(set.size).isEqualTo(33)
+      assertThat(it.size).isEqualTo(33)
     }
     assertThat(size).isEqualTo(10)
   }
 
   @Test
-  fun set_contains_no_duplicates_succeeds() {
+  fun `set contains no duplicates succeeds`() {
     var random = Random(DEFAULT_SEED)
     val setGenerator = generateIndependentSets(
       1000,
       100,
-      10,
       random
-    )
-    while (setGenerator.hasNext()) {
-      val set = setGenerator.next()
-      assertThat(set).containsNoDuplicates()
+    ).take(10)
+    setGenerator.forEach {
+      assertThat(it).containsNoDuplicates()
     }
   }
 
   @Test
-  fun set_next_without_elements_throws() {
+  fun `set none without elements succeeds`() {
     val setGenerator = generateIndependentSets(
       100,
-      100,
-      1
-    )
-    setGenerator.next()
+      100
+    ).take(0)
 
-    assertFailsWith(NoSuchElementException::class, "SetGenerator has no elements left") {
-      setGenerator.next()
-    }
+    assertThat(setGenerator.none()).isTrue()
   }
 
   @Test
-  fun set_set_size_out_of_bounds_throws() {
+  fun `set set size out of bounds throws`() {
     assertFailsWith(IllegalArgumentException::class, "SetSize larger than UniverseSize") {
       generateIndependentSets(
         10,
-        100,
-        1
-      ).next()
+        100
+      ).first()
     }
   }
 
   @Test
-  fun set_num_sets_out_of_bounds_throws() {
-    assertFailsWith(IllegalArgumentException::class, "Number of sets less than 1") {
-      generateIndependentSets(
-        1,
-        1,
-        -10
-      ).next()
-    }
-  }
-
-  @Test
-  fun set_universe_size_out_of_bounds_throws() {
+  fun `set universe size out of bounds throws`() {
     assertFailsWith(IllegalArgumentException::class, "Universe size less than 1") {
       generateIndependentSets(
         -10,
-        1,
         1
-      ).next()
+      ).first()
     }
   }
 }

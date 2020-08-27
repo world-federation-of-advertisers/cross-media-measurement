@@ -3,12 +3,21 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
+package_group(
+    name = "load_test",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/...",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/...",
+    ],
+)
+
 kt_jvm_library(
     name = "client",
     srcs = ["StorageClient.kt"],
     visibility = [
         ":__subpackages__",
         test_target(":__subpackages__"),
+        ":load_test",
         "//src:internal_services",
     ],
     deps = [
