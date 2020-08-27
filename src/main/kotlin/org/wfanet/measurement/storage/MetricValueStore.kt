@@ -29,24 +29,31 @@ class MetricValueStore(
   private val storageClient: StorageClient,
   private val generateBlobKey: () -> String
 ) {
-
   /**
    * Writes a metric value as a new blob with the specified content.
    *
    * @param a [Flow] producing the content to write.
-   * @return the key for the new blob.
+   * @return a [Blob] with a generated blob key.
    */
-  suspend fun write(content: Flow<ByteBuffer>): String {
+  suspend fun write(content: Flow<ByteBuffer>): Blob {
     val blobKey = generateBlobKey()
-    storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
-    return blobKey
+    val createdBlob = storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
+    return Blob(blobKey, createdBlob)
   }
 
   /**
-   * Returns a [Blob][StorageClient.Blob] for the metric value with the
-   * specified blob key, or `null` if the metric value isn't found.
+   * Returns a [Blob] for the metric value with the specified blob key, or
+   * `null` if the metric value isn't found.
    */
-  fun get(blobKey: String): StorageClient.Blob? = storageClient.getBlob(blobKey.withBlobKeyPrefix())
+  fun get(blobKey: String): Blob? {
+    return storageClient.getBlob(blobKey.withBlobKeyPrefix())?.let {
+      Blob(blobKey, it)
+    }
+  }
+
+  /** [StorageClient.Blob] implementation for [MetricValueStore]. */
+  class Blob(val blobKey: String, wrappedBlob: StorageClient.Blob) :
+    StorageClient.Blob by wrappedBlob
 }
 
 private fun String.withBlobKeyPrefix(): String {

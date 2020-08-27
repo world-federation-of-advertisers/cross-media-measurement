@@ -156,7 +156,7 @@ class MetricValuesServiceTest {
   @Test fun `streamMetricValue returns MetricValue with data`() = runBlocking {
     MetricValueStore(storageClient) {
       testMetricValue.blobStorageKey
-    }.write(testMetricValueData.asBufferedFlow())
+    }.write(testMetricValueData.asBufferedFlow()).blobKey
 
     metricValueDbMock.stub {
       onBlocking {
@@ -179,6 +179,7 @@ class MetricValuesServiceTest {
     }
 
     assertThat(header.metricValue).isEqualTo(testMetricValue)
+    assertThat(header.dataSizeBytes).isEqualTo(testMetricValueData.size)
     assertFalse("Expected more bytes in data") { buffer.hasRemaining() }
     assertThat(buffer.array()).isEqualTo(testMetricValueData)
   }

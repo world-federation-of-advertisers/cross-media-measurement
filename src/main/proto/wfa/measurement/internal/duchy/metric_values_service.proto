@@ -79,6 +79,9 @@ message StreamMetricValueResponse {
   // Header message for this streaming request.
   message Header {
     MetricValue metric_value = 1;
+
+    // The total size of the metric value data in bytes.
+    int64 data_size_bytes = 2;
   }
 
   // Body chunk message for this streaming request.

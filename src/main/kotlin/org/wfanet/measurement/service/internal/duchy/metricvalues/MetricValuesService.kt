@@ -72,12 +72,11 @@ class MetricValuesService constructor(
       }
     }
 
-    val blobKey = metricValueStore.write(bytes)
-
+    val blob = metricValueStore.write(bytes)
     return metricValueDb.insertMetricValue(
       MetricValue.newBuilder().apply {
         this.resourceKey = resourceKey
-        blobStorageKey = blobKey
+        blobStorageKey = blob.blobKey
       }.build()
     )
   }
@@ -101,6 +100,7 @@ class MetricValuesService constructor(
       emit(
         StreamMetricValueResponse.newBuilder().apply {
           headerBuilder.metricValue = metricValue
+          headerBuilder.dataSizeBytes = content.size
         }.build()
       )
 
