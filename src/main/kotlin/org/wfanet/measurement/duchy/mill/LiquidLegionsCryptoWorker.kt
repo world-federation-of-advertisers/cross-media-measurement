@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.mill
 
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
@@ -27,6 +29,11 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
  * A list of methods performing the crypto operations in the MPC.
  */
 interface LiquidLegionsCryptoWorker {
+
+  /**
+   * Add noise registers to the input sketch.
+   */
+  fun AddNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse
 
   /**
    * Blind (one layer) all register indexes of a sketch.

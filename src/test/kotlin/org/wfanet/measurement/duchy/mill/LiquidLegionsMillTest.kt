@@ -69,6 +69,8 @@ import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsResponse
+import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
+import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -212,7 +214,7 @@ class LiquidLegionsMillTest {
             .setWaitSketchStageDetails(
               WaitSketchesStageDetails.newBuilder()
                 .putExternalDuchyLocalBlobId("NEXT_WORKER", 1L)
-                .putExternalDuchyLocalBlobId("NEXT_NEXT_WORKER", 2L)
+                .putExternalDuchyLocalBlobId("PRIMARY_WORKER", 2L)
             )
         )
         .setNextDuchy("NEXT_WORKER")
@@ -371,6 +373,140 @@ class LiquidLegionsMillTest {
           .addReadyRequisitions("1".toMetricRequisitionKey())
           .build()
       )
+  }
+
+  @Test
+  fun `to add noise using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val inputBlobPath = "to_add_noise/input"
+    val computationId = 1234L
+    fakeComputationStorage.addComputation(
+      id = computationId,
+      stage = LiquidLegionsStage.TO_ADD_NOISE.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(
+        newInputBlobMetadata(0L, inputBlobPath),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
+
+    lateinit var computationControlRequests: List<HandleNoisedSketchRequest>
+    whenever(mockLiquidLegionsComputationControl.handleNoisedSketch(any())).thenAnswer {
+      val request: Flow<HandleNoisedSketchRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      HandleNoisedSketchResponse.getDefaultInstance()
+    }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val expectTokenAfterProcess =
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(computationId)
+        .setLocalComputationId(computationId)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_CONCATENATED.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath("1234/TO_ADD_NOISE_1_output")
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
+    assertThat(expectTokenAfterProcess).isEqualTo(fakeComputationStorage[computationId]!!)
+
+    assertEquals(
+      "sketch-AddedNoise",
+      fakeBlobs["1234/TO_ADD_NOISE_1_output"]!!.toString(Charset.defaultCharset())
+    )
+
+    assertThat(computationControlRequests).containsExactly(
+      HandleNoisedSketchRequest.newBuilder()
+        .setPartialSketch(ByteString.copyFromUtf8("sketch-AddedNoise"))
+        .setComputationId(computationId).build()
+    )
+  }
+
+  @Test
+  fun `to append sketches any add noise using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val inputBlobPath1 = "to_append_sketches_and_add_noise/input1"
+    val inputBlobPath2 = "to_append_sketches_and_add_noise/input2"
+    val inputBlobPath3 = "to_append_sketches_and_add_noise/input3"
+    val computationId = 1234L
+    fakeComputationStorage.addComputation(
+      id = computationId,
+      stage = LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage(),
+      role = RoleInComputation.PRIMARY,
+      blobs = listOf(
+        newInputBlobMetadata(0L, inputBlobPath1),
+        newInputBlobMetadata(1L, inputBlobPath2),
+        newInputBlobMetadata(2L, inputBlobPath3),
+        newEmptyOutputBlobMetadata(3L)
+      )
+    )
+    fakeBlobs[inputBlobPath1] = "sketch_1_".toByteArray()
+    fakeBlobs[inputBlobPath2] = "sketch_2_".toByteArray()
+    fakeBlobs[inputBlobPath3] = "sketch_3_".toByteArray()
+
+    lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
+    whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
+      val request: Flow<HandleConcatenatedSketchRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      HandleConcatenatedSketchResponse.getDefaultInstance()
+    }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val expectTokenAfterProcess =
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(computationId)
+        .setLocalComputationId(computationId)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_CONCATENATED.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath("1234/TO_APPEND_SKETCHES_AND_ADD_NOISE_1_output")
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.PRIMARY)
+        .build()
+    assertThat(expectTokenAfterProcess).isEqualTo(fakeComputationStorage[computationId]!!)
+
+    assertEquals(
+      "sketch_1_sketch_2_sketch_3_-AddedNoise",
+      fakeBlobs["1234/TO_APPEND_SKETCHES_AND_ADD_NOISE_1_output"]!!
+        .toString(Charset.defaultCharset())
+    )
+
+    assertThat(computationControlRequests).containsExactly(
+      HandleConcatenatedSketchRequest.newBuilder()
+        .setPartialSketch(ByteString.copyFromUtf8("sketch_1_sketch_2_sk"))
+        .setComputationId(computationId).build(),
+      HandleConcatenatedSketchRequest.newBuilder()
+        .setPartialSketch(ByteString.copyFromUtf8("etch_3_-AddedNoise"))
+        .setComputationId(computationId).build()
+    )
   }
 
   @Test
@@ -625,7 +761,7 @@ class LiquidLegionsMillTest {
   companion object {
     private const val MILL_ID = "a nice mill"
     private const val DUCHY_ONE_NAME = "NEXT_WORKER"
-    private const val DUCHY_TWO_NAME = "NEXT_NEXT_WORKER"
+    private const val DUCHY_TWO_NAME = "PRIMARY_WORKER"
     private val otherDuchyNames = listOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME)
 
     // These keys are valid keys obtained from the crypto library tests, i.e.,

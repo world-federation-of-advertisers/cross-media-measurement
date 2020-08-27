@@ -16,6 +16,8 @@ package org.wfanet.measurement.duchy.mill.testing
 
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.duchy.mill.LiquidLegionsCryptoWorker
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
@@ -26,6 +28,12 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
 
 class FakeLiquidLegionsCryptoWorker : LiquidLegionsCryptoWorker {
+
+  override fun AddNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
+    val postFix = ByteString.copyFromUtf8("-AddedNoise")
+    return AddNoiseToSketchResponse
+      .newBuilder().setSketch(request.sketch.concat(postFix)).build()
+  }
 
   override fun BlindOneLayerRegisterIndex(
     request: BlindOneLayerRegisterIndexRequest

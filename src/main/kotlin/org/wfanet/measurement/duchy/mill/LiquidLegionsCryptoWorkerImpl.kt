@@ -16,6 +16,8 @@ package org.wfanet.measurement.duchy.mill
 
 import java.io.File
 import org.wfanet.measurement.crypto.ProtocolEncryptionUtility
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
@@ -39,33 +41,41 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     System.load(lib.absolutePath)
   }
 
+  override fun AddNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
+    return AddNoiseToSketchResponse.parseFrom(
+      ProtocolEncryptionUtility.AddNoiseToSketch(request.toByteArray())
+    )
+  }
+
   override fun BlindOneLayerRegisterIndex(
     request: BlindOneLayerRegisterIndexRequest
   ): BlindOneLayerRegisterIndexResponse {
-    return BlindOneLayerRegisterIndexResponse
-      .parseFrom(ProtocolEncryptionUtility.BlindOneLayerRegisterIndex(request.toByteArray()))
+    return BlindOneLayerRegisterIndexResponse.parseFrom(
+      ProtocolEncryptionUtility.BlindOneLayerRegisterIndex(request.toByteArray())
+    )
   }
 
   override fun BlindLastLayerIndexThenJoinRegisters(
     request: BlindLastLayerIndexThenJoinRegistersRequest
   ): BlindLastLayerIndexThenJoinRegistersResponse {
-    return BlindLastLayerIndexThenJoinRegistersResponse
-      .parseFrom(
-        ProtocolEncryptionUtility.BlindLastLayerIndexThenJoinRegisters(request.toByteArray())
-      )
+    return BlindLastLayerIndexThenJoinRegistersResponse.parseFrom(
+      ProtocolEncryptionUtility.BlindLastLayerIndexThenJoinRegisters(request.toByteArray())
+    )
   }
 
   override fun DecryptLastLayerFlagAndCount(
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse {
-    return DecryptLastLayerFlagAndCountResponse
-      .parseFrom(ProtocolEncryptionUtility.DecryptLastLayerFlagAndCount(request.toByteArray()))
+    return DecryptLastLayerFlagAndCountResponse.parseFrom(
+      ProtocolEncryptionUtility.DecryptLastLayerFlagAndCount(request.toByteArray())
+    )
   }
 
   override fun DecryptOneLayerFlagAndCount(
     request: DecryptOneLayerFlagAndCountRequest
   ): DecryptOneLayerFlagAndCountResponse {
-    return DecryptOneLayerFlagAndCountResponse
-      .parseFrom(ProtocolEncryptionUtility.DecryptOneLayerFlagAndCount(request.toByteArray()))
+    return DecryptOneLayerFlagAndCountResponse.parseFrom(
+      ProtocolEncryptionUtility.DecryptOneLayerFlagAndCount(request.toByteArray())
+    )
   }
 }
