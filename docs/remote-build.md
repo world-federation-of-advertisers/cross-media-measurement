@@ -14,8 +14,10 @@ Docker to be installed on the host machine, as well as access to the
 
 ### GCP Project
 
-You will need a GCP project with an instance of the RBE service. Follow the
-instructions for
+You will need a GCP project with an instance of the RBE service. GCP project
+setup only needs to be done once for everyone using that project.
+
+Follow the instructions for
 [Enabling Remote Build Execution](https://cloud.google.com/remote-build-execution/docs/set-up/enable).
 
 #### Results UI
@@ -61,14 +63,17 @@ The following is a sample `.bazelrc` for the `ads-open-measurement` GCP project
 with `default_instance`.
 
 ```
-# GCP project/instance config for RBE.
-build:measurement --project_id=ads-open-measurement
-build:measurement --remote_instance_name=projects/ads-open-measurement/instances↳/default_instance
+# Personal GCP project/instance config for RBE.
+build:_gcp --project_id=ads-open-measurement
+build:_gcp --remote_instance_name=projects/ads-open-measurement/instances/default_instance
 
-# Use measurement config for RBE and results UI.
-build:remote --config=measurement
-build:results --config=measurement
+# Use personal _gcp config for RBE and results UI.
+build:remote --config=_gcp
+build:results --config=_gcp
 
 # Always upload results for remote builds.
 build:remote --config=results
+
+# Always upload results for tests.
+test --config=results
 ```
