@@ -16,10 +16,9 @@ import java.nio.ByteBuffer
 
 class ForwardingStorageClient(
   private val storageStub: ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineStub
-) :
-  StorageClient<ForwardingStorageClient.Blob> {
+) : StorageClient {
 
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): Blob {
+  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): StorageClient.Blob {
     val blobSize = storageStub.createBlob(
       content.map {
         CreateBlobRequest.newBuilder().setBlobKey(blobKey).setContent(ByteString.copyFrom(it))
@@ -29,7 +28,7 @@ class ForwardingStorageClient(
     return Blob(storageStub, blobKey, blobSize)
   }
 
-  override fun getBlob(blobKey: String): Blob? {
+  override fun getBlob(blobKey: String): StorageClient.Blob? {
     // Check if the blob exists
     val blobSize = try {
       runBlocking {
@@ -48,7 +47,7 @@ class ForwardingStorageClient(
     return Blob(storageStub, blobKey, blobSize)
   }
 
-  class Blob(
+  private class Blob(
     private val storageStub: ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineStub,
     private val blobKey: String,
     override val size: Long
