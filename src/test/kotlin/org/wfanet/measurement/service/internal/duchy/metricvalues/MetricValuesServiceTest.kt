@@ -61,7 +61,7 @@ class MetricValuesServiceTest {
 
   private val fakeBlobKeyGenerator = FakeBlobKeyGenerator
   private val metricValueDbMock: MetricValueDatabase = mock()
-  private lateinit var storageClient: StorageClient<*>
+  private lateinit var storageClient: StorageClient
   private lateinit var service: MetricValuesService
 
   @Before fun initService() {

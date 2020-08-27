@@ -43,7 +43,7 @@ private const val STREAM_BYTE_BUFFER_SIZE = 1024 * 32 // 32 KiB
 /** Implementation of `wfa.measurement.internal.duchy.MetricValues` gRPC service. */
 class MetricValuesService constructor(
   private val metricValueDb: MetricValueDatabase,
-  storageClient: StorageClient<*>,
+  storageClient: StorageClient,
   generateBlobKey: () -> String = { UUID.randomUUID().toString() }
 ) : MetricValuesCoroutineService() {
   private val metricValueStore = MetricValueStore(storageClient, generateBlobKey)

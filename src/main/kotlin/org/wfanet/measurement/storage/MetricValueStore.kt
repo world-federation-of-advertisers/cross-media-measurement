@@ -26,7 +26,7 @@ private const val BLOB_KEY_PREFIX = "metric-values"
  * @param generateBlobKey a function to generate unique blob keys.
  */
 class MetricValueStore(
-  private val storageClient: StorageClient<*>,
+  private val storageClient: StorageClient,
   private val generateBlobKey: () -> String
 ) {
 

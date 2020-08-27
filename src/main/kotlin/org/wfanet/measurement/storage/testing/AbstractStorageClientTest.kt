@@ -26,7 +26,7 @@ import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 
 /** Abstract base class for testing implementations of [StorageClient]. */
-abstract class AbstractStorageClientTest<T : StorageClient<*>> {
+abstract class AbstractStorageClientTest<T : StorageClient> {
   protected lateinit var storageClient: T
 
   @Test fun `createBlob returns new readable blob`() = runBlocking {

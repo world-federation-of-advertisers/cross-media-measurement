@@ -32,13 +32,17 @@ const val DEFAULT_FLOW_BUFFER_SIZE = 4096 // 4 KiB
 
 /**
  * Interface for blob/object storage operations.
+ *
+ * It is assumed that the content of blobs accessed through this interface is
+ * immutable once the blob has been created. Hence, this interface has no
+ * operations for modifying the content of an existing blob.
  */
-interface StorageClient<out B : StorageClient.Blob> {
+interface StorageClient {
   /** Creates a blob with the specified key and content. */
-  suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): B
+  suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): Blob
 
   /** Returns a [Blob] for the specified key, or `null` if it cannot be found. */
-  fun getBlob(blobKey: String): B?
+  fun getBlob(blobKey: String): Blob?
 
   /** Reference to a blob in a storage system. */
   interface Blob {
@@ -54,10 +58,8 @@ interface StorageClient<out B : StorageClient.Blob> {
 }
 
 /** Creates a blob with the specified key and content. */
-suspend fun <B : StorageClient.Blob> StorageClient<B>.createBlob(
-  blobKey: String,
-  content: ByteArray
-): B = createBlob(blobKey, content.asBufferedFlow())
+suspend fun StorageClient.createBlob(blobKey: String, content: ByteArray): StorageClient.Blob =
+  createBlob(blobKey, content.asBufferedFlow())
 
 /** Reads all of this [StorageClient.Blob] content into a [ByteArray]. */
 suspend fun StorageClient.Blob.readAll(): ByteArray {

@@ -28,14 +28,13 @@ import org.wfanet.measurement.storage.asFlow
  * [StorageClient] implementation that utilizes flat files in the specified
  * directory as blobs.
  */
-class FileSystemStorageClient(private val directory: File) :
-  StorageClient<FileSystemStorageClient.Blob> {
+class FileSystemStorageClient(private val directory: File) : StorageClient {
 
   init {
     require(directory.isDirectory) { "$directory is not a directory" }
   }
 
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): Blob {
+  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): StorageClient.Blob {
     val file = File(directory, blobKey.base64UrlEncode())
     withContext(Dispatchers.IO) {
       require(file.createNewFile()) { "$blobKey already exists" }
@@ -51,12 +50,12 @@ class FileSystemStorageClient(private val directory: File) :
     return Blob(file)
   }
 
-  override fun getBlob(blobKey: String): Blob? {
+  override fun getBlob(blobKey: String): StorageClient.Blob? {
     val file = File(directory, blobKey.base64UrlEncode())
     return if (file.exists()) Blob(file) else null
   }
 
-  class Blob(private val file: File) : StorageClient.Blob {
+  private class Blob(private val file: File) : StorageClient.Blob {
     override val size: Long
       get() = file.length()
 

@@ -39,9 +39,9 @@ private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
 class GcsStorageClient(
   private val storage: Storage,
   private val bucketName: String
-) : StorageClient<GcsStorageClient.ClientBlob> {
+) : StorageClient {
 
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): ClientBlob {
+  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): StorageClient.Blob {
     val blob = storage.create(BlobInfo.newBuilder(bucketName, blobKey).build())
 
     blob.writer().use { byteChannel ->
@@ -61,13 +61,13 @@ class GcsStorageClient(
     return ClientBlob(blob.reload())
   }
 
-  override fun getBlob(blobKey: String): ClientBlob? {
+  override fun getBlob(blobKey: String): StorageClient.Blob? {
     val blob: Blob? = storage.get(bucketName, blobKey)
     return if (blob == null) null else ClientBlob(blob)
   }
 
   /** [StorageClient.Blob] implementation for [GcsStorageClient]. */
-  inner class ClientBlob(private val blob: Blob) : StorageClient.Blob {
+  private inner class ClientBlob(private val blob: Blob) : StorageClient.Blob {
     override val size: Long
       get() = blob.size
 

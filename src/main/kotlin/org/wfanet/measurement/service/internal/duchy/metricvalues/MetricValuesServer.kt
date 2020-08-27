@@ -24,7 +24,7 @@ abstract class MetricValuesServer : Runnable {
   protected lateinit var serverFlags: CommonServer.Flags
     private set
 
-  protected fun run(metricValueDb: MetricValueDatabase, storageClient: StorageClient<*>) {
+  protected fun run(metricValueDb: MetricValueDatabase, storageClient: StorageClient) {
     CommonServer.fromFlags(
       serverFlags,
       javaClass.name,
