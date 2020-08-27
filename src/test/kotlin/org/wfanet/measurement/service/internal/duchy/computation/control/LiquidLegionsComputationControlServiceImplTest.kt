@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.charset.Charset
 import kotlin.test.assertEquals
@@ -195,17 +197,64 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive noised sketch when not expected`() = runBlocking<Unit> {
+    val sketch = HandleNoisedSketchRequest.newBuilder()
+      .setComputationId(55)
+      .setPartialSketch("data".toByteString())
+      .build()
+    val notFound =
+      assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
+    assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationStorage.addComputation(
       id = 55,
       stage = LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
+    val exception =
+      assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `bad request stream`() = runBlocking<Unit> {
+    var exception =
+      assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf()) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Empty request stream")
+    val id = 252525L
+    val localSketches = "$id/$WAIT_SKETCHES/noised_sketch_$RUNNING_DUCHY_NAME"
+    fakeComputationStorage
+      .addComputation(
+        id = id,
+        stage = WAIT_SKETCHES.toProtocolStage(),
+        role = RoleInComputation.PRIMARY,
+        blobs = listOf(
+          newInputBlobMetadata(id = 0, key = localSketches),
+          newEmptyOutputBlobMetadata(id = 1),
+          newEmptyOutputBlobMetadata(id = 2)
+        ),
+        stageDetails = computationStorageClients
+          .liquidLegionsStageDetails.detailsFor(WAIT_SKETCHES)
+      )
     val sketch = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(55)
+      .setComputationId(id)
       .setPartialSketch("data".toByteString())
       .build()
-    assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
+    val sketch2 = HandleNoisedSketchRequest.newBuilder()
+      .setComputationId(id + 1)
+      .setPartialSketch("more data".toByteString())
+      .build()
+    exception =
+      assertFailsWith<StatusException> {
+        carinthiaClient.handleNoisedSketch(
+          flowOf(
+            sketch,
+            sketch2
+          )
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Stream has multiple ids")
   }
 
   @Test
@@ -300,17 +349,22 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive concatenated sketch when not expected`() = runBlocking<Unit> {
+    val sketch = HandleConcatenatedSketchRequest.newBuilder()
+      .setComputationId(55)
+      .setPartialSketch("full_sketch".toByteString())
+      .build()
+    val notFound =
+      assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
+    assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationStorage.addComputation(
       id = 55,
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
-    val sketch = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(55)
-      .setPartialSketch("full_sketch".toByteString())
-      .build()
-    assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
+    val exception =
+      assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -407,19 +461,24 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive decrypt flags when not expected`() = runBlocking<Unit> {
+    val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
+      .setComputationId(55)
+      .setPartialData("data".toByteString())
+      .build()
+    val notFound = assertFailsWith<StatusException> {
+      carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch))
+    }
+    assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationStorage.addComputation(
       id = 55,
       stage = WAIT_SKETCHES.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
-    val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId(55)
-      .setPartialData("data".toByteString())
-      .build()
-    assertFailsWith<StatusException> {
+    val exception = assertFailsWith<StatusException> {
       carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch))
     }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
 

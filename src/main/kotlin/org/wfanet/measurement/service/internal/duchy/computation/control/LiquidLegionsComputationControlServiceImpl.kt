@@ -15,6 +15,7 @@
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -37,6 +38,9 @@ import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRespon
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
+import org.wfanet.measurement.service.v1alpha.common.failGrpc
+import org.wfanet.measurement.service.v1alpha.common.grpcRequire
+import org.wfanet.measurement.service.v1alpha.common.grpcTryAndRethrow
 import java.util.logging.Logger
 
 class LiquidLegionsComputationControlServiceImpl(
@@ -59,7 +63,7 @@ class LiquidLegionsComputationControlServiceImpl(
           LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS,
           LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
           LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS -> true
-          else -> error("Did not expect to get concatenated sketch for $token")
+          else -> failGrpc { "Did not expect to get concatenated sketch for $token" }
         }
       } ?: return HandleConcatenatedSketchResponse.getDefaultInstance()
 
@@ -71,7 +75,7 @@ class LiquidLegionsComputationControlServiceImpl(
         LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
       RoleInComputation.SECONDARY ->
         LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
-      else -> error("Unknown role in computation ${token.role}")
+      else -> failGrpc { "Unknown role in computation ${token.role}" }
     }
     logger.info("[id=$id]: Saving concatenated sketch.")
     val tokenAfterWrite = clients.writeSingleOutputBlob(token, sketch)
@@ -102,7 +106,7 @@ class LiquidLegionsComputationControlServiceImpl(
           LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS,
           LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
           LiquidLegionsSketchAggregationStage.COMPLETED -> true
-          else -> error("Did not expect to get flag counts for $token")
+          else -> failGrpc { "Did not expect to get flag counts for $token" }
         }
       } ?: return HandleEncryptedFlagsAndCountsResponse.getDefaultInstance()
 
@@ -117,7 +121,7 @@ class LiquidLegionsComputationControlServiceImpl(
         LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
       RoleInComputation.SECONDARY ->
         LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-      else -> error("Unknown role in computation ${token.role}")
+      else -> failGrpc { "Unknown role in computation ${token.role}" }
     }
     logger.info("[id=$id]: transitioning to $nextStage")
     clients.transitionComputationToStage(
@@ -140,7 +144,7 @@ class LiquidLegionsComputationControlServiceImpl(
         logger.info(
           "[id=${token.globalComputationId}]: Received noised sketch request from $sender."
         )
-        require(token.role == RoleInComputation.PRIMARY) {
+        grpcRequire(token.role == RoleInComputation.PRIMARY, Status.FAILED_PRECONDITION) {
           "Duchy is not the primary server but received a sketch from $sender for $token"
         }
         when (token.computationStage.liquidLegionsSketchAggregation) {
@@ -150,7 +154,7 @@ class LiquidLegionsComputationControlServiceImpl(
           // Ack message early if in a stage that is downstream of WAIT_SKETCHES
           LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
           LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED -> true
-          else -> error("Did not expect to get noised sketch for $token.")
+          else -> failGrpc { "Did not expect to get noised sketch for $token." }
         }
       } ?: return HandleNoisedSketchResponse.getDefaultInstance()
 
@@ -200,14 +204,18 @@ class LiquidLegionsComputationControlServiceImpl(
       withIndex().mapNotNull { (index, value) ->
         if (index == 0) {
           val id = value.first
-          val token = clients.computationStorageClient
-            .getComputationToken(id.toGetTokenRequest())
-            .token
-          require(token.globalComputationId == id) { "Unknown computation $id." }
+          val token = grpcTryAndRethrow(
+            failureStatus = Status.NOT_FOUND,
+            errorMessage = { "Unknown computation $id." }
+          ) {
+            clients.computationStorageClient
+              .getComputationToken(id.toGetTokenRequest())
+              .token
+          }
           wipeFlow = wipeFlowPredicate(token)
           tokenToReturn = token
         } else {
-          require(tokenToReturn?.globalComputationId == value.first) {
+          grpcRequire(tokenToReturn?.globalComputationId == value.first, Status.INVALID_ARGUMENT) {
             "Stream has multiple ids ${tokenToReturn?.globalComputationId} and ${value.first}"
           }
         }
@@ -216,7 +224,10 @@ class LiquidLegionsComputationControlServiceImpl(
         // be concatenating all bytes anyways.
         if (wipeFlow) null else value.second
       }.toList(mutableListOf())
-    return if (wipeFlow) null else requireNotNull(tokenToReturn) to bytes.toByteArray()
+    // The token is retrieved when processing the first item in the flow. If it is still null after
+    // collecting the flow that means there wasn't a first item in the flow.
+    grpcRequire(tokenToReturn != null, Status.INVALID_ARGUMENT) { "Empty request stream" }
+    return if (wipeFlow) null else tokenToReturn!! to bytes.toByteArray()
   }
 
   companion object {
