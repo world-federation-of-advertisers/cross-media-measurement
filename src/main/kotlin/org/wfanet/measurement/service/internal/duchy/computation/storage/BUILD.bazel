@@ -76,6 +76,9 @@ java_binary(
 java_image(
     name = "spanner_liquid_legions_computation_storage_server_image",
     main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.SpannerLiquidLegionsComputationsServerKt",
-    visibility = ["//src/main/docker:__subpackages__"],
+    visibility = [
+        "//src/main/docker:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
+    ],
     runtime_deps = [":spanner_liquid_legions_computation_storage_server"],
 )

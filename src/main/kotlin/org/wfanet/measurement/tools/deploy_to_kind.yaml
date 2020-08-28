@@ -122,7 +122,7 @@ metadata:
 spec:
   containers:
     - name: duchy-computation-storage-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:gcp_computation_storage_server_image
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image
       imagePullPolicy: Never
       args:
         - "--duchy-name=alsace"
