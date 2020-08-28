@@ -63,7 +63,7 @@ class GcpKingdomRelationalDatabase(
     client: DatabaseClient
   ) : this(clock, idGenerator, { client })
 
-  override suspend fun writeNewRequisition(requisition: Requisition): Requisition {
+  override suspend fun createRequisition(requisition: Requisition): Requisition {
     val result = runTransaction { transactionContext ->
       createRequisitionTransaction.execute(transactionContext, requisition)
     }

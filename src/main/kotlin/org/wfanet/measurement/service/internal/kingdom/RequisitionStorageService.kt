@@ -35,7 +35,7 @@ class RequisitionStorageService(
     require(request.state == RequisitionState.UNFULFILLED) {
       "Initial requisitions must be unfulfilled: $request"
     }
-    return kingdomRelationalDatabase.writeNewRequisition(request)
+    return kingdomRelationalDatabase.createRequisition(request)
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {

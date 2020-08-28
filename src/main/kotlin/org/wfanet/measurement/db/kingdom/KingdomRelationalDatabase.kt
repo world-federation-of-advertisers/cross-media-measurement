@@ -40,7 +40,7 @@ interface KingdomRelationalDatabase {
    * @param[requisition] the Requisition to save
    * @return the [Requisition] in the database -- old or new
    */
-  suspend fun writeNewRequisition(requisition: Requisition): Requisition
+  suspend fun createRequisition(requisition: Requisition): Requisition
 
   /**
    * Updates the state of a [Requisition] to [RequisitionState.FULFILLED].

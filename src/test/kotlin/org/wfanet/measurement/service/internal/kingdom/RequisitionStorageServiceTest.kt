@@ -51,7 +51,7 @@ class RequisitionStorageServiceTest {
   }
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
-    onBlocking { writeNewRequisition(any()) }.thenReturn(REQUISITION)
+    onBlocking { createRequisition(any()) }.thenReturn(REQUISITION)
     onBlocking { fulfillRequisition(any(), any()) }.thenReturn(REQUISITION)
     on { streamRequisitions(any(), any()) }.thenReturn(flowOf(REQUISITION, REQUISITION))
   }
@@ -93,7 +93,7 @@ class RequisitionStorageServiceTest {
       .isEqualTo(REQUISITION)
 
     verify(kingdomRelationalDatabase)
-      .writeNewRequisition(inputRequisition)
+      .createRequisition(inputRequisition)
   }
 
   @Test
