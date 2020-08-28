@@ -39,7 +39,7 @@ private class Flags {
 
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
-    defaultValue = "PT3S",
+    defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."],
     required = true
   )
@@ -56,10 +56,9 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--global-computation-service"],
+    names = ["--global-computation-service-target"],
     description = ["Address and port of the Global Computation Service"],
     required = true,
-    defaultValue = "localhost:8080"
   )
   lateinit var globalComputationsService: String
     private set
@@ -73,7 +72,7 @@ private class Flags {
 }
 
 @CommandLine.Command(
-  name = "gcp_worker_server",
+  name = "gcp_herald",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )

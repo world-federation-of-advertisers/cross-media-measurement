@@ -29,6 +29,6 @@ java_binary(
 
 java_image(
     name = "gcp_herald_task_image",
-    main_class = "org.wfanet.measurement.duchy.mill.MainKt",
+    main_class = "org.wfanet.measurement.duchy.herald.MainKt",
     runtime_deps = [":herald"],
 )
