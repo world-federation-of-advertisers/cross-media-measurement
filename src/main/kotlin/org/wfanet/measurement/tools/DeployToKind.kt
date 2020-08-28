@@ -30,7 +30,7 @@ import kotlin.system.exitProcess
   description = ["Builds container images from source and deploys them to a local kind cluster."]
 )
 class DeployToKind() : Callable<Int> {
-  private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement/service/internal/duchy"
+  private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement"
 
   private fun String.runAsProcess(
     // A lot of tools write things that aren't errors to stderr.
@@ -106,7 +106,10 @@ class DeployToKind() : Callable<Int> {
     logger.info("*** DONE LOADING ALL IMAGES ***")
 
     val yaml = Paths.get(
-      runfiles.rlocation("wfa_measurement_system/src/main/docker/deploy_to_kind.yaml")
+      runfiles.rlocation(
+        "wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/" +
+          "tools/deploy_to_kind.yaml"
+      )
     ).toFile()
 
     // kubectl apply does not necessarily overwrite previous configuration.

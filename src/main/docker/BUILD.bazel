@@ -34,9 +34,3 @@ container_push(
     registry = "gcr.io",
     repository = "ads-open-measurement/gcp_kingdom_storage_server",
 )
-
-filegroup(
-    name = "deploy_to_kind_yaml",
-    srcs = ["deploy_to_kind.yaml"],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__"],
-)

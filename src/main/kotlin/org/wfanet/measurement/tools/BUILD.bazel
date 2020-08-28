@@ -5,15 +5,23 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/measurement/tools:__subpackages__",
 ])
 
+filegroup(
+    name = "deploy_to_kind_yaml",
+    srcs = ["deploy_to_kind.yaml"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__"],
+)
+
 kt_jvm_library(
     name = "deploy_to_kind_impl",
     srcs = [
         "DeployToKind.kt",
     ],
     data = [
-        "//src/main/docker:deploy_to_kind_yaml",
+        ":deploy_to_kind_yaml",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_task_image.tar",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_computation_control_server_image.tar",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:gcp_computation_storage_server_image.tar",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image.tar",
     ],
     deps = [
         "//imports/java/picocli",
