@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -108,6 +109,14 @@ interface KingdomRelationalDatabase {
     duchyId: String,
     externalRequisitionIds: Set<ExternalId>
   ): Report
+
+  /**
+   * Finalizes a [Report].
+   *
+   * @param externalReportId the Report
+   * @param result the end result for the report
+   */
+  suspend fun finishReport(externalReportId: ExternalId, result: ReportDetails.Result): Report
 
   /**
    * Registers a Data Provider.

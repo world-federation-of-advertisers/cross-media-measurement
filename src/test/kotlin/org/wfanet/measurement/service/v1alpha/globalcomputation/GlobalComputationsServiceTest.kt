@@ -124,6 +124,7 @@ class GlobalComputationsServiceTest {
       whenever(reportStorage.getReport(any())).thenReturn(report)
 
       assertThat(service.getGlobalComputation(request))
+        .comparingExpectedFieldsOnly()
         .isEqualTo(expectedComputation)
 
       verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::getReport)
@@ -313,10 +314,28 @@ class GlobalComputationsServiceTest {
     }.build()
 
     whenever(reportStorage.finishReport(any()))
-      .thenReturn(REPORT)
+      .thenReturn(
+        REPORT.toBuilder().apply {
+          state = ReportState.SUCCEEDED
+          reportDetailsBuilder.resultBuilder.apply {
+            reach = 456
+            putFrequency(1, 2)
+            putFrequency(3, 4)
+          }
+        }.build()
+      )
 
     assertThat(service.finishGlobalComputation(request))
-      .isEqualTo(GLOBAL_COMPUTATION)
+      .isEqualTo(
+        GLOBAL_COMPUTATION.toBuilder().apply {
+          state = State.SUCCEEDED
+          resultBuilder.apply {
+            reach = 456
+            putFrequency(1, 2)
+            putFrequency(3, 4)
+          }
+        }.build()
+      )
 
     val expectedFinishReportRequest = FinishReportRequest.newBuilder().apply {
       externalReportId = 123

@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
@@ -158,6 +159,13 @@ class GcpKingdomRelationalDatabase(
     val readContext = client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp))
     val reportReadResult = ReportReader().readExternalId(readContext, externalReportId)
     return reportReadResult.report
+  }
+
+  override suspend fun finishReport(
+    externalReportId: ExternalId,
+    result: ReportDetails.Result
+  ): Report = runTransaction { transactionContext ->
+    FinishReportTransaction().execute(transactionContext, externalReportId, result)
   }
 
   override fun createDataProvider(): DataProvider = runTransaction { transactionContext ->

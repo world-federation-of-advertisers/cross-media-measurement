@@ -207,11 +207,15 @@ private fun getStateType(reportState: ReportState): StateType =
   }
 
 private fun Report.toGlobalComputation(): GlobalComputation {
-  val report = this
   return GlobalComputation.newBuilder().apply {
-    keyBuilder.globalComputationId = ExternalId(report.externalReportId).apiId.value
-    state = translateState(report.state)
-    // TODO: populate more fields once they're added.
+    keyBuilder.globalComputationId = ExternalId(externalReportId).apiId.value
+    state = translateState(this@toGlobalComputation.state)
+    if (state == State.SUCCEEDED) {
+      resultBuilder.apply {
+        reach = reportDetails.result.reach
+        putAllFrequency(reportDetails.result.frequencyMap)
+      }
+    }
   }.build()
 }
 

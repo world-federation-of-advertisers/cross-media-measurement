@@ -5,7 +5,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
-import kotlin.test.assertFails
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -27,6 +26,7 @@ import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
+import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
@@ -288,21 +288,32 @@ abstract class InProcessKingdomIntegrationTest {
       .isEqualTo(computation.toBuilder().setState(GlobalComputation.State.RUNNING).build())
 
     logger.info("Finishing GlobalComputation")
-    assertFails {
-      // TODO: assert that this works after it's implemented
-      runBlocking {
-        globalComputationsStub.finishGlobalComputation(
-          FinishGlobalComputationRequest.newBuilder().apply {
-            key = computation.key
-            resultBuilder.apply {
-              reach = 12345L
-              putFrequency(6L, 7L)
-              putFrequency(8L, 9L)
-            }
-          }.build()
-        )
-      }
-    }
+    globalComputationsStub.finishGlobalComputation(
+      FinishGlobalComputationRequest.newBuilder().apply {
+        key = computation.key
+        resultBuilder.apply {
+          reach = 12345L
+          putFrequency(6L, 7L)
+          putFrequency(8L, 9L)
+        }
+      }.build()
+    )
+
+    val finalComputation = globalComputationsStub.getGlobalComputation(
+      GetGlobalComputationRequest.newBuilder().setKey(computation.key).build()
+    )
+    assertThat(finalComputation)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        startedComputation.toBuilder().apply {
+          state = GlobalComputation.State.SUCCEEDED
+          resultBuilder.apply {
+            reach = 12345L
+            putFrequency(6L, 7L)
+            putFrequency(8L, 9L)
+          }
+        }.build()
+      )
   }
 
   private suspend fun readRequisition(

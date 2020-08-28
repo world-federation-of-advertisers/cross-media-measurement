@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
+import org.wfanet.measurement.internal.kingdom.FinishReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
@@ -74,6 +75,12 @@ class ReportStorageService(
       ExternalId(request.externalReportId),
       request.duchyId,
       request.externalRequisitionIdsList.map(::ExternalId).toSet()
+    )
+  }
+
+  override suspend fun finishReport(request: FinishReportRequest): Report {
+    return kingdomRelationalDatabase.finishReport(
+      ExternalId(request.externalReportId), request.result
     )
   }
 }
