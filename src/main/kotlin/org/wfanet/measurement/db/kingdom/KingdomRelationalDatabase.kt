@@ -21,6 +21,7 @@ import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -131,4 +132,20 @@ interface KingdomRelationalDatabase {
     externalAdvertiserId: ExternalId,
     providedCampaignId: String
   ): Campaign
+
+  /**
+   * Creates a [ReportConfig] for an Advertiser.
+   *
+   * The `externalReportConfigId` in [reportConfig] is ignored and the return value will have a
+   * new `externalReportConfigId` populated.
+   */
+  fun createReportConfig(reportConfig: ReportConfig, campaigns: List<ExternalId>): ReportConfig
+
+  /**
+   * Creates a [ReportConfigSchedule] for a [ReportConfig].
+   *
+   * The `externalScheduleId` in [schedule] is ignored and the return value will have a new
+   * `externalScheduleId` populated.
+   */
+  fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule
 }

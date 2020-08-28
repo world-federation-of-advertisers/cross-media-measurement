@@ -17,6 +17,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.TimestampBound
+import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
@@ -25,11 +26,14 @@ import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
+import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.ExistingRequisition
+import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.NewRequisitionId
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -41,11 +45,17 @@ class GcpKingdomRelationalDatabase(
   lazyClient: () -> DatabaseClient
 ) : KingdomRelationalDatabase {
   private val client: DatabaseClient by lazy { lazyClient() }
+
+  // TODO: refactor the Transactions and Queries here and elsewhere in this package to be extension
+  // functions of some data class that holds a transactionContext, clock, and idGenerator (for
+  // transactions) or a readContext for queries.
   private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
   private val createNextReportTransaction = CreateNextReportTransaction(clock, idGenerator)
   private val createAdvertiserTransaction = CreateAdvertiserTransaction(idGenerator)
   private val createCampaignTransaction = CreateCampaignTransaction(idGenerator)
   private val createDataProviderTransaction = CreateDataProviderTransaction(idGenerator)
+  private val createReportConfigTransaction = CreateReportConfigTransaction(idGenerator)
+  private val createScheduleTransaction = CreateScheduleTransaction(idGenerator)
 
   constructor(
     clock: Clock,
@@ -54,12 +64,12 @@ class GcpKingdomRelationalDatabase(
   ) : this(clock, idGenerator, { client })
 
   override suspend fun writeNewRequisition(requisition: Requisition): Requisition {
-    val result = client.runReadWriteTransaction { transactionContext ->
+    val result = runTransaction { transactionContext ->
       createRequisitionTransaction.execute(transactionContext, requisition)
     }
     return when (result) {
-      is CreateRequisitionTransaction.Result.ExistingRequisition -> result.requisition
-      is CreateRequisitionTransaction.Result.NewRequisitionId ->
+      is ExistingRequisition -> result.requisition
+      is NewRequisitionId ->
         RequisitionReader()
           .readExternalId(client.singleUse(TimestampBound.strong()), result.externalRequisitionId)
           .requisition
@@ -70,29 +80,28 @@ class GcpKingdomRelationalDatabase(
     externalRequisitionId: ExternalId,
     duchyId: String
   ): Requisition =
-    client.runReadWriteTransaction { transactionContext ->
+    runTransaction { transactionContext ->
       FulfillRequisitionTransaction().execute(transactionContext, externalRequisitionId, duchyId)
     }
 
   override fun streamRequisitions(
     filter: StreamRequisitionsFilter,
     limit: Long
-  ): Flow<Requisition> =
-    StreamRequisitionsQuery().execute(
+  ): Flow<Requisition> {
+    return StreamRequisitionsQuery().execute(
       client.singleUse(),
       filter,
       limit
     )
+  }
 
   override fun getReport(externalId: ExternalId): Report =
     GetReportQuery().execute(client.singleUse(), externalId)
 
   override fun createNextReport(externalScheduleId: ExternalId): Report {
-    val runner = client.readWriteTransaction()
-    runner.run { transactionContext ->
+    val commitTimestamp = runTransactionForCommitTimestamp { transactionContext ->
       createNextReportTransaction.execute(transactionContext, externalScheduleId)
     }
-    val commitTimestamp: Timestamp = runner.commitTimestamp
 
     return ReadLatestReportByScheduleQuery().execute(
       client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp)),
@@ -101,7 +110,7 @@ class GcpKingdomRelationalDatabase(
   }
 
   override fun updateReportState(externalReportId: ExternalId, state: ReportState) =
-    client.runReadWriteTransaction { transactionContext ->
+    runTransaction { transactionContext ->
       UpdateReportStateTransaction().execute(transactionContext, externalReportId, state)
     }
 
@@ -115,7 +124,7 @@ class GcpKingdomRelationalDatabase(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    client.runReadWriteTransaction { transactionContext ->
+    runTransaction { transactionContext ->
       AssociateRequisitionAndReportTransaction()
         .execute(transactionContext, externalRequisitionId, externalReportId)
     }
@@ -128,11 +137,9 @@ class GcpKingdomRelationalDatabase(
     StreamReadySchedulesQuery().execute(client.singleUse(), limit)
 
   override fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
-    val runner = client.readWriteTransaction()
-    runner.run { transactionContext ->
+    val commitTimestamp = runTransactionForCommitTimestamp { transactionContext ->
       CreateReportLogEntryTransaction().execute(transactionContext, reportLogEntry)
     }
-    val commitTimestamp: Timestamp = runner.commitTimestamp
     return reportLogEntry.toBuilder().apply {
       createTime = commitTimestamp.toProto()
     }.build()
@@ -144,41 +151,56 @@ class GcpKingdomRelationalDatabase(
     externalRequisitionIds: Set<ExternalId>
   ): Report {
     // TODO: this uses two reads that could be collapsed into one.
-    val runner = client.readWriteTransaction()
-    runner.run { transactionContext ->
+    val commitTimestamp = runTransactionForCommitTimestamp { transactionContext ->
       ConfirmDuchyReadinessTransaction()
         .execute(transactionContext, externalReportId, duchyId, externalRequisitionIds)
     }
-    val commitTimestamp: Timestamp = runner.commitTimestamp
     val readContext = client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp))
     val reportReadResult = ReportReader().readExternalId(readContext, externalReportId)
     return reportReadResult.report
   }
 
-  override fun createDataProvider(): DataProvider {
-    return client.runReadWriteTransaction { transactionContext ->
-      createDataProviderTransaction.execute(transactionContext)
-    }
+  override fun createDataProvider(): DataProvider = runTransaction { transactionContext ->
+    createDataProviderTransaction.execute(transactionContext)
   }
 
-  override fun createAdvertiser(): Advertiser {
-    return client.runReadWriteTransaction { transactionContext ->
-      createAdvertiserTransaction.execute(transactionContext)
-    }
+  override fun createAdvertiser(): Advertiser = runTransaction { transactionContext ->
+    createAdvertiserTransaction.execute(transactionContext)
   }
 
   override fun createCampaign(
     externalDataProviderId: ExternalId,
     externalAdvertiserId: ExternalId,
     providedCampaignId: String
-  ): Campaign {
-    return client.runReadWriteTransaction { transactionContext ->
-      createCampaignTransaction.execute(
-        transactionContext,
-        externalDataProviderId,
-        externalAdvertiserId,
-        providedCampaignId
-      )
+  ): Campaign = runTransaction { transactionContext ->
+    createCampaignTransaction.execute(
+      transactionContext,
+      externalDataProviderId,
+      externalAdvertiserId,
+      providedCampaignId
+    )
+  }
+
+  override fun createReportConfig(
+    reportConfig: ReportConfig,
+    campaigns: List<ExternalId>
+  ): ReportConfig =
+    runTransaction { transactionContext ->
+      createReportConfigTransaction.execute(transactionContext, reportConfig, campaigns)
     }
+
+  override fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule =
+    runTransaction { transactionContext ->
+      createScheduleTransaction.execute(transactionContext, schedule)
+    }
+
+  private fun <T> runTransaction(block: (TransactionContext) -> T): T {
+    return client.runReadWriteTransaction(block)
+  }
+
+  private fun runTransactionForCommitTimestamp(block: (TransactionContext) -> Unit): Timestamp {
+    val runner = client.readWriteTransaction()
+    runner.run(block)
+    return runner.commitTimestamp
   }
 }

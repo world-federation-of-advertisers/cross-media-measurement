@@ -34,9 +34,8 @@ fun spannerDispatcher(): CoroutineDispatcher = Dispatchers.IO
  * @param[block] the body of the transaction
  * @return the result of [block]
  */
-fun <T> DatabaseClient.runReadWriteTransaction(
-  block: (TransactionContext) -> T
-): T = readWriteTransaction().run(block)!!
+fun <T> DatabaseClient.runReadWriteTransaction(block: (TransactionContext) -> T): T =
+  readWriteTransaction().run(block)!!
 
 /**
  * Convenience function for appending without worrying about whether the last [append] had
