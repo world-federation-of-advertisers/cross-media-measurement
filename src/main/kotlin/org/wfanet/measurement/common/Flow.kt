@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.common
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -66,4 +69,30 @@ fun <T> Flow<T>.withRetriesOnEach(
       if (attempt == maxAttempts || !retryPredicate(e)) throw e
     }
   }
+}
+
+/**
+ * Runs [transform] asynchronously, buffers at most [concurrency] [Deferred<R>]s, then awaits the
+ * results sequentially.
+ *
+ * This has FIFO semantics: the order of results in the output flow is the same as the order of
+ * the input. However, since [transform]'s results are run async, there is no guarantee that one will
+ * complete before the next. (However, an item [concurrency] + 2 positions ahead of another is
+ * guaranteed to finish first.)
+ *
+ * See https://github.com/Kotlin/kotlinx.coroutines/issues/1147.
+ *
+ * [scope] must contain the same [CoroutineContext] that the flow is collected in.
+ *
+ * @param[scope] the scope under which to launch [async] coroutines
+ * @param[concurrency] number of Deferred that can be awaiting at once
+ * @param[transform] the mapping function
+ * @return the output of mapping [transform] over the receiver
+ */
+fun <T, R> Flow<T>.mapConcurrently(
+  scope: CoroutineScope,
+  concurrency: Int,
+  transform: suspend (T) -> R
+): Flow<R> {
+  return map { scope.async { transform(it) } }.buffer(concurrency).map { it.await() }
 }

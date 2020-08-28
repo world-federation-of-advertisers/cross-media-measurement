@@ -3,6 +3,7 @@ package org.wfanet.measurement.kingdom
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
+import org.wfanet.measurement.common.mapConcurrently
 import org.wfanet.measurement.common.pairAll
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -11,7 +12,7 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 suspend fun Daemon.runRequisitionLinker() {
   streamReportsAwaitingRequisitionCreation()
     .pairAll { report -> daemonDatabaseServicesClient.buildRequisitionsForReport(report).asFlow() }
-    .collect { (report, requisition) ->
+    .mapConcurrently(this, maxConcurrency) { (report, requisition) ->
       throttleAndLog {
         logger.info("Creating requisition: $requisition")
         val actualRequisition = daemonDatabaseServicesClient.createRequisition(requisition)
@@ -20,6 +21,7 @@ suspend fun Daemon.runRequisitionLinker() {
         daemonDatabaseServicesClient.associateRequisitionToReport(actualRequisition, report)
       }
     }
+    .collect()
 }
 
 private fun Daemon.streamReportsAwaitingRequisitionCreation(): Flow<Report> =

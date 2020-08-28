@@ -15,10 +15,10 @@ import picocli.CommandLine
 
 class DaemonFlags {
   @set:CommandLine.Option(
-    names = ["--max-parallelism"],
+    names = ["--max-concurrency"],
     defaultValue = "32"
   )
-  var maxParallelism by Delegates.notNull<Int>()
+  var maxConcurrency by Delegates.notNull<Int>()
     private set
 
   @CommandLine.Option(
@@ -71,5 +71,5 @@ fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlockin
     RequisitionStorageCoroutineStub(channel)
   )
 
-  Daemon(throttler, flags.maxParallelism, databaseClient).block()
+  Daemon(throttler, flags.maxConcurrency, databaseClient).block()
 }

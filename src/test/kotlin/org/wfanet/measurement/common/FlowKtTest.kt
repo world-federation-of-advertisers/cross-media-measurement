@@ -15,14 +15,15 @@
 package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
+import kotlin.test.fail
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import kotlin.test.assertFailsWith
-import kotlin.test.fail
 
 @RunWith(JUnit4::class)
 class FlowKtTest {
@@ -98,5 +99,45 @@ class FlowKtTest {
     assertThat(successfullyProcessedItems).isEqualTo((1..6).toList())
     // Even items are attempted once and odd items attempted twice.
     assertThat(triesCounter).isEqualTo(mapOf(1 to 2, 2 to 1, 3 to 2, 4 to 1, 5 to 2, 6 to 1))
+  }
+
+  @Test
+  fun `concurrentMap runs concurrently`() = runBlocking<Unit> {
+    val latch = CountDownLatch(100)
+    val events = mutableListOf<Int>()
+    val result =
+      (1..100)
+        .asFlow()
+        .mapConcurrently(this, 100) {
+          events.add(it)
+          latch.countDown()
+          latch.await()
+          -it
+        }
+        .toList()
+    assertThat(events)
+      .containsExactlyElementsIn(1..100)
+      .inOrder()
+    assertThat(result)
+      .containsExactlyElementsIn(-1 downTo -100)
+      .inOrder()
+  }
+
+  @Test
+  fun `concurrentMap runs in order`() = runBlocking<Unit> {
+    val events = mutableListOf<Int>()
+    val result =
+      flowOf(1, 2)
+        .mapConcurrently(this, 1) {
+          events.add(it)
+          -it
+        }
+        .toList()
+    assertThat(events)
+      .containsExactly(1, 2)
+      .inOrder()
+    assertThat(result)
+      .containsExactly(-1, -2)
+      .inOrder()
   }
 }
