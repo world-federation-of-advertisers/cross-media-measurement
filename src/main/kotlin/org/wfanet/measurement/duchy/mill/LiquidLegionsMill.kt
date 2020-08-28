@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
@@ -157,7 +156,10 @@ class LiquidLegionsMill(
     }
 
     globalComputationsClient.confirmGlobalComputation(
-      availableRequisitions.toConfirmGlobalComputationRequest()
+      ConfirmGlobalComputationRequest.newBuilder().apply {
+        addAllReadyRequisitions(availableRequisitions.map { it.toMetricRequisitionKey() })
+        keyBuilder.globalComputationId = token.globalComputationId.toString()
+      }.build()
     )
 
     return if (availableRequisitions.size != requisitionsToConfirm.size) {
@@ -336,41 +338,37 @@ class LiquidLegionsMill(
   private suspend fun decryptFlagCountsAndComputeMetrics(
     token: ComputationToken
   ): ComputationToken {
-      val (bytes, nextToken) = existingOutputOr(token) {
-        cryptoWorker.decryptLastLayerFlagAndCount(
-          DecryptLastLayerFlagAndCountRequest.newBuilder()
-            .setCurveId(cryptoKeySet.curveId.toLong())
-            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
-            .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
-            .build()
-        ).toByteString()
-      }
-
-      val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes).flagCountsList
-      val frequencyHistogram: Map<Long, Long> = flagCounts
-        .filter { it.isNotDestroyed }
-        .groupBy { it.frequency }
-        .mapKeys { it.key.toLong() }
-        .mapValues { it.value.size.toLong() }
-      val cardinality: Long = Estimators.EstimateCardinalityLiquidLegions(
-        liquidLegionsConfig.decayRate, liquidLegionsConfig.size, flagCounts.size.toLong()
-      )
-      globalComputationsClient.finishGlobalComputation(
-        FinishGlobalComputationRequest.newBuilder()
-          .setKey(
-            GlobalComputation.Key.newBuilder()
-              .setGlobalComputationId(nextToken.globalComputationId.toString())
-          )
-          .setResult(
-            GlobalComputation.Result.newBuilder()
-              .setReach(cardinality)
-              .putAllFrequency(frequencyHistogram)
-          )
+    val (bytes, nextToken) = existingOutputOr(token) {
+      cryptoWorker.decryptLastLayerFlagAndCount(
+        DecryptLastLayerFlagAndCountRequest.newBuilder()
+          .setCurveId(cryptoKeySet.curveId.toLong())
+          .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+          .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
           .build()
-      )
-
-      return completeComputation(nextToken, CompletedReason.SUCCEEDED)
+      ).toByteString()
     }
+
+    val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes).flagCountsList
+    val frequencyHistogram: Map<Long, Long> = flagCounts
+      .filter { it.isNotDestroyed }
+      .groupBy { it.frequency }
+      .mapKeys { it.key.toLong() }
+      .mapValues { it.value.size.toLong() }
+    val cardinality: Long = Estimators.EstimateCardinalityLiquidLegions(
+      liquidLegionsConfig.decayRate, liquidLegionsConfig.size, flagCounts.size.toLong()
+    )
+    globalComputationsClient.finishGlobalComputation(
+      FinishGlobalComputationRequest.newBuilder().apply {
+        keyBuilder.globalComputationId = token.globalComputationId.toString()
+        resultBuilder.apply {
+          reach = cardinality
+          putAllFrequency(frequencyHistogram)
+        }
+      }.build()
+    )
+
+    return completeComputation(nextToken, CompletedReason.SUCCEEDED)
+  }
 
   private suspend fun existingOutputOr(
     token: ComputationToken,
@@ -427,19 +425,13 @@ class LiquidLegionsMill(
       .build()
   }
 
-  private fun MutableSet<RequisitionKey>.toConfirmGlobalComputationRequest():
-    ConfirmGlobalComputationRequest {
-      return ConfirmGlobalComputationRequest.newBuilder()
-        .addAllReadyRequisitions(
-          this.map { key ->
-            MetricRequisition.Key.newBuilder()
-              .setCampaignId(key.campaignId)
-              .setDataProviderId(key.dataProviderId)
-              .setMetricRequisitionId(key.metricRequisitionId)
-              .build()
-          }
-        ).build()
-    }
+  private fun RequisitionKey.toMetricRequisitionKey(): MetricRequisition.Key {
+    return MetricRequisition.Key.newBuilder()
+      .setCampaignId(campaignId)
+      .setDataProviderId(dataProviderId)
+      .setMetricRequisitionId(metricRequisitionId)
+      .build()
+  }
 
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
 

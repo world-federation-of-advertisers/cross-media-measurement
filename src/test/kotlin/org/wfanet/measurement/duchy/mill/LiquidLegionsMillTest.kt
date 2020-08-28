@@ -244,10 +244,14 @@ class LiquidLegionsMillTest {
     verifyProtoArgument(
       mockGlobalComputations,
       GlobalComputationsCoroutineImplBase::confirmGlobalComputation
+    ).isEqualTo(
+      ConfirmGlobalComputationRequest.newBuilder()
+        .setKey(
+          GlobalComputation.Key.newBuilder()
+            .setGlobalComputationId(computationId.toString())
+        )
+        .build()
     )
-      .isEqualTo(
-        ConfirmGlobalComputationRequest.getDefaultInstance()
-      )
   }
 
   @Test
@@ -327,6 +331,10 @@ class LiquidLegionsMillTest {
     )
       .isEqualTo(
         ConfirmGlobalComputationRequest.newBuilder()
+          .setKey(
+            GlobalComputation.Key.newBuilder()
+              .setGlobalComputationId(computationId.toString())
+          )
           .addReadyRequisitions("1".toMetricRequisitionKey())
           .addReadyRequisitions("2".toMetricRequisitionKey())
           .build()
@@ -385,6 +393,10 @@ class LiquidLegionsMillTest {
     )
       .isEqualTo(
         ConfirmGlobalComputationRequest.newBuilder()
+          .setKey(
+            GlobalComputation.Key.newBuilder()
+              .setGlobalComputationId(computationId.toString())
+          )
           .addReadyRequisitions("1".toMetricRequisitionKey())
           .build()
       )
