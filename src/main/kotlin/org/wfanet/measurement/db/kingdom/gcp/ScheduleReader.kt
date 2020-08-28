@@ -49,6 +49,8 @@ class ScheduleReader : SpannerReader<ScheduleReader.Result>() {
     JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)
     """.trimIndent()
 
+  override val externalIdColumn: String = "ReportConfigSchedules.ExternalScheduleId"
+
   override suspend fun translate(struct: Struct): Result =
     Result(
       schedule = buildSchedule(struct),

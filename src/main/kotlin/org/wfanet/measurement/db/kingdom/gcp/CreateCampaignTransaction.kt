@@ -45,15 +45,15 @@ class CreateCampaignTransaction(private val idGenerator: IdGenerator) {
     readContext: ReadContext,
     externalDataProviderId: ExternalId
   ): InternalId {
-    val readResult = DataProviderReader.forExternalId(readContext, externalDataProviderId)
-    return InternalId(requireNotNull(readResult).dataProviderId)
+    val readResult = DataProviderReader().readExternalId(readContext, externalDataProviderId)
+    return InternalId(readResult.dataProviderId)
   }
 
   private suspend fun readAdvertiserId(
     readContext: ReadContext,
     externalAdvertiserId: ExternalId
   ): InternalId {
-    val readResult = AdvertiserReader.forExternalId(readContext, externalAdvertiserId)
-    return InternalId(requireNotNull(readResult).advertiserId)
+    val readResult = AdvertiserReader().readExternalId(readContext, externalAdvertiserId)
+    return InternalId(readResult.advertiserId)
   }
 }

@@ -53,10 +53,18 @@ class GcpKingdomRelationalDatabase(
     client: DatabaseClient
   ) : this(clock, idGenerator, { client })
 
-  override suspend fun writeNewRequisition(requisition: Requisition): Requisition =
-    client.runReadWriteTransaction { transactionContext ->
+  override suspend fun writeNewRequisition(requisition: Requisition): Requisition {
+    val result = client.runReadWriteTransaction { transactionContext ->
       createRequisitionTransaction.execute(transactionContext, requisition)
-    } ?: requisition
+    }
+    return when (result) {
+      is CreateRequisitionTransaction.Result.ExistingRequisition -> result.requisition
+      is CreateRequisitionTransaction.Result.NewRequisitionId ->
+        RequisitionReader()
+          .readExternalId(client.singleUse(TimestampBound.strong()), result.externalRequisitionId)
+          .requisition
+    }
+  }
 
   override suspend fun fulfillRequisition(
     externalRequisitionId: ExternalId,
@@ -143,8 +151,8 @@ class GcpKingdomRelationalDatabase(
     }
     val commitTimestamp: Timestamp = runner.commitTimestamp
     val readContext = client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp))
-    val reportReadResult = ReportReader.forExternalId(readContext, externalReportId)
-    return requireNotNull(reportReadResult).report
+    val reportReadResult = ReportReader().readExternalId(readContext, externalReportId)
+    return reportReadResult.report
   }
 
   override fun createDataProvider(): DataProvider {

@@ -19,6 +19,7 @@ import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -29,9 +30,8 @@ class UpdateReportStateTransaction {
     externalReportId: ExternalId,
     state: ReportState
   ): Report {
-    val reportReadResult = runBlocking {
-      ReportReader.forExternalId(transactionContext, externalReportId)
-        ?: error("ExternalReportId $externalReportId not found")
+    val reportReadResult = runBlocking(spannerDispatcher()) {
+      ReportReader().readExternalId(transactionContext, externalReportId)
     }
 
     if (reportReadResult.report.state == state) {

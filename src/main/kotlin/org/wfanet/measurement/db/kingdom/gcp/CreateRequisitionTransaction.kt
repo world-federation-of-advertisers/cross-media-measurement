@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.asFlow
@@ -44,26 +45,37 @@ class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
     val campaignId: Long
   )
 
+  sealed class Result {
+    data class ExistingRequisition(val requisition: Requisition) : Result()
+    data class NewRequisitionId(val externalRequisitionId: ExternalId) : Result()
+  }
+
   /**
    * Runs the transaction body.
    *
    * This does not enforce any preconditions on [requisition]. For example, there is no guarantee
    * that the startTime is before the endTime or the state is valid.
    *
+   * TODO: instead of returning a [Result], construct the new [Requisition] without an additional
+   * Spanner read.
+   *
    * @param[transactionContext] the transaction to use
    * @param[requisition] the new [Requisition]
-   * @return the existing [Requisition] or null
+   * @return the existing [Requisition] or the external id of a newly created Requisition.
    */
   fun execute(
     transactionContext: TransactionContext,
     requisition: Requisition
-  ): Requisition? = runBlocking(spannerDispatcher()) {
+  ): Result = runBlocking(spannerDispatcher()) {
     val existing = findExistingRequisition(transactionContext, requisition)
-    if (existing == null) {
-      val parentKey = findParentKey(transactionContext, requisition.externalCampaignId)
-      transactionContext.buffer(requisition.toInsertMutation(parentKey))
+    if (existing != null) {
+      return@runBlocking Result.ExistingRequisition(existing)
     }
-    existing
+
+    val parentKey = findParentKey(transactionContext, requisition.externalCampaignId)
+    val externalRequisitionId = idGenerator.generateExternalId()
+    transactionContext.buffer(requisition.toInsertMutation(parentKey, externalRequisitionId))
+    Result.NewRequisitionId(externalRequisitionId)
   }
 
   private suspend fun findParentKey(
@@ -116,12 +128,15 @@ class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
       .singleOrNull()
   }
 
-  private fun Requisition.toInsertMutation(parentKey: ParentKey): Mutation =
+  private fun Requisition.toInsertMutation(
+    parentKey: ParentKey,
+    externalRequisitionId: ExternalId
+  ): Mutation =
     Mutation.newInsertBuilder("Requisitions")
       .set("DataProviderId").to(parentKey.dataProviderId)
       .set("CampaignId").to(parentKey.campaignId)
       .set("RequisitionId").to(idGenerator.generateInternalId().value)
-      .set("ExternalRequisitionId").to(idGenerator.generateExternalId().value)
+      .set("ExternalRequisitionId").to(externalRequisitionId.value)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)

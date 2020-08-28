@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
+import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -30,12 +31,14 @@ class AssociateRequisitionAndReportTransaction {
     transactionContext: TransactionContext,
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
-  ) = runBlocking {
-    val reportFuture = async { ReportReader.forExternalId(transactionContext, externalReportId)!! }
-    val requisitionFuture = async { readRequisition(transactionContext, externalRequisitionId) }
+  ) = runBlocking(spannerDispatcher()) {
+    val reportDeferred = async {
+      ReportReader().readExternalId(transactionContext, externalReportId)
+    }
+    val requisitionDeferred = async { readRequisition(transactionContext, externalRequisitionId) }
 
-    val reportReadResult = reportFuture.await()
-    val requisitionReadResult = requisitionFuture.await()
+    val reportReadResult = reportDeferred.await()
+    val requisitionReadResult = requisitionDeferred.await()
 
     // This uses an InsertOrUpdate to avoid crashing if it already exists. This can't actually
     // update the row because the entire thing is part of the PK.

@@ -14,10 +14,7 @@
 
 package org.wfanet.measurement.db.kingdom.gcp
 
-import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -55,6 +52,8 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     JOIN Campaigns USING (DataProviderId, CampaignId)
     """.trimIndent()
 
+  override val externalIdColumn: String = "Requisitions.ExternalRequisitionId"
+
   override suspend fun translate(struct: Struct): Result =
     Result(
       requisition = buildRequisition(struct),
@@ -84,20 +83,4 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     )
     requisitionDetailsJson = struct.getString("RequisitionDetailsJson")
   }.build()
-
-  companion object {
-    /** Returns a [Result] given an external advertiser id, or null if no such id exists. */
-    suspend fun forExternalId(
-      readContext: ReadContext,
-      externalRequisitionId: ExternalId
-    ): Result? {
-      return RequisitionReader()
-        .withBuilder {
-          append("WHERE ExternalRequisitionId = @external_requisition_id")
-          bind("external_requisition_id").to(externalRequisitionId.value)
-        }
-        .execute(readContext)
-        .singleOrNull()
-    }
-  }
 }

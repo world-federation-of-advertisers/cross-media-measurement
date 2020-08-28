@@ -14,11 +14,7 @@
 
 package org.wfanet.measurement.db.kingdom.gcp
 
-import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Report
@@ -45,6 +41,8 @@ class ReportReader : SpannerReader<ReportReader.Result>() {
     JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)
     JOIN ReportConfigSchedules USING (AdvertiserId, ReportConfigId, ScheduleId)
     """.trimIndent()
+
+  override val externalIdColumn: String = "Reports.ExternalReportId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(
@@ -92,17 +90,5 @@ class ReportReader : SpannerReader<ReportReader.Result>() {
     )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
-
-    suspend fun forExternalId(
-      readContext: ReadContext,
-      externalReportId: ExternalId
-    ): Result? =
-      ReportReader()
-        .withBuilder {
-          appendClause("WHERE Reports.ExternalReportId = @external_report_id")
-          bind("external_report_id").to(externalReportId.value)
-        }
-        .execute(readContext)
-        .singleOrNull()
   }
 }

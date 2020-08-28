@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -39,7 +40,9 @@ class FulfillRequisitionTransaction {
     externalRequisitionId: ExternalId,
     duchyId: String
   ): Requisition {
-    val readResult = runBlocking { readRequisition(transactionContext, externalRequisitionId) }
+    val readResult = runBlocking(spannerDispatcher()) {
+      RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
+    }
 
     require(readResult.requisition.state == RequisitionState.UNFULFILLED) {
       "Requisition $externalRequisitionId is not UNFULFILLED: $readResult"
@@ -59,15 +62,5 @@ class FulfillRequisitionTransaction {
       .setState(RequisitionState.FULFILLED)
       .setDuchyId(duchyId)
       .build()
-  }
-
-  private suspend fun readRequisition(
-    transactionContext: TransactionContext,
-    externalRequisitionId: ExternalId
-  ): RequisitionReader.Result {
-    val result = RequisitionReader.forExternalId(transactionContext, externalRequisitionId)
-    return requireNotNull(result) {
-      "Requisition $externalRequisitionId not found"
-    }
   }
 }

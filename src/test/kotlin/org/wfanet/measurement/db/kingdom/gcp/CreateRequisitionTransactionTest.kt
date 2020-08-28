@@ -15,9 +15,10 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.Timestamp
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
-import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,6 +29,8 @@ import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
+import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.ExistingRequisition
+import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.NewRequisitionId
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -92,10 +95,12 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `requisition already exists`() {
-    val existing: Requisition? = databaseClient.runReadWriteTransaction {
+    val result = databaseClient.runReadWriteTransaction {
       createRequisitionTransaction.execute(it, INPUT_REQUISITION)
     }
-    assertThat(existing)
+
+    assertTrue(result is ExistingRequisition)
+    assertThat(result.requisition)
       .comparingExpectedFieldsOnly()
       .isEqualTo(REQUISITION)
     assertThat(readAllRequisitionsInSpanner())
@@ -109,11 +114,14 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
       windowStartTime = NEW_TIMESTAMP.toProto()
     }.build()
+    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
 
-    val existing: Requisition? = databaseClient.readWriteTransaction().run {
-      createRequisitionTransaction.execute(it, newRequisition)
+    val result = databaseClient.readWriteTransaction().run {
+      createRequisitionTransaction.execute(it, newRequisitionWithoutId)
     }
-    assertNull(existing)
+    assertTrue(result is NewRequisitionId)
+    assertThat(result.externalRequisitionId.value)
+      .isEqualTo(NEW_EXTERNAL_REQUISITION_ID)
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)
@@ -126,10 +134,12 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       windowEndTime = NEW_TIMESTAMP.toProto()
     }.build()
 
-    val existing: Requisition? = databaseClient.readWriteTransaction().run {
+    val result = databaseClient.readWriteTransaction().run {
       createRequisitionTransaction.execute(it, newRequisition)
     }
-    assertNull(existing)
+    assertTrue(result is NewRequisitionId)
+    assertThat(result.externalRequisitionId.value)
+      .isEqualTo(NEW_EXTERNAL_REQUISITION_ID)
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)
@@ -142,10 +152,12 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
       requisitionDetails = NEW_REQUISITION_DETAILS
     }.build()
 
-    val existing: Requisition? = databaseClient.readWriteTransaction().run {
+    val result = databaseClient.readWriteTransaction().run {
       createRequisitionTransaction.execute(it, newRequisition)
     }
-    assertNull(existing)
+    assertTrue(result is NewRequisitionId)
+    assertThat(result.externalRequisitionId.value)
+      .isEqualTo(NEW_EXTERNAL_REQUISITION_ID)
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)

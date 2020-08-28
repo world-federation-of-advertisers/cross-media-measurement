@@ -19,13 +19,17 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.asFlow
 
 /**
  * Abstraction for reading rows from Spanner and translating into more expressive objects.
  */
-abstract class SpannerReader<T> {
+abstract class SpannerReader<T : Any> {
   protected abstract val baseSql: String
+  protected abstract val externalIdColumn: String
 
   protected abstract suspend fun translate(struct: Struct): T
 
@@ -40,4 +44,20 @@ abstract class SpannerReader<T> {
 
   fun execute(readContext: ReadContext): Flow<T> =
     readContext.executeQuery(builder.build()).asFlow().map(::translate)
+
+  suspend fun readExternalIdOrNull(readContext: ReadContext, externalId: ExternalId): T? {
+    return this
+      .withBuilder {
+        appendClause("WHERE $externalIdColumn = @external_id LIMIT 1")
+        bind("external_id").to(externalId.value)
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  suspend fun readExternalId(readContext: ReadContext, externalId: ExternalId): T {
+    return requireNotNull(readExternalIdOrNull(readContext, externalId)) {
+      "Not found: $externalId"
+    }
+  }
 }

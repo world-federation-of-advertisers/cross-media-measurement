@@ -3,18 +3,18 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TransactionContext
+import com.google.cloud.spanner.Value
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.DuchyIds
-import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.db.gcp.single
+import org.wfanet.measurement.db.gcp.asSequence
+import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 /**
@@ -37,13 +37,44 @@ class ConfirmDuchyReadinessTransaction {
     externalReportId: ExternalId,
     duchyId: String,
     externalRequisitionIds: Set<ExternalId>
-  ) {
-    val readResult = readReportAndRequisitionIds(transactionContext, externalReportId, duchyId)
+  ) = runBlocking(spannerDispatcher()) {
+    val reportReadResult = ReportReader().readExternalId(transactionContext, externalReportId)
+    require(reportReadResult.report.state == ReportState.AWAITING_DUCHY_CONFIRMATION) {
+      "Report $externalReportId is in wrong state: ${reportReadResult.report.state}"
+    }
 
-    val expectedIds = readResult.getLongList("ExternalRequisitionIds").map(::ExternalId).toSet()
+    val requisitions = readRequisitionsForReportAndDuchy(
+      transactionContext, reportReadResult.reportId, duchyId
+    )
+    val expectedIds = requisitions.map(::ExternalId).toSet()
     validateRequisitions(externalRequisitionIds, expectedIds)
 
-    transactionContext.buffer(updateReportDetailsMutation(readResult, duchyId))
+    transactionContext.buffer(updateReportDetailsMutation(reportReadResult, duchyId))
+  }
+
+  private fun readRequisitionsForReportAndDuchy(
+    readContext: ReadContext,
+    reportId: Long,
+    duchyId: String
+  ): List<Long> {
+    val sql =
+      """
+      SELECT Requisitions.ExternalRequisitionId
+      FROM ReportRequisitions
+      JOIN Requisitions USING (DataProviderId, CampaignId, RequisitionId)
+      WHERE ReportRequisitions.ReportId = @report_id
+        AND Requisitions.DuchyId = @duchy_id
+      """.trimIndent()
+    val statement =
+      Statement.newBuilder(sql)
+        .bind("report_id").to(reportId)
+        .bind("duchy_id").to(duchyId)
+        .build()
+    return readContext
+      .executeQuery(statement)
+      .asSequence()
+      .map { it.getLong("ExternalRequisitionId") }
+      .toList()
   }
 
   private fun validateRequisitions(providedIds: Set<ExternalId>, expectedIds: Set<ExternalId>) {
@@ -57,73 +88,25 @@ class ConfirmDuchyReadinessTransaction {
     }
   }
 
-  /**
-   * Reads the PK of the [Report] with [externalReportId] and all of the external [Requisition] ids
-   * that belong to Duchy [duchyId] for the [Report].
-   *
-   * The requisition ids are represented in the return [Struct] as an array of Longs in column
-   * "ExternalRequisitionIds".
-   */
-  private fun readReportAndRequisitionIds(
-    readContext: ReadContext,
-    externalReportId: ExternalId,
+  private fun updateReportDetailsMutation(
+    reportReadResult: ReportReader.Result,
     duchyId: String
-  ): Struct {
-    val sql =
-      """
-      SELECT
-        Reports.AdvertiserId,
-        Reports.ReportConfigId,
-        Reports.ScheduleId,
-        Reports.ReportId,
-        Reports.ReportDetails,
-        IFNULL(
-          ARRAY_CONCAT_AGG(DuchyRequisitions.ExternalRequisitionIds),
-          ARRAY<INT64>[]
-        ) AS ExternalRequisitionIds
-      FROM Reports
-      LEFT JOIN ReportRequisitions USING (AdvertiserId, ReportConfigId, ScheduleId, ReportId)
-      LEFT JOIN (
-        SELECT Requisitions.DataProviderId,
-               Requisitions.CampaignId,
-               Requisitions.RequisitionId,
-               ARRAY_AGG(Requisitions.ExternalRequisitionId) AS ExternalRequisitionIds
-        FROM Requisitions
-        WHERE Requisitions.DuchyId = @duchy_id
-        GROUP BY 1, 2, 3
-      ) AS DuchyRequisitions USING (DataProviderId, CampaignId, RequisitionId)
-      WHERE Reports.ExternalReportId = @external_report_id
-        AND Reports.State = @report_state
-      GROUP BY 1, 2, 3, 4, 5
-      LIMIT 1
-      """.trimIndent()
-
-    val query =
-      Statement.newBuilder(sql)
-        .bind("external_report_id").to(externalReportId.value)
-        .bind("report_state").toProtoEnum(ReportState.AWAITING_DUCHY_CONFIRMATION)
-        .bind("duchy_id").to(duchyId)
-        .build()
-
-    return readContext.executeQuery(query).single()
-  }
-
-  private fun updateReportDetailsMutation(readResult: Struct, duchyId: String): Mutation {
+  ): Mutation {
     require(duchyId in DuchyIds.ALL) {
       "Duchy id '$duchyId' not in list of valid duchies: ${DuchyIds.ALL}"
     }
 
     val reportDetails =
-      readResult.getProtoMessage("ReportDetails", ReportDetails.parser())
-        .toBuilder()
+      reportReadResult.report.reportDetails.toBuilder()
         .addConfirmedDuchies(duchyId)
         .build()
 
     return Mutation.newUpdateBuilder("Reports").apply {
-      set("AdvertiserId").to(readResult.getLong("AdvertiserId"))
-      set("ReportConfigId").to(readResult.getLong("ReportConfigId"))
-      set("ScheduleId").to(readResult.getLong("ScheduleId"))
-      set("ReportId").to(readResult.getLong("ReportId"))
+      set("AdvertiserId").to(reportReadResult.advertiserId)
+      set("ReportConfigId").to(reportReadResult.reportConfigId)
+      set("ScheduleId").to(reportReadResult.scheduleId)
+      set("ReportId").to(reportReadResult.reportId)
+      set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
       set("ReportDetails").toProtoBytes(reportDetails)
       set("ReportDetailsJson").toProtoJson(reportDetails)
       if (reportDetails.confirmedDuchiesCount == DuchyIds.size) {

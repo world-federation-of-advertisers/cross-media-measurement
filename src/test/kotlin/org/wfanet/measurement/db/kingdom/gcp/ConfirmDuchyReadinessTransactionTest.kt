@@ -16,6 +16,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
 import org.junit.Before
@@ -25,6 +26,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -89,6 +91,7 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
   private fun assertReportInDatabaseIs(report: Report.Builder) {
     assertThat(readAllReportsInSpanner())
       .ignoringFields(Report.REPORT_DETAILS_JSON_FIELD_NUMBER)
+      .ignoringFields(Report.UPDATE_TIME_FIELD_NUMBER)
       .containsExactly(report.build())
   }
 
@@ -143,6 +146,7 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
 
     assertReportInDatabaseIs(originalReportBuilder.withConfirmedDuchies(DUCHY_ID))
 
+    val timestamp = currentSpannerTimestamp
     runConfirmDuchyReadinessTransaction(OTHER_DUCHY_ID)
 
     assertReportInDatabaseIs(
@@ -150,6 +154,11 @@ class ConfirmDuchyReadinessTransactionTest : KingdomDatabaseTestBase() {
         .setState(ReportState.IN_PROGRESS)
         .withConfirmedDuchies(DUCHY_ID, OTHER_DUCHY_ID)
     )
+
+    // Confirm that the update time changed.
+    val updateTime = readAllReportsInSpanner().firstOrNull()?.updateTime?.toInstant()
+    assertThat(updateTime).isNotNull()
+    assertThat(updateTime).isGreaterThan(timestamp)
   }
 
   @Test

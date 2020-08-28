@@ -16,10 +16,7 @@ class CreateReportLogEntryTransaction {
     reportLogEntry: ReportLogEntry
   ) = runBlocking(spannerDispatcher()) {
     val externalId = ExternalId(reportLogEntry.externalReportId)
-    val reportReadResult =
-      requireNotNull(ReportReader.forExternalId(transactionContext, externalId)) {
-        "Report missing: $externalId"
-      }
+    val reportReadResult = ReportReader().readExternalId(transactionContext, externalId)
     transactionContext.buffer(reportLogEntry.toInsertMutation(reportReadResult))
   }
 }
