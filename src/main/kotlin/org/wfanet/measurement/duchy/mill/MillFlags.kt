@@ -102,7 +102,7 @@ class MillFlags {
     names = ["--bytes-per-chunk"],
     description = ["The number of bytes in a chunk when sending result to other duchy."],
     required = true,
-    defaultValue = "2_000_000"
+    defaultValue = "2000000"
   )
   var chunkSize by Delegates.notNull<Int>()
     private set
