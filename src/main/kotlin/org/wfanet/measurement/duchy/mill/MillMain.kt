@@ -113,7 +113,10 @@ private fun run(
     cryptoKeySet = cryptoKeySet,
     cryptoWorker = cryptoWorker,
     throttler = pollingThrottler,
-    chunkSize = millFlags.chunkSize
+    chunkSize = millFlags.chunkSize,
+    liquidLegionsConfig = LiquidLegionsMill.LiquidLegionsConfig(
+      millFlags.liquidLegionsDecayRate, millFlags.liquidLegionsSize
+    )
   )
 
   runBlocking { mill.continuallyProcessComputationQueue() }

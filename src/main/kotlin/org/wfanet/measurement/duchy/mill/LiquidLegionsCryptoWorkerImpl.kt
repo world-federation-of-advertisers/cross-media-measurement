@@ -41,13 +41,13 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     System.load(lib.absolutePath)
   }
 
-  override fun AddNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
+  override fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
     return AddNoiseToSketchResponse.parseFrom(
       ProtocolEncryptionUtility.AddNoiseToSketch(request.toByteArray())
     )
   }
 
-  override fun BlindOneLayerRegisterIndex(
+  override fun blindOneLayerRegisterIndex(
     request: BlindOneLayerRegisterIndexRequest
   ): BlindOneLayerRegisterIndexResponse {
     return BlindOneLayerRegisterIndexResponse.parseFrom(
@@ -55,7 +55,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     )
   }
 
-  override fun BlindLastLayerIndexThenJoinRegisters(
+  override fun blindLastLayerIndexThenJoinRegisters(
     request: BlindLastLayerIndexThenJoinRegistersRequest
   ): BlindLastLayerIndexThenJoinRegistersResponse {
     return BlindLastLayerIndexThenJoinRegistersResponse.parseFrom(
@@ -63,7 +63,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     )
   }
 
-  override fun DecryptLastLayerFlagAndCount(
+  override fun decryptLastLayerFlagAndCount(
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse {
     return DecryptLastLayerFlagAndCountResponse.parseFrom(
@@ -71,7 +71,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     )
   }
 
-  override fun DecryptOneLayerFlagAndCount(
+  override fun decryptOneLayerFlagAndCount(
     request: DecryptOneLayerFlagAndCountRequest
   ): DecryptOneLayerFlagAndCountResponse {
     return DecryptOneLayerFlagAndCountResponse.parseFrom(

@@ -46,6 +46,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -756,6 +757,61 @@ class LiquidLegionsMillTest {
         .setPartialData(ByteString.copyFromUtf8("erFlagAndCount")) // Chunk 2, the rest
         .setComputationId(computationId).build()
     )
+  }
+
+  @Test
+  fun `to decrypt flag count and compute metric`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val inputBlobPath = "TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS/input"
+    val computationId = 1111L
+    fakeComputationStorage.addComputation(
+      id = computationId,
+      stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage(),
+      role = RoleInComputation.PRIMARY,
+      blobs = listOf(
+        newInputBlobMetadata(0L, inputBlobPath),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+    fakeBlobs[inputBlobPath] = "data".toByteArray()
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val expectTokenAfterProcess =
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(computationId)
+        .setLocalComputationId(computationId)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + write blob + transitionStage
+        .setRole(RoleInComputation.PRIMARY)
+        .build()
+    assertEquals(expectTokenAfterProcess, fakeComputationStorage[computationId]!!)
+    assertThat(fakeBlobs["1111/TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS_1_output"]).isNotEmpty()
+
+    verifyProtoArgument(
+      mockGlobalComputations,
+      GlobalComputationsCoroutineImplBase::finishGlobalComputation
+    )
+      .isEqualTo(
+        FinishGlobalComputationRequest.newBuilder()
+          .setKey(
+            GlobalComputation.Key.newBuilder()
+              .setGlobalComputationId(computationId.toString())
+          )
+          .setResult(
+            GlobalComputation.Result.newBuilder()
+              .setReach(9)
+              .putFrequency(1, 1)
+              .putFrequency(2, 2)
+              .putFrequency(3, 3)
+          )
+          .build()
+      )
   }
 
   companion object {

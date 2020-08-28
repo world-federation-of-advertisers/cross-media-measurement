@@ -106,4 +106,22 @@ class MillFlags {
   )
   var chunkSize by Delegates.notNull<Int>()
     private set
+
+  @set:CommandLine.Option(
+    names = ["--liquid-legions-decay-rate"],
+    description = ["The decay rate of liquid legions sketch."],
+    required = true,
+    defaultValue = "12.0"
+  )
+  var liquidLegionsDecayRate by Delegates.notNull<Double>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--liquid-legions-size"],
+    description = ["The maximum size of liquid legions sketch."],
+    required = true,
+    defaultValue = "100000"
+  )
+  var liquidLegionsSize by Delegates.notNull<Long>()
+    private set
 }

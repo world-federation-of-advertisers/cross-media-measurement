@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.File
 import java.nio.charset.Charset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +25,10 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
@@ -43,6 +47,8 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputatio
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
+import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
@@ -69,6 +75,7 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.outputP
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  *    computation table.
  * @param chunkSize The size of data chunk when sending result to other duchies.
+ * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
  */
 class LiquidLegionsMill(
   private val millId: String,
@@ -79,8 +86,17 @@ class LiquidLegionsMill(
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsCryptoWorker,
   private val throttler: MinimumIntervalThrottler,
-  private val chunkSize: Int = 2_000_000
+  private val chunkSize: Int = 2000000,
+  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 1000_0000L)
 ) {
+  init {
+    val lib = File(
+      "external/any_sketch/src/main/java/org/wfanet/estimation/" +
+        System.mapLibraryName("estimators")
+    )
+    System.load(lib.absolutePath)
+  }
+
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.name)
   }
@@ -110,7 +126,7 @@ class LiquidLegionsMill(
         LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
           blindPositionsAndJoinRegisters(token)
         LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
-          decryptFlagCountsAndComputeMetrics()
+          decryptFlagCountsAndComputeMetrics(token)
         LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS ->
           decryptFlagCounts(token)
         else -> error("Unexpected stage for mill to process: $token")
@@ -178,7 +194,7 @@ class LiquidLegionsMill(
         RoleInComputation.SECONDARY -> 1
         else -> error { "Unknown role in computation ${token.role}" }
       }
-      cryptoWorker.AddNoiseToSketch(
+      cryptoWorker.addNoiseToSketch(
         // TODO: set other parameters when AddNoise actually adds noise.
         //  Now it just shuffle the registers.
         AddNoiseToSketchRequest.newBuilder()
@@ -230,7 +246,7 @@ class LiquidLegionsMill(
     // TODO: Catch permanent errors and terminate the Computation
 
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.BlindOneLayerRegisterIndex(
+      cryptoWorker.blindOneLayerRegisterIndex(
         BlindOneLayerRegisterIndexRequest.newBuilder()
           .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
           .setCurveId(cryptoKeySet.curveId.toLong())
@@ -261,7 +277,7 @@ class LiquidLegionsMill(
   /** Process computation in the TO_BLIND_POSITIONS_AND_JOIN_REGISTERS stage */
   private suspend fun blindPositionsAndJoinRegisters(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.BlindLastLayerIndexThenJoinRegisters(
+      cryptoWorker.blindLastLayerIndexThenJoinRegisters(
         BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
           .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
           .setCurveId(cryptoKeySet.curveId.toLong())
@@ -292,7 +308,7 @@ class LiquidLegionsMill(
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS stage */
   private suspend fun decryptFlagCounts(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.DecryptOneLayerFlagAndCount(
+      cryptoWorker.decryptOneLayerFlagAndCount(
         DecryptOneLayerFlagAndCountRequest.newBuilder()
           .setCurveId(cryptoKeySet.curveId.toLong())
           .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
@@ -317,9 +333,44 @@ class LiquidLegionsMill(
   }
 
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS stage */
-  private suspend fun decryptFlagCountsAndComputeMetrics() {
-    TODO("Not yet implemented")
-  }
+  private suspend fun decryptFlagCountsAndComputeMetrics(
+    token: ComputationToken
+  ): ComputationToken {
+      val (bytes, nextToken) = existingOutputOr(token) {
+        cryptoWorker.decryptLastLayerFlagAndCount(
+          DecryptLastLayerFlagAndCountRequest.newBuilder()
+            .setCurveId(cryptoKeySet.curveId.toLong())
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        ).toByteString()
+      }
+
+      val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes).flagCountsList
+      val frequencyHistogram: Map<Long, Long> = flagCounts
+        .filter { it.isNotDestroyed }
+        .groupBy { it.frequency }
+        .mapKeys { it.key.toLong() }
+        .mapValues { it.value.size.toLong() }
+      val cardinality: Long = Estimators.EstimateCardinalityLiquidLegions(
+        liquidLegionsConfig.decayRate, liquidLegionsConfig.size, flagCounts.size.toLong()
+      )
+      globalComputationsClient.finishGlobalComputation(
+        FinishGlobalComputationRequest.newBuilder()
+          .setKey(
+            GlobalComputation.Key.newBuilder()
+              .setGlobalComputationId(nextToken.globalComputationId.toString())
+          )
+          .setResult(
+            GlobalComputation.Result.newBuilder()
+              .setReach(cardinality)
+              .putAllFrequency(frequencyHistogram)
+          )
+          .build()
+      )
+
+      return completeComputation(nextToken, CompletedReason.SUCCEEDED)
+    }
 
   private suspend fun existingOutputOr(
     token: ComputationToken,
@@ -391,4 +442,6 @@ class LiquidLegionsMill(
     }
 
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
+
+  data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
 }

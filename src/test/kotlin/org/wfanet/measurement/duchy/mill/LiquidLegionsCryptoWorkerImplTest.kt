@@ -25,7 +25,7 @@ class LiquidLegionsCryptoWorkerImplTest {
   fun `check JNI lib is loaded successfully`() {
     // Send an invalid request and check if we can get the error thrown inside JNI.
     val e = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsCryptoWorkerImpl().BlindOneLayerRegisterIndex(
+      LiquidLegionsCryptoWorkerImpl().blindOneLayerRegisterIndex(
         BlindOneLayerRegisterIndexRequest.getDefaultInstance()
       )
     }

@@ -29,6 +29,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+        "@any_sketch//src/main/java/org/wfanet/estimation:estimators",
         "@com_google_protobuf//:protobuf_java",
     ],
 )

@@ -33,12 +33,12 @@ interface LiquidLegionsCryptoWorker {
   /**
    * Add noise registers to the input sketch.
    */
-  fun AddNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse
+  fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse
 
   /**
    * Blind (one layer) all register indexes of a sketch.
    */
-  fun BlindOneLayerRegisterIndex(
+  fun blindOneLayerRegisterIndex(
     request: BlindOneLayerRegisterIndexRequest
   ): BlindOneLayerRegisterIndexResponse
 
@@ -46,21 +46,21 @@ interface LiquidLegionsCryptoWorker {
    * Blind (last layer) the register indexes, and then join the registers by the deterministically
    * encrypted register indexes, and then merge the counts using the same-key-aggregating algorithm.
    */
-  fun BlindLastLayerIndexThenJoinRegisters(
+  fun blindLastLayerIndexThenJoinRegisters(
     request: BlindLastLayerIndexThenJoinRegistersRequest
   ): BlindLastLayerIndexThenJoinRegistersResponse
 
   /**
    * Decrypt (one layer) the count and flag of all registers.
    */
-  fun DecryptOneLayerFlagAndCount(
+  fun decryptOneLayerFlagAndCount(
     request: DecryptOneLayerFlagAndCountRequest
   ): DecryptOneLayerFlagAndCountResponse
 
   /**
    * Decrypt (last layer) the count and flag of all registers.
    */
-  fun DecryptLastLayerFlagAndCount(
+  fun decryptLastLayerFlagAndCount(
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse
 }

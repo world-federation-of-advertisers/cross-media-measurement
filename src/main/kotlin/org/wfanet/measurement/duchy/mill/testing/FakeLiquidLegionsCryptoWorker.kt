@@ -24,18 +24,19 @@ import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexResponse
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
+import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse.FlagCount
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
 
 class FakeLiquidLegionsCryptoWorker : LiquidLegionsCryptoWorker {
 
-  override fun AddNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
+  override fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
     val postFix = ByteString.copyFromUtf8("-AddedNoise")
     return AddNoiseToSketchResponse
       .newBuilder().setSketch(request.sketch.concat(postFix)).build()
   }
 
-  override fun BlindOneLayerRegisterIndex(
+  override fun blindOneLayerRegisterIndex(
     request: BlindOneLayerRegisterIndexRequest
   ): BlindOneLayerRegisterIndexResponse {
     val postFix = ByteString.copyFromUtf8("-BlindedOneLayerRegisterIndex")
@@ -43,7 +44,7 @@ class FakeLiquidLegionsCryptoWorker : LiquidLegionsCryptoWorker {
       .newBuilder().setSketch(request.sketch.concat(postFix)).build()
   }
 
-  override fun BlindLastLayerIndexThenJoinRegisters(
+  override fun blindLastLayerIndexThenJoinRegisters(
     request: BlindLastLayerIndexThenJoinRegistersRequest
   ): BlindLastLayerIndexThenJoinRegistersResponse {
     val postFix = ByteString.copyFromUtf8("-BlindedLastLayerIndexThenJoinRegisters")
@@ -51,17 +52,30 @@ class FakeLiquidLegionsCryptoWorker : LiquidLegionsCryptoWorker {
       .newBuilder().setFlagCounts(request.sketch.concat(postFix)).build()
   }
 
-  override fun DecryptLastLayerFlagAndCount(
+  override fun decryptLastLayerFlagAndCount(
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse {
-    return DecryptLastLayerFlagAndCountResponse.getDefaultInstance()
+    return DecryptLastLayerFlagAndCountResponse.newBuilder()
+      .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 1))
+      .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 2))
+      .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 2))
+      .addFlagCounts(newFlagCount(isNotDestroyed = false, frequency = 2))
+      .addFlagCounts(newFlagCount(isNotDestroyed = false, frequency = 2))
+      .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 3))
+      .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 3))
+      .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 3))
+      .build()
   }
 
-  override fun DecryptOneLayerFlagAndCount(
+  override fun decryptOneLayerFlagAndCount(
     request: DecryptOneLayerFlagAndCountRequest
   ): DecryptOneLayerFlagAndCountResponse {
     val postFix = ByteString.copyFromUtf8("-DecryptedOneLayerFlagAndCount")
     return DecryptOneLayerFlagAndCountResponse
       .newBuilder().setFlagCounts(request.flagCounts.concat(postFix)).build()
+  }
+
+  private fun newFlagCount(isNotDestroyed: Boolean, frequency: Int): FlagCount {
+    return FlagCount.newBuilder().setIsNotDestroyed(isNotDestroyed).setFrequency(frequency).build()
   }
 }
