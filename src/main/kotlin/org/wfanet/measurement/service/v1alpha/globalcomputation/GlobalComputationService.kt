@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
@@ -43,6 +44,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails.MpcAlgorithm
+import org.wfanet.measurement.internal.kingdom.FinishReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -129,6 +131,21 @@ class GlobalComputationService(
       )
     }.build()
     val report = reportStorageStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
+    return report.toGlobalComputation()
+  }
+
+  override suspend fun finishGlobalComputation(
+    request: FinishGlobalComputationRequest
+  ): GlobalComputation {
+    val finishReportRequest = FinishReportRequest.newBuilder().apply {
+      externalReportId = ApiId(request.key.globalComputationId).externalId.value
+      resultBuilder.apply {
+        reach = request.result.reach
+        putAllFrequency(request.result.frequencyMap)
+      }
+    }.build()
+
+    val report = reportStorageStub.finishReport(finishReportRequest)
     return report.toGlobalComputation()
   }
 

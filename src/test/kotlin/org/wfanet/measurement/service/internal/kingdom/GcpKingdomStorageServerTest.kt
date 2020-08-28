@@ -380,6 +380,9 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   fun `ReportStorage ConfirmDuchyReadiness`() = todo {}
 
   @Test
+  fun `ReportStorage FinishReport`() = todo {}
+
+  @Test
   fun `RequisitionStorage CreateRequisition`() = todo {}
 
   @Test

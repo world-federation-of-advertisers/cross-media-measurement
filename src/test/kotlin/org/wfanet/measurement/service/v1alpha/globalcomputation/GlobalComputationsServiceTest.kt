@@ -34,6 +34,7 @@ import org.junit.runners.JUnit4
 import org.mockito.Mockito
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
@@ -47,6 +48,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
 import org.wfanet.measurement.internal.kingdom.DuchyLogDetails
+import org.wfanet.measurement.internal.kingdom.FinishReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -297,5 +299,35 @@ class GlobalComputationsServiceTest {
 
     verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::confirmDuchyReadiness)
       .isEqualTo(expectedConfirmDuchyReadinessRequest)
+  }
+
+  @Test
+  fun finishGlobalComputation() = runBlocking<Unit> {
+    val request = FinishGlobalComputationRequest.newBuilder().apply {
+      keyBuilder.globalComputationId = ExternalId(123).apiId.value
+      resultBuilder.apply {
+        reach = 456
+        putFrequency(1, 2)
+        putFrequency(3, 4)
+      }
+    }.build()
+
+    whenever(reportStorage.finishReport(any()))
+      .thenReturn(REPORT)
+
+    assertThat(service.finishGlobalComputation(request))
+      .isEqualTo(GLOBAL_COMPUTATION)
+
+    val expectedFinishReportRequest = FinishReportRequest.newBuilder().apply {
+      externalReportId = 123
+      resultBuilder.apply {
+        reach = 456
+        putFrequency(1, 2)
+        putFrequency(3, 4)
+      }
+    }.build()
+
+    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::finishReport)
+      .isEqualTo(expectedFinishReportRequest)
   }
 }

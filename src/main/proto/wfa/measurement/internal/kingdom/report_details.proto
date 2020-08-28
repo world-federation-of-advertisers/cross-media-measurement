@@ -23,4 +23,14 @@ message ReportDetails {
   // Before a Report can be started, each Duchy involved needs to confirm its
   // readiness. This holds the list of Duchies that are ready.
   repeated string confirmed_duchies = 1;
+
+  // Only present for successfully finished Reports.
+  message Result {
+    int64 reach = 1;
+
+    // Histogram: maps frequencies to counts. For example, a map entry
+    // {key: 4 value: 7} means that 7 users were exposed 4 times.
+    map<int64, int64> frequency = 2;
+  }
+  Result result = 2;
 }

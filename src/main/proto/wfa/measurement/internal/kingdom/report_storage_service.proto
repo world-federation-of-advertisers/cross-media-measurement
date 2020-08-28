@@ -18,6 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
 import "src/main/proto/wfa/measurement/internal/kingdom/report.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/report_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -53,6 +54,9 @@ service ReportStorage {
 
   // Confirms that a Duchy is ready to perform the computations for a Report.
   rpc ConfirmDuchyReadiness(ConfirmDuchyReadinessRequest) returns (Report);
+
+  // Finishes a Report.
+  rpc FinishReport(FinishReportRequest) returns (Report);
 }
 
 message GetReportRequest {
@@ -102,4 +106,9 @@ message ConfirmDuchyReadinessRequest {
   int64 external_report_id = 1;
   string duchy_id = 2;
   repeated int64 external_requisition_ids = 3;
+}
+
+message FinishReportRequest {
+  int64 external_report_id = 1;
+  ReportDetails.Result result = 2;
 }

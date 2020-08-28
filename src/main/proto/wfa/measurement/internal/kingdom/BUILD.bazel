@@ -90,6 +90,7 @@ proto_library(
     name = "report_storage_service_proto",
     srcs = ["report_storage_service.proto"],
     deps = [
+        ":report_details_proto",
         ":report_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
