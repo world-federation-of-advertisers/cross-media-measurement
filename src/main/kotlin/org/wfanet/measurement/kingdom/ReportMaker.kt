@@ -5,7 +5,12 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
-/** Streams ReportConfigs that need Reports and creates them in parallel. */
+/**
+ * Streams ReportConfigSchedules that need Reports and creates them.
+ *
+ * The next Report for a ReportConfigSchedule is created at the beginning of the period of time that
+ * the Report covers.
+ */
 suspend fun Daemon.runReportMaker() {
   streamReadySchedules()
     .onEach { logger.info("Schedule is ready: $it") }

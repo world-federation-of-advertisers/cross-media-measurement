@@ -8,7 +8,12 @@ import org.wfanet.measurement.common.pairAll
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
-/** Streams Reports that are lacking requisitions and creates them in parallel. */
+/**
+ * Associates Requisitions to Reports, creating the Requisitions if necessary.
+ *
+ * Because the number of Requisitions could be large, this allows up to [Daemon.maxConcurrency]
+ * in-flight Requisition creations or associations.
+ */
 suspend fun Daemon.runRequisitionLinker() {
   streamReportsAwaitingRequisitionCreation()
     .pairAll { report -> daemonDatabaseServicesClient.buildRequisitionsForReport(report).asFlow() }

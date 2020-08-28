@@ -20,7 +20,14 @@ import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
-/** Streams Reports with no unfulfilled Requisitions and marks them as ready to start. */
+/**
+ * Streams Reports with no unfulfilled Requisitions and updates them to await Duchy confirmation.
+ *
+ * At present, this consists of Reports in state AWAITING_REQUISITION_CREATION with the correct
+ * number of associated, fulfilled Requisitions.
+ *
+ * TODO: this should consider state AWAITING_REQUISITION_FULFILLMENT.
+ */
 suspend fun Daemon.runReportStarter() {
   streamReadyReports()
     .onEach { logger.info("Report is ready: $it") }
