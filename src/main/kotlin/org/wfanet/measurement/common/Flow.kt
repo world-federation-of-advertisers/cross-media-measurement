@@ -84,9 +84,9 @@ fun <T> Flow<T>.withRetriesOnEach(
  *
  * [scope] must contain the same [CoroutineContext] that the flow is collected in.
  *
- * @param[scope] the scope under which to launch [async] coroutines
- * @param[concurrency] number of Deferred that can be awaiting at once
- * @param[transform] the mapping function
+ * @param scope the scope under which to launch [async] coroutines
+ * @param concurrency number of Deferred that can be awaiting at once
+ * @param transform the mapping function
  * @return the output of mapping [transform] over the receiver
  */
 fun <T, R> Flow<T>.mapConcurrently(

@@ -33,8 +33,8 @@ class StreamReadyReportsQuery {
   /**
    * Streams [Report]s without unfulfilled [Requisition]s.
    *
-   * @param[readContext] the context in which to perform Spanner reads
-   * @param[limit] how many [Report]s to return -- if zero, there is no limit
+   * @param readContext the context in which to perform Spanner reads
+   * @param limit how many [Report]s to return -- if zero, there is no limit
    * @return a [Flow] of [Report]s in an arbitrary order
    */
   fun execute(

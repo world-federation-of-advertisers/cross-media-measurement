@@ -40,10 +40,10 @@ typealias StreamReportsFilter = AllOfClause<StreamReportsClause>
  *   - it is associated with either ID1 or ID2, and
  *   - it was created after SOME_TIME.
  *
- * @param[externalDataProviderIds] a list of Data Providers
- * @param[externalCampaignIds] a list of Campaigns
- * @param[states] a list of [RequisitionState]s
- * @param[createdAfter] a time after which Requisitions must be created
+ * @param externalDataProviderIds a list of Data Providers
+ * @param externalCampaignIds a list of Campaigns
+ * @param states a list of [RequisitionState]s
+ * @param createdAfter a time after which Requisitions must be created
  */
 fun streamRequisitionsFilter(
   externalDataProviderIds: List<ExternalId>? = null,
@@ -73,11 +73,11 @@ fun streamRequisitionsFilter(
  *   - it is associated with a schedule with external id either ID1 or ID2, and
  *   - it was created after SOME_TIME.
  *
- * @param[externalAdvertiserIds] a list of Advertisers
- * @param[externalReportConfigIds] a list of Report Configs
- * @param[externalScheduleIds] a list of ReportConfigSchedules
- * @param[states] a list of [ReportState]s
- * @param[createdAfter] a time after which results must be created
+ * @param externalAdvertiserIds a list of Advertisers
+ * @param externalReportConfigIds a list of Report Configs
+ * @param externalScheduleIds a list of ReportConfigSchedules
+ * @param states a list of [ReportState]s
+ * @param createdAfter a time after which results must be created
  */
 fun streamReportsFilter(
   externalAdvertiserIds: List<ExternalId>? = null,

@@ -27,8 +27,8 @@ class StreamReadySchedulesQuery {
   /**
    * Streams [ReportConfigSchedule]s with nextReportStartTimes in the past.
    *
-   * @param[readContext] the context in which to perform Spanner reads
-   * @param[limit] how many results to return -- if zero, there is no limit
+   * @param readContext the context in which to perform Spanner reads
+   * @param limit how many results to return -- if zero, there is no limit
    * @return a [Flow] of [ReportConfigSchedule]s in an arbitrary order
    */
   fun execute(

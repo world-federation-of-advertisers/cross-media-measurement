@@ -123,7 +123,7 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.
    *
-   * @param[ownerId] The identifier of the worker process that will own the lock.
+   * @param ownerId The identifier of the worker process that will own the lock.
    * @return global computation id of work that was claimed. When null, no work was claimed.
    */
   suspend fun claimTask(ownerId: String): Long?
@@ -131,14 +131,14 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
   /**
    * Transitions a computation to a new stage.
    *
-   * @param[token] The token for the computation
-   * @param[nextStage] Stage this computation should transition to.
-   * @param[inputBlobPaths] References to BLOBs that are inputs to this computation stage, all
+   * @param token The token for the computation
+   * @param nextStage Stage this computation should transition to.
+   * @param inputBlobPaths References to BLOBs that are inputs to this computation stage, all
    *    inputs should be written on transition and should not change.
-   * @param[outputBlobs] Number of BLOBs this computation outputs. These are created as
+   * @param outputBlobs Number of BLOBs this computation outputs. These are created as
    *    part of the computation so they do not have a reference to the real storage location.
-   * @param[afterTransition] The work to be do with the computation after a successful transition.
-   * @param[nextStageDetails] Details specific to the next stage.
+   * @param afterTransition The work to be do with the computation after a successful transition.
+   * @param nextStageDetails Details specific to the next stage.
    */
   suspend fun updateComputationStage(
     token: ComputationStorageEditToken<StageT>,

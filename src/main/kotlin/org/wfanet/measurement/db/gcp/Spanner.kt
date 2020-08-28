@@ -31,7 +31,7 @@ fun spannerDispatcher(): CoroutineDispatcher = Dispatchers.IO
  * This wraps the Java API to be more convenient for Kotlin because the Java API is nullable but the
  * block given isn't, so coercion from nullable to not is needed.
  *
- * @param[block] the body of the transaction
+ * @param block the body of the transaction
  * @return the result of [block]
  */
 fun <T> DatabaseClient.runReadWriteTransaction(block: (TransactionContext) -> T): T =

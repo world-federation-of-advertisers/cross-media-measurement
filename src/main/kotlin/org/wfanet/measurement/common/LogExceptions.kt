@@ -22,8 +22,8 @@ private val logger = Logger.getLogger("org.wfanet.measurement.common.LogExceptio
 /**
  * Logs any exception thrown by [block].
  *
- * @param[level] the log level to log exceptions at
- * @param[block] the function to run
+ * @param level the log level to log exceptions at
+ * @param block the function to run
  * @return the result of [block] or null if it threw
  */
 fun <T> logAndSuppressException(level: Level = Level.SEVERE, block: () -> T): T? =

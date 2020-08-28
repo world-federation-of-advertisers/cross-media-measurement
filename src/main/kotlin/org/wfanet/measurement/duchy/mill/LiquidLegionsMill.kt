@@ -55,18 +55,18 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.outputP
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
  *
- * @param[millId] The identifier of this mill, used to claim a work.
- * @param[storageClients] clients that have access to local computation storage, i.e., spanner
+ * @param millId The identifier of this mill, used to claim a work.
+ * @param storageClients clients that have access to local computation storage, i.e., spanner
  *    table and blob store.
- * @param[metricValuesClient] client of the own duchy's MetricValuesService.
- * @param[globalComputationsClient] client of the kingdom's GlobalComputationsService.
- * @param[workerStubs] A map from other duchies' Ids to their corresponding
+ * @param metricValuesClient client of the own duchy's MetricValuesService.
+ * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
+ * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
- * @param[cryptoKeySet] The set of crypto keys used in the computation.
- * @param[cryptoWorker] The cryptoWorker that performs the actual computation.
- * @param[throttler] A throttler used to rate limit the frequency of the mill polling from the
+ * @param cryptoKeySet The set of crypto keys used in the computation.
+ * @param cryptoWorker The cryptoWorker that performs the actual computation.
+ * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  *    computation table.
- * @param[chunkSize] The size of data chunk when sending result to other duchies.
+ * @param chunkSize The size of data chunk when sending result to other duchies.
  */
 class LiquidLegionsMill(
   private val millId: String,
@@ -159,8 +159,12 @@ class LiquidLegionsMill(
       storageClients.transitionComputationToStage(
         nextToken,
         inputsToNextStage = nextToken.outputPathList(),
-        stage = if (nextToken.role == RoleInComputation.PRIMARY)
-          LiquidLegionsStage.WAIT_SKETCHES else LiquidLegionsStage.WAIT_TO_START
+        stage = when (checkNotNull(nextToken.role)) {
+          RoleInComputation.PRIMARY -> LiquidLegionsStage.WAIT_SKETCHES
+          RoleInComputation.SECONDARY -> LiquidLegionsStage.WAIT_TO_START
+          RoleInComputation.UNKNOWN,
+          RoleInComputation.UNRECOGNIZED -> error("Unknown role in token: $nextToken")
+        }
       )
     }
   }

@@ -20,10 +20,10 @@ import io.grpc.StatusRuntimeException
 /**
  * Throws [StatusRuntimeException] if the [condition] is false.
  *
- * @param[condition] throw if this is false
- * @param[status] what gRPC error code to use
- * @param[block] lazy generator for the error message
- * @throws[StatusRuntimeException] if [condition] is false
+ * @param condition throw if this is false
+ * @param status what gRPC error code to use
+ * @param block lazy generator for the error message
+ * @throws StatusRuntimeException if [condition] is false
  */
 fun grpcRequire(
   condition: Boolean,
@@ -36,9 +36,9 @@ fun grpcRequire(
 /**
  * Throws [StatusRuntimeException] with a description.
  *
- * @param[status] what gRPC error code to use
- * @param[block] lazy generator for the error message
- * @throws[StatusRuntimeException]
+ * @param status what gRPC error code to use
+ * @param block lazy generator for the error message
+ * @throws StatusRuntimeException
  */
 fun failGrpc(status: Status = Status.INVALID_ARGUMENT, block: () -> String): Nothing =
   throw StatusRuntimeException(status.withDescription(block()))
@@ -46,14 +46,14 @@ fun failGrpc(status: Status = Status.INVALID_ARGUMENT, block: () -> String): Not
 /**
  * Executes the [tryBlock] throwing a [StatusRuntimeException] for any errors caught.
  *
- * @param[failureStatus] what gRPC error code to use
- * @param[errorMessage] lazy generator for the error message
- * @param[tryBlock] block of code to execute
- * @throws[StatusRuntimeException]
+ * @param failureStatus what gRPC error code to use
+ * @param errorMessage lazy generator for the error message
+ * @param tryBlock block of code to execute
+ * @throws StatusRuntimeException
  */
-suspend fun <T> grpcTryAndRethrow (
+suspend fun <T> grpcTryAndRethrow(
   failureStatus: Status = Status.UNKNOWN,
   errorMessage: (Throwable) -> String,
   tryBlock: suspend () -> T
-) : T =
+): T =
   try { tryBlock() } catch (t: Throwable) { failGrpc(failureStatus) { errorMessage(t) } }

@@ -30,9 +30,9 @@ class FulfillRequisitionTransaction {
   /**
    * Runs the transaction body.
    *
-   * @param[transactionContext] the transaction to use
-   * @param[externalRequisitionId] the id of the [Requisition]
-   * @throws[IllegalArgumentException] if the [Requisition] doesn't exist
+   * @param transactionContext the transaction to use
+   * @param externalRequisitionId the id of the [Requisition]
+   * @throws IllegalArgumentException if the [Requisition] doesn't exist
    * @return the existing [Requisition] after being marked as fulfilled
    */
   fun execute(

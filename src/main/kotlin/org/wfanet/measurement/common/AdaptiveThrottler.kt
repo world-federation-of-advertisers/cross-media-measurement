@@ -18,10 +18,10 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.ArrayDeque
+import kotlin.properties.Delegates
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import picocli.CommandLine
-import kotlin.properties.Delegates
 
 /**
  * Provides an adaptive throttler.
@@ -32,10 +32,10 @@ import kotlin.properties.Delegates
  * For most batch use cases, [overloadFactor] should be 1.1.
  * For interactive use cases, a higher value is acceptable (e.g. 2.0).
  *
- * @param[overloadFactor] how much to overload the backend
- * @param[clock] a clock
- * @param[timeHorizon] what time window to look at to determine proportion of accepted requests
- * @param[pollDelay] how often to retry when throttled in [onReady]
+ * @param overloadFactor how much to overload the backend
+ * @param clock a clock
+ * @param timeHorizon what time window to look at to determine proportion of accepted requests
+ * @param pollDelay how often to retry when throttled in [onReady]
  */
 class AdaptiveThrottler(
   private val overloadFactor: Double,
@@ -100,8 +100,10 @@ class AdaptiveThrottler(
     @set:CommandLine.Option(
       names = ["--throttler-overload-factor"],
       required = true,
-      description = ["How much to overload the backend. If the factor is 1.1 it is expected ",
-                     "that 10% of requests will fail due to throttling."],
+      description = [
+        "How much to overload the backend. If the factor is 1.1 it is expected ",
+        "that 10% of requests will fail due to throttling."
+      ],
       defaultValue = "1.1"
     )
     var overloadFactor by Delegates.notNull<Double>()

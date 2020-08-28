@@ -37,7 +37,7 @@ interface KingdomRelationalDatabase {
    *
    * If an equivalent [Requisition] already exists, this will return that instead.
    *
-   * @param[requisition] the Requisition to save
+   * @param requisition the Requisition to save
    * @return the [Requisition] in the database -- old or new
    */
   suspend fun createRequisition(requisition: Requisition): Requisition
@@ -97,11 +97,11 @@ interface KingdomRelationalDatabase {
    *
    * If all duchies are ready, then the Report is transitioned into state [ReportState.IN_PROGRESS].
    *
-   * @param[externalReportId] the Report
-   * @param[duchyId] the stable Duchy identifier
-   * @param[externalRequisitionIds] the [Requisition]s for which this Duchy is providing data
+   * @param externalReportId the Report
+   * @param duchyId the stable Duchy identifier
+   * @param externalRequisitionIds the [Requisition]s for which this Duchy is providing data
    * @return the modified Report
-   * @throws[IllegalArgumentException] if [externalRequisitionIds] is not exactly what is expected
+   * @throws IllegalArgumentException if [externalRequisitionIds] is not exactly what is expected
    **/
   suspend fun confirmDuchyReadiness(
     externalReportId: ExternalId,
@@ -122,9 +122,9 @@ interface KingdomRelationalDatabase {
   /**
    * Registers a Campaign.
    *
-   * @param[externalDataProviderId] the Data Provider providing data for the campaign
-   * @param[externalAdvertiserId] the Advertiser owning of the campaign
-   * @param[providedCampaignId] user-provided, unvalidated name of the campaign (for display in UIs)
+   * @param externalDataProviderId the Data Provider providing data for the campaign
+   * @param externalAdvertiserId the Advertiser owning of the campaign
+   * @param providedCampaignId user-provided, unvalidated name of the campaign (for display in UIs)
    * @return the created [Campaign]
    */
   fun createCampaign(

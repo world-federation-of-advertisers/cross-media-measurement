@@ -31,9 +31,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * renewedFlow will go on forever -- so run it in a coroutine and cancel when appropriate.
  *
- * @param[reconnectMillis] how frequently to restart the stream
- * @param[reconnectDelayMillis] after disconnecting, how long to wait until reconnecting
- * @param[block] callback that will be called repeatedly to produce flows
+ * @param reconnectMillis how frequently to restart the stream
+ * @param reconnectDelayMillis after disconnecting, how long to wait until reconnecting
+ * @param block callback that will be called repeatedly to produce flows
  * @return the combined flow
  */
 fun <T> renewedFlow(

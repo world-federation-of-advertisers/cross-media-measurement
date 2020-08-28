@@ -14,15 +14,15 @@
 
 package org.wfanet.measurement.db.duchy.computation
 
-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import java.io.IOException
 import java.nio.file.Paths
 import kotlin.random.Random
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 
 /**
  * Manages status and stage transitions for ongoing computations.
  *
- * @param[StageT] enum of the stages of a computation.
+ * @param StageT enum of the stages of a computation.
  */
 abstract class ComputationManager<StageT : Enum<StageT>>(
   private val relationalDatabase: ComputationsRelationalDb<StageT, ComputationStageDetails>,
@@ -32,7 +32,7 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
   /**
    * Creates a new computation.
    *
-   * @throws [IOException] upon failure
+   * @throws IOException upon failure
    */
   suspend fun createComputation(globalId: Long, stage: StageT, details: ComputationStageDetails) {
     relationalDatabase.insertComputation(globalId, stage, details)
@@ -51,15 +51,15 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
    * Because each task knows the input blobs required to complete it, the set of BLOBs required by
    * the task are all referenced here. The BLOBs should be present before calling this function.
    *
-   * @param[token] The task currently being worked
-   * @param[stageAfter] The stage to transition the computation to
-   * @param[inputBlobsPaths] List of pathes ot all input BLOBs for the new stage. They must exist.
-   * @param[outputBlobCount] The number of BLOBs which should be written as part of this stage,
+   * @param token The task currently being worked
+   * @param stageAfter The stage to transition the computation to
+   * @param inputBlobsPaths List of pathes ot all input BLOBs for the new stage. They must exist.
+   * @param outputBlobCount The number of BLOBs which should be written as part of this stage,
    *    this may be useful when a stage is waiting on inputs from multiple other workers.
-   * @param[afterTransition] What to do with the work after transitioning the stage.
-   * @param[nextStageDetails] details specific to the next stage to include in the database.
+   * @param afterTransition What to do with the work after transitioning the stage.
+   * @param nextStageDetails details specific to the next stage to include in the database.
    *
-   * @throws [IOException] when stage stage transition fails
+   * @throws IOException when stage stage transition fails
    */
   suspend fun transitionStage(
     token: ComputationStorageEditToken<StageT>,
@@ -82,9 +82,9 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
   /**
    * Transitions the stage of an ongoing computation to an ending state.
    *
-   * @param[token] The task currently being worked
-   * @param[endingStage] The terminal stage to transition the computation to
-   * @param [endComputationReason] The reason why the computation is ending
+   * @param token The task currently being worked
+   * @param endingStage The terminal stage to transition the computation to
+   * @param endComputationReason The reason why the computation is ending
    */
   suspend fun endComputation(
     token: ComputationStorageEditToken<StageT>,
@@ -97,7 +97,7 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
   /**
    * Enqueues a computation into the work queue.
    *
-   * @throws [IOException] upon failure
+   * @throws IOException upon failure
    */
   suspend fun enqueue(token: ComputationStorageEditToken<StageT>) {
     relationalDatabase.enqueue(token)
@@ -117,7 +117,7 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
    * Write a BLOB to blob storage, and then update the reference to it in the relational data
    * base for a stage.
    *
-   * @throws [IOException] upon failure
+   * @throws IOException upon failure
    */
   suspend fun writeAndRecordOutputBlob(
     token: ComputationStorageEditToken<StageT>,

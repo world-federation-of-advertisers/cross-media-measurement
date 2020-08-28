@@ -26,11 +26,11 @@ class ConfirmDuchyReadinessTransaction {
   /**
    * Runs the transaction.
    *
-   * @param[transactionContext] the transaction to use
-   * @param[externalReportId] the [Report]
-   * @param[duchyId] the Duchy
-   * @param[externalRequisitionIds] all [Requisition]s the Duchy is providing for the computation
-   * @throws[IllegalArgumentException] if [externalRequisitionIds] is not what is expected
+   * @param transactionContext the transaction to use
+   * @param externalReportId the [Report]
+   * @param duchyId the Duchy
+   * @param externalRequisitionIds all [Requisition]s the Duchy is providing for the computation
+   * @throws IllegalArgumentException if [externalRequisitionIds] is not what is expected
    */
   fun execute(
     transactionContext: TransactionContext,

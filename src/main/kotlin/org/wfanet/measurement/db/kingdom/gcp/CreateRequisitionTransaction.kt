@@ -59,8 +59,8 @@ class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
    * TODO: instead of returning a [Result], construct the new [Requisition] without an additional
    * Spanner read.
    *
-   * @param[transactionContext] the transaction to use
-   * @param[requisition] the new [Requisition]
+   * @param transactionContext the transaction to use
+   * @param requisition the new [Requisition]
    * @return the existing [Requisition] or the external id of a newly created Requisition.
    */
   fun execute(

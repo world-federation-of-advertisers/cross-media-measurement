@@ -57,7 +57,7 @@ interface Correctness {
    * Creates an [AnySketch] object and calls insert() method with a set of reach given.
    * Returning [AnySketch] should have [setSize] number of registers.
    *
-   * @param[reach] set of longs sized [setSize]
+   * @param reach set of longs sized [setSize]
    * @return AnySketch object
    */
   fun generateSketch(reach: Set<Long>): AnySketch
@@ -68,7 +68,7 @@ interface Correctness {
   /**
    * Unions multiple [AnySketch] objects into one and runs Cardinality Estimation on it.
    *
-   * @param[anySketches] List of AnySketch objects
+   * @param anySketches List of AnySketch objects
    * @return Long value of Estimated Cardinality
    */
   fun estimateCardinality(anySketches: List<AnySketch>): Long
@@ -76,7 +76,7 @@ interface Correctness {
   /**
    * Stores raw Sketch proto into a local file and returns the path.
    *
-   * @param[AnySketch] object
+   * @param AnySketch object
    * @return String path of written file e.g. correctness/[runId]/sketches.textproto
    */
   suspend fun storeSketch(anySketch: AnySketch): String
@@ -84,7 +84,7 @@ interface Correctness {
   /**
    * Stores encrypted Sketch proto into a local file and returns the path.
    *
-   * @param[encryptedSketch] Encrypted Sketch proto in ByteString
+   * @param encryptedSketch Encrypted Sketch proto in ByteString
    * @return String path of written file e.g. correctness/[runId]/encrypted_sketches.txt
    */
   suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String
@@ -92,7 +92,7 @@ interface Correctness {
   /**
    * Stores estimation result into a local file and returns the path.
    *
-   * @param[result] Long value of Estimated Cardinality
+   * @param result Long value of Estimated Cardinality
    * @return String path of written file e.g. correctness/[runId]/estimates.txt
    */
   suspend fun storeEstimationResult(result: Long): String
