@@ -1,14 +1,26 @@
+load("//build:defs.bzl", "test_target")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+    test_target(":__pkg__"),
+    ":computation_db",
+    "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/computation:__subpackages__",
 ])
 
+# TODO(fryej): Remove this. db package should not depend on service package.
+package_group(
+    name = "computation_db",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/...",
+        "//src/test/kotlin/org/wfanet/measurement/db/duchy/computation/...",
+    ],
+)
+
 kt_jvm_library(
-    name = "storage",
+    name = "protos",
     srcs = ["ComputationStorageServiceProtos.kt"],
     deps = [
         "//:grpc_core",
@@ -17,10 +29,10 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "computation_storage_service_impl",
+    name = "service",
     srcs = ["ComputationStorageServiceImpl.kt"],
     deps = [
-        ":storage",
+        ":protos",
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
@@ -29,31 +41,41 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "gcp_computation_storage_server",
-    srcs = ["Main.kt"],
+    name = "server",
+    srcs = ["ComputationStorageServer.kt"],
     runtime_deps = [
         "@io_grpc_grpc_java//netty",
     ],
     deps = [
-        ":computation_storage_service_impl",
+        ":service",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/crypto",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
     ],
 )
 
+kt_jvm_library(
+    name = "spanner_liquid_legions_computation_storage_server",
+    srcs = ["SpannerLiquidLegionsComputationStorageServer.kt"],
+    deps = [
+        ":server",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+    ],
+)
+
 java_binary(
-    name = "GcpComputationStorageServer",
-    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.MainKt",
-    visibility = ["//visibility:public"],
-    runtime_deps = [":gcp_computation_storage_server"],
+    name = "SpannerLiquidLegionsComputationStorageServer",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.SpannerLiquidLegionsComputationStorageServerKt",
+    runtime_deps = [":spanner_liquid_legions_computation_storage_server"],
 )
 
 java_image(
-    name = "gcp_computation_storage_server_image",
-    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.MainKt",
-    visibility = ["//visibility:public"],
-    runtime_deps = [":gcp_computation_storage_server"],
+    name = "spanner_liquid_legions_computation_storage_server_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.storage.SpannerLiquidLegionsComputationsServerKt",
+    visibility = ["//src/main/docker:__subpackages__"],
+    runtime_deps = [":spanner_liquid_legions_computation_storage_server"],
 )

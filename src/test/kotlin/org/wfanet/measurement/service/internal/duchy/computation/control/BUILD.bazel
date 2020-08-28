@@ -16,7 +16,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_computation_control_service_impl",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:computation_storage_service_impl",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
     ],
 )

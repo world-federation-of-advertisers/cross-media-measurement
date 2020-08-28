@@ -5,14 +5,14 @@ kt_jvm_test(
     srcs = ["LiquidLegionsHeraldTest.kt"],
     test_class = "org.wfanet.measurement.duchy.herald.LiquidLegionsHeraldTest",
     deps = [
-        "//imports/java/org/junit",
         "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
         "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/herald",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:computation_storage_service_impl",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
     ],
 )
