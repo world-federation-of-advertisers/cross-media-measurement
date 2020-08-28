@@ -117,7 +117,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() = runBlocking<Unit> {
-    insertReportInState(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+    insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
     insertRequisitionInState(RequisitionState.FULFILLED)
     insertReportRequisition()
 
@@ -130,7 +130,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `ignores Reports missing ReportRequisitions`() = runBlocking<Unit> {
-    insertReportInState(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+    insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
     insertRequisitionInState(RequisitionState.FULFILLED)
     assertThat(streamReadyReportsToList()).isEmpty()
   }
@@ -144,7 +144,7 @@ class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `ignores Reports with unfulfilled Requisitions`() = runBlocking<Unit> {
-    insertReportInState(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+    insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
     insertRequisitionInState(RequisitionState.UNFULFILLED)
     insertReportRequisition()
 

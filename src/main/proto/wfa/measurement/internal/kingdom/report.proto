@@ -31,6 +31,8 @@ message Report {
     AWAITING_REQUISITION_CREATION = 1;
 
     // All Requisitions are created and associated, but some are unfulfilled.
+    // TODO: merge with previous state. There is no need to differentiate the
+    // two.
     AWAITING_REQUISITION_FULFILLMENT = 2;
 
     // All Requisitions are associated and fulfilled. Duchies must confirm that

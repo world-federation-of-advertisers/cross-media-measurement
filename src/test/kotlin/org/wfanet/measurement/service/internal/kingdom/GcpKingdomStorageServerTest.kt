@@ -262,7 +262,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     databaseClient.runReadWriteTransaction {
       it.executeUpdate(
         Statement.newBuilder("UPDATE Reports SET State = @state WHERE ExternalReportId = @id")
-          .bind("state").toProtoEnum(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+          .bind("state").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
           .bind("id").to(EXTERNAL_REPORT_ID)
           .build()
       )

@@ -55,7 +55,10 @@ class StreamReadyReportsQuery {
       .withBuilder {
         appendClause(sql)
         bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
-        bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+
+        // TODO: sort out the right state here -- are we representing
+        // AWAITING_REQUISITION_FULFILLMENT explicitly in the DB?
+        bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
 
         if (limit > 0) {
           appendClause("LIMIT @limit")
