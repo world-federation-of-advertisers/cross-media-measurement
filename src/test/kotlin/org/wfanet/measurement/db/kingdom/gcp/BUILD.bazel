@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
-    name = "filters_test",
+    name = "FiltersTest",
     srcs = ["FiltersTest.kt"],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.FiltersTest",
     deps = [
@@ -17,7 +17,7 @@ kt_jvm_test(
 )
 
 spanner_emulator_test(
-    name = "kingdom_schema_test",
+    name = "KingdomSchemaTest",
     srcs = ["KingdomSchemaTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -31,7 +31,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "associate_requisition_and_report_transaction_test",
+    name = "AssociateRequisitionAndReportTransactionTest",
     srcs = ["AssociateRequisitionAndReportTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -49,7 +49,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_advertiser_transaction_test",
+    name = "CreateAdvertiserTransactionTest",
     srcs = ["CreateAdvertiserTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -67,7 +67,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_campaign_transaction_test",
+    name = "CreateCampaignTransactionTest",
     srcs = ["CreateCampaignTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -85,7 +85,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_data_provider_transaction_test",
+    name = "CreateDataProviderTransactionTest",
     srcs = ["CreateDataProviderTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -103,7 +103,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_requisition_transaction_test",
+    name = "CreateRequisitionTransactionTest",
     srcs = ["CreateRequisitionTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -141,7 +141,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_report_log_entry_transaction_test",
+    name = "CreateReportLogEntryTransactionTest",
     srcs = ["CreateReportLogEntryTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -160,7 +160,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_schedule_transaction_test",
+    name = "CreateScheduleTransactionTest",
     srcs = ["CreateScheduleTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -179,7 +179,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "confirm_duchy_readiness_transaction_test",
+    name = "ConfirmDuchyReadinessTransactionTest",
     srcs = ["ConfirmDuchyReadinessTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -199,7 +199,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "fulfill_requisition_transaction_test",
+    name = "FulfillRequisitionTransactionTest",
     srcs = ["FulfillRequisitionTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -218,7 +218,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "get_report_query_test",
+    name = "GetReportQueryTest",
     srcs = ["GetReportQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -237,7 +237,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "read_requisition_templates_query_test",
+    name = "ReadRequisitionTemplatesQueryTest",
     srcs = ["ReadRequisitionTemplatesQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -256,7 +256,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "stream_requisitions_query_test",
+    name = "StreamRequisitionsQueryTest",
     srcs = ["StreamRequisitionsQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -275,7 +275,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "create_next_report_transaction_test",
+    name = "CreateNextReportTransactionTest",
     srcs = ["CreateNextReportTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -295,7 +295,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "stream_reports_query_test",
+    name = "StreamReportsQueryTest",
     srcs = ["StreamReportsQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -314,7 +314,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "stream_ready_reports_query_test",
+    name = "StreamReadyReportsQueryTest",
     srcs = ["StreamReadyReportsQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -333,7 +333,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "stream_ready_schedules_query_test",
+    name = "StreamReadySchedulesQueryTest",
     srcs = ["StreamReadySchedulesQueryTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",
@@ -352,7 +352,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "update_report_state_transaction_test",
+    name = "UpdateReportStateTransactionTest",
     srcs = ["UpdateReportStateTransactionTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",

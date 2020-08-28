@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
-    name = "requisition_storage_service_test",
+    name = "RequisitionStorageServiceTest",
     srcs = ["RequisitionStorageServiceTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.kingdom.RequisitionStorageServiceTest",
     deps = [
@@ -21,7 +21,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_config_schedule_storage_service_test",
+    name = "ReportConfigScheduleStorageServiceTest",
     srcs = ["ReportConfigScheduleStorageServiceTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.kingdom.ReportConfigScheduleStorageServiceTest",
     deps = [
@@ -41,7 +41,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_config_storage_service_test",
+    name = "ReportConfigStorageServiceTest",
     srcs = ["ReportConfigStorageServiceTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.kingdom.ReportConfigStorageServiceTest",
     deps = [
@@ -60,7 +60,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_storage_service_test",
+    name = "ReportStorageServiceTest",
     srcs = ["ReportStorageServiceTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.kingdom.ReportStorageServiceTest",
     deps = [
@@ -79,7 +79,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_log_entry_storage_service_test",
+    name = "ReportLogEntryStorageServiceTest",
     srcs = ["ReportLogEntryStorageServiceTest.kt"],
     test_class = "org.wfanet.measurement.service.internal.kingdom.ReportLogEntryStorageServiceTest",
     deps = [
@@ -99,7 +99,7 @@ kt_jvm_test(
 )
 
 spanner_emulator_test(
-    name = "gcp_kingdom_storage_server_test",
+    name = "GcpKingdomStorageServerTest",
     srcs = ["GcpKingdomStorageServerTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",

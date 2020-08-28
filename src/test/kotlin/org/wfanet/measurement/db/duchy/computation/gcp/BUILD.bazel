@@ -13,7 +13,7 @@ java_proto_library(
 )
 
 kt_jvm_test(
-    name = "local_computation_id_generators_test",
+    name = "LocalComputationIdGeneratorsTest",
     srcs = ["LocalComputationIdGeneratorsTest.kt"],
     test_class = "org.wfanet.measurement.db.duchy.computation.gcp.LocalComputationIdGeneratorsTest",
     deps = [
@@ -24,7 +24,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "gcp_storage_computations_db_test",
+    name = "GcpStorageComputationsDbTest",
     srcs = ["GcpStorageComputationsDbTest.kt"],
     test_class = "org.wfanet.measurement.db.duchy.computation.gcp.GcpStorageComputationsDbTest",
     deps = [
@@ -40,7 +40,7 @@ kt_jvm_test(
 )
 
 spanner_emulator_test(
-    name = "computations_schema_test",
+    name = "ComputationsSchemaTest",
     srcs = ["ComputationsSchemaTest.kt"],
     resources = [
         "//src/main/db/gcp:computations_scehema",
@@ -55,7 +55,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "gcp_spanner_computation_db_test",
+    name = "GcpSpannerComputationDbTest",
     srcs = ["GcpSpannerComputationsDbTest.kt"],
     resources = [
         "//src/main/db/gcp:computations_scehema",
@@ -74,7 +74,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "gcp_spanner_computation_token_proto_reader_test",
+    name = "GcpSpannerComputationTokenProtoReaderTest",
     srcs = ["GcpSpannerReadOnlyComputationsRelationalDbTest.kt"],
     resources = [
         "//src/main/db/gcp:computations_scehema",
@@ -91,7 +91,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "gcp_computation_storage_clients_test",
+    name = "GcpComputationStorageClientsTest",
     srcs = ["GcpComputationStorageClientsTest.kt"],
     resources = [
         "//src/main/db/gcp:computations_scehema",

@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "channel_shutdown_hook_test",
+    name = "ChannelShutdownHookTest",
     srcs = ["ChannelShutdownHookTest.kt"],
     test_class = "org.wfanet.measurement.common.ChannelShutdownHookTest",
     deps = [
@@ -19,7 +19,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "identifiers_test",
+    name = "IdentifiersTest",
     srcs = ["IdentifiersTest.kt"],
     test_class = "org.wfanet.measurement.common.IdentifiersTest",
     deps = [
@@ -31,7 +31,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "duchy_order_test",
+    name = "DuchyOrderTest",
     srcs = ["DuchyOrderTest.kt"],
     test_class = "org.wfanet.measurement.common.DuchyOrderTest",
     deps = [
@@ -42,7 +42,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "adaptive_throttler_test",
+    name = "AdaptiveThrottlerTest",
     srcs = ["AdaptiveThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.AdaptiveThrottlerTest",
     deps = [
@@ -57,7 +57,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "minimum_interval_throttler_test",
+    name = "MinimumIntervalThrottlerTest",
     srcs = ["MinimumIntervalThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.MinimumIntervalThrottlerTest",
     deps = [
@@ -72,7 +72,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "renewed_flow_test",
+    name = "RenewedFlowTest",
     srcs = ["RenewedFlowTest.kt"],
     test_class = "org.wfanet.measurement.common.RenewedFlowTest",
     deps = [

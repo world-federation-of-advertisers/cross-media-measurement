@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "crypto_key_set_test",
+    name = "CryptoKeySetTest",
     srcs = ["CryptoKeySetTest.kt"],
     test_class = "org.wfanet.measurement.duchy.mill.CryptoKeySetTest",
     deps = [
@@ -13,7 +13,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "liquid_legions_crypto_worker_impl_test",
+    name = "LiquidLegionsCryptoWorkerImplTest",
     srcs = ["LiquidLegionsCryptoWorkerImplTest.kt"],
     test_class = "org.wfanet.measurement.duchy.mill.LiquidLegionsCryptoWorkerImplTest",
     deps = [
@@ -25,7 +25,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "liquid_legions_mill_test",
+    name = "LiquidLegionsMillTest",
     srcs = ["LiquidLegionsMillTest.kt"],
     test_class = "org.wfanet.measurement.duchy.mill.LiquidLegionsMillTest",
     deps = [

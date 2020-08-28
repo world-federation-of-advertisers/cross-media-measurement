@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "spanner_structs_test",
+    name = "SpannerStructsTest",
     srcs = ["SpannerStructsTest.kt"],
     test_class = "org.wfanet.measurement.db.gcp.SpannerStructsTest",
     deps = [

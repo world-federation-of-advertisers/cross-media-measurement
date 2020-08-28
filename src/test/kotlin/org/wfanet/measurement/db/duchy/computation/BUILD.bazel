@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "liquid_legions_sketch_aggregation_protocol_stage_helper_test",
+    name = "LiquidLegionsSketchAggregationProtocolStageHelperTest",
     srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesTest.kt"],
     test_class = "org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocolEnumStagesTest",
     deps = [
@@ -13,7 +13,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "liquid_legions_sketch_aggregation_stage_details_test",
+    name = "LiquidLegionsSketchAggregationStageDetailsTest",
     srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest.kt"],
     test_class = "org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest",
     deps = [

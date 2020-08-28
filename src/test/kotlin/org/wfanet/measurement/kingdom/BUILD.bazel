@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library", "kt_jvm_test
 load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
-    name = "report_maker_test",
+    name = "ReportMakerTest",
     srcs = ["ReportMakerTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.ReportMakerTest",
     deps = [
@@ -17,7 +17,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "report_starter_test",
+    name = "ReportStarterTest",
     srcs = ["ReportStarterTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.ReportStarterTest",
     deps = [
@@ -32,7 +32,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "requisition_linker_test",
+    name = "RequisitionLinkerTest",
     srcs = ["RequisitionLinkerTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.RequisitionLinkerTest",
     deps = [
@@ -47,7 +47,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "daemon_database_services_client_impl_test",
+    name = "DaemonDatabaseServicesClientImplTest",
     srcs = ["DaemonDatabaseServicesClientImplTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.DaemonDatabaseServicesClientImplTest",
     deps = [
@@ -92,7 +92,7 @@ kt_jvm_library(
 )
 
 spanner_emulator_test(
-    name = "gcp_in_process_kingdom_integration_test",
+    name = "GcpInProcessKingdomIntegrationTest",
     srcs = ["GcpInProcessKingdomIntegrationTest.kt"],
     resources = [
         "//src/main/db/gcp:kingdom_schema",

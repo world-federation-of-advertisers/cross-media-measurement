@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "independent_set_generator_test",
+    name = "IndependentSetGeneratorTest",
     srcs = ["IndependentSetGeneratorTest.kt"],
     test_class = "org.wfanet.measurement.loadtest.IndependentSetGeneratorTest",
     deps = [
@@ -13,7 +13,7 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "correctness_impl_test",
+    name = "CorrectnessImplTest",
     srcs = ["CorrectnessImplTest.kt"],
     resources = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config",

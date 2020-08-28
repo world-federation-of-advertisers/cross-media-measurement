@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "requisition_service_test",
+    name = "RequisitionServiceTest",
     srcs = ["RequisitionServiceTest.kt"],
     test_class = "org.wfanet.measurement.service.v1alpha.requisition.RequisitionServiceTest",
     deps = [
