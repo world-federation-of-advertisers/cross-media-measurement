@@ -39,17 +39,17 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
-import org.wfanet.measurement.storage.BYTES_PER_MIB
 import org.wfanet.measurement.storage.MetricValueStore
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.asBufferedFlow
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.testing.FileSystemStorageClient
 
@@ -141,7 +141,7 @@ class MetricValuesServiceTest {
         )
       )
 
-    argumentCaptor<MetricValue>() {
+    argumentCaptor<MetricValue> {
       verifyBlocking(metricValueDbMock, times(1)) {
         insertMetricValue(capture())
       }
@@ -156,7 +156,7 @@ class MetricValuesServiceTest {
   @Test fun `streamMetricValue returns MetricValue with data`() = runBlocking {
     MetricValueStore(storageClient) {
       testMetricValue.blobStorageKey
-    }.write(testMetricValueData.asBufferedFlow()).blobKey
+    }.write(testMetricValueData.asBufferedFlow(BYTES_PER_MIB)).blobKey
 
     metricValueDbMock.stub {
       onBlocking {

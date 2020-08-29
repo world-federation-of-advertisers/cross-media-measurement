@@ -21,7 +21,9 @@ kt_jvm_library(
         "//src:internal_services",
     ],
     deps = [
+        "//imports/java/com/google/protobuf",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

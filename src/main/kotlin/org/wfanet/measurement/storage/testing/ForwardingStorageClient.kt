@@ -1,3 +1,17 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.storage.testing
 
 import com.google.protobuf.ByteString
@@ -12,16 +26,15 @@ import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.storage.StorageClient
-import java.nio.ByteBuffer
 
 class ForwardingStorageClient(
   private val storageStub: ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineStub
 ) : StorageClient {
 
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): StorageClient.Blob {
+  override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
     val blobSize = storageStub.createBlob(
       content.map {
-        CreateBlobRequest.newBuilder().setBlobKey(blobKey).setContent(ByteString.copyFrom(it))
+        CreateBlobRequest.newBuilder().setBlobKey(blobKey).setContent(it)
           .build()
       }
     ).size
@@ -52,11 +65,11 @@ class ForwardingStorageClient(
     private val blobKey: String,
     override val size: Long
   ) : StorageClient.Blob {
-    override fun read(flowBufferSize: Int): Flow<ByteBuffer> =
+    override fun read(flowBufferSize: Int): Flow<ByteString> =
       storageStub.readBlob(
         ReadBlobRequest.newBuilder().setBlobKey(blobKey).setChunkSize(flowBufferSize).build()
       ).map {
-        it.chunk.asReadOnlyByteBuffer()
+        it.chunk
       }
 
     override fun delete() = runBlocking<Unit> {

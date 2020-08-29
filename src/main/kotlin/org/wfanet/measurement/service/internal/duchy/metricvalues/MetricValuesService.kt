@@ -16,11 +16,11 @@ package org.wfanet.measurement.service.internal.duchy.metricvalues
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
-import java.nio.ByteBuffer
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.transform
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
@@ -62,14 +62,13 @@ class MetricValuesService constructor(
 
   override suspend fun storeMetricValue(requests: Flow<StoreMetricValueRequest>): MetricValue {
     lateinit var resourceKey: MetricValue.ResourceKey
-    val bytes = flow<ByteBuffer> {
-      requests.collect { requestMessage ->
-        if (requestMessage.hasHeader()) {
-          resourceKey = requestMessage.header.resourceKey
-        } else {
-          emit(requestMessage.chunk.data.asReadOnlyByteBuffer())
-        }
+    val bytes = requests.transform<StoreMetricValueRequest, ByteString> { requestMessage ->
+      if (requestMessage.hasHeader()) {
+        resourceKey = requestMessage.header.resourceKey
+        return@transform
       }
+
+      emit(requestMessage.chunk.data)
     }
 
     val blob = metricValueStore.write(bytes)
@@ -105,10 +104,10 @@ class MetricValuesService constructor(
       )
 
       // Emit chunks.
-      content.read(STREAM_BYTE_BUFFER_SIZE).collect { buffer ->
+      content.read(STREAM_BYTE_BUFFER_SIZE).collect { bytes ->
         emit(
           StreamMetricValueResponse.newBuilder().apply {
-            chunkBuilder.data = ByteString.copyFrom(buffer)
+            chunkBuilder.data = bytes
           }.build()
         )
       }

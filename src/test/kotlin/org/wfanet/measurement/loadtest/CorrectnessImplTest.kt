@@ -17,10 +17,12 @@ package org.wfanet.measurement.loadtest
 import com.google.common.io.Resources
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -31,7 +33,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
-import org.wfanet.measurement.storage.readAll
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.FileSystemStorageClient
 
 private const val RUN_ID = "TEST"
@@ -199,5 +201,12 @@ class CorrectnessImplTest {
         )
       return TextFormat.parse(textproto, SketchConfig::class.java)
     }
+  }
+}
+
+private suspend fun StorageClient.Blob.readAll(): ByteString {
+  return read(CorrectnessImpl.STORAGE_BUFFER_SIZE_BYTES).fold(ByteString.EMPTY) {
+    result, value ->
+    result.concat(value)
   }
 }

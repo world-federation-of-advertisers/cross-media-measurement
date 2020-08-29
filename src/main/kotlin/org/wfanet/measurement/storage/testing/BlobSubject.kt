@@ -18,7 +18,6 @@ import com.google.common.truth.FailureMetadata
 import com.google.common.truth.Subject
 import com.google.common.truth.Truth.assertAbout
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.readAll
 
 class BlobSubject private constructor(failureMetadata: FailureMetadata, subject: Blob) :
   Subject(failureMetadata, subject) {

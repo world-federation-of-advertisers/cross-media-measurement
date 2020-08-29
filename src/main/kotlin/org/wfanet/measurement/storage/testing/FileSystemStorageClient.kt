@@ -14,15 +14,15 @@
 
 package org.wfanet.measurement.storage.testing
 
+import com.google.protobuf.ByteString
 import java.io.File
-import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.common.asFlow
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.asFlow
 
 /**
  * [StorageClient] implementation that utilizes flat files in the specified
@@ -34,15 +34,15 @@ class FileSystemStorageClient(private val directory: File) : StorageClient {
     require(directory.isDirectory) { "$directory is not a directory" }
   }
 
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteBuffer>): StorageClient.Blob {
+  override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
     val file = File(directory, blobKey.base64UrlEncode())
     withContext(Dispatchers.IO) {
       require(file.createNewFile()) { "$blobKey already exists" }
 
       file.outputStream().channel.use { byteChannel ->
-        content.collect { buffer ->
+        content.collect { bytes ->
           @Suppress("BlockingMethodInNonBlockingContext") // Flow context preservation.
-          byteChannel.write(buffer)
+          byteChannel.write(bytes.asReadOnlyByteBuffer())
         }
       }
     }
@@ -59,7 +59,7 @@ class FileSystemStorageClient(private val directory: File) : StorageClient {
     override val size: Long
       get() = file.length()
 
-    override fun read(flowBufferSize: Int): Flow<ByteBuffer> =
+    override fun read(flowBufferSize: Int): Flow<ByteString> =
       file.inputStream().channel.asFlow(flowBufferSize)
 
     override fun delete() {

@@ -1,3 +1,17 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.service.testing.storage
 
 import com.google.common.truth.Truth.assertThat
@@ -31,8 +45,8 @@ class FakeStorageServiceTest {
   val storageClient = ForwardingStorageClient(storageStub)
 
   private val letters = listOf("abcde", "fghij", "klmno")
-  private val content = letters.map {
-    ByteString.copyFromUtf8(it).asReadOnlyByteBuffer()
+  private val content: List<ByteString> = letters.map {
+    ByteString.copyFromUtf8(it)
   }
 
   @Test
@@ -104,7 +118,7 @@ class FakeStorageServiceTest {
 
     val blob = storageClient.createBlob(blobKey, content.asFlow())
     val result = blob.read(5).toList().map {
-      ByteString.copyFrom(it).toStringUtf8()
+      it.toStringUtf8()
     }
 
     assertThat(result).containsExactlyElementsIn(letters).inOrder()
@@ -117,7 +131,7 @@ class FakeStorageServiceTest {
     storageClient.createBlob(blobKey, content.asFlow())
     val blob = storageClient.getBlob(blobKey)
     val result = blob!!.read(5).toList().map {
-      ByteString.copyFrom(it).toStringUtf8()
+      it.toStringUtf8()
     }
 
     assertThat(result).containsExactlyElementsIn(letters).inOrder()

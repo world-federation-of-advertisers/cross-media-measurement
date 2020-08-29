@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.storage
 
-import java.nio.ByteBuffer
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 
 private const val BLOB_KEY_PREFIX = "metric-values"
@@ -35,7 +35,7 @@ class MetricValueStore(
    * @param a [Flow] producing the content to write.
    * @return a [Blob] with a generated blob key.
    */
-  suspend fun write(content: Flow<ByteBuffer>): Blob {
+  suspend fun write(content: Flow<ByteString>): Blob {
     val blobKey = generateBlobKey()
     val createdBlob = storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
     return Blob(blobKey, createdBlob)

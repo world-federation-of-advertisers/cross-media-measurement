@@ -20,8 +20,8 @@ import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.asBufferedFlow
 
 class CorrectnessImpl(
   override val campaignCount: Int,
@@ -57,7 +57,8 @@ class CorrectnessImpl(
     val sketch: Sketch = anySketch.toSketchProto(sketchConfig)
     val blobKey = generateBlobKey()
     storageClient.createBlob(
-      blobKey.withBlobKeyPrefix("sketches"), sketch.toByteArray().asBufferedFlow()
+      blobKey.withBlobKeyPrefix("sketches"),
+      sketch.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
     )
     return blobKey
   }
@@ -80,5 +81,9 @@ class CorrectnessImpl(
 
   private fun String.withBlobKeyPrefix(folder: String): String {
     return "/$outputDir/$runId/$folder/$this"
+  }
+
+  companion object {
+    const val STORAGE_BUFFER_SIZE_BYTES = 1024 * 4 // 4 KiB
   }
 }

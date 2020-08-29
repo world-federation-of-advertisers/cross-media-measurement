@@ -15,15 +15,19 @@
 package org.wfanet.measurement.storage.testing
 
 import com.google.common.truth.Truth.assertThat
+import java.nio.ByteBuffer
 import kotlin.random.Random
 import kotlin.test.assertNotNull
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.Test
-import org.wfanet.measurement.storage.BYTES_PER_MIB
+import org.wfanet.measurement.common.BYTES_PER_MIB
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
+
+private const val DEFAULT_FLOW_BUFFER_SIZE = 4096 // 4 KiB
 
 /** Abstract base class for testing implementations of [StorageClient]. */
 abstract class AbstractStorageClientTest<T : StorageClient> {
@@ -79,4 +83,19 @@ abstract class AbstractStorageClientTest<T : StorageClient> {
       testBlobContent = random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4))
     }
   }
+}
+
+/** Creates a blob with the specified key and content. */
+suspend fun StorageClient.createBlob(blobKey: String, content: ByteArray): StorageClient.Blob =
+  createBlob(blobKey, content.asBufferedFlow(DEFAULT_FLOW_BUFFER_SIZE))
+
+/** Reads all of this [StorageClient.Blob] content into a [ByteArray]. */
+suspend fun StorageClient.Blob.readAll(): ByteArray {
+  check(size <= Int.MAX_VALUE) { "Blob cannot fit in a single byte array" }
+
+  val buffer = ByteBuffer.allocate(size.toInt())
+  read(DEFAULT_FLOW_BUFFER_SIZE).collect { value ->
+    value.copyTo(buffer)
+  }
+  return buffer.array()
 }

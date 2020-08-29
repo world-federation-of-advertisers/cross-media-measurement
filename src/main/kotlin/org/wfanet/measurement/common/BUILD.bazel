@@ -8,7 +8,10 @@ package(default_visibility = [
 kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
-    runtime_deps = ["//imports/kotlin/kotlin/reflect/jvm"],
+    runtime_deps = [
+        "//imports/kotlin/kotlin:stdlib_jdk7",
+        "//imports/kotlin/kotlin/reflect/jvm",
+    ],
     deps = [
         "//imports/java/com/google/protobuf",
         "//imports/java/com/google/protobuf/util",
