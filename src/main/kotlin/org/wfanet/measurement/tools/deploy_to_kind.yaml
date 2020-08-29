@@ -156,7 +156,7 @@ spec:
     spec:
       containers:
         - name: duchy-computation-control-container
-          image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_computation_control_server_image
+          image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image
           imagePullPolicy: Never
           # TODO Replace placeholders arguments with real values.
           args:
