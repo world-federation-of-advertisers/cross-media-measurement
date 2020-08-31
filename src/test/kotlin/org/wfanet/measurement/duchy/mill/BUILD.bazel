@@ -36,7 +36,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",

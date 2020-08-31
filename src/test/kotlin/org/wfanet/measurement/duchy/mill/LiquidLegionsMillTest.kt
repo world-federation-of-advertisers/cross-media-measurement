@@ -56,8 +56,13 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
-import org.wfanet.measurement.duchy.mill.testing.FakeLiquidLegionsCryptoWorker
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
+import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
+import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
@@ -66,6 +71,10 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
+import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse.FlagCount
+import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
@@ -97,7 +106,8 @@ class LiquidLegionsMillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val fakeBlobs = mutableMapOf<String, ByteArray>()
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
-  private val cryptoWorker = FakeLiquidLegionsCryptoWorker()
+  private val mockCryptoWorker: LiquidLegionsCryptoWorker =
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -162,6 +172,10 @@ class LiquidLegionsMillTest {
     .setMetricRequisitionId("requisitionId_$this")
     .build()
 
+  private fun newFlagCount(isNotDestroyed: Boolean, frequency: Int): FlagCount {
+    return FlagCount.newBuilder().setIsNotDestroyed(isNotDestroyed).setFrequency(frequency).build()
+  }
+
   @Before
   fun initMill() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
@@ -173,7 +187,7 @@ class LiquidLegionsMillTest {
         globalComputationsClient = globalComputationStub,
         workerStubs = workerStubs,
         cryptoKeySet = cryptoKeySet,
-        cryptoWorker = cryptoWorker,
+        cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         chunkSize = 20
       )
@@ -398,6 +412,12 @@ class LiquidLegionsMillTest {
       computationControlRequests = runBlocking { request.toList() }
       HandleNoisedSketchResponse.getDefaultInstance()
     }
+    whenever(mockCryptoWorker.addNoiseToSketch(any()))
+      .thenAnswer {
+        val request: AddNoiseToSketchRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-AddedNoise")
+        AddNoiseToSketchResponse.newBuilder().setSketch(request.sketch.concat(postFix)).build()
+      }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -466,6 +486,12 @@ class LiquidLegionsMillTest {
       computationControlRequests = runBlocking { request.toList() }
       HandleConcatenatedSketchResponse.getDefaultInstance()
     }
+    whenever(mockCryptoWorker.addNoiseToSketch(any()))
+      .thenAnswer {
+        val request: AddNoiseToSketchRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-AddedNoise")
+        AddNoiseToSketchResponse.newBuilder().setSketch(request.sketch.concat(postFix)).build()
+      }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -592,6 +618,14 @@ class LiquidLegionsMillTest {
       computationControlRequests = runBlocking { request.toList() }
       HandleConcatenatedSketchResponse.getDefaultInstance()
     }
+    whenever(mockCryptoWorker.blindOneLayerRegisterIndex(any()))
+      .thenAnswer {
+        val request: BlindOneLayerRegisterIndexRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-BlindedOneLayerRegisterIndex")
+        BlindOneLayerRegisterIndexResponse.newBuilder()
+          .setSketch(request.sketch.concat(postFix))
+          .build()
+      }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -657,6 +691,14 @@ class LiquidLegionsMillTest {
       computationControlRequests = runBlocking { request.toList() }
       HandleEncryptedFlagsAndCountsResponse.getDefaultInstance()
     }
+    whenever(mockCryptoWorker.blindLastLayerIndexThenJoinRegisters(any()))
+      .thenAnswer {
+        val request: BlindLastLayerIndexThenJoinRegistersRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-BlindedLastLayerIndexThenJoinRegisters")
+        BlindLastLayerIndexThenJoinRegistersResponse.newBuilder()
+          .setFlagCounts(request.sketch.concat(postFix))
+          .build()
+      }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -726,6 +768,14 @@ class LiquidLegionsMillTest {
       computationControlRequests = runBlocking { request.toList() }
       HandleEncryptedFlagsAndCountsResponse.getDefaultInstance()
     }
+    whenever(mockCryptoWorker.decryptOneLayerFlagAndCount(any()))
+      .thenAnswer {
+        val request: DecryptOneLayerFlagAndCountRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-DecryptedOneLayerFlagAndCount")
+        DecryptOneLayerFlagAndCountResponse.newBuilder()
+          .setFlagCounts(request.flagCounts.concat(postFix))
+          .build()
+      }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -774,6 +824,19 @@ class LiquidLegionsMillTest {
       )
     )
     fakeBlobs[inputBlobPath] = "data".toByteArray()
+    whenever(mockCryptoWorker.decryptLastLayerFlagAndCount(any()))
+      .thenReturn(
+        DecryptLastLayerFlagAndCountResponse.newBuilder()
+          .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 1))
+          .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 2))
+          .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 2))
+          .addFlagCounts(newFlagCount(isNotDestroyed = false, frequency = 2))
+          .addFlagCounts(newFlagCount(isNotDestroyed = false, frequency = 2))
+          .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 3))
+          .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 3))
+          .addFlagCounts(newFlagCount(isNotDestroyed = true, frequency = 3))
+          .build()
+      )
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
