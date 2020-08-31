@@ -26,6 +26,7 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.GrpcExceptionLogger
 
 class GrpcTestServerRule(
+  customServerName: String? = null,
   private val addServices: Builder.() -> Unit
 ) : TestRule {
   class Builder(val channel: ManagedChannel, private val serverBuilder: InProcessServerBuilder) {
@@ -38,7 +39,7 @@ class GrpcTestServerRule(
   }
 
   private val grpcCleanupRule: GrpcCleanupRule = GrpcCleanupRule()
-  private val serverName = InProcessServerBuilder.generateName()
+  private val serverName = customServerName ?: InProcessServerBuilder.generateName()
 
   val channel: ManagedChannel =
     grpcCleanupRule.register(
