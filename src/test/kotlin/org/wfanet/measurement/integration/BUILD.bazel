@@ -1,0 +1,41 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library", "kt_jvm_test")
+load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+
+kt_jvm_library(
+    name = "integration",
+    testonly = True,
+    srcs = glob(
+        ["*.kt"],
+        exclude = ["GcpInProcessKingdomIntegrationTest.kt"],
+    ),
+    deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_service",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_service",
+    ],
+)
+
+spanner_emulator_test(
+    name = "GcpInProcessKingdomIntegrationTest",
+    srcs = ["GcpInProcessKingdomIntegrationTest.kt"],
+    resources = [
+        "//src/main/db/gcp:kingdom_schema",
+    ],
+    test_class = "org.wfanet.measurement.integration.GcpInProcessKingdomIntegrationTest",
+    deps = [
+        ":integration",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)

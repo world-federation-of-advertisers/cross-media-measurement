@@ -70,38 +70,3 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_template_java_proto",
     ],
 )
-
-kt_jvm_library(
-    name = "in_process_kingdom_integration_test",
-    testonly = True,
-    srcs = ["InProcessKingdomIntegrationTest.kt"],
-    deps = [
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/testing",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_service",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_service",
-    ],
-)
-
-spanner_emulator_test(
-    name = "GcpInProcessKingdomIntegrationTest",
-    srcs = ["GcpInProcessKingdomIntegrationTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.kingdom.GcpInProcessKingdomIntegrationTest",
-    deps = [
-        ":in_process_kingdom_integration_test",
-        "//imports/java/org/junit",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
-)

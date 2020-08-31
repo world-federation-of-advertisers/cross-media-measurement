@@ -40,8 +40,7 @@ private class DatabaseRuleImpl(schemaResourcePath: String) :
     get() = resource.databaseClient
 }
 
-private class TemporaryDatabase(schemaResourcePath: String) :
-  AutoCloseable {
+private class TemporaryDatabase(schemaResourcePath: String) : AutoCloseable {
 
   private val database: Database
   init {

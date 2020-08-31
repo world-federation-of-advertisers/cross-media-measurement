@@ -1,27 +1,17 @@
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.integration
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
-import org.junit.After
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
@@ -34,28 +24,19 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.MinimumIntervalThrottler
-import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.common.testing.withVerboseLogging
+import org.wfanet.measurement.common.testing.CloseableResource
+import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.service.internal.kingdom.buildStorageServices
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationService
-import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
 
 /**
  * Test that everything is wired up properly.
@@ -64,88 +45,52 @@ import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
  * same tests easily.
  */
 abstract class InProcessKingdomIntegrationTest {
-  abstract val kingdomRelationalDatabase: KingdomRelationalDatabase
-  abstract val rules: List<TestRule>
+  abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
+
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase
+    get() = kingdomRelationalDatabaseRule.value
 
   private var duchyId: String = "some-duchy"
-  private val duchyIdProvider = { DuchyIdentity(duchyId) }
 
-  private val databaseServices = GrpcTestServerRule {
-    for (service in buildStorageServices(kingdomRelationalDatabase)) {
-      addService(service.withVerboseLogging())
+  private val kingdom = InProcessKingdom { kingdomRelationalDatabase }
+
+  private val globalComputations = mutableListOf<GlobalComputation>()
+  private val globalComputationsReader = CloseableResource {
+    GlobalScope.launchAsAutoCloseable {
+      var continuationToken = ""
+      while (true) {
+        val request =
+          StreamActiveGlobalComputationsRequest.newBuilder()
+            .setContinuationToken(continuationToken)
+            .build()
+        logger.info("Reading global computations: $request")
+        globalComputationsStub
+          .streamActiveGlobalComputations(request)
+          .onEach { continuationToken = it.continuationToken }
+          .map { it.globalComputation }
+          .onEach { logger.info("Found GlobalComputation: $it") }
+          .toList(globalComputations)
+      }
     }
-  }
-
-  private val reportConfigStorage = ReportConfigStorageCoroutineStub(databaseServices.channel)
-  private val reportConfigScheduleStorage =
-    ReportConfigScheduleStorageCoroutineStub(databaseServices.channel)
-  private val reportStorage = ReportStorageCoroutineStub(databaseServices.channel)
-  private val reportLogEntryStorage = ReportLogEntryStorageCoroutineStub(databaseServices.channel)
-  private val requisitionStorage = RequisitionStorageCoroutineStub(databaseServices.channel)
-
-  private val apiServices = GrpcTestServerRule {
-    addService(
-      GlobalComputationService(reportStorage, reportLogEntryStorage, duchyIdProvider)
-        .withDuchyIdentities()
-        .withVerboseLogging()
-    )
-
-    addService(
-      RequisitionService(requisitionStorage)
-        .withDuchyIdentities()
-        .withVerboseLogging()
-    )
   }
 
   @get:Rule
   val ruleChain: TestRule by lazy {
-    rules
-      .fold(RuleChain.emptyRuleChain()) { chain, rule -> chain.around(rule) }
-      .around(databaseServices)
-      .around(apiServices)
-      .around(DuchyIdSetter(duchyId))
+    chainRulesSequentially(
+      DuchyIdSetter(duchyId), kingdomRelationalDatabaseRule, kingdom, globalComputationsReader
+    )
   }
 
-  private val requisitionsStub =
-    RequisitionCoroutineStub(apiServices.channel).withDuchyId(duchyId)
-  private val globalComputationsStub =
-    GlobalComputationsCoroutineStub(apiServices.channel).withDuchyId(duchyId)
-
-  private val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1))
-  private val daemonDatabaseServicesClient = DaemonDatabaseServicesClientImpl(
-    reportConfigStorage, reportConfigScheduleStorage, reportStorage, requisitionStorage
-  )
-
-  private val daemon = Daemon(daemonThrottler, 1, daemonDatabaseServicesClient)
-
-  private var jobsToCleanup = mutableListOf<Job>()
-
-  @Before
-  fun startDaemons() {
-    val job = GlobalScope.launch {
-      val exceptionHandler = CoroutineExceptionHandler { _, exception ->
-        System.err.println("Daemon exception: $exception")
-      }
-      supervisorScope {
-        launch(exceptionHandler) { daemon.runRequisitionLinker() }
-        launch(exceptionHandler) { daemon.runReportStarter() }
-        launch(exceptionHandler) { daemon.runReportMaker() }
-      }
-    }
-    jobsToCleanup.add(job)
+  private val requisitionsStub by lazy {
+    RequisitionCoroutineStub(kingdom.publicApiChannel).withDuchyId(duchyId)
   }
 
-  @After
-  fun cancelJobs() = runBlocking {
-    jobsToCleanup.forEach { it.cancelAndJoin() }
+  private val globalComputationsStub by lazy {
+    GlobalComputationsCoroutineStub(kingdom.publicApiChannel).withDuchyId(duchyId)
   }
 
   @Test
   fun `entire computation`() = runBlocking<Unit> {
-    // Collect all changes to GlobalComputations.
-    val globalComputations = mutableListOf<GlobalComputation>()
-    jobsToCleanup.add(readGlobalComputationsInto(globalComputations))
-
     val advertiser = kingdomRelationalDatabase.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
 
@@ -347,24 +292,6 @@ abstract class InProcessKingdomIntegrationTest {
     }
     return items
   }
-
-  private fun readGlobalComputationsInto(list: MutableList<GlobalComputation>): Job =
-    GlobalScope.launch {
-      var continuationToken = ""
-      while (true) {
-        val request =
-          StreamActiveGlobalComputationsRequest.newBuilder()
-            .setContinuationToken(continuationToken)
-            .build()
-        logger.info("Reading global computations: $request")
-        globalComputationsStub
-          .streamActiveGlobalComputations(request)
-          .onEach { continuationToken = it.continuationToken }
-          .map { it.globalComputation }
-          .onEach { logger.info("Found GlobalComputation: $it") }
-          .toList(list)
-      }
-    }
 
   private suspend fun fulfillRequisition(metricRequisition: MetricRequisition) {
     logger.info("Fulfilling requisition: $metricRequisition")
