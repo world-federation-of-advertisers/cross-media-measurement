@@ -1,0 +1,17 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "testing",
+    testonly = True,
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:crypto_key_set",
+        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+    ],
+)
