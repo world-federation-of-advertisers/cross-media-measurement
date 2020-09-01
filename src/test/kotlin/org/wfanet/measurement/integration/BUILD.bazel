@@ -6,7 +6,7 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(
         ["*.kt"],
-        exclude = ["GcpInProcessKingdomIntegrationTest.kt"],
+        exclude = ["Gcp*.kt"],
     ),
     deps = [
         "//imports/java/org/junit",
@@ -21,6 +21,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:liquid_legions_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_service",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:protos",
@@ -33,6 +34,32 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "gcp_providers",
+    testonly = True,
+    srcs = [
+        "GcpDuchyDependencyProviderRule.kt",
+        "GcpKingdomRelationalDatabaseProviderRule.kt",
+    ],
+    deps = [
+        ":integration",
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/cloud/storage",
+        "//imports/java/com/google/cloud/storage/contrib/nio",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/storage/testing",
+        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+    ],
+)
+
 spanner_emulator_test(
     name = "GcpInProcessKingdomIntegrationTest",
     srcs = ["GcpInProcessKingdomIntegrationTest.kt"],
@@ -41,9 +68,22 @@ spanner_emulator_test(
     ],
     test_class = "org.wfanet.measurement.integration.GcpInProcessKingdomIntegrationTest",
     deps = [
+        ":gcp_providers",
         ":integration",
-        "//imports/java/org/junit",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "GcpInProcessKingdomAndDuchyIntegrationTest",
+    srcs = ["GcpInProcessKingdomAndDuchyIntegrationTest.kt"],
+    resources = [
+        "//src/main/db/gcp:computations_scehema",
+        "//src/main/db/gcp:kingdom_schema",
+        "//src/main/db/gcp:metric_values_schema",
+    ],
+    test_class = "org.wfanet.measurement.integration.GcpInProcessKingdomAndDuchyIntegrationTest",
+    deps = [
+        ":gcp_providers",
+        ":integration",
     ],
 )

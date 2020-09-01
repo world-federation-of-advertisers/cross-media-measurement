@@ -38,14 +38,14 @@ import org.wfanet.measurement.storage.StorageClient
  * @param duchyId the name of this duchy
  * @param otherDuchyIds the names of other duchies
  * @param kingdomChannel a gRPC channel to the Kingdom
- * @param duchyDependencies the backends and other inputs required to start a Duchy
+ * @param duchyDependenciesProvider provides the backends and other inputs required to start a Duchy
  *
  */
 class InProcessDuchy(
   duchyId: String,
   otherDuchyIds: List<String>,
   kingdomChannel: Channel,
-  duchyDependencies: DuchyDependencies
+  duchyDependenciesProvider: () -> DuchyDependencies
 ) : TestRule {
   data class DuchyDependencies(
     val singleProtocolDatabase: SingleProtocolDatabase,
@@ -54,6 +54,8 @@ class InProcessDuchy(
     val storageClient: StorageClient,
     val cryptoKeySet: CryptoKeySet
   )
+
+  private val duchyDependencies by lazy { duchyDependenciesProvider() }
 
   private val kingdomGlobalComputationsStub by lazy {
     GlobalComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)

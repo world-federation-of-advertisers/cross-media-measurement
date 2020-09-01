@@ -10,6 +10,7 @@ package(default_visibility = [
     "//src:internal_services",
     "//src/main/kotlin/org/wfanet/measurement/duchy/herald:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/duchy/mill:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
 ])
 
 kt_jvm_library(
