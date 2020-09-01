@@ -2,13 +2,17 @@ package org.wfanet.measurement.integration
 
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.testing.GrpcCleanupRule
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.GlobalScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
+import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.CloseableResource
@@ -30,6 +34,7 @@ import org.wfanet.measurement.service.internal.duchy.computation.control.LiquidL
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.metricvalues.MetricValuesService
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataService
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -101,12 +106,15 @@ class InProcessDuchy(
       addService(LiquidLegionsComputationControlServiceImpl(computationStorageClients))
     }
 
+  private val channelCloserRule = GrpcCleanupRule()
+
   private fun computationControlChannelName(duchyId: String) = "duchy-computation-control-$duchyId"
 
   private val millRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val workerStubs = otherDuchyIds.map {
         val channel = InProcessChannelBuilder.forName(computationControlChannelName(it)).build()
+        channelCloserRule.register(channel)
         it to ComputationControlServiceCoroutineStub(channel)
       }.toMap()
 
@@ -126,13 +134,33 @@ class InProcessDuchy(
     }
   }
 
+  private val publisherDataChannelName = "duchy-publisher-data-$duchyId"
+
+  private val publisherDataServer = GrpcTestServerRule(publisherDataChannelName) {
+    addService(
+      PublisherDataService(
+        MetricValuesCoroutineStub(metricValuesServer.channel),
+        RequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
+        DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+      )
+    )
+  }
+
+  fun newPublisherDataProviderStub(): PublisherDataCoroutineStub {
+    val channel = InProcessChannelBuilder.forName(publisherDataChannelName).build()
+    channelCloserRule.register(channel)
+    return PublisherDataCoroutineStub(channel)
+  }
+
   override fun apply(statement: Statement, description: Description): Statement {
     val combinedRule = chainRulesSequentially(
       storageServer,
       metricValuesServer,
       heraldRule,
       millRule,
-      computationControlServer
+      computationControlServer,
+      publisherDataServer,
+      channelCloserRule
     )
     return combinedRule.apply(statement, description)
   }

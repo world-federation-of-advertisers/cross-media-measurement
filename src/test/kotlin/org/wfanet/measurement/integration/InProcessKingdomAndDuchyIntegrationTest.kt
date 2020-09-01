@@ -1,6 +1,12 @@
 package org.wfanet.measurement.integration
 
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.math.BigInteger
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -10,7 +16,10 @@ import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.duchy.testing.TestKeys
+import org.wfanet.measurement.integration.InProcessDuchy.DuchyDependencies
+import org.wfanet.measurement.internal.kingdom.Report
 
 val DUCHY_IDS = listOf("duchy1", "duchy2", "duchy3")
 
@@ -31,9 +40,11 @@ val DUCHY_ORDER = DuchyOrder(DUCHIES.toSet())
  * easily.
  */
 abstract class InProcessKingdomAndDuchyIntegrationTest {
+  /** Provides a [KingdomRelationalDatabase] to the test. */
   abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
 
-  abstract val duchyDependenciesRule: ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies>
+  /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
+  abstract val duchyDependenciesRule: ProviderRule<(Duchy) -> DuchyDependencies>
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
     get() = kingdomRelationalDatabaseRule.value
@@ -51,10 +62,13 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     }
   }
 
+  private val dataProviderRule = FakeDataProviderRule("some-key-id")
+
   @get:Rule
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
       DuchyIdSetter(DUCHY_IDS),
+      dataProviderRule,
       kingdomRelationalDatabaseRule,
       kingdom,
       duchyDependenciesRule,
@@ -62,8 +76,45 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
   }
 
+  @Ignore // TODO: unignore this test case
   @Test
-  fun noop() {
-    // Ensure everything loads OK.
+  fun `entire computation`() = runBlocking<Unit> {
+    val (
+      externalDataProviderId1, externalDataProviderId2,
+      externalCampaignId1, externalCampaignId2
+    ) = kingdom.populateKingdomRelationalDatabase()
+
+    dataProviderRule.startDataProviderForCampaign(
+      externalDataProviderId1, externalCampaignId1, duchies[0].newPublisherDataProviderStub()
+    )
+
+    dataProviderRule.startDataProviderForCampaign(
+      externalDataProviderId2, externalCampaignId2, duchies[1].newPublisherDataProviderStub()
+    )
+
+    // Now wait until the computation is done.
+    var doneReport: Report? = null
+    withTimeout(timeMillis = 10_000) {
+      while (doneReport == null) {
+        doneReport =
+          kingdomRelationalDatabase
+            .streamReports(
+              filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
+              limit = 1
+            )
+            .singleOrNull()
+        delay(250)
+      }
+    }
+    assertThat(doneReport)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        Report.newBuilder().apply {
+          reportDetailsBuilder.apply {
+            addAllConfirmedDuchies(DUCHY_IDS)
+            resultBuilder // Touch resultBuilder so there's some result
+          }
+        }.build()
+      )
   }
 }

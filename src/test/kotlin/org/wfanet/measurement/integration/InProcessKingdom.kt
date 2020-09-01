@@ -3,6 +3,7 @@ package org.wfanet.measurement.integration
 import io.grpc.Channel
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.GlobalScope
@@ -11,18 +12,25 @@ import kotlinx.coroutines.supervisorScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.testing.withVerboseLogging
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.internal.MetricDefinition
+import org.wfanet.measurement.internal.SketchMetricDefinition
+import org.wfanet.measurement.internal.kingdom.ReportConfig
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.kingdom.Daemon
 import org.wfanet.measurement.kingdom.DaemonDatabaseServicesClientImpl
 import org.wfanet.measurement.kingdom.runReportMaker
@@ -103,7 +111,102 @@ class InProcessKingdom(
       .apply(statement, description)
   }
 
+  data class SetupIdentifiers(
+    val externalDataProviderId1: ExternalId,
+    val externalDataProviderId2: ExternalId,
+    val externalCampaignId1: ExternalId,
+    val externalCampaignId2: ExternalId
+  )
+
+  /**
+   * Adds an Advertiser, two DataProviders, two Campaigns, a ReportConfig, and a
+   * ReportConfigSchedule to [kingdomRelationalDatabase].
+   */
+  fun populateKingdomRelationalDatabase(): SetupIdentifiers {
+    val advertiser = kingdomRelationalDatabase.createAdvertiser()
+    logger.info("Created an Advertiser: $advertiser")
+
+    val dataProvider1 = kingdomRelationalDatabase.createDataProvider()
+    logger.info("Created a DataProvider: $dataProvider1")
+
+    val dataProvider2 = kingdomRelationalDatabase.createDataProvider()
+    logger.info("Created a DataProvider: $dataProvider2")
+
+    val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
+    val externalDataProviderId1 = ExternalId(dataProvider1.externalDataProviderId)
+    val externalDataProviderId2 = ExternalId(dataProvider2.externalDataProviderId)
+
+    val campaign1 = kingdomRelationalDatabase.createCampaign(
+      externalDataProviderId1,
+      externalAdvertiserId,
+      "Springtime Sale Campaign"
+    )
+    logger.info("Created a Campaign: $campaign1")
+
+    val campaign2 = kingdomRelationalDatabase.createCampaign(
+      externalDataProviderId2,
+      externalAdvertiserId,
+      "Summer Savings Campaign"
+    )
+    logger.info("Created a Campaign: $campaign2")
+
+    val externalCampaignId1 = ExternalId(campaign1.externalCampaignId)
+    val externalCampaignId2 = ExternalId(campaign2.externalCampaignId)
+
+    val metricDefinition = MetricDefinition.newBuilder().apply {
+      sketchBuilder.apply {
+        sketchConfigId = 12345L
+        type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
+      }
+    }.build()
+
+    val reportConfig = kingdomRelationalDatabase.createReportConfig(
+      ReportConfig.newBuilder()
+        .setExternalAdvertiserId(externalAdvertiserId.value)
+        .apply {
+          numRequisitions = 2
+          reportConfigDetailsBuilder.apply {
+            addMetricDefinitions(metricDefinition)
+            reportDurationBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 7
+            }
+          }
+        }
+        .build(),
+      listOf(externalCampaignId1, externalCampaignId2)
+    )
+    logger.info("Created a ReportConfig: $reportConfig")
+
+    val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
+
+    val schedule = kingdomRelationalDatabase.createSchedule(
+      ReportConfigSchedule.newBuilder()
+        .setExternalAdvertiserId(externalAdvertiserId.value)
+        .setExternalReportConfigId(externalReportConfigId.value)
+        .apply {
+          repetitionSpecBuilder.apply {
+            start = Instant.now().toProtoTime()
+            repetitionPeriodBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 7
+            }
+          }
+          nextReportStartTime = repetitionSpec.start
+        }
+        .build()
+    )
+    logger.info("Created a ReportConfigSchedule: $schedule")
+
+    return SetupIdentifiers(
+      externalDataProviderId1,
+      externalDataProviderId2,
+      externalCampaignId1,
+      externalCampaignId2
+    )
+  }
+
   companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
