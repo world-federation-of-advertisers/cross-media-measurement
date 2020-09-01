@@ -63,8 +63,9 @@ private class Flags {
   lateinit var globalComputationsService: String
     private set
 
-  @set:CommandLine.Option(
+  @CommandLine.Option(
     names = ["--computation-storage-service-target"],
+    description = ["Address and port of the Computation Storage Service"],
     required = true
   )
   lateinit var computationStorageServiceTarget: String
