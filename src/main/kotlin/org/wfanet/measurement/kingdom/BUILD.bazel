@@ -50,6 +50,7 @@ java_binary(
 java_image(
     name = "report_maker_daemon_image",
     main_class = "org.wfanet.measurement.kingdom.ReportMakerMainKt",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":report_maker_daemon"],
 )
 
@@ -75,6 +76,7 @@ java_binary(
 java_image(
     name = "report_starter_daemon_image",
     main_class = "org.wfanet.measurement.kingdom.ReportStarterMainKt",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":report_starter_daemon"],
 )
 
@@ -100,5 +102,6 @@ java_binary(
 java_image(
     name = "requisition_linker_daemon_image",
     main_class = "org.wfanet.measurement.kingdom.RequisitionLinkerMainKt",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":requisition_linker_daemon"],
 )

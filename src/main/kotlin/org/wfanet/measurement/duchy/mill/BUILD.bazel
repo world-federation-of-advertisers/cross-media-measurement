@@ -78,11 +78,8 @@ java_binary(
 )
 
 java_image(
-    name = "mill_task_image",
+    name = "gcs_liquid_legions_mill_daemon_image",
     main_class = "org.wfanet.measurement.duchy.mill.GcsLiquidLegionsMillDaemonKt",
-    visibility = [
-        "//src/main/docker:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
-    ],
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":gcs_liquid_legions_mill_daemon"],
 )

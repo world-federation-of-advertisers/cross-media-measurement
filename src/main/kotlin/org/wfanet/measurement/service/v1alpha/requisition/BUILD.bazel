@@ -44,7 +44,7 @@ java_binary(
 java_image(
     name = "requisition_server_image",
     main_class = "org.wfanet.measurement.service.v1alpha.requisition.RequisitionServerKt",
-    visibility = ["//src/main/docker:__subpackages__"],
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [
         ":requisition_server",
         "//imports/java/io/grpc/netty",

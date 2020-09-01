@@ -24,3 +24,12 @@ package_group(
         "//src/test/kotlin/org/wfanet/measurement/service/internal/...",
     ],
 )
+
+package_group(
+    name = "docker_image_deployment",
+    packages = [
+        "//src/main/docker/...",
+        "//src/main/kotlin/org/wfanet/measurement/tools/...",
+        "//src/test/kotlin/org/wfanet/measurement/tools/...",
+    ]
+)

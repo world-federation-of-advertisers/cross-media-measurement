@@ -4,7 +4,7 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 package(
     default_testonly = True,
     default_visibility = [
-        "//src/main/docker:__subpackages__",
+        "//src:docker_image_deployment",
         "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
     ],
@@ -31,5 +31,6 @@ java_binary(
 java_image(
     name = "fake_storage_server_image",
     main_class = "org.wfanet.measurement.service.testing.storage.MainKt",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":fake_storage_service"],
 )

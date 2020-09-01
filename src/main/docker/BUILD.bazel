@@ -20,9 +20,9 @@ container_push(
 )
 
 container_push(
-    name = "push_mill_task_image",
+    name = "push_gcs_liquid_legions_mill_daemon_image",
     format = "Docker",
-    image = "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_task_image",
+    image = "//src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/mill",
 )
