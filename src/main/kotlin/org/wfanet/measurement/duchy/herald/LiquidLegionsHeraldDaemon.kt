@@ -73,17 +73,17 @@ private class Flags {
 }
 
 @CommandLine.Command(
-  name = "gcp_herald",
+  name = "LiquidLegionsHeraldDaemon",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
   val duchyName = flags.duchy.duchyName
-  val duchyPublicKeyMap = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
-  require(duchyPublicKeyMap.containsKey(duchyName)) {
+  val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
+  require(latestDuchyPublicKeys.containsKey(duchyName)) {
     "Public key not specified for Duchy $duchyName"
   }
-  val otherDuchyNames = duchyPublicKeyMap.keys.filter { it != duchyName }
+  val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
 
   val channel =
     ManagedChannelBuilder.forTarget(flags.globalComputationsService)

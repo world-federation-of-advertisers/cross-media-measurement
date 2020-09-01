@@ -1,35 +1,50 @@
+load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
-package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
-])
+kt_jvm_library(
+    name = "liquid_legions_herald",
+    srcs = ["LiquidLegionsHerald.kt"],
+    visibility = [
+        test_target(":__pkg__"),
+        "//src/test/kotlin/org/wfanet/measurement/integration:__pkg__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
+        "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
+    ],
+)
 
 kt_jvm_library(
-    name = "herald",
-    srcs = glob(["*.kt"]),
+    name = "liquid_legions_herald_daemon",
+    srcs = ["LiquidLegionsHeraldDaemon.kt"],
     deps = [
+        ":liquid_legions_herald",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/crypto",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
     ],
 )
 
 java_binary(
-    name = "gcp_herald_task",
-    main_class = "org.wfanet.measurement.duchy.herald.MainKt",
-    runtime_deps = [":herald"],
+    name = "LiquidLegionsHeraldDaemon",
+    main_class = "org.wfanet.measurement.duchy.herald.LiquidLegionsHeraldDaemonKt",
+    runtime_deps = [":liquid_legions_herald"],
 )
 
 java_image(
-    name = "gcp_herald_task_image",
-    main_class = "org.wfanet.measurement.duchy.herald.MainKt",
+    name = "liquid_legions_herald_daemon_image",
+    main_class = "org.wfanet.measurement.duchy.herald.LiquidLegionsHeraldDaemonKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":herald"],
+    runtime_deps = [":liquid_legions_herald"],
 )
