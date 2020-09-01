@@ -14,7 +14,8 @@
 
 package org.wfanet.measurement.duchy.mill
 
-import java.io.File
+import java.nio.file.Paths
+import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.crypto.ProtocolEncryptionUtility
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
@@ -32,14 +33,6 @@ import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
  * library.
  */
 class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
-
-  init {
-    val lib = File(
-      "src/main/java/org/wfanet/measurement/crypto/" +
-        System.mapLibraryName("protocol_encryption_utility")
-    )
-    System.load(lib.absolutePath)
-  }
 
   override fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
     return AddNoiseToSketchResponse.parseFrom(
@@ -77,5 +70,15 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     return DecryptOneLayerFlagAndCountResponse.parseFrom(
       ProtocolEncryptionUtility.DecryptOneLayerFlagAndCount(request.toByteArray())
     )
+  }
+
+  companion object {
+    init {
+      loadLibrary(
+        name = "protocol_encryption_utility",
+        directoryPath =
+          Paths.get("wfa_measurement_system/src/main/java/org/wfanet/measurement/crypto")
+      )
+    }
   }
 }

@@ -13,6 +13,7 @@ kt_jvm_library(
         "//imports/kotlin/kotlin/reflect/jvm",
     ],
     deps = [
+        "//imports/java/com/google/devtools/build/runfiles",
         "//imports/java/com/google/protobuf",
         "//imports/java/com/google/protobuf/util",
         "//imports/java/io/grpc:api",

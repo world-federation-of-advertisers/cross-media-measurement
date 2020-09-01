@@ -24,9 +24,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image.tar",
     ],
     deps = [
+        "//imports/java/com/google/devtools/build/runfiles",
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
-        "@bazel_tools//tools/java/runfiles",
     ],
 )
 

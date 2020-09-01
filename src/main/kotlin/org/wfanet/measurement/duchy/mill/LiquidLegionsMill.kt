@@ -17,8 +17,8 @@ package org.wfanet.measurement.duchy.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import java.io.File
 import java.nio.charset.Charset
+import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
@@ -88,18 +89,6 @@ class LiquidLegionsMill(
   private val chunkSize: Int = 2000000,
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 1000_0000L)
 ) {
-  init {
-    val lib = File(
-      "external/any_sketch/src/main/java/org/wfanet/estimation/" +
-        System.mapLibraryName("estimators")
-    )
-    System.load(lib.absolutePath)
-  }
-
-  companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
-
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
     logAndSuppressExceptionSuspend { throttler.onReady { pollAndProcessNextComputation() } }
@@ -436,4 +425,15 @@ class LiquidLegionsMill(
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
 
   data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    init {
+      loadLibrary(
+        name = "estimators",
+        directoryPath = Paths.get("any_sketch/src/main/java/org/wfanet/estimation")
+      )
+    }
+  }
 }
