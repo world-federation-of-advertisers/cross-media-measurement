@@ -31,7 +31,7 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "RequisitionServer",
+    name = "GlobalComputationServer",
     main_class = "org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationServerKt",
     runtime_deps = [
         ":global_computation_server",
@@ -40,7 +40,7 @@ java_binary(
 )
 
 java_image(
-    name = "requisition_server_image",
+    name = "global_computation_server_image",
     main_class = "org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [
