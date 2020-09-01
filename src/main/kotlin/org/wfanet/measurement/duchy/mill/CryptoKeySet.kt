@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.duchy.mill
 
-import com.google.protobuf.ByteString
+import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.crypto.ElGamalKeyPair
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.ElGamalKeys
@@ -49,7 +49,7 @@ fun String.toElGamalKeys(): ElGamalKeys {
   }
   return ElGamalKeys.newBuilder()
     .setElGamalPk(substring(0, BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).toElGamalPublicKeys())
-    .setElGamalSk(hexToByteString(substring(BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2)))
+    .setElGamalSk(substring(BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).hexAsByteString())
     .build()
 }
 
@@ -61,23 +61,9 @@ fun String.toElGamalPublicKeys(): ElGamalPublicKeys {
     "Expected string size : ${BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2}, actual size $length."
   }
   return ElGamalPublicKeys.newBuilder()
-    .setElGamalG(hexToByteString(substring(0, BYTES_PER_PUBLIC_KEY * 2)))
-    .setElGamalY(hexToByteString(substring(BYTES_PER_PUBLIC_KEY * 2)))
+    .setElGamalG(substring(0, BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
+    .setElGamalY(substring(BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
     .build()
-}
-
-/**
- * Convert a hexString to its equivalent ByteString.
- * Every two hex numbers in the hexString is mapping to a Byte in the ByteString.
- */
-private fun hexToByteString(hexString: String): ByteString? {
-  require(hexString.length % 2 == 0)
-  val result = ByteArray(hexString.length / 2)
-  for (i in result.indices) {
-    val decimal = hexString.substring(i * 2, i * 2 + 2).toInt(16)
-    result[i] = decimal.toByte()
-  }
-  return ByteString.copyFrom(result)
 }
 
 fun ElGamalPublicKey.toProtoMessage(): ElGamalPublicKeys {

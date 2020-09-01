@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.common
 
+import com.google.common.io.BaseEncoding
 import com.google.protobuf.ByteString
 import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
@@ -183,3 +184,10 @@ fun ReadableByteChannel.asFlow(bufferSize: Int): Flow<ByteString> = flow {
     buffer.clear()
   }
 }.onCompletion { withContext(Dispatchers.IO) { close() } }.flowOn(Dispatchers.IO)
+
+/**
+ * Converts a hex string to its equivalent [ByteString].
+ */
+fun String.hexAsByteString(): ByteString {
+  return ByteString.copyFrom(BaseEncoding.base16().decode(this.toUpperCase()))
+}

@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.duchy.mill
 
-import com.google.common.io.BaseEncoding
-import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.time.Clock
@@ -23,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
+import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.crypto.ElGamalKeyPair
@@ -95,7 +94,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     val keyPair =
       ElGamalKeyPair(
         latestDuchyPublicKeys.getValue(flags.duchy.duchyName),
-        ByteString.copyFrom(BaseEncoding.base16().decode(flags.duchySecretKey))
+        flags.duchySecretKey.hexAsByteString()
       )
     return CryptoKeySet(
       ownPublicAndPrivateKeys = keyPair.toProtoMessage(),
