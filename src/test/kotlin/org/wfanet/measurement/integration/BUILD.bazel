@@ -20,7 +20,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/duchy/herald",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:liquid_legions_mill",
         "//src/main/kotlin/org/wfanet/measurement/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_service",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:protos",
