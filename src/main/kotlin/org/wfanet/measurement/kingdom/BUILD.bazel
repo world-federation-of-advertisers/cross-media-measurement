@@ -1,8 +1,5 @@
-load(
-    "@io_bazel_rules_kotlin//kotlin:kotlin.bzl",
-    "kt_jvm_binary",
-    "kt_jvm_library",
-)
+load( "@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -31,24 +28,34 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_binary(
-    name = "report_maker",
+kt_jvm_library(
+    name = "report_maker_daemon",
     srcs = ["ReportMakerMain.kt"],
+    deps = [
+        ":kingdom",
+        "//:grpc_core",
+        "//imports/java/io/grpc:api",
+        "//imports/java/io/grpc/netty",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ReportMakerDaemon",
     main_class = "org.wfanet.measurement.kingdom.ReportMakerMainKt",
-    deps = [
-        ":kingdom",
-        "//:grpc_core",
-        "//imports/java/io/grpc:api",
-        "//imports/java/io/grpc/netty",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-    ],
+    runtime_deps = [":report_maker_daemon"],
 )
 
-kt_jvm_binary(
-    name = "report_starter",
+java_image(
+    name = "report_maker_daemon_image",
+    main_class = "org.wfanet.measurement.kingdom.ReportMakerMainKt",
+    runtime_deps = [":report_maker_daemon"],
+)
+
+kt_jvm_library(
+    name = "report_starter_daemon",
     srcs = ["ReportStarterMain.kt"],
-    main_class = "org.wfanet.measurement.kingdom.ReportStarterMainKt",
     deps = [
         ":kingdom",
         "//:grpc_core",
@@ -59,10 +66,21 @@ kt_jvm_binary(
     ],
 )
 
-kt_jvm_binary(
-    name = "requisition_linker",
+java_binary(
+    name = "ReportStarterDaemon",
+    main_class = "org.wfanet.measurement.kingdom.ReportStarterMainKt",
+    runtime_deps = [":report_starter_daemon"],
+)
+
+java_image(
+    name = "report_starter_daemon_image",
+    main_class = "org.wfanet.measurement.kingdom.ReportStarterMainKt",
+    runtime_deps = [":report_starter_daemon"],
+)
+
+kt_jvm_library(
+    name = "requisition_linker_daemon",
     srcs = ["RequisitionLinkerMain.kt"],
-    main_class = "org.wfanet.measurement.kingdom.RequisitionLinkerMainKt",
     deps = [
         ":kingdom",
         "//:grpc_core",
@@ -71,4 +89,16 @@ kt_jvm_binary(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
+)
+
+java_binary(
+    name = "RequisitionLinkerDaemon",
+    main_class = "org.wfanet.measurement.kingdom.RequisitionLinkerMainKt",
+    runtime_deps = [":requisition_linker_daemon"],
+)
+
+java_image(
+    name = "requisition_linker_daemon_image",
+    main_class = "org.wfanet.measurement.kingdom.RequisitionLinkerMainKt",
+    runtime_deps = [":requisition_linker_daemon"],
 )
