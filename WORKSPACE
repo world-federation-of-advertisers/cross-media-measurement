@@ -274,6 +274,21 @@ git_repository(
     shallow_since = "1595012448 -0700",
 )
 
+# CUE
+
+git_repository(
+    name = "com_github_tnarg_rules_cue",
+    commit = "540ca8c02f438f7ef3e53d64d4e4e859d578cc15",
+    remote = "https://github.com/tnarg/rules_cue.git",
+)
+
+load("@com_github_tnarg_rules_cue//cue:deps.bzl", "cue_register_toolchains")
+load("@com_github_tnarg_rules_cue//:go.bzl", "go_modules")
+
+go_modules()
+
+cue_register_toolchains()
+
 # Public APIs for measurement system.
 git_repository(
     name = "wfa_measurement_proto",

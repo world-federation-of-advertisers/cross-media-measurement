@@ -1,4 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@com_github_tnarg_rules_cue//cue:cue.bzl", "cue_export")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
@@ -9,6 +10,13 @@ filegroup(
     name = "deploy_to_kind_yaml",
     srcs = ["deploy_to_kind.yaml"],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__"],
+)
+
+cue_export(
+    name = "k8s_yaml",
+    src = "k8s.cue",
+    output_format = "yaml",
+    output_name = "k8s.yaml",
 )
 
 kt_jvm_library(
