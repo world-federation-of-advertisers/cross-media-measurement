@@ -75,6 +75,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
 
     @CommandLine.Option(
       names = ["--computation-storage-service-target"],
+      description = ["Address and port of the Computation Storage Service"],
       required = true
     )
     lateinit var computationStorageServiceTarget: String
