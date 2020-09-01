@@ -89,11 +89,10 @@ class MillFlags {
   lateinit var globalComputationsServiceTarget: String
     private set
 
-  @set:CommandLine.Option(
+  @CommandLine.Option(
     names = ["--mill-id"],
     description = ["The Identifier of the Mill."],
-    required = true,
-    defaultValue = "mill-0000"
+    required = true
   )
   lateinit var millId: String
     private set
@@ -101,7 +100,6 @@ class MillFlags {
   @set:CommandLine.Option(
     names = ["--bytes-per-chunk"],
     description = ["The number of bytes in a chunk when sending result to other duchy."],
-    required = true,
     defaultValue = "2000000"
   )
   var chunkSize by Delegates.notNull<Int>()
@@ -110,7 +108,6 @@ class MillFlags {
   @set:CommandLine.Option(
     names = ["--liquid-legions-decay-rate"],
     description = ["The decay rate of liquid legions sketch."],
-    required = true,
     defaultValue = "12.0"
   )
   var liquidLegionsDecayRate by Delegates.notNull<Double>()
@@ -119,7 +116,6 @@ class MillFlags {
   @set:CommandLine.Option(
     names = ["--liquid-legions-size"],
     description = ["The maximum size of liquid legions sketch."],
-    required = true,
     defaultValue = "100000"
   )
   var liquidLegionsSize by Delegates.notNull<Long>()

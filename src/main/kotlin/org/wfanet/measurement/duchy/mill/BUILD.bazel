@@ -1,47 +1,87 @@
+load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
-    "//src/main/docker:__subpackages__",
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+    test_target(":__pkg__"),
 ])
 
 kt_jvm_library(
-    name = "mill",
-    srcs = glob(["*.kt"]),
-    runtime_deps = ["@io_grpc_grpc_java//netty"],
+    name = "liquid_legions_mill",
+    srcs = [
+        "CryptoKeySet.kt",
+        "LiquidLegionsCryptoWorker.kt",
+        "LiquidLegionsCryptoWorkerImpl.kt",
+        "LiquidLegionsMill.kt",
+    ],
     deps = [
-        "//:grpc_core",
-        "//imports/java/picocli",
+        "//imports/java/com/google/protobuf",
+        "//imports/java/io/grpc:api",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
-        "//src/main/kotlin/org/wfanet/measurement/client/internal/duchy/worker",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
         "@any_sketch//src/main/java/org/wfanet/estimation:estimators",
-        "@com_google_protobuf//:protobuf_java",
+    ],
+)
+
+kt_jvm_library(
+    name = "liquid_legions_mill_daemon",
+    srcs = [
+        "LiquidLegionsMillDaemon.kt",
+        "MillFlags.kt",
+    ],
+    deps = [
+        ":liquid_legions_mill",
+        "//imports/java/com/google/common:guava",
+        "//imports/java/com/google/protobuf",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
+        "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcs_liquid_legions_mill_daemon",
+    srcs = ["GcsLiquidLegionsMillDaemon.kt"],
+    deps = [
+        ":liquid_legions_mill_daemon",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
     ],
 )
 
 java_binary(
-    name = "mill_task",
-    main_class = "org.wfanet.measurement.duchy.mill.MillMainKt",
-    runtime_deps = [":mill"],
+    name = "GcsLiquidLegionsMillDaemon",
+    main_class = "org.wfanet.measurement.duchy.mill.GcsLiquidLegionsMillDaemonKt",
+    runtime_deps = [":gcs_liquid_legions_mill_daemon"],
 )
 
 java_image(
     name = "mill_task_image",
-    main_class = "org.wfanet.measurement.duchy.mill.MillMainKt",
-    runtime_deps = [":mill"],
+    main_class = "org.wfanet.measurement.duchy.mill.GcsLiquidLegionsMillDaemonKt",
+    visibility = [
+        "//src/main/docker:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
+    ],
+    runtime_deps = [":gcs_liquid_legions_mill_daemon"],
 )
