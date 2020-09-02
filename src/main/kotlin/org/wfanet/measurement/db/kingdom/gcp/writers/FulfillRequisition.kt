@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.TransactionContext
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -27,41 +25,33 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 /**
  * Marks a Requisition in Spanner as fulfilled (with state [RequisitionState.FULFILLED]).
  */
-class FulfillRequisitionTransaction {
-  /**
-   * Runs the transaction body.
-   *
-   * @param transactionContext the transaction to use
-   * @param externalRequisitionId the id of the [Requisition]
-   * @throws IllegalArgumentException if the [Requisition] doesn't exist
-   * @return the existing [Requisition] after being marked as fulfilled
-   */
-  fun execute(
-    transactionContext: TransactionContext,
-    externalRequisitionId: ExternalId,
-    duchyId: String
-  ): Requisition {
-    val readResult = runBlocking(spannerDispatcher()) {
-      RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
-    }
+class FulfillRequisition(
+  private val externalRequisitionId: ExternalId,
+  private val duchyId: String
+) : SpannerWriter<Requisition, Requisition>() {
+  override suspend fun TransactionScope.runTransaction(): Requisition {
+    val readResult = RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
 
     require(readResult.requisition.state == RequisitionState.UNFULFILLED) {
       "Requisition $externalRequisitionId is not UNFULFILLED: $readResult"
     }
 
-    val mutation: Mutation =
-      Mutation.newUpdateBuilder("Requisitions")
-        .set("DataProviderId").to(readResult.dataProviderId)
-        .set("CampaignId").to(readResult.campaignId)
-        .set("RequisitionId").to(readResult.requisitionId)
-        .set("State").toProtoEnum(RequisitionState.FULFILLED)
-        .set("DuchyId").to(duchyId)
-        .build()
-    transactionContext.buffer(mutation)
+    Mutation.newUpdateBuilder("Requisitions")
+      .set("DataProviderId").to(readResult.dataProviderId)
+      .set("CampaignId").to(readResult.campaignId)
+      .set("RequisitionId").to(readResult.requisitionId)
+      .set("State").toProtoEnum(RequisitionState.FULFILLED)
+      .set("DuchyId").to(duchyId)
+      .build()
+      .bufferTo(transactionContext)
 
     return readResult.requisition.toBuilder()
       .setState(RequisitionState.FULFILLED)
       .setDuchyId(duchyId)
       .build()
+  }
+
+  override fun ResultScope<Requisition>.buildResult(): Requisition {
+    return checkNotNull(transactionResult)
   }
 }

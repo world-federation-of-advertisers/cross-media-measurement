@@ -15,12 +15,10 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.DatabaseClient
-import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
@@ -39,7 +37,11 @@ import org.wfanet.measurement.db.kingdom.gcp.writers.CreateNextReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportConfig
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportLogEntry
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateRequisition
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateSchedule
+import org.wfanet.measurement.db.kingdom.gcp.writers.FinishReport
+import org.wfanet.measurement.db.kingdom.gcp.writers.FulfillRequisition
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
+import org.wfanet.measurement.db.kingdom.gcp.writers.UpdateReportState
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -59,11 +61,6 @@ class GcpKingdomRelationalDatabase(
 ) : KingdomRelationalDatabase {
   private val client: DatabaseClient by lazy { lazyClient() }
 
-  // TODO: refactor the Transactions and Queries here and elsewhere in this package to be extension
-  // functions of some data class that holds a transactionContext, clock, and idGenerator (for
-  // transactions) or a readContext for queries.
-  private val createScheduleTransaction = CreateScheduleTransaction(idGenerator)
-
   constructor(
     clock: Clock,
     idGenerator: IdGenerator,
@@ -77,10 +74,9 @@ class GcpKingdomRelationalDatabase(
   override suspend fun fulfillRequisition(
     externalRequisitionId: ExternalId,
     duchyId: String
-  ): Requisition =
-    runTransaction { transactionContext ->
-      FulfillRequisitionTransaction().execute(transactionContext, externalRequisitionId, duchyId)
-    }
+  ): Requisition {
+    return FulfillRequisition(externalRequisitionId, duchyId).execute()
+  }
 
   override fun streamRequisitions(
     filter: StreamRequisitionsFilter,
@@ -101,10 +97,9 @@ class GcpKingdomRelationalDatabase(
     return CreateNextReport(externalScheduleId).execute()
   }
 
-  override fun updateReportState(externalReportId: ExternalId, state: ReportState) =
-    runTransaction { transactionContext ->
-      UpdateReportStateTransaction().execute(transactionContext, externalReportId, state)
-    }
+  override fun updateReportState(externalReportId: ExternalId, state: ReportState): Report {
+    return UpdateReportState(externalReportId, state).execute()
+  }
 
   override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> {
     return StreamReportsQuery().execute(client.singleUse(), filter, limit)
@@ -144,13 +139,17 @@ class GcpKingdomRelationalDatabase(
   override suspend fun finishReport(
     externalReportId: ExternalId,
     result: ReportDetails.Result
-  ): Report = runTransaction { transactionContext ->
-    FinishReportTransaction().execute(transactionContext, externalReportId, result)
+  ): Report {
+    return FinishReport(externalReportId, result).execute()
   }
 
-  override fun createDataProvider(): DataProvider = CreateDataProvider().execute()
+  override fun createDataProvider(): DataProvider {
+    return CreateDataProvider().execute()
+  }
 
-  override fun createAdvertiser(): Advertiser = CreateAdvertiser().execute()
+  override fun createAdvertiser(): Advertiser {
+    return CreateAdvertiser().execute()
+  }
 
   override fun createCampaign(
     externalDataProviderId: ExternalId,
@@ -168,13 +167,8 @@ class GcpKingdomRelationalDatabase(
     return CreateReportConfig(reportConfig, campaigns).execute()
   }
 
-  override fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule =
-    runTransaction { transactionContext ->
-      createScheduleTransaction.execute(transactionContext, schedule)
-    }
-
-  private fun <T> runTransaction(block: (TransactionContext) -> T): T {
-    return client.runReadWriteTransaction(block)
+  override fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule {
+    return CreateSchedule(schedule).execute()
   }
 
   private fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)

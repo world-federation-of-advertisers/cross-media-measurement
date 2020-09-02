@@ -12,28 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
-class UpdateReportStateTransaction {
-  fun execute(
-    transactionContext: TransactionContext,
-    externalReportId: ExternalId,
-    state: ReportState
-  ): Report {
-    val reportReadResult = runBlocking(spannerDispatcher()) {
-      ReportReader().readExternalId(transactionContext, externalReportId)
-    }
+class UpdateReportState(
+  private val externalReportId: ExternalId,
+  private val state: ReportState
+) : SpannerWriter<Report, Report>() {
+  override suspend fun TransactionScope.runTransaction(): Report {
+    val reportReadResult = ReportReader().readExternalId(transactionContext, externalReportId)
 
     if (reportReadResult.report.state == state) {
       return reportReadResult.report
@@ -43,19 +38,23 @@ class UpdateReportStateTransaction {
       "Report $externalReportId is in a terminal state: ${reportReadResult.report}"
     }
 
-    val mutation: Mutation =
-      Mutation.newUpdateBuilder("Reports")
-        .set("AdvertiserId").to(reportReadResult.advertiserId)
-        .set("ReportConfigId").to(reportReadResult.reportConfigId)
-        .set("ScheduleId").to(reportReadResult.scheduleId)
-        .set("ReportId").to(reportReadResult.reportId)
-        .set("State").toProtoEnum(state)
-        .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-        .build()
-
-    transactionContext.buffer(mutation)
+    Mutation.newUpdateBuilder("Reports")
+      .set("AdvertiserId").to(reportReadResult.advertiserId)
+      .set("ReportConfigId").to(reportReadResult.reportConfigId)
+      .set("ScheduleId").to(reportReadResult.scheduleId)
+      .set("ReportId").to(reportReadResult.reportId)
+      .set("State").toProtoEnum(state)
+      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      .build()
+      .bufferTo(transactionContext)
 
     return reportReadResult.report.toBuilder().setState(state).build()
+  }
+
+  override fun ResultScope<Report>.buildResult(): Report {
+    return checkNotNull(transactionResult).toBuilder()
+      .setUpdateTime(commitTimestamp.toProto())
+      .build()
   }
 }
 

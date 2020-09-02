@@ -1,8 +1,7 @@
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import org.junit.Before
@@ -11,7 +10,6 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
@@ -35,22 +33,20 @@ private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.newBuilder().a
   }
 }.build()
 
-class CreateScheduleTransactionTest : KingdomDatabaseTestBase() {
+class CreateScheduleTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
   }
 
-  private fun execute(
+  private fun createSchedule(
     schedule: ReportConfigSchedule,
     scheduleId: Long,
     externalScheduleId: Long
   ): ReportConfigSchedule {
-    return databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
-      val idGenerator = FixedIdGenerator(InternalId(scheduleId), ExternalId(externalScheduleId))
-      CreateScheduleTransaction(idGenerator).execute(transactionContext, schedule)
-    }
+    val idGenerator = FixedIdGenerator(InternalId(scheduleId), ExternalId(externalScheduleId))
+    return CreateSchedule(schedule).execute(databaseClient, idGenerator)
   }
 
   private fun readSchedules(): List<Struct> {
@@ -75,7 +71,7 @@ class CreateScheduleTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() {
-    val schedule = execute(SCHEDULE, 10L, 11L)
+    val schedule = createSchedule(SCHEDULE, 10L, 11L)
     assertThat(schedule)
       .isEqualTo(
         SCHEDULE.toBuilder().apply {
@@ -89,9 +85,9 @@ class CreateScheduleTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `multiple schedules`() {
-    execute(SCHEDULE, 10L, 11L)
-    execute(SCHEDULE, 12L, 13L)
-    execute(SCHEDULE, 14L, 15L)
+    createSchedule(SCHEDULE, 10L, 11L)
+    createSchedule(SCHEDULE, 12L, 13L)
+    createSchedule(SCHEDULE, 14L, 15L)
     assertThat(readSchedules())
       .containsExactly(
         makeExpectedScheduleStruct(10L, 11L),

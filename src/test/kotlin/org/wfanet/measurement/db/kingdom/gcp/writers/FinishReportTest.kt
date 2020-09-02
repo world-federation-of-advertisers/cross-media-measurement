@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
 import org.junit.Before
@@ -23,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report
@@ -46,7 +44,7 @@ private val RESULT: ReportDetails.Result =
   }.build()
 
 @RunWith(JUnit4::class)
-class FinishReportTransactionTest : KingdomDatabaseTestBase() {
+class FinishReportTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
@@ -76,11 +74,8 @@ class FinishReportTransactionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun runFinishReportTransaction(): Report {
-    return databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
-      FinishReportTransaction()
-        .execute(transactionContext, ExternalId(EXTERNAL_REPORT_ID), RESULT)
-    }
+  private fun finishReport(): Report {
+    return FinishReport(ExternalId(EXTERNAL_REPORT_ID), RESULT).execute(databaseClient)
   }
 
   @Test
@@ -93,7 +88,7 @@ class FinishReportTransactionTest : KingdomDatabaseTestBase() {
     )
     for (state in states) {
       directlyUpdateState(state)
-      assertFails { runFinishReportTransaction() }
+      assertFails { finishReport() }
     }
   }
 
@@ -111,7 +106,7 @@ class FinishReportTransactionTest : KingdomDatabaseTestBase() {
         reportDetailsBuilder.result = RESULT
       }.build()
 
-    assertThat(runFinishReportTransaction())
+    assertThat(finishReport())
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedReport)
 

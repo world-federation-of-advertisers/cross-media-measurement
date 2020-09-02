@@ -12,8 +12,6 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/spanner",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/common",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",

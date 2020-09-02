@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -30,35 +30,34 @@ import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
+private const val DATA_PROVIDER_ID = 1L
+private const val EXTERNAL_DATA_PROVIDER_ID = 2L
+private const val CAMPAIGN_ID = 3L
+private const val EXTERNAL_CAMPAIGN_ID = 4L
+private const val REQUISITION_ID = 5L
+private const val EXTERNAL_REQUISITION_ID = 6L
+private const val ADVERTISER_ID = 7L
+
+private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
+private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
+
+private val REQUISITION_DETAILS = KingdomDatabaseTestBase.buildRequisitionDetails(10101)
+
+private val REQUISITION: Requisition = Requisition.newBuilder().apply {
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalCampaignId = EXTERNAL_CAMPAIGN_ID
+  externalRequisitionId = EXTERNAL_REQUISITION_ID
+  windowStartTime = WINDOW_START_TIME.toProtoTime()
+  windowEndTime = WINDOW_END_TIME.toProtoTime()
+  state = RequisitionState.UNFULFILLED
+  requisitionDetails = REQUISITION_DETAILS
+  requisitionDetailsJson = REQUISITION_DETAILS.toJson()
+}.build()
+
+private const val DUCHY_ID = "some-duchy-id"
+
 @RunWith(JUnit4::class)
-class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val DATA_PROVIDER_ID = 1L
-    const val EXTERNAL_DATA_PROVIDER_ID = 2L
-    const val CAMPAIGN_ID = 3L
-    const val EXTERNAL_CAMPAIGN_ID = 4L
-    const val REQUISITION_ID = 5L
-    const val EXTERNAL_REQUISITION_ID = 6L
-    const val ADVERTISER_ID = 7L
-    const val EXTERNAL_REPORT_CONFIG_ID = 10L
-
-    val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
-    val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
-
-    val REQUISITION_DETAILS = buildRequisitionDetails(10101)
-
-    val REQUISITION: Requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalCampaignId = EXTERNAL_CAMPAIGN_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-      windowStartTime = WINDOW_START_TIME.toProtoTime()
-      windowEndTime = WINDOW_END_TIME.toProtoTime()
-      state = RequisitionState.UNFULFILLED
-      requisitionDetails = REQUISITION_DETAILS
-      requisitionDetailsJson = REQUISITION_DETAILS.toJson()
-    }.build()
-  }
-
+class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   private fun updateExistingRequisitionState(state: RequisitionState) {
     databaseClient.write(
       listOf(
@@ -71,6 +70,10 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
           .build()
       )
     )
+  }
+
+  private fun fulfillRequisition(externalRequisitionId: Long): Requisition {
+    return FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID).execute(databaseClient)
   }
 
   @Before
@@ -92,17 +95,13 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
   @Test
   fun success() {
     updateExistingRequisitionState(RequisitionState.UNFULFILLED)
-    val requisition: Requisition? =
-      databaseClient.readWriteTransaction().run { transactionContext ->
-        FulfillRequisitionTransaction()
-          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID), "some-duchy")
-      }
+    val requisition = fulfillRequisition(EXTERNAL_REQUISITION_ID)
 
     val expectedRequisition: Requisition =
       REQUISITION
         .toBuilder()
         .setState(RequisitionState.FULFILLED)
-        .setDuchyId("some-duchy")
+        .setDuchyId(DUCHY_ID)
         .build()
 
     assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
@@ -115,12 +114,11 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
   fun `already fulfilled`() {
     updateExistingRequisitionState(RequisitionState.FULFILLED)
     val existingRequisitions = readAllRequisitionsInSpanner()
-    databaseClient.readWriteTransaction().run { transactionContext ->
-      assertFails {
-        FulfillRequisitionTransaction()
-          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID), "some-duchy")
-      }
+
+    assertFails {
+      fulfillRequisition(EXTERNAL_REQUISITION_ID)
     }
+
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactlyElementsIn(existingRequisitions)
@@ -129,11 +127,8 @@ class FulfillRequisitionTransactionTest : KingdomDatabaseTestBase() {
   @Test
   fun `missing requisition`() {
     val existingRequisitions = readAllRequisitionsInSpanner()
-    databaseClient.readWriteTransaction().run { transactionContext ->
-      assertFails {
-        FulfillRequisitionTransaction()
-          .execute(transactionContext, ExternalId(EXTERNAL_REQUISITION_ID + 1), "some-duchy")
-      }
+    assertFails {
+      fulfillRequisition(EXTERNAL_REQUISITION_ID + 1)
     }
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()

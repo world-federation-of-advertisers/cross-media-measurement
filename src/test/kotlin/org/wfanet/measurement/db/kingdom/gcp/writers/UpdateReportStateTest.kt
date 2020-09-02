@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
 import org.junit.Before
@@ -23,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report
@@ -39,7 +37,7 @@ private const val REPORT_ID = 7L
 private const val EXTERNAL_REPORT_ID = 8L
 
 @RunWith(JUnit4::class)
-class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
+class UpdateReportStateTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
@@ -69,11 +67,8 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun runUpdateReportStateTransaction(state: ReportState) {
-    databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
-      UpdateReportStateTransaction()
-        .execute(transactionContext, ExternalId(EXTERNAL_REPORT_ID), state)
-    }
+  private fun updateReportState(state: ReportState): Report {
+    return UpdateReportState(ExternalId(EXTERNAL_REPORT_ID), state).execute(databaseClient)
   }
 
   private fun assertContainsReportInState(state: ReportState) {
@@ -82,17 +77,29 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
       .containsExactly(Report.newBuilder().setState(state).build())
   }
 
-  private fun runUpdateReportStateTransactionAndAssertSuccess(state: ReportState) {
-    runUpdateReportStateTransaction(state)
+  private fun updateReportStateAndAssertSuccess(state: ReportState) {
+    val report = updateReportState(state)
     assertContainsReportInState(state)
+
+    assertThat(report)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        Report.newBuilder().apply {
+          externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+          externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+          externalScheduleId = EXTERNAL_SCHEDULE_ID
+          externalReportId = EXTERNAL_REPORT_ID
+          this.state = state
+        }.build()
+      )
   }
 
   @Test
   fun `state update in normal flow`() {
     directlyUpdateState(ReportState.AWAITING_REQUISITION_CREATION)
-    runUpdateReportStateTransactionAndAssertSuccess(ReportState.AWAITING_REQUISITION_FULFILLMENT)
-    runUpdateReportStateTransactionAndAssertSuccess(ReportState.AWAITING_DUCHY_CONFIRMATION)
-    runUpdateReportStateTransactionAndAssertSuccess(ReportState.SUCCEEDED)
+    updateReportStateAndAssertSuccess(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+    updateReportStateAndAssertSuccess(ReportState.AWAITING_DUCHY_CONFIRMATION)
+    updateReportStateAndAssertSuccess(ReportState.SUCCEEDED)
   }
 
   @Test
@@ -103,7 +110,7 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
     )
     for (terminalState in terminalStates) {
       directlyUpdateState(terminalState)
-      assertFails { runUpdateReportStateTransaction(ReportState.IN_PROGRESS) }
+      assertFails { updateReportState(ReportState.IN_PROGRESS) }
     }
   }
 
@@ -112,6 +119,6 @@ class UpdateReportStateTransactionTest : KingdomDatabaseTestBase() {
     directlyUpdateState(ReportState.SUCCEEDED)
 
     // Does not fail:
-    runUpdateReportStateTransactionAndAssertSuccess(ReportState.SUCCEEDED)
+    updateReportStateAndAssertSuccess(ReportState.SUCCEEDED)
   }
 }
