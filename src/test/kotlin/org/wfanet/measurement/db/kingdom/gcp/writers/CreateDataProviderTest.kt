@@ -12,40 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.internal.kingdom.DataProvider
 
 @RunWith(JUnit4::class)
-class CreateDataProviderTransactionTest : KingdomDatabaseTestBase() {
-  private val idGenerator = FixedIdGenerator()
-  private val transaction = CreateDataProviderTransaction(idGenerator)
+class CreateDataProviderTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() = runBlocking<Unit> {
-    databaseClient.runReadWriteTransaction { transactionContext ->
-      transaction.execute(transactionContext)
-    }
+    val idGenerator = FixedIdGenerator()
+    val dataProvider = CreateDataProvider().execute(databaseClient, idGenerator, Clock.systemUTC())
 
-    val advertisers = databaseClient
+    assertThat(dataProvider)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        DataProvider.newBuilder().apply {
+          externalDataProviderId = idGenerator.externalId.value
+        }.build()
+      )
+
+    val dataProviders = databaseClient
       .singleUse(TimestampBound.strong())
       .executeQuery(Statement.of("SELECT * FROM DataProviders"))
       .asSequence()
       .toList()
 
-    assertThat(advertisers)
+    assertThat(dataProviders)
       .containsExactly(
         Struct.newBuilder()
           .set("DataProviderId").to(idGenerator.internalId.value)

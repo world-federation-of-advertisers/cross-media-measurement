@@ -54,3 +54,11 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.db.kingdom.gcp.writers.CreateCampaignTest",
     deps = _TEST_DEPS,
 )
+
+spanner_emulator_test(
+    name = "CreateDataProviderTest",
+    srcs = ["CreateDataProviderTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.writers.CreateDataProviderTest",
+    deps = _TEST_DEPS,
+)
