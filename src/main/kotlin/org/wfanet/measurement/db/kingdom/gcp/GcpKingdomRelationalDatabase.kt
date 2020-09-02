@@ -29,7 +29,6 @@ import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.ExistingRequisition
 import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.NewRequisitionId
 import org.wfanet.measurement.db.kingdom.gcp.queries.GetReportQuery
-import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportByScheduleQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplatesQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReportsQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesQuery
@@ -41,6 +40,7 @@ import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiser
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateCampaign
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateDataProvider
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateNextReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
@@ -65,7 +65,6 @@ class GcpKingdomRelationalDatabase(
   // functions of some data class that holds a transactionContext, clock, and idGenerator (for
   // transactions) or a readContext for queries.
   private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
-  private val createNextReportTransaction = CreateNextReportTransaction(clock, idGenerator)
   private val createReportConfigTransaction = CreateReportConfigTransaction(idGenerator)
   private val createScheduleTransaction = CreateScheduleTransaction(idGenerator)
 
@@ -111,14 +110,7 @@ class GcpKingdomRelationalDatabase(
     GetReportQuery().execute(client.singleUse(), externalId)
 
   override fun createNextReport(externalScheduleId: ExternalId): Report {
-    val commitTimestamp = runTransactionForCommitTimestamp { transactionContext ->
-      createNextReportTransaction.execute(transactionContext, externalScheduleId)
-    }
-
-    return ReadLatestReportByScheduleQuery().execute(
-      client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp)),
-      externalScheduleId
-    )
+    return CreateNextReport(externalScheduleId).execute()
   }
 
   override fun updateReportState(externalReportId: ExternalId, state: ReportState) =

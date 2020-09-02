@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
-import com.google.cloud.spanner.TransactionContext
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
 import java.time.Period
@@ -23,46 +23,36 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 
+private const val ADVERTISER_ID = 1L
+private const val REPORT_CONFIG_ID = 2L
+private const val SCHEDULE_ID = 3L
+private const val EXTERNAL_ADVERTISER_ID = 4L
+private const val EXTERNAL_REPORT_CONFIG_ID = 5L
+private const val EXTERNAL_SCHEDULE_ID = 6L
+private const val REPORT_ID = 7L
+private const val EXTERNAL_REPORT_ID = 8L
+
 @RunWith(JUnit4::class)
-class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val ADVERTISER_ID = 1L
-    const val REPORT_CONFIG_ID = 2L
-    const val SCHEDULE_ID = 3L
-    const val EXTERNAL_ADVERTISER_ID = 4L
-    const val EXTERNAL_REPORT_CONFIG_ID = 5L
-    const val EXTERNAL_SCHEDULE_ID = 6L
-    const val REPORT_ID = 7L
-    const val EXTERNAL_REPORT_ID = 8L
-  }
-
+class CreateNextReportTest : KingdomDatabaseTestBase() {
   private val clock = TestClockWithNamedInstants(Instant.now())
+  private val idGenerator = FixedIdGenerator(InternalId(REPORT_ID), ExternalId(EXTERNAL_REPORT_ID))
 
-  object FakeIdGenerator : IdGenerator {
-    override fun generateInternalId(): InternalId = InternalId(REPORT_ID)
-    override fun generateExternalId(): ExternalId = ExternalId(EXTERNAL_REPORT_ID)
-  }
-
-  private fun execute(externalScheduleId: ExternalId) {
-    databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
-      CreateNextReportTransaction(clock, FakeIdGenerator)
-        .execute(transactionContext, externalScheduleId)
-    }
+  private fun createNextReport(): Report {
+    return CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID))
+      .execute(databaseClient, idGenerator, clock)
   }
 
   @Before
@@ -79,23 +69,6 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
         }
       }.build()
     )
-  }
-
-  @Test
-  fun `nextReportStartTime in the future`() {
-    clock.tickSeconds("now")
-
-    insertReportConfigSchedule(
-      advertiserId = ADVERTISER_ID,
-      reportConfigId = REPORT_CONFIG_ID,
-      scheduleId = SCHEDULE_ID,
-      externalScheduleId = EXTERNAL_SCHEDULE_ID,
-      nextReportStartTime = clock.instant().plus(Period.ofDays(5))
-    )
-
-    execute(ExternalId(EXTERNAL_SCHEDULE_ID))
-
-    assertThat(readAllReportsInSpanner()).isEmpty()
   }
 
   @Test
@@ -119,7 +92,9 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
       repetitionSpec = scheduleRepetitionSpec
     )
 
-    execute(ExternalId(EXTERNAL_SCHEDULE_ID))
+    val timestampBefore = currentSpannerTimestamp
+    val report = createNextReport()
+    val timestampAfter = currentSpannerTimestamp
 
     val expectedReport: Report = Report.newBuilder().apply {
       externalAdvertiserId = EXTERNAL_ADVERTISER_ID
@@ -127,27 +102,72 @@ class CreateNextReportTransactionTest : KingdomDatabaseTestBase() {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
       externalReportId = EXTERNAL_REPORT_ID
       windowStartTime = clock["nextReportStartTime"].toProtoTime()
-      windowEndTime = clock["nextReportStartTime"].plus(Period.ofDays(3)).toProtoTime()
+      windowEndTime = (clock["nextReportStartTime"] + Period.ofDays(3)).toProtoTime()
       state = ReportState.AWAITING_REQUISITION_CREATION
-      reportDetails = ReportDetails.getDefaultInstance()
-      reportDetailsJson = reportDetails.toJson()
     }.build()
 
-    assertThat(readAllReportsInSpanner())
+    assertThat(report)
       .comparingExpectedFieldsOnly()
-      .containsExactly(expectedReport)
+      .isEqualTo(expectedReport)
+
+    assertThat(report.createTime).isEqualTo(report.updateTime)
+    assertThat(report.createTime.toInstant()).isGreaterThan(timestampBefore)
+    assertThat(report.createTime.toInstant()).isLessThan(timestampAfter)
+
+    assertThat(readAllReportsInSpanner())
+      .containsExactly(report)
 
     val expectedSchedule: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
       externalAdvertiserId = EXTERNAL_ADVERTISER_ID
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
       externalScheduleId = EXTERNAL_SCHEDULE_ID
       repetitionSpec = scheduleRepetitionSpec
-      repetitionSpecJson = scheduleRepetitionSpec.toJson()
       nextReportStartTime = clock["nextReportStartTime"].plus(Period.ofDays(14)).toProtoTime()
     }.build()
 
     assertThat(readAllSchedulesInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(expectedSchedule)
+  }
+
+  @Test
+  fun `nextReportStartTime in the future`() {
+    clock.tickSeconds("now")
+
+    val startTime = clock.instant() + Period.ofDays(5)
+    insertReportConfigSchedule(
+      advertiserId = ADVERTISER_ID,
+      reportConfigId = REPORT_CONFIG_ID,
+      scheduleId = SCHEDULE_ID,
+      externalScheduleId = EXTERNAL_SCHEDULE_ID,
+      nextReportStartTime = startTime,
+      repetitionSpec = RepetitionSpec.newBuilder().apply {
+        start = startTime.toProtoTime()
+        repetitionPeriodBuilder.apply {
+          unit = TimePeriod.Unit.DAY
+          count = 1
+        }
+      }.build()
+    )
+
+    val report = createNextReport()
+
+    val expectedReport = Report.newBuilder().apply {
+      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      externalScheduleId = EXTERNAL_SCHEDULE_ID
+      externalReportId = EXTERNAL_REPORT_ID
+      windowStartTime = startTime.toProtoTime()
+      windowEndTime = (startTime + Period.ofDays(3)).toProtoTime()
+      state = ReportState.AWAITING_REQUISITION_CREATION
+    }.build()
+
+    assertThat(report)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedReport)
+
+    assertThat(readAllReportsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(report)
   }
 }
