@@ -41,7 +41,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         return idGenerator.generateExternalId().value
       }
 
-      override fun ResultScope<Long>.computeResult(): String {
+      override fun ResultScope<Long>.buildResult(): String {
         return requireNotNull(transactionResult).toString()
       }
     }
@@ -65,7 +65,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         return internalId
       }
 
-      override fun ResultScope<InternalId>.computeResult(): Timestamp {
+      override fun ResultScope<InternalId>.buildResult(): Timestamp {
         return commitTimestamp
       }
     }
@@ -88,7 +88,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         return 1
       }
 
-      override fun ResultScope<Long>.computeResult(): String {
+      override fun ResultScope<Long>.buildResult(): String {
         return "the-result"
       }
     }

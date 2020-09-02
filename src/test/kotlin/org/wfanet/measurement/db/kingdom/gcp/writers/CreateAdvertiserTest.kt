@@ -12,32 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
+import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
-class CreateAdvertiserTransactionTest : KingdomDatabaseTestBase() {
-  private val idGenerator = FixedIdGenerator()
-  private val transaction = CreateAdvertiserTransaction(idGenerator)
-
+class CreateAdvertiserTest : KingdomDatabaseTestBase() {
   @Test
   fun success() = runBlocking<Unit> {
-    databaseClient.runReadWriteTransaction { transactionContext ->
-      transaction.execute(transactionContext)
-    }
+    val idGenerator = FixedIdGenerator()
+    CreateAdvertiser().execute(databaseClient, idGenerator, Clock.systemUTC())
 
     val advertisers = databaseClient
       .singleUse(TimestampBound.strong())

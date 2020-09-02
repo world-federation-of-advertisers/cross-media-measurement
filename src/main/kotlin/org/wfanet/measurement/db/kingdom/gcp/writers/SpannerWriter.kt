@@ -43,18 +43,18 @@ abstract class SpannerWriter<T, R> {
    * Override this to compute the final result from [execute]. This is guaranteed to run after the
    * Spanner transaction is complete.
    */
-  protected abstract fun ResultScope<T>.computeResult(): R
+  protected abstract fun ResultScope<T>.buildResult(): R
 
   // To ensure the transaction is only executed once:
   private val executed = AtomicBoolean(false)
 
   /**
    * Executes the SpannerWriter by starting a SpannerWriter, running [runTransaction], then calling
-   * [computeResult] on the output.
+   * [buildResult] on the output.
    *
    * This can only be called once per instance.
    *
-   * @return the output of [computeResult]
+   * @return the output of [buildResult]
    */
   fun execute(
     databaseClient: DatabaseClient,
@@ -68,6 +68,6 @@ abstract class SpannerWriter<T, R> {
       runBlocking(spannerDispatcher()) { scope.runTransaction() }
     }
     val resultScope = ResultScope(transactionResult, runner.commitTimestamp)
-    return runBlocking(spannerDispatcher()) { resultScope.computeResult() }
+    return runBlocking(spannerDispatcher()) { resultScope.buildResult() }
   }
 }

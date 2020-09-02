@@ -61,7 +61,7 @@ class AssociateRequisitionAndReport(
     }
   }
 
-  override fun ResultScope<Unit>.computeResult() {
+  override fun ResultScope<Unit>.buildResult() {
     // Deliberately empty.
   }
 

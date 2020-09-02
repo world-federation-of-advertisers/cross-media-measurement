@@ -53,7 +53,7 @@ class ConfirmDuchyReadiness(
     return newReport
   }
 
-  override fun ResultScope<Report>.computeResult(): Report {
+  override fun ResultScope<Report>.buildResult(): Report {
     return checkNotNull(transactionResult)
   }
 

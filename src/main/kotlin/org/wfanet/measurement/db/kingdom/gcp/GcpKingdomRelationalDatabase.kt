@@ -38,6 +38,7 @@ import org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsQuery
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiser
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
@@ -63,7 +64,6 @@ class GcpKingdomRelationalDatabase(
   // transactions) or a readContext for queries.
   private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
   private val createNextReportTransaction = CreateNextReportTransaction(clock, idGenerator)
-  private val createAdvertiserTransaction = CreateAdvertiserTransaction(idGenerator)
   private val createCampaignTransaction = CreateCampaignTransaction(idGenerator)
   private val createDataProviderTransaction = CreateDataProviderTransaction(idGenerator)
   private val createReportConfigTransaction = CreateReportConfigTransaction(idGenerator)
@@ -173,9 +173,7 @@ class GcpKingdomRelationalDatabase(
     createDataProviderTransaction.execute(transactionContext)
   }
 
-  override fun createAdvertiser(): Advertiser = runTransaction { transactionContext ->
-    createAdvertiserTransaction.execute(transactionContext)
-  }
+  override fun createAdvertiser(): Advertiser = CreateAdvertiser().execute()
 
   override fun createCampaign(
     externalDataProviderId: ExternalId,
