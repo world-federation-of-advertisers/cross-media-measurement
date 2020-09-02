@@ -18,6 +18,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import com.google.common.io.BaseEncoding;
 import com.google.protobuf.ByteString;
 import java.util.List;
 import org.junit.Test;
@@ -115,13 +116,7 @@ public class ProtocolEncryptionUtilityTest {
           .build();
 
   private static ByteString hexToByteString(String hexString) {
-    checkArgument(hexString.length() % 2 == 0);
-    byte[] result = new byte[hexString.length() / 2];
-    for (int i = 0; i < result.length; i += 1) {
-      int decimal = Integer.parseInt(hexString.substring(i * 2, i * 2 + 2), 16);
-      result[i] = (byte) decimal;
-    }
-    return ByteString.copyFrom(result);
+    return ByteString.copyFrom(BaseEncoding.base16().decode(hexString.toUpperCase()));
   }
 
   private void addRegister(Sketch.Builder sketch, int index, int key, int count) {
