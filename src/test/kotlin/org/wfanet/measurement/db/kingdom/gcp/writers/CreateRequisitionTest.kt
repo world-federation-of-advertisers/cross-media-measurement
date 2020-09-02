@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.Timestamp
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
-import kotlin.test.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,11 +25,9 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
-import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.ExistingRequisition
-import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.NewRequisitionId
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -72,15 +69,21 @@ private val INPUT_REQUISITION: Requisition =
 private val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
 
 @RunWith(JUnit4::class)
-class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
+class CreateRequisitionTest : KingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(NEW_REQUISITION_ID), ExternalId(NEW_EXTERNAL_REQUISITION_ID))
-  private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
+
+  private fun createRequisition(requisition: Requisition): Requisition {
+    return CreateRequisition(requisition).execute(databaseClient, idGenerator)
+  }
 
   @Before
   fun populateDatabase() {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
+  }
+
+  private fun insertTheRequisition() {
     insertRequisition(
       DATA_PROVIDER_ID,
       CAMPAIGN_ID,
@@ -94,13 +97,36 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `requisition already exists`() {
-    val result = databaseClient.runReadWriteTransaction {
-      createRequisitionTransaction.execute(it, INPUT_REQUISITION)
-    }
+  fun `no requisitions exist yet`() {
+    val timestampBefore = currentSpannerTimestamp
+    val requisition = createRequisition(INPUT_REQUISITION)
+    val timestampAfter = currentSpannerTimestamp
 
-    assertTrue(result is ExistingRequisition)
-    assertThat(result.requisition)
+    val expectedRequisition =
+      REQUISITION.toBuilder()
+        .setExternalRequisitionId(NEW_EXTERNAL_REQUISITION_ID)
+        .setCreateTime(requisition.createTime)
+        .build()
+
+    assertThat(requisition)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedRequisition)
+
+    val createTime = requisition.createTime.toInstant()
+    assertThat(createTime).isGreaterThan(timestampBefore)
+    assertThat(createTime).isLessThan(timestampAfter)
+
+    assertThat(readAllRequisitionsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(expectedRequisition)
+  }
+
+  @Test
+  fun `requisition already exists`() {
+    insertTheRequisition()
+    val requisition = createRequisition(INPUT_REQUISITION)
+
+    assertThat(requisition)
       .comparingExpectedFieldsOnly()
       .isEqualTo(REQUISITION)
     assertThat(readAllRequisitionsInSpanner())
@@ -110,18 +136,20 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `start time used in idempotency`() {
+    insertTheRequisition()
+
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {
       externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
       windowStartTime = NEW_TIMESTAMP.toProto()
     }.build()
     val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
 
-    val result = databaseClient.readWriteTransaction().run {
-      createRequisitionTransaction.execute(it, newRequisitionWithoutId)
-    }
-    assertTrue(result is NewRequisitionId)
-    assertThat(result.externalRequisitionId.value)
-      .isEqualTo(NEW_EXTERNAL_REQUISITION_ID)
+    val requisition = createRequisition(newRequisitionWithoutId)
+
+    assertThat(requisition)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(newRequisition)
+
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)
@@ -129,17 +157,20 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `end time used in idempotency`() {
+    insertTheRequisition()
+
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {
       externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
       windowEndTime = NEW_TIMESTAMP.toProto()
     }.build()
+    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
 
-    val result = databaseClient.readWriteTransaction().run {
-      createRequisitionTransaction.execute(it, newRequisition)
-    }
-    assertTrue(result is NewRequisitionId)
-    assertThat(result.externalRequisitionId.value)
-      .isEqualTo(NEW_EXTERNAL_REQUISITION_ID)
+    val requisition = createRequisition(newRequisitionWithoutId)
+
+    assertThat(requisition)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(newRequisition)
+
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)
@@ -147,17 +178,20 @@ class CreateRequisitionTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `details used in idempotency`() {
+    insertTheRequisition()
+
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {
       externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
       requisitionDetails = NEW_REQUISITION_DETAILS
     }.build()
+    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
 
-    val result = databaseClient.readWriteTransaction().run {
-      createRequisitionTransaction.execute(it, newRequisition)
-    }
-    assertTrue(result is NewRequisitionId)
-    assertThat(result.externalRequisitionId.value)
-      .isEqualTo(NEW_EXTERNAL_REQUISITION_ID)
+    val requisition = createRequisition(newRequisitionWithoutId)
+
+    assertThat(requisition)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(newRequisition)
+
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION, newRequisition)

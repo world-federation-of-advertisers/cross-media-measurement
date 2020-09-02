@@ -15,7 +15,6 @@
 package org.wfanet.measurement.db.kingdom.gcp
 
 import com.google.cloud.spanner.DatabaseClient
-import com.google.cloud.spanner.TimestampBound
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
@@ -25,15 +24,12 @@ import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
-import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.ExistingRequisition
-import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.NewRequisitionId
 import org.wfanet.measurement.db.kingdom.gcp.queries.GetReportQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplatesQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReportsQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReportsQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsQuery
-import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiser
@@ -42,6 +38,7 @@ import org.wfanet.measurement.db.kingdom.gcp.writers.CreateDataProvider
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateNextReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportConfig
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportLogEntry
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateRequisition
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
@@ -65,7 +62,6 @@ class GcpKingdomRelationalDatabase(
   // TODO: refactor the Transactions and Queries here and elsewhere in this package to be extension
   // functions of some data class that holds a transactionContext, clock, and idGenerator (for
   // transactions) or a readContext for queries.
-  private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
   private val createScheduleTransaction = CreateScheduleTransaction(idGenerator)
 
   constructor(
@@ -75,16 +71,7 @@ class GcpKingdomRelationalDatabase(
   ) : this(clock, idGenerator, { client })
 
   override suspend fun createRequisition(requisition: Requisition): Requisition {
-    val result = runTransaction { transactionContext ->
-      createRequisitionTransaction.execute(transactionContext, requisition)
-    }
-    return when (result) {
-      is ExistingRequisition -> result.requisition
-      is NewRequisitionId ->
-        RequisitionReader()
-          .readExternalId(client.singleUse(TimestampBound.strong()), result.externalRequisitionId)
-          .requisition
-    }
+    return CreateRequisition(requisition).execute()
   }
 
   override suspend fun fulfillRequisition(

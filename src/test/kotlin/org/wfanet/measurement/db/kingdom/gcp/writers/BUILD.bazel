@@ -86,3 +86,11 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportLogEntryTest",
     deps = _TEST_DEPS,
 )
+
+spanner_emulator_test(
+    name = "CreateRequisitionTest",
+    srcs = ["CreateRequisitionTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.writers.CreateRequisitionTest",
+    deps = _TEST_DEPS,
+)

@@ -12,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.asFlow
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
@@ -39,50 +37,42 @@ import org.wfanet.measurement.internal.kingdom.Requisition
  * Persists a Requisition in Spanner if it doesn't yet exist.
  *
  * Idempotency is determined by the Data Provider, Campaign, time window, and RequisitionDetails.
+ *
+ * This does not enforce any preconditions on [requisition]. For example, there is no guarantee
+ * that the startTime is before the endTime or the state is valid.
  */
-class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
+class CreateRequisition(
+  private val requisition: Requisition
+) : SpannerWriter<Requisition, Requisition>() {
   data class ParentKey(
     val dataProviderId: Long,
     val campaignId: Long
   )
 
-  sealed class Result {
-    data class ExistingRequisition(val requisition: Requisition) : Result()
-    data class NewRequisitionId(val externalRequisitionId: ExternalId) : Result()
-  }
-
-  /**
-   * Runs the transaction body.
-   *
-   * This does not enforce any preconditions on [requisition]. For example, there is no guarantee
-   * that the startTime is before the endTime or the state is valid.
-   *
-   * TODO: instead of returning a [Result], construct the new [Requisition] without an additional
-   * Spanner read.
-   *
-   * @param transactionContext the transaction to use
-   * @param requisition the new [Requisition]
-   * @return the existing [Requisition] or the external id of a newly created Requisition.
-   */
-  fun execute(
-    transactionContext: TransactionContext,
-    requisition: Requisition
-  ): Result = runBlocking(spannerDispatcher()) {
-    val existing = findExistingRequisition(transactionContext, requisition)
+  override suspend fun TransactionScope.runTransaction(): Requisition {
+    val existing = findExistingRequisition()
     if (existing != null) {
-      return@runBlocking Result.ExistingRequisition(existing)
+      return existing
     }
 
-    val parentKey = findParentKey(transactionContext, requisition.externalCampaignId)
+    val parentKey = findParentKey(requisition.externalCampaignId)
     val externalRequisitionId = idGenerator.generateExternalId()
-    transactionContext.buffer(requisition.toInsertMutation(parentKey, externalRequisitionId))
-    Result.NewRequisitionId(externalRequisitionId)
+    requisition
+      .toInsertMutation(parentKey, idGenerator.generateInternalId(), externalRequisitionId)
+      .bufferTo(transactionContext)
+
+    return requisition.toBuilder().apply {
+      this.externalRequisitionId = externalRequisitionId.value
+    }.build()
   }
 
-  private suspend fun findParentKey(
-    transactionContext: TransactionContext,
-    externalCampaignId: Long
-  ): ParentKey {
+  override fun ResultScope<Requisition>.buildResult(): Requisition {
+    return checkNotNull(transactionResult).toBuilder().apply {
+      createTime = commitTimestamp.toProto()
+    }.build()
+  }
+
+  private suspend fun TransactionScope.findParentKey(externalCampaignId: Long): ParentKey {
     val sql =
       """
       SELECT Campaigns.DataProviderId, Campaigns.CampaignId
@@ -103,10 +93,7 @@ class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
     )
   }
 
-  private suspend fun findExistingRequisition(
-    transactionContext: TransactionContext,
-    newRequisition: Requisition
-  ): Requisition? {
+  private suspend fun TransactionScope.findExistingRequisition(): Requisition? {
     val whereClause =
       """
       WHERE DataProviders.ExternalDataProviderId = @external_data_provider_id
@@ -118,25 +105,26 @@ class CreateRequisitionTransaction(private val idGenerator: IdGenerator) {
     return RequisitionReader()
       .withBuilder {
         appendClause(whereClause)
-        bind("external_data_provider_id").to(newRequisition.externalDataProviderId)
-        bind("external_campaign_id").to(newRequisition.externalCampaignId)
-        bind("window_start_time").to(newRequisition.windowStartTime.toGcpTimestamp())
-        bind("window_end_time").to(newRequisition.windowEndTime.toGcpTimestamp())
+        bind("external_data_provider_id").to(requisition.externalDataProviderId)
+        bind("external_campaign_id").to(requisition.externalCampaignId)
+        bind("window_start_time").to(requisition.windowStartTime.toGcpTimestamp())
+        bind("window_end_time").to(requisition.windowEndTime.toGcpTimestamp())
       }
       .execute(transactionContext)
       .map { it.requisition }
-      .filter { it.requisitionDetails == newRequisition.requisitionDetails }
+      .filter { it.requisitionDetails == requisition.requisitionDetails }
       .singleOrNull()
   }
 
   private fun Requisition.toInsertMutation(
     parentKey: ParentKey,
+    requisitionId: InternalId,
     externalRequisitionId: ExternalId
   ): Mutation =
     Mutation.newInsertBuilder("Requisitions")
       .set("DataProviderId").to(parentKey.dataProviderId)
       .set("CampaignId").to(parentKey.campaignId)
-      .set("RequisitionId").to(idGenerator.generateInternalId().value)
+      .set("RequisitionId").to(requisitionId.value)
       .set("ExternalRequisitionId").to(externalRequisitionId.value)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
