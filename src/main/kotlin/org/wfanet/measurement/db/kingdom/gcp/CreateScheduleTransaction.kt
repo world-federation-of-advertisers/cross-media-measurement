@@ -8,6 +8,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportConfigReader
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
 class CreateScheduleTransaction(private val idGenerator: IdGenerator) {

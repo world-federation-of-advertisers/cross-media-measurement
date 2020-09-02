@@ -14,6 +14,8 @@ import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
+import org.wfanet.measurement.db.kingdom.gcp.readers.AdvertiserReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.CampaignReader
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 
 /**
@@ -56,7 +58,7 @@ class CreateReportConfigTransaction(private val idGenerator: IdGenerator) {
       .onEach {
         require(it.advertiserId == advertiserId) {
           "Campaign has unexpected advertiser ${it.campaign.externalAdvertiserId} instead of " +
-          "the ReportConfig's advertiser: ${reportConfig.externalAdvertiserId}"
+            "the ReportConfig's advertiser: ${reportConfig.externalAdvertiserId}"
         }
       }
       .map { insertCampaignMutation(reportConfigId, it) }

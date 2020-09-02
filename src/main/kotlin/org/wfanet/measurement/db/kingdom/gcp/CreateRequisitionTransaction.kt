@@ -32,6 +32,7 @@ import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
+import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 /**

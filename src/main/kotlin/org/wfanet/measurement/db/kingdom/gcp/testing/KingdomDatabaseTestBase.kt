@@ -26,9 +26,9 @@ import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
-import org.wfanet.measurement.db.kingdom.gcp.ReportReader
-import org.wfanet.measurement.db.kingdom.gcp.RequisitionReader
-import org.wfanet.measurement.db.kingdom.gcp.ScheduleReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState

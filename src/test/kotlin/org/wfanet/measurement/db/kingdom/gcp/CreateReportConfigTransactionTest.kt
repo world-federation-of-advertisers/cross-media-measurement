@@ -10,6 +10,7 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportConfigReader
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState

@@ -28,6 +28,16 @@ import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.ExistingRequisition
 import org.wfanet.measurement.db.kingdom.gcp.CreateRequisitionTransaction.Result.NewRequisitionId
+import org.wfanet.measurement.db.kingdom.gcp.queries.GetReportQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportByScheduleQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplatesQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReportsQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReportsQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsQuery
+import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
+import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
+import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -41,8 +51,8 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 class GcpKingdomRelationalDatabase(
-  clock: Clock,
-  idGenerator: IdGenerator,
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
   lazyClient: () -> DatabaseClient
 ) : KingdomRelationalDatabase {
   private val client: DatabaseClient by lazy { lazyClient() }
@@ -151,14 +161,7 @@ class GcpKingdomRelationalDatabase(
     duchyId: String,
     externalRequisitionIds: Set<ExternalId>
   ): Report {
-    // TODO: this uses two reads that could be collapsed into one.
-    val commitTimestamp = runTransactionForCommitTimestamp { transactionContext ->
-      ConfirmDuchyReadinessTransaction()
-        .execute(transactionContext, externalReportId, duchyId, externalRequisitionIds)
-    }
-    val readContext = client.singleUse(TimestampBound.ofMinReadTimestamp(commitTimestamp))
-    val reportReadResult = ReportReader().readExternalId(readContext, externalReportId)
-    return reportReadResult.report
+    return ConfirmDuchyReadiness(externalReportId, duchyId, externalRequisitionIds).execute()
   }
 
   override suspend fun finishReport(
@@ -211,4 +214,6 @@ class GcpKingdomRelationalDatabase(
     runner.run(block)
     return runner.commitTimestamp
   }
+
+  private fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)
 }

@@ -8,6 +8,8 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.db.kingdom.gcp.readers.AdvertiserReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.DataProviderReader
 import org.wfanet.measurement.internal.kingdom.Campaign
 
 class CreateCampaignTransaction(private val idGenerator: IdGenerator) {

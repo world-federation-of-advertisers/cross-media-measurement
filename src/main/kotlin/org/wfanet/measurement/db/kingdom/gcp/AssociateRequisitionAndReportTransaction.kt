@@ -23,6 +23,8 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.db.gcp.toProtoEnum
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
