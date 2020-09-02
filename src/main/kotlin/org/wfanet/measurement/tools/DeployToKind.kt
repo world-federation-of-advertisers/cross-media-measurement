@@ -32,6 +32,15 @@ import kotlin.system.exitProcess
 class DeployToKind() : Callable<Int> {
   private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement"
 
+  // TODO: Delete this flag.
+  @CommandLine.Option(
+    names = ["--yaml-file"],
+    description = ["The name of the yaml file to deploy to kind. ",
+                   "Either deploy_to_kind.yaml or kingdom_and_single_duchy.yaml"],
+    defaultValue = "deploy_to_kind.yaml"
+  )
+  lateinit var yamlFile: String
+
   private fun String.runAsProcess(
     // A lot of tools write things that aren't errors to stderr.
     redirectErrorStream: Boolean = true,
@@ -108,7 +117,7 @@ class DeployToKind() : Callable<Int> {
     val yaml = Paths.get(
       runfiles.rlocation(
         "wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/" +
-          "tools/deploy_to_kind.yaml"
+          "tools/${yamlFile}"
       )
     ).toFile()
 

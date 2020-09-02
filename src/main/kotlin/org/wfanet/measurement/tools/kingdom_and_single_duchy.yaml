@@ -1,0 +1,526 @@
+# Copyright 2020 The Measurement System Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# TODO: Merge this file with the deploy_to_kind.yaml file
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcs-liquid-legions-server
+  annotations:
+    system: duchy
+spec:
+  selector:
+    app: gcs-liquid-legions-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spanner-liquid-legions-computation-storage-server
+  annotations:
+    system: duchy
+spec:
+  selector:
+    app: spanner-liquid-legions-computation-storage-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcp-server
+  annotations:
+    system: duchy
+spec:
+  selector:
+    app: gcp-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcp-kingdom-storage-server
+  annotations:
+    system: kingdom
+spec:
+  selector:
+    app: gcp-kingdom-storage-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-storage-server
+  annotations:
+    system: testing
+spec:
+  selector:
+    app: fake-storage-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: global-computation-server
+  annotations:
+    system: kingdom
+spec:
+  selector:
+    app: global-computation-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: publisher-data-server
+  annotations:
+    system: duchy
+spec:
+  selector:
+    app: publisher-data-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: requisition-server
+  annotations:
+    system: kingdom
+spec:
+  selector:
+    app: requisition-server-app
+  type: ClusterIP
+  ports:
+    - name: "port"
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liquid-legions-herald-daemon-pod
+  labels:
+    app: liquid-legions-herald-daemon-app
+  annotations:
+    system: duchy
+spec:
+  containers:
+    - name: liquid-legions-herald-daemon-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image.binary
+      imagePullPolicy: Never
+      args:
+        #  How long to allow for the gRPC channel to shutdown.
+        - "--channel-shutdown-timeout=3s"
+        #  Address and port of the Computation Storage Service
+        - "--computation-storage-service-target=${" # TODO: Set k8s service for COMPUTATION-STORAGE-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-STORAGE-SERVICE_PORT}"
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=" # TODO: Set flag value..."
+        #  File path for DuchyPublicKeyConfig proto message in text
+        # format.
+        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
+        #  Address and port of the Global Computation Service
+        - "--global-computation-service-target=${GLOBAL_COMPUTATION_SERVER_SERVICE_HOST}:${GLOBAL_COMPUTATION_SERVER_SERVICE_PORT}"
+        #  How long to sleep between calls to the Global Computation
+        # Service.
+        - "--polling-interval=1m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gcs-liquid-legions-mill-daemon-pod
+  labels:
+    app: gcs-liquid-legions-mill-daemon-app
+  annotations:
+    system: duchy
+spec:
+  containers:
+    - name: gcs-liquid-legions-mill-daemon-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image.binary
+      imagePullPolicy: Never
+      args:
+        #  The number of bytes in a chunk when sending result to other
+        # duchy.
+        - "--bytes-per-chunk=2000000"
+        #  How long to allow for the gRPC channel to shutdown.
+        - "--channel-shutdown-timeout=3s"
+        #  gRPC target (authority string or URI) of the
+        # ComputationControl service in another Duchy. This is a
+        # key=value pair where the key is the other Duchy's name. It
+        # can be repeated.
+        - "--computation-control-service-target=${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_PORT}"
+        #  Address and port of the Computation Storage Service
+        - "--computation-storage-service-target=${" # TODO: Set k8s service for COMPUTATION-STORAGE-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-STORAGE-SERVICE_PORT}"
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=" # TODO: Set flag value..."
+        #  File path for DuchyPublicKeyConfig proto message in text
+        # format.
+        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
+        #  This Duchy's secret key component of its ElGamal key pair.
+        - "--duchy-secret-key=" # TODO: Set flag value..."
+        #  Address and port of the Kingdom's Global Computations
+        # Service
+        - "--global-computations-service-target=${" # TODO: Set k8s service for GLOBAL-COMPUTATIONS-SERVICE_HOST}:${" # TODO: Set k8s service for GLOBAL-COMPUTATIONS-SERVICE_PORT}"
+        #  Name of the Google Cloud Storage project to use.
+        - "--google-cloud-storage-bucket=" # TODO: Set flag value..."
+        #  Name of the Google Cloud Storage project to use.
+        - "--google-cloud-storage-project=" # TODO: Set flag value..."
+        #  The decay rate of liquid legions sketch.
+        - "--liquid-legions-decay-rate=12.0"
+        #  The maximum size of liquid legions sketch.
+        - "--liquid-legions-size=100000"
+        #  Address and port of the same duchy's MetricValuesService
+        - "--metric-values-service-target=${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
+        # The Identifier of the Mill.
+        - "--mill-id=" # TODO: Set flag value..."
+        #  How long to sleep before polling the computation queue
+        # again if it is empty.
+        - "--polling-interval=1s"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: report-maker-daemon-pod
+  labels:
+    app: report-maker-daemon-app
+  annotations:
+    system: kingdom
+spec:
+  containers:
+    - name: report-maker-daemon-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image.binary
+      imagePullPolicy: Never
+      args:
+
+        - "--internal-services-target=${" # TODO: Set k8s service for INTERNAL-SERVICES_HOST}:${" # TODO: Set k8s service for INTERNAL-SERVICES_PORT}"
+
+        - "--max-concurrency=32"
+
+        - "--throttler-overload-factor=1.2"
+
+        - "--throttler-poll-delay=1ms"
+
+        - "--throttler-time-horizon=2m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: report-starter-daemon-pod
+  labels:
+    app: report-starter-daemon-app
+  annotations:
+    system: kingdom
+spec:
+  containers:
+    - name: report-starter-daemon-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image.binary
+      imagePullPolicy: Never
+      args:
+
+        - "--internal-services-target=${" # TODO: Set k8s service for INTERNAL-SERVICES_HOST}:${" # TODO: Set k8s service for INTERNAL-SERVICES_PORT}"
+
+        - "--max-concurrency=32"
+
+        - "--throttler-overload-factor=1.2"
+
+        - "--throttler-poll-delay=1ms"
+
+        - "--throttler-time-horizon=2m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requisition-linker-daemon-pod
+  labels:
+    app: requisition-linker-daemon-app
+  annotations:
+    system: kingdom
+spec:
+  containers:
+    - name: requisition-linker-daemon-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image.binary
+      imagePullPolicy: Never
+      args:
+
+        - "--internal-services-target=${" # TODO: Set k8s service for INTERNAL-SERVICES_HOST}:${" # TODO: Set k8s service for INTERNAL-SERVICES_PORT}"
+
+        - "--max-concurrency=32"
+
+        - "--throttler-overload-factor=1.2"
+
+        - "--throttler-poll-delay=1ms"
+
+        - "--throttler-time-horizon=2m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gcs-liquid-legions-server-pod
+  labels:
+    app: gcs-liquid-legions-server-app
+  annotations:
+    system: duchy
+spec:
+  containers:
+    - name: gcs-liquid-legions-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  Address and port of the Computation Storage Service
+        - "--computation-storage-service-target=${" # TODO: Set k8s service for COMPUTATION-STORAGE-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-STORAGE-SERVICE_PORT}"
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=" # TODO: Set flag value..."
+        #  File path for DuchyPublicKeyConfig proto message in text
+        # format.
+        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
+        #  Name of the Google Cloud Storage project to use.
+        - "--google-cloud-storage-bucket=" # TODO: Set flag value..."
+        #  Name of the Google Cloud Storage project to use.
+        - "--google-cloud-storage-project=" # TODO: Set flag value..."
+        # TCP port for gRPC server.
+        - "--port=8080"
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: spanner-liquid-legions-computation-storage-server-pod
+  labels:
+    app: spanner-liquid-legions-computation-storage-server-app
+  annotations:
+    system: duchy
+spec:
+  containers:
+    - name: spanner-liquid-legions-computation-storage-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=" # TODO: Set flag value..."
+        #  File path for DuchyPublicKeyConfig proto message in text
+        # format.
+        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
+        # TCP port for gRPC server.
+        - "--port=8080"
+        #  Name of the Spanner database to create.
+        - "--spanner-database=" # TODO: Set flag value..."
+        #  Host name and port of the spanner emulator.
+        - "--spanner-emulator-host=" # TODO: Set flag value..."
+        #  Name of the Spanner instance to create.
+        - "--spanner-instance=" # TODO: Set flag value..."
+        #  Name of the Spanner project to use.
+        - "--spanner-project=" # TODO: Set flag value..."
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gcp-server-pod
+  labels:
+    app: gcp-server-app
+  annotations:
+    system: duchy
+spec:
+  containers:
+    - name: gcp-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  Name of the Google Cloud Storage project to use.
+        - "--google-cloud-storage-bucket=" # TODO: Set flag value..."
+        #  Name of the Google Cloud Storage project to use.
+        - "--google-cloud-storage-project=" # TODO: Set flag value..."
+        # TCP port for gRPC server.
+        - "--port=8080"
+        #  Name of the Spanner database to create.
+        - "--spanner-database=" # TODO: Set flag value..."
+        #  Host name and port of the spanner emulator.
+        - "--spanner-emulator-host=" # TODO: Set flag value..."
+        #  Name of the Spanner instance to create.
+        - "--spanner-instance=" # TODO: Set flag value..."
+        #  Name of the Spanner project to use.
+        - "--spanner-project=" # TODO: Set flag value..."
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gcp-kingdom-storage-server-pod
+  labels:
+    app: gcp-kingdom-storage-server-app
+  annotations:
+    system: kingdom
+spec:
+  containers:
+    - name: gcp-kingdom-storage-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  List of all valid Duchy ids
+        - "--duchy-ids=" # TODO: Set flag value..."
+        # TCP port for gRPC server.
+        - "--port=8080"
+        #  Name of the gRPC server for logging purposes.
+        - "--server-name=KingdomStorageServer"
+        #  Name of the Spanner database to create.
+        - "--spanner-database=" # TODO: Set flag value..."
+        #  Host name and port of the spanner emulator.
+        - "--spanner-emulator-host=" # TODO: Set flag value..."
+        #  Name of the Spanner instance to create.
+        - "--spanner-instance=" # TODO: Set flag value..."
+        #  Name of the Spanner project to use.
+        - "--spanner-project=" # TODO: Set flag value..."
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fake-storage-server-pod
+  labels:
+    app: fake-storage-server-app
+  annotations:
+    system: testing
+spec:
+  containers:
+    - name: fake-storage-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image.binary
+      imagePullPolicy: Never
+      args:
+        # TCP port for gRPC server.
+        - "--port=8080"
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: global-computation-server-pod
+  labels:
+    app: global-computation-server-app
+  annotations:
+    system: kingdom
+spec:
+  containers:
+    - name: global-computation-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  List of all valid Duchy ids
+        - "--duchy-ids=" # TODO: Set flag value..."
+        #  Target for Kingdom database APIs, e.g. localhost:8080
+        - "--internal-api-target=${" # TODO: Set k8s service for INTERNAL-API_HOST}:${" # TODO: Set k8s service for INTERNAL-API_PORT}"
+        # TCP port for gRPC server.
+        - "--port=8080"
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: publisher-data-server-pod
+  labels:
+    app: publisher-data-server-app
+  annotations:
+    system: duchy
+spec:
+  containers:
+    - name: publisher-data-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=" # TODO: Set flag value..."
+        #  gRPC target (authority string or URI) for MetricValues
+        # service.
+        - "--metric-values-service-target=${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
+        # TCP port for gRPC server.
+        - "--port=8080"
+        #  gRPC target (authority string or URI) for
+        # DataProviderRegistration service.
+        - "--registration-service-target=${" # TODO: Set k8s service for REGISTRATION-SERVICE_HOST}:${" # TODO: Set k8s service for REGISTRATION-SERVICE_PORT}"
+        #  gRPC target (authority string or URI) for Requisition
+        # service.
+        - "--requisition-service-target=${REQUISITION_SERVER_SERVICE_HOST}:${REQUISITION_SERVER_SERVICE_PORT}"
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: requisition-server-pod
+  labels:
+    app: requisition-server-app
+  annotations:
+    system: kingdom
+spec:
+  containers:
+    - name: requisition-server-container
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image.binary
+      imagePullPolicy: Never
+      args:
+        #  List of all valid Duchy ids
+        - "--duchy-ids=" # TODO: Set flag value..."
+        #  Target for Kingdom database APIs, e.g. localhost:8080
+        - "--internal-api-target=${" # TODO: Set k8s service for INTERNAL-API_HOST}:${" # TODO: Set k8s service for INTERNAL-API_PORT}"
+        # TCP port for gRPC server.
+        - "--port=8080"
+      ports:
+        - containerPort: 8080
+---

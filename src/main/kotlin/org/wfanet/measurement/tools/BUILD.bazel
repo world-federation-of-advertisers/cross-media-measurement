@@ -8,7 +8,7 @@ package(default_visibility = [
 
 filegroup(
     name = "deploy_to_kind_yaml",
-    srcs = ["deploy_to_kind.yaml"],
+    srcs = ["deploy_to_kind.yaml", "kingdom_and_single_duchy.yaml"],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__"],
 )
 
