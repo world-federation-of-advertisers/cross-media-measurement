@@ -245,7 +245,7 @@ spec:
       imagePullPolicy: Never
       args:
 
-        - "--internal-services-target=${" # TODO: Set k8s service for INTERNAL-SERVICES_HOST}:${" # TODO: Set k8s service for INTERNAL-SERVICES_PORT}"
+        - "--internal-services-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
 
         - "--max-concurrency=32"
 
@@ -270,7 +270,7 @@ spec:
       imagePullPolicy: Never
       args:
 
-        - "--internal-services-target=${" # TODO: Set k8s service for INTERNAL-SERVICES_HOST}:${" # TODO: Set k8s service for INTERNAL-SERVICES_PORT}"
+        - "--internal-services-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
 
         - "--max-concurrency=32"
 
@@ -295,7 +295,7 @@ spec:
       imagePullPolicy: Never
       args:
 
-        - "--internal-services-target=${" # TODO: Set k8s service for INTERNAL-SERVICES_HOST}:${" # TODO: Set k8s service for INTERNAL-SERVICES_PORT}"
+        - "--internal-services-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
 
         - "--max-concurrency=32"
 
@@ -465,7 +465,7 @@ spec:
         #  List of all valid Duchy ids
         - "--duchy-ids=" # TODO: Set flag value..."
         #  Target for Kingdom database APIs, e.g. localhost:8080
-        - "--internal-api-target=${" # TODO: Set k8s service for INTERNAL-API_HOST}:${" # TODO: Set k8s service for INTERNAL-API_PORT}"
+        - "--internal-api-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
         # TCP port for gRPC server.
         - "--port=8080"
       ports:
@@ -518,7 +518,7 @@ spec:
         #  List of all valid Duchy ids
         - "--duchy-ids=" # TODO: Set flag value..."
         #  Target for Kingdom database APIs, e.g. localhost:8080
-        - "--internal-api-target=${" # TODO: Set k8s service for INTERNAL-API_HOST}:${" # TODO: Set k8s service for INTERNAL-API_PORT}"
+        - "--internal-api-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
         # TCP port for gRPC server.
         - "--port=8080"
       ports:
