@@ -24,4 +24,8 @@ interface Throttler {
    * @param block what to do when not throttled
    */
   suspend fun <T> onReady(block: suspend () -> T): T
+
+  suspend fun loopOnReady(block: suspend () -> Unit) {
+    while (true) { onReady(block) }
+  }
 }

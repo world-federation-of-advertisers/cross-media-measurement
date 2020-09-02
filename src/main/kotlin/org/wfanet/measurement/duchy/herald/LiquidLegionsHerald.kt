@@ -16,6 +16,8 @@ package org.wfanet.measurement.duchy.herald
 
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
@@ -37,8 +39,6 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
-import java.util.logging.Level
-import java.util.logging.Logger
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -74,10 +74,8 @@ class LiquidLegionsHerald(
     // response. The first execution of the loop will then compare all active computations at
     // the kingdom with all active computations locally.
     var lastProcessedContinuationToken = ""
-    while (true) {
-      pollingThrottler.onReady {
-        lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
-      }
+    pollingThrottler.loopOnReady {
+      lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
     }
   }
 
