@@ -8,6 +8,9 @@ kt_jvm_library(
         ["*.kt"],
         exclude = ["Gcp*.kt"],
     ),
+    resources = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config",
+    ],
     deps = [
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
@@ -16,6 +19,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
@@ -32,6 +36,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_service",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_service",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_service",
+        "@any_sketch//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
+        "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",
     ],
 )
 
