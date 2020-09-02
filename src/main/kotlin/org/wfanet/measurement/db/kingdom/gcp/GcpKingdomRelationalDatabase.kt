@@ -41,6 +41,7 @@ import org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiser
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateCampaign
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateDataProvider
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateNextReport
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportConfig
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
@@ -65,7 +66,6 @@ class GcpKingdomRelationalDatabase(
   // functions of some data class that holds a transactionContext, clock, and idGenerator (for
   // transactions) or a readContext for queries.
   private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
-  private val createReportConfigTransaction = CreateReportConfigTransaction(idGenerator)
   private val createScheduleTransaction = CreateScheduleTransaction(idGenerator)
 
   constructor(
@@ -176,9 +176,7 @@ class GcpKingdomRelationalDatabase(
     reportConfig: ReportConfig,
     campaigns: List<ExternalId>
   ): ReportConfig =
-    runTransaction { transactionContext ->
-      createReportConfigTransaction.execute(transactionContext, reportConfig, campaigns)
-    }
+    CreateReportConfig(reportConfig, campaigns).execute()
 
   override fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule =
     runTransaction { transactionContext ->
