@@ -106,6 +106,9 @@ message Distribution {
 
 // Enriched cardinality sketch config.
 message SketchConfig {
+  message Key {
+    string sketch_config_id = 1;
+  }
   // The sketch may be GENERIC or using a specific optimized implementation.
   enum SketchType { GENERIC = 0; }
   // Index specification.
@@ -146,16 +149,18 @@ message SketchConfig {
     // How to aggregate the value.
     Aggregator aggregator = 3;
   }
+  // Resource key.
+  Key key = 1;
   // Type of the sketch. You can always use GENERIC if highly tuned performance
   // is not required.
-  SketchType sketch_type = 1;
+  SketchType sketch_type = 2;
   // NOTE: In configs singular fields look better, but as we are going to
   // opensource the code we should probably follow the guidelines on
   // plural names for repeated fields.
   // How to generate each index?
-  repeated IndexSpec indexes = 2;
+  repeated IndexSpec indexes = 3;
   // How to generate each value?
-  repeated ValueSpec values = 3;
+  repeated ValueSpec values = 4;
 
   // See b/152452184 for how to extend the sketch to reservoir sampling when
   // running in the clear.

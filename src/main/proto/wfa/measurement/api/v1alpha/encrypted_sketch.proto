@@ -22,14 +22,6 @@ option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EncryptedSketchProto";
 
-message SketchConfig {
-  message Key {
-    string sketch_config_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
-}
-
 // Encrypted generalized enriched cardinality sketch.
 //
 // The sketch, logically, is a sparse collection of registers, each of which

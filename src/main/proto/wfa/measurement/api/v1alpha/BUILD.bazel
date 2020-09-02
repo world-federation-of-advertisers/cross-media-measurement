@@ -37,7 +37,7 @@ proto_library(
     strip_import_prefix = "/src/main/proto",
     deps = [
         ":data_provider_proto",
-        ":encrypted_sketch_proto",
+        ":sketch_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
