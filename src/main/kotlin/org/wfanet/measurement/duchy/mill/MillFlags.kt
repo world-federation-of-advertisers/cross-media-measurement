@@ -83,8 +83,8 @@ class MillFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--global-computations-service-target"],
-    description = ["Address and port of the Kingdom's Global Computations Service"],
+    names = ["--global-computation-service-target"],
+    description = ["Address and port of the Kingdom's Global Computation Service"],
     required = true
   )
   lateinit var globalComputationsServiceTarget: String

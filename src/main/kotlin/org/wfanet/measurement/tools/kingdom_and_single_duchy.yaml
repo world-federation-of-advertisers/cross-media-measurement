@@ -213,7 +213,7 @@ spec:
         - "--duchy-secret-key=" # TODO: Set flag value..."
         #  Address and port of the Kingdom's Global Computations
         # Service
-        - "--global-computations-service-target=${" # TODO: Set k8s service for GLOBAL-COMPUTATIONS-SERVICE_HOST}:${" # TODO: Set k8s service for GLOBAL-COMPUTATIONS-SERVICE_PORT}"
+        - "--global-computation-service-target=${"GLOBAL_COMPUTATION_SERVER_SERVICE_HOST}:${"GLOBAL_COMPUTATION_SERVER_SERVICE_PORT}"
         #  Name of the Google Cloud Storage project to use.
         - "--google-cloud-storage-bucket=" # TODO: Set flag value..."
         #  Name of the Google Cloud Storage project to use.
