@@ -5,6 +5,10 @@ _TEST_DEPS = [
     "//imports/java/com/google/common/truth",
     "//imports/java/org/junit",
     "//imports/kotlin/kotlin/test",
+    "//src/main/kotlin/org/wfanet/measurement/common",
+    "//src/main/kotlin/org/wfanet/measurement/common/identity",
+    "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+    "//src/main/kotlin/org/wfanet/measurement/common/testing",
     "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
     "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
     "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
@@ -40,5 +44,13 @@ spanner_emulator_test(
     srcs = ["CreateAdvertiserTest.kt"],
     resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiserTest",
+    deps = _TEST_DEPS,
+)
+
+spanner_emulator_test(
+    name = "CreateCampaignTest",
+    srcs = ["CreateCampaignTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.writers.CreateCampaignTest",
     deps = _TEST_DEPS,
 )

@@ -39,6 +39,7 @@ import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiser
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateCampaign
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
@@ -64,7 +65,6 @@ class GcpKingdomRelationalDatabase(
   // transactions) or a readContext for queries.
   private val createRequisitionTransaction = CreateRequisitionTransaction(idGenerator)
   private val createNextReportTransaction = CreateNextReportTransaction(clock, idGenerator)
-  private val createCampaignTransaction = CreateCampaignTransaction(idGenerator)
   private val createDataProviderTransaction = CreateDataProviderTransaction(idGenerator)
   private val createReportConfigTransaction = CreateReportConfigTransaction(idGenerator)
   private val createScheduleTransaction = CreateScheduleTransaction(idGenerator)
@@ -179,14 +179,8 @@ class GcpKingdomRelationalDatabase(
     externalDataProviderId: ExternalId,
     externalAdvertiserId: ExternalId,
     providedCampaignId: String
-  ): Campaign = runTransaction { transactionContext ->
-    createCampaignTransaction.execute(
-      transactionContext,
-      externalDataProviderId,
-      externalAdvertiserId,
-      providedCampaignId
-    )
-  }
+  ): Campaign =
+    CreateCampaign(externalDataProviderId, externalAdvertiserId, providedCampaignId).execute()
 
   override fun createReportConfig(
     reportConfig: ReportConfig,

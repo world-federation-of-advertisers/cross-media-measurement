@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.time.Clock
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -29,8 +31,8 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.internal.kingdom.Campaign
 
 private const val DATA_PROVIDER_ID = 1L
 private const val EXTERNAL_DATA_PROVIDER_ID = 2L
@@ -41,10 +43,18 @@ private const val EXTERNAL_CAMPAIGN_ID = 6L
 private const val PROVIDED_CAMPAIGN_ID = "some-provided-campaign-id"
 
 @RunWith(JUnit4::class)
-class CreateCampaignTransactionTest : KingdomDatabaseTestBase() {
+class CreateCampaignTest : KingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(CAMPAIGN_ID), ExternalId(EXTERNAL_CAMPAIGN_ID))
-  private val transaction = CreateCampaignTransaction(idGenerator)
+
+  private fun createCampaign(externalDataProviderId: Long, externalAdvertiserId: Long): Campaign {
+    return CreateCampaign(
+      ExternalId(externalDataProviderId),
+      ExternalId(externalAdvertiserId),
+      PROVIDED_CAMPAIGN_ID
+    )
+      .execute(databaseClient, idGenerator, Clock.systemUTC())
+  }
 
   @Before
   fun populateDatabase() {
@@ -61,14 +71,18 @@ class CreateCampaignTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() = runBlocking<Unit> {
-    databaseClient.runReadWriteTransaction { transactionContext ->
-      transaction.execute(
-        transactionContext,
-        ExternalId(EXTERNAL_DATA_PROVIDER_ID),
-        ExternalId(EXTERNAL_ADVERTISER_ID),
-        PROVIDED_CAMPAIGN_ID
+    val campaign = createCampaign(EXTERNAL_DATA_PROVIDER_ID, EXTERNAL_ADVERTISER_ID)
+
+    assertThat(campaign)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        Campaign.newBuilder().apply {
+          externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalCampaignId = EXTERNAL_CAMPAIGN_ID
+          providedCampaignId = PROVIDED_CAMPAIGN_ID
+        }.build()
       )
-    }
 
     assertThat(readCampaignStructs())
       .containsExactly(
@@ -87,14 +101,7 @@ class CreateCampaignTransactionTest : KingdomDatabaseTestBase() {
   @Test
   fun `invalid data provider id`() = runBlocking<Unit> {
     assertFails {
-      databaseClient.runReadWriteTransaction { transactionContext ->
-        transaction.execute(
-          transactionContext,
-          ExternalId(99999L),
-          ExternalId(EXTERNAL_ADVERTISER_ID),
-          PROVIDED_CAMPAIGN_ID
-        )
-      }
+      createCampaign(99999L, EXTERNAL_ADVERTISER_ID)
     }
 
     assertThat(readCampaignStructs()).isEmpty()
@@ -103,14 +110,7 @@ class CreateCampaignTransactionTest : KingdomDatabaseTestBase() {
   @Test
   fun `invalid campaign id`() = runBlocking<Unit> {
     assertFails {
-      databaseClient.runReadWriteTransaction { transactionContext ->
-        transaction.execute(
-          transactionContext,
-          ExternalId(EXTERNAL_DATA_PROVIDER_ID),
-          ExternalId(999999L),
-          PROVIDED_CAMPAIGN_ID
-        )
-      }
+      createCampaign(EXTERNAL_DATA_PROVIDER_ID, 999999L)
     }
 
     assertThat(readCampaignStructs()).isEmpty()
