@@ -3,7 +3,6 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Statement
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.time.Clock
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -47,7 +46,7 @@ class CreateReportConfigTest : KingdomDatabaseTestBase() {
     vararg externalCampaignIds: Long
   ): ReportConfig {
     return CreateReportConfig(reportConfig, externalCampaignIds.map(::ExternalId).toList())
-      .execute(databaseClient, idGenerator, Clock.systemUTC())
+      .execute(databaseClient, idGenerator)
   }
 
   @Test

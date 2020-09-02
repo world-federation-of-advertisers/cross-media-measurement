@@ -20,7 +20,6 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.time.Clock
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -53,7 +52,7 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
       ExternalId(externalAdvertiserId),
       PROVIDED_CAMPAIGN_ID
     )
-      .execute(databaseClient, idGenerator, Clock.systemUTC())
+      .execute(databaseClient, idGenerator)
   }
 
   @Before

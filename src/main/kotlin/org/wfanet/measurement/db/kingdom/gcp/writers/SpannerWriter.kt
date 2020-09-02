@@ -7,6 +7,7 @@ import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.spannerDispatcher
 
 /**
@@ -58,8 +59,8 @@ abstract class SpannerWriter<T, R> {
    */
   fun execute(
     databaseClient: DatabaseClient,
-    idGenerator: IdGenerator,
-    clock: Clock
+    idGenerator: IdGenerator = RandomIdGenerator(),
+    clock: Clock = Clock.systemUTC()
   ): R {
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()

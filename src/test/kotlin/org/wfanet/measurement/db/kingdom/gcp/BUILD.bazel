@@ -34,25 +34,6 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "CreateReportLogEntryTransactionTest",
-    srcs = ["CreateReportLogEntryTransactionTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.CreateReportLogEntryTransactionTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
-)
-
-spanner_emulator_test(
     name = "CreateScheduleTransactionTest",
     srcs = ["CreateScheduleTransactionTest.kt"],
     resources = [

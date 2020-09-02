@@ -17,7 +17,6 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.common.truth.Truth.assertThat
-import java.time.Clock
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import org.junit.Before
@@ -25,7 +24,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -51,8 +49,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    AssociateRequisitionAndReport(externalRequisitionId, externalReportId)
-      .execute(databaseClient, FixedIdGenerator(), Clock.systemUTC())
+    AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute(databaseClient)
   }
 
   @Before

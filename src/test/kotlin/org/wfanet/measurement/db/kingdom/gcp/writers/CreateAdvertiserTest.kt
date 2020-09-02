@@ -19,7 +19,6 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
-import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,7 +32,7 @@ class CreateAdvertiserTest : KingdomDatabaseTestBase() {
   @Test
   fun success() = runBlocking<Unit> {
     val idGenerator = FixedIdGenerator()
-    CreateAdvertiser().execute(databaseClient, idGenerator, Clock.systemUTC())
+    CreateAdvertiser().execute(databaseClient, idGenerator)
 
     val advertisers = databaseClient
       .singleUse(TimestampBound.strong())

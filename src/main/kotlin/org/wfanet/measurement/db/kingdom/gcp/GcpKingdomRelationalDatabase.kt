@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.db.kingdom.gcp
 
-import com.google.cloud.Timestamp
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.TimestampBound
 import com.google.cloud.spanner.TransactionContext
@@ -42,6 +41,7 @@ import org.wfanet.measurement.db.kingdom.gcp.writers.CreateCampaign
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateDataProvider
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateNextReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportConfig
+import org.wfanet.measurement.db.kingdom.gcp.writers.CreateReportLogEntry
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
@@ -106,8 +106,9 @@ class GcpKingdomRelationalDatabase(
     )
   }
 
-  override fun getReport(externalId: ExternalId): Report =
-    GetReportQuery().execute(client.singleUse(), externalId)
+  override fun getReport(externalId: ExternalId): Report {
+    return GetReportQuery().execute(client.singleUse(), externalId)
+  }
 
   override fun createNextReport(externalScheduleId: ExternalId): Report {
     return CreateNextReport(externalScheduleId).execute()
@@ -118,11 +119,13 @@ class GcpKingdomRelationalDatabase(
       UpdateReportStateTransaction().execute(transactionContext, externalReportId, state)
     }
 
-  override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> =
-    StreamReportsQuery().execute(client.singleUse(), filter, limit)
+  override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> {
+    return StreamReportsQuery().execute(client.singleUse(), filter, limit)
+  }
 
-  override fun streamReadyReports(limit: Long): Flow<Report> =
-    StreamReadyReportsQuery().execute(client.singleUse(), limit)
+  override fun streamReadyReports(limit: Long): Flow<Report> {
+    return StreamReadyReportsQuery().execute(client.singleUse(), limit)
+  }
 
   override fun associateRequisitionToReport(
     externalRequisitionId: ExternalId,
@@ -131,19 +134,16 @@ class GcpKingdomRelationalDatabase(
     AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute()
   }
 
-  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> =
-    ReadRequisitionTemplatesQuery().execute(client.singleUse(), reportConfigId)
+  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> {
+    return ReadRequisitionTemplatesQuery().execute(client.singleUse(), reportConfigId)
+  }
 
-  override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> =
-    StreamReadySchedulesQuery().execute(client.singleUse(), limit)
+  override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> {
+    return StreamReadySchedulesQuery().execute(client.singleUse(), limit)
+  }
 
   override fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
-    val commitTimestamp = runTransactionForCommitTimestamp { transactionContext ->
-      CreateReportLogEntryTransaction().execute(transactionContext, reportLogEntry)
-    }
-    return reportLogEntry.toBuilder().apply {
-      createTime = commitTimestamp.toProto()
-    }.build()
+    return CreateReportLogEntry(reportLogEntry).execute()
   }
 
   override suspend fun confirmDuchyReadiness(
@@ -169,14 +169,17 @@ class GcpKingdomRelationalDatabase(
     externalDataProviderId: ExternalId,
     externalAdvertiserId: ExternalId,
     providedCampaignId: String
-  ): Campaign =
-    CreateCampaign(externalDataProviderId, externalAdvertiserId, providedCampaignId).execute()
+  ): Campaign {
+    return CreateCampaign(externalDataProviderId, externalAdvertiserId, providedCampaignId)
+      .execute()
+  }
 
   override fun createReportConfig(
     reportConfig: ReportConfig,
     campaigns: List<ExternalId>
-  ): ReportConfig =
-    CreateReportConfig(reportConfig, campaigns).execute()
+  ): ReportConfig {
+    return CreateReportConfig(reportConfig, campaigns).execute()
+  }
 
   override fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule =
     runTransaction { transactionContext ->
@@ -185,12 +188,6 @@ class GcpKingdomRelationalDatabase(
 
   private fun <T> runTransaction(block: (TransactionContext) -> T): T {
     return client.runReadWriteTransaction(block)
-  }
-
-  private fun runTransactionForCommitTimestamp(block: (TransactionContext) -> Unit): Timestamp {
-    val runner = client.readWriteTransaction()
-    runner.run(block)
-    return runner.commitTimestamp
   }
 
   private fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)

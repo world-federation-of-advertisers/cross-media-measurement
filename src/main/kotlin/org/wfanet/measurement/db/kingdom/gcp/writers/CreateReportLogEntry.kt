@@ -1,24 +1,30 @@
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.TransactionContext
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 
-class CreateReportLogEntryTransaction {
-  fun execute(
-    transactionContext: TransactionContext,
-    reportLogEntry: ReportLogEntry
-  ) = runBlocking(spannerDispatcher()) {
+class CreateReportLogEntry(
+  private val reportLogEntry: ReportLogEntry
+) : SpannerWriter<Unit, ReportLogEntry>() {
+
+  override suspend fun TransactionScope.runTransaction() {
     val externalId = ExternalId(reportLogEntry.externalReportId)
     val reportReadResult = ReportReader().readExternalId(transactionContext, externalId)
-    transactionContext.buffer(reportLogEntry.toInsertMutation(reportReadResult))
+    reportLogEntry
+      .toInsertMutation(reportReadResult)
+      .bufferTo(transactionContext)
+  }
+
+  override fun ResultScope<Unit>.buildResult(): ReportLogEntry {
+    return reportLogEntry.toBuilder().apply {
+      createTime = commitTimestamp.toProto()
+    }.build()
   }
 }
 

@@ -1,14 +1,16 @@
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
 import org.junit.Before
 import org.junit.Test
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.asSequence
+import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -33,7 +35,7 @@ private val REPORT_LOG_ENTRY: ReportLogEntry = ReportLogEntry.newBuilder().apply
   }
 }.build()
 
-class CreateReportLogEntryTransactionTest : KingdomDatabaseTestBase() {
+class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
@@ -45,12 +47,8 @@ class CreateReportLogEntryTransactionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun execute(reportLogEntry: ReportLogEntry): Timestamp {
-    val runner = databaseClient.readWriteTransaction()
-    runner.run { transactionContext: TransactionContext ->
-      CreateReportLogEntryTransaction().execute(transactionContext, reportLogEntry)
-    }
-    return runner.commitTimestamp
+  private fun createReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
+    return CreateReportLogEntry(reportLogEntry).execute(databaseClient)
   }
 
   private fun readReportLogEntries(): List<Struct> {
@@ -74,33 +72,45 @@ class CreateReportLogEntryTransactionTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() {
-    val createTime = execute(REPORT_LOG_ENTRY)
+    val timestampBefore = currentSpannerTimestamp
+    val reportLogEntry = createReportLogEntry(REPORT_LOG_ENTRY)
+    val timestampAfter = currentSpannerTimestamp
+
+    assertThat(reportLogEntry)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(REPORT_LOG_ENTRY)
+
+    val createTime = reportLogEntry.createTime.toInstant()
+    assertThat(createTime).isGreaterThan(timestampBefore)
+    assertThat(createTime).isLessThan(timestampAfter)
+
     assertThat(readReportLogEntries())
-      .containsExactly(reportLogEntryStructWithCreateTime(createTime))
+      .containsExactly(reportLogEntryStructWithCreateTime(createTime.toGcpTimestamp()))
   }
 
   @Test
   fun `multiple ReportLogEntries`() {
-    val createTime1 = execute(REPORT_LOG_ENTRY)
-    val createTime2 = execute(REPORT_LOG_ENTRY)
-    val createTime3 = execute(REPORT_LOG_ENTRY)
+    val reportLogEntry1 = createReportLogEntry(REPORT_LOG_ENTRY)
+    val reportLogEntry2 = createReportLogEntry(REPORT_LOG_ENTRY)
+    val reportLogEntry3 = createReportLogEntry(REPORT_LOG_ENTRY)
     assertThat(readReportLogEntries())
       .containsExactly(
-        reportLogEntryStructWithCreateTime(createTime1),
-        reportLogEntryStructWithCreateTime(createTime2),
-        reportLogEntryStructWithCreateTime(createTime3)
+        reportLogEntryStructWithCreateTime(reportLogEntry1.createTime.toGcpTimestamp()),
+        reportLogEntryStructWithCreateTime(reportLogEntry2.createTime.toGcpTimestamp()),
+        reportLogEntryStructWithCreateTime(reportLogEntry3.createTime.toGcpTimestamp())
       )
   }
 
   @Test
   fun `missing Report`() {
+    val missingExternalReportId = EXTERNAL_REPORT_ID + 1
+    val reportLogEntry =
+      REPORT_LOG_ENTRY.toBuilder()
+        .setExternalReportId(missingExternalReportId)
+        .build()
+
     assertFails {
-      val missingExternalReportId = EXTERNAL_REPORT_ID + 1
-      val reportLogEntry =
-        REPORT_LOG_ENTRY.toBuilder()
-          .setExternalReportId(missingExternalReportId)
-          .build()
-      execute(reportLogEntry)
+      createReportLogEntry(reportLogEntry)
     }
   }
 }

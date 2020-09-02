@@ -20,7 +20,6 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,7 +35,7 @@ class CreateDataProviderTest : KingdomDatabaseTestBase() {
   @Test
   fun success() = runBlocking<Unit> {
     val idGenerator = FixedIdGenerator()
-    val dataProvider = CreateDataProvider().execute(databaseClient, idGenerator, Clock.systemUTC())
+    val dataProvider = CreateDataProvider().execute(databaseClient, idGenerator)
 
     assertThat(dataProvider)
       .comparingExpectedFieldsOnly()
