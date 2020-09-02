@@ -90,6 +90,8 @@ MAVEN_ARTIFACTS.update({
     "com.google.cloud:google-cloud-spanner": "1.55.1",
     "com.google.cloud:google-cloud-storage": "1.109.0",
     "com.google.cloud:google-cloud-nio": "0.121.0",
+    "com.google.flogger:flogger": "0.5.1",
+    "com.google.flogger:flogger-system-backend:jar": "0.5.1",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
     "io.grpc:grpc-kotlin-stub": "0.1.2",
     "info.picocli:picocli": "4.4.0",
@@ -292,7 +294,7 @@ cue_register_toolchains()
 # Public APIs for measurement system.
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "c55656ca7d8c86f139fa3bb3b0d22a1cf5b74f77",
+    commit = "9dfde0372d05ade1489d52362e4914c44e1c063b",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
     shallow_since = "1597691700 +0000",
 )
@@ -300,7 +302,14 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    commit = "49034b0b26f7ac0a85d14fb98cc76494aa080396",
+    commit = "60a6034ea85dead3b43543633436880ac74bf19e",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     shallow_since = "1597162208 +0000",
+)
+
+# Data Provider client.
+git_repository(
+    name = "data_provider_client",
+    commit = "e7ea7bce8481778a8843d257ee094b877848486a",
+    remote = "sso://team/ads-xmedia-open-measurement-team/data-provider-client",
 )

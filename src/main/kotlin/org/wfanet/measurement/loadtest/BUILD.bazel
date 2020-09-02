@@ -9,9 +9,16 @@ kt_jvm_library(
     name = "loadtest",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_java_proto",
         "@any_sketch//src/main/java/org/wfanet/anysketch",
         "@any_sketch//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
+        "@any_sketch//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch//src/main/java/org/wfanet/estimation:estimators",
+        "@any_sketch//src/main/java/org/wfanet/estimation:value_histogram",
+        "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",
+        "@data_provider_client//src/main/java/org/wfanet/measurement/client/v1alpha/publisherdata:publisherdataclient",
     ],
 )

@@ -17,8 +17,11 @@ package org.wfanet.measurement.loadtest
 import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
+import org.wfanet.anysketch.crypto.ElGamalPublicKeys
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
+import org.wfanet.measurement.client.v1alpha.publisherdata.org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClient
+import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.storage.StorageClient
 
 /** Interface for E2E Correctness Test */
@@ -42,8 +45,14 @@ interface Correctness {
   /** [SketchConfig] with necessary parameters to generate [Sketch]. */
   val sketchConfig: SketchConfig
 
-  /** Instance of a [StorageClient] to store sketches and estimates.  */
+  /** [ElGamalPublicKeys] keys required to encrypt the sketches. */
+  val encryptionPublicKey: ElGamalPublicKey
+
+  /** Instance of a [StorageClient] to store sketches and estimates. */
   val storageClient: StorageClient
+
+  /** Instance of a [PublisherDataClient] to send encrypted sketches to Publisher Data Service. */
+  val publisherDataClient: PublisherDataClient
 
   /**
    * Generates a sequence of sets, each with [setSize] distinct values in [0, universeSize).
@@ -74,7 +83,15 @@ interface Correctness {
   fun estimateCardinality(anySketches: List<AnySketch>): Long
 
   /**
-   * Stores raw Sketch proto into a local file and returns the path.
+   * Unions multiple [AnySketch] objects into one and runs Frequency Estimation on it.
+   *
+   * @param anySketches List of AnySketch objects
+   * @return Map<Long, Long> Value Histogram for Estimated Frequency
+   */
+  fun estimateFrequency(anySketches: List<AnySketch>): Map<Long, Long>
+
+  /**
+   * Stores raw Sketch protos into a local file and returns the path.
    *
    * @param AnySketch object
    * @return String path of written file e.g. correctness/[runId]/sketches.textproto
@@ -82,7 +99,7 @@ interface Correctness {
   suspend fun storeSketch(anySketch: AnySketch): String
 
   /**
-   * Stores encrypted Sketch proto into a local file and returns the path.
+   * Stores encrypted Sketch protos into a local file and returns the path.
    *
    * @param encryptedSketch Encrypted Sketch proto in ByteString
    * @return String path of written file e.g. correctness/[runId]/encrypted_sketches.txt
@@ -90,15 +107,27 @@ interface Correctness {
   suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String
 
   /**
-   * Stores estimation result into a local file and returns the path.
+   * Stores reach and frequency estimation results into a local file and returns the path.
    *
-   * @param result Long value of Estimated Cardinality
-   * @return String path of written file e.g. correctness/[runId]/estimates.txt
+   * @param reach Long value of Estimated Cardinality
+   * @param frequency Map<Long, Long> value of Estimated Frequency
+   * @param globalComputationId String value of global identifier of the computation
+   * @return String path of written file e.g. correctness/[runId]/reports.textproto
    */
-  suspend fun storeEstimationResult(result: Long): String
+  suspend fun storeEstimationResults(
+    reach: Long,
+    frequency: Map<Long, Long>,
+    globalComputationId: String
+  ): String
 
   /** Sends encrypted [Sketch] proto to Publisher Data Service. */
-  suspend fun sendToServer(encryptedSketch: ByteString)
+  suspend fun sendToServer(
+    dataProviderId: String,
+    campaignId: String,
+    metricRequisitionId: String,
+    combinedPublicKeyId: String,
+    encryptedSketch: ByteString
+  )
 }
 
 fun AnySketch.toSketchProto(sketchConfig: SketchConfig): Sketch {

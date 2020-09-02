@@ -16,9 +16,11 @@ package org.wfanet.measurement.loadtest
 
 import com.google.common.io.Resources
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
+import com.nhaarman.mockitokotlin2.UseConstructor
+import com.nhaarman.mockitokotlin2.mock
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.test.assertFailsWith
@@ -31,8 +33,14 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.SketchProtos
+import org.wfanet.measurement.api.v1alpha.GlobalComputation
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineImplBase as PublisherDataCoroutineService
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
+import org.wfanet.measurement.client.v1alpha.publisherdata.org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClient
+import org.wfanet.measurement.crypto.ElGamalPublicKey
+import org.wfanet.measurement.duchy.testing.TestKeys
+import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.FileSystemStorageClient
 
@@ -42,15 +50,24 @@ private const val OUTPUT_DIR = "Correctness"
 @RunWith(JUnit4::class)
 class CorrectnessImplTest {
 
+  private lateinit var fileSystemStorageClient: FileSystemStorageClient
+  private lateinit var publisherDataClient: PublisherDataClient
+  private val publisherDataServiceMock: PublisherDataCoroutineService =
+    mock(useConstructor = UseConstructor.parameterless())
+
   @Rule
   @JvmField
   val tempDirectory = TemporaryFolder()
 
-  private lateinit var fileSystemStorageClient: FileSystemStorageClient
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(publisherDataServiceMock)
+  }
 
   @Before
-  fun initStorageClient() {
+  fun init() {
     fileSystemStorageClient = FileSystemStorageClient(tempDirectory.root)
+    publisherDataClient = PublisherDataClient(grpcTestServerRule.channel)
   }
 
   @Test
@@ -78,9 +95,9 @@ class CorrectnessImplTest {
   fun `generate single sketch succeeds`() {
     val generatedSetSize = 5
     val correctness = makeCorrectness(
-      1,
-      generatedSetSize,
-      1_0000_000_000L
+      /* campaignCount= */ 1,
+                           generatedSetSize,
+      /* universeSize= */10_000_000_000L
     )
     val reach = setOf(100L, 30L, 500L, 13L, 813L)
     val actualSketch = correctness.generateSketch(reach).toSketchProto(sketchConfig)
@@ -107,7 +124,7 @@ class CorrectnessImplTest {
     val correctness = makeCorrectness(
       campaignCount,
       generatedSetSize,
-      10_000_000_000L
+      /* universeSize= */10_000_000_000L
     )
     val reaches = sequenceOf(
       setOf(100L, 30L, 500L, 13L, 813L),
@@ -123,9 +140,9 @@ class CorrectnessImplTest {
   fun `generate sketch with collided registers succeeds`() {
     val generatedSetSize = 100_000 // Setting something high so we expect collisions.
     val correctness = makeCorrectness(
-      1,
-      generatedSetSize,
-      10_000_000_000L
+      /* campaignCount= */1,
+                          generatedSetSize,
+      /* universeSize= */10_000_000_000L
     )
     val reach = correctness.generateReach().first()
     val actualSketch = correctness.generateSketch(reach).toSketchProto(sketchConfig)
@@ -135,9 +152,9 @@ class CorrectnessImplTest {
   @Test
   fun `store single sketch match succeeds`() = runBlocking {
     val correctness = makeCorrectness(
-      1,
-      1,
-      1
+      /* campaignCount= */1,
+      /* generatedSetSize= */1,
+      /* universeSize= */1
     )
     val expectedSketch = Sketch.newBuilder()
       .setConfig(sketchConfig)
@@ -149,15 +166,15 @@ class CorrectnessImplTest {
         fileSystemStorageClient.getBlob(blobKey.withBlobKeyPrefix("sketches"))!!
           .readAll()
       )
-    ProtoTruth.assertThat(actualSketch).isEqualTo(expectedSketch)
+    assertThat(actualSketch).isEqualTo(expectedSketch)
   }
 
   @Test
   fun `store sketch wrong folder name fails`() {
     val correctness = makeCorrectness(
-      1,
-      100,
-      10_000_000_000L
+      /* campaignCount= */1,
+      /* generatedSetSize= */100,
+      /* universeSize= */10_000_000_000L
     )
     val expectedSketch = Sketch.newBuilder()
       .setConfig(sketchConfig)
@@ -172,6 +189,146 @@ class CorrectnessImplTest {
     }
   }
 
+  @Test
+  fun `encrypt sketch succeeds`() {
+    val correctness = makeCorrectness(
+      /* campaignCount= */1,
+      /* generatedSetSize= */1,
+      /* universeSize= */1
+    )
+    val sketch = Sketch.newBuilder()
+      .setConfig(sketchConfig)
+      .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
+      .build()
+    val actualEncryptedSketch = correctness.encryptSketch(sketch)
+    assertThat(actualEncryptedSketch.isEmpty).isFalse()
+  }
+
+  @Test
+  fun `store encrypted sketch succeeds`() = runBlocking {
+    val correctness = makeCorrectness(
+      /* campaignCount= */1,
+      /* generatedSetSize= */1,
+      /* universeSize= */1
+    )
+    val exptectedEncryptedSketch = "sketch123"
+    val blobKey =
+      correctness.storeEncryptedSketch(ByteString.copyFromUtf8(exptectedEncryptedSketch))
+    val actualEncryptedSketch =
+      fileSystemStorageClient.getBlob(blobKey.withBlobKeyPrefix("encrypted_sketches"))!!
+        .readAll().toStringUtf8()
+    assertThat(actualEncryptedSketch).isEqualTo(exptectedEncryptedSketch)
+  }
+
+  @Test
+  fun `estimate cardinality succeeds`() {
+    val generatedSetSize = 100_000 // Setting something high so we expect collisions.
+    val correctness = makeCorrectness(
+      /* campaignCount= */1,
+                          generatedSetSize,
+      /* universeSize= */10_000_000_000L
+    )
+    val anySketch1 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
+        .build()
+    )
+    val anySketch2 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(1).addValues(12678).addValues(1))
+        .build()
+    )
+    val anySketch3 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(1).addValues(12678).addValues(1))
+        .build()
+    )
+    val anySketch4 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(3).addValues(12678).addValues(1))
+        .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
+        .build()
+    )
+    val actualCardinality =
+      correctness.estimateCardinality(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
+    assertThat(actualCardinality).isEqualTo(4)
+  }
+
+  @Test
+  fun `estimate frequency succeeds`() {
+    val generatedSetSize = 100_000 // Setting something high so we expect collisions.
+    val correctness = makeCorrectness(
+      /* campaignCount= */ 1,
+                           generatedSetSize,
+      /* universeSize= */10_000_000_000L
+    )
+    val anySketch1 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
+        .build()
+    )
+    val anySketch2 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(1).addValues(12678).addValues(1))
+        .build()
+    )
+    val anySketch3 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(1).addValues(12678).addValues(1))
+        .build()
+    )
+    val anySketch4 = SketchProtos.toAnySketch(
+      sketchConfig,
+      Sketch.newBuilder()
+        .setConfig(sketchConfig)
+        .addRegisters(Sketch.Register.newBuilder().setIndex(3).addValues(12678).addValues(1))
+        .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
+        .build()
+    )
+    val actualFrequency =
+      correctness.estimateFrequency(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
+    assertThat(actualFrequency).isEqualTo(mapOf((2L to 2L), (1L to 1L)))
+  }
+
+  @Test
+  fun `store estimation results succeeds`() = runBlocking {
+    val correctness = makeCorrectness(
+      /* campaignCount= */1,
+      /* generatedSetSize= */1,
+      /* universeSize= */1
+    )
+    val reach = 34512L
+    val frequency = mapOf((1L to 4L), (2L to 3L))
+    val blobKey = correctness.storeEstimationResults(reach, frequency, "1")
+    val expectedComputation = GlobalComputation.newBuilder().apply {
+      keyBuilder.globalComputationId = "1"
+      state = GlobalComputation.State.SUCCEEDED
+      resultBuilder.apply {
+        setReach(reach)
+        putAllFrequency(frequency)
+      }
+    }.build()
+    val actualComputation = GlobalComputation.parseFrom(
+      fileSystemStorageClient.getBlob(blobKey.withBlobKeyPrefix("reports"))!!
+        .readAll()
+    )
+    assertThat(actualComputation).isEqualTo(expectedComputation)
+  }
+
   private fun makeCorrectness(
     campaignCount: Int,
     generatedSetSize: Int,
@@ -183,7 +340,9 @@ class CorrectnessImplTest {
     RUN_ID,
     OUTPUT_DIR,
     sketchConfig,
-    fileSystemStorageClient
+    encryptionKey,
+    fileSystemStorageClient,
+    publisherDataClient
   )
 
   private fun String.withBlobKeyPrefix(folder: String): String {
@@ -191,6 +350,11 @@ class CorrectnessImplTest {
   }
 
   companion object {
+    private val encryptionKey = ElGamalPublicKey(
+      TestKeys.CURVE_ID,
+      TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY.elGamalG,
+      TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY.elGamalY
+    )
     private val sketchConfig = readSketchConfigTextproto()
 
     private fun readSketchConfigTextproto(): SketchConfig {
@@ -205,8 +369,7 @@ class CorrectnessImplTest {
 }
 
 private suspend fun StorageClient.Blob.readAll(): ByteString {
-  return read(CorrectnessImpl.STORAGE_BUFFER_SIZE_BYTES).fold(ByteString.EMPTY) {
-    result, value ->
+  return read(CorrectnessImpl.STORAGE_BUFFER_SIZE_BYTES).fold(ByteString.EMPTY) { result, value ->
     result.concat(value)
   }
 }
