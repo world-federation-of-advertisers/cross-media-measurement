@@ -39,12 +39,12 @@ kt_jvm_library(
 java_binary(
     name = "LiquidLegionsHeraldDaemon",
     main_class = "org.wfanet.measurement.duchy.herald.LiquidLegionsHeraldDaemonKt",
-    runtime_deps = [":liquid_legions_herald"],
+    runtime_deps = [":liquid_legions_herald_daemon"],
 )
 
 java_image(
     name = "liquid_legions_herald_daemon_image",
     main_class = "org.wfanet.measurement.duchy.herald.LiquidLegionsHeraldDaemonKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":liquid_legions_herald"],
+    runtime_deps = [":liquid_legions_herald_daemon"],
 )
