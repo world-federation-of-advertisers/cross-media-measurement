@@ -36,6 +36,7 @@ import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReportsQuery
 import org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsQuery
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
+import org.wfanet.measurement.db.kingdom.gcp.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.internal.kingdom.Advertiser
@@ -135,10 +136,7 @@ class GcpKingdomRelationalDatabase(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    runTransaction { transactionContext ->
-      AssociateRequisitionAndReportTransaction()
-        .execute(transactionContext, externalRequisitionId, externalReportId)
-    }
+    AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute()
   }
 
   override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> =

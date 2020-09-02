@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom.gcp
+package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.TransactionContext
 import com.google.common.truth.Truth.assertThat
+import java.time.Clock
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import org.junit.Before
@@ -25,8 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
@@ -46,15 +46,13 @@ private const val REQUISITION_ID = 13L
 private const val EXTERNAL_REQUISITION_ID = 14L
 
 @RunWith(JUnit4::class)
-class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
-  private fun runAssociateRequisitionAndReportTransaction(
+class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
+  private fun associateRequisitionAndReport(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    databaseClient.runReadWriteTransaction { transactionContext: TransactionContext ->
-      AssociateRequisitionAndReportTransaction()
-        .execute(transactionContext, externalRequisitionId, externalReportId)
-    }
+    AssociateRequisitionAndReport(externalRequisitionId, externalReportId)
+      .execute(databaseClient, FixedIdGenerator(), Clock.systemUTC())
   }
 
   @Before
@@ -92,7 +90,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
     insertTheReport()
     insertTheRequisition()
 
-    runAssociateRequisitionAndReportTransaction(
+    associateRequisitionAndReport(
       ExternalId(EXTERNAL_REQUISITION_ID),
       ExternalId(EXTERNAL_REPORT_ID)
     )
@@ -125,7 +123,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
   fun `missing requisition`() {
     insertTheReport()
     assertFails {
-      runAssociateRequisitionAndReportTransaction(
+      associateRequisitionAndReport(
         ExternalId(EXTERNAL_REQUISITION_ID),
         ExternalId(EXTERNAL_REPORT_ID)
       )
@@ -136,7 +134,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
   fun `missing report`() {
     insertTheRequisition()
     assertFails {
-      runAssociateRequisitionAndReportTransaction(
+      associateRequisitionAndReport(
         ExternalId(EXTERNAL_REQUISITION_ID),
         ExternalId(EXTERNAL_REPORT_ID)
       )
@@ -168,7 +166,7 @@ class AssociateRequisitionAndReportTransactionTest : KingdomDatabaseTestBase() {
       )
     )
 
-    runAssociateRequisitionAndReportTransaction(
+    associateRequisitionAndReport(
       ExternalId(EXTERNAL_REQUISITION_ID),
       ExternalId(EXTERNAL_REPORT_ID)
     )

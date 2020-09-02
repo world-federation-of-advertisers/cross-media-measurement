@@ -65,9 +65,7 @@ abstract class SpannerWriter<T, R> {
     val runner = databaseClient.readWriteTransaction()
     val transactionResult: T? = runner.run { transactionContext ->
       val scope = TransactionScope(transactionContext, idGenerator, clock)
-      runBlocking(spannerDispatcher()) {
-        scope.runTransaction()
-      }
+      runBlocking(spannerDispatcher()) { scope.runTransaction() }
     }
     val resultScope = ResultScope(transactionResult, runner.commitTimestamp)
     return runBlocking(spannerDispatcher()) { resultScope.computeResult() }

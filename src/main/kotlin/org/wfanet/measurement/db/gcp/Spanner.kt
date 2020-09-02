@@ -15,6 +15,7 @@
 package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.DatabaseClient
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -42,3 +43,10 @@ fun <T> DatabaseClient.runReadWriteTransaction(block: (TransactionContext) -> T)
  * sufficient whitespace -- this adds a newline before and a space after.
  */
 fun Statement.Builder.appendClause(sql: String): Statement.Builder = append("\n$sql ")
+
+/**
+ * Convenience function for applying a Mutation to a transaction.
+ */
+fun Mutation.bufferTo(transactionContext: TransactionContext) {
+  transactionContext.buffer(this)
+}

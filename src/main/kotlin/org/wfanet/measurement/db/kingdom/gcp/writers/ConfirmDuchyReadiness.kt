@@ -6,6 +6,7 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.db.gcp.asSequence
+import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
@@ -92,17 +93,16 @@ class ConfirmDuchyReadiness(
     reportReadResult: ReportReader.Result,
     newReport: Report
   ) {
-    transactionContext.buffer(
-      Mutation.newUpdateBuilder("Reports").apply {
-        set("AdvertiserId").to(reportReadResult.advertiserId)
-        set("ReportConfigId").to(reportReadResult.reportConfigId)
-        set("ScheduleId").to(reportReadResult.scheduleId)
-        set("ReportId").to(reportReadResult.reportId)
-        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-        set("ReportDetails").toProtoBytes(newReport.reportDetails)
-        set("ReportDetailsJson").toProtoJson(newReport.reportDetails)
-        set("State").toProtoEnum(newReport.state)
-      }.build()
-    )
+    Mutation.newUpdateBuilder("Reports")
+      .set("AdvertiserId").to(reportReadResult.advertiserId)
+      .set("ReportConfigId").to(reportReadResult.reportConfigId)
+      .set("ScheduleId").to(reportReadResult.scheduleId)
+      .set("ReportId").to(reportReadResult.reportId)
+      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      .set("ReportDetails").toProtoBytes(newReport.reportDetails)
+      .set("ReportDetailsJson").toProtoJson(newReport.reportDetails)
+      .set("State").toProtoEnum(newReport.state)
+      .build()
+      .bufferTo(transactionContext)
   }
 }
