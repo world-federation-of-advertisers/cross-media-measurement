@@ -1,3 +1,4 @@
+load("//build/k8s:defs.bzl", "k8s_apply")
 load("@com_github_tnarg_rules_cue//cue:cue.bzl", "cue_export")
 
 DUCHY_IMAGES = [
@@ -21,17 +22,17 @@ KINGDOM_IMAGES = [
 BACKEND_FAKE_IMAGES = ["//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"]
 
 filegroup(
-    name = "duchy_image_tars",
+    name = "duchy_image_archives",
     srcs = [name + ".tar" for name in DUCHY_IMAGES],
 )
 
 filegroup(
-    name = "kingdom_image_tars",
+    name = "kingdom_image_archives",
     srcs = [name + ".tar" for name in KINGDOM_IMAGES],
 )
 
 filegroup(
-    name = "backend_fake_image_tars",
+    name = "backend_fake_image_archives",
     srcs = [name + ".tar" for name in BACKEND_FAKE_IMAGES],
 )
 
@@ -44,9 +45,9 @@ filegroup(
     name = "kingdom_and_single_duchy",
     srcs = ["kingdom_and_single_duchy.yaml"],
     data = [
-        ":backend_fake_image_tars",
-        ":duchy_image_tars",
-        ":kingdom_image_tars",
+        ":backend_fake_image_archives",
+        ":duchy_image_archives",
+        ":kingdom_image_archives",
     ],
     visibility = [":k8s_deployer"],
 )
@@ -55,8 +56,8 @@ filegroup(
     name = "deploy_to_kind",
     srcs = ["deploy_to_kind.yaml"],
     data = [
-        ":backend_fake_image_tars",
-        ":duchy_image_tars",
+        ":backend_fake_image_archives",
+        ":duchy_image_archives",
     ],
     visibility = [":k8s_deployer"],
 )
@@ -66,4 +67,20 @@ cue_export(
     src = "k8s.cue",
     output_format = "yaml",
     output_name = "k8s.yaml",
+)
+
+ALL_IMAGE_ARCHIVES = [name + ".tar" for name in DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES]
+
+k8s_apply(
+    name = "kingdom_and_single_duchy_kind",
+    src = "kingdom_and_single_duchy.yaml",
+    image_archives = ALL_IMAGE_ARCHIVES,
+    k8s_environment = "kind",
+)
+
+k8s_apply(
+    name = "kingdom_and_single_duchy_usernetes",
+    src = "kingdom_and_single_duchy.yaml",
+    image_archives = ALL_IMAGE_ARCHIVES,
+    k8s_environment = "usernetes-containerd",
 )
