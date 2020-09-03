@@ -15,7 +15,7 @@
 package org.wfanet.measurement.service.testing
 
 import io.grpc.BindableService
-import io.grpc.ManagedChannel
+import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
@@ -23,13 +23,14 @@ import io.grpc.testing.GrpcCleanupRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.common.GrpcExceptionLogger
+import org.wfanet.measurement.service.common.LoggingServerInterceptor
 
 class GrpcTestServerRule(
   customServerName: String? = null,
+  private val logAllRequests: Boolean = false,
   private val addServices: Builder.() -> Unit
 ) : TestRule {
-  class Builder(val channel: ManagedChannel, private val serverBuilder: InProcessServerBuilder) {
+  class Builder(val channel: Channel, private val serverBuilder: InProcessServerBuilder) {
     fun addService(service: BindableService) {
       serverBuilder.addService(service)
     }
@@ -41,7 +42,7 @@ class GrpcTestServerRule(
   private val grpcCleanupRule: GrpcCleanupRule = GrpcCleanupRule()
   private val serverName = customServerName ?: InProcessServerBuilder.generateName()
 
-  val channel: ManagedChannel =
+  val channel: Channel =
     grpcCleanupRule.register(
       InProcessChannelBuilder
         .forName(serverName)
@@ -54,8 +55,11 @@ class GrpcTestServerRule(
       override fun evaluate() {
         val serverBuilder =
           InProcessServerBuilder.forName(serverName)
-            .intercept(GrpcExceptionLogger())
             .directExecutor()
+
+        if (logAllRequests) {
+          serverBuilder.intercept(LoggingServerInterceptor())
+        }
 
         Builder(channel, serverBuilder).addServices()
         grpcCleanupRule.register(serverBuilder.build().start())

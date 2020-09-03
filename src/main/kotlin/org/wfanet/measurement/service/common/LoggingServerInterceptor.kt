@@ -9,27 +9,36 @@ import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
+import io.grpc.Status
+import java.util.logging.Level
 import java.util.logging.Logger
 
 /**
  * Logs all gRPC requests and responses.
  */
-class LogAllServerInterceptor : ServerInterceptor {
+class LoggingServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata?,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
+    val methodName = call.methodDescriptor.fullMethodName
     val interceptedCall = object : SimpleForwardingServerCall<ReqT, RespT>(call) {
       override fun sendMessage(message: RespT) {
-        logger.info("${call.methodDescriptor.fullMethodName} response: $message")
+        logger.info("$methodName response: $message")
         super.sendMessage(message)
+      }
+      override fun close(status: Status, trailers: Metadata) {
+        if (status.cause != null) {
+          logger.log(Level.SEVERE, "$methodName gRPC exception: ", status.cause)
+        }
+        super.close(status, trailers)
       }
     }
     val originalListener = next.startCall(interceptedCall, headers)
     return object : SimpleForwardingServerCallListener<ReqT>(originalListener) {
       override fun onMessage(message: ReqT) {
-        logger.info("${call.methodDescriptor.fullMethodName} request: $message")
+        logger.info("$methodName request: $message")
         super.onMessage(message)
       }
     }
@@ -44,12 +53,12 @@ class LogAllServerInterceptor : ServerInterceptor {
  * Logs all gRPC requests and responses.
  */
 fun BindableService.withVerboseLogging(): ServerServiceDefinition {
-  return ServerInterceptors.interceptForward(this, LogAllServerInterceptor())
+  return ServerInterceptors.interceptForward(this, LoggingServerInterceptor())
 }
 
 /**
  * Logs all gRPC requests and responses.
  */
 fun ServerServiceDefinition.withVerboseLogging(): ServerServiceDefinition {
-  return ServerInterceptors.interceptForward(this, LogAllServerInterceptor())
+  return ServerInterceptors.interceptForward(this, LoggingServerInterceptor())
 }

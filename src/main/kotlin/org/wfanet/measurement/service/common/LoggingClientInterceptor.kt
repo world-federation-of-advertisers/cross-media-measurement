@@ -14,7 +14,7 @@ import java.util.logging.Logger
 /**
  * Logs all gRPC requests and responses for clients.
  */
-class LogAllClientInterceptor : ClientInterceptor {
+class LoggingClientInterceptor : ClientInterceptor {
   override fun <ReqT, RespT> interceptCall(
     method: MethodDescriptor<ReqT, RespT>,
     callOptions: CallOptions,
@@ -44,13 +44,13 @@ class LogAllClientInterceptor : ClientInterceptor {
 }
 
 /**
- * Enables [LogAllClientInterceptor] on the returned [Channel].
+ * Enables [LoggingClientInterceptor] on the returned [Channel].
  *
  * @param enable if true (the default), enables verbose logging
  */
 fun Channel.withVerboseLogging(enable: Boolean = true): Channel {
   return if (enable) {
-    ClientInterceptors.interceptForward(this, LogAllClientInterceptor())
+    ClientInterceptors.interceptForward(this, LoggingClientInterceptor())
   } else {
     this
   }

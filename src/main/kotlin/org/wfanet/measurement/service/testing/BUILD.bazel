@@ -17,5 +17,6 @@ kt_jvm_library(
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/service/common",
     ],
 )
