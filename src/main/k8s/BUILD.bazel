@@ -1,0 +1,69 @@
+load("@com_github_tnarg_rules_cue//cue:cue.bzl", "cue_export")
+
+DUCHY_IMAGES = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image",
+]
+
+KINGDOM_IMAGES = [
+    "//src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image",
+]
+
+BACKEND_FAKE_IMAGES = ["//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"]
+
+filegroup(
+    name = "duchy_image_tars",
+    srcs = [name + ".tar" for name in DUCHY_IMAGES],
+)
+
+filegroup(
+    name = "kingdom_image_tars",
+    srcs = [name + ".tar" for name in KINGDOM_IMAGES],
+)
+
+filegroup(
+    name = "backend_fake_image_tars",
+    srcs = [name + ".tar" for name in BACKEND_FAKE_IMAGES],
+)
+
+package_group(
+    name = "k8s_deployer",
+    packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
+)
+
+filegroup(
+    name = "kingdom_and_single_duchy",
+    srcs = ["kingdom_and_single_duchy.yaml"],
+    data = [
+        ":backend_fake_image_tars",
+        ":duchy_image_tars",
+        ":kingdom_image_tars",
+    ],
+    visibility = [":k8s_deployer"],
+)
+
+filegroup(
+    name = "deploy_to_kind",
+    srcs = ["deploy_to_kind.yaml"],
+    data = [
+        ":backend_fake_image_tars",
+        ":duchy_image_tars",
+    ],
+    visibility = [":k8s_deployer"],
+)
+
+cue_export(
+    name = "k8s_yaml",
+    src = "k8s.cue",
+    output_format = "yaml",
+    output_name = "k8s.yaml",
+)

@@ -1,23 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("@com_github_tnarg_rules_cue//cue:cue.bzl", "cue_export")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/tools:__subpackages__",
 ])
-
-filegroup(
-    name = "deploy_to_kind_yaml",
-    srcs = ["deploy_to_kind.yaml", "kingdom_and_single_duchy.yaml"],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__"],
-)
-
-cue_export(
-    name = "k8s_yaml",
-    src = "k8s.cue",
-    output_format = "yaml",
-    output_name = "k8s.yaml",
-)
 
 kt_jvm_library(
     name = "deploy_to_kind_impl",
@@ -25,20 +11,8 @@ kt_jvm_library(
         "DeployToKind.kt",
     ],
     data = [
-        ":deploy_to_kind_yaml",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image.tar",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image.tar",
+        "//src/main/k8s:deploy_to_kind",
+        "//src/main/k8s:kingdom_and_single_duchy",
     ],
     deps = [
         "//imports/java/com/google/devtools/build/runfiles",

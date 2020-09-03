@@ -29,7 +29,6 @@ package_group(
     name = "docker_image_deployment",
     packages = [
         "//src/main/docker/...",
-        "//src/main/kotlin/org/wfanet/measurement/tools/...",
-        "//src/test/kotlin/org/wfanet/measurement/tools/...",
-    ]
+        "//src/main/k8s/...",
+    ],
 )

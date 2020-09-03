@@ -15,15 +15,15 @@
 package org.wfanet.measurement.tools
 
 import com.google.devtools.build.runfiles.Runfiles
+import java.nio.file.Paths
+import java.util.concurrent.Callable
+import java.util.logging.Logger
+import kotlin.system.exitProcess
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import picocli.CommandLine
 import picocli.CommandLine.Command
-import java.nio.file.Paths
-import java.util.concurrent.Callable
-import java.util.logging.Logger
-import kotlin.system.exitProcess
 
 @Command(
   name = "deploy_to_kind",
@@ -35,8 +35,10 @@ class DeployToKind() : Callable<Int> {
   // TODO: Delete this flag.
   @CommandLine.Option(
     names = ["--yaml-file"],
-    description = ["The name of the yaml file to deploy to kind. ",
-                   "Either deploy_to_kind.yaml or kingdom_and_single_duchy.yaml"],
+    description = [
+      "The name of the yaml file to deploy to kind. ",
+      "Either deploy_to_kind.yaml or kingdom_and_single_duchy.yaml"
+    ],
     defaultValue = "kingdom_and_single_duchy.yaml"
   )
   lateinit var yamlFile: String
@@ -116,8 +118,7 @@ class DeployToKind() : Callable<Int> {
 
     val yaml = Paths.get(
       runfiles.rlocation(
-        "wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/" +
-          "tools/${yamlFile}"
+        "wfa_measurement_system/src/main/k8s/$yamlFile"
       )
     ).toFile()
 
