@@ -341,8 +341,8 @@ class LiquidLegionsMill(
     val frequencyHistogram: Map<Long, Long> = flagCounts
       .filter { it.isNotDestroyed }
       .groupBy { it.frequency }
-      .mapKeys { it.key.toLong() }
-      .mapValues { it.value.size.toLong() }
+      .entries
+      .associate { it.key.toLong() to it.value.size.toLong() }
     val cardinality: Long = Estimators.EstimateCardinalityLiquidLegions(
       liquidLegionsConfig.decayRate, liquidLegionsConfig.size, flagCounts.size.toLong()
     )
