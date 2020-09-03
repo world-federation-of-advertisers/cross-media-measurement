@@ -15,7 +15,6 @@
 package org.wfanet.measurement.crypto
 
 import com.google.protobuf.TextFormat
-import java.io.File
 import java.math.BigInteger
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
@@ -49,21 +48,18 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
 
   class Flags {
     @CommandLine.Option(
-      names = ["--duchy-public-keys-config-file"],
-      description = ["File path for DuchyPublicKeyConfig proto message in text format."],
+      names = ["--duchy-public-keys-config"],
+      description = ["DuchyPublicKeyConfig proto message in text format."],
       required = true
     )
-    lateinit var configFile: File
+    lateinit var config: String
       private set
   }
 
   companion object {
     /** Constructs a [DuchyPublicKeys] instance from command-line flags. */
     fun fromFlags(flags: Flags): DuchyPublicKeys {
-      val configMessage = TextFormat.parse(
-        flags.configFile.readText(),
-        DuchyPublicKeyConfig::class.java
-      )
+      val configMessage = TextFormat.parse(flags.config, DuchyPublicKeyConfig::class.java)
       return DuchyPublicKeys(configMessage)
     }
   }
