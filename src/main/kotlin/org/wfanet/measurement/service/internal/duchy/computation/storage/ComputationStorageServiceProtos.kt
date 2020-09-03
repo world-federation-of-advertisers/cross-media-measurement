@@ -32,7 +32,7 @@ import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 fun LiquidLegionsSketchAggregationStage.toProtocolStage(): ComputationStage =
   ComputationStage.newBuilder().setLiquidLegionsSketchAggregation(this).build()
 
-fun Long.toGetTokenRequest(
+fun String.toGetTokenRequest(
   computationType: ComputationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 ): GetComputationTokenRequest =
   GetComputationTokenRequest.newBuilder()

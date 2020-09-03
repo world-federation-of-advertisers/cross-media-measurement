@@ -31,7 +31,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 /** Query for fields needed to make a [ComputationToken] .*/
 class ComputationTokenProtoQuery(
   val parseStageEnum: (Long) -> ComputationStage,
-  globalId: Long
+  globalId: String
 ) :
   SqlBasedQuery<ComputationToken> {
   companion object {
@@ -67,10 +67,12 @@ class ComputationTokenProtoQuery(
     }?.sortedBy { it.blobId }
       // Empty list if the column was null.
       ?: listOf()
-    val computationDetails = struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
+    val computationDetails = struct.getProtoMessage(
+      "ComputationDetails", ComputationDetails.parser()
+    )
     val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
     return ComputationToken.newBuilder().apply {
-      globalComputationId = struct.getLong("GlobalComputationId")
+      globalComputationId = struct.getString("GlobalComputationId")
       localComputationId = struct.getLong("ComputationId")
       computationStage = parseStageEnum(struct.getLong("ComputationStage"))
       attempt = struct.getLong("NextAttempt").toInt() - 1

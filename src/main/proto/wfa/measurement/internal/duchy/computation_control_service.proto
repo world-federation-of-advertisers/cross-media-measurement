@@ -60,7 +60,7 @@ message HandleNoisedSketchRequest {
   // The globally unique identifier of the multi-party computation.
   // Only the first message in the request stream needs to set this value, it
   // will be ignored on all other requests in the stream.
-  uint64 computation_id = 1;
+  string computation_id = 1;
 
   // The sketch contains a list of registers each is a three tuple of position,
   // key, and count. Sketches can exceed the maximum message size so split them
@@ -80,7 +80,7 @@ message HandleConcatenatedSketchRequest {
   // The globally unique identifier of the multi-party computation.
   // Only the first message in the request stream needs to set this value, it
   // will be ignored on all other requests in the stream.
-  uint64 computation_id = 1;
+  string computation_id = 1;
 
   // The sketch contains a list of registers each is a three tuple of position,
   // key, and count. Sketches can exceed the maximum message size so split them
@@ -100,7 +100,7 @@ message HandleEncryptedFlagsAndCountsRequest {
   // The globally unique identifier of the multi-party computation.
   // Only the first message in the request stream needs to set this value, it
   // will be ignored on all other requests in the stream.
-  uint64 computation_id = 1;
+  string computation_id = 1;
 
   // The data is a list of flag count pairs. These pairs can exceed the maximum
   // message size so split them into chunks and send a sequence of requests via

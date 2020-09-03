@@ -40,7 +40,7 @@ class UnclaimedTasksQuery<StageT>(
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),
-      globalId = struct.getLong("GlobalComputationId"),
+      globalId = struct.getString("GlobalComputationId"),
       computationStage = parseStageEnum(struct.getLong("ComputationStage")),
       updateTime = struct.getTimestamp("UpdateTime"),
       nextAttempt = struct.getLong("NextAttempt")
@@ -49,7 +49,7 @@ class UnclaimedTasksQuery<StageT>(
 /** @see [UnclaimedTasksQuery.asResult] .*/
 data class UnclaimedTaskQueryResult<StageT>(
   val computationId: Long,
-  val globalId: Long,
+  val globalId: String,
   val computationStage: StageT,
   val updateTime: Timestamp,
   val nextAttempt: Long

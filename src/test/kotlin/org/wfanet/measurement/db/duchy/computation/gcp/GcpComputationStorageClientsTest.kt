@@ -70,8 +70,8 @@ private val EL_GAMAL_GENERATOR =
     0xF3, 0x42, 0x7D, 0x86, 0x3C, 0x94, 0x5C, 0x0E, 0x14, 0x11, 0xC6, 0x35, 0x30, 0xC8, 0xEA, 0x88,
     0xAD
   )
-private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = 0xFEED5L
-private const val ID_WHERE_ALSACE_IS_PRIMARY = 0x41324132444
+private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "123"
+private const val ID_WHERE_ALSACE_IS_PRIMARY = "456"
 private const val ALSACE = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
@@ -197,7 +197,7 @@ data class ComputationStep(
  */
 class SingleLiquidLegionsComputation(
   private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
-  globalId: Long,
+  globalId: String,
   private val testClock: TestClockWithNamedInstants
 ) {
 

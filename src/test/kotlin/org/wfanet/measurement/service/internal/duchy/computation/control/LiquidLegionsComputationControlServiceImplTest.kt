@@ -112,12 +112,12 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive sketches`() = runBlocking<Unit> {
-    val id = 252525L
+    val id = "252525"
     val localSketches = "$id/$WAIT_SKETCHES/noised_sketch_$RUNNING_DUCHY_NAME"
     fakeBlobs[localSketches] = "local_sketches".toByteArray()
     fakeComputationStorage
       .addComputation(
-        id = id,
+        globalId = id,
         stage = WAIT_SKETCHES.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(
@@ -196,14 +196,14 @@ class LiquidLegionsComputationControlServiceImplTest {
   @Test
   fun `receive noised sketch when not expected`() = runBlocking<Unit> {
     val sketch = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(55)
+      .setComputationId("55")
       .setPartialSketch("data".toByteString())
       .build()
     val notFound =
       assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationStorage.addComputation(
-      id = 55,
+      globalId = "55",
       stage = LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
@@ -223,10 +223,10 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive blind positions with partial sketches at primary`() = runBlocking<Unit> {
-    val id = 123L
+    val id = "123"
     fakeComputationStorage
       .addComputation(
-        id = id,
+        globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
@@ -270,10 +270,10 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive blind positions at secondary`() = runBlocking<Unit> {
-    val id = 4567L
+    val id = "4567"
     fakeComputationStorage
       .addComputation(
-        id = id,
+        globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
@@ -312,14 +312,14 @@ class LiquidLegionsComputationControlServiceImplTest {
   @Test
   fun `receive concatenated sketch when not expected`() = runBlocking<Unit> {
     val sketch = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(55)
+      .setComputationId("55")
       .setPartialSketch("full_sketch".toByteString())
       .build()
     val notFound =
       assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationStorage.addComputation(
-      id = 55,
+      globalId = "55",
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
@@ -331,10 +331,10 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive decrypt flags at primary`() = runBlocking<Unit> {
-    val id = 111213L
+    val id = "111213"
     fakeComputationStorage
       .addComputation(
-        id = id,
+        globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
@@ -373,10 +373,10 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive partial encrypted flags at secondary`() = runBlocking<Unit> {
-    val id = 123L
+    val id = "123"
     fakeComputationStorage
       .addComputation(
-        id = id,
+        globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
@@ -422,7 +422,7 @@ class LiquidLegionsComputationControlServiceImplTest {
   @Test
   fun `receive decrypt flags when not expected`() = runBlocking<Unit> {
     val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId(55)
+      .setComputationId("55")
       .setPartialData("data".toByteString())
       .build()
     val notFound = assertFailsWith<StatusException> {
@@ -430,7 +430,7 @@ class LiquidLegionsComputationControlServiceImplTest {
     }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationStorage.addComputation(
-      id = 55,
+      globalId = "55",
       stage = WAIT_SKETCHES.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))

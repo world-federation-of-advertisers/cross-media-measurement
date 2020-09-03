@@ -82,18 +82,18 @@ internal class LiquidLegionsHeraldTest {
 
   @Test
   fun `syncStatuses creates new computations`() = runBlocking<Unit> {
-    val confirmingKnown = ComputationAtKingdom(454647484950L, GlobalComputation.State.CONFIRMING)
+    val confirmingKnown = ComputationAtKingdom("454647484950", GlobalComputation.State.CONFIRMING)
     val newComputationsRequisitions = listOf(
       "alice/a/1234",
       "bob/bb/abc",
       "caroline/ccc/234567"
     )
     val confirmingUnknown =
-      ComputationAtKingdom(321L, GlobalComputation.State.CONFIRMING, newComputationsRequisitions)
+      ComputationAtKingdom("321", GlobalComputation.State.CONFIRMING, newComputationsRequisitions)
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
     fakeComputationStorage.addComputation(
-      id = confirmingKnown.id,
+      globalId = confirmingKnown.globalId,
       stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
@@ -104,11 +104,11 @@ internal class LiquidLegionsHeraldTest {
       fakeComputationStorage
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
-      confirmingKnown.id, TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      confirmingUnknown.id, TO_CONFIRM_REQUISITIONS.toProtocolStage()
+      confirmingKnown.globalId.toLong(), TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      confirmingUnknown.globalId.toLong(), TO_CONFIRM_REQUISITIONS.toProtocolStage()
     )
 
-    assertThat(fakeComputationStorage[confirmingUnknown.id]?.stageSpecificDetails)
+    assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
       .isEqualTo(
         ComputationStageDetails.newBuilder().apply {
           toConfirmRequisitionsStageDetailsBuilder.apply {
@@ -122,12 +122,12 @@ internal class LiquidLegionsHeraldTest {
 
   @Test
   fun `syncStatuses starts somputaitons in wait_to_start`() = runBlocking<Unit> {
-    val waitingToStart = ComputationAtKingdom(42314125676756L, GlobalComputation.State.RUNNING)
-    val addingNoise = ComputationAtKingdom(231313L, GlobalComputation.State.RUNNING)
+    val waitingToStart = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+    val addingNoise = ComputationAtKingdom("231313", GlobalComputation.State.RUNNING)
     mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
 
     fakeComputationStorage.addComputation(
-      id = waitingToStart.id,
+      globalId = waitingToStart.globalId,
       stage = WAIT_TO_START.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
@@ -136,7 +136,7 @@ internal class LiquidLegionsHeraldTest {
     )
 
     fakeComputationStorage.addComputation(
-      id = addingNoise.id,
+      globalId = addingNoise.globalId,
       stage = TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(
@@ -150,8 +150,8 @@ internal class LiquidLegionsHeraldTest {
       fakeComputationStorage
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
-      waitingToStart.id, TO_ADD_NOISE.toProtocolStage(),
-      addingNoise.id, TO_ADD_NOISE.toProtocolStage()
+      waitingToStart.globalId.toLong(), TO_ADD_NOISE.toProtocolStage(),
+      addingNoise.globalId.toLong(), TO_ADD_NOISE.toProtocolStage()
     )
   }
 
@@ -168,7 +168,7 @@ internal class LiquidLegionsHeraldTest {
 
 /** Simple representation of a computation at the kingdom for testing. */
 data class ComputationAtKingdom(
-  val id: Long,
+  val globalId: String,
   val stateAtKingdom: GlobalComputation.State,
   val requisitionResourceKeys: List<String> = listOf()
 ) {
@@ -181,11 +181,11 @@ data class ComputationAtKingdom(
     }.build()
   }
 
-  val continuationToken = "token_for_$id"
+  val continuationToken = "token_for_$globalId"
   val streamedResponse: StreamActiveGlobalComputationsResponse =
     StreamActiveGlobalComputationsResponse.newBuilder().apply {
       globalComputationBuilder.apply {
-        keyBuilder.apply { globalComputationId = id.toString() }
+        keyBuilder.apply { globalComputationId = globalId }
         state = stateAtKingdom
         addAllMetricRequisitions(requisitionResourceKeys.map { parseResourceKey(it) })
       }

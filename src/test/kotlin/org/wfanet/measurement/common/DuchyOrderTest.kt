@@ -58,8 +58,8 @@ class DuchyOrderTest {
 
     // These numbers were created with a bit of guess and check to find ones that matched
     // the desired test cases.
-    private const val SHA1_MOD_3_IS_0 = 54L
-    private const val SHA1_MOD_3_IS_1 = 311L
-    private const val SHA1_MOD_3_IS_2 = 12L
+    private const val SHA1_MOD_3_IS_0 = "a"
+    private const val SHA1_MOD_3_IS_1 = "c"
+    private const val SHA1_MOD_3_IS_2 = "b"
   }
 }

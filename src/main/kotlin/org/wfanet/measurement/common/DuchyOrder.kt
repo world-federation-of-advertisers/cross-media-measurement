@@ -33,8 +33,8 @@ class DuchyOrder(nodes: Set<Duchy>) {
    * messages to the next node in the list. The list is implicitly a ring, so the last [Duchy]
    * sends its results to the first.
    */
-  fun computationOrder(computationId: Long): List<String> {
-    val primaryIndex = sha1Mod(computationId, numberOfNodes)
+  fun computationOrder(globalComputationId: String): List<String> {
+    val primaryIndex = sha1Mod(globalComputationId, numberOfNodes)
 
     return orderedNodes.subList(primaryIndex, orderedNodes.size) +
       orderedNodes.subList(0, primaryIndex)
@@ -43,8 +43,8 @@ class DuchyOrder(nodes: Set<Duchy>) {
   /**
    * Returns the [DuchyPosition] for a duchy name in a computation.
    */
-  fun positionFor(computationId: Long, name: String): DuchyPosition {
-    val ordered = computationOrder(computationId)
+  fun positionFor(globalComputationId: String, name: String): DuchyPosition {
+    val ordered = computationOrder(globalComputationId)
     val indexOfThisDuchy = ordered.indexOf(name)
 
     return DuchyPosition(
@@ -75,8 +75,8 @@ private fun List<String>.wrapAroundGet(index: Int): String {
 }
 
 /** Returns sha1(value) % n. */
-fun sha1Mod(value: Long, n: BigInteger): Int {
+fun sha1Mod(value: String, n: BigInteger): Int {
   val md = MessageDigest.getInstance("SHA1")
-  val hash = BigInteger(md.digest(value.toBigInteger().toByteArray()))
+  val hash = BigInteger(md.digest(value.toByteArray()))
   return hash.mod(n).longValueExact().toInt()
 }

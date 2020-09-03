@@ -74,7 +74,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
 
   @Test
   fun `readComputationToken wait_sketches`() = runBlocking<Unit> {
-    val globalId = 0x777L
+    val globalId = "777"
     val localId = 0xABCDEFL
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val computationRow = computationMutations.insertComputation(
@@ -139,7 +139,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
 
   @Test
   fun readComputationToken() = runBlocking<Unit> {
-    val globalId = 998877665555
+    val globalId = "998877665555"
     val localId = 100L
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val computationRow = computationMutations.insertComputation(
@@ -244,28 +244,28 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = 123,
       updateTime = lastUpdatedTimeStamp,
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
-      globalId = 0xA,
+      globalId = "A",
       details = DETAILS_WHEN_SECONDARY
     )
     val toBlindPositionsRow = computationMutations.insertComputation(
       localId = 234,
       updateTime = lastUpdatedTimeStamp,
       stage = LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS,
-      globalId = 0xB,
+      globalId = "B",
       details = DETAILS_WHEN_SECONDARY
     )
     val toAppendAndAddNoiseRow = computationMutations.insertComputation(
       localId = 345,
       updateTime = lastUpdatedTimeStamp,
       stage = LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
-      globalId = 0xC,
+      globalId = "C",
       details = DETAILS_WHEN_PRIMARY
     )
     val completedRow = computationMutations.insertComputation(
       localId = 456,
       updateTime = lastUpdatedTimeStamp,
       stage = LiquidLegionsSketchAggregationStage.COMPLETED,
-      globalId = 0xD,
+      globalId = "D",
       details = DETAILS_WHEN_PRIMARY
     )
     databaseClient.write(
@@ -284,6 +284,6 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
           LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
         )
       )
-    ).containsExactly(0xAL, 0xCL)
+    ).containsExactly("A", "C")
   }
 }

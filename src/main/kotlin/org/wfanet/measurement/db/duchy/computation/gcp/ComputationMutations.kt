@@ -56,7 +56,7 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     newBuilderFunction: MutationBuilderFunction,
     localId: Long,
     updateTime: Timestamp,
-    globalId: Long? = null,
+    globalId: String? = null,
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
@@ -88,7 +88,7 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
   fun insertComputation(
     localId: Long,
     updateTime: Timestamp,
-    globalId: Long,
+    globalId: String,
     stage: StageT,
     lockOwner: String = WRITE_NULL_STRING,
     lockExpirationTime: Timestamp = WRITE_NULL_TIMESTAMP,
@@ -116,7 +116,7 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
   fun updateComputation(
     localId: Long,
     updateTime: Timestamp,
-    globalId: Long? = null,
+    globalId: String? = null,
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,

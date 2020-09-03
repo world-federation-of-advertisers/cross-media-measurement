@@ -70,7 +70,7 @@ message CreateComputationRequest {
   // The type of computation which should be created.
   ComputationTypeEnum.ComputationType computation_type = 1;
   // The global identifier of the computation,
-  int64 global_computation_id = 2;
+  string global_computation_id = 2;
   // Details specific to the computation stage.
   ComputationStageDetails stage_details = 3;
 }
@@ -85,7 +85,7 @@ message GetComputationTokenRequest {
   // The type of the computation.
   ComputationTypeEnum.ComputationType computation_type = 1;
   // The global identifier of the computation.
-  int64 global_computation_id = 2;
+  string global_computation_id = 2;
 }
 message GetComputationTokenResponse {
   // Token for the computation.
@@ -174,7 +174,7 @@ message GetComputationIdsRequest {
 }
 message GetComputationIdsResponse {
   // Global identifiers of computations matching the query.
-  repeated int64 global_ids = 1;
+  repeated string global_ids = 1;
 }
 
 // Writes the path to an already written BLOb as output to the stage.

@@ -30,12 +30,12 @@ class GcpSpannerReadOnlyComputationsRelationalDb(
   private val computationStagesHelper: ProtocolStageEnumHelper<ComputationStage>
 ) : ReadOnlyComputationsRelationalDb {
 
-  override suspend fun readComputationToken(globalId: Long): ComputationToken =
+  override suspend fun readComputationToken(globalId: String): ComputationToken =
     ComputationTokenProtoQuery(computationStagesHelper::longToEnum, globalId)
       .execute(databaseClient)
       .single()
 
-  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<Long> =
+  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
     GlobalIdsQuery(computationStagesHelper::enumToLong, stages)
       .execute(databaseClient)
       .toCollection(mutableSetOf())

@@ -34,7 +34,7 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
    *
    * @throws IOException upon failure
    */
-  suspend fun createComputation(globalId: Long, stage: StageT, details: ComputationStageDetails) {
+  suspend fun createComputation(globalId: String, stage: StageT, details: ComputationStageDetails) {
     relationalDatabase.insertComputation(globalId, stage, details)
   }
 
@@ -109,7 +109,7 @@ abstract class ComputationManager<StageT : Enum<StageT>>(
    * If the returned value is present, then the task has been claimed for the worker. When absent,
    * no task was claimed.
    */
-  suspend fun claimWork(workerId: String): Long? {
+  suspend fun claimWork(workerId: String): String? {
     return relationalDatabase.claimTask(workerId)
   }
 

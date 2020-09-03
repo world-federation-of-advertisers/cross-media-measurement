@@ -86,13 +86,13 @@ enum class EndComputationReason {
 interface ReadOnlyComputationsRelationalDb {
 
   /** Gets a [ComputationToken] for the current state of a computation. */
-  suspend fun readComputationToken(globalId: Long): ComputationToken
+  suspend fun readComputationToken(globalId: String): ComputationToken
 
   /**
    * Gets a collection of all the global computation ids for a computation in the database
    * which are in a one of the provided stages.
    */
-  suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<Long>
+  suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String>
 }
 
 /**
@@ -111,7 +111,7 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
    *
    * The computation is not added to the queue.
    */
-  suspend fun insertComputation(globalId: Long, initialStage: StageT, stageDetails: StageDetailsT)
+  suspend fun insertComputation(globalId: String, initialStage: StageT, stageDetails: StageDetailsT)
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.
@@ -126,7 +126,7 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
    * @param ownerId The identifier of the worker process that will own the lock.
    * @return global computation id of work that was claimed. When null, no work was claimed.
    */
-  suspend fun claimTask(ownerId: String): Long?
+  suspend fun claimTask(ownerId: String): String?
 
   /**
    * Transitions a computation to a new stage.

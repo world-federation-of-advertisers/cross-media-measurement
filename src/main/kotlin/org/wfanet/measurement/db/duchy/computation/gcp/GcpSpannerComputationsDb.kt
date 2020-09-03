@@ -57,10 +57,10 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
 ) : ComputationsRelationalDb<StageT, StageDetailsT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
-    HalfOfGlobalBitsAndTimeStampIdGenerator(clock)
+    GlobalBitsPlusTimeStampIdGenerator(clock)
 
   override suspend fun insertComputation(
-    globalId: Long,
+    globalId: String,
     initialStage: StageT,
     stageDetails: StageDetailsT
   ) {
@@ -151,7 +151,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     }
   }
 
-  override suspend fun claimTask(ownerId: String): Long? {
+  override suspend fun claimTask(ownerId: String): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
       databaseClient.readWriteTransaction().run { ctx ->

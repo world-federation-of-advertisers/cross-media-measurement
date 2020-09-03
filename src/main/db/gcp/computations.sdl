@@ -54,7 +54,7 @@ CREATE TABLE Computations (
   -- The global identifier of the computation that was given when starting
   -- the computation. The global id is provided to the duchy by the kingdom
   -- e.g., it is how the kingdom references this computation.
-  GlobalComputationId INT64 NOT NULL,
+  GlobalComputationId STRING(MAX) NOT NULL,
 
   -- The identifier of the worker process/task who owns the lock on this
   -- computation. This field may be null in which case no Mill owns the

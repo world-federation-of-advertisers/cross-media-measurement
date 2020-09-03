@@ -55,7 +55,7 @@ class ComputationStorageServiceImplTest {
 
   @Test
   fun `end failed computation`() = runBlocking {
-    val id = 1234L
+    val id = "1234"
     fakeDatabase.addComputation(
       id,
       LiquidLegionsSketchAggregationStage.WAIT_SKETCHES.toProtocolStage(),
@@ -80,7 +80,7 @@ class ComputationStorageServiceImplTest {
 
   @Test
   fun `write reference to output blob and advance stage`() = runBlocking {
-    val id = 67890L
+    val id = "67890"
     fakeDatabase.addComputation(
       id,
       LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
@@ -123,9 +123,9 @@ class ComputationStorageServiceImplTest {
 
   @Test
   fun `get computation ids`() = runBlocking {
-    val blindId = 67890L
-    val completedId = 12341L
-    val decryptId = 4342242L
+    val blindId = "67890"
+    val completedId = "12341"
+    val decryptId = "4342242"
     fakeDatabase.addComputation(
       blindId,
       LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
@@ -162,8 +162,8 @@ class ComputationStorageServiceImplTest {
 
   @Test
   fun `claim task`() = runBlocking {
-    val unclaimed = 12345678L
-    val claimed = 23456789L
+    val unclaimed = "12345678"
+    val claimed = "23456789"
     fakeDatabase.addComputation(
       unclaimed,
       LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),

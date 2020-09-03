@@ -16,6 +16,7 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -41,7 +42,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 import org.wfanet.measurement.service.v1alpha.common.failGrpc
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.grpcTryAndRethrow
-import java.util.logging.Logger
 
 class LiquidLegionsComputationControlServiceImpl(
   private val clients: LiquidLegionsSketchAggregationComputationStorageClients,
@@ -195,7 +195,7 @@ class LiquidLegionsComputationControlServiceImpl(
    * @param wipeFlowPredicate when evaluates to true the bytes of the flow are not collected and
    * this function returns null
    */
-  private suspend fun Flow<Pair<Long, ByteString>>.reduceToTokenAndAppendedBytesPairOrNullIf(
+  private suspend fun Flow<Pair<String, ByteString>>.reduceToTokenAndAppendedBytesPairOrNullIf(
     wipeFlowPredicate: suspend (ComputationToken) -> Boolean
   ): Pair<ComputationToken, ByteArray>? {
     var wipeFlow = false

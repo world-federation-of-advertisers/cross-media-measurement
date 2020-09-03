@@ -32,7 +32,7 @@ message ComputationToken {
 
   // Identifier for the computation used globally i.e. across the kingdom
   // and all of the duchies.
-  int64 global_computation_id = 2;
+  string global_computation_id = 2;
 
   // The stage of the computation.
   ComputationStage computation_stage = 3;

@@ -44,18 +44,18 @@ class FakeComputationStorage(
 
   override val computationType: ComputationType =
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-  val claimedComputationIds = mutableSetOf<Long>()
+  val claimedComputationIds = mutableSetOf<String>()
 
   override suspend fun insertComputation(
-    globalId: Long,
+    globalId: String,
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails
   ) {
     val role =
-      if ((globalId % 2) == 0L) RoleInComputation.PRIMARY
+      if ((globalId.toLong() % 2) == 0L) RoleInComputation.PRIMARY
       else RoleInComputation.SECONDARY
     addComputation(
-      id = globalId,
+      globalId = globalId,
       stage = initialStage,
       role = role,
       stageDetails = stageDetails,
@@ -65,19 +65,21 @@ class FakeComputationStorage(
 
   /** Adds a fake computation to the fake computation storage. */
   fun addComputation(
-    id: Long,
+    globalId: String,
     stage: ComputationStage,
     role: RoleInComputation,
     blobs: List<ComputationStageBlobMetadata>,
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
-    require(id !in this) {
-      "Cannot add multiple computations with the same id. $id"
+    val localId = globalId.toLong()
+    require(localId !in this) {
+      "Cannot add multiple computations with the same id. $localId"
     }
-    this[id] = ComputationToken.newBuilder().apply {
-      globalComputationId = id
-      // For the purpose of a fake it is fine to use the same id for both local and global ids
-      localComputationId = id
+    this[localId] = ComputationToken.newBuilder().apply {
+      globalComputationId = globalId
+      // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long and
+      // use the Long value for the localId.
+      localComputationId = localId
       computationStage = stage
       version = 0
       setRole(role)
@@ -195,7 +197,7 @@ class FakeComputationStorage(
     updateToken(token) { existing ->
       val existingBlobInToken = newEmptyOutputBlobMetadata(blobRef.idInRelationalDatabase)
       val blobs: MutableSet<ComputationStageBlobMetadata> =
-        getNonNull(existing.globalComputationId).blobsList.toMutableSet()
+        getNonNull(existing.localComputationId).blobsList.toMutableSet()
       // Replace the blob metadata in the token.
       check(blobs.remove(existingBlobInToken)) { "$existingBlobInToken not in $blobs" }
       blobs.add(existingBlobInToken.toBuilder().setPath(blobRef.key).build())
@@ -212,7 +214,7 @@ class FakeComputationStorage(
     }
   }
 
-  override suspend fun claimTask(ownerId: String): Long? {
+  override suspend fun claimTask(ownerId: String): String? {
     val claimed = values.asSequence()
       .filter { it.globalComputationId !in claimedComputationIds }
       .map {
@@ -230,12 +232,12 @@ class FakeComputationStorage(
       claimedComputationIds.add(existing.globalComputationId)
       existing.toBuilder().setAttempt(claimed.attempt + 1)
     }
-    return claimed.localId
+    return claimed.localId.toString()
   }
 
-  override suspend fun readComputationToken(globalId: Long): ComputationToken =
-    getNonNull(globalId)
+  override suspend fun readComputationToken(globalId: String): ComputationToken =
+    getNonNull(globalId.toLong())
 
-  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<Long> =
-    filterValues { it.computationStage in stages }.keys
+  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
+    filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
 }

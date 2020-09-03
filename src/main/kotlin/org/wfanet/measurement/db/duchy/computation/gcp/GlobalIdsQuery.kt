@@ -21,7 +21,7 @@ import com.google.cloud.spanner.Struct
 class GlobalIdsQuery<StageT>(
   toLongFunc: (StageT) -> Long,
   filterToStages: Set<StageT>
-) : SqlBasedQuery<Long> {
+) : SqlBasedQuery<String> {
   companion object {
     private const val parameterizedQuery =
       """
@@ -30,9 +30,9 @@ class GlobalIdsQuery<StageT>(
       """
   }
   override val sql: Statement =
-  Statement.newBuilder(parameterizedQuery).bind("stages").toInt64Array(
-    filterToStages.map(toLongFunc).toLongArray()
-  ).build()
+    Statement.newBuilder(parameterizedQuery).bind("stages").toInt64Array(
+      filterToStages.map(toLongFunc).toLongArray()
+    ).build()
 
-  override fun asResult(struct: Struct): Long = struct.getLong("GlobalComputationId")
+  override fun asResult(struct: Struct): String = struct.getString("GlobalComputationId")
 }

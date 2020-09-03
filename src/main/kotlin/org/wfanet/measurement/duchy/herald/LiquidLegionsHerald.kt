@@ -112,7 +112,7 @@ class LiquidLegionsHerald(
         .build()
     )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        val globalId = checkNotNull(response.globalComputation.key?.globalComputationId?.toLong())
+        val globalId: String = checkNotNull(response.globalComputation.key?.globalComputationId)
         when (val state = response.globalComputation.state) {
           // Create a new computation if it is not already present in the database.
           State.CONFIRMING ->
@@ -139,7 +139,7 @@ class LiquidLegionsHerald(
 
   /** Creates a new computation. */
   private suspend fun create(
-    globalId: Long,
+    globalId: String,
     requisitionsAtThisDuchy: List<RequisitionKey>
   ) =
     computationStorageClient.createComputation(
@@ -153,7 +153,7 @@ class LiquidLegionsHerald(
     )
 
   /** Starts a computation that is in WAIT_TO_START. */
-  private suspend fun start(globalId: Long) {
+  private suspend fun start(globalId: String) {
     val token = computationStorageClient
       .getComputationToken(globalId.toGetTokenRequest(COMPUTATION_TYPE)).token
     check(token.role == ComputationDetails.RoleInComputation.SECONDARY) {
