@@ -296,7 +296,7 @@ git_repository(
     name = "wfa_measurement_proto",
     commit = "9dfde0372d05ade1489d52362e4914c44e1c063b",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
-    shallow_since = "1597691700 +0000",
+    shallow_since = "1597770206 +0000",
 )
 
 # AnySketch.
@@ -304,7 +304,7 @@ git_repository(
     name = "any_sketch",
     commit = "60a6034ea85dead3b43543633436880ac74bf19e",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
-    shallow_since = "1597162208 +0000",
+    shallow_since = "1598644541 -0400",
 )
 
 # Data Provider client.

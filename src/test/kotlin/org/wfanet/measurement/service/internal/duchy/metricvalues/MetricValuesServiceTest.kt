@@ -25,10 +25,8 @@ import com.nhaarman.mockitokotlin2.times
 import com.nhaarman.mockitokotlin2.verifyBlocking
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.ByteBuffer
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
@@ -42,6 +40,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.size
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue
@@ -136,7 +135,7 @@ class MetricValuesServiceTest {
             .apply { headerBuilder.resourceKey = testMetricValue.resourceKey }
             .build(),
           StoreMetricValueRequest.newBuilder()
-            .apply { chunkBuilder.data = ByteString.copyFrom(testMetricValueData) }
+            .apply { chunkBuilder.data = testMetricValueData }
             .build()
         )
       )
@@ -156,7 +155,7 @@ class MetricValuesServiceTest {
   @Test fun `streamMetricValue returns MetricValue with data`() = runBlocking {
     MetricValueStore(storageClient) {
       testMetricValue.blobStorageKey
-    }.write(testMetricValueData.asBufferedFlow(BYTES_PER_MIB)).blobKey
+    }.write(testMetricValueData.asBufferedFlow(storageClient.defaultBufferSizeBytes))
 
     metricValueDbMock.stub {
       onBlocking {
@@ -165,7 +164,7 @@ class MetricValuesServiceTest {
     }
 
     lateinit var header: StreamMetricValueResponse.Header
-    val buffer = ByteBuffer.allocate(testMetricValueData.size)
+    var output = ByteString.EMPTY
     service.streamMetricValue(
       StreamMetricValueRequest.newBuilder().apply {
         resourceKey = testMetricValue.resourceKey
@@ -174,14 +173,13 @@ class MetricValuesServiceTest {
       if (responseMessage.hasHeader()) {
         header = responseMessage.header
       } else {
-        buffer.put(responseMessage.chunk.data.toByteArray())
+        output = output.concat(responseMessage.chunk.data)
       }
     }
 
     assertThat(header.metricValue).isEqualTo(testMetricValue)
     assertThat(header.dataSizeBytes).isEqualTo(testMetricValueData.size)
-    assertFalse("Expected more bytes in data") { buffer.hasRemaining() }
-    assertThat(buffer.array()).isEqualTo(testMetricValueData)
+    assertThat(output).isEqualTo(testMetricValueData)
   }
 
   @Test fun `streamMetricValue throws INVALID_ARGUMENT when key not set`() = runBlocking {
@@ -239,7 +237,7 @@ class MetricValuesServiceTest {
     }.build()
 
     private val random = Random.Default
-    private val testMetricValueData =
-      random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4))
+    private val testMetricValueData: ByteString =
+      ByteString.copyFrom(random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4)))
   }
 }

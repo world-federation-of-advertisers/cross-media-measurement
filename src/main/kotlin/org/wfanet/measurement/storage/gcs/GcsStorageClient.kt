@@ -18,7 +18,6 @@ import com.google.cloud.storage.Blob
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.protobuf.ByteString
-import java.nio.channels.ReadableByteChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -29,7 +28,12 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.asFlow
 import org.wfanet.measurement.storage.StorageClient
 
-/** Size of byte buffer used to read/write blobs from the storage system. */
+/**
+ * Size of byte buffer used to read/write blobs from Google Cloud Storage.
+ *
+ * The optimal size is suggested by
+ * [this article](https://medium.com/@duhroach/optimal-size-of-a-cloud-storage-fetch-8c270b511016).
+ */
 private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
 
 /**
@@ -41,11 +45,14 @@ class GcsStorageClient(
   private val bucketName: String
 ) : StorageClient {
 
+  override val defaultBufferSizeBytes: Int
+    get() = BYTE_BUFFER_SIZE
+
   override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
     val blob = storage.create(BlobInfo.newBuilder(bucketName, blobKey).build())
 
     blob.writer().use { byteChannel ->
-      content.asBufferedFlow(BYTE_BUFFER_SIZE).collect { bytes ->
+      content.collect { bytes ->
         val buffer = bytes.asReadOnlyByteBuffer()
         withContext(Dispatchers.IO) {
           while (buffer.hasRemaining()) {
@@ -69,12 +76,21 @@ class GcsStorageClient(
 
   /** [StorageClient.Blob] implementation for [GcsStorageClient]. */
   private inner class ClientBlob(private val blob: Blob) : StorageClient.Blob {
+    override val storageClient: StorageClient
+      get() = this@GcsStorageClient
+
     override val size: Long
       get() = blob.size
 
-    override fun read(flowBufferSize: Int): Flow<ByteString> {
-      require(flowBufferSize > 0)
-      return blob.reader().asBufferedFlow(flowBufferSize)
+    override fun read(bufferSizeBytes: Int): Flow<ByteString> {
+      require(bufferSizeBytes > 0)
+
+      val byteChannelFlow = blob.reader().asFlow(defaultBufferSizeBytes)
+      return if (bufferSizeBytes == defaultBufferSizeBytes) {
+        byteChannelFlow // Optimization. Don't need to rebuffer.
+      } else {
+        byteChannelFlow.asBufferedFlow(bufferSizeBytes)
+      }
     }
 
     override fun delete() {
@@ -87,6 +103,3 @@ class GcsStorageClient(
     fun fromFlags(gcs: GcsFromFlags) = GcsStorageClient(gcs.storage, gcs.bucket)
   }
 }
-
-private fun ReadableByteChannel.asBufferedFlow(flowBufferSize: Int) =
-  asFlow(BYTE_BUFFER_SIZE).asBufferedFlow(flowBufferSize)

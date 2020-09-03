@@ -50,7 +50,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `getBlobMetadata returns NOT_FOUND when blobKey does not exist`() = runBlocking<Unit> {
+  fun `getBlobMetadata returns NOT_FOUND when blobKey does not exist`() {
     val e = assertThrows(StatusException::class.java) {
       runBlocking {
         storageStub.getBlobMetadata(
@@ -62,7 +62,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `readBlob returns NOT_FOUND when blobKey does not exist`() = runBlocking<Unit> {
+  fun `readBlob returns NOT_FOUND when blobKey does not exist`() {
     val e = assertThrows(StatusException::class.java) {
       runBlocking {
         storageStub.readBlob(
@@ -75,7 +75,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `deleteBlob returns NOT_FOUND when blobKey does not exist`() = runBlocking<Unit> {
+  fun `deleteBlob returns NOT_FOUND when blobKey does not exist`() {
     val e = assertThrows(StatusException::class.java) {
       runBlocking {
         storageStub.deleteBlob(
@@ -87,7 +87,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `getBlob returns null when blobKey does not exist`() = runBlocking<Unit> {
+  fun `getBlob returns null when blobKey does not exist`() {
     assertThat(storageClient.getBlob("this/blob/does/not/exist")).isNull()
   }
 
@@ -113,7 +113,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `read bytes match create bytes`() = runBlocking<Unit> {
+  fun `read bytes match create bytes`() = runBlocking {
     val blobKey = "blob/to/read"
 
     val blob = storageClient.createBlob(blobKey, content.asFlow())
@@ -125,7 +125,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `read bytes match create bytes after getBlob`() = runBlocking<Unit> {
+  fun `read bytes match create bytes after getBlob`() = runBlocking {
     val blobKey = "blob/to/read/after/get"
 
     storageClient.createBlob(blobKey, content.asFlow())
@@ -138,7 +138,7 @@ class FakeStorageServiceTest {
   }
 
   @Test
-  fun `get returns null after delete`() = runBlocking<Unit> {
+  fun `get returns null after delete`() = runBlocking {
     val blobKey = "blob/to/delete"
 
     val blob = storageClient.createBlob(blobKey, content.asFlow())

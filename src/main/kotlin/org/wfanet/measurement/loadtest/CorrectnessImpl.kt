@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.createBlob
 
 class CorrectnessImpl(
   override val campaignCount: Int,
@@ -105,7 +106,7 @@ class CorrectnessImpl(
     val blobKey = generateBlobKey()
     storageClient.createBlob(
       blobKey.withBlobKeyPrefix("sketches"),
-      sketch.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
+      sketch.toByteString()
     )
     return blobKey
   }

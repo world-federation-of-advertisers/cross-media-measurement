@@ -14,13 +14,18 @@
 
 package org.wfanet.measurement.common
 
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.flow.transform
 
 /**
@@ -95,4 +100,20 @@ fun <T, R> Flow<T>.mapConcurrently(
   transform: suspend (T) -> R
 ): Flow<R> {
   return map { scope.async { transform(it) } }.buffer(concurrency).map { it.await() }
+}
+
+/**
+ * Consumes the first item of the [Flow], returning that item and a [Flow] with
+ * the remaining items.
+ *
+ * Note that this starts a new coroutine in a separate [CoroutineScope] to
+ * produce the returned [Flow] items using a [Channel]. As a result, the
+ * returned [Flow] is hot.
+ */
+@OptIn(FlowPreview::class) // For `produceIn`
+suspend fun <T> Flow<T>.consumeFirst(): Pair<T, Flow<T>> {
+  val producerScope = CoroutineScope(coroutineContext)
+  val channel = buffer(Channel.RENDEZVOUS).produceIn(producerScope)
+
+  return Pair(channel.receive(), channel.consumeAsFlow())
 }

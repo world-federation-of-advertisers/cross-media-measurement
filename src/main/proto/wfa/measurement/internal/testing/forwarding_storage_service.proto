@@ -31,8 +31,17 @@ message BlobMetadata {
 }
 
 message CreateBlobRequest {
-  string blob_key = 1;
-  bytes content = 2;
+  message Header {
+    string blob_key = 1;
+  }
+  message BodyChunk {
+    bytes content = 1;
+  }
+
+  oneof message {
+    Header header = 1;
+    BodyChunk body_chunk = 2;
+  }
 }
 
 message GetBlobMetadataRequest {

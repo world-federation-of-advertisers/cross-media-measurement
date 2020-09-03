@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.withContext
 
@@ -76,6 +77,15 @@ fun byteStringOf(vararg bytesAsInts: Int): ByteString {
     }
     it.toByteString()
   }
+}
+
+/**
+ * Returns a [ByteString] which is the concatenation of the elements.
+ *
+ * This is a terminal [Flow] operation.
+ */
+suspend fun Flow<ByteString>.toByteString(): ByteString {
+  return fold(ByteString.EMPTY) { acc, value -> acc.concat(value) }
 }
 
 /**

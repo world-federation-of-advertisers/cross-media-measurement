@@ -14,13 +14,11 @@
 
 package org.wfanet.measurement.service.testing.storage
 
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.internal.testing.BlobMetadata
 import org.wfanet.measurement.internal.testing.CreateBlobRequest
 import org.wfanet.measurement.internal.testing.DeleteBlobRequest
@@ -36,18 +34,14 @@ class FakeStorageService :
   val storageClient: FileSystemStorageClient = FileSystemStorageClient(createTempDir())
 
   override suspend fun createBlob(requests: Flow<CreateBlobRequest>): BlobMetadata {
-    var blobKey: String? = null
-    var content = ByteString.EMPTY
-    requests.collect { request ->
-      if (blobKey == null) {
-        blobKey = request.blobKey
-      }
-      content = content.concat(request.content)
+    val (headerRequest, bodyRequests) = requests.consumeFirst()
+    val blobKey = headerRequest.header.blobKey
+    if (blobKey.isBlank()) {
+      throw Status.INVALID_ARGUMENT.withDescription("Missing blob key").asRuntimeException()
     }
-    if (blobKey == null) {
-      throw StatusException(Status.INVALID_ARGUMENT.withDescription("Missing blob key"))
-    }
-    val blob = storageClient.createBlob(blobKey!!, flowOf(content))
+
+    val content = bodyRequests.map { it.bodyChunk.content }
+    val blob = storageClient.createBlob(blobKey, content)
     return BlobMetadata.newBuilder().setSize(blob.size).build()
   }
 

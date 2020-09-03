@@ -17,7 +17,11 @@ package org.wfanet.measurement.storage.testing
 import com.google.common.truth.FailureMetadata
 import com.google.common.truth.Subject
 import com.google.common.truth.Truth.assertAbout
+import com.google.protobuf.ByteString
+import org.wfanet.measurement.common.size
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.storage.StorageClient.Blob
+import org.wfanet.measurement.storage.read
 
 class BlobSubject private constructor(failureMetadata: FailureMetadata, subject: Blob) :
   Subject(failureMetadata, subject) {
@@ -28,13 +32,13 @@ class BlobSubject private constructor(failureMetadata: FailureMetadata, subject:
     check("size").that(actual.size).isEqualTo(size)
   }
 
-  suspend fun contentEqualTo(content: ByteArray) {
-    val actualContent = actual.readAll()
+  suspend fun contentEqualTo(content: ByteString) {
+    val actualContent = actual.read().toByteString()
 
-    // First check size to avoid outputting potentially large byte array.
-    check("readAll().size").that(actualContent.size).isEqualTo(content.size)
+    // First check size to avoid outputting potentially large number of bytes.
+    check("read().toByteString().size").that(actualContent.size).isEqualTo(content.size)
 
-    check("readAll()").that(actualContent).isEqualTo(content)
+    check("read().toByteString()").that(actualContent).isEqualTo(content)
   }
 
   companion object {

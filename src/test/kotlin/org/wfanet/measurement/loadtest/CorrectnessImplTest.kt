@@ -24,7 +24,6 @@ import com.nhaarman.mockitokotlin2.mock
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -38,6 +37,7 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.client.v1alpha.publisherdata.org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClient
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
@@ -96,7 +96,7 @@ class CorrectnessImplTest {
     val generatedSetSize = 5
     val correctness = makeCorrectness(
       /* campaignCount= */ 1,
-                           generatedSetSize,
+      generatedSetSize,
       /* universeSize= */10_000_000_000L
     )
     val reach = setOf(100L, 30L, 500L, 13L, 813L)
@@ -141,7 +141,7 @@ class CorrectnessImplTest {
     val generatedSetSize = 100_000 // Setting something high so we expect collisions.
     val correctness = makeCorrectness(
       /* campaignCount= */1,
-                          generatedSetSize,
+      generatedSetSize,
       /* universeSize= */10_000_000_000L
     )
     val reach = correctness.generateReach().first()
@@ -225,7 +225,7 @@ class CorrectnessImplTest {
     val generatedSetSize = 100_000 // Setting something high so we expect collisions.
     val correctness = makeCorrectness(
       /* campaignCount= */1,
-                          generatedSetSize,
+      generatedSetSize,
       /* universeSize= */10_000_000_000L
     )
     val anySketch1 = SketchProtos.toAnySketch(
@@ -267,7 +267,7 @@ class CorrectnessImplTest {
     val generatedSetSize = 100_000 // Setting something high so we expect collisions.
     val correctness = makeCorrectness(
       /* campaignCount= */ 1,
-                           generatedSetSize,
+      generatedSetSize,
       /* universeSize= */10_000_000_000L
     )
     val anySketch1 = SketchProtos.toAnySketch(
@@ -369,7 +369,5 @@ class CorrectnessImplTest {
 }
 
 private suspend fun StorageClient.Blob.readAll(): ByteString {
-  return read(CorrectnessImpl.STORAGE_BUFFER_SIZE_BYTES).fold(ByteString.EMPTY) { result, value ->
-    result.concat(value)
-  }
+  return read(CorrectnessImpl.STORAGE_BUFFER_SIZE_BYTES).toByteString()
 }
