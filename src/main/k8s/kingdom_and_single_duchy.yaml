@@ -12,7 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: Merge this file with the deploy_to_kind.yaml file
+apiVersion: v1
+kind: Service
+metadata:
+  name: spanner-emulator
+spec:
+  selector:
+    app: spanner-emulator-app
+  type: ClusterIP
+  ports:
+    - name: "grpc"
+      port: 9010
+      protocol: TCP
+      targetPort: 9010
+    - name: "http"
+      port: 9020
+      protocol: TCP
+      targetPort: 9020
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -152,6 +170,18 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
+  name: spanner-emulator-pod
+  labels:
+    app: spanner-emulator-app
+spec:
+  containers:
+    - name: spanner-emulator-container
+      image: gcr.io/cloud-spanner-emulator/emulator
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
   name: liquid-legions-herald-daemon-pod
   labels:
     app: liquid-legions-herald-daemon-app
@@ -177,6 +207,7 @@ spec:
         #  How long to sleep between calls to the Global Computation
         # Service.
         - "--polling-interval=1m"
+
 ---
 apiVersion: v1
 kind: Pod
@@ -229,6 +260,7 @@ spec:
         #  How long to sleep before polling the computation queue
         # again if it is empty.
         - "--polling-interval=1s"
+
 ---
 apiVersion: v1
 kind: Pod
@@ -244,18 +276,14 @@ spec:
       image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image
       imagePullPolicy: Never
       args:
-
         - "--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
-
         - "--max-concurrency=32"
-
         - "--throttler-overload-factor=1.2"
-
         - "--throttler-poll-delay=1ms"
-
         - "--throttler-time-horizon=2m"
         # Enable verbose debug logging of outgoing gRPC requests
         - "--debug-verbose-grpc-client-logging=true"
+
 ---
 apiVersion: v1
 kind: Pod
@@ -271,18 +299,14 @@ spec:
       image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image
       imagePullPolicy: Never
       args:
-
         - "--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
-
         - "--max-concurrency=32"
-
         - "--throttler-overload-factor=1.2"
-
         - "--throttler-poll-delay=1ms"
-
         - "--throttler-time-horizon=2m"
         # Enable verbose debug logging of outgoing gRPC requests
         - "--debug-verbose-grpc-client-logging=true"
+
 ---
 apiVersion: v1
 kind: Pod
@@ -298,18 +322,14 @@ spec:
       image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image
       imagePullPolicy: Never
       args:
-
         - "--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
-
         - "--max-concurrency=32"
-
         - "--throttler-overload-factor=1.2"
-
         - "--throttler-poll-delay=1ms"
-
         - "--throttler-time-horizon=2m"
         # Enable verbose debug logging of outgoing gRPC requests
         - "--debug-verbose-grpc-client-logging=true"
+
 ---
 apiVersion: v1
 kind: Pod
@@ -342,6 +362,7 @@ spec:
         - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
+
 ---
 apiVersion: v1
 kind: Pod
@@ -367,7 +388,7 @@ spec:
         #  Name of the Spanner database to create.
         - "--spanner-database=" # TODO: Set flag value..."
         #  Host name and port of the spanner emulator.
-        - "--spanner-emulator-host=" # TODO: Set flag value..."
+        - "--spanner-emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)"
         #  Name of the Spanner instance to create.
         - "--spanner-instance=" # TODO: Set flag value..."
         #  Name of the Spanner project to use.
@@ -400,7 +421,7 @@ spec:
         #  Name of the Spanner database to create.
         - "--spanner-database=" # TODO: Set flag value..."
         #  Host name and port of the spanner emulator.
-        - "--spanner-emulator-host=" # TODO: Set flag value..."
+        - "--spanner-emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)"
         #  Name of the Spanner instance to create.
         - "--spanner-instance=" # TODO: Set flag value..."
         #  Name of the Spanner project to use.
@@ -409,6 +430,7 @@ spec:
         - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
+
 ---
 apiVersion: v1
 kind: Pod
@@ -431,7 +453,7 @@ spec:
         #  Name of the Spanner database to create.
         - "--spanner-database=" # TODO: Set flag value..."
         #  Host name and port of the spanner emulator.
-        - "--spanner-emulator-host=" # TODO: Set flag value..."
+        - "--spanner-emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)"
         #  Name of the Spanner instance to create.
         - "--spanner-instance=" # TODO: Set flag value..."
         #  Name of the Spanner project to use.
@@ -461,6 +483,7 @@ spec:
         - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
+
 ---
 apiVersion: v1
 kind: Pod
@@ -520,6 +543,7 @@ spec:
         - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
+
 ---
 apiVersion: v1
 kind: Pod
