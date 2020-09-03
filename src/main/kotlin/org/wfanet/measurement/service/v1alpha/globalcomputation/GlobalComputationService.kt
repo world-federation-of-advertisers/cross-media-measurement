@@ -18,6 +18,7 @@ import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.time.Duration
 import java.time.Instant
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -72,6 +73,7 @@ class GlobalComputationService(
   ): Flow<StreamActiveGlobalComputationsResponse> {
     var lastUpdateTime = ContinuationTokenConverter.decode(request.continuationToken)
     return renewedFlow(Duration.ofHours(1), Duration.ofSeconds(1)) {
+      logger.info("Streaming active global computations since $lastUpdateTime")
       streamActiveReports(lastUpdateTime)
         .onEach {
           lastUpdateTime = maxOf(lastUpdateTime, it.updateTime.toInstant())
@@ -172,6 +174,10 @@ class GlobalComputationService(
 
     return reportStorageStub.streamReports(request)
   }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }
 
 private object ContinuationTokenConverter {
@@ -214,6 +220,13 @@ private fun Report.toGlobalComputation(): GlobalComputation {
       resultBuilder.apply {
         reach = reportDetails.result.reach
         putAllFrequency(reportDetails.result.frequencyMap)
+      }
+    }
+    for (requisition in reportDetails.requisitionsList) {
+      addMetricRequisitionsBuilder().apply {
+        dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
+        campaignId = ExternalId(requisition.externalCampaignId).apiId.value
+        metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
       }
     }
   }.build()

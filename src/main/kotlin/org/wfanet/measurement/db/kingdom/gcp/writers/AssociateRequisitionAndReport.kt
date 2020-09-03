@@ -15,13 +15,17 @@
 package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Value
+import java.util.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.bufferTo
+import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
+import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Report
@@ -36,9 +40,12 @@ class AssociateRequisitionAndReport(
     val (reportReadResult, requisitionReadResult) =
       readReportAndRequisition(externalReportId, externalRequisitionId)
 
-    // This uses an InsertOrUpdate to avoid throwing if it already exists. This can't actually
-    // update the row because all columns are part of the PK.
-    Mutation.newInsertOrUpdateBuilder("ReportRequisitions")
+    if (reportReadResult.report.alreadyHasRequisition()) {
+      logger.info("Requisition $externalRequisitionId already linked to Report $externalReportId")
+      return
+    }
+
+    Mutation.newInsertBuilder("ReportRequisitions")
       .set("AdvertiserId").to(reportReadResult.advertiserId)
       .set("ReportConfigId").to(reportReadResult.reportConfigId)
       .set("ScheduleId").to(reportReadResult.scheduleId)
@@ -49,20 +56,41 @@ class AssociateRequisitionAndReport(
       .build()
       .bufferTo(transactionContext)
 
-    if (requisitionReadResult.requisition.state == RequisitionState.PERMANENTLY_UNAVAILABLE) {
-      Mutation.newUpdateBuilder("Reports")
-        .set("AdvertiserId").to(reportReadResult.advertiserId)
-        .set("ReportConfigId").to(reportReadResult.reportConfigId)
-        .set("ScheduleId").to(reportReadResult.scheduleId)
-        .set("ReportId").to(reportReadResult.reportId)
-        .set("State").toProtoEnum(Report.ReportState.FAILED)
-        .build()
-        .bufferTo(transactionContext)
-    }
+    val requisition = requisitionReadResult.requisition
+
+    val newReportDetails = reportReadResult.report.reportDetails.toBuilder().apply {
+      addRequisitionsBuilder().apply {
+        externalDataProviderId = requisition.externalDataProviderId
+        externalCampaignId = requisition.externalCampaignId
+        externalRequisitionId = requisition.externalRequisitionId
+      }
+    }.build()
+
+    Mutation.newUpdateBuilder("Reports")
+      .apply {
+        set("AdvertiserId").to(reportReadResult.advertiserId)
+        set("ReportConfigId").to(reportReadResult.reportConfigId)
+        set("ScheduleId").to(reportReadResult.scheduleId)
+        set("ReportId").to(reportReadResult.reportId)
+        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        set("ReportDetails").toProtoBytes(newReportDetails)
+        set("ReportDetailsJson").toProtoJson(newReportDetails)
+        if (requisition.state == RequisitionState.PERMANENTLY_UNAVAILABLE) {
+          set("State").toProtoEnum(Report.ReportState.FAILED)
+        }
+      }
+      .build()
+      .bufferTo(transactionContext)
   }
 
   override fun ResultScope<Unit>.buildResult() {
     // Deliberately empty.
+  }
+
+  private fun Report.alreadyHasRequisition(): Boolean {
+    return reportDetails.requisitionsList.any {
+      it.externalRequisitionId == externalRequisitionId.value
+    }
   }
 
   private suspend fun TransactionScope.readReportAndRequisition(
@@ -79,12 +107,17 @@ class AssociateRequisitionAndReport(
 
   private suspend fun TransactionScope.readRequisition(
     externalRequisitionId: ExternalId
-  ): RequisitionReader.Result =
-    RequisitionReader()
+  ): RequisitionReader.Result {
+    return RequisitionReader()
       .withBuilder {
         appendClause("WHERE Requisitions.ExternalRequisitionId = @external_requisition_id")
         bind("external_requisition_id").to(externalRequisitionId.value)
       }
       .execute(transactionContext)
       .single()
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }

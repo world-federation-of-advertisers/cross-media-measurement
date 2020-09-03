@@ -19,14 +19,18 @@ import com.google.cloud.spanner.Statement
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.asSequence
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportDetails
+import org.wfanet.measurement.internal.kingdom.ReportDetails.ExternalRequisitionKey
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -71,10 +75,10 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 
-  private fun insertTheReport() {
+  private fun insertTheReport(reportDetails: ReportDetails = ReportDetails.getDefaultInstance()) {
     insertReport(
       ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
-      ReportState.AWAITING_REQUISITION_CREATION
+      ReportState.AWAITING_REQUISITION_CREATION, reportDetails = reportDetails
     )
   }
 
@@ -83,7 +87,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() {
+  fun success() = runBlocking<Unit> {
     insertTheReport()
     insertTheRequisition()
 
@@ -114,6 +118,18 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     for ((column, expectedValue) in expectedColumns) {
       assertEquals(expectedValue, reportRequisition.getLong(column))
     }
+
+    val reportReadResult =
+      ReportReader().readExternalId(databaseClient.singleUse(), ExternalId(EXTERNAL_REPORT_ID))
+
+    assertThat(reportReadResult.report.reportDetails.requisitionsList)
+      .containsExactly(
+        ExternalRequisitionKey.newBuilder().apply {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalCampaignId = EXTERNAL_CAMPAIGN_ID
+          externalRequisitionId = EXTERNAL_REQUISITION_ID
+        }.build()
+      )
   }
 
   @Test
@@ -140,7 +156,15 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `already exists`() {
-    insertTheReport()
+    insertTheReport(
+      ReportDetails.newBuilder().apply {
+        addRequisitionsBuilder().apply {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalCampaignId = EXTERNAL_CAMPAIGN_ID
+          externalRequisitionId = EXTERNAL_REQUISITION_ID
+        }
+      }.build()
+    )
     insertTheRequisition()
 
     val expectedColumns: Map<String, Long> = mapOf(

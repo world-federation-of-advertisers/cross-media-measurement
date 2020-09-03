@@ -66,10 +66,23 @@ private val REPORT: Report = Report.newBuilder().apply {
   externalReportConfigId = 2
   externalScheduleId = 3
   externalReportId = 4
+
+  reportDetailsBuilder.apply {
+    addRequisitionsBuilder().apply {
+      externalDataProviderId = 5
+      externalCampaignId = 6
+      externalRequisitionId = 7
+    }
+  }
 }.build()
 
 private val GLOBAL_COMPUTATION: GlobalComputation = GlobalComputation.newBuilder().apply {
   keyBuilder.globalComputationId = ExternalId(REPORT.externalReportId).apiId.value
+  addMetricRequisitionsBuilder().apply {
+    dataProviderId = ExternalId(5).apiId.value
+    campaignId = ExternalId(6).apiId.value
+    metricRequisitionId = ExternalId(7).apiId.value
+  }
 }.build()
 
 private const val DUCHY_ID = "some-duchy-id"

@@ -33,4 +33,12 @@ message ReportDetails {
     map<int64, int64> frequency = 2;
   }
   Result result = 2;
+
+  // Denormalized set of Requisition identifiers.
+  message ExternalRequisitionKey {
+    int64 external_data_provider_id = 1;
+    int64 external_campaign_id = 2;
+    int64 external_requisition_id = 3;
+  }
+  repeated ExternalRequisitionKey requisitions = 3;
 }
