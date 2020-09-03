@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.db.duchy.computation.gcp
 
+import java.lang.Long.parseUnsignedLong
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -32,7 +33,7 @@ class LocalComputationIdGeneratorsTest {
     )
     val globalId = "123"
     assertEquals(
-      0x1230ABCD_00000000 + globalId.hashCode(),
+      parseUnsignedLong("B3D50C48FFFFFFF0", 16) or globalId.hashCode().toLong(),
       gen.localId(globalId)
     )
   }

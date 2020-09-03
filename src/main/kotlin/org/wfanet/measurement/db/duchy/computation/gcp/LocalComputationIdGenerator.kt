@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.db.duchy.computation.gcp
 
+import java.lang.Long.reverse
 import java.time.Clock
 
 /** Knows how to make local identifiers for computations to be used in a Spanner database. */
@@ -26,6 +27,6 @@ interface LocalComputationIdGenerator {
 class GlobalBitsPlusTimeStampIdGenerator(private val clock: Clock = Clock.systemUTC()) :
   LocalComputationIdGenerator {
   override fun localId(globalId: String): Long {
-    return globalId.hashCode() + (clock.millis() shl 32)
+    return reverse(clock.millis()) or globalId.hashCode().toLong()
   }
 }
