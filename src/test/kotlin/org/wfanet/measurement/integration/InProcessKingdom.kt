@@ -51,14 +51,14 @@ class InProcessKingdom(
 ) : TestRule {
   private val kingdomRelationalDatabase by lazy { kingdomRelationalDatabaseProvider() }
 
-  private val databaseServices = GrpcTestServerRule {
+  private val databaseServices = GrpcTestServerRule(logAllRequests = true) {
     logger.info("Building Kingdom's internal services")
     for (service in buildStorageServices(kingdomRelationalDatabase)) {
       addService(service.withVerboseLogging())
     }
   }
 
-  private val kingdomApiServices = GrpcTestServerRule {
+  private val kingdomApiServices = GrpcTestServerRule(logAllRequests = true) {
     logger.info("Building Kingdom's public API services")
     val reportStorage = ReportStorageCoroutineStub(databaseServices.channel)
     val reportLogEntryStorage = ReportLogEntryStorageCoroutineStub(databaseServices.channel)

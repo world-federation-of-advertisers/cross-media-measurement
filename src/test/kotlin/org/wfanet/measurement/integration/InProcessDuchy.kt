@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.service.common.withVerboseLogging
 import org.wfanet.measurement.service.internal.duchy.computation.control.LiquidLegionsComputationControlServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.metricvalues.MetricValuesService
@@ -66,11 +67,11 @@ class InProcessDuchy(
     GlobalComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
   }
 
-  private val storageServer = GrpcTestServerRule {
+  private val storageServer = GrpcTestServerRule(logAllRequests = true) {
     addService(ComputationStorageServiceImpl(duchyDependencies.singleProtocolDatabase))
   }
 
-  private val metricValuesServer = GrpcTestServerRule {
+  private val metricValuesServer = GrpcTestServerRule(logAllRequests = true) {
     addService(
       MetricValuesService(duchyDependencies.metricValueDatabase, duchyDependencies.storageClient)
     )
@@ -102,7 +103,7 @@ class InProcessDuchy(
   }
 
   private val computationControlServer =
-    GrpcTestServerRule(computationControlChannelName(duchyId)) {
+    GrpcTestServerRule(computationControlChannelName(duchyId), logAllRequests = true) {
       addService(LiquidLegionsComputationControlServiceImpl(computationStorageClients))
     }
 
@@ -113,9 +114,12 @@ class InProcessDuchy(
   private val millRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val workerStubs = otherDuchyIds.map {
-        val channel = InProcessChannelBuilder.forName(computationControlChannelName(it)).build()
+        val channel =
+          InProcessChannelBuilder
+            .forName(computationControlChannelName(it))
+            .build()
         channelCloserRule.register(channel)
-        it to ComputationControlServiceCoroutineStub(channel)
+        it to ComputationControlServiceCoroutineStub(channel.withVerboseLogging())
       }.toMap()
 
       val mill = LiquidLegionsMill(
@@ -136,20 +140,21 @@ class InProcessDuchy(
 
   private val publisherDataChannelName = "duchy-publisher-data-$duchyId"
 
-  private val publisherDataServer = GrpcTestServerRule(publisherDataChannelName) {
-    addService(
-      PublisherDataService(
-        MetricValuesCoroutineStub(metricValuesServer.channel),
-        RequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
-        DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+  private val publisherDataServer =
+    GrpcTestServerRule(publisherDataChannelName, logAllRequests = true) {
+      addService(
+        PublisherDataService(
+          MetricValuesCoroutineStub(metricValuesServer.channel),
+          RequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
+          DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+        )
       )
-    )
-  }
+    }
 
   fun newPublisherDataProviderStub(): PublisherDataCoroutineStub {
     val channel = InProcessChannelBuilder.forName(publisherDataChannelName).build()
     channelCloserRule.register(channel)
-    return PublisherDataCoroutineStub(channel)
+    return PublisherDataCoroutineStub(channel.withVerboseLogging())
   }
 
   override fun apply(statement: Statement, description: Description): Statement {
