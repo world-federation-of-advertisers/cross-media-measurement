@@ -15,34 +15,14 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
-import kotlin.properties.Delegates
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
+import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
-
-private class Flags {
-  @set:CommandLine.Option(
-    names = ["--port", "-p"],
-    description = ["TCP port for gRPC server."],
-    required = true,
-    defaultValue = "8080"
-  )
-  var port by Delegates.notNull<Int>()
-    private set
-
-  @CommandLine.Option(
-    names = ["--server-name"],
-    description = ["Name of the gRPC server for logging purposes."],
-    required = true,
-    defaultValue = "KingdomStorageServer"
-  )
-  lateinit var nameForLogging: String
-    private set
-}
 
 @CommandLine.Command(
   name = "gcp_kingdom_storage_server",
@@ -54,7 +34,7 @@ private class Flags {
   showDefaultValues = true
 )
 private fun run(
-  @CommandLine.Mixin flags: Flags,
+  @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags,
   @CommandLine.Mixin duchyIdFlags: DuchyIdFlags
 ) {
@@ -67,7 +47,8 @@ private fun run(
     clock, RandomIdGenerator(clock), spannerFromFlags.databaseClient
   )
 
-  val server = buildKingdomStorageServer(relationalDatabase, flags.port, flags.nameForLogging)
+  val services = buildStorageServices(relationalDatabase).toTypedArray()
+  val server = CommonServer.fromFlags(commonServerFlags, "GcpKingdomStorageServer", *services)
 
   server.start().blockUntilShutdown()
 }

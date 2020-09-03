@@ -3,9 +3,9 @@ package org.wfanet.measurement.service.v1alpha.common
 import io.grpc.BindableService
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
-import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
 class KingdomApiServerFlags {

@@ -1,9 +1,9 @@
 package org.wfanet.measurement.service.testing.storage
 
-import org.wfanet.measurement.common.CommonServer
-import org.wfanet.measurement.common.commandLineMain
-import picocli.CommandLine
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.service.common.CommonServer
+import picocli.CommandLine
 
 private class FakeStorageServiceFlags {
   @set:CommandLine.Option(

@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.service.common
 
 import io.grpc.BindableService
 import io.grpc.Server
 import io.grpc.ServerBuilder
+import io.grpc.ServerServiceDefinition
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -26,7 +27,7 @@ import picocli.CommandLine
 class CommonServer(
   private val nameForLogging: String,
   private val port: Int,
-  vararg services: BindableService
+  services: List<ServerServiceDefinition>
 ) {
   private var server: Server
 
@@ -37,6 +38,9 @@ class CommonServer(
     }
     server = builder.build()
   }
+
+  constructor(nameForLogging: String, port: Int, vararg services: BindableService) :
+    this(nameForLogging, port, services.map { it.bindService() })
 
   @Throws(IOException::class)
   fun start(): CommonServer {
@@ -73,13 +77,29 @@ class CommonServer(
     )
     var port by Delegates.notNull<Int>()
       private set
+
+    @set:CommandLine.Option(
+      names = ["--debug-verbose-grpc-server-logging"],
+      description = ["Debug mode: log ALL gRPC requests and responses"],
+      defaultValue = "false"
+    )
+    var debugVerboseGrpcLogging by Delegates.notNull<Boolean>()
+      private set
   }
 
   companion object {
     private val logger = Logger.getLogger(this::class.java.name)
 
     /** Constructs a [CommonServer] from command-line flags. */
-    fun fromFlags(flags: Flags, nameForLogging: String, vararg services: BindableService) =
-      CommonServer(nameForLogging, flags.port, *services)
+    fun fromFlags(
+      flags: Flags,
+      nameForLogging: String,
+      vararg services: BindableService
+    ): CommonServer {
+      if (flags.debugVerboseGrpcLogging) {
+        return CommonServer(nameForLogging, flags.port, services.map { it.withVerboseLogging() })
+      }
+      return CommonServer(nameForLogging, flags.port, *services)
+    }
   }
 }

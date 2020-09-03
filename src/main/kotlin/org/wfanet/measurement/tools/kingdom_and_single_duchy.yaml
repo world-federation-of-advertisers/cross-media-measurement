@@ -332,6 +332,8 @@ spec:
         - "--google-cloud-storage-project=" # TODO: Set flag value..."
         # TCP port for gRPC server.
         - "--port=8080"
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -364,6 +366,8 @@ spec:
         - "--spanner-instance=" # TODO: Set flag value..."
         #  Name of the Spanner project to use.
         - "--spanner-project=" # TODO: Set flag value..."
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -395,6 +399,8 @@ spec:
         - "--spanner-instance=" # TODO: Set flag value..."
         #  Name of the Spanner project to use.
         - "--spanner-project=" # TODO: Set flag value..."
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -416,8 +422,6 @@ spec:
         - "--duchy-ids=" # TODO: Set flag value..."
         # TCP port for gRPC server.
         - "--port=8080"
-        #  Name of the gRPC server for logging purposes.
-        - "--server-name=KingdomStorageServer"
         #  Name of the Spanner database to create.
         - "--spanner-database=" # TODO: Set flag value..."
         #  Host name and port of the spanner emulator.
@@ -426,6 +430,8 @@ spec:
         - "--spanner-instance=" # TODO: Set flag value..."
         #  Name of the Spanner project to use.
         - "--spanner-project=" # TODO: Set flag value..."
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -445,6 +451,8 @@ spec:
       args:
         # TCP port for gRPC server.
         - "--port=8080"
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -468,6 +476,8 @@ spec:
         - "--internal-api-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
         # TCP port for gRPC server.
         - "--port=8080"
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -498,6 +508,8 @@ spec:
         #  gRPC target (authority string or URI) for Requisition
         # service.
         - "--requisition-service-target=${REQUISITION_SERVER_SERVICE_HOST}:${REQUISITION_SERVER_SERVICE_PORT}"
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -521,5 +533,7 @@ spec:
         - "--internal-api-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
         # TCP port for gRPC server.
         - "--port=8080"
+        # Enable verbose debug logging of incoming gRPC requests
+        - "--debug-verbose-grpc-server-logging=true"
       ports:
         - containerPort: 8080

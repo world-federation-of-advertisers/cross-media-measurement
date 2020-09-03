@@ -18,11 +18,11 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
-import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
 private class Flags {

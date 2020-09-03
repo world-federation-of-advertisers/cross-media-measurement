@@ -16,7 +16,6 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
-import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
@@ -24,6 +23,7 @@ import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
 abstract class LiquidLegionsComputationControlServer : Runnable {

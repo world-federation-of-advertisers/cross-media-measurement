@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
-import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageDetails
@@ -25,6 +24,7 @@ import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
 /** gRPC server for ComputationStorage service. */

@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.service.internal.duchy.metricvalues
 
-import org.wfanet.measurement.common.CommonServer
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.service.common.CommonServer
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 

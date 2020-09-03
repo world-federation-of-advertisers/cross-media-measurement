@@ -18,7 +18,6 @@ import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
-import org.wfanet.measurement.common.testing.withVerboseLogging
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.MetricDefinition
@@ -36,6 +35,7 @@ import org.wfanet.measurement.kingdom.DaemonDatabaseServicesClientImpl
 import org.wfanet.measurement.kingdom.runReportMaker
 import org.wfanet.measurement.kingdom.runReportStarter
 import org.wfanet.measurement.kingdom.runRequisitionLinker
+import org.wfanet.measurement.service.common.withVerboseLogging
 import org.wfanet.measurement.service.internal.kingdom.buildStorageServices
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationService

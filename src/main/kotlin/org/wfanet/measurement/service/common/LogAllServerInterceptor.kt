@@ -1,4 +1,4 @@
-package org.wfanet.measurement.common.testing
+package org.wfanet.measurement.service.common
 
 import io.grpc.BindableService
 import io.grpc.ForwardingServerCall.SimpleForwardingServerCall
@@ -36,7 +36,7 @@ class LogAllServerInterceptor : ServerInterceptor {
   }
 
   companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
