@@ -197,16 +197,38 @@ spec:
         - "--channel-shutdown-timeout=3s"
         #  Address and port of the Computation Storage Service
         - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
-        #  Stable unique name for this Duchy.
-        - "--duchy-name=" # TODO: Set flag value..."
-        #  File path for DuchyPublicKeyConfig proto message in text
-        # format.
-        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
         #  Address and port of the Global Computation Service
-        - "--global-computation-service-target=${GLOBAL_COMPUTATION_SERVER_SERVICE_HOST}:${GLOBAL_COMPUTATION_SERVER_SERVICE_PORT}"
+        - "--global-computation-service-target=$(GLOBAL_COMPUTATION_SERVER_SERVICE_HOST):$(GLOBAL_COMPUTATION_SERVER_SERVICE_PORT)"
         #  How long to sleep between calls to the Global Computation
         # Service.
         - "--polling-interval=1m"
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=test-duchy-1"
+        #  DuchyPublicKeyConfig proto message in text format.
+        - >
+          --duchy-public-keys-config=
+          entries {
+            key: "combined-public-key-1"
+            value {
+              combined_public_key_version: 1
+              elliptic_curve_id: 415
+              el_gamal_generator: "\x08\x13\x46\xFE\x5A\x58\x96\x7C\xAC\xBF\xD5\xF5\x04\x36\xC5\x53\x52\xBD\xAE\xC6\x9C\x0A\x52\x14\x6B\x4A\x50\xC2\xE2\xA4\x44\x82\x8A"
+              el_gamal_elements {
+                key: "test-duchy-1"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-2"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-3"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              # Note: this value is random and not actually computed from the above!
+              combined_el_gamal_element: "\xFF\x12\xCA\xCC\x57\xB4\x5E\xE2\x51\x73\xD2\x2D\x36\xBD\x01\xB5\x43\x7A\xC7\x11\xA0\xB7\xCE\x8D\x4E\xF6\x62\xB4\xEA\x64\x6E\xE4\x13"
+            }
+          }
 
 ---
 apiVersion: v1
@@ -235,11 +257,6 @@ spec:
         - "--computation-control-service-target=${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_PORT}"
         #  Address and port of the Computation Storage Service
         - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
-        #  Stable unique name for this Duchy.
-        - "--duchy-name=" # TODO: Set flag value..."
-        #  File path for DuchyPublicKeyConfig proto message in text
-        # format.
-        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
         #  This Duchy's secret key component of its ElGamal key pair.
         - "--duchy-secret-key=" # TODO: Set flag value..."
         #  Address and port of the Kingdom's Global Computations
@@ -347,11 +364,6 @@ spec:
       args:
         #  Address and port of the Computation Storage Service
         - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
-        #  Stable unique name for this Duchy.
-        - "--duchy-name=" # TODO: Set flag value..."
-        #  File path for DuchyPublicKeyConfig proto message in text
-        # format.
-        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
         #  Name of the Google Cloud Storage project to use.
         - "--google-cloud-storage-bucket=" # TODO: Set flag value..."
         #  Name of the Google Cloud Storage project to use.
@@ -360,6 +372,34 @@ spec:
         - "--port=8080"
         # Enable verbose debug logging of incoming gRPC requests
         - "--debug-verbose-grpc-server-logging=true"
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=test-duchy-1"
+        #  DuchyPublicKeyConfig proto message in text format.
+        - >
+          --duchy-public-keys-config=
+          entries {
+            key: "combined-public-key-1"
+            value {
+              combined_public_key_version: 1
+              elliptic_curve_id: 415
+              el_gamal_generator: "\x08\x13\x46\xFE\x5A\x58\x96\x7C\xAC\xBF\xD5\xF5\x04\x36\xC5\x53\x52\xBD\xAE\xC6\x9C\x0A\x52\x14\x6B\x4A\x50\xC2\xE2\xA4\x44\x82\x8A"
+              el_gamal_elements {
+                key: "test-duchy-1"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-2"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-3"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              # Note: this value is random and not actually computed from the above!
+              combined_el_gamal_element: "\xFF\x12\xCA\xCC\x57\xB4\x5E\xE2\x51\x73\xD2\x2D\x36\xBD\x01\xB5\x43\x7A\xC7\x11\xA0\xB7\xCE\x8D\x4E\xF6\x62\xB4\xEA\x64\x6E\xE4\x13"
+            }
+          }
+
       ports:
         - containerPort: 8080
 
@@ -378,11 +418,6 @@ spec:
       image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image
       imagePullPolicy: Never
       args:
-        #  Stable unique name for this Duchy.
-        - "--duchy-name=" # TODO: Set flag value..."
-        #  File path for DuchyPublicKeyConfig proto message in text
-        # format.
-        - "--duchy-public-keys-config-file=" # TODO: Set flag value..."
         # TCP port for gRPC server.
         - "--port=8080"
         #  Name of the Spanner database to create.
@@ -395,6 +430,34 @@ spec:
         - "--spanner-project=" # TODO: Set flag value..."
         # Enable verbose debug logging of incoming gRPC requests
         - "--debug-verbose-grpc-server-logging=true"
+        #  Stable unique name for this Duchy.
+        - "--duchy-name=test-duchy-1"
+        #  DuchyPublicKeyConfig proto message in text format.
+        - >
+          --duchy-public-keys-config=
+          entries {
+            key: "combined-public-key-1"
+            value {
+              combined_public_key_version: 1
+              elliptic_curve_id: 415
+              el_gamal_generator: "\x08\x13\x46\xFE\x5A\x58\x96\x7C\xAC\xBF\xD5\xF5\x04\x36\xC5\x53\x52\xBD\xAE\xC6\x9C\x0A\x52\x14\x6B\x4A\x50\xC2\xE2\xA4\x44\x82\x8A"
+              el_gamal_elements {
+                key: "test-duchy-1"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-2"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-3"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              # Note: this value is random and not actually computed from the above!
+              combined_el_gamal_element: "\xFF\x12\xCA\xCC\x57\xB4\x5E\xE2\x51\x73\xD2\x2D\x36\xBD\x01\xB5\x43\x7A\xC7\x11\xA0\xB7\xCE\x8D\x4E\xF6\x62\xB4\xEA\x64\x6E\xE4\x13"
+            }
+          }
+
       ports:
         - containerPort: 8080
 ---
@@ -527,7 +590,7 @@ spec:
       imagePullPolicy: Never
       args:
         #  Stable unique name for this Duchy.
-        - "--duchy-name=" # TODO: Set flag value..."
+        - "--duchy-name=test-duchy-1"
         #  gRPC target (authority string or URI) for MetricValues
         # service.
         - "--metric-values-service-target=${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
