@@ -9,6 +9,7 @@ import io.grpc.ForwardingClientCall
 import io.grpc.ForwardingClientCallListener.SimpleForwardingClientCallListener
 import io.grpc.Metadata
 import io.grpc.MethodDescriptor
+import java.util.logging.Level
 import java.util.logging.Logger
 
 /**
@@ -25,14 +26,15 @@ class LoggingClientInterceptor : ClientInterceptor {
       override fun start(responseListener: Listener<RespT>?, headers: Metadata?) {
         val listener = object : SimpleForwardingClientCallListener<RespT>(responseListener) {
           override fun onMessage(message: RespT) {
-            logger.info("${method.fullMethodName} response: $message")
+            logger.logp(
+              Level.INFO, method.fullMethodName, "gRPC response", "[$threadName] $message")
             super.onMessage(message)
           }
         }
         super.start(listener, headers)
       }
       override fun sendMessage(message: ReqT) {
-        logger.info("${method.fullMethodName} request: $message")
+        logger.logp(Level.INFO, method.fullMethodName, "gRPC request", "[$threadName] $message")
         super.sendMessage(message)
       }
     }
@@ -40,6 +42,8 @@ class LoggingClientInterceptor : ClientInterceptor {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val threadName: String
+      get() = Thread.currentThread().name
   }
 }
 

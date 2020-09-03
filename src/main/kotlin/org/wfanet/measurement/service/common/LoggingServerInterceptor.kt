@@ -25,12 +25,12 @@ class LoggingServerInterceptor : ServerInterceptor {
     val methodName = call.methodDescriptor.fullMethodName
     val interceptedCall = object : SimpleForwardingServerCall<ReqT, RespT>(call) {
       override fun sendMessage(message: RespT) {
-        logger.info("$methodName response: $message")
+        logger.logp(Level.INFO, methodName, "gRPC response", "[$threadName] $message")
         super.sendMessage(message)
       }
       override fun close(status: Status, trailers: Metadata) {
         if (status.cause != null) {
-          logger.log(Level.SEVERE, "$methodName gRPC exception: ", status.cause)
+          logger.logp(Level.SEVERE, methodName, "gRPC exception", "[$threadName]", status.cause)
         }
         super.close(status, trailers)
       }
@@ -38,7 +38,7 @@ class LoggingServerInterceptor : ServerInterceptor {
     val originalListener = next.startCall(interceptedCall, headers)
     return object : SimpleForwardingServerCallListener<ReqT>(originalListener) {
       override fun onMessage(message: ReqT) {
-        logger.info("$methodName request: $message")
+        logger.logp(Level.INFO, methodName, "gRPC request", "[$threadName] $message")
         super.onMessage(message)
       }
     }
@@ -46,6 +46,8 @@ class LoggingServerInterceptor : ServerInterceptor {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val threadName: String
+      get() = Thread.currentThread().name
   }
 }
 
