@@ -254,6 +254,8 @@ spec:
         - "--throttler-poll-delay=1ms"
 
         - "--throttler-time-horizon=2m"
+        # Enable verbose debug logging of outgoing gRPC requests
+        - "--debug-verbose-grpc-client-logging=true"
 ---
 apiVersion: v1
 kind: Pod
@@ -279,6 +281,8 @@ spec:
         - "--throttler-poll-delay=1ms"
 
         - "--throttler-time-horizon=2m"
+        # Enable verbose debug logging of outgoing gRPC requests
+        - "--debug-verbose-grpc-client-logging=true"
 ---
 apiVersion: v1
 kind: Pod
@@ -304,6 +308,8 @@ spec:
         - "--throttler-poll-delay=1ms"
 
         - "--throttler-time-horizon=2m"
+        # Enable verbose debug logging of outgoing gRPC requests
+        - "--debug-verbose-grpc-client-logging=true"
 ---
 apiVersion: v1
 kind: Pod
@@ -478,6 +484,8 @@ spec:
         - "--port=8080"
         # Enable verbose debug logging of incoming gRPC requests
         - "--debug-verbose-grpc-server-logging=true"
+        # Enable verbose debug logging of outgoing gRPC requests
+        - "--debug-verbose-grpc-client-logging=true"
       ports:
         - containerPort: 8080
 ---
@@ -535,5 +543,7 @@ spec:
         - "--port=8080"
         # Enable verbose debug logging of incoming gRPC requests
         - "--debug-verbose-grpc-server-logging=true"
+        # Enable verbose debug logging of outgoing gRPC requests
+        - "--debug-verbose-grpc-client-logging=true"
       ports:
         - containerPort: 8080

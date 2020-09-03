@@ -1,6 +1,6 @@
 package org.wfanet.measurement.kingdom
 
-import io.grpc.ManagedChannel
+import io.grpc.Channel
 import io.grpc.ManagedChannelBuilder
 import java.time.Clock
 import java.time.Duration
@@ -11,6 +11,7 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import org.wfanet.measurement.service.common.withVerboseLogging
 import picocli.CommandLine
 
 class DaemonFlags {
@@ -48,14 +49,23 @@ class DaemonFlags {
   )
   lateinit var pollDelay: Duration
     private set
+
+  @set:CommandLine.Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+    defaultValue = "false"
+  )
+  var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
 }
 
 fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlocking {
-  val channel: ManagedChannel =
+  val channel: Channel =
     ManagedChannelBuilder
       .forTarget(flags.internalServicesTarget)
       .usePlaintext()
       .build()
+      .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
   val throttler = AdaptiveThrottler(
     flags.overloadFactor,
