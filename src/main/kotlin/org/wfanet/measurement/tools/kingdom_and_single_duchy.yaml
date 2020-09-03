@@ -160,7 +160,7 @@ metadata:
 spec:
   containers:
     - name: liquid-legions-herald-daemon-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image
       imagePullPolicy: Never
       args:
         #  How long to allow for the gRPC channel to shutdown.
@@ -189,7 +189,7 @@ metadata:
 spec:
   containers:
     - name: gcs-liquid-legions-mill-daemon-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image
       imagePullPolicy: Never
       args:
         #  The number of bytes in a chunk when sending result to other
@@ -241,7 +241,7 @@ metadata:
 spec:
   containers:
     - name: report-maker-daemon-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image
       imagePullPolicy: Never
       args:
 
@@ -266,7 +266,7 @@ metadata:
 spec:
   containers:
     - name: report-starter-daemon-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image
       imagePullPolicy: Never
       args:
 
@@ -291,7 +291,7 @@ metadata:
 spec:
   containers:
     - name: requisition-linker-daemon-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image
       imagePullPolicy: Never
       args:
 
@@ -316,7 +316,7 @@ metadata:
 spec:
   containers:
     - name: gcs-liquid-legions-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image
       imagePullPolicy: Never
       args:
         #  Address and port of the Computation Storage Service
@@ -346,7 +346,7 @@ metadata:
 spec:
   containers:
     - name: spanner-liquid-legions-computation-storage-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image
       imagePullPolicy: Never
       args:
         #  Stable unique name for this Duchy.
@@ -378,7 +378,7 @@ metadata:
 spec:
   containers:
     - name: gcp-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image
       imagePullPolicy: Never
       args:
         #  Name of the Google Cloud Storage project to use.
@@ -409,7 +409,7 @@ metadata:
 spec:
   containers:
     - name: gcp-kingdom-storage-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image
       imagePullPolicy: Never
       args:
         #  List of all valid Duchy ids
@@ -440,7 +440,7 @@ metadata:
 spec:
   containers:
     - name: fake-storage-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image
       imagePullPolicy: Never
       args:
         # TCP port for gRPC server.
@@ -459,7 +459,7 @@ metadata:
 spec:
   containers:
     - name: global-computation-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image
       imagePullPolicy: Never
       args:
         #  List of all valid Duchy ids
@@ -482,7 +482,7 @@ metadata:
 spec:
   containers:
     - name: publisher-data-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image
       imagePullPolicy: Never
       args:
         #  Stable unique name for this Duchy.
@@ -512,7 +512,7 @@ metadata:
 spec:
   containers:
     - name: requisition-server-container
-      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image.binary
+      image: bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image
       imagePullPolicy: Never
       args:
         #  List of all valid Duchy ids
