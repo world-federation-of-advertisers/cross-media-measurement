@@ -166,7 +166,7 @@ spec:
         #  How long to allow for the gRPC channel to shutdown.
         - "--channel-shutdown-timeout=3s"
         #  Address and port of the Computation Storage Service
-        - "--computation-storage-service-target=${"SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST}:${"SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT}"
+        - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
         #  Stable unique name for this Duchy.
         - "--duchy-name=" # TODO: Set flag value..."
         #  File path for DuchyPublicKeyConfig proto message in text
@@ -203,7 +203,7 @@ spec:
         # can be repeated.
         - "--computation-control-service-target=${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_PORT}"
         #  Address and port of the Computation Storage Service
-        - "--computation-storage-service-target=${"SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST}:${"SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT}"
+        - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
         #  Stable unique name for this Duchy.
         - "--duchy-name=" # TODO: Set flag value..."
         #  File path for DuchyPublicKeyConfig proto message in text
@@ -213,7 +213,7 @@ spec:
         - "--duchy-secret-key=" # TODO: Set flag value..."
         #  Address and port of the Kingdom's Global Computations
         # Service
-        - "--global-computation-service-target=${"GLOBAL_COMPUTATION_SERVER_SERVICE_HOST}:${"GLOBAL_COMPUTATION_SERVER_SERVICE_PORT}"
+        - "--global-computation-service-target=$(GLOBAL_COMPUTATION_SERVER_SERVICE_HOST):$(GLOBAL_COMPUTATION_SERVER_SERVICE_PORT)"
         #  Name of the Google Cloud Storage project to use.
         - "--google-cloud-storage-bucket=" # TODO: Set flag value..."
         #  Name of the Google Cloud Storage project to use.
@@ -245,7 +245,7 @@ spec:
       imagePullPolicy: Never
       args:
 
-        - "--internal-services-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
+        - "--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
 
         - "--max-concurrency=32"
 
@@ -270,7 +270,7 @@ spec:
       imagePullPolicy: Never
       args:
 
-        - "--internal-services-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
+        - "--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
 
         - "--max-concurrency=32"
 
@@ -295,7 +295,7 @@ spec:
       imagePullPolicy: Never
       args:
 
-        - "--internal-services-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
+        - "--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
 
         - "--max-concurrency=32"
 
@@ -320,7 +320,7 @@ spec:
       imagePullPolicy: Never
       args:
         #  Address and port of the Computation Storage Service
-        - "--computation-storage-service-target=${"SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST}:${"SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT}"
+        - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
         #  Stable unique name for this Duchy.
         - "--duchy-name=" # TODO: Set flag value..."
         #  File path for DuchyPublicKeyConfig proto message in text
@@ -465,7 +465,7 @@ spec:
         #  List of all valid Duchy ids
         - "--duchy-ids=" # TODO: Set flag value..."
         #  Target for Kingdom database APIs, e.g. localhost:8080
-        - "--internal-api-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
+        - "--internal-api-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
         # TCP port for gRPC server.
         - "--port=8080"
       ports:
@@ -518,9 +518,8 @@ spec:
         #  List of all valid Duchy ids
         - "--duchy-ids=" # TODO: Set flag value..."
         #  Target for Kingdom database APIs, e.g. localhost:8080
-        - "--internal-api-target=${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST}:${"GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT}"
+        - "--internal-api-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)"
         # TCP port for gRPC server.
         - "--port=8080"
       ports:
         - containerPort: 8080
----
