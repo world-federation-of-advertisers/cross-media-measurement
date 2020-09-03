@@ -61,6 +61,10 @@ import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorage
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+private const val DUCHY_ID = "some-duchy-id"
+private const val OTHER_DUCHY_ID = "other-duchy-id"
+private val DUCHY_AUTH_PROVIDER = { DuchyIdentity(DUCHY_ID) }
+
 private val REPORT: Report = Report.newBuilder().apply {
   externalAdvertiserId = 1
   externalReportConfigId = 2
@@ -72,6 +76,13 @@ private val REPORT: Report = Report.newBuilder().apply {
       externalDataProviderId = 5
       externalCampaignId = 6
       externalRequisitionId = 7
+      duchyId = DUCHY_ID
+    }
+    addRequisitionsBuilder().apply {
+      externalDataProviderId = 8
+      externalCampaignId = 9
+      externalRequisitionId = 10
+      duchyId = OTHER_DUCHY_ID
     }
   }
 }.build()
@@ -85,11 +96,8 @@ private val GLOBAL_COMPUTATION: GlobalComputation = GlobalComputation.newBuilder
   }
 }.build()
 
-private const val DUCHY_ID = "some-duchy-id"
-private val DUCHY_AUTH_PROVIDER = { DuchyIdentity(DUCHY_ID) }
-
 @RunWith(JUnit4::class)
-class GlobalComputationsServiceTest {
+class GlobalComputationServiceTest {
   @get:Rule
   val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 

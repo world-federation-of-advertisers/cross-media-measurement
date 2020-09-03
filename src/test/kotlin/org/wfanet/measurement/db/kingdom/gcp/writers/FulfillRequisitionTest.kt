@@ -27,6 +27,9 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
@@ -37,6 +40,13 @@ private const val EXTERNAL_CAMPAIGN_ID = 4L
 private const val REQUISITION_ID = 5L
 private const val EXTERNAL_REQUISITION_ID = 6L
 private const val ADVERTISER_ID = 7L
+private const val EXTERNAL_ADVERTISER_ID = 8L
+private const val REPORT_CONFIG_ID = 9L
+private const val EXTERNAL_REPORT_CONFIG_ID = 10L
+private const val SCHEDULE_ID = 11L
+private const val EXTERNAL_SCHEDULE_ID = 12L
+private const val REPORT_ID = 13L
+private const val EXTERNAL_REPORT_ID = 14L
 
 private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
 private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
@@ -108,6 +118,45 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(expectedRequisition)
+  }
+
+  @Test
+  fun `denormalizes duchy id to associated reports`() {
+    updateExistingRequisitionState(RequisitionState.UNFULFILLED)
+
+    val reportDetails = ReportDetails.newBuilder().apply {
+      addRequisitionsBuilder().apply {
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        externalCampaignId = EXTERNAL_CAMPAIGN_ID
+        externalRequisitionId = EXTERNAL_REQUISITION_ID
+      }
+    }.build()
+
+    insertReportWithParents(
+      ADVERTISER_ID, EXTERNAL_ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID,
+      SCHEDULE_ID, EXTERNAL_SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
+      state = ReportState.AWAITING_REQUISITION_FULFILLMENT,
+      reportDetails = reportDetails
+    )
+    insertReportRequisition(
+      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID,
+      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID
+    )
+
+    fulfillRequisition(EXTERNAL_REQUISITION_ID)
+
+    assertThat(readAllReportsInSpanner())
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        Report.newBuilder().apply {
+          reportDetailsBuilder.addRequisitionsBuilder().apply {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalCampaignId = EXTERNAL_CAMPAIGN_ID
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            duchyId = DUCHY_ID
+          }
+        }.build()
+      )
   }
 
   @Test

@@ -15,9 +15,15 @@
 package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.db.gcp.bufferTo
+import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
+import org.wfanet.measurement.db.gcp.toProtoJson
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -45,6 +51,15 @@ class FulfillRequisition(
       .build()
       .bufferTo(transactionContext)
 
+    ReportReader
+      .readReportsWithAssociatedRequisition(
+        transactionContext,
+        InternalId(readResult.dataProviderId),
+        InternalId(readResult.campaignId),
+        InternalId(readResult.requisitionId)
+      )
+      .collect { updateReportDetails(it) }
+
     return readResult.requisition.toBuilder()
       .setState(RequisitionState.FULFILLED)
       .setDuchyId(duchyId)
@@ -53,5 +68,24 @@ class FulfillRequisition(
 
   override fun ResultScope<Requisition>.buildResult(): Requisition {
     return checkNotNull(transactionResult)
+  }
+
+  private fun TransactionScope.updateReportDetails(reportReadResult: ReportReader.Result) {
+    val newReportDetails = reportReadResult.report.reportDetails.toBuilder().apply {
+      requisitionsBuilderList
+        .single { it.externalRequisitionId == externalRequisitionId.value }
+        .duchyId = duchyId
+    }.build()
+
+    Mutation.newUpdateBuilder("Reports")
+      .set("AdvertiserId").to(reportReadResult.advertiserId)
+      .set("ReportConfigId").to(reportReadResult.reportConfigId)
+      .set("ScheduleId").to(reportReadResult.scheduleId)
+      .set("ReportId").to(reportReadResult.reportId)
+      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      .set("ReportDetails").toProtoBytes(newReportDetails)
+      .set("ReportDetailsJson").toProtoJson(newReportDetails)
+      .build()
+      .bufferTo(transactionContext)
   }
 }

@@ -175,6 +175,29 @@ class GlobalComputationService(
     return reportStorageStub.streamReports(request)
   }
 
+  private fun Report.toGlobalComputation(): GlobalComputation {
+    return GlobalComputation.newBuilder().apply {
+      keyBuilder.globalComputationId = ExternalId(externalReportId).apiId.value
+      state = translateState(this@toGlobalComputation.state)
+      if (state == State.SUCCEEDED) {
+        resultBuilder.apply {
+          reach = reportDetails.result.reach
+          putAllFrequency(reportDetails.result.frequencyMap)
+        }
+      }
+
+      for (requisition in reportDetails.requisitionsList) {
+        if (requisition.duchyId == duchyIdentityProvider().id) {
+          addMetricRequisitionsBuilder().apply {
+            dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
+            campaignId = ExternalId(requisition.externalCampaignId).apiId.value
+            metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
+          }
+        }
+      }
+    }.build()
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
@@ -211,26 +234,6 @@ private fun getStateType(reportState: ReportState): StateType =
     ReportState.REPORT_STATE_UNKNOWN,
     ReportState.UNRECOGNIZED -> StateType.INVALID
   }
-
-private fun Report.toGlobalComputation(): GlobalComputation {
-  return GlobalComputation.newBuilder().apply {
-    keyBuilder.globalComputationId = ExternalId(externalReportId).apiId.value
-    state = translateState(this@toGlobalComputation.state)
-    if (state == State.SUCCEEDED) {
-      resultBuilder.apply {
-        reach = reportDetails.result.reach
-        putAllFrequency(reportDetails.result.frequencyMap)
-      }
-    }
-    for (requisition in reportDetails.requisitionsList) {
-      addMetricRequisitionsBuilder().apply {
-        dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
-        campaignId = ExternalId(requisition.externalCampaignId).apiId.value
-        metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
-      }
-    }
-  }.build()
-}
 
 private fun ApiMpcAlgorithm.toStorageMpcAlgorithm(): MpcAlgorithm =
   when (this) {

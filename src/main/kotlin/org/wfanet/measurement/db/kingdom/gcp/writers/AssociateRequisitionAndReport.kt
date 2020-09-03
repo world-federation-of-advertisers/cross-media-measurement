@@ -63,6 +63,7 @@ class AssociateRequisitionAndReport(
         externalDataProviderId = requisition.externalDataProviderId
         externalCampaignId = requisition.externalCampaignId
         externalRequisitionId = requisition.externalRequisitionId
+        duchyId = requisition.duchyId
       }
     }.build()
 

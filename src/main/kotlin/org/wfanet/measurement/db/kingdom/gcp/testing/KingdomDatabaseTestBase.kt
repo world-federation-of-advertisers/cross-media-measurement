@@ -158,6 +158,31 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
+  fun insertReportWithParents(
+    advertiserId: Long,
+    externalAdvertiserId: Long,
+    reportConfigId: Long,
+    externalReportConfigId: Long,
+    scheduleId: Long,
+    externalScheduleId: Long,
+    reportId: Long,
+    externalReportId: Long,
+    state: ReportState,
+    createTime: Instant? = null,
+    updateTime: Instant? = null,
+    windowStartTime: Instant = Instant.EPOCH,
+    windowEndTime: Instant = Instant.EPOCH,
+    reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
+  ) {
+    insertAdvertiser(advertiserId, externalAdvertiserId)
+    insertReportConfig(advertiserId, reportConfigId, externalReportConfigId)
+    insertReportConfigSchedule(advertiserId, reportConfigId, scheduleId, externalScheduleId)
+    insertReport(
+      advertiserId, reportConfigId, scheduleId, reportId, externalReportId, state, createTime,
+      updateTime, windowStartTime, windowEndTime, reportDetails
+    )
+  }
+
   protected fun insertDataProvider(
     dataProviderId: Long,
     externalDataProviderId: Long

@@ -46,6 +46,7 @@ private const val CAMPAIGN_ID = 11L
 private const val EXTERNAL_CAMPAIGN_ID = 12L
 private const val REQUISITION_ID = 13L
 private const val EXTERNAL_REQUISITION_ID = 14L
+private const val DUCHY_ID = "some-duchy-id"
 
 @RunWith(JUnit4::class)
 class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
@@ -83,7 +84,9 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
   }
 
   private fun insertTheRequisition() {
-    insertRequisition(DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID)
+    insertRequisition(
+      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID, duchyId = DUCHY_ID
+    )
   }
 
   @Test
@@ -128,6 +131,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
           externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
           externalCampaignId = EXTERNAL_CAMPAIGN_ID
           externalRequisitionId = EXTERNAL_REQUISITION_ID
+          duchyId = DUCHY_ID
         }.build()
       )
   }
