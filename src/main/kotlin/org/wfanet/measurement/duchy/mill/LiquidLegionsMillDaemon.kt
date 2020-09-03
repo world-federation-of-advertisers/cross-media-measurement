@@ -15,12 +15,11 @@
 package org.wfanet.measurement.duchy.mill
 
 import io.grpc.ManagedChannel
-import io.grpc.ManagedChannelBuilder
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
-import org.wfanet.measurement.common.addChannelShutdownHooks
+import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
@@ -104,11 +103,6 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     )
   }
 
-  private fun buildChannel(target: String): ManagedChannel {
-    return ManagedChannelBuilder.forTarget(target).build().apply { addChannelShutdownHooks(this) }
-  }
-
-  private fun addChannelShutdownHooks(vararg channels: ManagedChannel) {
-    addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, *channels)
-  }
+  private fun buildChannel(target: String): ManagedChannel =
+    buildChannel(target, flags.channelShutdownTimeout)
 }

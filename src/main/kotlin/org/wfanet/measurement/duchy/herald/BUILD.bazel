@@ -10,6 +10,7 @@ kt_jvm_library(
         test_target(":__pkg__"),
         "//src/test/kotlin/org/wfanet/measurement/integration:__pkg__",
     ],
+    runtime_deps = ["//imports/java/io/grpc/netty"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",

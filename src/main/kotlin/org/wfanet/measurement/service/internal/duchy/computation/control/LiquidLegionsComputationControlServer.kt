@@ -15,7 +15,7 @@
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import io.grpc.ManagedChannel
-import io.grpc.ManagedChannelBuilder
+import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
@@ -41,11 +41,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
     }
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
-    val channel: ManagedChannel =
-      ManagedChannelBuilder
-        .forTarget(flags.computationStorageServiceTarget)
-        .usePlaintext()
-        .build()
+    val channel: ManagedChannel = buildChannel(flags.computationStorageServiceTarget)
 
     CommonServer.fromFlags(
       flags.server,

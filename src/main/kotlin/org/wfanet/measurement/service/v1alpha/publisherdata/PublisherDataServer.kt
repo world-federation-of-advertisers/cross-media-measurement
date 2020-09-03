@@ -14,10 +14,9 @@
 
 package org.wfanet.measurement.service.v1alpha.publisherdata
 
-import io.grpc.ManagedChannel
-import io.grpc.ManagedChannelBuilder
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
+import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.CommonDuchyFlags
@@ -66,14 +65,14 @@ private class Flags {
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
-  val metricValuesClient = MetricValuesCoroutineStub(makeChannel(flags.metricValuesServiceTarget))
+  val metricValuesClient = MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
 
   val requisitionClient =
-    RequisitionCoroutineStub(makeChannel(flags.requisitionServiceTarget))
+    RequisitionCoroutineStub(buildChannel(flags.requisitionServiceTarget))
       .withDuchyId(flags.duchy.duchyName)
 
   val registrationClient =
-    DataProviderRegistrationCoroutineStub(makeChannel(flags.registrationServiceTarget))
+    DataProviderRegistrationCoroutineStub(buildChannel(flags.registrationServiceTarget))
 
   val service = PublisherDataService(metricValuesClient, requisitionClient, registrationClient)
 
@@ -82,8 +81,5 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     .start()
     .blockUntilShutdown()
 }
-
-private fun makeChannel(target: String): ManagedChannel =
-  ManagedChannelBuilder.forTarget(target).build()
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

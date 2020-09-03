@@ -14,13 +14,13 @@
 
 package org.wfanet.measurement.duchy.herald
 
-import io.grpc.ManagedChannelBuilder
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
+import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
@@ -85,20 +85,14 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   }
   val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
 
-  val channel =
-    ManagedChannelBuilder.forTarget(flags.globalComputationsService)
-      .usePlaintext()
-      .build()
+  val channel = buildChannel(flags.globalComputationsService)
   addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, channel)
 
   val globalComputationsServiceClient =
     GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
-  val storageChannel =
-    ManagedChannelBuilder.forTarget(flags.computationStorageServiceTarget)
-      .usePlaintext()
-      .build()
+  val storageChannel = buildChannel(flags.computationStorageServiceTarget)
 
   val herald = LiquidLegionsHerald(
     otherDuchiesInComputation = otherDuchyNames,

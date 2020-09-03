@@ -18,6 +18,8 @@ import io.grpc.ManagedChannel
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
+private val MAX_SHUTDOWN_TIMEOUT = Duration.ofMinutes(10)
+
 private class ChannelShutdownHook(
   private val channel: ManagedChannel,
   private val timeoutMillis: Long
@@ -37,11 +39,14 @@ private class ChannelShutdownHook(
 }
 
 fun addChannelShutdownHooks(r: Runtime, timeout: Duration, vararg channels: ManagedChannel) {
-  val maxTimeoutDuration = Duration.ofMinutes(10)
-  require(timeout <= maxTimeoutDuration) {
-    "The timeout duration for channel shutdown hooks cannot be longer than $maxTimeoutDuration."
-  }
   channels.forEach {
-    r.addShutdownHook(Thread(ChannelShutdownHook(it, timeout.toMillis())))
+    r.addShutdownHook(it, timeout)
   }
+}
+
+fun Runtime.addShutdownHook(channel: ManagedChannel, timeout: Duration) {
+  require(timeout <= MAX_SHUTDOWN_TIMEOUT) {
+    "The timeout duration for channel shutdown hooks cannot be longer than $MAX_SHUTDOWN_TIMEOUT."
+  }
+  addShutdownHook(Thread(ChannelShutdownHook(channel, timeout.toMillis())))
 }
