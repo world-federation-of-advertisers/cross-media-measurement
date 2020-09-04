@@ -73,7 +73,12 @@ message StreamActiveGlobalComputationsRequest {
 
 // Response message for StreamActiveGlobalComputations method.
 message StreamActiveGlobalComputationsResponse {
+  // The MetricRequisition.Keys in global_computation.metric_requisitions are
+  // filtered for the Duchy that sent the RPC. In other words, a requisition
+  // will only appear if it has already been fulfilled by sender of the
+  // StreamActiveGlobalComputationRequest.
   GlobalComputation global_computation = 1;
+
   string continuation_token = 2;
 }
 
