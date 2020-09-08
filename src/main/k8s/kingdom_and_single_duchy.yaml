@@ -253,7 +253,8 @@ spec:
         # ComputationControl service in another Duchy. This is a
         # key=value pair where the key is the other Duchy's name. It
         # can be repeated.
-        - "--computation-control-service-target=${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_PORT}"
+        - "--computation-control-service-target=test-duchy-2=localhost:9002" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_PORT}"
+        - "--computation-control-service-target=test-duchy-3=localhost:9003" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_HOST}:${" # TODO: Set k8s service for COMPUTATION-CONTROL-SERVICE_PORT}"
         #  Address and port of the Computation Storage Service
         - "--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)"
         #  This Duchy's secret key component of its ElGamal key pair.
@@ -270,12 +271,38 @@ spec:
         #  The maximum size of liquid legions sketch.
         - "--liquid-legions-size=100000"
         #  Address and port of the same duchy's MetricValuesService
-        - "--metric-values-service-target=${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
+        - "--metric-values-service-target=localhost:9001" # TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
         # The Identifier of the Mill.
         - "--mill-id=" # TODO: Set flag value..."
         #  How long to sleep before polling the computation queue
         # again if it is empty.
         - "--polling-interval=1s"
+        - "--duchy-name=test-duchy-1"
+        #  DuchyPublicKeyConfig proto message in text format.
+        - >
+          --duchy-public-keys-config=
+          entries {
+            key: "combined-public-key-1"
+            value {
+              combined_public_key_version: 1
+              elliptic_curve_id: 415
+              el_gamal_generator: "\x08\x13\x46\xFE\x5A\x58\x96\x7C\xAC\xBF\xD5\xF5\x04\x36\xC5\x53\x52\xBD\xAE\xC6\x9C\x0A\x52\x14\x6B\x4A\x50\xC2\xE2\xA4\x44\x82\x8A"
+              el_gamal_elements {
+                key: "test-duchy-1"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-2"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              el_gamal_elements {
+                key: "test-duchy-3"
+                value: "\x3A\x17\x79\xE4\xE2\x93\x63\x5B\x5C\xB4\xB3\x8C\xBB\xFD\x24\xB0\x7E\x29\x8D\x80\x31\xED\x6B\xEF\x42\x9F\x05\x9F\xF8\x60\xBA\x6F\x95"
+              }
+              # Note: this value is random and not actually computed from the above!
+              combined_el_gamal_element: "\xFF\x12\xCA\xCC\x57\xB4\x5E\xE2\x51\x73\xD2\x2D\x36\xBD\x01\xB5\x43\x7A\xC7\x11\xA0\xB7\xCE\x8D\x4E\xF6\x62\xB4\xEA\x64\x6E\xE4\x13"
+            }
+          }
 
 ---
 apiVersion: v1
@@ -590,15 +617,15 @@ spec:
         - "--duchy-name=test-duchy-1"
         #  gRPC target (authority string or URI) for MetricValues
         # service.
-        - "--metric-values-service-target=${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
+        - "--metric-values-service-target=localhost:9001" # TODO: METRIC_VALUES_SERVICE_HOST:METRIC_VALUES_SERVICE_PORT
         # TCP port for gRPC server.
         - "--port=8080"
         #  gRPC target (authority string or URI) for
         # DataProviderRegistration service.
-        - "--registration-service-target=${" # TODO: Set k8s service for REGISTRATION-SERVICE_HOST}:${" # TODO: Set k8s service for REGISTRATION-SERVICE_PORT}"
+        - "--registration-service-target=localhost:9002" # TODO: REGISTRATION_SERVICE_HOST:REGISTRATION_SERVICE_PORT
         #  gRPC target (authority string or URI) for Requisition
         # service.
-        - "--requisition-service-target=${REQUISITION_SERVER_SERVICE_HOST}:${REQUISITION_SERVER_SERVICE_PORT}"
+        - "--requisition-service-target=$(REQUISITION_SERVER_SERVICE_HOST):$(REQUISITION_SERVER_SERVICE_PORT)"
         # Enable verbose debug logging of incoming gRPC requests
         - "--debug-verbose-grpc-server-logging=true"
       ports:
