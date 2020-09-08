@@ -190,7 +190,7 @@ class LiquidLegionsHerald(
       GetComputationIdsRequest.newBuilder().addAllStages(activeComputationStages).build()
 
     val COMPUTATION_TYPE = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-    val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 

@@ -227,6 +227,6 @@ class LiquidLegionsComputationControlServiceImpl(
   }
 
   companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
