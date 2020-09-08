@@ -1,5 +1,6 @@
 package org.wfanet.measurement.integration
 
+import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -34,41 +35,48 @@ private const val COMPUTATIONS_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/computat
 class GcpDuchyDependencyProviderRule : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
   override val value: (Duchy) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
 
-  private val metricValueSpannerDatabase by lazy {
-    SpannerEmulatorDatabaseRule(METRIC_VALUE_SCHEMA_RESOURCE_PATH)
-  }
-
-  private val computationsSpannerDatabase by lazy {
-    SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA_RESOURCE_PATH)
-  }
+  private val spannerEmulatorDatabaseRules = mutableListOf<SpannerEmulatorDatabaseRule>()
 
   override fun apply(base: Statement, description: Description): Statement {
-    val ruleChain = chainRulesSequentially(metricValueSpannerDatabase, computationsSpannerDatabase)
-    return ruleChain.apply(base, description)
+    return object : Statement() {
+      override fun evaluate() {
+        val chain = chainRulesSequentially(spannerEmulatorDatabaseRules)
+        chain.apply(base, description)
+      }
+    }
   }
 
   private fun buildDuchyDependencies(duchy: Duchy): InProcessDuchy.DuchyDependencies {
+    val metricValueDatabase = SpannerEmulatorDatabaseRule(METRIC_VALUE_SCHEMA_RESOURCE_PATH)
+    spannerEmulatorDatabaseRules.add(metricValueDatabase)
+
+    val computationsDatabase = SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA_RESOURCE_PATH)
+    spannerEmulatorDatabaseRules.add(computationsDatabase)
+
     return InProcessDuchy.DuchyDependencies(
-      buildSingleProtocolDb(duchy.name),
+      buildSingleProtocolDb(duchy.name, computationsDatabase.databaseClient),
       buildBlobDb(duchy.name),
-      buildMetricValueDb(),
+      buildMetricValueDb(metricValueDatabase.databaseClient),
       buildStorageClient(duchy.name),
       buildCryptoKeySet(duchy.name)
     )
   }
 
-  private fun buildSingleProtocolDb(duchyId: String): SingleProtocolDatabase {
+  private fun buildSingleProtocolDb(
+    duchyId: String,
+    computationsDatabaseClient: DatabaseClient
+  ): SingleProtocolDatabase {
     val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
     val stageEnumHelper = LiquidLegionsSketchAggregationProtocol.ComputationStages
     val stageDetails =
       LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(otherDuchyNames)
     val readOnlyDb = GcpSpannerReadOnlyComputationsRelationalDb(
-      computationsSpannerDatabase.databaseClient,
+      computationsDatabaseClient,
       stageEnumHelper
     )
     val computationsDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails> =
       GcpSpannerComputationsDb(
-        databaseClient = computationsSpannerDatabase.databaseClient,
+        databaseClient = computationsDatabaseClient,
         duchyName = duchyId,
         duchyOrder = DUCHY_ORDER,
         blobStorageBucket = "mill-computation-stage-storage-$duchyId",
@@ -93,11 +101,8 @@ class GcpDuchyDependencyProviderRule : ProviderRule<(Duchy) -> InProcessDuchy.Du
     )
   }
 
-  private fun buildMetricValueDb(): MetricValueDatabase {
-    return SpannerMetricValueDatabase(
-      metricValueSpannerDatabase.databaseClient,
-      RandomIdGenerator()
-    )
+  private fun buildMetricValueDb(databaseClient: DatabaseClient): MetricValueDatabase {
+    return SpannerMetricValueDatabase(databaseClient, RandomIdGenerator())
   }
 
   private fun buildStorageClient(duchyId: String): StorageClient {
