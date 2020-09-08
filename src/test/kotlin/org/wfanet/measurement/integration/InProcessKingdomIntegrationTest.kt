@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -203,16 +202,6 @@ abstract class InProcessKingdomIntegrationTest {
     val response = requisitionsStub.listMetricRequisitions(request)
     logger.info("Got requisitions: $response")
     return response.metricRequisitionsList
-  }
-
-  private suspend fun <T> pollFor(producer: suspend () -> T?): T {
-    return withTimeout<T>(3_000) {
-      var t: T? = null
-      while (t == null) {
-        t = producer()
-      }
-      t
-    }
   }
 
   private suspend fun fulfillRequisition(metricRequisition: MetricRequisition) {

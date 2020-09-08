@@ -2,10 +2,8 @@ package org.wfanet.measurement.integration
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.math.BigInteger
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
@@ -93,19 +91,16 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
 
     // Now wait until the computation is done.
-    var doneReport: Report? = null
-    withTimeout(timeMillis = 10_000) {
-      while (doneReport == null) {
-        doneReport =
-          kingdomRelationalDatabase
-            .streamReports(
-              filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
-              limit = 1
-            )
-            .singleOrNull()
-        delay(250)
-      }
+    logger.info("Waiting for a completed report")
+    val doneReport: Report = pollFor(timeoutMillis = 10_000) {
+      kingdomRelationalDatabase
+        .streamReports(
+          filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
+          limit = 1
+        )
+        .singleOrNull()
     }
+
     assertThat(doneReport)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
