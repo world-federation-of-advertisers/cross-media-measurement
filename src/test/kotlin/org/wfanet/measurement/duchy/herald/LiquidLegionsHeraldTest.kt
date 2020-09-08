@@ -121,7 +121,7 @@ internal class LiquidLegionsHeraldTest {
   }
 
   @Test
-  fun `syncStatuses starts somputaitons in wait_to_start`() = runBlocking<Unit> {
+  fun `syncStatuses starts computations in wait_to_start`() = runBlocking<Unit> {
     val waitingToStart = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
     val addingNoise = ComputationAtKingdom("231313", GlobalComputation.State.RUNNING)
     mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)

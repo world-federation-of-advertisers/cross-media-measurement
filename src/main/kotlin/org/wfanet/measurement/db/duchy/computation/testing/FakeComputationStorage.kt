@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.db.duchy.computation.testing
 
+import io.grpc.Status
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
@@ -51,6 +52,9 @@ class FakeComputationStorage(
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails
   ) {
+    if (globalId.toLong() in this) {
+      throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
+    }
     val role =
       if ((globalId.toLong() % 2) == 0L) RoleInComputation.PRIMARY
       else RoleInComputation.SECONDARY

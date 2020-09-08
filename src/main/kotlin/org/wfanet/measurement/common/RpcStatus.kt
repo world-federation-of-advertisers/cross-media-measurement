@@ -15,6 +15,7 @@
 package org.wfanet.measurement.common
 
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 
 /**
@@ -34,3 +35,14 @@ suspend fun <T> Throttler.onReadyGrpc(block: suspend () -> T): T =
       }
     }
   }
+
+/**
+ * Attempts to extract the gRPC status code from an [Exception]. If it cannot, it rethrows.
+ */
+fun Exception.grpcStatusCodeOrRethrow(): Status.Code {
+  return when (this) {
+    is StatusRuntimeException -> status.code
+    is StatusException -> status.code
+    else -> throw this
+  }
+}
