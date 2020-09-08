@@ -91,7 +91,6 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
 
     // Now wait until the computation is done.
-    logger.info("Waiting for a completed report")
     val doneReport: Report = pollFor(timeoutMillis = 10_000) {
       kingdomRelationalDatabase
         .streamReports(

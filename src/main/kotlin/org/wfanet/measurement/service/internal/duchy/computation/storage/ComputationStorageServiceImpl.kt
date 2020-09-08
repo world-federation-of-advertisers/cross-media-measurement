@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
+import io.grpc.Status
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
@@ -52,7 +53,7 @@ class ComputationStorageServiceImpl(
         "${request.computationType} is not supported."
     }
     val claimed = computationsDatabase.claimTask(request.owner)
-    return if (claimed != null) computationsDatabase.readComputationToken(claimed)
+    return if (claimed != null) computationsDatabase.readComputationToken(claimed)!!
       .toClaimWorkResponse()
     else ClaimWorkResponse.getDefaultInstance()
   }
@@ -60,6 +61,10 @@ class ComputationStorageServiceImpl(
   override suspend fun createComputation(
     request: CreateComputationRequest
   ): CreateComputationResponse {
+    if (computationsDatabase.readComputationToken(request.globalComputationId) != null) {
+      throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
+    }
+
     grpcRequire(computationsDatabase.computationType == request.computationType) {
       "May only create ${computationsDatabase.computationType} computations. " +
         "${request.computationType} is not supported."
@@ -69,7 +74,7 @@ class ComputationStorageServiceImpl(
       computationsDatabase.validInitialStages.first(),
       request.stageDetails
     )
-    return computationsDatabase.readComputationToken(request.globalComputationId)
+    return computationsDatabase.readComputationToken(request.globalComputationId)!!
       .toCreateComputationResponse()
   }
 
@@ -86,18 +91,18 @@ class ComputationStorageServiceImpl(
         else -> error("Unknown CompletedReason $it")
       }
     )
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toFinishComputationResponse()
   }
 
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
-  ): GetComputationTokenResponse  {
+  ): GetComputationTokenResponse {
     grpcRequire(computationsDatabase.computationType == request.computationType) {
       "May only read tokens for type ${computationsDatabase.computationType}. " +
         "${request.computationType} is not supported"
     }
-    return computationsDatabase.readComputationToken(request.globalComputationId)
+    return computationsDatabase.readComputationToken(request.globalComputationId)!!
       .toGetComputationTokenResponse()
   }
 
@@ -111,7 +116,7 @@ class ComputationStorageServiceImpl(
         request.blobPath
       )
     )
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toRecordOutputBlobPathResponse()
   }
 
@@ -134,7 +139,7 @@ class ComputationStorageServiceImpl(
       },
       request.stageDetails
     )
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toAdvanceComputationStageResponse()
   }
 

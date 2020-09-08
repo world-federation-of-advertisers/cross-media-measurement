@@ -239,8 +239,8 @@ class FakeComputationStorage(
     return claimed.localId.toString()
   }
 
-  override suspend fun readComputationToken(globalId: String): ComputationToken =
-    getNonNull(globalId.toLong())
+  override suspend fun readComputationToken(globalId: String): ComputationToken? =
+    this[globalId.toLong()]
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
     filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()

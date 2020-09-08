@@ -15,7 +15,7 @@
 package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.spanner.DatabaseClient
-import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toCollection
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.duchy.computation.ReadOnlyComputationsRelationalDb
@@ -30,10 +30,10 @@ class GcpSpannerReadOnlyComputationsRelationalDb(
   private val computationStagesHelper: ProtocolStageEnumHelper<ComputationStage>
 ) : ReadOnlyComputationsRelationalDb {
 
-  override suspend fun readComputationToken(globalId: String): ComputationToken =
+  override suspend fun readComputationToken(globalId: String): ComputationToken? =
     ComputationTokenProtoQuery(computationStagesHelper::longToEnum, globalId)
       .execute(databaseClient)
-      .single()
+      .singleOrNull()
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
     GlobalIdsQuery(computationStagesHelper::enumToLong, stages)

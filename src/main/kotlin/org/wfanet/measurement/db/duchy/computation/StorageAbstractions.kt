@@ -85,8 +85,8 @@ enum class EndComputationReason {
  */
 interface ReadOnlyComputationsRelationalDb {
 
-  /** Gets a [ComputationToken] for the current state of a computation. */
-  suspend fun readComputationToken(globalId: String): ComputationToken
+  /** Gets a [ComputationToken] for the current state of a computation if it exists. */
+  suspend fun readComputationToken(globalId: String): ComputationToken?
 
   /**
    * Gets a collection of all the global computation ids for a computation in the database
@@ -109,7 +109,7 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
   /**
    * Inserts a new computation for the global identifier.
    *
-   * The computation is not added to the queue.
+   * The computation is added to the queue immediately.
    */
   suspend fun insertComputation(globalId: String, initialStage: StageT, stageDetails: StageDetailsT)
 

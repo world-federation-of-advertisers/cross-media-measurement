@@ -131,7 +131,6 @@ class LiquidLegionsHerald(
     requisitionsAtThisDuchy: List<RequisitionKey>
   ) {
     logger.info("[id=$globalId] Creating Computation")
-    // TODO: check if the computation exists before calling createComputation.
     try {
       computationStorageClient.createComputation(
         CreateComputationRequest.newBuilder().apply {
