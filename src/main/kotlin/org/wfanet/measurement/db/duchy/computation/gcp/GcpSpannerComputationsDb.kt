@@ -89,7 +89,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         updateTime = writeTimestamp,
         globalId = globalId,
         lockOwner = WRITE_NULL_STRING,
-        lockExpirationTime = WRITE_NULL_TIMESTAMP,
+        lockExpirationTime = clock.gcpTimestamp(),
         details = details,
         stage = initialStage
       )

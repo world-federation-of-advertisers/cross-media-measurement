@@ -104,7 +104,8 @@ class LiquidLegionsMill(
       storageClients.computationStorageClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
       val token: ComputationToken = claimWorkResponse.token
-      logger.info("@Mill $millId: Processing computation ${token.globalComputationId}")
+      logger.info("@Mill $millId: Processing computation ${token.globalComputationId}, " +
+                    "${token.computationStage.liquidLegionsSketchAggregation}")
       when (token.computationStage.liquidLegionsSketchAggregation) {
         LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
           confirmRequisitions(token)

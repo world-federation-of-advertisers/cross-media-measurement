@@ -175,7 +175,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("UpdateTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("GlobalComputationId").to(globalId1)
         .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(null as Timestamp?)
+        .set("LockExpirationTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("ComputationDetails").toProtoBytes(expectedDetails123)
         .set("ComputationDetailsJSON").toProtoJson(expectedDetails123)
         .build(),
@@ -185,7 +185,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("UpdateTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("GlobalComputationId").to(globalId2)
         .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(null as Timestamp?)
+        .set("LockExpirationTime").to(TEST_INSTANT.toGcpTimestamp())
         .set("ComputationDetails").toProtoBytes(expectedDetails220)
         .set("ComputationDetailsJSON").toProtoJson(expectedDetails220)
         .build()
