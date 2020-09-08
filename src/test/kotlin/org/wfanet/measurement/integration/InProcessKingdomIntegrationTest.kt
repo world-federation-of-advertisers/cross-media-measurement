@@ -3,7 +3,6 @@ package org.wfanet.measurement.integration
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.util.logging.Logger
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
@@ -95,17 +94,17 @@ abstract class InProcessKingdomIntegrationTest {
     //
     // Next, the RequisitionLinker daemon should create two Requisitions for the Report.
 
-    val requisitions1 = pollForSize(1) {
-      readRequisition(externalDataProviderId1, externalCampaignId1)
+    val requisition1 = pollFor {
+      readRequisition(externalDataProviderId1, externalCampaignId1).firstOrNull()
     }
+    logger.info("Found first requisition: $requisition1")
 
-    val requisitions2 = pollForSize(1) {
-      readRequisition(externalDataProviderId2, externalCampaignId2)
+    val requisition2 = pollFor {
+      readRequisition(externalDataProviderId2, externalCampaignId2).firstOrNull()
     }
+    logger.info("Found second requisition: $requisition2")
 
-    val requisitions = requisitions1 + requisitions2
-    logger.info("Requisitions were made: $requisitions")
-
+    val requisitions = listOf(requisition1, requisition2)
     requisitions.forEach { fulfillRequisition(it) }
 
     val expectedMetricRequisition1 = MetricRequisition.newBuilder().apply {
@@ -131,16 +130,12 @@ abstract class InProcessKingdomIntegrationTest {
     // AWAITING_DUCHY_CONFIRMATION.
     //
     // These states are exposed in GlobalComputation as CREATED and CONFIRMING.
-    logger.info("Awaiting first two GlobalComputation messages")
-    val firstTwoComputations = pollForSize(2) { globalComputations }
-    assertThat(firstTwoComputations)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(
-        GlobalComputation.newBuilder().setState(GlobalComputation.State.CREATED).build(),
-        GlobalComputation.newBuilder().setState(GlobalComputation.State.CONFIRMING).build()
-      )
-      .inOrder()
-    val computation = firstTwoComputations.last()
+    logger.info("Awaiting a GlobalComputation in CONFIRMING state")
+    val computation = pollFor {
+      globalComputations.findLast {
+        it.state == GlobalComputation.State.CONFIRMING
+      }
+    }
 
     logger.info("Confirming Duchy readiness")
     globalComputationsStub.confirmGlobalComputation(
@@ -150,8 +145,12 @@ abstract class InProcessKingdomIntegrationTest {
       }.build()
     )
 
-    logger.info("Awaiting third GlobalComputation message")
-    val startedComputation = pollForSize(3) { globalComputations }.last()
+    logger.info("Awaiting a GlobalComputation in RUNNING state")
+    val startedComputation = pollFor {
+      globalComputations.findLast {
+        it.state == GlobalComputation.State.RUNNING
+      }
+    }
 
     assertThat(startedComputation)
       .isEqualTo(computation.toBuilder().setState(GlobalComputation.State.RUNNING).build())
@@ -206,15 +205,14 @@ abstract class InProcessKingdomIntegrationTest {
     return response.metricRequisitionsList
   }
 
-  private suspend fun <T> pollForSize(size: Int, block: suspend () -> List<T>): List<T> {
-    var items: List<T> = emptyList()
-    withTimeout(3_000) {
-      while (items.size < size) {
-        delay(250)
-        items = block()
+  private suspend fun <T> pollFor(producer: suspend () -> T?): T {
+    return withTimeout<T>(3_000) {
+      var t: T? = null
+      while (t == null) {
+        t = producer()
       }
+      t
     }
-    return items
   }
 
   private suspend fun fulfillRequisition(metricRequisition: MetricRequisition) {
