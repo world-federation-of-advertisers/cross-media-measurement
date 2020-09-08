@@ -42,7 +42,7 @@ class MillFlags {
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
-    description = ["How long to allow for the gRPC channel to shutdown."],
+    description = ["How long to allow for the gRPC channel to shutdown."]
   )
   lateinit var channelShutdownTimeout: Duration
     private set
@@ -60,8 +60,8 @@ class MillFlags {
 
   @CommandLine.Option(
     names = ["--polling-interval"],
-    defaultValue = "1s",
-    description = ["How long to sleep before polling the computation queue again if it is empty."],
+    defaultValue = "2s",
+    description = ["How long to sleep before polling the computation queue again if it is empty."]
   )
   lateinit var pollingInterval: Duration
     private set

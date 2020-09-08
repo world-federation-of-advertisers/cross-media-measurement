@@ -91,10 +91,11 @@ class LiquidLegionsMill(
 ) {
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
-    logAndSuppressExceptionSuspend { throttler.onReady { pollAndProcessNextComputation() } }
+    logAndSuppressExceptionSuspend { throttler.loopOnReady { pollAndProcessNextComputation() } }
   }
 
   suspend fun pollAndProcessNextComputation() {
+    logger.info("@Mill $millId: Polling available computations...")
     val claimWorkRequest = ClaimWorkRequest.newBuilder()
       .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
       .setOwner(millId)
@@ -103,6 +104,7 @@ class LiquidLegionsMill(
       storageClients.computationStorageClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
       val token: ComputationToken = claimWorkResponse.token
+      logger.info("@Mill $millId: Processing computation ${token.globalComputationId}")
       when (token.computationStage.liquidLegionsSketchAggregation) {
         LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
           confirmRequisitions(token)
@@ -119,6 +121,8 @@ class LiquidLegionsMill(
           decryptFlagCounts(token)
         else -> error("Unexpected stage for mill to process: $token")
       }
+    } else {
+      logger.info("@Mill $millId: No computation available, waiting for the next poll...")
     }
   }
 
