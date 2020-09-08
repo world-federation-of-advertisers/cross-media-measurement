@@ -5,5 +5,5 @@ package org.wfanet.measurement.integration
  */
 class GcpInProcessKingdomAndDuchyIntegrationTest : InProcessKingdomAndDuchyIntegrationTest() {
   override val kingdomRelationalDatabaseRule by lazy { GcpKingdomRelationalDatabaseProviderRule() }
-  override val duchyDependenciesRule by lazy { GcpDuchyDependencyProviderRule() }
+  override val duchyDependenciesRule by lazy { GcpDuchyDependencyProviderRule(DUCHY_IDS) }
 }

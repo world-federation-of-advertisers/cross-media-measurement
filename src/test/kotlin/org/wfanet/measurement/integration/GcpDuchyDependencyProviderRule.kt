@@ -32,26 +32,31 @@ import org.wfanet.measurement.storage.gcs.GcsStorageClient
 private const val METRIC_VALUE_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
 private const val COMPUTATIONS_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/computations.sdl"
 
-class GcpDuchyDependencyProviderRule : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
+class GcpDuchyDependencyProviderRule(
+  duchyIds: List<String>
+) : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
   override val value: (Duchy) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
 
-  private val spannerEmulatorDatabaseRules = mutableListOf<SpannerEmulatorDatabaseRule>()
+  private val metricValueDatabaseRules =
+    duchyIds
+      .map { it to SpannerEmulatorDatabaseRule(METRIC_VALUE_SCHEMA_RESOURCE_PATH) }
+      .toMap()
+
+  private val computationsDatabaseRules =
+    duchyIds
+      .map { it to SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA_RESOURCE_PATH) }
+      .toMap()
 
   override fun apply(base: Statement, description: Description): Statement {
-    return object : Statement() {
-      override fun evaluate() {
-        val chain = chainRulesSequentially(spannerEmulatorDatabaseRules)
-        chain.apply(base, description)
-      }
-    }
+    val rules = metricValueDatabaseRules.values + computationsDatabaseRules.values
+    return chainRulesSequentially(rules).apply(base, description)
   }
 
   private fun buildDuchyDependencies(duchy: Duchy): InProcessDuchy.DuchyDependencies {
-    val metricValueDatabase = SpannerEmulatorDatabaseRule(METRIC_VALUE_SCHEMA_RESOURCE_PATH)
-    spannerEmulatorDatabaseRules.add(metricValueDatabase)
-
-    val computationsDatabase = SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA_RESOURCE_PATH)
-    spannerEmulatorDatabaseRules.add(computationsDatabase)
+    val metricValueDatabase = metricValueDatabaseRules[duchy.name]
+      ?: error("Missing MetricValue Spanner database for duchy $duchy")
+    val computationsDatabase = computationsDatabaseRules[duchy.name]
+      ?: error("Missing Computations Spanner database for duchy $duchy")
 
     return InProcessDuchy.DuchyDependencies(
       buildSingleProtocolDb(duchy.name, computationsDatabase.databaseClient),
