@@ -38,7 +38,7 @@ class LoggingServerInterceptor : ServerInterceptor {
     val originalListener = next.startCall(interceptedCall, headers)
     return object : SimpleForwardingServerCallListener<ReqT>(originalListener) {
       override fun onMessage(message: ReqT) {
-        logger.logp(Level.INFO, methodName, "gRPC request", "[$threadName] $message")
+        logger.logp(Level.INFO, methodName, "gRPC request", "[$threadName] $headers $message")
         super.onMessage(message)
       }
     }

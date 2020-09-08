@@ -27,7 +27,9 @@ data class DuchyIdentity(val id: String) {
 }
 
 val duchyIdentityFromContext: DuchyIdentity
-  get() = requireNotNull(DUCHY_IDENTITY_CONTEXT_KEY.get())
+  get() = requireNotNull(DUCHY_IDENTITY_CONTEXT_KEY.get()) {
+    "gRPC context is missing key $DUCHY_IDENTITY_CONTEXT_KEY"
+  }
 
 private const val KEY_NAME = "duchy-identity"
 private val DUCHY_IDENTITY_CONTEXT_KEY: Context.Key<DuchyIdentity> = Context.key(KEY_NAME)

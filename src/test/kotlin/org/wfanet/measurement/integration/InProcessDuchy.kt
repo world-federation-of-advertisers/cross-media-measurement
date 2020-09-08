@@ -15,6 +15,7 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
@@ -104,22 +105,29 @@ class InProcessDuchy(
 
   private val computationControlServer =
     GrpcTestServerRule(computationControlChannelName(duchyId), logAllRequests = true) {
-      addService(LiquidLegionsComputationControlServiceImpl(computationStorageClients))
+      addService(
+        LiquidLegionsComputationControlServiceImpl(computationStorageClients).withDuchyIdentities()
+      )
     }
 
   private val channelCloserRule = GrpcCleanupRule()
 
   private fun computationControlChannelName(duchyId: String) = "duchy-computation-control-$duchyId"
 
+  private fun computationControlChannel(duchyId: String): Channel {
+    val channel =
+      InProcessChannelBuilder
+        .forName(computationControlChannelName(duchyId))
+        .build()
+    return channelCloserRule.register(channel).withVerboseLogging()
+  }
+
   private val millRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
-      val workerStubs = otherDuchyIds.map {
-        val channel =
-          InProcessChannelBuilder
-            .forName(computationControlChannelName(it))
-            .build()
-        channelCloserRule.register(channel)
-        it to ComputationControlServiceCoroutineStub(channel.withVerboseLogging())
+      val workerStubs = otherDuchyIds.map { otherDuchyId ->
+        val channel = computationControlChannel(otherDuchyId)
+        val stub = ComputationControlServiceCoroutineStub(channel).withDuchyId(duchyId)
+        otherDuchyId to stub
       }.toMap()
 
       val mill = LiquidLegionsMill(

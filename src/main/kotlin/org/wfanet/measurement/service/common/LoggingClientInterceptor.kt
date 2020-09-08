@@ -24,10 +24,14 @@ class LoggingClientInterceptor : ClientInterceptor {
     val nextCall = next.newCall(method, callOptions)
     return object : ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(nextCall) {
       override fun start(responseListener: Listener<RespT>?, headers: Metadata?) {
+        logger.logp(
+          Level.INFO, method.fullMethodName, "gRPC headers", "[$threadName] $headers"
+        )
         val listener = object : SimpleForwardingClientCallListener<RespT>(responseListener) {
           override fun onMessage(message: RespT) {
             logger.logp(
-              Level.INFO, method.fullMethodName, "gRPC response", "[$threadName] $message")
+              Level.INFO, method.fullMethodName, "gRPC response", "[$threadName] $message"
+            )
             super.onMessage(message)
           }
         }
