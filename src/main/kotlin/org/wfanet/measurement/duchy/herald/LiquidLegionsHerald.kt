@@ -55,9 +55,11 @@ class LiquidLegionsHerald(
   private val computationStorageClient: ComputationStorageServiceCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub
 ) {
-
   private val liquidLegionsStageDetails =
     LiquidLegionsSketchAggregationProtocol.EnumStages.Details(otherDuchiesInComputation)
+
+  private val computationsWaitingToStart = mutableSetOf<String>()
+  private val activeComputations = mutableSetOf<String>()
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually
@@ -95,14 +97,18 @@ class LiquidLegionsHerald(
     // a stream of active computations from the Kingdom. If those assumption were to break the
     // storage service/database layer would reject any invalid state changes to the data.
     logger.info("Getting all local computations that are waiting to start.")
-    val waitingToStart =
-      computationStorageClient
-        .getComputationIds(getComputationIdsWaitingToStartRequest)
-        .globalIdsList.toSet()
+    computationsWaitingToStart.clear()
+    computationStorageClient
+      .getComputationIds(getComputationIdsWaitingToStartRequest)
+      .globalIdsList
+      .toCollection(computationsWaitingToStart)
+
     logger.info("Getting all active local computations.")
-    val allActive =
-      computationStorageClient.getComputationIds(getActiveComputationIdsRequest)
-        .globalIdsList.toSet()
+    activeComputations.clear()
+    computationStorageClient
+      .getComputationIds(getActiveComputationIdsRequest)
+      .globalIdsList
+      .toCollection(activeComputations)
 
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
@@ -112,21 +118,7 @@ class LiquidLegionsHerald(
         .build()
     )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        val globalId: String = checkNotNull(response.globalComputation.key?.globalComputationId)
-        when (val state = response.globalComputation.state) {
-          // Create a new computation if it is not already present in the database.
-          State.CONFIRMING ->
-            if (globalId !in allActive) create(globalId, response.toRequisitionKeys())
-          // Start the computation if it is in WAIT_TO_START.
-          // TODO: Resume a computation that was once SUSPENDED.
-          State.RUNNING -> if (globalId in waitingToStart) start(globalId)
-          State.SUSPENDED ->
-            logger.warning(
-              "Pause/Resume of computations based on kingdom state not yet supported."
-            )
-          else ->
-            logger.warning("Unexpected global computation state '$state'")
-        }
+        processGlobalComputationChange(response)
         lastProcessedContinuationToken = response.continuationToken
       }
       // Cancel the flow on the first error, but don't actually throw the error. This will keep
@@ -137,23 +129,53 @@ class LiquidLegionsHerald(
     return lastProcessedContinuationToken
   }
 
+  private suspend fun processGlobalComputationChange(
+    response: StreamActiveGlobalComputationsResponse
+  ) {
+    val globalId: String = checkNotNull(response.globalComputation.key?.globalComputationId)
+    when (val state = response.globalComputation.state) {
+      // Create a new computation if it is not already present in the database.
+      State.CONFIRMING -> create(globalId, response.toRequisitionKeys())
+      // Start the computation if it is in WAIT_TO_START.
+      // TODO: Resume a computation that was once SUSPENDED.
+      State.RUNNING -> start(globalId)
+      State.SUSPENDED ->
+        logger.warning(
+          "Pause/Resume of computations based on kingdom state not yet supported."
+        )
+      else ->
+        logger.warning("Unexpected global computation state '$state'")
+    }
+  }
+
   /** Creates a new computation. */
   private suspend fun create(
     globalId: String,
     requisitionsAtThisDuchy: List<RequisitionKey>
-  ) =
+  ) {
+    if (globalId in activeComputations) {
+      logger.info("Skipping created Computation $globalId because it already exists")
+      return
+    }
     computationStorageClient.createComputation(
       CreateComputationRequest.newBuilder().apply {
         computationType = COMPUTATION_TYPE
         globalComputationId = globalId
-        stageDetailsBuilder.apply {
-          toConfirmRequisitionsStageDetailsBuilder.addAllKeys(requisitionsAtThisDuchy)
-        }
+        stageDetailsBuilder
+          .toConfirmRequisitionsStageDetailsBuilder
+          .addAllKeys(requisitionsAtThisDuchy)
       }.build()
     )
+    logger.info("Computation $globalId has been created")
+    activeComputations.add(globalId)
+  }
 
   /** Starts a computation that is in WAIT_TO_START. */
   private suspend fun start(globalId: String) {
+    if (globalId !in computationsWaitingToStart) {
+      logger.info("Skipping Computation $globalId because it is not waiting to start")
+      return
+    }
     val token = computationStorageClient
       .getComputationToken(globalId.toGetTokenRequest(COMPUTATION_TYPE)).token
     check(token.role == ComputationDetails.RoleInComputation.SECONDARY) {
@@ -171,6 +193,8 @@ class LiquidLegionsHerald(
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
       liquidLegionsStageDetails = liquidLegionsStageDetails
     )
+    logger.info("Computation $globalId is now started")
+    computationsWaitingToStart.remove(globalId)
   }
 
   companion object {
