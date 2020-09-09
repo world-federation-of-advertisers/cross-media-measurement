@@ -17,10 +17,10 @@ package org.wfanet.measurement.duchy.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import java.nio.charset.Charset
 import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.Com
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
@@ -104,8 +106,10 @@ class LiquidLegionsMill(
       storageClients.computationStorageClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
       val token: ComputationToken = claimWorkResponse.token
-      logger.info("@Mill $millId: Processing computation ${token.globalComputationId}, " +
-                    "${token.computationStage.liquidLegionsSketchAggregation}")
+      logger.info(
+        "@Mill $millId: Processing computation ${token.globalComputationId}, " +
+          "${token.computationStage.liquidLegionsSketchAggregation}"
+      )
       when (token.computationStage.liquidLegionsSketchAggregation) {
         LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
           confirmRequisitions(token)
@@ -163,10 +167,7 @@ class LiquidLegionsMill(
       )
       completeComputation(token, CompletedReason.FAILED)
     } else {
-      val bytes =
-        bytesLists
-          .joinToString(separator = "") { it.toString(Charset.defaultCharset()) }
-          .toByteArray(Charset.defaultCharset())
+      val bytes = bytesLists.asFlow().toByteString().toByteArray()
       // cache the combined local requisitions to blob store.
       val nextToken = storageClients.writeSingleOutputBlob(token, bytes)
       storageClients.transitionComputationToStage(
@@ -377,13 +378,11 @@ class LiquidLegionsMill(
     }
 
   private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
-    val blobMap = storageClients.readInputBlobs(token)
+    val blobMap: Map<ComputationStageBlobMetadata, ByteArray> = storageClients.readInputBlobs(token)
     require(blobMap.size == count) {
       "Unexpected number of input blobs. expected $count, actual ${blobMap.size}."
     }
-    return ByteString.copyFromUtf8(
-      blobMap.values.joinToString(separator = "") { it.toString(Charset.defaultCharset()) }
-    )
+    return blobMap.values.asFlow().map { ByteString.copyFrom(it) }.toByteString()
   }
 
   /** Partition a bytestring to a flow of chunks. */
