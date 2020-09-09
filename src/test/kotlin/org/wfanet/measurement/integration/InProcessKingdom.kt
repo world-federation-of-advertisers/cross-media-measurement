@@ -89,7 +89,7 @@ class InProcessKingdom(
           ReportConfigScheduleStorageCoroutineStub(databaseServices.channel)
         val reportStorage = ReportStorageCoroutineStub(databaseServices.channel)
         val requisitionStorage = RequisitionStorageCoroutineStub(databaseServices.channel)
-        val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1))
+        val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(200))
         val daemonDatabaseServicesClient = DaemonDatabaseServicesClientImpl(
           reportConfigStorage, reportConfigScheduleStorage, reportStorage, requisitionStorage
         )

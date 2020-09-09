@@ -84,7 +84,7 @@ class InProcessDuchy(
 
   private val heraldRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
-      val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(200))
+      val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
       val herald = LiquidLegionsHerald(
         otherDuchyIds,
         computationStorageServiceStub,
