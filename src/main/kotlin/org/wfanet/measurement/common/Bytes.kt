@@ -119,15 +119,13 @@ fun ByteBuffer.asBufferedFlow(bufferSize: Int): Flow<ByteString> = flow {
  * [size][bufferSize] from this [ByteString].
  *
  * The final produced value may have [size][ByteString.size] < [bufferSize].
+ *
+ * This will produce an empty flow if the receiver is empty.
  */
 fun ByteString.asBufferedFlow(bufferSize: Int): Flow<ByteString> = flow {
-  ByteStringOutputBuffer(bufferSize).use { outputBuffer ->
-    outputBuffer.putEmittingFull(asReadOnlyByteBufferList(), this)
-
-    // Emit a final value with whatever is left.
-    if (outputBuffer.size > 0) {
-      emit(outputBuffer.toByteString())
-    }
+  require(bufferSize > 0)
+  for (begin in 0 until size() step bufferSize) {
+    emit(substring(begin, minOf(size(), begin + bufferSize)))
   }
 }
 
