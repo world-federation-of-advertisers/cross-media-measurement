@@ -104,6 +104,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
 
     assertThat(doneReport)
       .comparingExpectedFieldsOnly()
+      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         Report.newBuilder().apply {
           reportDetailsBuilder.apply {
