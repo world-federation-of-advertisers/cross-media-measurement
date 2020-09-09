@@ -5,7 +5,9 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
@@ -80,8 +82,13 @@ class InProcessKingdom(
   private val daemonRunner = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       logger.info("Launching Kingdom's daemons")
-      val exceptionHandler = CoroutineExceptionHandler { _, exception ->
-        logger.warning("Daemon exception: $exception")
+      val exceptionHandler = CoroutineExceptionHandler { context, exception ->
+        val name = context[CoroutineName.Key]
+        if (exception is CancellationException) {
+          logger.warning("Daemon $name cancelled")
+        } else {
+          logger.warning("Daemon $name exception: $exception")
+        }
       }
       supervisorScope {
         val reportConfigStorage = ReportConfigStorageCoroutineStub(databaseServices.channel)
@@ -94,9 +101,15 @@ class InProcessKingdom(
           reportConfigStorage, reportConfigScheduleStorage, reportStorage, requisitionStorage
         )
         val daemon = Daemon(daemonThrottler, 1, daemonDatabaseServicesClient)
-        launch(exceptionHandler) { daemon.runRequisitionLinker() }
-        launch(exceptionHandler) { daemon.runReportStarter() }
-        launch(exceptionHandler) { daemon.runReportMaker() }
+        launch(exceptionHandler + CoroutineName("RequisitionLinker")) {
+          daemon.runRequisitionLinker()
+        }
+        launch(exceptionHandler + CoroutineName("ReportStarter")) {
+          daemon.runReportStarter()
+        }
+        launch(exceptionHandler + CoroutineName("ReportMaker")) {
+          daemon.runReportMaker()
+        }
       }
     }
   }
