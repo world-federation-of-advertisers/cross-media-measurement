@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.storage.testing
+package org.wfanet.measurement.storage.filesystem
 
 import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
 
 @RunWith(JUnit4::class)
 class FileSystemStorageClientTest : AbstractStorageClientTest<FileSystemStorageClient>() {

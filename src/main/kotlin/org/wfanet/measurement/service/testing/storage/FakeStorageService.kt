@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.internal.testing.ReadBlobResponse
-import org.wfanet.measurement.storage.testing.FileSystemStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class FakeStorageService :
   ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineImplBase() {

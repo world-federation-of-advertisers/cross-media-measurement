@@ -50,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.storage.MetricValueStore
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
-import org.wfanet.measurement.storage.testing.FileSystemStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class MetricValuesServiceTest {

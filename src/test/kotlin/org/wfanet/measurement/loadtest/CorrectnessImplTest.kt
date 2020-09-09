@@ -42,7 +42,7 @@ import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.testing.FileSystemStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val RUN_ID = "TEST"
 private const val OUTPUT_DIR = "Correctness"
