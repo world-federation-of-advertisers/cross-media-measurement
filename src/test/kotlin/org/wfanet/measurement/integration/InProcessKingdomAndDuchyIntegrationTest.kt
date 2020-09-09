@@ -113,12 +113,13 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
         Report.newBuilder().apply {
           reportDetailsBuilder.apply {
             addAllConfirmedDuchies(DUCHY_IDS)
+            reportDetailsBuilder.resultBuilder.apply {
+              reach = 11L
+              putFrequency(3L, 10L)
+            }
           }
         }.build()
       )
-
-    assertThat(doneReport.reportDetails.result.reach).isGreaterThan(0)
-    assertThat(doneReport.reportDetails.result.frequencyMap).containsExactly(3L, 10L)
   }
 
   companion object {
