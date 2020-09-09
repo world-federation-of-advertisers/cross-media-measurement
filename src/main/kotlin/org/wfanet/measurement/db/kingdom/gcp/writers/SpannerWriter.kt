@@ -5,6 +5,7 @@ import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
@@ -62,6 +63,7 @@ abstract class SpannerWriter<T, R> {
     idGenerator: IdGenerator = RandomIdGenerator(),
     clock: Clock = Clock.systemUTC()
   ): R {
+    logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
     val transactionResult: T? = runner.run { transactionContext ->
@@ -70,5 +72,9 @@ abstract class SpannerWriter<T, R> {
     }
     val resultScope = ResultScope(transactionResult, runner.commitTimestamp)
     return runBlocking(spannerDispatcher()) { resultScope.buildResult() }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
