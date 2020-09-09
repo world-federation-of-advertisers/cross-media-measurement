@@ -83,10 +83,10 @@ abstract class InProcessKingdomIntegrationTest {
 
   @Test
   fun `entire computation`() = runBlocking<Unit> {
-    val (
-      externalDataProviderId1, externalDataProviderId2,
-      externalCampaignId1, externalCampaignId2
-    ) = kingdom.populateKingdomRelationalDatabase()
+    val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
+    val (externalDataProviderId1, externalDataProviderId2) = dataProviders
+    val (externalCampaignId1, externalCampaignId2, externalCampaignId3) = campaigns
+    logger.info("Database is populated")
 
     // At this point, the ReportMaker daemon should pick up pick up on the ReportConfigSchedule and
     // create a Report.
@@ -103,7 +103,12 @@ abstract class InProcessKingdomIntegrationTest {
     }
     logger.info("Found second requisition: $requisition2")
 
-    val requisitions = listOf(requisition1, requisition2)
+    val requisition3 = pollFor {
+      readRequisition(externalDataProviderId2, externalCampaignId3).firstOrNull()
+    }
+    logger.info("Found third requisition: $requisition3")
+
+    val requisitions = listOf(requisition1, requisition2, requisition3)
     requisitions.forEach { fulfillRequisition(it) }
 
     val expectedMetricRequisition1 = MetricRequisition.newBuilder().apply {
@@ -120,9 +125,20 @@ abstract class InProcessKingdomIntegrationTest {
       }
     }.build()
 
+    val expectedMetricRequisition3 = MetricRequisition.newBuilder().apply {
+      keyBuilder.apply {
+        dataProviderId = externalDataProviderId2.apiId.value
+        campaignId = externalCampaignId3.apiId.value
+      }
+    }.build()
+
     assertThat(requisitions)
       .comparingExpectedFieldsOnly()
-      .containsExactly(expectedMetricRequisition1, expectedMetricRequisition2)
+      .containsExactly(
+        expectedMetricRequisition1,
+        expectedMetricRequisition2,
+        expectedMetricRequisition3
+      )
 
     // When the Report is first created, it will be in state AWAITING_REQUISITIONS.
     // After the RequisitionLinker is done, the ReportStarter daemon will transition it to state

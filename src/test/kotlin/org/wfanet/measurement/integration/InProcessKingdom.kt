@@ -47,18 +47,19 @@ import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
  * @param kingdomRelationalDatabaseProvider called exactly once to produce KingdomRelationalDatabase
  */
 class InProcessKingdom(
+  verboseGrpcLogging: Boolean = true,
   kingdomRelationalDatabaseProvider: () -> KingdomRelationalDatabase
 ) : TestRule {
   private val kingdomRelationalDatabase by lazy { kingdomRelationalDatabaseProvider() }
 
-  private val databaseServices = GrpcTestServerRule(logAllRequests = true) {
+  private val databaseServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     logger.info("Building Kingdom's internal services")
     for (service in buildStorageServices(kingdomRelationalDatabase)) {
-      addService(service.withVerboseLogging())
+      addService(service.withVerboseLogging(verboseGrpcLogging))
     }
   }
 
-  private val kingdomApiServices = GrpcTestServerRule(logAllRequests = true) {
+  private val kingdomApiServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     logger.info("Building Kingdom's public API services")
     val reportStorage = ReportStorageCoroutineStub(databaseServices.channel)
     val reportLogEntryStorage = ReportLogEntryStorageCoroutineStub(databaseServices.channel)
@@ -67,12 +68,12 @@ class InProcessKingdom(
     addService(
       GlobalComputationService(reportStorage, reportLogEntryStorage)
         .withDuchyIdentities()
-        .withVerboseLogging()
+        .withVerboseLogging(verboseGrpcLogging)
     )
     addService(
       RequisitionService(requisitionStorage)
         .withDuchyIdentities()
-        .withVerboseLogging()
+        .withVerboseLogging(verboseGrpcLogging)
     )
   }
 
@@ -112,10 +113,8 @@ class InProcessKingdom(
   }
 
   data class SetupIdentifiers(
-    val externalDataProviderId1: ExternalId,
-    val externalDataProviderId2: ExternalId,
-    val externalCampaignId1: ExternalId,
-    val externalCampaignId2: ExternalId
+    val externalDataProviderIds: List<ExternalId>,
+    val externalCampaignIds: List<ExternalId>
   )
 
   /**
@@ -150,8 +149,16 @@ class InProcessKingdom(
     )
     logger.info("Created a Campaign: $campaign2")
 
+    val campaign3 = kingdomRelationalDatabase.createCampaign(
+      externalDataProviderId2,
+      externalAdvertiserId,
+      "Yet Another Campaign"
+    )
+    logger.info("Created a Campaign: $campaign3")
+
     val externalCampaignId1 = ExternalId(campaign1.externalCampaignId)
     val externalCampaignId2 = ExternalId(campaign2.externalCampaignId)
+    val externalCampaignId3 = ExternalId(campaign3.externalCampaignId)
 
     val metricDefinition = MetricDefinition.newBuilder().apply {
       sketchBuilder.apply {
@@ -164,7 +171,7 @@ class InProcessKingdom(
       ReportConfig.newBuilder()
         .setExternalAdvertiserId(externalAdvertiserId.value)
         .apply {
-          numRequisitions = 2
+          numRequisitions = 3
           reportConfigDetailsBuilder.apply {
             addMetricDefinitions(metricDefinition)
             reportDurationBuilder.apply {
@@ -174,7 +181,7 @@ class InProcessKingdom(
           }
         }
         .build(),
-      listOf(externalCampaignId1, externalCampaignId2)
+      listOf(externalCampaignId1, externalCampaignId2, externalCampaignId3)
     )
     logger.info("Created a ReportConfig: $reportConfig")
 
@@ -199,10 +206,8 @@ class InProcessKingdom(
     logger.info("Created a ReportConfigSchedule: $schedule")
 
     return SetupIdentifiers(
-      externalDataProviderId1,
-      externalDataProviderId2,
-      externalCampaignId1,
-      externalCampaignId2
+      listOf(externalDataProviderId1, externalDataProviderId2),
+      listOf(externalCampaignId1, externalCampaignId2, externalCampaignId3)
     )
   }
 

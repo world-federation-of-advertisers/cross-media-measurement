@@ -47,7 +47,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
     get() = kingdomRelationalDatabaseRule.value
 
-  private val kingdom = InProcessKingdom { kingdomRelationalDatabase }
+  private val kingdom = InProcessKingdom(verboseGrpcLogging = false) { kingdomRelationalDatabase }
 
   private val duchies: List<InProcessDuchy> by lazy {
     DUCHIES.map { duchy ->
@@ -77,17 +77,19 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
   @Ignore // TODO: unignore this test case
   @Test
   fun `entire computation`() = runBlocking<Unit> {
-    val (
-      externalDataProviderId1, externalDataProviderId2,
-      externalCampaignId1, externalCampaignId2
-    ) = kingdom.populateKingdomRelationalDatabase()
+    val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
     dataProviderRule.startDataProviderForCampaign(
-      externalDataProviderId1, externalCampaignId1, duchies[0].newPublisherDataProviderStub()
+      dataProviders[0], campaigns[0], duchies[0].newPublisherDataProviderStub()
     )
 
     dataProviderRule.startDataProviderForCampaign(
-      externalDataProviderId2, externalCampaignId2, duchies[1].newPublisherDataProviderStub()
+      dataProviders[1], campaigns[1], duchies[1].newPublisherDataProviderStub()
+    )
+
+    logger.info("Starting third data provider")
+    dataProviderRule.startDataProviderForCampaign(
+      dataProviders[1], campaigns[2], duchies[2].newPublisherDataProviderStub()
     )
 
     // Now wait until the computation is done.

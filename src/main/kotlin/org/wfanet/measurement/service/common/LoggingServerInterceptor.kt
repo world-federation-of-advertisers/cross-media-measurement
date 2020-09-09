@@ -54,13 +54,15 @@ class LoggingServerInterceptor : ServerInterceptor {
 /**
  * Logs all gRPC requests and responses.
  */
-fun BindableService.withVerboseLogging(): ServerServiceDefinition {
+fun BindableService.withVerboseLogging(enabled: Boolean = true): ServerServiceDefinition {
+  if (!enabled) return this.bindService()
   return ServerInterceptors.interceptForward(this, LoggingServerInterceptor())
 }
 
 /**
  * Logs all gRPC requests and responses.
  */
-fun ServerServiceDefinition.withVerboseLogging(): ServerServiceDefinition {
+fun ServerServiceDefinition.withVerboseLogging(enabled: Boolean = true): ServerServiceDefinition {
+  if (!enabled) return this
   return ServerInterceptors.interceptForward(this, LoggingServerInterceptor())
 }
