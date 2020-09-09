@@ -14,29 +14,22 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
+import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
 /**
- * Query for finding [ReportConfigSchedule]s with nextReportStartTimes in the past.
+ * SpannerQuery for finding [ReportConfigSchedule]s with nextReportStartTimes in the past.
  */
-class StreamReadySchedulesQuery {
-  /**
-   * Streams [ReportConfigSchedule]s with nextReportStartTimes in the past.
-   *
-   * @param readContext the context in which to perform Spanner reads
-   * @param limit how many results to return -- if zero, there is no limit
-   * @return a [Flow] of [ReportConfigSchedule]s in an arbitrary order
-   */
-  fun execute(
-    readContext: ReadContext,
-    limit: Long
-  ): Flow<ReportConfigSchedule> {
-    return ScheduleReader()
+class StreamReadySchedules(
+  limit: Long
+) : SpannerQuery<ScheduleReader.Result, ReportConfigSchedule>() {
+
+  override val reader: BaseSpannerReader<ScheduleReader.Result> by lazy {
+    ScheduleReader()
       .withBuilder {
         appendClause("WHERE ReportConfigSchedules.NextReportStartTime < CURRENT_TIMESTAMP()")
 
@@ -45,7 +38,9 @@ class StreamReadySchedulesQuery {
           bind("limit").to(limit)
         }
       }
-      .execute(readContext)
-      .map { it.schedule }
+  }
+
+  override fun Flow<ScheduleReader.Result>.transform(): Flow<ReportConfigSchedule> {
+    return map { it.schedule }
   }
 }

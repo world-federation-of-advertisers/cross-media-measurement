@@ -85,7 +85,7 @@ interface KingdomRelationalDatabase {
   fun associateRequisitionToReport(externalRequisitionId: ExternalId, externalReportId: ExternalId)
 
   /** Lists the idealized [RequisitionTemplate]s for a [ReportConfig]. */
-  fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate>
+  fun listRequisitionTemplates(reportConfigId: ExternalId): Flow<RequisitionTemplate>
 
   /** Streams [ReportConfigSchedule]s with a nextReportStartTime in the past. */
   fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule>

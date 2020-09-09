@@ -22,12 +22,13 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
-import org.wfanet.measurement.db.kingdom.gcp.queries.GetReportQuery
-import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplatesQuery
-import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReportsQuery
-import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesQuery
-import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReportsQuery
-import org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.GetReport
+import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplates
+import org.wfanet.measurement.db.kingdom.gcp.queries.SpannerQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReports
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedules
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamReports
+import org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitions
 import org.wfanet.measurement.db.kingdom.gcp.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.ConfirmDuchyReadiness
 import org.wfanet.measurement.db.kingdom.gcp.writers.CreateAdvertiser
@@ -82,15 +83,11 @@ class GcpKingdomRelationalDatabase(
     filter: StreamRequisitionsFilter,
     limit: Long
   ): Flow<Requisition> {
-    return StreamRequisitionsQuery().execute(
-      client.singleUse(),
-      filter,
-      limit
-    )
+    return StreamRequisitions(filter, limit).execute()
   }
 
   override fun getReport(externalId: ExternalId): Report {
-    return GetReportQuery().execute(client.singleUse(), externalId)
+    return GetReport(externalId).executeSingle()
   }
 
   override fun createNextReport(externalScheduleId: ExternalId): Report {
@@ -102,11 +99,11 @@ class GcpKingdomRelationalDatabase(
   }
 
   override fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report> {
-    return StreamReportsQuery().execute(client.singleUse(), filter, limit)
+    return StreamReports(filter, limit).execute()
   }
 
   override fun streamReadyReports(limit: Long): Flow<Report> {
-    return StreamReadyReportsQuery().execute(client.singleUse(), limit)
+    return StreamReadyReports(limit).execute()
   }
 
   override fun associateRequisitionToReport(
@@ -116,12 +113,12 @@ class GcpKingdomRelationalDatabase(
     AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute()
   }
 
-  override fun listRequisitionTemplates(reportConfigId: ExternalId): Iterable<RequisitionTemplate> {
-    return ReadRequisitionTemplatesQuery().execute(client.singleUse(), reportConfigId)
+  override fun listRequisitionTemplates(reportConfigId: ExternalId): Flow<RequisitionTemplate> {
+    return ReadRequisitionTemplates(reportConfigId).execute()
   }
 
   override fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule> {
-    return StreamReadySchedulesQuery().execute(client.singleUse(), limit)
+    return StreamReadySchedules(limit).execute()
   }
 
   override fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
@@ -171,5 +168,8 @@ class GcpKingdomRelationalDatabase(
     return CreateSchedule(schedule).execute()
   }
 
+  // Convenience functions for executing reads and writes.
   private fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)
+  private fun <R> SpannerQuery<*, R>.execute(): Flow<R> = execute(client.singleUse())
+  private fun <R> SpannerQuery<*, R>.executeSingle(): R = executeSingle(client.singleUse())
 }

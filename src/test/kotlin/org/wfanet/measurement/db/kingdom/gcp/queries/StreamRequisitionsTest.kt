@@ -28,71 +28,46 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.db.kingdom.gcp.testing.buildRequisitionDetails
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
+private const val DATA_PROVIDER_ID = 1L
+private const val EXTERNAL_DATA_PROVIDER_ID = 2L
+private const val ADVERTISER_ID = 7L
+private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
+private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
+private val REQUISITION_DETAILS = buildRequisitionDetails(10101)
+private const val CAMPAIGN_ID1 = 1000L
+private const val CAMPAIGN_ID2 = 1001L
+private const val EXTERNAL_CAMPAIGN_ID1 = 1002L
+private const val EXTERNAL_CAMPAIGN_ID2 = 1003L
+private const val REQUISITION_ID1 = 2000L
+private const val EXTERNAL_REQUISITION_ID1 = 2001L
+private const val REQUISITION_ID2 = 2002L
+private const val EXTERNAL_REQUISITION_ID2 = 2003L
+private const val REQUISITION_ID3 = 2004L
+private const val EXTERNAL_REQUISITION_ID3 = 2005L
+
+private val REQUISITION1 = buildRequisition(
+  EXTERNAL_CAMPAIGN_ID1, EXTERNAL_REQUISITION_ID1, Instant.ofEpochSecond(100),
+  RequisitionState.FULFILLED
+)
+
+private val REQUISITION2 = buildRequisition(
+  EXTERNAL_CAMPAIGN_ID1, EXTERNAL_REQUISITION_ID2, Instant.ofEpochSecond(200),
+  RequisitionState.UNFULFILLED
+)
+
+private val REQUISITION3 = buildRequisition(
+  EXTERNAL_CAMPAIGN_ID2, EXTERNAL_REQUISITION_ID3, Instant.ofEpochSecond(300),
+  RequisitionState.FULFILLED
+)
+
 @RunWith(JUnit4::class)
-class StreamRequisitionsQueryTest : KingdomDatabaseTestBase() {
+class StreamRequisitionsTest : KingdomDatabaseTestBase() {
   companion object {
-    const val DATA_PROVIDER_ID = 1L
-    const val EXTERNAL_DATA_PROVIDER_ID = 2L
-    const val ADVERTISER_ID = 7L
-    const val EXTERNAL_REPORT_CONFIG_ID = 10L
-
-    private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
-    private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
-    private val REQUISITION_DETAILS = buildRequisitionDetails(10101)
-
-    const val CAMPAIGN_ID1 = 1000L
-    const val CAMPAIGN_ID2 = 1001L
-
-    const val EXTERNAL_CAMPAIGN_ID1 = 1002L
-    const val EXTERNAL_CAMPAIGN_ID2 = 1003L
-
-    const val REQUISITION_ID1 = 2000L
-    private const val EXTERNAL_REQUISITION_ID1 = 2001L
-
-    const val REQUISITION_ID2 = 2002L
-    private const val EXTERNAL_REQUISITION_ID2 = 2003L
-
-    const val REQUISITION_ID3 = 2004L
-    private const val EXTERNAL_REQUISITION_ID3 = 2005L
-
-    val REQUISITION1 = buildRequisition(
-      EXTERNAL_CAMPAIGN_ID1, EXTERNAL_REQUISITION_ID1, Instant.ofEpochSecond(100),
-      RequisitionState.FULFILLED
-    )
-
-    val REQUISITION2 = buildRequisition(
-      EXTERNAL_CAMPAIGN_ID1, EXTERNAL_REQUISITION_ID2, Instant.ofEpochSecond(200),
-      RequisitionState.UNFULFILLED
-    )
-
-    val REQUISITION3 = buildRequisition(
-      EXTERNAL_CAMPAIGN_ID2, EXTERNAL_REQUISITION_ID3, Instant.ofEpochSecond(300),
-      RequisitionState.FULFILLED
-    )
-
-    private fun buildRequisition(
-      externalCampaignId: Long,
-      externalRequisitionId: Long,
-      createTime: Instant,
-      state: RequisitionState
-    ): Requisition =
-      Requisition.newBuilder()
-        .apply {
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          windowStartTime = WINDOW_START_TIME.toProtoTime()
-          windowEndTime = WINDOW_END_TIME.toProtoTime()
-          requisitionDetails = REQUISITION_DETAILS
-          requisitionDetailsJson = REQUISITION_DETAILS.toJson()
-        }
-        .setExternalCampaignId(externalCampaignId)
-        .setExternalRequisitionId(externalRequisitionId)
-        .setCreateTime(createTime.toProtoTime())
-        .setState(state)
-        .build()
   }
 
   @Before
@@ -134,11 +109,7 @@ class StreamRequisitionsQueryTest : KingdomDatabaseTestBase() {
 
   private fun executeToList(filter: StreamRequisitionsFilter, limit: Long): List<Requisition> =
     runBlocking {
-      StreamRequisitionsQuery().execute(
-        databaseClient.singleUse(),
-        filter,
-        limit
-      ).toList()
+      StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
     }
 
   @Test
@@ -234,4 +205,23 @@ class StreamRequisitionsQueryTest : KingdomDatabaseTestBase() {
     assertThat(executeToList(streamRequisitionsFilter(), 0))
       .isEmpty()
   }
+}
+
+private fun buildRequisition(
+  externalCampaignId: Long,
+  externalRequisitionId: Long,
+  createTime: Instant,
+  state: RequisitionState
+): Requisition {
+  return Requisition.newBuilder().apply {
+    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+    this.externalCampaignId = externalCampaignId
+    this.externalRequisitionId = externalRequisitionId
+    this.createTime = createTime.toProtoTime()
+    this.state = state
+    windowStartTime = WINDOW_START_TIME.toProtoTime()
+    windowEndTime = WINDOW_END_TIME.toProtoTime()
+    requisitionDetails = REQUISITION_DETAILS
+    requisitionDetailsJson = REQUISITION_DETAILS.toJson()
+  }.build()
 }

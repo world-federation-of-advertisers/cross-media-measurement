@@ -14,22 +14,25 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.db.gcp.single
+import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
-class ReadRequisitionTemplatesQuery {
-  fun execute(
-    readContext: ReadContext,
-    externalReportConfigId: ExternalId
-  ): Iterable<RequisitionTemplate> {
+@OptIn(FlowPreview::class) // For `flatMapConcat`
+class ReadRequisitionTemplates(
+  externalReportConfigId: ExternalId
+) : SpannerQuery<Struct, RequisitionTemplate>() {
+  override val reader: BaseSpannerReader<Struct> by lazy {
     val sql =
       """
       SELECT ReportConfigs.ReportConfigDetails,
@@ -41,6 +44,7 @@ class ReadRequisitionTemplatesQuery {
       JOIN DataProviders USING (DataProviderId)
       WHERE ReportConfigs.ExternalReportConfigId = @external_report_config_id
       GROUP BY 1
+      LIMIT 1
       """.trimIndent()
 
     val statement: Statement =
@@ -48,21 +52,24 @@ class ReadRequisitionTemplatesQuery {
         .bind("external_report_config_id").to(externalReportConfigId.value)
         .build()
 
-    val struct = readContext.executeQuery(statement).single()
-    return buildRequisitionTemplates(struct).asIterable()
+    BaseSpannerReader.forStructs(statement)
   }
 
-  private fun buildRequisitionTemplates(struct: Struct): Sequence<RequisitionTemplate> {
+  override fun Flow<Struct>.transform(): Flow<RequisitionTemplate> {
+    return flatMapConcat { buildRequisitionTemplates(it) }
+  }
+
+  private fun buildRequisitionTemplates(struct: Struct): Flow<RequisitionTemplate> {
     val reportConfigDetails =
       struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
 
     val dataProviders = struct.getLongList("ExternalDataProviderIds")
     val campaigns = struct.getLongList("ExternalCampaignIds")
 
-    return sequence {
+    return flow {
       for ((externalDataProviderId, externalCampaignId) in dataProviders zip campaigns) {
         for (metricDefinition in reportConfigDetails.metricDefinitionsList) {
-          yield(
+          emit(
             buildRequisitionTemplate(externalDataProviderId, externalCampaignId, metricDefinition)
           )
         }

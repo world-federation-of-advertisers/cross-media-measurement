@@ -16,24 +16,18 @@ package org.wfanet.measurement.db.kingdom.gcp.readers
 
 import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.gcp.asFlow
 
 /**
  * Abstraction for reading rows from Spanner and translating into more expressive objects.
  */
-abstract class SpannerReader<T : Any> {
+abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
   protected abstract val baseSql: String
   protected abstract val externalIdColumn: String
 
-  protected abstract suspend fun translate(struct: Struct): T
-
-  val builder: Statement.Builder by lazy {
+  override val builder: Statement.Builder by lazy {
     Statement.newBuilder(baseSql)
   }
 
@@ -41,9 +35,6 @@ abstract class SpannerReader<T : Any> {
     builder.block()
     return this
   }
-
-  fun execute(readContext: ReadContext): Flow<T> =
-    readContext.executeQuery(builder.build()).asFlow().map(::translate)
 
   suspend fun readExternalIdOrNull(readContext: ReadContext, externalId: ExternalId): T? {
     return this

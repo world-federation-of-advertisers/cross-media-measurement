@@ -26,40 +26,32 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
+private const val ADVERTISER_ID = 1L
+private const val EXTERNAL_ADVERTISER_ID = 2L
+private const val REPORT_CONFIG_ID = 3L
+private const val EXTERNAL_REPORT_CONFIG_ID = 4L
+private const val SCHEDULE_ID1 = 5L
+private const val EXTERNAL_SCHEDULE_ID1 = 6L
+private const val SCHEDULE_ID2 = 7L
+private const val EXTERNAL_SCHEDULE_ID2 = 8L
+
+private val SCHEDULE1: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
+  externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+  externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+  externalScheduleId = EXTERNAL_SCHEDULE_ID1
+}.build()
+
+private val SCHEDULE2: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
+  externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+  externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+  externalScheduleId = EXTERNAL_SCHEDULE_ID2
+}.build()
+
 @RunWith(JUnit4::class)
-class StreamReadySchedulesQueryTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val ADVERTISER_ID = 1L
-    const val EXTERNAL_ADVERTISER_ID = 2L
-
-    const val REPORT_CONFIG_ID = 3L
-    const val EXTERNAL_REPORT_CONFIG_ID = 4L
-
-    const val SCHEDULE_ID1 = 5L
-    const val EXTERNAL_SCHEDULE_ID1 = 6L
-
-    const val SCHEDULE_ID2 = 7L
-    const val EXTERNAL_SCHEDULE_ID2 = 8L
-
-    val SCHEDULE1: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID1
-    }.build()
-
-    val SCHEDULE2: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID2
-    }.build()
+class StreamReadySchedulesTest : KingdomDatabaseTestBase() {
+  private fun streamReadySchedulesToList(limit: Long): List<ReportConfigSchedule> = runBlocking {
+    StreamReadySchedules(limit).execute(databaseClient.singleUse()).toList()
   }
-
-  private fun streamReadySchedulesToList(limit: Long): List<ReportConfigSchedule> =
-    runBlocking {
-      StreamReadySchedulesQuery()
-        .execute(databaseClient.singleUse(), limit)
-        .toList()
-    }
 
   @Before
   fun populateDatabase() {

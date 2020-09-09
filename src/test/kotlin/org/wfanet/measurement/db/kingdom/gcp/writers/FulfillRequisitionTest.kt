@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.db.kingdom.gcp.testing.buildRequisitionDetails
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
@@ -51,7 +52,7 @@ private const val EXTERNAL_REPORT_ID = 14L
 private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
 private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
 
-private val REQUISITION_DETAILS = KingdomDatabaseTestBase.buildRequisitionDetails(10101)
+private val REQUISITION_DETAILS = buildRequisitionDetails(10101)
 
 private val REQUISITION: Requisition = Requisition.newBuilder().apply {
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID

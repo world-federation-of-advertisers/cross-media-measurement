@@ -15,7 +15,8 @@
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import kotlin.test.assertFails
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.ExternalId
@@ -23,18 +24,16 @@ import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
-class GetReportQueryTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val ADVERTISER_ID = 1L
-    const val EXTERNAL_ADVERTISER_ID = 2L
-    const val REPORT_CONFIG_ID = 3L
-    const val EXTERNAL_REPORT_CONFIG_ID = 4L
-    const val SCHEDULE_ID = 5L
-    const val EXTERNAL_SCHEDULE_ID = 6L
-    const val REPORT_ID = 7L
-    const val EXTERNAL_REPORT_ID = 8L
-  }
+private const val ADVERTISER_ID = 1L
+private const val EXTERNAL_ADVERTISER_ID = 2L
+private const val REPORT_CONFIG_ID = 3L
+private const val EXTERNAL_REPORT_CONFIG_ID = 4L
+private const val SCHEDULE_ID = 5L
+private const val EXTERNAL_SCHEDULE_ID = 6L
+private const val REPORT_ID = 7L
+private const val EXTERNAL_REPORT_ID = 8L
 
+class GetReportTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
@@ -48,9 +47,7 @@ class GetReportQueryTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `the Report exists`() {
-    val report =
-      GetReportQuery()
-        .execute(databaseClient.singleUse(), ExternalId(EXTERNAL_REPORT_ID))
+    val report = GetReport(ExternalId(EXTERNAL_REPORT_ID)).executeSingle(databaseClient.singleUse())
 
     val expected = Report.newBuilder().apply {
       externalAdvertiserId = EXTERNAL_ADVERTISER_ID
@@ -66,11 +63,11 @@ class GetReportQueryTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `the Report does not exist`() {
-    assertFails {
-      // Query using the wrong id (the external schedule id) should fail.
-      GetReportQuery()
-        .execute(databaseClient.singleUse(), ExternalId(EXTERNAL_SCHEDULE_ID))
-    }
+  fun `the Report does not exist`() = runBlocking<Unit> {
+    val reports =
+      GetReport(ExternalId(EXTERNAL_SCHEDULE_ID))
+        .execute(databaseClient.singleUse())
+        .toList()
+    assertThat(reports).isEmpty()
   }
 }

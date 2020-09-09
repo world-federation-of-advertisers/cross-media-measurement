@@ -28,7 +28,7 @@ import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
-import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportByScheduleQuery
+import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportBySchedule
 import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -51,7 +51,7 @@ class CreateNextReport(
     if (needsNewReport(scheduleReadResult.schedule)) {
       return createNewReport(scheduleReadResult)
     }
-    return ReadLatestReportByScheduleQuery().execute(transactionContext, externalScheduleId)
+    return ReadLatestReportBySchedule(externalScheduleId).executeSingle(transactionContext)
   }
 
   override fun ResultScope<Report>.buildResult(): Report {

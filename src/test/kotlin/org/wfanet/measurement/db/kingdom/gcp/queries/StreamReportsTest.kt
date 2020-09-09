@@ -30,45 +30,35 @@ import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 
+private const val UNUSED_ID = 999999L
+private const val ADVERTISER_ID = 1L
+private const val REPORT_CONFIG_ID = 2L
+private const val SCHEDULE_ID = 3L
+private const val EXTERNAL_ADVERTISER_ID = 4L
+private const val EXTERNAL_REPORT_CONFIG_ID = 5L
+private const val EXTERNAL_SCHEDULE_ID = 6L
+private const val REPORT_ID1 = 7L
+private const val REPORT_ID2 = 8L
+private const val REPORT_ID3 = 9L
+private const val EXTERNAL_REPORT_ID1 = 10L
+private const val EXTERNAL_REPORT_ID2 = 11L
+private const val EXTERNAL_REPORT_ID3 = 12L
+
+private val REPORT1: Report = Report.newBuilder().apply {
+  externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+  externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+  externalScheduleId = EXTERNAL_SCHEDULE_ID
+  externalReportId = EXTERNAL_REPORT_ID1
+}.build()
+
+private val REPORT2: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID2).build()
+private val REPORT3: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID3).build()
+
 @RunWith(JUnit4::class)
-class StreamReportsQueryTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val UNUSED_ID = 999999L
-
-    const val ADVERTISER_ID = 1L
-    const val REPORT_CONFIG_ID = 2L
-    const val SCHEDULE_ID = 3L
-    const val EXTERNAL_ADVERTISER_ID = 4L
-    const val EXTERNAL_REPORT_CONFIG_ID = 5L
-    const val EXTERNAL_SCHEDULE_ID = 6L
-
-    const val REPORT_ID1 = 7L
-    const val REPORT_ID2 = 8L
-    const val REPORT_ID3 = 9L
-
-    const val EXTERNAL_REPORT_ID1 = 10L
-    const val EXTERNAL_REPORT_ID2 = 11L
-    const val EXTERNAL_REPORT_ID3 = 12L
-
-    val REPORT1: Report = Report.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID1
-    }.build()
-
-    val REPORT2: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID2).build()
-    val REPORT3: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID3).build()
+class StreamReportsTest : KingdomDatabaseTestBase() {
+  private fun executeToList(filter: StreamReportsFilter, limit: Long): List<Report> = runBlocking {
+    StreamReports(filter, limit).execute(databaseClient.singleUse()).toList()
   }
-
-  private fun executeToList(filter: StreamReportsFilter, limit: Long): List<Report> =
-    runBlocking {
-      StreamReportsQuery().execute(
-        databaseClient.singleUse(),
-        filter,
-        limit
-      ).toList()
-    }
 
   @Before
   fun populateDatabase() {

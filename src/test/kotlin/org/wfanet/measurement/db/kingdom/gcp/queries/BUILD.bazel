@@ -1,121 +1,61 @@
 load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
+_TEST_DEPS = [
+    "//imports/java/com/google/cloud/spanner",
+    "//imports/java/com/google/common/truth",
+    "//imports/java/com/google/common/truth/extensions/proto",
+    "//imports/java/org/junit",
+    "//imports/kotlin/kotlin/test",
+    "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+    "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+    "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
+    "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
+]
+
 spanner_emulator_test(
-    name = "GetReportQueryTest",
-    srcs = ["GetReportQueryTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.GetReportQueryTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
+    name = "GetReportTest",
+    srcs = ["GetReportTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.GetReportTest",
+    deps = _TEST_DEPS,
 )
 
 spanner_emulator_test(
-    name = "ReadRequisitionTemplatesQueryTest",
-    srcs = ["ReadRequisitionTemplatesQueryTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplatesQueryTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
+    name = "ReadRequisitionTemplatesTest",
+    srcs = ["ReadRequisitionTemplatesTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplatesTest",
+    deps = _TEST_DEPS,
 )
 
 spanner_emulator_test(
-    name = "StreamRequisitionsQueryTest",
-    srcs = ["StreamRequisitionsQueryTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsQueryTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
+    name = "StreamRequisitionsTest",
+    srcs = ["StreamRequisitionsTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamRequisitionsTest",
+    deps = _TEST_DEPS,
 )
 
 spanner_emulator_test(
-    name = "StreamReportsQueryTest",
-    srcs = ["StreamReportsQueryTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamReportsQueryTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
+    name = "StreamReportsTest",
+    srcs = ["StreamReportsTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamReportsTest",
+    deps = _TEST_DEPS,
 )
 
 spanner_emulator_test(
-    name = "StreamReadyReportsQueryTest",
-    srcs = ["StreamReadyReportsQueryTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReportsQueryTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
+    name = "StreamReadyReportsTest",
+    srcs = ["StreamReadyReportsTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadyReportsTest",
+    deps = _TEST_DEPS,
 )
 
 spanner_emulator_test(
-    name = "StreamReadySchedulesQueryTest",
-    srcs = ["StreamReadySchedulesQueryTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesQueryTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/queries",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-    ],
+    name = "StreamReadySchedulesTest",
+    srcs = ["StreamReadySchedulesTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.db.kingdom.gcp.queries.StreamReadySchedulesTest",
+    deps = _TEST_DEPS,
 )

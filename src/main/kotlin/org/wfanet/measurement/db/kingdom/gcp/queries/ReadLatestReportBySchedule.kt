@@ -14,16 +14,19 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
-import kotlinx.coroutines.flow.single
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.SpannerReader
 import org.wfanet.measurement.internal.kingdom.Report
 
-class ReadLatestReportByScheduleQuery {
-  fun execute(readContext: ReadContext, externalScheduleId: ExternalId): Report = runBlocking {
+class ReadLatestReportBySchedule(
+  externalScheduleId: ExternalId
+) : SpannerQuery<ReportReader.Result, Report>() {
+
+  override val reader: SpannerReader<ReportReader.Result> by lazy {
     val whereClause =
       """
       WHERE ReportConfigSchedules.ExternalScheduleId = @external_schedule_id
@@ -36,8 +39,7 @@ class ReadLatestReportByScheduleQuery {
         appendClause(whereClause)
         bind("external_schedule_id").to(externalScheduleId.value)
       }
-      .execute(readContext)
-      .single()
-      .report
   }
+
+  override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }
 }

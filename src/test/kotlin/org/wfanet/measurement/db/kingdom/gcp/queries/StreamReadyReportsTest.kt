@@ -27,31 +27,26 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
-@RunWith(JUnit4::class)
-class StreamReadyReportsQueryTest : KingdomDatabaseTestBase() {
-  companion object {
-    const val ADVERTISER_ID = 1L
-    const val REPORT_CONFIG_ID = 2L
-    const val SCHEDULE_ID = 3L
-    const val EXTERNAL_ADVERTISER_ID = 4L
-    const val EXTERNAL_REPORT_CONFIG_ID = 5L
-    const val EXTERNAL_SCHEDULE_ID = 6L
-    const val REPORT_ID = 7L
-    const val EXTERNAL_REPORT_ID = 8L
-    const val DATA_PROVIDER_ID = 9L
-    const val EXTERNAL_DATA_PROVIDER_ID = 10L
-    const val CAMPAIGN_ID = 11L
-    const val EXTERNAL_CAMPAIGN_ID = 12L
-    const val REQUISITION_ID = 13L
-    const val EXTERNAL_REQUISITION_ID = 14L
-  }
+private const val ADVERTISER_ID = 1L
+private const val REPORT_CONFIG_ID = 2L
+private const val SCHEDULE_ID = 3L
+private const val EXTERNAL_ADVERTISER_ID = 4L
+private const val EXTERNAL_REPORT_CONFIG_ID = 5L
+private const val EXTERNAL_SCHEDULE_ID = 6L
+private const val REPORT_ID = 7L
+private const val EXTERNAL_REPORT_ID = 8L
+private const val DATA_PROVIDER_ID = 9L
+private const val EXTERNAL_DATA_PROVIDER_ID = 10L
+private const val CAMPAIGN_ID = 11L
+private const val EXTERNAL_CAMPAIGN_ID = 12L
+private const val REQUISITION_ID = 13L
+private const val EXTERNAL_REQUISITION_ID = 14L
 
-  private fun streamReadyReportsToList(): List<Report> =
-    runBlocking {
-      StreamReadyReportsQuery()
-        .execute(databaseClient.singleUse(), 100L)
-        .toList()
-    }
+@RunWith(JUnit4::class)
+class StreamReadyReportsTest : KingdomDatabaseTestBase() {
+  private fun streamReadyReportsToList(): List<Report> = runBlocking {
+    StreamReadyReports(limit = 100L).execute(databaseClient.singleUse()).toList()
+  }
 
   @Before
   fun populateDatabase() {

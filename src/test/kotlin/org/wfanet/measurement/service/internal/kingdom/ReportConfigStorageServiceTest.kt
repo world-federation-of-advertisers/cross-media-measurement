@@ -18,6 +18,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,7 +48,7 @@ class ReportConfigStorageServiceTest {
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
     on { listRequisitionTemplates(any()) }
-      .thenReturn(listOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
+      .thenReturn(flowOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
   }
 
   private val service = ReportConfigStorageService(kingdomRelationalDatabase)

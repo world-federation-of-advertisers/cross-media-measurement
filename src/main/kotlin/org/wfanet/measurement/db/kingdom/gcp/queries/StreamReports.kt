@@ -14,45 +14,41 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.gcp.common.StreamReportsFilterSqlConverter
 import org.wfanet.measurement.db.kingdom.gcp.common.toSql
+import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.internal.kingdom.Report
 
-class StreamReportsQuery {
-  /**
-   * Streams [Report]s matching [filter] from Spanner.
-   *
-   * @param readContext the context in which to perform Spanner reads
-   * @param filter a filter to control which [Report]s to return
-   * @param limit how many [Report]s to return -- if zero, there is no limit
-   * @return a [Flow] of [Report]s matching the filter ordered by ascending UpdateTime
-   */
-  fun execute(
-    readContext: ReadContext,
-    filter: StreamReportsFilter,
-    limit: Long
-  ): Flow<Report> {
-    val reader = ReportReader()
+/**
+ * Streams [Report]s matching [filter] from Spanner ordered by ascending updateTime.
+ *
+ * @param filter a filter to control which [Report]s to return
+ * @param limit how many [Report]s to return -- if zero, there is no limit
+ */
+class StreamReports(
+  filter: StreamReportsFilter,
+  limit: Long
+) : SpannerQuery<ReportReader.Result, Report>() {
+  override val reader: BaseSpannerReader<ReportReader.Result> by lazy {
+    ReportReader().withBuilder {
+      if (!filter.empty) {
+        appendClause("WHERE ")
+        filter.toSql(this, StreamReportsFilterSqlConverter)
+      }
 
-    if (!filter.empty) {
-      reader.builder.append("\nWHERE ")
-      filter.toSql(reader.builder, StreamReportsFilterSqlConverter)
+      appendClause("ORDER BY UpdateTime ASC")
+
+      if (limit > 0) {
+        appendClause("LIMIT @limit")
+        bind("limit").to(limit)
+      }
     }
-
-    reader.builder.appendClause("ORDER BY UpdateTime ASC")
-
-    if (limit > 0) {
-      reader.builder
-        .appendClause("LIMIT @limit")
-        .bind("limit").to(limit)
-    }
-
-    return reader.execute(readContext).map { it.report }
   }
+
+  override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }
 }

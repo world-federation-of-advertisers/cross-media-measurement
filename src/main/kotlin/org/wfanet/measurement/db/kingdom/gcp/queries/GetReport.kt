@@ -14,23 +14,22 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
-import kotlinx.coroutines.flow.single
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.SpannerReader
 import org.wfanet.measurement.internal.kingdom.Report
 
-class GetReportQuery {
-  fun execute(readContext: ReadContext, externalReportId: ExternalId): Report = runBlocking {
+class GetReport(externalReportId: ExternalId) : SpannerQuery<ReportReader.Result, Report>() {
+  override val reader: SpannerReader<ReportReader.Result> by lazy {
     ReportReader()
       .withBuilder {
         appendClause("WHERE Reports.ExternalReportId = @external_report_id")
         bind("external_report_id").to(externalReportId.value)
       }
-      .execute(readContext)
-      .single()
-      .report
   }
+
+  override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }
 }

@@ -14,34 +14,24 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.toProtoEnum
+import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 /**
- * Query for finding [Report]s with no unfulfilled [Requisition]s.
+ * SpannerQuery for finding [Report]s with no unfulfilled [Requisition]s.
  *
  * Since this is a very specific use case and involves a more complex query than that of
- * [StreamReportsQuery], we keep it separate for simplicity.
+ * [StreamReports], we keep it separate for simplicity.
  */
-class StreamReadyReportsQuery {
-  /**
-   * Streams [Report]s without unfulfilled [Requisition]s.
-   *
-   * @param readContext the context in which to perform Spanner reads
-   * @param limit how many [Report]s to return -- if zero, there is no limit
-   * @return a [Flow] of [Report]s in an arbitrary order
-   */
-  fun execute(
-    readContext: ReadContext,
-    limit: Long
-  ): Flow<Report> {
+class StreamReadyReports(limit: Long) : SpannerQuery<ReportReader.Result, Report>() {
+  override val reader: BaseSpannerReader<ReportReader.Result> by lazy {
     val sql =
       """
       JOIN ReportRequisitions USING (AdvertiserId, ReportConfigId, ScheduleId, ReportId)
@@ -52,7 +42,7 @@ class StreamReadyReportsQuery {
       HAVING COUNT(ReportRequisitions.RequisitionId) = ReportConfigs.NumRequisitions
       """.trimIndent()
 
-    return ReportReader()
+    ReportReader()
       .withBuilder {
         appendClause(sql)
         bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
@@ -66,7 +56,7 @@ class StreamReadyReportsQuery {
           bind("limit").to(limit)
         }
       }
-      .execute(readContext)
-      .map { it.report }
   }
+
+  override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }
 }

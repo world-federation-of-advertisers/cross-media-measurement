@@ -41,15 +41,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
 abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
-
-  companion object {
-    @JvmStatic
-    fun buildRequisitionDetails(sketchConfigId: Long): RequisitionDetails =
-      RequisitionDetails.newBuilder().apply {
-        metricDefinitionBuilder.sketchBuilder.sketchConfigId = sketchConfigId
-      }.build()
-  }
-
   private fun write(mutation: Mutation) {
     databaseClient.write(listOf(mutation))
   }

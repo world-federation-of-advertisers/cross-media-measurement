@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.service.internal.kingdom
 
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
@@ -30,7 +31,7 @@ class ReportConfigStorageService(
     val id = ExternalId(request.externalReportConfigId)
     val requisitionTemplates = kingdomRelationalDatabase.listRequisitionTemplates(id)
     return ListRequisitionTemplatesResponse.newBuilder()
-      .addAllRequisitionTemplates(requisitionTemplates)
+      .addAllRequisitionTemplates(requisitionTemplates.toList())
       .build()
   }
 }
