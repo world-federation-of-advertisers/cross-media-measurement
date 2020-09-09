@@ -308,7 +308,7 @@ class LiquidLegionsMillTest {
         )
         .setNextDuchy("NEXT_WORKER")
         .setPrimaryDuchy("PRIMARY_WORKER")
-        .setVersion(3) // CreateComputation + transitionStage
+        .setVersion(3) // CreateComputation + write blob + transitionStage
         .setRole(RoleInComputation.SECONDARY)
         .build()
     assertEquals(expectTokenAfterProcess, fakeComputationStorage[LOCAL_ID]!!)

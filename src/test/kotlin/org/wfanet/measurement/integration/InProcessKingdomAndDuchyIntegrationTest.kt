@@ -76,7 +76,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
   }
 
   @Test
-  fun `entire computation`() = runBlocking<Unit> {
+  fun `entire computation, 1 requisition per duchy`() = runBlocking<Unit> {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
     logger.info("Starting first data provider")
@@ -95,7 +95,54 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 30_000) {
+    val doneReport: Report = pollFor(timeoutMillis = 50_000) {
+      kingdomRelationalDatabase
+        .streamReports(
+          filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
+          limit = 1
+        )
+        .singleOrNull()
+    }
+
+    logger.info("Final Report: $doneReport")
+
+    assertThat(doneReport)
+      .comparingExpectedFieldsOnly()
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        Report.newBuilder().apply {
+          reportDetailsBuilder.apply {
+            addAllConfirmedDuchies(DUCHY_IDS)
+            reportDetailsBuilder.resultBuilder.apply {
+              reach = 11L
+              putFrequency(3L, 10L)
+            }
+          }
+        }.build()
+      )
+  }
+
+  @Test
+  fun `entire computation, all requisitions at the same duchy`() = runBlocking<Unit> {
+    val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
+
+    logger.info("Starting first data provider")
+    dataProviderRule.startDataProviderForCampaign(
+      dataProviders[0], campaigns[0], duchies[0].newPublisherDataProviderStub()
+    )
+
+    logger.info("Starting second data provider")
+    dataProviderRule.startDataProviderForCampaign(
+      dataProviders[1], campaigns[1], duchies[0].newPublisherDataProviderStub()
+    )
+
+    logger.info("Starting third data provider")
+    dataProviderRule.startDataProviderForCampaign(
+      dataProviders[1], campaigns[2], duchies[0].newPublisherDataProviderStub()
+    )
+
+    // Now wait until the computation is done.
+    val doneReport: Report = pollFor(timeoutMillis = 50_000) {
       kingdomRelationalDatabase
         .streamReports(
           filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
