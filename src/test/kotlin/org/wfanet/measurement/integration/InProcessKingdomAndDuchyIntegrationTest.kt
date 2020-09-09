@@ -118,6 +118,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
       )
 
     assertThat(doneReport.reportDetails.result.reach).isGreaterThan(0)
+    assertThat(doneReport.reportDetails.result.frequencyMap).containsExactly(3L, 10L)
   }
 
   companion object {

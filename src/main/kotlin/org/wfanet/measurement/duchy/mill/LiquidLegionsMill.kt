@@ -89,7 +89,7 @@ class LiquidLegionsMill(
   private val cryptoWorker: LiquidLegionsCryptoWorker,
   private val throttler: MinimumIntervalThrottler,
   private val chunkSize: Int = 2000000,
-  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 1000_0000L)
+  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 1000_0000L, 10)
 ) {
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
@@ -339,6 +339,7 @@ class LiquidLegionsMill(
           .setCurveId(cryptoKeySet.curveId.toLong())
           .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
           .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
+          .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
           .build()
       ).toByteString()
     }
@@ -428,7 +429,7 @@ class LiquidLegionsMill(
 
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
 
-  data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
+  data class LiquidLegionsConfig(val decayRate: Double, val size: Long, val maxFrequency: Int)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

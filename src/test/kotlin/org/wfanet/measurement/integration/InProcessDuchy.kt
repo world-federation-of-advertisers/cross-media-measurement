@@ -138,8 +138,8 @@ class InProcessDuchy(
         workerStubs = workerStubs,
         cryptoKeySet = duchyDependencies.cryptoKeySet,
         cryptoWorker = LiquidLegionsCryptoWorkerImpl(),
-        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(200)),
-        chunkSize = 20
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        chunkSize = 2_000_000
       )
 
       mill.continuallyProcessComputationQueue()

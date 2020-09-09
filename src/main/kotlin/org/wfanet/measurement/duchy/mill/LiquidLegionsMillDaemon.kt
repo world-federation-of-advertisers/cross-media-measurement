@@ -81,7 +81,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       chunkSize = flags.chunkSize,
       liquidLegionsConfig = LiquidLegionsMill.LiquidLegionsConfig(
-        flags.liquidLegionsDecayRate, flags.liquidLegionsSize
+        flags.liquidLegionsDecayRate, flags.liquidLegionsSize, flags.sketchMaxFrequency
       )
     )
 

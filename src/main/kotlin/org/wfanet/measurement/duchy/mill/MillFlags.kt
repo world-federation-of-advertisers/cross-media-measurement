@@ -121,4 +121,12 @@ class MillFlags {
   )
   var liquidLegionsSize by Delegates.notNull<Long>()
     private set
+
+  @set:CommandLine.Option(
+    names = ["--sketch-max-frequency"],
+    description = ["The maximum frequency to reveal in the histogram."],
+    defaultValue = "10"
+  )
+  var sketchMaxFrequency by Delegates.notNull<Int>()
+    private set
 }
