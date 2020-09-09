@@ -16,22 +16,18 @@ package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.DatabaseId
+import com.google.cloud.spanner.Instance
 import com.google.cloud.spanner.Spanner
-import com.google.cloud.spanner.SpannerOptions
 import picocli.CommandLine
 
 class SpannerFromFlags(
   private val flags: Flags
 ) {
-  val spannerOptions: SpannerOptions by lazy {
-    val builder = SpannerOptions.newBuilder().setProjectId(flags.projectName)
-    if (!flags.spannerEmulatorHost.isBlank()) {
-      builder.setEmulatorHost(flags.spannerEmulatorHost)
-    }
-    builder.build()
-  }
+  val spanner: Spanner by lazy { buildSpanner(flags.projectName, flags.spannerEmulatorHost) }
 
-  val spanner: Spanner by lazy { spannerOptions.service }
+  val instance: Instance by lazy {
+    spanner.instanceAdminClient.getInstance(flags.instanceName)
+  }
 
   val databaseId: DatabaseId by lazy {
     DatabaseId.of(flags.projectName, flags.instanceName, flags.databaseName)
@@ -72,6 +68,6 @@ class SpannerFromFlags(
       required = false
     )
     lateinit var spannerEmulatorHost: String
-    private set
+      private set
   }
 }

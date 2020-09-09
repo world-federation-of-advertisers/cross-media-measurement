@@ -9,7 +9,6 @@ package(default_visibility = [
 kt_jvm_library(
     name = "spanner_emulator",
     srcs = [
-        "SpannerDatabase.kt",
         "SpannerEmulator.kt",
     ],
     deps = [
@@ -28,7 +27,6 @@ kt_jvm_library(
         exclude = [
             "SpannerEmulator.kt",
             "SpannerEmulatorMain.kt",
-            "SpannerDatabase.kt",
         ],
     ),
     deps = [

@@ -26,3 +26,19 @@ java_binary(
     main_class = "org.wfanet.measurement.tools.DeployToKindKt",
     runtime_deps = ["deploy_to_kind_impl"],
 )
+
+kt_jvm_library(
+    name = "push_spanner_schema",
+    srcs = ["PushSpannerSchema.kt"],
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+    ],
+)
+
+java_binary(
+    name = "push_spanner_schema_main",
+    main_class = "org.wfanet.measurement.tools.PushSpannerSchemaKt",
+    runtime_deps = [":push_spanner_schema"],
+)

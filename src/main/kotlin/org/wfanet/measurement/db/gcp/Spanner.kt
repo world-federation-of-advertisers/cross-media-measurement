@@ -15,7 +15,13 @@
 package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.DatabaseClient
+import com.google.cloud.spanner.Instance
+import com.google.cloud.spanner.InstanceConfigId
+import com.google.cloud.spanner.InstanceId
+import com.google.cloud.spanner.InstanceInfo
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Spanner
+import com.google.cloud.spanner.SpannerOptions
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -49,4 +55,40 @@ fun Statement.Builder.appendClause(sql: String): Statement.Builder = append("\n$
  */
 fun Mutation.bufferTo(transactionContext: TransactionContext) {
   transactionContext.buffer(this)
+}
+
+/**
+ * Constructs a [Spanner].
+ */
+fun buildSpanner(projectName: String, spannerEmulatorHost: String? = null): Spanner {
+  return SpannerOptions.newBuilder()
+    .apply {
+      setProjectId(projectName)
+      if (!spannerEmulatorHost.isNullOrBlank()) {
+        setEmulatorHost(spannerEmulatorHost)
+      }
+    }
+    .build()
+    .service
+}
+
+/**
+ * Creates a Spanner [Instance].
+ */
+fun Spanner.createInstance(
+  projectName: String,
+  instanceName: String,
+  displayName: String,
+  instanceConfigId: String,
+  instanceNodeCount: Int
+): Instance {
+  val instanceId = InstanceId.of(projectName, instanceName)
+  val instanceInfo =
+    InstanceInfo
+      .newBuilder(instanceId)
+      .setDisplayName(displayName)
+      .setInstanceConfigId(InstanceConfigId.of(projectName, instanceConfigId))
+      .setNodeCount(instanceNodeCount)
+      .build()
+  return instanceAdminClient.createInstance(instanceInfo).get()
 }

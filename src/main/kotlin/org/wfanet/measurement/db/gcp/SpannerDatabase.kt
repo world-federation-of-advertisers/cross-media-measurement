@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp.testing
+package org.wfanet.measurement.db.gcp
 
 import com.google.cloud.spanner.Database
 import com.google.cloud.spanner.Instance

@@ -46,7 +46,7 @@ private class TemporaryDatabase(schemaResourcePath: String) : AutoCloseable {
   init {
     val databaseName = "test-db-${instanceCounter.incrementAndGet()}"
     val ddl = javaClass.getResource(schemaResourcePath).readText()
-    database = createDatabase(emulator.instance, ddl, databaseName)
+    database = org.wfanet.measurement.db.gcp.createDatabase(emulator.instance, ddl, databaseName)
   }
 
   val databaseClient: DatabaseClient by lazy {
