@@ -1,10 +1,11 @@
 package org.wfanet.measurement.integration
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.math.BigInteger
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
@@ -74,15 +75,16 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
   }
 
-  @Ignore // TODO: unignore this test case
   @Test
   fun `entire computation`() = runBlocking<Unit> {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
+    logger.info("Starting first data provider")
     dataProviderRule.startDataProviderForCampaign(
       dataProviders[0], campaigns[0], duchies[0].newPublisherDataProviderStub()
     )
 
+    logger.info("Starting second data provider")
     dataProviderRule.startDataProviderForCampaign(
       dataProviders[1], campaigns[1], duchies[1].newPublisherDataProviderStub()
     )
@@ -93,7 +95,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 10_000) {
+    val doneReport: Report = pollFor(timeoutMillis = 30_000) {
       kingdomRelationalDatabase
         .streamReports(
           filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
@@ -102,6 +104,8 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
         .singleOrNull()
     }
 
+    logger.info("Final Report: $doneReport")
+
     assertThat(doneReport)
       .comparingExpectedFieldsOnly()
       .ignoringRepeatedFieldOrder()
@@ -109,9 +113,14 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
         Report.newBuilder().apply {
           reportDetailsBuilder.apply {
             addAllConfirmedDuchies(DUCHY_IDS)
-            resultBuilder // Touch resultBuilder so there's some result
           }
         }.build()
       )
+
+    assertThat(doneReport.reportDetails.result.reach).isGreaterThan(0)
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
