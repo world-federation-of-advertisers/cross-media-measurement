@@ -74,6 +74,14 @@ private class Flags {
   )
   var dropDatabasesFirst by Delegates.notNull<Boolean>()
 
+  @set:Option(
+    names = ["--ignore-already-existing-databases"],
+    description = ["Drop databases first"],
+    defaultValue = "false",
+    required = false
+  )
+  var ignoreAlreadyExistingDatabases by Delegates.notNull<Boolean>()
+
   @Option(
     names = ["--emulator-host"],
     description = ["Host name and port of the spanner emulator."],
@@ -103,8 +111,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
         instanceNodeCount = flags.instanceNodeCount
       )
     } catch (e: ExecutionException) {
-      val cause = e.cause ?: throw e
-      if (cause is SpannerException && cause.errorCode == ErrorCode.ALREADY_EXISTS) {
+      if (e.isAlreadyExistsException) {
         logger.info("Instance already exists")
       } else {
         throw e
@@ -121,8 +128,21 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     }
     logger.info("Creating database $databaseName from DDL file $ddlFilePath")
     val ddl = File(ddlFilePath).readText()
-    createDatabase(instance, ddl, databaseName)
+    try {
+      createDatabase(instance, ddl, databaseName)
+    } catch (e: ExecutionException) {
+      if (flags.ignoreAlreadyExistingDatabases && e.isAlreadyExistsException) {
+        logger.info("Database $databaseName already exists")
+      } else {
+        throw e
+      }
+    }
   }
 }
+
+private val ExecutionException.isAlreadyExistsException: Boolean
+  get() = cause.let {
+    it != null && it is SpannerException && it.errorCode == ErrorCode.ALREADY_EXISTS
+  }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
