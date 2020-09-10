@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.db.duchy.computation
 
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
@@ -34,7 +35,6 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputatio
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 
 /**
  * Calls AdvanceComputationStage to move to a new [LiquidLegionsSketchAggregationStage] in a

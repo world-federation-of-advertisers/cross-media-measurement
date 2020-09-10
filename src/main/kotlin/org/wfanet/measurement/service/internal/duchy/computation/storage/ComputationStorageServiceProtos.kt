@@ -14,12 +14,11 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -28,9 +27,6 @@ import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
-
-fun LiquidLegionsSketchAggregationStage.toProtocolStage(): ComputationStage =
-  ComputationStage.newBuilder().setLiquidLegionsSketchAggregation(this).build()
 
 fun String.toGetTokenRequest(
   computationType: ComputationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
@@ -41,14 +37,7 @@ fun String.toGetTokenRequest(
     .build()
 
 fun ComputationToken.toBlobPath(name: String) =
-  "$localComputationId/${computationStage.toName()}_${attempt}_$name"
-
-private fun ComputationStage.toName(): String =
-  when (stageCase) {
-    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
-      liquidLegionsSketchAggregation.name
-    else -> error("Unknown computation type $this")
-  }
+  "$localComputationId/${computationStage.name}_${attempt}_$name"
 
 /** Wraps a [ComputationToken] in an [AdvanceComputationStageResponse]. */
 fun ComputationToken.toAdvanceComputationStageResponse(): AdvanceComputationStageResponse =

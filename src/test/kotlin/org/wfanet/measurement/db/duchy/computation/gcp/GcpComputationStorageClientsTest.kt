@@ -32,6 +32,7 @@ import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
@@ -60,7 +61,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.Computa
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 private const val ELLIPTIC_CURVE_ID = 415 // prime256v1

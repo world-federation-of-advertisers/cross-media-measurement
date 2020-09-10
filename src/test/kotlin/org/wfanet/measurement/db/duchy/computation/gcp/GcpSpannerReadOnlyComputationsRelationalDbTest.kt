@@ -25,6 +25,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -33,7 +34,6 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 
 @RunWith(JUnit4::class)
 class GcpSpannerReadOnlyComputationsRelationalDbTest :

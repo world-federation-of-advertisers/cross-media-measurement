@@ -15,6 +15,7 @@
 package org.wfanet.measurement.db.duchy.computation
 
 import org.wfanet.measurement.common.numberAsLong
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
@@ -32,7 +33,6 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 
 /**
  * Helper classes for working with stages of the Liquid Legions Sketch Aggregation MPC defined in

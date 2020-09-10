@@ -56,6 +56,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
@@ -93,7 +94,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.Computa
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 class LiquidLegionsMillTest {

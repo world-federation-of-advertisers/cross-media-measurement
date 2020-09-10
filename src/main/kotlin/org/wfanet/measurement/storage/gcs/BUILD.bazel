@@ -3,8 +3,6 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-# TODO(b/165288304): Limit visibility once components are being used to obtain
-# storage client instances.
 package(default_visibility = [
     test_target(":__pkg__"),
     "//src:internal_services",

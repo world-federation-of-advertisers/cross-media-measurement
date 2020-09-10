@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
@@ -56,7 +57,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmpt
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toProtocolStage
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 @RunWith(JUnit4::class)

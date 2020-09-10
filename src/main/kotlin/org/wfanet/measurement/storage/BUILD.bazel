@@ -47,3 +47,34 @@ kt_jvm_library(
         "//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+package_group(
+    name = "computation_control_service",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
+    ],
+)
+
+# TODO(b/164480460): Remove once db package is no longer referencing storage package.
+package_group(
+    name = "computation_db",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/...",
+        "//src/test/kotlin/org/wfanet/measurement/db/duchy/computation/...",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_store",
+    srcs = ["ComputationStore.kt"],
+    visibility = [
+        ":computation_control_service",
+        ":computation_db",
+    ],
+    deps = [
+        ":client",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
+    ],
+)
