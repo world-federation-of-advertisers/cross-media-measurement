@@ -39,7 +39,7 @@ class DeployToKind() : Callable<Int> {
       "The name of the yaml file to deploy to kind. ",
       "Either deploy_to_kind.yaml or kingdom_and_single_duchy.yaml"
     ],
-    defaultValue = "kingdom_and_single_duchy.yaml"
+    defaultValue = "kingdom_and_single_duchy_from_cue.yaml"
   )
   lateinit var yamlFile: String
 

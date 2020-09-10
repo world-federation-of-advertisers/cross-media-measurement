@@ -70,6 +70,17 @@ filegroup(
 )
 
 filegroup(
+    name = "kingdom_and_single_duchy_from_cue",
+    srcs = ["kingdom_and_single_duchy_from_cue.yaml"],
+    data = [
+        ":backend_fake_image_archives",
+        ":duchy_image_archives",
+        ":kingdom_image_archives",
+    ],
+    visibility = [":k8s_deployer"],
+)
+
+filegroup(
     name = "deploy_to_kind",
     srcs = ["deploy_to_kind.yaml"],
     data = [
