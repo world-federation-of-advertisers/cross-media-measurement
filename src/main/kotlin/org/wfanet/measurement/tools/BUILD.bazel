@@ -1,4 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
@@ -40,5 +41,17 @@ kt_jvm_library(
 java_binary(
     name = "push_spanner_schema_main",
     main_class = "org.wfanet.measurement.tools.PushSpannerSchemaKt",
+    runtime_deps = [":push_spanner_schema"],
+)
+
+java_image(
+    name = "push_spanner_schema_image",
+    data = [
+        "//src/main/db/gcp:computations_schema",
+        "//src/main/db/gcp:kingdom_schema",
+        "//src/main/db/gcp:metric_values_schema",
+    ],
+    main_class = "org.wfanet.measurement.tools.PushSpannerSchemaKt",
+    visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":push_spanner_schema"],
 )

@@ -21,6 +21,10 @@ KINGDOM_IMAGES = [
 
 BACKEND_FAKE_IMAGES = ["//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"]
 
+SETUP_IMAGES = [
+    "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
+]
+
 filegroup(
     name = "duchy_image_archives",
     srcs = [name + ".tar" for name in DUCHY_IMAGES],
@@ -36,6 +40,21 @@ filegroup(
     srcs = [name + ".tar" for name in BACKEND_FAKE_IMAGES],
 )
 
+filegroup(
+    name = "setup_archives",
+    srcs = [name + ".tar" for name in SETUP_IMAGES],
+)
+
+filegroup(
+    name = "all_archives",
+    srcs = [
+        ":backend_fake_image_archives",
+        ":duchy_image_archives",
+        ":kingdom_image_archives",
+        ":setup_archives",
+    ],
+)
+
 package_group(
     name = "k8s_deployer",
     packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
@@ -45,9 +64,7 @@ filegroup(
     name = "kingdom_and_single_duchy",
     srcs = ["kingdom_and_single_duchy.yaml"],
     data = [
-        ":backend_fake_image_archives",
-        ":duchy_image_archives",
-        ":kingdom_image_archives",
+        ":all_archives",
     ],
     visibility = [":k8s_deployer"],
 )
@@ -56,8 +73,7 @@ filegroup(
     name = "deploy_to_kind",
     srcs = ["deploy_to_kind.yaml"],
     data = [
-        ":backend_fake_image_archives",
-        ":duchy_image_archives",
+        ":all_archives",
     ],
     visibility = [":k8s_deployer"],
 )
@@ -69,7 +85,9 @@ cue_export(
     output_name = "k8s.yaml",
 )
 
-ALL_IMAGE_ARCHIVES = [name + ".tar" for name in DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES]
+ALL_IMAGES = DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES + SETUP_IMAGES
+
+ALL_IMAGE_ARCHIVES = [name + ".tar" for name in ALL_IMAGES]
 
 k8s_apply(
     name = "kingdom_and_single_duchy_kind",

@@ -85,7 +85,7 @@ spanner_emulator_test(
     name = "GcpInProcessKingdomAndDuchyIntegrationTest",
     srcs = ["GcpInProcessKingdomAndDuchyIntegrationTest.kt"],
     resources = [
-        "//src/main/db/gcp:computations_scehema",
+        "//src/main/db/gcp:computations_schema",
         "//src/main/db/gcp:kingdom_schema",
         "//src/main/db/gcp:metric_values_schema",
     ],

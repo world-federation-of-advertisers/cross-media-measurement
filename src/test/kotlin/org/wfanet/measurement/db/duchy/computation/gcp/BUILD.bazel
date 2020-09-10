@@ -43,7 +43,7 @@ spanner_emulator_test(
     name = "ComputationsSchemaTest",
     srcs = ["ComputationsSchemaTest.kt"],
     resources = [
-        "//src/main/db/gcp:computations_scehema",
+        "//src/main/db/gcp:computations_schema",
     ],
     test_class = "org.wfanet.measurement.db.duchy.computation.gcp.ComputationsSchemaTest",
     deps = [
@@ -58,7 +58,7 @@ spanner_emulator_test(
     name = "GcpSpannerComputationDbTest",
     srcs = ["GcpSpannerComputationsDbTest.kt"],
     resources = [
-        "//src/main/db/gcp:computations_scehema",
+        "//src/main/db/gcp:computations_schema",
     ],
     test_class = "org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDbTest",
     deps = [
@@ -77,7 +77,7 @@ spanner_emulator_test(
     name = "GcpSpannerComputationTokenProtoReaderTest",
     srcs = ["GcpSpannerReadOnlyComputationsRelationalDbTest.kt"],
     resources = [
-        "//src/main/db/gcp:computations_scehema",
+        "//src/main/db/gcp:computations_schema",
     ],
     test_class = "org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDbTest",
     deps = [
@@ -95,7 +95,7 @@ spanner_emulator_test(
     name = "GcpComputationStorageClientsTest",
     srcs = ["GcpComputationStorageClientsTest.kt"],
     resources = [
-        "//src/main/db/gcp:computations_scehema",
+        "//src/main/db/gcp:computations_schema",
     ],
     test_class = "org.wfanet.measurement.db.duchy.computation.gcp.GcpComputationStorageClientsTest",
     deps = [

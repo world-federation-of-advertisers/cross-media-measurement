@@ -1,7 +1,7 @@
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
-    name = "computations_scehema",
+    name = "computations_schema",
     srcs = ["computations.sdl"],
 )
 
