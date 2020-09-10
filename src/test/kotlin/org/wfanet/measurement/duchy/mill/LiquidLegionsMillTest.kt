@@ -116,16 +116,14 @@ class LiquidLegionsMillTest {
       FakeComputationsBlobDb(fakeBlobs),
       otherDuchyNames
     )
-    listOf(
-      mockLiquidLegionsComputationControl,
-      mockMetricValues,
-      mockGlobalComputations,
-      ComputationStorageServiceImpl(fakeComputationStorage)
-    )
     addService(mockLiquidLegionsComputationControl)
     addService(mockMetricValues)
     addService(mockGlobalComputations)
-    addService(ComputationStorageServiceImpl(fakeComputationStorage))
+    addService(
+      ComputationStorageServiceImpl(
+        fakeComputationStorage, globalComputationStub, DUCHY_NAME
+      )
+    )
   }
 
   private lateinit var computationStorageClients:
@@ -881,6 +879,7 @@ class LiquidLegionsMillTest {
 
   companion object {
     private const val MILL_ID = "a nice mill"
+    private const val DUCHY_NAME = "THIS_WORKER"
     private const val DUCHY_ONE_NAME = "NEXT_WORKER"
     private const val DUCHY_TWO_NAME = "PRIMARY_WORKER"
     private val otherDuchyNames = listOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME)

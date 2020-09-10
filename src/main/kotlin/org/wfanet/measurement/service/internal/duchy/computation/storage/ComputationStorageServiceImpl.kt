@@ -15,11 +15,17 @@
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import io.grpc.Status
+import java.time.Clock
+import java.util.logging.Logger
+import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
+import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -44,7 +50,10 @@ import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 
 /** Implementation of the Computation Storage Service. */
 class ComputationStorageServiceImpl(
-  private val computationsDatabase: SingleProtocolDatabase
+  private val computationsDatabase: SingleProtocolDatabase,
+  private val globalComputationsClient: GlobalComputationsCoroutineStub,
+  private val duchyName: String,
+  private val clock: Clock = Clock.systemUTC()
 ) : ComputationStorageServiceCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
@@ -53,9 +62,17 @@ class ComputationStorageServiceImpl(
         "${request.computationType} is not supported."
     }
     val claimed = computationsDatabase.claimTask(request.owner)
-    return if (claimed != null) computationsDatabase.readComputationToken(claimed)!!
-      .toClaimWorkResponse()
-    else ClaimWorkResponse.getDefaultInstance()
+    return if (claimed != null) {
+      val token = computationsDatabase.readComputationToken(claimed)!!
+      sendStatusUpdateToKingdom(
+        newStatusUpdateRequest(
+          token.globalComputationId,
+          token.computationStage,
+          token.attempt.toLong()
+        )
+      )
+      token.toClaimWorkResponse()
+    } else ClaimWorkResponse.getDefaultInstance()
   }
 
   override suspend fun createComputation(
@@ -74,6 +91,14 @@ class ComputationStorageServiceImpl(
       computationsDatabase.validInitialStages.first(),
       request.stageDetails
     )
+
+    sendStatusUpdateToKingdom(
+      newStatusUpdateRequest(
+        request.globalComputationId,
+        computationsDatabase.validInitialStages.first()
+      )
+    )
+
     return computationsDatabase.readComputationToken(request.globalComputationId)!!
       .toCreateComputationResponse()
   }
@@ -91,6 +116,14 @@ class ComputationStorageServiceImpl(
         else -> error("Unknown CompletedReason $it")
       }
     )
+
+    sendStatusUpdateToKingdom(
+      newStatusUpdateRequest(
+        request.token.globalComputationId,
+        request.endingComputationStage
+      )
+    )
+
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toFinishComputationResponse()
   }
@@ -139,6 +172,13 @@ class ComputationStorageServiceImpl(
       },
       request.stageDetails
     )
+
+    sendStatusUpdateToKingdom(
+      newStatusUpdateRequest(
+        request.token.globalComputationId,
+        request.nextComputationStage
+      )
+    )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toAdvanceComputationStageResponse()
   }
@@ -156,6 +196,65 @@ class ComputationStorageServiceImpl(
   ): EnqueueComputationResponse {
     computationsDatabase.enqueue(request.token.toDatabaseEditToken())
     return EnqueueComputationResponse.getDefaultInstance()
+  }
+
+  private fun ComputationStage.toMpcAlgorithm(): MpcAlgorithm {
+    return when (this.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> MpcAlgorithm.LIQUID_LEGIONS
+      else -> error("Unsupported computationType $this")
+    }
+  }
+
+  private fun ComputationStage.toStageNumber(): Int {
+    return when (this.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
+        this.liquidLegionsSketchAggregation.number
+      else -> error("Unsupported computationStage $this")
+    }
+  }
+
+  private fun ComputationStage.toStageName(): String {
+    return when (this.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
+        this.liquidLegionsSketchAggregation.name
+      else -> error("Unsupported computationStage $this")
+    }
+  }
+
+  private fun newStatusUpdateRequest(
+    globalId: String,
+    computationStage: ComputationStage,
+    attempt: Long = 0L
+  ): CreateGlobalComputationStatusUpdateRequest {
+    return CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
+      parentBuilder.globalComputationId = globalId
+      statusUpdateBuilder.apply {
+        selfReportedIdentifier = duchyName
+        stageDetailsBuilder.apply {
+          algorithm = computationStage.toMpcAlgorithm()
+          stageNumber = computationStage.toStageNumber().toLong()
+          stageName = computationStage.toStageName()
+          start = clock.gcpTimestamp().toProto()
+          attemptNumber = attempt
+        }
+        updateMessage = "Computation $globalId at stage ${computationStage.toStageName()}, " +
+          "attempt $attempt"
+      }
+    }.build()
+  }
+
+  private suspend fun sendStatusUpdateToKingdom(
+    request: CreateGlobalComputationStatusUpdateRequest
+  ) {
+    try {
+      globalComputationsClient.createGlobalComputationStatusUpdate(request)
+    } catch (ignored: Exception) {
+      logger.warning("Failed to update status change to the kingdom. $ignored")
+    }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 

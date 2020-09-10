@@ -15,13 +15,19 @@
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.nhaarman.mockitokotlin2.UseConstructor
+import com.nhaarman.mockitokotlin2.mock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
@@ -29,7 +35,6 @@ import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
@@ -41,17 +46,21 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 @ExperimentalCoroutinesApi
 class ComputationStorageServiceImplTest {
   private val fakeDatabase = FakeComputationStorage(listOf("A", "B", "C", "D"))
-
-  private val fakeService = ComputationStorageServiceImpl(fakeDatabase)
+  private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(fakeService) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(mockGlobalComputations)
+  }
 
-  lateinit var client: ComputationStorageServiceCoroutineStub
+  private val fakeService: ComputationStorageServiceImpl
 
-  @Before
-  fun setup() {
-    client = ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel)
+  init {
+    val channel = grpcTestServerRule.channel
+    fakeService = ComputationStorageServiceImpl(
+      fakeDatabase, GlobalComputationsCoroutineStub(channel), "duchy 1"
+    )
   }
 
   @Test
@@ -77,6 +86,27 @@ class ComputationStorageServiceImplTest {
           computationStage = LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage()
         }.build().toFinishComputationResponse()
       )
+
+    verifyProtoArgument(
+      mockGlobalComputations,
+      GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+    ).comparingExpectedFieldsOnly()
+      .isEqualTo(
+        CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
+          parentBuilder.globalComputationId = id
+          statusUpdateBuilder.apply {
+            selfReportedIdentifier = "duchy 1"
+            stageDetailsBuilder.apply {
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
+              stageNumber = LiquidLegionsSketchAggregationStage.COMPLETED.number.toLong()
+              stageName = LiquidLegionsSketchAggregationStage.COMPLETED.name
+              attemptNumber = 0
+            }
+            updateMessage = "Computation $id at stage COMPLETED, attempt 0"
+          }
+        }
+          .build()
+      )
   }
 
   @Test
@@ -94,7 +124,7 @@ class ComputationStorageServiceImplTest {
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
 
     val tokenAfterRecordingBlob =
-      client.recordOutputBlobPath(
+      fakeService.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder().apply {
           token = tokenAtStart
           outputBlobId = 1L
@@ -119,6 +149,27 @@ class ComputationStorageServiceImplTest {
           addBlobs(newInputBlobMetadata(id = 0L, key = "inputs_to_new_stage"))
           addBlobs(newEmptyOutputBlobMetadata(id = 1L))
         }.build().toAdvanceComputationStageResponse()
+      )
+
+    verifyProtoArgument(
+      mockGlobalComputations,
+      GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+    ).comparingExpectedFieldsOnly()
+      .isEqualTo(
+        CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
+          parentBuilder.globalComputationId = id
+          statusUpdateBuilder.apply {
+            selfReportedIdentifier = "duchy 1"
+            stageDetailsBuilder.apply {
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
+              stageNumber = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.number.toLong()
+              stageName = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.name
+              attemptNumber = 0
+            }
+            updateMessage = "Computation $id at stage WAIT_FLAG_COUNTS, attempt 0"
+          }
+        }
+          .build()
       )
   }
 
@@ -153,7 +204,7 @@ class ComputationStorageServiceImplTest {
         )
       )
     }.build()
-    assertThat(client.getComputationIds(getIdsInMillStagesRequest))
+    assertThat(fakeService.getComputationIds(getIdsInMillStagesRequest))
       .isEqualTo(
         GetComputationIdsResponse.newBuilder().apply {
           addAllGlobalIds(setOf(blindId, decryptId))
@@ -195,5 +246,26 @@ class ComputationStorageServiceImplTest {
     assertThat(fakeService.claimWork(request)).isEqualToDefaultInstance()
     assertThat(fakeService.getComputationToken(claimed.toGetTokenRequest()))
       .isEqualTo(claimedAtStart.toGetComputationTokenResponse())
+
+    verifyProtoArgument(
+      mockGlobalComputations,
+      GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+    ).comparingExpectedFieldsOnly()
+      .isEqualTo(
+        CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
+          parentBuilder.globalComputationId = unclaimed
+          statusUpdateBuilder.apply {
+            selfReportedIdentifier = "duchy 1"
+            stageDetailsBuilder.apply {
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
+              stageNumber = LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.number.toLong()
+              stageName = LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.name
+              attemptNumber = 1
+            }
+            updateMessage = "Computation $unclaimed at stage TO_BLIND_POSITIONS, attempt 1"
+          }
+        }
+          .build()
+      )
   }
 }

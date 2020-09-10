@@ -58,7 +58,7 @@ private class Flags {
   @CommandLine.Option(
     names = ["--global-computation-service-target"],
     description = ["Address and port of the Global Computation Service"],
-    required = true,
+    required = true
   )
   lateinit var globalComputationsService: String
     private set

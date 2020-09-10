@@ -50,13 +50,18 @@ internal class LiquidLegionsHeraldTest {
 
   private val globalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {}
+  private val duchyName = "foo"
   private val otherDuchyNames = listOf("Bavaria", "Carinthia")
   private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(globalComputations)
-    addService(ComputationStorageServiceImpl(fakeComputationStorage))
+    addService(
+      ComputationStorageServiceImpl(
+        fakeComputationStorage, globalComputationsStub, duchyName
+      )
+    )
   }
 
   private val storageServiceStub: ComputationStorageServiceCoroutineStub by lazy {

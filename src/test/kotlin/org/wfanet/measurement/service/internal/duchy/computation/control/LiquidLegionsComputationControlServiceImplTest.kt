@@ -30,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
@@ -80,20 +81,21 @@ class LiquidLegionsComputationControlServiceImplTest {
       FakeComputationsBlobDb(fakeBlobs),
       otherDuchyNames
     )
+    globalComputationClient = GlobalComputationsCoroutineStub(channel)
 
     addService(
       LiquidLegionsComputationControlServiceImpl(computationStorageClients)
         .withDuchyIdentities()
     )
-
-    addService(ComputationStorageServiceImpl(fakeComputationStorage))
+    addService(ComputationStorageServiceImpl(fakeComputationStorage, globalComputationClient, "DUCHY 1"))
   }
 
   private lateinit var computationStorageClients:
     LiquidLegionsSketchAggregationComputationStorageClients
   private lateinit var storageClient: ComputationStorageServiceCoroutineStub
-  lateinit var bavariaClient: ComputationControlServiceCoroutineStub
-  lateinit var carinthiaClient: ComputationControlServiceCoroutineStub
+  private lateinit var bavariaClient: ComputationControlServiceCoroutineStub
+  private lateinit var carinthiaClient: ComputationControlServiceCoroutineStub
+  private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
 
   @Before
   fun setup() {

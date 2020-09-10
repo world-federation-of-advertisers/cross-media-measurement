@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
+import java.time.Duration
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageDetails
@@ -45,10 +49,19 @@ abstract class ComputationStorageServer : Runnable {
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
     computationDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails>
   ) {
+    val channel = buildChannel(flags.globalComputationsService, flags.channelShutdownTimeout)
+
+    val globalComputationsServiceClient = GlobalComputationsCoroutineStub(channel)
+      .withDuchyId(flags.duchy.duchyName)
+
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
-      ComputationStorageServiceImpl(newSingleProtocolDb(readOnlyComputationDb, computationDb))
+      ComputationStorageServiceImpl(
+        computationsDatabase = newSingleProtocolDb(readOnlyComputationDb, computationDb),
+        globalComputationsClient = globalComputationsServiceClient,
+        duchyName = flags.duchy.duchyName
+      )
     ).start().blockUntilShutdown()
   }
 
@@ -76,6 +89,23 @@ abstract class ComputationStorageServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
+      private set
+
+    @CommandLine.Option(
+      names = ["--channel-shutdown-timeout"],
+      defaultValue = "3s",
+      description = ["How long to allow for the gRPC channel to shutdown."],
+      required = true
+    )
+    lateinit var channelShutdownTimeout: Duration
+      private set
+
+    @CommandLine.Option(
+      names = ["--global-computation-service-target"],
+      description = ["Address and port of the Global Computation Service"],
+      required = true
+    )
+    lateinit var globalComputationsService: String
       private set
   }
 

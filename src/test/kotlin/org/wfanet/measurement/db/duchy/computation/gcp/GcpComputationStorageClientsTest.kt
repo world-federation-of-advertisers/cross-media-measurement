@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
@@ -79,13 +80,15 @@ private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
 class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
-  private val fakeService =
-    ComputationStorageServiceImpl(
-      FakeComputationStorage(DUCHIES.subList(1, 3))
-    )
+  private val fakeDatabase = FakeComputationStorage(DUCHIES.subList(1, 3))
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(fakeService) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    globalComputationClient = GlobalComputationsCoroutineStub(channel)
+    addService(ComputationStorageServiceImpl(fakeDatabase, globalComputationClient, "DUCHY 1"))
+  }
+
+  private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
 
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {
