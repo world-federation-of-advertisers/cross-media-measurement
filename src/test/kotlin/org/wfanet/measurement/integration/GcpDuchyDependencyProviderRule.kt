@@ -2,6 +2,7 @@ package org.wfanet.measurement.integration
 
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import java.time.Duration
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.Duchy
@@ -85,7 +86,8 @@ class GcpDuchyDependencyProviderRule(
         duchyName = duchyId,
         duchyOrder = DUCHY_ORDER,
         blobStorageBucket = "mill-computation-stage-storage-$duchyId",
-        computationMutations = ComputationMutations(stageEnumHelper, stageDetails)
+        computationMutations = ComputationMutations(stageEnumHelper, stageDetails),
+        lockDuration = Duration.ofSeconds(1)
       )
 
     return object :

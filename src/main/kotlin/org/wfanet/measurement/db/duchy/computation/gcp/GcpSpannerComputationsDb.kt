@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TransactionContext
 import com.google.protobuf.Message
 import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
@@ -53,7 +54,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
   private val duchyOrder: DuchyOrder,
   private val blobStorageBucket: String = "mill-computation-stage-storage",
   private val computationMutations: ComputationMutations<StageT, StageDetailsT>,
-  private val clock: Clock = Clock.systemUTC()
+  private val clock: Clock = Clock.systemUTC(),
+  private val lockDuration: Duration = Duration.ofMinutes(5)
 ) : ComputationsRelationalDb<StageT, StageDetailsT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
@@ -249,11 +251,11 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       computationId,
       clock.gcpTimestamp(),
       lockOwner = ownerId,
-      lockExpirationTime = fiveMinutesInTheFuture()
+      lockExpirationTime = nextLockExpiration()
     )
   }
 
-  private fun fiveMinutesInTheFuture() = clock.instant().plusSeconds(300).toGcpTimestamp()
+  private fun nextLockExpiration(): Timestamp = clock.instant().plus(lockDuration).toGcpTimestamp()
 
   override suspend fun updateComputationStage(
     token: ComputationStorageEditToken<StageT>,
@@ -388,7 +390,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
           // The computation is ready for processing by some worker right away.
           AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTime
           // The computation lock will expire sometime in the future.
-          AfterTransition.CONTINUE_WORKING -> fiveMinutesInTheFuture()
+          AfterTransition.CONTINUE_WORKING -> nextLockExpiration()
         }
       )
     )
