@@ -43,7 +43,8 @@ objectSets: [
   kingdom_service,
   fake_pod,
   duchy_pod,
-  kingdom_pod
+  kingdom_pod,
+  setup_job
 ]
 
 fake_service: "spanner-emulator": {
@@ -741,4 +742,30 @@ kingdom_pod: "requisition-server-pod": {
     }]
   }]
 }
-
+setup_job: "push-spanner-schema-job": {
+  apiVersion: "batch/v1"
+  kind:       "Job"
+  metadata: {
+    name: "push-spanner-schema-job"
+  }
+  spec: template : spec: {
+    containers: [{
+      name:            "push-spanner-schema-container"
+      image:           "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
+      imagePullPolicy: "Never"
+      args: [
+        "--emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)",
+        "--create-instance",
+        "--instance-config-id=spanner-emulator",
+        "--instance-display-name=EmulatorInstance",
+        "--instance-node-count=1",
+        "--instance-name=emulator-instance",
+        "--project-name=PrivateReachAndFrequencyEstimator",
+        "--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
+        "--databases=duchy_metric_values=/app/wfa_measurement_system/src/main/db/gcp/metric_values.sdl",
+        "--databases=duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
+      ]
+     }]
+    restartPolicy: "OnFailure"
+  }
+}
