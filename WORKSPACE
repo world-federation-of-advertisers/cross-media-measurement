@@ -159,12 +159,20 @@ load(
     "container_pull",
 )
 
-# Find hashes at https://console.cloud.google.com/gcr/images/distroless/GLOBAL/java?gcrImageListsize=30&pli=1
+# docker.io/debian:bullseye-slim
 container_pull(
-    name = "java_base",
-    digest = "sha256:2315ed1472a09826c1f31ab93ff13ceaa3a4e7d5482f357d15a296b3db0d1c96",
+    name = "debian_bullseye",
+    digest = "sha256:d92a89b71e6adc50535710f53c78bb5bc84f80549e48342856bb2cc6c87e4f2a",
+    registry = "docker.io",
+    repository = "debian",
+)
+
+# See //src/main/docker/base:push_java_base
+container_pull(
+    name = "debian_java_base",
+    digest = "sha256:e2d6a9216a49e4c909690a1f98d4670aa503d6a3fe5d6f1f9a171eadb45e23e5",
     registry = "gcr.io",
-    repository = "distroless/java",
+    repository = "ads-open-measurement/java-base",
 )
 
 load(
@@ -268,20 +276,13 @@ cloud_spanner_emulator_binaries(
     version = "0.8.0",
 )
 
-# Rules for swig wrapping.
-git_repository(
-    name = "wfa_rules_swig",
-    commit = "4799cbfa2d0e335208d790729ed4b49d34968245",
-    remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
-    shallow_since = "1595012448 -0700",
-)
-
 # CUE
 
 git_repository(
     name = "com_github_tnarg_rules_cue",
     commit = "540ca8c02f438f7ef3e53d64d4e4e859d578cc15",
-    remote = "https://github.com/tnarg/rules_cue.git",
+    remote = "https://github.com/tnarg/rules_cue",
+    shallow_since = "1590098645 -0700",
 )
 
 load("@com_github_tnarg_rules_cue//cue:deps.bzl", "cue_register_toolchains")
@@ -290,6 +291,14 @@ load("@com_github_tnarg_rules_cue//:go.bzl", "go_modules")
 go_modules()
 
 cue_register_toolchains()
+
+# Rules for swig wrapping.
+git_repository(
+    name = "wfa_rules_swig",
+    commit = "4799cbfa2d0e335208d790729ed4b49d34968245",
+    remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
+    shallow_since = "1595012448 -0700",
+)
 
 # Public APIs for measurement system.
 git_repository(

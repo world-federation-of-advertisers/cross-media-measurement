@@ -1,0 +1,46 @@
+# Base images.
+
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
+load("@io_bazel_rules_docker//docker/package_managers:download_pkgs.bzl", "download_pkgs")
+load("@io_bazel_rules_docker//docker/package_managers:install_pkgs.bzl", "install_pkgs")
+
+JAVA_HOME = "/usr/lib/jvm/java-11-openjdk-amd64"
+
+JAVA_BIN = JAVA_HOME + "/bin"
+
+download_pkgs(
+    name = "packages",
+    image_tar = "@debian_bullseye//image",
+    packages = [
+        "openjdk-11-jre-headless",
+    ],
+)
+
+install_pkgs(
+    name = "packages_image",
+    image_tar = "@debian_bullseye//image",
+    installables_tar = ":packages.tar",
+    output_image_name = "packages_image",
+)
+
+container_image(
+    name = "java_base",
+    base = ":packages_image.tar",
+    entrypoint = [
+        JAVA_BIN + "/java",
+        "-jar",
+    ],
+    env = {
+        "JAVA_HOME": JAVA_HOME,
+        "PATH": JAVA_BIN + ":$$PATH",
+    },
+    symlinks = {"/usr/bin/java": JAVA_BIN + "/java"},
+)
+
+container_push(
+    name = "push_java_base",
+    format = "Docker",
+    image = ":java_base",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/java-base",
+)

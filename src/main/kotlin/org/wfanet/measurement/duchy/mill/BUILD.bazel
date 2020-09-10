@@ -90,6 +90,7 @@ java_binary(
 
 java_image(
     name = "gcs_liquid_legions_mill_daemon_image",
+    base = "@debian_java_base//image",
     main_class = "org.wfanet.measurement.duchy.mill.GcsLiquidLegionsMillDaemonKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":gcs_liquid_legions_mill_daemon"],
