@@ -62,19 +62,7 @@ package_group(
 
 filegroup(
     name = "kingdom_and_single_duchy",
-    srcs = [
-        "kingdom_and_single_duchy.yaml",
-        ":kingdom_and_single_duchy_from_cue.yaml",
-    ],
-    data = [
-        ":all_archives",
-    ],
-    visibility = [":k8s_deployer"],
-)
-
-filegroup(
-    name = "deploy_to_kind",
-    srcs = ["deploy_to_kind.yaml"],
+    srcs = [":kingdom_and_single_duchy_from_cue.yaml"],
     data = [
         ":all_archives",
     ],
