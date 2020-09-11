@@ -62,20 +62,12 @@ package_group(
 
 filegroup(
     name = "kingdom_and_single_duchy",
-    srcs = ["kingdom_and_single_duchy.yaml"],
+    srcs = [
+        "kingdom_and_single_duchy.yaml",
+        ":kingdom_and_single_duchy_from_cue.yaml",
+    ],
     data = [
         ":all_archives",
-    ],
-    visibility = [":k8s_deployer"],
-)
-
-filegroup(
-    name = "kingdom_and_single_duchy_from_cue",
-    srcs = ["kingdom_and_single_duchy_from_cue.yaml"],
-    data = [
-        ":backend_fake_image_archives",
-        ":duchy_image_archives",
-        ":kingdom_image_archives",
     ],
     visibility = [":k8s_deployer"],
 )
@@ -89,11 +81,12 @@ filegroup(
     visibility = [":k8s_deployer"],
 )
 
-cue_export(
-    name = "k8s_yaml",
-    src = "k8s.cue",
-    output_format = "yaml",
-    output_name = "k8s.yaml",
+genrule(
+    name = "kingdom_and_single_duchy_from_cue",
+    srcs = ["kingdom_and_single_duchy.cue"],
+    outs = ["kingdom_and_single_duchy_from_cue.yaml"],
+    cmd = "cue cmd dump $< > $@",
+    tools = [],
 )
 
 ALL_IMAGES = DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES + SETUP_IMAGES

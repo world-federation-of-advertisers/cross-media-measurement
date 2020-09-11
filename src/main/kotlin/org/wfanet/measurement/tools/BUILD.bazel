@@ -14,7 +14,6 @@ kt_jvm_library(
     data = [
         "//src/main/k8s:deploy_to_kind",
         "//src/main/k8s:kingdom_and_single_duchy",
-        "//src/main/k8s:kingdom_and_single_duchy_from_cue",
     ],
     deps = [
         "//imports/java/com/google/devtools/build/runfiles",
