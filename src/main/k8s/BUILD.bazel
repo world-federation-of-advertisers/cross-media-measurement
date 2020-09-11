@@ -95,14 +95,14 @@ ALL_IMAGE_ARCHIVES = [name + ".tar" for name in ALL_IMAGES]
 
 k8s_apply(
     name = "kingdom_and_single_duchy_kind",
-    src = "kingdom_and_single_duchy.yaml",
+    src = ":kingdom_and_single_duchy_from_cue.yaml",
     image_archives = ALL_IMAGE_ARCHIVES,
     k8s_environment = "kind",
 )
 
 k8s_apply(
-    name = "kingdom_and_single_duchy_usernetes",
-    src = "kingdom_and_single_duchy.yaml",
+    name = "kingdom_and_single_duchy_u7s",
+    src = ":kingdom_and_single_duchy_from_cue.yaml",
     image_archives = ALL_IMAGE_ARCHIVES,
     k8s_environment = "usernetes-containerd",
 )
