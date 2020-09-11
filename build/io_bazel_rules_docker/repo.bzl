@@ -17,9 +17,9 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-def rules_docker_repo(version, sha256):
+def rules_docker_repo(version, sha256, name = "io_bazel_rules_docker"):
     http_archive(
-        name = "io_bazel_rules_docker",
+        name = name,
         sha256 = sha256,
         strip_prefix = "rules_docker-" + version,
         urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v{version}/rules_docker-v{version}.tar.gz".format(version = version)],

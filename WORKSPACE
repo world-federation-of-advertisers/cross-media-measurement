@@ -129,12 +129,12 @@ protobuf_deps()
 
 # @io_bazel_rules_docker
 
-# Download the rules_docker repository at release v0.14.4
-http_archive(
+load("//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
+
+rules_docker_repo(
     name = "io_bazel_rules_docker",
     sha256 = "4521794f0fba2e20f3bf15846ab5e01d5332e587e9ce81629c7f96c793bb7036",
-    strip_prefix = "rules_docker-0.14.4",
-    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.14.4/rules_docker-v0.14.4.tar.gz"],
+    version = "0.14.4",
 )
 
 load(
@@ -151,6 +151,20 @@ container_deps()
 load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
 
 pip_deps()
+
+load(
+    "@io_bazel_rules_docker//java:image.bzl",
+    java_image_repositories = "repositories",
+)
+
+java_image_repositories()
+
+load(
+    "@io_bazel_rules_docker//kotlin:image.bzl",
+    kotlin_image_repositories = "repositories",
+)
+
+kotlin_image_repositories()
 
 load(
     "@io_bazel_rules_docker//container:container.bzl",
@@ -172,13 +186,6 @@ container_pull(
     registry = "gcr.io",
     repository = "ads-open-measurement/java-base",
 )
-
-load(
-    "@io_bazel_rules_docker//kotlin:image.bzl",
-    kotlin_image_repositories = "repositories",
-)
-
-kotlin_image_repositories()
 
 # @com_google_private_join_and_compute
 
