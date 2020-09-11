@@ -1,6 +1,5 @@
 package org.wfanet.measurement.integration
 
-import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.math.BigInteger
 import java.util.logging.Logger
@@ -48,7 +47,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
     get() = kingdomRelationalDatabaseRule.value
 
-  private val kingdom = InProcessKingdom(verboseGrpcLogging = false) { kingdomRelationalDatabase }
+  private val kingdom = InProcessKingdom(verboseGrpcLogging = true) { kingdomRelationalDatabase }
 
   private val duchies: List<InProcessDuchy> by lazy {
     DUCHIES.map { duchy ->

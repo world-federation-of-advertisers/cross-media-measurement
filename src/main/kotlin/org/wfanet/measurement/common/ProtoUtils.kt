@@ -18,6 +18,7 @@ import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.ProtocolMessageEnum
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.JsonFormat
+import java.time.Clock
 import java.time.Instant
 
 /** Converts a protobuf [MessageOrBuilder] into its canonical JSON representation.*/
@@ -32,6 +33,8 @@ fun Instant.toProtoTime(): Timestamp =
     .build()
 
 fun Timestamp.toInstant(): Instant = Instant.ofEpochSecond(seconds, nanos.toLong())
+
+fun Clock.protoTimestamp(): Timestamp = instant().toProtoTime()
 
 val ProtocolMessageEnum.numberAsLong: Long
   get() = number.toLong()

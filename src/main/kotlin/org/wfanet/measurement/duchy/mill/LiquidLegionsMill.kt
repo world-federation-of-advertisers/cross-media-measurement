@@ -18,6 +18,8 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.file.Paths
+import java.time.Clock
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,16 +32,23 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
+import org.wfanet.measurement.duchy.mpcAlgorithm
+import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
@@ -64,7 +73,6 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -82,8 +90,9 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as Li
  *    computation table.
  * @param chunkSize The size of data chunk when sending result to other duchies.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
+ * @param clock A clock
  */
-@OptIn(ExperimentalCoroutinesApi::class)  // for onEmpty
+@OptIn(ExperimentalCoroutinesApi::class) // for onEmpty
 class LiquidLegionsMill(
   private val millId: String,
   private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
@@ -94,7 +103,8 @@ class LiquidLegionsMill(
   private val cryptoWorker: LiquidLegionsCryptoWorker,
   private val throttler: MinimumIntervalThrottler,
   private val chunkSize: Int = 2_000_000,
-  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 10_000_000L, 10)
+  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 10_000_000L, 10),
+  private val clock: Clock = Clock.systemUTC()
 ) {
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
@@ -125,21 +135,34 @@ class LiquidLegionsMill(
   private suspend fun processNextComputation(token: ComputationToken) {
     val stage = token.computationStage.liquidLegionsSketchAggregation
     logger.info("@Mill $millId: Processing computation ${token.globalComputationId}, stage $stage")
-    when (token.computationStage.liquidLegionsSketchAggregation) {
-      LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
-        confirmRequisitions(token)
-      LiquidLegionsStage.TO_ADD_NOISE,
-      LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
-        addNoise(token)
-      LiquidLegionsStage.TO_BLIND_POSITIONS ->
-        blindPositions(token)
-      LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
-        blindPositionsAndJoinRegisters(token)
-      LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
-        decryptFlagCountsAndComputeMetrics(token)
-      LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS ->
-        decryptFlagCounts(token)
-      else -> error("Unexpected stage for mill to process: $token")
+    try {
+      when (token.computationStage.liquidLegionsSketchAggregation) {
+        LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
+          confirmRequisitions(token)
+        LiquidLegionsStage.TO_ADD_NOISE,
+        LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
+          addNoise(token)
+        LiquidLegionsStage.TO_BLIND_POSITIONS ->
+          blindPositions(token)
+        LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
+          blindPositionsAndJoinRegisters(token)
+        LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+          decryptFlagCountsAndComputeMetrics(token)
+        LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS ->
+          decryptFlagCounts(token)
+        else -> error("Unexpected stage: $stage")
+      }
+    } catch (e: IllegalStateException) {
+      throw PermanentComputationError(e)
+    } catch (e: PermanentComputationError) {
+      logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: Exception:", e)
+      sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.PERMANENT))
+      // Mark the computation FAILED for all permanent errors
+      completeComputation(token, CompletedReason.FAILED)
+    } catch (e: Throwable) {
+      // Treat all other errors as transient.
+      logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: Exception", e)
+      sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.TRANSIENT))
     }
   }
 
@@ -160,7 +183,7 @@ class LiquidLegionsMill(
       } catch (e: StatusException) {
         // Do nothing for NOT_FOUND and DATA_LOSS errors.
         if (e.status.code !in listOf(Status.Code.NOT_FOUND, Status.Code.DATA_LOSS)) {
-          throw e
+          throw TransientComputationError(e)
         }
       }
     }
@@ -172,27 +195,33 @@ class LiquidLegionsMill(
       }.build()
     )
 
-    return if (availableRequisitions.size != requisitionsToConfirm.size) {
-      logger.warning(
-        "Computation failed due to missing requisitions: " +
-          "$token, $requisitionsToConfirm, $availableRequisitions"
-      )
-      completeComputation(token, CompletedReason.FAILED)
-    } else {
-      val bytes = bytesLists.asFlow().toByteString().toByteArray()
-      // cache the combined local requisitions to blob store.
-      val nextToken = storageClients.writeSingleOutputBlob(token, bytes)
-      storageClients.transitionComputationToStage(
-        nextToken,
-        inputsToNextStage = nextToken.outputPathList(),
-        stage = when (checkNotNull(nextToken.role)) {
-          RoleInComputation.PRIMARY -> LiquidLegionsStage.WAIT_SKETCHES
-          RoleInComputation.SECONDARY -> LiquidLegionsStage.WAIT_TO_START
-          RoleInComputation.UNKNOWN,
-          RoleInComputation.UNRECOGNIZED -> error("Unknown role in token: $nextToken")
-        }
-      )
+    if (availableRequisitions.size != requisitionsToConfirm.size) {
+      val errorMessage =
+        """
+        @Mill $millId:
+          Computation ${token.globalComputationId} failed due to missing requisitions.
+        Expected:
+          $requisitionsToConfirm
+        Actual:
+          $availableRequisitions
+        """.trimIndent()
+      throw PermanentComputationError(Exception(errorMessage))
     }
+
+    val bytes = bytesLists.asFlow().toByteString().toByteArray()
+    // cache the combined local requisitions to blob store.
+    val nextToken = storageClients.writeSingleOutputBlob(token, bytes)
+    return storageClients.transitionComputationToStage(
+      nextToken,
+      inputsToNextStage = nextToken.outputPathList(),
+      stage = when (checkNotNull(nextToken.role)) {
+        RoleInComputation.PRIMARY -> LiquidLegionsStage.WAIT_SKETCHES
+        RoleInComputation.SECONDARY -> LiquidLegionsStage.WAIT_TO_START
+        RoleInComputation.UNKNOWN,
+        RoleInComputation.UNRECOGNIZED ->
+          error("Unknown role: ${nextToken.role}")
+      }
+    )
   }
 
   /** Process computation in the TO_ADD_NOISE stage */
@@ -201,7 +230,7 @@ class LiquidLegionsMill(
       val inputCount = when (token.role) {
         RoleInComputation.PRIMARY -> workerStubs.size + 1
         RoleInComputation.SECONDARY -> 1
-        else -> error { "Unknown role in computation ${token.role}" }
+        else -> error("Unknown role: ${token.role}")
       }
       cryptoWorker.addNoiseToSketch(
         // TODO: set other parameters when AddNoise actually adds noise.
@@ -216,7 +245,7 @@ class LiquidLegionsMill(
     when (token.role) {
       RoleInComputation.PRIMARY -> sendConcatenatedSketch(nextToken, bytesFlow)
       RoleInComputation.SECONDARY -> sendNoisedSketch(nextToken, bytesFlow)
-      else -> error { "Unknown role in computation ${token.role}" }
+      else -> error("Unknown role: ${token.role}")
     }
 
     return storageClients.transitionComputationToStage(
@@ -254,8 +283,6 @@ class LiquidLegionsMill(
 
   /** Process computation in the TO_BLIND_POSITIONS stage */
   private suspend fun blindPositions(token: ComputationToken): ComputationToken {
-    // TODO: Catch permanent errors and terminate the Computation
-
     val (bytes, nextToken) = existingOutputOr(token) {
       cryptoWorker.blindOneLayerRegisterIndex(
         BlindOneLayerRegisterIndexRequest.newBuilder()
@@ -383,19 +410,30 @@ class LiquidLegionsMill(
   private suspend fun existingOutputOr(
     token: ComputationToken,
     block: suspend () -> ByteString
-  ): CachedResult =
+  ): CachedResult {
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
-      CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
-    } else {
-      val newResult: ByteString = block()
-      CachedResult(newResult, storageClients.writeSingleOutputBlob(token, newResult.toByteArray()))
+      return CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
     }
+    val newResult: ByteString =
+      try {
+        block()
+      } catch (error: Throwable) {
+        // All errors from block() are permanent and would cause the computation to FAIL
+        throw PermanentComputationError(error)
+      }
+    return CachedResult(
+      newResult,
+      storageClients.writeSingleOutputBlob(token, newResult.toByteArray())
+    )
+  }
 
   private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
     val blobMap: Map<ComputationStageBlobMetadata, ByteArray> = storageClients.readInputBlobs(token)
-    require(blobMap.size == count) {
-      "Unexpected number of input blobs. expected $count, actual ${blobMap.size}."
+    if (blobMap.size != count) {
+      throw PermanentComputationError(
+        Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
+      )
     }
     return blobMap.values.asFlow().map { ByteString.copyFrom(it) }.toByteString()
   }
@@ -422,6 +460,16 @@ class LiquidLegionsMill(
     return response.token
   }
 
+  private suspend fun sendStatusUpdateToKingdom(
+    request: CreateGlobalComputationStatusUpdateRequest
+  ) {
+    try {
+      globalComputationsClient.createGlobalComputationStatusUpdate(request)
+    } catch (ignored: Exception) {
+      logger.warning("Failed to update status change to the kingdom. $ignored")
+    }
+  }
+
   private fun RequisitionKey.toStreamMetricValueRequest(): StreamMetricValueRequest {
     return StreamMetricValueRequest.newBuilder()
       .setResourceKey(
@@ -441,16 +489,47 @@ class LiquidLegionsMill(
       .build()
   }
 
+  private fun newErrorUpdateRequest(
+    token: ComputationToken,
+    message: String,
+    type: ErrorType
+  ): CreateGlobalComputationStatusUpdateRequest {
+    return CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
+      parentBuilder.globalComputationId = token.globalComputationId
+      statusUpdateBuilder.apply {
+        selfReportedIdentifier = millId
+        stageDetailsBuilder.apply {
+          algorithm = token.computationStage.mpcAlgorithm
+          stageNumber = token.computationStage.number.toLong()
+          stageName = token.computationStage.name
+          start = clock.protoTimestamp()
+          attemptNumber = token.attempt.toLong()
+        }
+        updateMessage = "Computation ${token.globalComputationId} at stage " +
+          "${token.computationStage.name}, attempt ${token.attempt} failed."
+        errorDetailsBuilder.apply {
+          errorTime = clock.protoTimestamp()
+          errorType = type
+          errorMessage = "${token.globalComputationId}@$millId: $message"
+        }
+      }
+    }.build()
+  }
+
   private fun nextDuchyStub(token: ComputationToken): ComputationControlServiceCoroutineStub {
     val nextDuchy = token.nextDuchy
     return workerStubs[nextDuchy]
-      ?: error { "No ComputationControlService stub for next duchy '$nextDuchy'" }
+      ?: throw PermanentComputationError(
+        Exception("No ComputationControlService stub for next duchy '$nextDuchy'")
+      )
   }
 
   private fun primaryDuchyStub(token: ComputationToken): ComputationControlServiceCoroutineStub {
     val primaryDuchy = token.primaryDuchy
     return workerStubs[primaryDuchy]
-      ?: error { "No ComputationControlService stub for primary duchy '$primaryDuchy'" }
+      ?: throw PermanentComputationError(
+        Exception("No ComputationControlService stub for primary duchy '$primaryDuchy'")
+      )
   }
 
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
@@ -467,4 +546,7 @@ class LiquidLegionsMill(
       )
     }
   }
+
+  class TransientComputationError(cause: Throwable) : Exception(cause)
+  class PermanentComputationError(cause: Throwable) : Exception(cause)
 }
