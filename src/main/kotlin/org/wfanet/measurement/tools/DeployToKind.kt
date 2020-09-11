@@ -19,8 +19,8 @@ import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
 import kotlin.system.exitProcess
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import picocli.CommandLine
 import picocli.CommandLine.Command
@@ -55,19 +55,10 @@ class DeployToKind() : Callable<Int> {
       .start()
 
     runBlocking {
-      val errJob = GlobalScope.async {
-        process.errorStream.bufferedReader().use {
-          it.lines().forEach { line -> logger.severe(line) }
-        }
-      }
-      val outJob = GlobalScope.async {
-        process.inputStream.bufferedReader().use {
-          it.lines().forEach { line -> logger.info(line) }
-        }
-      }
-
-      errJob.await()
-      outJob.await()
+      joinAll(
+        launch { process.errorStream.bufferedReader().forEachLine(logger::severe) },
+        launch { process.inputStream.bufferedReader().forEachLine(logger::info) }
+      )
     }
 
     process.waitFor()
