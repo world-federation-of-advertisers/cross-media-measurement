@@ -18,7 +18,6 @@ import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
@@ -26,6 +25,9 @@ import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.gcp.gcpTimestamp
+import org.wfanet.measurement.duchy.mpcAlgorithm
+import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -198,29 +200,6 @@ class ComputationStorageServiceImpl(
     return EnqueueComputationResponse.getDefaultInstance()
   }
 
-  private fun ComputationStage.toMpcAlgorithm(): MpcAlgorithm {
-    return when (this.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION -> MpcAlgorithm.LIQUID_LEGIONS
-      else -> error("Unsupported computationType $this")
-    }
-  }
-
-  private fun ComputationStage.toStageNumber(): Int {
-    return when (this.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
-        this.liquidLegionsSketchAggregation.number
-      else -> error("Unsupported computationStage $this")
-    }
-  }
-
-  private fun ComputationStage.toStageName(): String {
-    return when (this.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
-        this.liquidLegionsSketchAggregation.name
-      else -> error("Unsupported computationStage $this")
-    }
-  }
-
   private fun newStatusUpdateRequest(
     globalId: String,
     computationStage: ComputationStage,
@@ -231,13 +210,13 @@ class ComputationStorageServiceImpl(
       statusUpdateBuilder.apply {
         selfReportedIdentifier = duchyName
         stageDetailsBuilder.apply {
-          algorithm = computationStage.toMpcAlgorithm()
-          stageNumber = computationStage.toStageNumber().toLong()
-          stageName = computationStage.toStageName()
+          algorithm = computationStage.mpcAlgorithm
+          stageNumber = computationStage.number.toLong()
+          stageName = computationStage.name
           start = clock.gcpTimestamp().toProto()
           attemptNumber = attempt
         }
-        updateMessage = "Computation $globalId at stage ${computationStage.toStageName()}, " +
+        updateMessage = "Computation $globalId at stage ${computationStage.name}, " +
           "attempt $attempt"
       }
     }.build()

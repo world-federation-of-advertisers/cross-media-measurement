@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy
 
+import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 
@@ -22,6 +23,22 @@ val ComputationStage.name: String
   get() = when (stageCase) {
     ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
       liquidLegionsSketchAggregation.name
+    ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
+  }
+
+val ComputationStage.mpcAlgorithm: MpcAlgorithm
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  get() = when (stageCase) {
+    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
+      MpcAlgorithm.LIQUID_LEGIONS
+    ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
+  }
+
+val ComputationStage.number: Int
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  get() = when (stageCase) {
+    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION ->
+      liquidLegionsSketchAggregation.number
     ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
   }
 
