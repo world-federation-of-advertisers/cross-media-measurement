@@ -1,0 +1,39 @@
+# Remote Build Execution (RBE) images.
+
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
+load("@io_bazel_rules_docker//docker/package_managers:download_pkgs.bzl", "download_pkgs")
+load("@io_bazel_rules_docker//docker/package_managers:install_pkgs.bzl", "install_pkgs")
+
+download_pkgs(
+    name = "packages",
+    image_tar = "@rbe_ubuntu_18_04//image",
+    packages = [
+        "openjdk-11-jdk-headless",
+        "swig",
+        "tzdata",
+    ],
+)
+
+install_pkgs(
+    name = "packages_image",
+    image_tar = "@rbe_ubuntu_18_04//image",
+    installables_tar = ":packages.tar",
+    output_image_name = "packages_image",
+)
+
+container_image(
+    name = "rbe",
+    base = ":packages_image.tar",
+    symlinks = {
+        # Put gzip where rules_docker expects.
+        "/usr/bin/gzip": "/bin/gzip",
+    },
+)
+
+container_push(
+    name = "push_rbe",
+    format = "Docker",
+    image = ":rbe",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/rbe",
+)

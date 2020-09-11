@@ -14,8 +14,6 @@ build:remote --jobs=200
 # and need to be adapted to work with other toolchain containers.
 build:remote --host_javabase=@rbe_default//java:jdk
 build:remote --javabase=@rbe_default//java:jdk
-build:remote --host_java_toolchain=@bazel_tools//tools/jdk:toolchain
-build:remote --java_toolchain=@bazel_tools//tools/jdk:toolchain
 build:remote --crosstool_top=@rbe_default//cc:toolchain
 build:remote --action_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 # Platform flags:

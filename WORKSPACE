@@ -243,31 +243,34 @@ grpc_extra_deps()
 # @bazel_toolchains
 # For RBE (Foundry).
 
-http_archive(
+load("//build/bazel_toolchains:repo.bzl", "bazel_toolchains")
+
+bazel_toolchains(
     name = "bazel_toolchains",
-    sha256 = "a802b753e127a6f73f3f300db5dd83fb618cd798bc880b6a87db9a8777b7939f",
-    strip_prefix = "bazel-toolchains-3.3.0",
-    urls = [
-        "https://github.com/bazelbuild/bazel-toolchains/releases/download/3.3.0/bazel-toolchains-3.3.0.tar.gz",
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/releases/download/3.3.0/bazel-toolchains-3.3.0.tar.gz",
-    ],
+    sha256 = "89a053218639b1c5e3589a859bb310e0a402dedbe4ee369560e66026ae5ef1f2",
+    version = "3.5.0",
+)
+
+RBE_BASE_DIGEST = "sha256:7e09344798abaf239a283b508b17f16827bef619579d38f97e9d028f700f5226"
+
+container_pull(
+    name = "rbe_ubuntu_18_04",
+    digest = RBE_BASE_DIGEST,
+    registry = "marketplace.gcr.io",
+    repository = "google/rbe-ubuntu18-04",
 )
 
 load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
 
 # Configuration for RBE (Foundry).
-# We use an image based on `rbe-ubuntu16-04`, with the following additions:
-#   1. The Ubuntu `tzdata` package is installed, with local timezone set to
-#      `America/Los_Angeles`.
-#   2. The Ubuntu `swig` package is installed.
-#   3. JDK 11 is available at `/usr/lib/jvm/remotejdk11_linux`.
+# See //src/main/docker/rbe:push_rbe for container.
 rbe_autoconfig(
     name = "rbe_default",
-    base_container_digest = "sha256:169876b30f3f8ec0430720d319c7eb8a66268501ca62e2acd4e0e7867d5883df",
-    digest = "sha256:d74a56d26ac77abf054c57cadcec971de5f309fa608a019c2959ceb6da6af7f0",
-    java_home = "/usr/lib/jvm/remotejdk11_linux",
+    base_container_digest = RBE_BASE_DIGEST,
+    digest = "sha256:ce08021cc0a64bcfd9c2abb3261c1304459a8bacbcac9489bb1544d6bca731b8",
+    java_home = "/usr/lib/jvm/java-11-openjdk-amd64",
     registry = "gcr.io",
-    repository = "ads-open-measurement/rbe-ubuntu16-04",
+    repository = "ads-open-measurement/rbe",
     use_legacy_platform_definition = False,
 )
 
