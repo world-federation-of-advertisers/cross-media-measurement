@@ -15,8 +15,22 @@
 package org.wfanet.measurement.loadtest
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
+import java.lang.Exception
 import java.nio.file.Paths
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
+import java.util.logging.Logger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.transform
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.ElGamalPublicKeys
@@ -25,17 +39,30 @@ import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.estimation.Estimators
 import org.wfanet.estimation.ValueHistogram
+import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
+import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
+import org.wfanet.measurement.api.v1alpha.MetricRequisition
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
+import org.wfanet.measurement.internal.MetricDefinition
+import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
-import org.wfanet.measurement.client.v1alpha.publisherdata.org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClient
+import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
+import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.crypto.ElGamalPublicKey
+import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.internal.kingdom.ReportConfig
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.createBlob
 
 class CorrectnessImpl(
+  override val dataProviderCount: Int,
   override val campaignCount: Int,
   override val generatedSetSize: Int = 1000,
   override val universeSize: Long = 10_000_000_000L,
@@ -43,13 +70,132 @@ class CorrectnessImpl(
   override val outputDir: String,
   override val sketchConfig: SketchConfig,
   override val encryptionPublicKey: ElGamalPublicKey,
-  override val storageClient: StorageClient,
-  override val publisherDataClient: PublisherDataClient
+  override val sketchStorageClient: StorageClient,
+  override val encryptedSketchStorageClient: StorageClient,
+  override val reportStorageClient: StorageClient,
+  override val combinedPublicKeyId: String,
+  override val publisherDataStub: PublisherDataCoroutineStub
 ) : Correctness {
 
   private val MAX_COUNTER_VALUE = 10
   private val DECAY_RATE = 23.0
   private val INDEX_SIZE = 330_000L
+  private val GLOBAL_COMPUTATION_ID = "1"
+
+  suspend fun process(relationalDatabase: KingdomRelationalDatabase) {
+    logger.info("Starting with RunID: $runId ...")
+
+    val advertiser = relationalDatabase.createAdvertiser()
+    logger.info("Created an Advertiser: $advertiser")
+    val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
+
+    val (campaignIds, anySketches) =
+      (1..dataProviderCount)
+        .asFlow()
+        .transform { emitAll(relationalDatabase.createDataProvider(externalAdvertiserId)) }
+        .toList()
+        .unzip()
+
+    val reach = estimateCardinality(anySketches)
+    val frequency = estimateFrequency(anySketches)
+    val storedResultsPath = storeEstimationResults(reach, frequency)
+    logger.info("Estimation Results saved into: $outputDir/$runId/reports/$storedResultsPath")
+
+    relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
+
+    logger.info("Finished.")
+  }
+
+  private fun KingdomRelationalDatabase.createDataProvider(externalAdvertiserId: ExternalId): Flow<Pair<ExternalId, AnySketch>> {
+    val dataProvider = this.createDataProvider()
+    logger.info("Created a Data Provider: $dataProvider")
+    val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
+
+    return generateReach().asFlow()
+      .map { reach -> createCampaign(reach, externalAdvertiserId, externalDataProviderId) }
+  }
+
+  private suspend fun KingdomRelationalDatabase.createCampaign(
+    reach: Set<Long>,
+    externalAdvertiserId: ExternalId,
+    externalDataProviderId: ExternalId
+  ): Pair<ExternalId, AnySketch> {
+    val campaign = this.createCampaign(
+      externalDataProviderId,
+      externalAdvertiserId,
+      "Campaign name"
+    )
+    logger.info("Created a Campaign $campaign")
+    val externalCampaignId = ExternalId(campaign.externalCampaignId)
+    val anySketch = generateSketch(reach)
+    val sketchProto = anySketch.toSketchProto(sketchConfig)
+    logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
+
+
+    val storedSketchPath = storeSketch(anySketch)
+    logger.info("Raw Sketch saved into: $outputDir/$runId/sketches/$storedSketchPath")
+
+    val encryptedSketch = encryptSketch(sketchProto)
+    val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
+    logger.info("Encrypted Sketch saved into: $outputDir/$runId/encrypted_sketches/$storedEncryptedSketchPath")
+
+    try {
+      sendToServer(
+        externalDataProviderId.toString(),
+        externalCampaignId.toString(),
+        encryptedSketch
+      )
+    } catch (e: Exception) {
+      logger.warning("Failed sending the sketch for Campaign: ${externalCampaignId.value} to the server due to ${e.cause!!.message}.")
+      throw e
+    }
+
+    return Pair(externalCampaignId, anySketch)
+  }
+
+  private fun KingdomRelationalDatabase.scheduleReport(
+    externalAdvertiserId: ExternalId,
+    campaignIds: List<ExternalId>
+  ) {
+    val metricDefinition = MetricDefinition.newBuilder().apply {
+      sketchBuilder.apply {
+        setSketchConfigId(12345L)
+        type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
+      }
+    }.build()
+    val reportConfig = this.createReportConfig(
+      ReportConfig.newBuilder()
+        .setExternalAdvertiserId(externalAdvertiserId.value)
+        .apply {
+          numRequisitions = campaignCount.toLong()
+          reportConfigDetailsBuilder.apply {
+            addMetricDefinitions(metricDefinition)
+            reportDurationBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 1
+            }
+          }
+        }.build(), campaignIds
+    )
+    logger.info("Created a ReportConfig: $reportConfig")
+    val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
+    val schedule = this.createSchedule(
+      ReportConfigSchedule.newBuilder()
+        .setExternalAdvertiserId(externalAdvertiserId.value)
+        .setExternalReportConfigId(externalReportConfigId.value)
+        .apply {
+          repetitionSpecBuilder.apply {
+            start = Instant.now().toProtoTime()
+            repetitionPeriodBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 1
+            }
+          }
+          nextReportStartTime = repetitionSpec.start
+        }.build()
+    )
+    logger.info("Created a ReportConfigSchedule: $schedule")
+  }
 
   override fun generateReach(): Sequence<Set<Long>> {
     return generateIndependentSets(universeSize, generatedSetSize).take(campaignCount)
@@ -104,17 +250,17 @@ class CorrectnessImpl(
   override suspend fun storeSketch(anySketch: AnySketch): String {
     val sketch: Sketch = anySketch.toSketchProto(sketchConfig)
     val blobKey = generateBlobKey()
-    storageClient.createBlob(
-      blobKey.withBlobKeyPrefix("sketches"),
-      sketch.toByteString()
+    sketchStorageClient.createBlob(
+      blobKey,
+      sketch.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
     )
     return blobKey
   }
 
   override suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String {
     val blobKey = generateBlobKey()
-    storageClient.createBlob(
-      blobKey.withBlobKeyPrefix("encrypted_sketches"),
+    encryptedSketchStorageClient.createBlob(
+      blobKey,
       encryptedSketch.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
     )
     return blobKey
@@ -122,20 +268,19 @@ class CorrectnessImpl(
 
   override suspend fun storeEstimationResults(
     reach: Long,
-    frequency: Map<Long, Long>,
-    globalComputationId: String
+    frequency: Map<Long, Long>
   ): String {
     val computation = GlobalComputation.newBuilder().apply {
-      keyBuilder.globalComputationId = globalComputationId
-      state = GlobalComputation.State.SUCCEEDED
+      keyBuilder.globalComputationId = GLOBAL_COMPUTATION_ID
+      setState(GlobalComputation.State.SUCCEEDED)
       resultBuilder.apply {
         setReach(reach)
         putAllFrequency(frequency)
       }
     }.build()
     val blobKey = generateBlobKey()
-    storageClient.createBlob(
-      blobKey.withBlobKeyPrefix("reports"),
+    reportStorageClient.createBlob(
+      blobKey,
       computation.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
     )
     return blobKey
@@ -144,16 +289,72 @@ class CorrectnessImpl(
   override suspend fun sendToServer(
     dataProviderId: String,
     campaignId: String,
-    metricRequisitionId: String,
-    combinedPublicKeyId: String,
     encryptedSketch: ByteString
   ) {
-    publisherDataClient.uploadMetricValue(
-      dataProviderId,
-      campaignId,
-      metricRequisitionId,
-      combinedPublicKeyId,
-      encryptedSketch.toByteArray()
+    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(250))
+    val combinedPublicKey = CombinedPublicKey.newBuilder().apply {
+      keyBuilder.combinedPublicKeyId = combinedPublicKeyId
+      publicKey = with(encryptionPublicKey) { generator.concat(element) }
+    }.build()
+
+    var uploaded = false
+    while (!uploaded) {
+      throttler.onReady {
+        val requisition: MetricRequisition? = loadMetricRequisitions(dataProviderId, campaignId)
+        if (requisition != null) {
+          uploadRequisition(combinedPublicKey, requisition, encryptedSketch)
+          uploaded = true
+        }
+      }
+    }
+  }
+
+  private suspend fun loadMetricRequisitions(
+    dataProviderId: String,
+    campaignId: String
+  ): MetricRequisition? {
+    val request = ListMetricRequisitionsRequest.newBuilder().apply {
+      parentBuilder.apply {
+        this.dataProviderId = dataProviderId
+        this.campaignId = campaignId
+      }
+      filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
+      pageSize = 1
+    }.build()
+    val response = publisherDataStub.listMetricRequisitions(request)
+    check(response.metricRequisitionsCount <= 1) { "Too many requisitions: $response" }
+    return response.metricRequisitionsList.firstOrNull()
+  }
+
+  private suspend fun uploadRequisition(
+    combinedPublicKey: CombinedPublicKey,
+    metricRequisition: MetricRequisition,
+    encryptedSketch: ByteString
+  ) {
+    publisherDataStub.uploadMetricValue(
+      makeMetricValueFlow(combinedPublicKey, metricRequisition, encryptedSketch)
+    )
+    logger.info("Encrypted Sketch successfully sent to the Publisher Data Service.")
+  }
+
+  private fun makeMetricValueFlow(
+    combinedPublicKey: CombinedPublicKey,
+    metricRequisition: MetricRequisition,
+    encryptedSketch: ByteString
+  ): Flow<UploadMetricValueRequest> = flow {
+    emit(
+      UploadMetricValueRequest.newBuilder().apply {
+        headerBuilder.apply {
+          key = metricRequisition.key
+          this.combinedPublicKey = combinedPublicKey.key
+        }
+      }.build()
+    )
+
+    emit(
+      UploadMetricValueRequest.newBuilder().apply {
+        chunkBuilder.data = encryptedSketch
+      }.build()
     )
   }
 
@@ -172,11 +373,8 @@ class CorrectnessImpl(
     return UUID.randomUUID().toString()
   }
 
-  private fun String.withBlobKeyPrefix(folder: String): String {
-    return "/$outputDir/$runId/$folder/$this"
-  }
-
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     const val STORAGE_BUFFER_SIZE_BYTES = 1024 * 4 // 4 KiB
 
     init {

@@ -90,8 +90,6 @@ MAVEN_ARTIFACTS.update({
     "com.google.cloud:google-cloud-spanner": "1.55.1",
     "com.google.cloud:google-cloud-storage": "1.109.0",
     "com.google.cloud:google-cloud-nio": "0.121.0",
-    "com.google.flogger:flogger": "0.5.1",
-    "com.google.flogger:flogger-system-backend:jar": "0.5.1",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
     "io.grpc:grpc-kotlin-stub": "0.1.2",
     "info.picocli:picocli": "4.4.0",
@@ -314,11 +312,4 @@ git_repository(
     commit = "60a6034ea85dead3b43543633436880ac74bf19e",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     shallow_since = "1598644541 -0400",
-)
-
-# Data Provider client.
-git_repository(
-    name = "data_provider_client",
-    commit = "e7ea7bce8481778a8843d257ee094b877848486a",
-    remote = "sso://team/ads-xmedia-open-measurement-team/data-provider-client",
 )

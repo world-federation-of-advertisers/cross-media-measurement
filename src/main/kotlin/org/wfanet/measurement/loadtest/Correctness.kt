@@ -18,16 +18,19 @@ import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.ElGamalPublicKeys
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
-import org.wfanet.measurement.client.v1alpha.publisherdata.org.wfanet.measurement.client.v1alpha.publisherdata.PublisherDataClient
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.storage.StorageClient
 
 /** Interface for E2E Correctness Test */
 interface Correctness {
 
-  /** Number of campaigns to generate reach and sketch for. */
+  /** Number of data providers. */
+  val dataProviderCount: Int
+
+  /** Number of campaigns per Data Provider to generate reach and sketch for. */
   val campaignCount: Int
 
   /** Size of the unique reach set per campaign. */
@@ -48,11 +51,16 @@ interface Correctness {
   /** [ElGamalPublicKeys] keys required to encrypt the sketches. */
   val encryptionPublicKey: ElGamalPublicKey
 
-  /** Instance of a [StorageClient] to store sketches and estimates. */
-  val storageClient: StorageClient
+  /** Instances of [StorageClient] to store sketches and estimates. */
+  val sketchStorageClient: StorageClient
+  val encryptedSketchStorageClient: StorageClient
+  val reportStorageClient: StorageClient
 
-  /** Instance of a [PublisherDataClient] to send encrypted sketches to Publisher Data Service. */
-  val publisherDataClient: PublisherDataClient
+  /** CombinedPublicKeyId required for Publisher Data Service. */
+  val combinedPublicKeyId: String
+
+  /** Instance of a [PublisherDataCoroutineStub] to send encrypted sketches to Publisher Data Service. */
+  val publisherDataStub: PublisherDataCoroutineStub
 
   /**
    * Generates a sequence of sets, each with [setSize] distinct values in [0, universeSize).
@@ -64,7 +72,7 @@ interface Correctness {
 
   /**
    * Creates an [AnySketch] object and calls insert() method with a set of reach given.
-   * Returning [AnySketch] should have [setSize] number of registers.
+   * Returning [AnySketch] should have at most [setSize] number of registers.
    *
    * @param reach set of longs sized [setSize]
    * @return AnySketch object
@@ -111,21 +119,17 @@ interface Correctness {
    *
    * @param reach Long value of Estimated Cardinality
    * @param frequency Map<Long, Long> value of Estimated Frequency
-   * @param globalComputationId String value of global identifier of the computation
    * @return String path of written file e.g. correctness/[runId]/reports.textproto
    */
   suspend fun storeEstimationResults(
     reach: Long,
-    frequency: Map<Long, Long>,
-    globalComputationId: String
+    frequency: Map<Long, Long>
   ): String
 
   /** Sends encrypted [Sketch] proto to Publisher Data Service. */
   suspend fun sendToServer(
     dataProviderId: String,
     campaignId: String,
-    metricRequisitionId: String,
-    combinedPublicKeyId: String,
     encryptedSketch: ByteString
   )
 }
