@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.herald
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.catch
@@ -25,7 +24,7 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.Throttler
-import org.wfanet.measurement.common.grpcStatusCodeOrRethrow
+import org.wfanet.measurement.common.grpcStatusCode
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.advanceLiquidLegionsComputationStage
@@ -143,8 +142,10 @@ class LiquidLegionsHerald(
       )
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: Exception) {
-      if (e.grpcStatusCodeOrRethrow() == Status.Code.ALREADY_EXISTS) {
+      if (e.grpcStatusCode() == Status.Code.ALREADY_EXISTS) {
         logger.info("[id=$globalId]: Computation already exists")
+      } else {
+        throw e // rethrow all other exceptions.
       }
     }
   }
@@ -193,15 +194,13 @@ private fun StreamActiveGlobalComputationsResponse.toRequisitionKeys(): List<Req
 
 /** Returns true if the error may be transient, i.e. retrying the request may succeed. */
 fun mayBeTransientGrpcError(error: Throwable): Boolean {
-  if (error is StatusRuntimeException) {
-    return when (error.status.code) {
-      Status.Code.ABORTED,
-      Status.Code.DEADLINE_EXCEEDED,
-      Status.Code.RESOURCE_EXHAUSTED,
-      Status.Code.UNKNOWN,
-      Status.Code.UNAVAILABLE -> true
-      else -> false
-    }
+  val statusCode = error.grpcStatusCode() ?: return false
+  return when (statusCode) {
+    Status.Code.ABORTED,
+    Status.Code.DEADLINE_EXCEEDED,
+    Status.Code.RESOURCE_EXHAUSTED,
+    Status.Code.UNKNOWN,
+    Status.Code.UNAVAILABLE -> true
+    else -> false
   }
-  return false
 }
