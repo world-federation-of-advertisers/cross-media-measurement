@@ -712,16 +712,17 @@ duchy_pod: "publisher-data-server-pod": {
     //  Stable unique name for this Duchy.
     [
       "--duchy-name=test-duchy-1",
-      "--metric-values-service-target=${",
+      "--metric-values-service-target=$(GCP_SERVER_SERVICE_HOST):$(GCP_SERVER_SERVICE_PORT)",
       "--port=8080",
-      "--registration-service-target=${",
-      "--requisition-service-target=${REQUISITION_SERVER_SERVICE_HOST}:${REQUISITION_SERVER_SERVICE_PORT}",
+      "--registration-service-target=127.0.0.1:9000",
+      "--requisition-service-target=$(REQUISITION_SERVER_SERVICE_HOST):$(REQUISITION_SERVER_SERVICE_PORT)",
       "--debug-verbose-grpc-server-logging=true",
     ]
     //  gRPC target (authority string or URI) for MetricValues
     // service.
     // TODO: Set k8s service for METRIC-VALUES-SERVICE_HOST}:${" # TODO: Set k8s service for METRIC-VALUES-SERVICE_PORT}"
     // TCP port for gRPC server.
+    // TODO: change registration-service-target when it is implemented.
     //  gRPC target (authority string or URI) for
     // DataProviderRegistration service.
     // TODO: Set k8s service for REGISTRATION-SERVICE_HOST}:${" # TODO: Set k8s service for REGISTRATION-SERVICE_PORT}"
