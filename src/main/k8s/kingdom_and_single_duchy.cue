@@ -72,10 +72,10 @@ objectSets: [
 	_name:  string
 	_image: string
 	_args: [...string]
-	_ports:     [{containerPort: 8080}] | *[]
+	_ports:         [{containerPort: 8080}] | *[]
 	_restartPolicy: string | *"Always"
-	apiVersion: "v1"
-	kind:       "Pod"
+	apiVersion:     "v1"
+	kind:           "Pod"
 	metadata: {
 		name: _name + "-pod"
 		labels: app:           _name + "-app"
@@ -300,7 +300,7 @@ duchy_pod: "spanner-liquid-legions-computation-storage-server-pod": #ServerPod &
 		"--spanner-database=duchy_computations",
 		"--spanner-emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)",
 		"--spanner-instance=emulator-instance",
-		"--spanner-project=PrivateReachAndFrequencyEstimator",
+		"--spanner-project=ads-open-measurement",
 	]
 }
 duchy_pod: "gcp-server-pod": #ServerPod & {
@@ -315,7 +315,7 @@ duchy_pod: "gcp-server-pod": #ServerPod & {
 		"--spanner-database=duchy_computations",
 		"--spanner-emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)",
 		"--spanner-instance=emulator-instance",
-		"--spanner-project=PrivateReachAndFrequencyEstimator",
+		"--spanner-project=ads-open-measurement",
 	]
 }
 kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
@@ -329,7 +329,7 @@ kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 		"--spanner-database=kingdom",
 		"--spanner-emulator-host=$(SPANNER_EMULATOR_SERVICE_HOST):$(SPANNER_EMULATOR_SERVICE_PORT)",
 		"--spanner-instance=emulator-instance",
-		"--spanner-project=PrivateReachAndFrequencyEstimator",
+		"--spanner-project=ads-open-measurement",
 	]
 }
 fake_pod: "fake-storage-server-pod": #ServerPod & {
@@ -402,7 +402,7 @@ setup_job: "push-spanner-schema-job": {
 				"--instance-display-name=EmulatorInstance",
 				"--instance-name=emulator-instance",
 				"--instance-node-count=1",
-				"--project-name=PrivateReachAndFrequencyEstimator",
+				"--project-name=ads-open-measurement",
 			]
 		}]
 		restartPolicy: "OnFailure"
