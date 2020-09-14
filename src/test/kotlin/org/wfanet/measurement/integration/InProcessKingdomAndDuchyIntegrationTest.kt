@@ -13,6 +13,7 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.duchy.testing.TestKeys
@@ -80,17 +81,23 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
 
     logger.info("Starting first data provider")
     dataProviderRule.startDataProviderForCampaign(
-      dataProviders[0], campaigns[0], duchies[0].newPublisherDataProviderStub()
+      dataProviders[0],
+      campaigns[0],
+      duchies[0].newPublisherDataProviderStub()
     )
 
     logger.info("Starting second data provider")
     dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1], campaigns[1], duchies[1].newPublisherDataProviderStub()
+      dataProviders[1],
+      campaigns[1],
+      duchies[1].newPublisherDataProviderStub()
     )
 
     logger.info("Starting third data provider")
     dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1], campaigns[2], duchies[2].newPublisherDataProviderStub()
+      dataProviders[1],
+      campaigns[2],
+      duchies[2].newPublisherDataProviderStub()
     )
 
     // Now wait until the computation is done.
@@ -127,17 +134,23 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
 
     logger.info("Starting first data provider")
     dataProviderRule.startDataProviderForCampaign(
-      dataProviders[0], campaigns[0], duchies[0].newPublisherDataProviderStub()
+      dataProviders[0],
+      campaigns[0],
+      duchies[0].newPublisherDataProviderStub()
     )
 
     logger.info("Starting second data provider")
     dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1], campaigns[1], duchies[0].newPublisherDataProviderStub()
+      dataProviders[1],
+      campaigns[1],
+      duchies[0].newPublisherDataProviderStub()
     )
 
     logger.info("Starting third data provider")
     dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1], campaigns[2], duchies[0].newPublisherDataProviderStub()
+      dataProviders[1],
+      campaigns[2],
+      duchies[0].newPublisherDataProviderStub()
     )
 
     // Now wait until the computation is done.

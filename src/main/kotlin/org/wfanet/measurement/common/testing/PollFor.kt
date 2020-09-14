@@ -1,4 +1,4 @@
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.common.testing
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout

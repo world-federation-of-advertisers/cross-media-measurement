@@ -19,6 +19,7 @@ import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.stub
+import kotlin.test.assertFails
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -31,6 +32,8 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
+import org.wfanet.measurement.common.testing.FakeThrottler
+import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
@@ -59,7 +62,9 @@ internal class LiquidLegionsHeraldTest {
     addService(globalComputations)
     addService(
       ComputationStorageServiceImpl(
-        fakeComputationStorage, globalComputationsStub, duchyName
+        fakeComputationStorage,
+        globalComputationsStub,
+        duchyName
       )
     )
   }
@@ -109,8 +114,10 @@ internal class LiquidLegionsHeraldTest {
       fakeComputationStorage
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
-      confirmingKnown.globalId.toLong(), TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      confirmingUnknown.globalId.toLong(), TO_CONFIRM_REQUISITIONS.toProtocolStage()
+      confirmingKnown.globalId.toLong(),
+      TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      confirmingUnknown.globalId.toLong(),
+      TO_CONFIRM_REQUISITIONS.toProtocolStage()
     )
 
     assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
@@ -155,9 +162,79 @@ internal class LiquidLegionsHeraldTest {
       fakeComputationStorage
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
-      waitingToStart.globalId.toLong(), TO_ADD_NOISE.toProtocolStage(),
-      addingNoise.globalId.toLong(), TO_ADD_NOISE.toProtocolStage()
+      waitingToStart.globalId.toLong(),
+      TO_ADD_NOISE.toProtocolStage(),
+      addingNoise.globalId.toLong(),
+      TO_ADD_NOISE.toProtocolStage()
     )
+  }
+
+  @Test
+  fun `syncStatuses starts computations with retries`() = runBlocking<Unit> {
+    val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+    mockStreamActiveComputationsToReturn(computation)
+
+    fakeComputationStorage.addComputation(
+      globalId = computation.globalId,
+      stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+    )
+
+    assertThat(herald.syncStatuses(EMPTY_TOKEN)).isEqualTo(computation.continuationToken)
+
+    assertThat(
+      fakeComputationStorage
+        .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
+    ).containsExactly(
+      computation.globalId.toLong(),
+      TO_CONFIRM_REQUISITIONS.toProtocolStage()
+    )
+
+    // Update the state.
+    fakeComputationStorage.remove(computation.globalId.toLong())
+    fakeComputationStorage.addComputation(
+      globalId = computation.globalId,
+      stage = WAIT_TO_START.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+    )
+
+    // Wait for the background retry to fix the state.
+    val finalComputation = pollFor(timeoutMillis = 10_000L) {
+      val c = fakeComputationStorage[computation.globalId.toLong()]
+      if (c?.computationStage == TO_ADD_NOISE.toProtocolStage()) {
+        c
+      } else {
+        null
+      }
+    }
+
+    assertThat(finalComputation).isNotNull()
+  }
+
+  @Test
+  fun `syncStatuses gives up on starting computations`() = runBlocking<Unit> {
+    val heraldWithOneRetry = LiquidLegionsHerald(
+      otherDuchyNames,
+      storageServiceStub,
+      globalComputationsStub,
+      maxStartAttempts = 2
+    )
+
+    val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+    mockStreamActiveComputationsToReturn(computation)
+
+    fakeComputationStorage.addComputation(
+      globalId = computation.globalId,
+      stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      role = RoleInComputation.SECONDARY,
+      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+    )
+
+    assertFails {
+      heraldWithOneRetry.continuallySyncStatuses(FakeThrottler())
+    }
   }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: ComputationAtKingdom) =

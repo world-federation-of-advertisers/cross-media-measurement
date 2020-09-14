@@ -17,8 +17,12 @@ package org.wfanet.measurement.duchy.herald
 import io.grpc.Status
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
@@ -28,7 +32,19 @@ import org.wfanet.measurement.common.grpcStatusCode
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.advanceLiquidLegionsComputationStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.UNRECOGNIZED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
@@ -50,10 +66,14 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 class LiquidLegionsHerald(
   otherDuchiesInComputation: List<String>,
   private val computationStorageClient: ComputationStorageServiceCoroutineStub,
-  private val globalComputationsClient: GlobalComputationsCoroutineStub
+  private val globalComputationsClient: GlobalComputationsCoroutineStub,
+  private val maxStartAttempts: Int = 10
 ) {
   private val liquidLegionsStageDetails =
     LiquidLegionsSketchAggregationProtocol.EnumStages.Details(otherDuchiesInComputation)
+
+  // If one of the GlobalScope coroutines launched by `start` fails, it populates this.
+  private lateinit var startException: Throwable
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually
@@ -70,6 +90,7 @@ class LiquidLegionsHerald(
     // response. The first execution of the loop will then compare all active computations at
     // the kingdom with all active computations locally.
     var lastProcessedContinuationToken = ""
+
     pollingThrottler.loopOnReady {
       lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
     }
@@ -85,6 +106,8 @@ class LiquidLegionsHerald(
    * computations from the global computation service.
    */
   suspend fun syncStatuses(continuationToken: String): String {
+    if (this::startException.isInitialized) { throw startException }
+
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
     globalComputationsClient.streamActiveGlobalComputations(
@@ -116,9 +139,7 @@ class LiquidLegionsHerald(
       // TODO: Resume a computation that was once SUSPENDED.
       State.RUNNING -> start(globalId)
       State.SUSPENDED ->
-        logger.warning(
-          "Pause/Resume of computations based on kingdom state not yet supported."
-        )
+        logger.warning("Pause/Resume of computations based on kingdom state not yet supported.")
       else ->
         logger.warning("Unexpected global computation state '$state'")
     }
@@ -150,29 +171,80 @@ class LiquidLegionsHerald(
     }
   }
 
-  /** Starts a computation that is in WAIT_TO_START. */
+  /**
+   * Starts a computation that is in WAIT_TO_START.
+   *
+   * This immediately attempts once and if that failes, launches a coroutine to continue retrying
+   * in the background.
+   */
   private suspend fun start(globalId: String) {
+    val attempt: suspend () -> Boolean = { runCatching { startAttempt(globalId) }.isSuccess }
+    if (!attempt()) {
+      GlobalScope.launch(Dispatchers.IO) {
+        for (i in 2..maxStartAttempts) {
+          logger.info("[id=$globalId] Attempt #$i to start")
+          delay(timeMillis = minOf((1L shl i) * 1000L, 60_000L))
+          if (attempt()) {
+            return@launch
+          }
+        }
+        val message = "[id=$globalId] Giving up after $maxStartAttempts attempts to start"
+        logger.severe(message)
+        startException = IllegalStateException(message)
+      }
+    }
+  }
+
+  /** Attempts to start a computation that is in WAIT_TO_START. */
+  private suspend fun startAttempt(globalId: String) {
     logger.info("[id=$globalId]: Starting Computation")
     val token =
       computationStorageClient
         .getComputationToken(globalId.toGetTokenRequest(COMPUTATION_TYPE))
         .token
-    if (token.computationStage.liquidLegionsSketchAggregation != WAIT_TO_START) {
-      logger.info(
-        "[id=$globalId]: not starting, stage ${token.computationStage} is not " +
-          "WAIT_TO_START"
-      )
-      return
+
+    when (val stage = token.computationStage.liquidLegionsSketchAggregation) {
+      // We expect stage WAIT_TO_START.
+      WAIT_TO_START -> {
+        computationStorageClient.advanceLiquidLegionsComputationStage(
+          computationToken = token,
+          // The inputs of WAIT_TO_START are copies of the sketches stored locally. These are the very
+          // sketches required for the TO_ADD_NOISE step of the computation.
+          inputsToNextStage = token.blobsList.filter { it.dependencyType == INPUT }.map { it.path },
+          stage = TO_ADD_NOISE,
+          liquidLegionsStageDetails = liquidLegionsStageDetails
+        )
+        logger.info("[id=$globalId] Computation is now started")
+        return
+      }
+
+      // For past stages, we throw.
+      TO_CONFIRM_REQUISITIONS -> {
+        error("[id=$globalId]: cannot start a computation still in state TO_CONFIRM_REQUISITIONS")
+      }
+
+      // For future stages, we log and exit.
+      WAIT_SKETCHES,
+      TO_ADD_NOISE,
+      TO_APPEND_SKETCHES_AND_ADD_NOISE,
+      WAIT_CONCATENATED,
+      TO_BLIND_POSITIONS,
+      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+      WAIT_FLAG_COUNTS,
+      TO_DECRYPT_FLAG_COUNTS,
+      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
+      COMPLETED -> {
+        logger.info("[id=$globalId]: not starting, stage '$stage' is after WAIT_TO_START")
+        return
+      }
+
+      // For weird stages, we throw.
+      UNRECOGNIZED,
+      SKETCH_AGGREGATION_STAGE_UNKNOWN,
+      null -> {
+        error("[id=$globalId]: Unrecognized stage '$stage'")
+      }
     }
-    computationStorageClient.advanceLiquidLegionsComputationStage(
-      computationToken = token,
-      // The inputs of WAIT_TO_START are copies of the sketches stored locally. These are the very
-      // sketches required for the TO_ADD_NOISE step of the computation.
-      inputsToNextStage = token.blobsList.filter { it.dependencyType == INPUT }.map { it.path },
-      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
-      liquidLegionsStageDetails = liquidLegionsStageDetails
-    )
-    logger.info("Computation $globalId is now started")
   }
 
   companion object {

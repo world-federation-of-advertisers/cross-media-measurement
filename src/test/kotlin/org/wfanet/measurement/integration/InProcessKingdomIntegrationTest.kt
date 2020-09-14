@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
+import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 
 /**
@@ -69,7 +70,10 @@ abstract class InProcessKingdomIntegrationTest {
   @get:Rule
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
-      DuchyIdSetter(duchyId), kingdomRelationalDatabaseRule, kingdom, globalComputationsReader
+      DuchyIdSetter(duchyId),
+      kingdomRelationalDatabaseRule,
+      kingdom,
+      globalComputationsReader
     )
   }
 
