@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
@@ -154,11 +155,13 @@ class LiquidLegionsMillTest {
 
   private lateinit var mill: LiquidLegionsMill
 
-  private fun String.toMetricChuckResponse() = StreamMetricValueResponse.newBuilder().setChunk(
-    StreamMetricValueResponse.Chunk.newBuilder().setData(
-      ByteString.copyFromUtf8(this)
-    )
-  ).build()
+  private fun String.toMetricChunkResponse() = ByteString.copyFromUtf8(this).toMetricChunkResponse()
+
+  private fun ByteString.toMetricChunkResponse(): StreamMetricValueResponse {
+    return StreamMetricValueResponse.newBuilder().also {
+      it.chunkBuilder.data = this
+    }.build()
+  }
 
   private fun String.toMetricValueResourceKey() = MetricValue.ResourceKey.newBuilder()
     .setCampaignResourceId("campaignId_$this")
@@ -287,14 +290,14 @@ class LiquidLegionsMillTest {
             .setHeader(StreamMetricValueResponse.Header.getDefaultInstance())
             .build(),
           // Add a header to test filtering
-          "A_chunk_1_".toMetricChuckResponse(),
-          "A_chunk_2_".toMetricChuckResponse(),
-          "A_chunk_3_".toMetricChuckResponse()
+          "A_chunk_1_".toMetricChunkResponse(),
+          "A_chunk_2_".toMetricChunkResponse(),
+          "A_chunk_3_".toMetricChunkResponse()
         )
       }
       .thenAnswer {
         metricValuesRequest2 = it.getArgument(0)
-        flowOf("B_chunk_1_".toMetricChuckResponse(), "B_chunk_2_".toMetricChuckResponse())
+        flowOf("B_chunk_1_".toMetricChunkResponse(), "B_chunk_2_".toMetricChunkResponse())
       }
 
     // Stage 1. Process the above computation
@@ -350,6 +353,8 @@ class LiquidLegionsMillTest {
   @Test
   fun `to confirm requisition, missing requisition at primary`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
+    val requisition1 = "1"
+    val requisition2 = "2"
     fakeComputationStorage.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
@@ -358,17 +363,30 @@ class LiquidLegionsMillTest {
       stageDetails = ComputationStageDetails.newBuilder()
         .setToConfirmRequisitionsStageDetails(
           ToConfirmRequisitionsStageDetails.newBuilder()
-            .addKeys("1".toRequisitionKey())
-            .addKeys("2".toRequisitionKey())
+            .addKeys(requisition1.toRequisitionKey())
+            .addKeys(requisition2.toRequisitionKey())
         )
         .build()
     )
 
+    val metricValue = MetricValue.newBuilder()
+      .setResourceKey(requisition1.toMetricValueResourceKey())
+      .build()
+    val content = ByteString.copyFromUtf8("chunk")
+    whenever(mockMetricValues.getMetricValue(any()))
+      .thenReturn(metricValue)
+      .thenThrow(Status.NOT_FOUND.asRuntimeException())
     whenever(mockMetricValues.streamMetricValue(any()))
-      .thenReturn(flowOf("chunk".toMetricChuckResponse()))
-      .thenThrow(
-        Status.NOT_FOUND.asRuntimeException()
+      .thenReturn(
+        flowOf(
+          StreamMetricValueResponse.newBuilder().apply {
+            headerBuilder.metricValue = metricValue
+            headerBuilder.dataSizeBytes = content.size.toLong()
+          }.build(),
+          content.toMetricChunkResponse()
+        )
       )
+      .thenThrow(Status.NOT_FOUND.asRuntimeException())
     whenever(mockGlobalComputations.createGlobalComputationStatusUpdate(any())).thenReturn(
       GlobalComputationStatusUpdate.getDefaultInstance()
     )

@@ -23,11 +23,13 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.flattenConcat
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEmpty
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
@@ -65,6 +67,7 @@ import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
+import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
 import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
@@ -166,26 +169,11 @@ class LiquidLegionsMill(
   }
 
   /** Process computation in the TO_CONFIRM_REQUISITIONS stage */
+  @OptIn(FlowPreview::class) // For `flattenConcat`.
   private suspend fun confirmRequisitions(token: ComputationToken): ComputationToken {
     val requisitionsToConfirm =
       token.stageSpecificDetails.toConfirmRequisitionsStageDetails.keysList
-    val availableRequisitions = mutableSetOf<RequisitionKey>()
-    val bytesLists = mutableListOf<ByteString>()
-    requisitionsToConfirm.forEach {
-      try {
-        // Call the MetricValuesService to get the requisition
-        metricValuesClient.streamMetricValue(it.toStreamMetricValueRequest())
-          .filter { response -> response.hasChunk() }
-          .map { response -> response.chunk.data }
-          .toList(bytesLists)
-        availableRequisitions.add(it)
-      } catch (e: StatusException) {
-        // Do nothing for NOT_FOUND and DATA_LOSS errors.
-        if (e.status.code !in listOf(Status.Code.NOT_FOUND, Status.Code.DATA_LOSS)) {
-          throw TransientComputationError(e)
-        }
-      }
-    }
+    val availableRequisitions = requisitionsToConfirm.filter { metricValueExists(it) }
 
     globalComputationsClient.confirmGlobalComputation(
       ConfirmGlobalComputationRequest.newBuilder().apply {
@@ -208,7 +196,8 @@ class LiquidLegionsMill(
     }
 
     // cache the combined local requisitions to blob store.
-    val nextToken = storageClients.writeSingleOutputBlob(token, bytesLists.toByteArray())
+    val concatenatedContents = streamMetricValueContents(availableRequisitions).flattenConcat()
+    val nextToken = storageClients.writeSingleOutputBlob(token, concatenatedContents.toByteArray())
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -219,6 +208,39 @@ class LiquidLegionsMill(
         RoleInComputation.UNRECOGNIZED -> error("Unknown role: ${nextToken.role}")
       }
     )
+  }
+
+  /**
+   * Returns whether a value exists for the requisition by calling the
+   * MetricValues service.
+   */
+  private suspend fun metricValueExists(key: RequisitionKey): Boolean {
+    return try {
+      metricValuesClient.getMetricValue(
+        GetMetricValueRequest.newBuilder()
+          .setResourceKey(key.toResourceKey())
+          .build()
+      )
+      true
+    } catch (e: StatusException) {
+      when (e.status.code) {
+        Status.Code.NOT_FOUND -> false
+        else -> throw e
+      }
+    }
+  }
+
+  private fun streamMetricValueContents(
+    availableRequisitions: Iterable<RequisitionKey>
+  ): Flow<Flow<ByteString>> = flow {
+    for (requisitionKey in availableRequisitions) {
+      val responses = metricValuesClient.streamMetricValue(
+        StreamMetricValueRequest.newBuilder()
+          .setResourceKey(requisitionKey.toResourceKey())
+          .build()
+      )
+      emit(responses.dropWhile { it.hasHeader() }.map { it.chunk.data })
+    }
   }
 
   /** Process computation in the TO_ADD_NOISE stage */
@@ -468,15 +490,12 @@ class LiquidLegionsMill(
     }
   }
 
-  private fun RequisitionKey.toStreamMetricValueRequest(): StreamMetricValueRequest {
-    return StreamMetricValueRequest.newBuilder()
-      .setResourceKey(
-        ResourceKey.newBuilder()
-          .setDataProviderResourceId(dataProviderId)
-          .setCampaignResourceId(campaignId)
-          .setMetricRequisitionResourceId(metricRequisitionId)
-      )
-      .build()
+  private fun RequisitionKey.toResourceKey(): ResourceKey {
+    return ResourceKey.newBuilder().apply {
+      dataProviderResourceId = dataProviderId
+      campaignResourceId = campaignId
+      metricRequisitionResourceId = metricRequisitionId
+    }.build()
   }
 
   private fun RequisitionKey.toMetricRequisitionKey(): MetricRequisition.Key {
