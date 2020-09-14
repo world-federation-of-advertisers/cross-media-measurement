@@ -32,16 +32,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
+import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineImplBase as PublisherDataCoroutineService
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
-import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineImplBase as PublisherDataCoroutineService
+import org.wfanet.measurement.storage.read
 
 private const val RUN_ID = "TEST"
 private const val OUTPUT_DIR = "Correctness"
@@ -103,7 +104,7 @@ class CorrectnessImplTest {
     val generatedSetSize = 5
     val correctness = makeCorrectness(
       dataProviderCount = 1,
-      campaignCount =  1,
+      campaignCount = 1,
       generatedSetSize = generatedSetSize,
       universeSize = 10_000_000_000L
     )
@@ -173,10 +174,7 @@ class CorrectnessImplTest {
       .build()
     val blobKey = correctness.storeSketch(SketchProtos.toAnySketch(sketchConfig, expectedSketch))
     val actualSketch =
-      Sketch.parseFrom(
-        sketchStorageClient.getBlob(blobKey)!!
-          .readAll()
-      )
+      Sketch.parseFrom(sketchStorageClient.getBlob(blobKey)!!.read().flatten())
     assertThat(actualSketch).isEqualTo(expectedSketch)
   }
 
@@ -208,8 +206,7 @@ class CorrectnessImplTest {
     val blobKey =
       correctness.storeEncryptedSketch(ByteString.copyFromUtf8(exptectedEncryptedSketch))
     val actualEncryptedSketch =
-      encryptedSketchStorageClient.getBlob(blobKey)!!
-        .readAll().toStringUtf8()
+      encryptedSketchStorageClient.getBlob(blobKey)?.readToString()
     assertThat(actualEncryptedSketch).isEqualTo(exptectedEncryptedSketch)
   }
 
@@ -318,10 +315,8 @@ class CorrectnessImplTest {
         putAllFrequency(frequency)
       }
     }.build()
-    val actualComputation = GlobalComputation.parseFrom(
-      reportStorageClient.getBlob(blobKey)!!
-        .readAll()
-    )
+    val actualComputation =
+      GlobalComputation.parseFrom(reportStorageClient.getBlob(blobKey)!!.read().flatten())
     assertThat(actualComputation).isEqualTo(expectedComputation)
   }
 
@@ -365,6 +360,6 @@ class CorrectnessImplTest {
   }
 }
 
-private suspend fun StorageClient.Blob.readAll(): ByteString {
-  return read(CorrectnessImpl.STORAGE_BUFFER_SIZE_BYTES).toByteString()
+private suspend fun StorageClient.Blob.readToString(): String {
+  return read().flatten().toStringUtf8()
 }

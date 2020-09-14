@@ -15,9 +15,6 @@
 package org.wfanet.measurement.loadtest
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
-import java.lang.Exception
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
@@ -44,22 +41,22 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
-import org.wfanet.measurement.internal.MetricDefinition
-import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
-import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.internal.MetricDefinition
+import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.createBlob
 
 class CorrectnessImpl(
   override val dataProviderCount: Int,
@@ -106,7 +103,9 @@ class CorrectnessImpl(
     logger.info("Finished.")
   }
 
-  private fun KingdomRelationalDatabase.createDataProvider(externalAdvertiserId: ExternalId): Flow<Pair<ExternalId, AnySketch>> {
+  private fun KingdomRelationalDatabase.createDataProvider(
+    externalAdvertiserId: ExternalId
+  ): Flow<Pair<ExternalId, AnySketch>> {
     val dataProvider = this.createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
@@ -131,13 +130,15 @@ class CorrectnessImpl(
     val sketchProto = anySketch.toSketchProto(sketchConfig)
     logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
 
-
     val storedSketchPath = storeSketch(anySketch)
     logger.info("Raw Sketch saved into: $outputDir/$runId/sketches/$storedSketchPath")
 
     val encryptedSketch = encryptSketch(sketchProto)
     val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
-    logger.info("Encrypted Sketch saved into: $outputDir/$runId/encrypted_sketches/$storedEncryptedSketchPath")
+    logger.info(
+      "Encrypted Sketch saved into: " +
+        "$outputDir/$runId/encrypted_sketches/$storedEncryptedSketchPath"
+    )
 
     try {
       sendToServer(
@@ -146,7 +147,10 @@ class CorrectnessImpl(
         encryptedSketch
       )
     } catch (e: Exception) {
-      logger.warning("Failed sending the sketch for Campaign: ${externalCampaignId.value} to the server due to ${e.cause!!.message}.")
+      logger.warning(
+        "Failed sending the sketch for Campaign: " +
+          "${externalCampaignId.value} to the server due to ${e.cause!!.message}."
+      )
       throw e
     }
 
@@ -175,7 +179,8 @@ class CorrectnessImpl(
               count = 1
             }
           }
-        }.build(), campaignIds
+        }.build(),
+      campaignIds
     )
     logger.info("Created a ReportConfig: $reportConfig")
     val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
@@ -250,19 +255,13 @@ class CorrectnessImpl(
   override suspend fun storeSketch(anySketch: AnySketch): String {
     val sketch: Sketch = anySketch.toSketchProto(sketchConfig)
     val blobKey = generateBlobKey()
-    sketchStorageClient.createBlob(
-      blobKey,
-      sketch.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
-    )
+    sketchStorageClient.createBlob(blobKey, sketch.toByteString())
     return blobKey
   }
 
   override suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String {
     val blobKey = generateBlobKey()
-    encryptedSketchStorageClient.createBlob(
-      blobKey,
-      encryptedSketch.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
-    )
+    encryptedSketchStorageClient.createBlob(blobKey, encryptedSketch)
     return blobKey
   }
 
@@ -272,17 +271,14 @@ class CorrectnessImpl(
   ): String {
     val computation = GlobalComputation.newBuilder().apply {
       keyBuilder.globalComputationId = GLOBAL_COMPUTATION_ID
-      setState(GlobalComputation.State.SUCCEEDED)
+      state = GlobalComputation.State.SUCCEEDED
       resultBuilder.apply {
         setReach(reach)
         putAllFrequency(frequency)
       }
     }.build()
     val blobKey = generateBlobKey()
-    reportStorageClient.createBlob(
-      blobKey,
-      computation.toByteArray().asBufferedFlow(STORAGE_BUFFER_SIZE_BYTES)
-    )
+    reportStorageClient.createBlob(blobKey, computation.toByteString())
     return blobKey
   }
 
@@ -375,7 +371,6 @@ class CorrectnessImpl(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    const val STORAGE_BUFFER_SIZE_BYTES = 1024 * 4 // 4 KiB
 
     init {
       loadLibrary(

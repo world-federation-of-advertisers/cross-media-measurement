@@ -46,8 +46,7 @@ data class ElGamalPublicKey(
   }
 
   /** Returns the concatenation of [generator] and [element]. */
-  fun toByteArray() =
-    (generator.asSequence() + element.asSequence()).toByteArray(generator.size + element.size)
+  fun toByteArray(): ByteArray = listOf(generator, element).toByteArray()
 
   companion object {
     /** The size of a [generator]. */

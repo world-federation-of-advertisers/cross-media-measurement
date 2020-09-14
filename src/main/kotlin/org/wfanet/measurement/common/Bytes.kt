@@ -32,19 +32,28 @@ import kotlinx.coroutines.withContext
 
 const val BYTES_PER_MIB = 1024 * 1024
 
+fun Iterable<ByteArray>.toByteString(): ByteString {
+  val totalSize = sumBy { it.size }
+
+  return ByteString.newOutput(totalSize).use { output ->
+    forEach { output.write(it) }
+    output.toByteString()
+  }
+}
+
+/** Returns a [ByteString] which is the concatenation of all elements. */
+fun Iterable<ByteString>.flatten(): ByteString {
+  return fold(ByteString.EMPTY) { acc, value -> acc.concat(value) }
+}
+
 /** Copies all bytes in a list of [ByteString]s into a [ByteArray]. */
-fun List<ByteString>.toByteArray(): ByteArray {
+fun Iterable<ByteString>.toByteArray(): ByteArray {
   // Allocate a ByteBuffer large enough for all the bytes in all the byte strings.
   val buffer = ByteBuffer.allocate(sumBy { it.size })
   forEach { byteString -> byteString.copyTo(buffer) }
   return buffer.array()
 }
 
-/** Returns a [ByteArray] containing all of the elements in this [Sequence]. */
-fun Sequence<Byte>.toByteArray(size: Int): ByteArray {
-  val iter = iterator()
-  return ByteArray(size) { iter.next() }
-}
 /** @see ByteString.size(). */
 val ByteString.size: Int
   get() = size()
@@ -84,9 +93,11 @@ fun byteStringOf(vararg bytesAsInts: Int): ByteString {
  *
  * This is a terminal [Flow] operation.
  */
-suspend fun Flow<ByteString>.toByteString(): ByteString {
+suspend fun Flow<ByteString>.flatten(): ByteString {
   return fold(ByteString.EMPTY) { acc, value -> acc.concat(value) }
 }
+
+suspend fun Flow<ByteString>.toByteArray(): ByteArray = flatten().toByteArray()
 
 /**
  * Creates a flow that produces [ByteString] values with the specified

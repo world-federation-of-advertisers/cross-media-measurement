@@ -18,8 +18,8 @@ import com.google.common.truth.FailureMetadata
 import com.google.common.truth.Subject
 import com.google.common.truth.Truth.assertAbout
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.size
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.read
 
@@ -33,7 +33,7 @@ class BlobSubject private constructor(failureMetadata: FailureMetadata, subject:
   }
 
   suspend fun contentEqualTo(content: ByteString) {
-    val actualContent = actual.read().toByteString()
+    val actualContent = actual.read().flatten()
 
     // First check size to avoid outputting potentially large number of bytes.
     check("read().toByteString().size").that(actualContent.size).isEqualTo(content.size)

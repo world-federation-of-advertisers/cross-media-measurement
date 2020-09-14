@@ -24,7 +24,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEmpty
@@ -42,6 +41,7 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
@@ -92,7 +92,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.outputP
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
  * @param clock A clock
  */
-@OptIn(ExperimentalCoroutinesApi::class) // for onEmpty
 class LiquidLegionsMill(
   private val millId: String,
   private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
@@ -208,9 +207,8 @@ class LiquidLegionsMill(
       throw PermanentComputationError(Exception(errorMessage))
     }
 
-    val bytes = bytesLists.asFlow().toByteString().toByteArray()
     // cache the combined local requisitions to blob store.
-    val nextToken = storageClients.writeSingleOutputBlob(token, bytes)
+    val nextToken = storageClients.writeSingleOutputBlob(token, bytesLists.toByteArray())
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -218,8 +216,7 @@ class LiquidLegionsMill(
         RoleInComputation.PRIMARY -> LiquidLegionsStage.WAIT_SKETCHES
         RoleInComputation.SECONDARY -> LiquidLegionsStage.WAIT_TO_START
         RoleInComputation.UNKNOWN,
-        RoleInComputation.UNRECOGNIZED ->
-          error("Unknown role: ${nextToken.role}")
+        RoleInComputation.UNRECOGNIZED -> error("Unknown role: ${nextToken.role}")
       }
     )
   }
@@ -435,10 +432,11 @@ class LiquidLegionsMill(
         Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
       )
     }
-    return blobMap.values.asFlow().map { ByteString.copyFrom(it) }.toByteString()
+    return blobMap.values.toByteString()
   }
 
   /** Partition a [ByteString] to a [Flow] of chunks of size at most [chunkSize]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `onEmpty`.
   private fun ByteString.chunkedFlow(): Flow<ByteString> {
     return asBufferedFlow(chunkSize).onEmpty { emit(ByteString.EMPTY) }
   }
