@@ -111,8 +111,8 @@ class LiquidLegionsMill(
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
     withContext(CoroutineName("Mill $millId")) {
-      logAndSuppressExceptionSuspend {
-        throttler.loopOnReady {
+      throttler.loopOnReady {
+        logAndSuppressExceptionSuspend {
           pollAndProcessNextComputation()
         }
       }

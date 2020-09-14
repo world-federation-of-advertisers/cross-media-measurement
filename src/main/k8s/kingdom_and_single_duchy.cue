@@ -247,7 +247,7 @@ kingdom_pod: "report-maker-daemon-pod": #Pod & {
 	]
 }
 kingdom_pod: "report-starter-daemon-pod": #Pod & {
-	_name:  "report-starter-daemon-pod"
+	_name:  "report-starter-daemon"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
 	metadata: annotations: system: "kingdom"
 	_args: [
