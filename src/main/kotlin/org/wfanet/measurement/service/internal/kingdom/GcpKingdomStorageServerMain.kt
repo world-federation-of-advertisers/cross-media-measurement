@@ -15,11 +15,14 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
+import java.time.Duration
+import java.util.logging.Logger
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.db.gcp.isReady
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
@@ -40,7 +43,15 @@ private fun run(
 ) {
   DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
 
-  val spannerFromFlags = SpannerFromFlags(spannerFlags)
+  var spannerFromFlags = SpannerFromFlags(spannerFlags)
+
+  // TODO: push this retry logic into SpannerFromFlags itself.
+  while (!spannerFromFlags.databaseClient.isReady()) {
+    logger.info("Spanner isn't ready yet, sleeping 1s")
+    Thread.sleep(Duration.ofSeconds(1).toMillis())
+    spannerFromFlags = SpannerFromFlags(spannerFlags)
+  }
+
   val clock = Clock.systemUTC()
 
   val relationalDatabase = GcpKingdomRelationalDatabase(
@@ -52,6 +63,8 @@ private fun run(
 
   server.start().blockUntilShutdown()
 }
+
+private val logger: Logger = Logger.getAnonymousLogger()
 
 /** Runs the internal Kingdom storage services in a single server with a Spanner backend. */
 fun main(args: Array<String>) = commandLineMain(::run, args)

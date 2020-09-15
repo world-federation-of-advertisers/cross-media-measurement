@@ -92,3 +92,7 @@ fun Spanner.createInstance(
       .build()
   return instanceAdminClient.createInstance(instanceInfo).get()
 }
+
+fun DatabaseClient.isReady(): Boolean {
+  return runCatching { singleUse().executeQuery(Statement.of("SELECT 1")) }.isSuccess
+}
