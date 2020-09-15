@@ -41,7 +41,6 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.common.toByteString
@@ -112,9 +111,7 @@ class LiquidLegionsMill(
     logger.info("Starting...")
     withContext(CoroutineName("Mill $millId")) {
       throttler.loopOnReady {
-        logAndSuppressExceptionSuspend {
-          pollAndProcessNextComputation()
-        }
+        pollAndProcessNextComputation()
       }
     }
   }
