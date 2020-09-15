@@ -154,17 +154,21 @@ class LiquidLegionsMill(
           decryptFlagCounts(token)
         else -> error("Unexpected stage: $stage")
       }
-    } catch (e: IllegalStateException) {
-      throw PermanentComputationError(e)
-    } catch (e: PermanentComputationError) {
-      logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: Exception:", e)
-      sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.PERMANENT))
-      // Mark the computation FAILED for all permanent errors
-      completeComputation(token, CompletedReason.FAILED)
-    } catch (e: Throwable) {
-      // Treat all other errors as transient.
-      logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: Exception", e)
-      sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.TRANSIENT))
+    } catch (e: Exception) {
+      when (e) {
+        is IllegalStateException,
+        is PermanentComputationError -> {
+          logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: PERMANENT error:", e)
+          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.PERMANENT))
+          // Mark the computation FAILED for all permanent errors
+          completeComputation(token, CompletedReason.FAILED)
+        }
+        else -> {
+          // Treat all other errors as transient.
+          logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: TRANSIENT error", e)
+          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.TRANSIENT))
+        }
+      }
     }
   }
 
@@ -411,7 +415,9 @@ class LiquidLegionsMill(
       .entries
       .associate { it.key.toLong() to it.value.size.toLong() }
     val cardinality: Long = Estimators.EstimateCardinalityLiquidLegions(
-      liquidLegionsConfig.decayRate, liquidLegionsConfig.size, flagCounts.size.toLong()
+      liquidLegionsConfig.decayRate,
+      liquidLegionsConfig.size,
+      flagCounts.size.toLong()
     )
     globalComputationsClient.finishGlobalComputation(
       FinishGlobalComputationRequest.newBuilder().apply {
@@ -564,6 +570,5 @@ class LiquidLegionsMill(
     }
   }
 
-  class TransientComputationError(cause: Throwable) : Exception(cause)
   class PermanentComputationError(cause: Throwable) : Exception(cause)
 }
