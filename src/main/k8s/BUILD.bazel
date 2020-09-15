@@ -61,8 +61,11 @@ package_group(
 )
 
 filegroup(
-    name = "kingdom_and_single_duchy",
-    srcs = [":kingdom_and_single_duchy_from_cue.yaml"],
+    name = "k8s_deployement_config",
+    srcs = [
+        ":kingdom_and_three_duchies_from_cue.yaml",
+        ":kingdom_and_single_duchy_from_cue.yaml",
+    ],
     data = [
         ":all_archives",
     ],
@@ -73,6 +76,14 @@ genrule(
     name = "kingdom_and_single_duchy_from_cue",
     srcs = ["kingdom_and_single_duchy.cue"],
     outs = ["kingdom_and_single_duchy_from_cue.yaml"],
+    cmd = "cue cmd dump $< > $@",
+    tools = [],
+)
+
+genrule(
+    name = "kingdom_and_three_duchies_from_cue",
+    srcs = ["kingdom_and_three_duchies.cue"],
+    outs = ["kingdom_and_three_duchies_from_cue.yaml"],
     cmd = "cue cmd dump $< > $@",
     tools = [],
 )
