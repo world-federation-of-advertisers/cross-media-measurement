@@ -15,30 +15,48 @@
 package org.wfanet.measurement.storage
 
 import com.google.protobuf.ByteString
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.internal.duchy.ComputationTokenOrBuilder
+import org.wfanet.measurement.internal.duchy.ComputationToken
 
 private const val BLOB_KEY_PREFIX = "computations"
+
+private typealias BlobKeyGenerator = ComputationToken.() -> String
 
 /**
  * Blob storage for computations.
  *
  * @param storageClient the blob storage client.
+ * @param generateBlobKey a function to generate a unique blob key for a given
+ *     [token][ComputationToken].
  */
-class ComputationStore(private val storageClient: StorageClient) {
+class ComputationStore private constructor(
+  private val storageClient: StorageClient,
+  private val generateBlobKey: BlobKeyGenerator
+) {
+  constructor(storageClient: StorageClient) : this(
+    storageClient,
+    ComputationToken::generateUniqueBlobKey
+  )
+
   /**
    * Writes a new computation blob with the specified content.
    *
-   * @param token [ComputationTokenOrBuilder] from which to derive the blob key
+   * @param token [ComputationToken] from which to derive the blob key
    * @param content [Flow] producing the content to write
    * @return [Blob] with a key derived from [token]
    */
-  suspend fun write(token: ComputationTokenOrBuilder, content: Flow<ByteString>): Blob {
-    val blobKey = token.toBlobKey()
+  suspend fun write(token: ComputationToken, content: Flow<ByteString>): Blob {
+    val blobKey = token.generateBlobKey()
     val createdBlob = storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
     return Blob(blobKey, createdBlob)
   }
+
+  /** @see write */
+  suspend fun write(token: ComputationToken, content: ByteString): Blob =
+    write(token, content.asBufferedFlow(storageClient.defaultBufferSizeBytes))
 
   /**
    * Returns a [Blob] for the computation with the specified blob key, or
@@ -53,11 +71,25 @@ class ComputationStore(private val storageClient: StorageClient) {
   /** [StorageClient.Blob] implementation for [ComputationStore]. */
   class Blob(val blobKey: String, wrappedBlob: StorageClient.Blob) :
     StorageClient.Blob by wrappedBlob
+
+  companion object {
+    fun forTesting(
+      storageClient: StorageClient,
+      blobKeyGenerator: BlobKeyGenerator
+    ): ComputationStore {
+      return ComputationStore(storageClient, blobKeyGenerator)
+    }
+  }
 }
 
 /** Returns a unique blob key derived from this [ComputationToken]. */
-private fun ComputationTokenOrBuilder.toBlobKey(): String {
-  return "$localComputationId/${computationStage.name}_$attempt/$blobsCount"
+private fun ComputationToken.generateUniqueBlobKey(): String {
+  return listOf(
+    localComputationId,
+    computationStage.name,
+    version,
+    UUID.randomUUID().toString()
+  ).joinToString("/")
 }
 
 private fun String.withBlobKeyPrefix(): String {
