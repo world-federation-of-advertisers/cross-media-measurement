@@ -39,7 +39,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
@@ -48,9 +47,8 @@ import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.storage.MetricValueStore
-import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 
 @RunWith(JUnit4::class)
 class MetricValuesServiceTest {
@@ -58,14 +56,15 @@ class MetricValuesServiceTest {
   @JvmField
   val tempDirectory = TemporaryFolder()
 
-  private val fakeBlobKeyGenerator = FakeBlobKeyGenerator
+  private var nextBlobKey = ""
   private val metricValueDbMock: MetricValueDatabase = mock()
-  private lateinit var storageClient: StorageClient
+  private lateinit var metricValueStore: MetricValueStore
   private lateinit var service: MetricValuesService
 
   @Before fun initService() {
-    storageClient = FileSystemStorageClient(tempDirectory.root)
-    service = MetricValuesService(metricValueDbMock, storageClient, fakeBlobKeyGenerator::generate)
+    val storageClient = FileSystemStorageClient(tempDirectory.root)
+    metricValueStore = MetricValueStore.forTesting(storageClient) { nextBlobKey }
+    service = MetricValuesService.forTesting(metricValueDbMock, metricValueStore)
   }
 
   @Test fun `getMetricValue by ID returns MetricValue`() = runBlocking {
@@ -120,7 +119,7 @@ class MetricValuesServiceTest {
 
   @Test
   fun `storeMetricValue stores MetricValue with data`() = runBlocking {
-    fakeBlobKeyGenerator.nextBlobKey = testMetricValue.blobStorageKey
+    nextBlobKey = testMetricValue.blobStorageKey
 
     metricValueDbMock.stub {
       onBlocking {
@@ -147,15 +146,13 @@ class MetricValuesServiceTest {
       assertThat(firstValue).isEqualTo(testMetricValue.toBuilder().clearExternalId().build())
     }
     assertThat(response).isEqualTo(testMetricValue)
-    val metricValueStore = MetricValueStore(storageClient, fakeBlobKeyGenerator::generate)
     val data = assertNotNull(metricValueStore.get(testMetricValue.blobStorageKey))
     assertThat(data).contentEqualTo(testMetricValueData)
   }
 
   @Test fun `streamMetricValue returns MetricValue with data`() = runBlocking {
-    MetricValueStore(storageClient) {
-      testMetricValue.blobStorageKey
-    }.write(testMetricValueData.asBufferedFlow(storageClient.defaultBufferSizeBytes))
+    nextBlobKey = testMetricValue.blobStorageKey
+    metricValueStore.write(flowOf(testMetricValueData))
 
     metricValueDbMock.stub {
       onBlocking {
@@ -201,7 +198,7 @@ class MetricValuesServiceTest {
   }
 
   @Test fun `streamMetricValue throws DATA_LOSS when blob not found`() = runBlocking {
-    fakeBlobKeyGenerator.nextBlobKey = testMetricValue.blobStorageKey
+    nextBlobKey = testMetricValue.blobStorageKey
 
     metricValueDbMock.stub {
       onBlocking {
@@ -217,12 +214,6 @@ class MetricValuesServiceTest {
       ).collect()
     }
     assertThat(e.status.code).isEqualTo(Status.Code.DATA_LOSS)
-  }
-
-  private object FakeBlobKeyGenerator {
-    var nextBlobKey = ""
-
-    fun generate(): String = nextBlobKey
   }
 
   companion object {

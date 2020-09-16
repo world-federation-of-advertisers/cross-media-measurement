@@ -16,7 +16,6 @@ package org.wfanet.measurement.service.internal.duchy.metricvalues
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
@@ -41,12 +40,15 @@ import org.wfanet.measurement.storage.StorageClient
 private const val STREAM_BYTE_BUFFER_SIZE = 1024 * 32 // 32 KiB
 
 /** Implementation of `wfa.measurement.internal.duchy.MetricValues` gRPC service. */
-class MetricValuesService constructor(
+class MetricValuesService private constructor(
   private val metricValueDb: MetricValueDatabase,
-  storageClient: StorageClient,
-  generateBlobKey: () -> String = { UUID.randomUUID().toString() }
+  private val metricValueStore: MetricValueStore
 ) : MetricValuesCoroutineService() {
-  private val metricValueStore = MetricValueStore(storageClient, generateBlobKey)
+
+  constructor(
+    metricValueDb: MetricValueDatabase,
+    storageClient: StorageClient
+  ) : this(metricValueDb, MetricValueStore(storageClient))
 
   override suspend fun getMetricValue(request: GetMetricValueRequest): MetricValue {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
@@ -112,4 +114,9 @@ class MetricValuesService constructor(
         )
       }
     }
+
+  companion object {
+    fun forTesting(metricValueDb: MetricValueDatabase, metricValueStore: MetricValueStore) =
+      MetricValuesService(metricValueDb, metricValueStore)
+  }
 }

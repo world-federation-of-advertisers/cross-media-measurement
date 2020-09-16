@@ -15,9 +15,12 @@
 package org.wfanet.measurement.storage
 
 import com.google.protobuf.ByteString
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 
 private const val BLOB_KEY_PREFIX = "metric-values"
+
+private typealias BlobKeyGenerator = () -> String
 
 /**
  * Blob storage for metric values.
@@ -25,10 +28,12 @@ private const val BLOB_KEY_PREFIX = "metric-values"
  * @param storageClient the blob storage client.
  * @param generateBlobKey a function to generate unique blob keys.
  */
-class MetricValueStore(
+class MetricValueStore private constructor(
   private val storageClient: StorageClient,
-  private val generateBlobKey: () -> String
+  private val generateBlobKey: BlobKeyGenerator
 ) {
+  constructor(storageClient: StorageClient) : this(storageClient, { UUID.randomUUID().toString() })
+
   /**
    * Writes a metric value as a new blob with the specified content.
    *
@@ -54,6 +59,11 @@ class MetricValueStore(
   /** [StorageClient.Blob] implementation for [MetricValueStore]. */
   class Blob(val blobKey: String, wrappedBlob: StorageClient.Blob) :
     StorageClient.Blob by wrappedBlob
+
+  companion object {
+    fun forTesting(storageClient: StorageClient, generateBlobKey: BlobKeyGenerator) =
+      MetricValueStore(storageClient, generateBlobKey)
+  }
 }
 
 private fun String.withBlobKeyPrefix(): String {
