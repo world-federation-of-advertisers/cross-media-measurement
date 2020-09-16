@@ -1,6 +1,13 @@
 package(default_visibility = ["//visibility:public"])
 
-alias(
+java_library(
     name = "spanner",
-    actual = "@maven//:com_google_cloud_google_cloud_spanner",
+    exports = [
+        "@maven//:com_google_cloud_google_cloud_spanner",
+
+        # Also export transitive deps com.google.api.core and com.google.api.gax
+        # to fix IntelliJ -- it doesn't pick up on these by itself.
+        "//imports/java/com/google/api/core",
+        "//imports/java/com/google/api/gax",
+    ],
 )

@@ -10,7 +10,6 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/cloud/storage",
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
