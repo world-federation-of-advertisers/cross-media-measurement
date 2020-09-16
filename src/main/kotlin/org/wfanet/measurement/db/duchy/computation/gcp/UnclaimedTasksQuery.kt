@@ -28,9 +28,10 @@ class UnclaimedTasksQuery<StageT>(
       """
       SELECT c.ComputationId,  c.GlobalComputationId, c.ComputationStage, c.UpdateTime,
              cs.NextAttempt
-      FROM Computations@{FORCE_INDEX=ComputationsByLockExpirationTime} AS c
-      JOIN ComputationStages cs USING(ComputationId, ComputationStage)
-      WHERE c.LockExpirationTime <= @current_time
+      FROM Computations AS c
+      JOIN ComputationStages AS cs USING(ComputationId, ComputationStage)
+      WHERE c.LockExpirationTime IS NOT NULL
+        AND c.LockExpirationTime <= @current_time
       ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
       LIMIT 50
       """
