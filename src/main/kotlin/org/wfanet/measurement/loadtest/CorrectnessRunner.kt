@@ -4,9 +4,7 @@ import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.io.File
-import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.nio.file.Paths
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -44,10 +42,7 @@ private fun run(@CommandLine.Mixin flags: CorrectnessFlags) {
       .withZone(ZoneOffset.UTC)
       .format(Instant.now())
   }
-  val sketchStorageClient = FileSystemStorageClient(makeFile(flags.outputDir, runId, "sketches"))
-  val encryptedSketchStorageClient =
-    FileSystemStorageClient(makeFile(flags.outputDir, runId, "encrypted_sketches"))
-  val reportStorageClient = FileSystemStorageClient(makeFile(flags.outputDir, runId, "reports"))
+  val storageClient = FileSystemStorageClient(makeFile(flags.outputDir))
   val sketchConfig = flags.sketchConfigFile.toSketchConfig()
   val encryptionPublicKey = ElGamalPublicKey(
     flags.curveId,
@@ -65,12 +60,9 @@ private fun run(@CommandLine.Mixin flags: CorrectnessFlags) {
     generatedSetSize = flags.generatedSetSize,
     universeSize = flags.universeSize,
     runId = runId,
-    outputDir = flags.outputDir.path,
     sketchConfig = sketchConfig,
     encryptionPublicKey = encryptionPublicKey,
-    sketchStorageClient = sketchStorageClient,
-    encryptedSketchStorageClient = encryptedSketchStorageClient,
-    reportStorageClient = reportStorageClient,
+    storageClient = storageClient,
     combinedPublicKeyId = flags.combinedPublicKeyId,
     publisherDataStub = publisherDataStub
   )
@@ -87,8 +79,8 @@ private fun File.toSketchConfig(): SketchConfig {
   )
 }
 
-private fun makeFile(directory: File, runId: String, subFolder: String): File {
-  val path = directory.toPath().resolve(runId).resolve(subFolder)
+private fun makeFile(directory: File): File {
+  val path = directory.toPath()
   return Files.createDirectories(path).toFile()
 }
 

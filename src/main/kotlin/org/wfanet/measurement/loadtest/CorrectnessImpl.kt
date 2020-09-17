@@ -55,6 +55,7 @@ import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.TimePeriod
+import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 
@@ -64,12 +65,9 @@ class CorrectnessImpl(
   override val generatedSetSize: Int = 1000,
   override val universeSize: Long = 10_000_000_000L,
   override val runId: String,
-  override val outputDir: String,
   override val sketchConfig: SketchConfig,
   override val encryptionPublicKey: ElGamalPublicKey,
-  override val sketchStorageClient: StorageClient,
-  override val encryptedSketchStorageClient: StorageClient,
-  override val reportStorageClient: StorageClient,
+  override val storageClient: StorageClient,
   override val combinedPublicKeyId: String,
   override val publisherDataStub: PublisherDataCoroutineStub
 ) : Correctness {
@@ -81,6 +79,7 @@ class CorrectnessImpl(
 
   suspend fun process(relationalDatabase: KingdomRelationalDatabase) {
     logger.info("Starting with RunID: $runId ...")
+    val testResult = TestResult.newBuilder().setRunId(runId)
 
     val advertiser = relationalDatabase.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
@@ -89,35 +88,54 @@ class CorrectnessImpl(
     val (campaignIds, anySketches) =
       (1..dataProviderCount)
         .asFlow()
-        .transform { emitAll(relationalDatabase.createDataProvider(externalAdvertiserId)) }
+        .transform {
+          emitAll(
+            relationalDatabase.createDataProvider(
+              externalAdvertiserId,
+              testResult
+            )
+          )
+        }
         .toList()
         .unzip()
 
     val reach = estimateCardinality(anySketches)
     val frequency = estimateFrequency(anySketches)
     val storedResultsPath = storeEstimationResults(reach, frequency)
-    logger.info("Estimation Results saved into: $outputDir/$runId/reports/$storedResultsPath")
+    testResult.setComputationBlobKey(storedResultsPath)
+    logger.info("Estimation Results saved with blob key: $storedResultsPath")
 
     relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
 
-    logger.info("Finished.")
+    val blobKey = storeTestResult(testResult.build())
+    println("Test Result saved with blob key: $blobKey")
+    logger.info("Finished with manifest: $blobKey.")
   }
 
   private fun KingdomRelationalDatabase.createDataProvider(
-    externalAdvertiserId: ExternalId
+    externalAdvertiserId: ExternalId,
+    testResult: TestResult.Builder
   ): Flow<Pair<ExternalId, AnySketch>> {
     val dataProvider = this.createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
 
     return generateReach().asFlow()
-      .map { reach -> createCampaign(reach, externalAdvertiserId, externalDataProviderId) }
+      .map { reach ->
+        createCampaign(
+          reach,
+          externalAdvertiserId,
+          externalDataProviderId,
+          testResult
+        )
+      }
   }
 
   private suspend fun KingdomRelationalDatabase.createCampaign(
     reach: Set<Long>,
     externalAdvertiserId: ExternalId,
-    externalDataProviderId: ExternalId
+    externalDataProviderId: ExternalId,
+    testResult: TestResult.Builder
   ): Pair<ExternalId, AnySketch> {
     val campaign = this.createCampaign(
       externalDataProviderId,
@@ -131,14 +149,14 @@ class CorrectnessImpl(
     logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
 
     val storedSketchPath = storeSketch(anySketch)
-    logger.info("Raw Sketch saved into: $outputDir/$runId/sketches/$storedSketchPath")
+    val sketchBlobKeys = TestResult.Sketch.newBuilder().setBlobKey(storedSketchPath)
+    logger.info("Raw Sketch saved with blob key: $storedSketchPath")
 
     val encryptedSketch = encryptSketch(sketchProto)
     val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
-    logger.info(
-      "Encrypted Sketch saved into: " +
-        "$outputDir/$runId/encrypted_sketches/$storedEncryptedSketchPath"
-    )
+    sketchBlobKeys.setEncryptedBlobKey(storedEncryptedSketchPath)
+    testResult.addSketches(sketchBlobKeys)
+    logger.info("Encrypted Sketch saved with blob key: $storedEncryptedSketchPath")
 
     try {
       sendToServer(
@@ -253,16 +271,11 @@ class CorrectnessImpl(
   }
 
   override suspend fun storeSketch(anySketch: AnySketch): String {
-    val sketch: Sketch = anySketch.toSketchProto(sketchConfig)
-    val blobKey = generateBlobKey()
-    sketchStorageClient.createBlob(blobKey, sketch.toByteString())
-    return blobKey
+    return storeBlob(anySketch.toSketchProto(sketchConfig).toByteString())
   }
 
   override suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String {
-    val blobKey = generateBlobKey()
-    encryptedSketchStorageClient.createBlob(blobKey, encryptedSketch)
-    return blobKey
+    return storeBlob(encryptedSketch)
   }
 
   override suspend fun storeEstimationResults(
@@ -277,9 +290,11 @@ class CorrectnessImpl(
         putAllFrequency(frequency)
       }
     }.build()
-    val blobKey = generateBlobKey()
-    reportStorageClient.createBlob(blobKey, computation.toByteString())
-    return blobKey
+    return storeBlob(computation.toByteString())
+  }
+
+  override suspend fun storeTestResult(testResult: TestResult): String {
+    return storeBlob(testResult.toByteString())
   }
 
   override suspend fun sendToServer(
@@ -365,8 +380,14 @@ class CorrectnessImpl(
     return anySketch
   }
 
+  private suspend fun storeBlob(blob: ByteString): String {
+    val blobKey = generateBlobKey()
+    storageClient.createBlob(blobKey, blob)
+    return blobKey
+  }
+
   private fun generateBlobKey(): String {
-    return UUID.randomUUID().toString()
+    return "correctness-output/" + UUID.randomUUID().toString()
   }
 
   companion object {

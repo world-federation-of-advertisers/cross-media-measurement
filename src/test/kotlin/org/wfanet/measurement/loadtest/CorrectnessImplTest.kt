@@ -39,21 +39,19 @@ import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.duchy.testing.TestKeys
+import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 
 private const val RUN_ID = "TEST"
-private const val OUTPUT_DIR = "Correctness"
 private const val COMBINED_PUBLIC_KEY_ID = "1"
 
 @RunWith(JUnit4::class)
 class CorrectnessImplTest {
 
-  private lateinit var sketchStorageClient: FileSystemStorageClient
-  private lateinit var encryptedSketchStorageClient: FileSystemStorageClient
-  private lateinit var reportStorageClient: FileSystemStorageClient
+  private lateinit var storageClient: FileSystemStorageClient
   private val publisherDataServiceMock: PublisherDataCoroutineService =
     mock(useConstructor = UseConstructor.parameterless())
 
@@ -72,9 +70,7 @@ class CorrectnessImplTest {
 
   @Before
   fun init() {
-    sketchStorageClient = FileSystemStorageClient(tempDirectory.root)
-    encryptedSketchStorageClient = FileSystemStorageClient(tempDirectory.root)
-    reportStorageClient = FileSystemStorageClient(tempDirectory.root)
+    storageClient = FileSystemStorageClient(tempDirectory.root)
   }
 
   @Test
@@ -174,7 +170,8 @@ class CorrectnessImplTest {
       .build()
     val blobKey = correctness.storeSketch(SketchProtos.toAnySketch(sketchConfig, expectedSketch))
     val actualSketch =
-      Sketch.parseFrom(sketchStorageClient.getBlob(blobKey)!!.read().flatten())
+      Sketch.parseFrom(storageClient.getBlob(blobKey)?.read()?.flatten())
+
     assertThat(actualSketch).isEqualTo(expectedSketch)
   }
 
@@ -206,7 +203,7 @@ class CorrectnessImplTest {
     val blobKey =
       correctness.storeEncryptedSketch(ByteString.copyFromUtf8(exptectedEncryptedSketch))
     val actualEncryptedSketch =
-      encryptedSketchStorageClient.getBlob(blobKey)?.readToString()
+      storageClient.getBlob(blobKey)?.readToString()
     assertThat(actualEncryptedSketch).isEqualTo(exptectedEncryptedSketch)
   }
 
@@ -316,7 +313,40 @@ class CorrectnessImplTest {
       }
     }.build()
     val actualComputation =
-      GlobalComputation.parseFrom(reportStorageClient.getBlob(blobKey)!!.read().flatten())
+      GlobalComputation.parseFrom(storageClient.getBlob(blobKey)?.read()?.flatten())
+    assertThat(actualComputation).isEqualTo(expectedComputation)
+  }
+
+  @Test
+  fun `store test result succeeds`() = runBlocking {
+    val correctness = makeCorrectness(
+      dataProviderCount = 1,
+      campaignCount = 1,
+      generatedSetSize = 1,
+      universeSize = 1
+    )
+    val reach = 34512L
+    val frequency = mapOf((1L to 4L), (2L to 3L))
+    val computationBlobKey = correctness.storeEstimationResults(reach, frequency)
+    val expectedComputation = GlobalComputation.newBuilder().apply {
+      keyBuilder.globalComputationId = "1"
+      state = GlobalComputation.State.SUCCEEDED
+      resultBuilder.apply {
+        setReach(reach)
+        putAllFrequency(frequency)
+      }
+    }.build()
+
+    val expextedTestResult =
+      TestResult.newBuilder().setRunId(RUN_ID).setComputationBlobKey(computationBlobKey).build()
+    val blobKey = correctness.storeTestResult(expextedTestResult)
+    val actualTestResult =
+      TestResult.parseFrom(storageClient.getBlob(blobKey)?.read()?.flatten())
+    val actualComputation = GlobalComputation.parseFrom(
+      storageClient.getBlob(actualTestResult.computationBlobKey)?.read()?.flatten()
+    )
+
+    assertThat(actualTestResult).isEqualTo(expextedTestResult)
     assertThat(actualComputation).isEqualTo(expectedComputation)
   }
 
@@ -331,12 +361,9 @@ class CorrectnessImplTest {
     generatedSetSize,
     universeSize,
     RUN_ID,
-    OUTPUT_DIR,
     sketchConfig,
     encryptionKey,
-    sketchStorageClient,
-    encryptedSketchStorageClient,
-    reportStorageClient,
+    storageClient,
     COMBINED_PUBLIC_KEY_ID,
     publisherDataStub
   )

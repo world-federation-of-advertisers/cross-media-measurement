@@ -22,7 +22,9 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.crypto.ElGamalPublicKey
+import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.api.v1alpha.GlobalComputation
 
 /** Interface for E2E Correctness Test */
 interface Correctness {
@@ -42,19 +44,14 @@ interface Correctness {
   /** Unique run id to log and specify output files. Use timestamp if not provided. */
   val runId: String
 
-  /** Output directory to store sketches and estimates e.g. correctness/[runId]. */
-  val outputDir: String
-
   /** [SketchConfig] with necessary parameters to generate [Sketch]. */
   val sketchConfig: SketchConfig
 
   /** [ElGamalPublicKeys] keys required to encrypt the sketches. */
   val encryptionPublicKey: ElGamalPublicKey
 
-  /** Instances of [StorageClient] to store sketches and estimates. */
-  val sketchStorageClient: StorageClient
-  val encryptedSketchStorageClient: StorageClient
-  val reportStorageClient: StorageClient
+  /** Instance of [StorageClient] to store sketches, estimates, and test results. */
+  val storageClient: StorageClient
 
   /** CombinedPublicKeyId required for Publisher Data Service. */
   val combinedPublicKeyId: String
@@ -99,34 +96,42 @@ interface Correctness {
   fun estimateFrequency(anySketches: List<AnySketch>): Map<Long, Long>
 
   /**
-   * Stores raw Sketch protos into a local file and returns the path.
+   * Stores a binary-serialized [Sketch] message into a blob.
    *
    * @param AnySketch object
-   * @return String path of written file e.g. correctness/[runId]/sketches.textproto
+   * @return blob key of the stored [Sketch]
    */
   suspend fun storeSketch(anySketch: AnySketch): String
 
   /**
-   * Stores encrypted Sketch protos into a local file and returns the path.
+   * Stores an encrypted Sketch into a blob.
    *
    * @param encryptedSketch Encrypted Sketch proto in ByteString
-   * @return String path of written file e.g. correctness/[runId]/encrypted_sketches.txt
+   * @return blob key of the stored encryptedSketch
    */
   suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String
 
   /**
-   * Stores reach and frequency estimation results into a local file and returns the path.
+   * Stores a binary-serialized [GlobalComputation] message with reach and frequency estimation results into a blob.
    *
    * @param reach Long value of Estimated Cardinality
    * @param frequency Map<Long, Long> value of Estimated Frequency
-   * @return String path of written file e.g. correctness/[runId]/reports.textproto
+   * @return blob key of the stored [GlobalComputation]
    */
   suspend fun storeEstimationResults(
     reach: Long,
     frequency: Map<Long, Long>
   ): String
 
-  /** Sends encrypted [Sketch] proto to Publisher Data Service. */
+  /**
+   * Stores a binary-serialized [TestResult] message with all the blob keys into a blob.
+   *
+   * @param TestResult proto
+   * @return blob key of the stored [TestResult]
+   */
+  suspend fun storeTestResult(testResult: TestResult): String
+
+  /** Sends encryptedSketch to Publisher Data Service. */
   suspend fun sendToServer(
     dataProviderId: String,
     campaignId: String,
