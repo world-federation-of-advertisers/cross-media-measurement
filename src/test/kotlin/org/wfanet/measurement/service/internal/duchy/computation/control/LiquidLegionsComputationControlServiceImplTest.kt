@@ -15,12 +15,11 @@
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
-import io.grpc.StatusException
-import java.nio.charset.Charset
-import kotlin.test.assertEquals
+import io.grpc.StatusRuntimeException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.flowOf
@@ -28,15 +27,19 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
+import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.db.duchy.computation.toBlobRef
+import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
@@ -45,7 +48,6 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BL
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
@@ -56,81 +58,103 @@ import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.storage.ComputationStore
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+
+private const val RUNNING_DUCHY_NAME = "Alsace"
+private const val BAVARIA = "Bavaria"
+private const val CARINTHIA = "Carinthia"
+private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
 class LiquidLegionsComputationControlServiceImplTest {
-
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *otherDuchyNames.toTypedArray())
-  private val fakeBlobs = mutableMapOf<String, ByteArray>()
-
-  companion object {
-    private const val RUNNING_DUCHY_NAME = "Alsace"
-    private val otherDuchyNames = listOf("Bavaria", "Carinthia")
-  }
-
-  private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
-
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
-      ComputationStorageServiceCoroutineStub(channel),
-      FakeComputationsBlobDb(fakeBlobs),
-      otherDuchyNames
-    )
-    globalComputationClient = GlobalComputationsCoroutineStub(channel)
-
+  private val fakeComputationDb = FakeLiquidLegionsComputationDb()
+  private val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *OTHER_DUCHY_NAMES.toTypedArray())
+  private val tempDirectory = TemporaryFolder()
+  private val grpcTestServer = GrpcTestServerRule {
     addService(
-      LiquidLegionsComputationControlServiceImpl(computationStorageClients)
-        .withDuchyIdentities()
+      ComputationStorageServiceImpl(
+        fakeComputationDb,
+        globalComputationsClient,
+        RUNNING_DUCHY_NAME
+      )
     )
-    addService(ComputationStorageServiceImpl(fakeComputationStorage, globalComputationClient, "DUCHY 1"))
+
+    computationStore =
+      ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
+    computationStorageClients = LiquidLegionsClients.forTesting(
+      ComputationStorageServiceCoroutineStub(channel),
+      computationStore,
+      OTHER_DUCHY_NAMES
+    )
   }
 
-  private lateinit var computationStorageClients:
-    LiquidLegionsSketchAggregationComputationStorageClients
-  private lateinit var storageClient: ComputationStorageServiceCoroutineStub
-  private lateinit var bavariaClient: ComputationControlServiceCoroutineStub
-  private lateinit var carinthiaClient: ComputationControlServiceCoroutineStub
-  private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
+  @get:Rule
+  val ruleChain = chainRulesSequentially(tempDirectory, duchyIdSetter, grpcTestServer)
+
+  private val globalComputationsClient: GlobalComputationsCoroutineStub =
+    GlobalComputationsCoroutineStub(grpcTestServer.channel)
+  private val computationStorageClient =
+    ComputationStorageServiceCoroutineStub(grpcTestServer.channel)
+      .withDuchyId(RUNNING_DUCHY_NAME)
+  private lateinit var computationStorageClients: LiquidLegionsClients
+  private lateinit var computationStore: ComputationStore
+
+  private lateinit var bavaria: DuchyIdentity
+  private lateinit var carinthia: DuchyIdentity
+
+  private val blobCount = AtomicInteger()
+  private val generatedBlobKeys = mutableListOf<String>()
+  private fun ComputationToken.generateBlobKey(): String {
+    return listOf(
+      localComputationId,
+      computationStage.name,
+      blobCount.getAndIncrement()
+    ).joinToString("/").also { generatedBlobKeys.add(it) }
+  }
+
+  private lateinit var senderContext: SenderContext<LiquidLegionsComputationControlServiceImpl>
+  private suspend fun <R> withSender(
+    sender: DuchyIdentity,
+    rpcCall: suspend LiquidLegionsComputationControlServiceImpl.() -> R
+  ) = senderContext.withSender(sender, rpcCall)
 
   @Before
-  fun setup() {
-    storageClient =
-      ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel)
-        .withDuchyId(RUNNING_DUCHY_NAME)
-
-    bavariaClient =
-      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
-        .withDuchyId(otherDuchyNames[0])
-
-    carinthiaClient =
-      ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
-        .withDuchyId(otherDuchyNames[1])
+  fun initService() {
+    bavaria = DuchyIdentity(BAVARIA)
+    carinthia = DuchyIdentity(CARINTHIA)
+    senderContext =
+      SenderContext { duchyIdProvider ->
+        LiquidLegionsComputationControlServiceImpl(
+          computationStorageClients,
+          duchyIdProvider
+        )
+      }
   }
 
   @Test
   fun `receive sketches`() = runBlocking<Unit> {
-    val id = "252525"
-    val localSketches = "$id/$WAIT_SKETCHES/noised_sketch_$RUNNING_DUCHY_NAME"
-    fakeBlobs[localSketches] = "local_sketches".toByteArray()
-    fakeComputationStorage
-      .addComputation(
-        globalId = id,
-        stage = WAIT_SKETCHES.toProtocolStage(),
-        role = RoleInComputation.PRIMARY,
-        blobs = listOf(
-          newInputBlobMetadata(id = 0, key = localSketches),
-          newEmptyOutputBlobMetadata(id = 1),
-          newEmptyOutputBlobMetadata(id = 2)
-        ),
-        stageDetails = computationStorageClients
-          .liquidLegionsStageDetails.detailsFor(WAIT_SKETCHES)
-      )
-    val token = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = 252525,
+      stage = WAIT_SKETCHES.toProtocolStage()
+    ).build()
+    val id = partialToken.globalComputationId
+    computationStore.write(partialToken, ByteString.copyFromUtf8("local_sketches"))
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      role = RoleInComputation.PRIMARY,
+      blobs = listOf(
+        newInputBlobMetadata(id = 0, key = generatedBlobKeys.last()),
+        newEmptyOutputBlobMetadata(id = 1),
+        newEmptyOutputBlobMetadata(id = 2)
+      ),
+      stageDetails = computationStorageClients.liquidLegionsStageDetails.detailsFor(WAIT_SKETCHES)
+    )
+
+    assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest()))
     val part1 = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
@@ -141,11 +165,12 @@ class LiquidLegionsComputationControlServiceImplTest {
     val part3 = HandleNoisedSketchRequest.newBuilder()
       .setPartialSketch("part3".toByteString())
       .build()
-    ProtoTruth.assertThat(bavariaClient.handleNoisedSketch(flowOf(part1, part2, part3)))
+    assertThat(withSender(bavaria) { handleNoisedSketch(flowOf(part1, part2, part3)) })
       .isEqualToDefaultInstance()
-    val tokenAfter = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    val tokenAfter =
+      assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
 
-    ProtoTruth.assertThat(tokenAfter.computationStage).isEqualTo(WAIT_SKETCHES.toProtocolStage())
+    assertThat(tokenAfter.computationStage).isEqualTo(WAIT_SKETCHES.toProtocolStage())
 
     val fullSketch = HandleNoisedSketchRequest.newBuilder()
       .setComputationId(id)
@@ -155,19 +180,17 @@ class LiquidLegionsComputationControlServiceImplTest {
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      ProtoTruth.assertThat(carinthiaClient.handleNoisedSketch(flowOf(fullSketch)))
+      assertThat(withSender(carinthia) { handleNoisedSketch(flowOf(fullSketch)) })
         .isEqualToDefaultInstance()
       val tokenAfterSecondSketch =
-        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+        assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
 
-      val localInputToAddNoise = newInputBlobMetadata(id = 0L, key = localSketches)
-      val sender1InputToAddNoise =
-        newInputBlobMetadata(id = 1L, key = token.toBlobPath("noised_sketch_Bavaria"))
-      val sender2InputToAddNoise =
-        newInputBlobMetadata(id = 2L, key = token.toBlobPath("noised_sketch_Carinthia"))
+      val localInputToAddNoise = newInputBlobMetadata(id = 0L, key = generatedBlobKeys[0])
+      val sender1InputToAddNoise = newInputBlobMetadata(id = 1L, key = generatedBlobKeys[1])
+      val sender2InputToAddNoise = newInputBlobMetadata(id = 2L, key = generatedBlobKeys[2])
       val outputOfToAddNoise = newEmptyOutputBlobMetadata(id = 3L)
 
-      ProtoTruth.assertThat(tokenAfterSecondSketch).isEqualTo(
+      assertThat(tokenAfterSecondSketch).isEqualTo(
         copyOf(
           tokenAfter,
           withBlobs = listOf(
@@ -182,16 +205,14 @@ class LiquidLegionsComputationControlServiceImplTest {
           .clearStageSpecificDetails()
           .build()
       )
-      assertEquals(
-        mapOf(
-          localInputToAddNoise to "local_sketches",
-          sender1InputToAddNoise to "part1_part2_part3",
-          sender2InputToAddNoise to "full_sketch_fit_in_message"
-        ),
-        computationStorageClients.readInputBlobs(tokenAfterSecondSketch).mapValues {
-          it.value.toString(Charset.defaultCharset())
-        }
-      )
+      assertThat(computationStorageClients.readInputBlobs(tokenAfterSecondSketch))
+        .containsExactlyEntriesIn(
+          mapOf(
+            localInputToAddNoise to "local_sketches",
+            sender1InputToAddNoise to "part1_part2_part3",
+            sender2InputToAddNoise to "full_sketch_fit_in_message"
+          ).mapKeys { it.key.toBlobRef() }.mapValues { ByteString.copyFromUtf8(it.value) }
+        )
     }
   }
 
@@ -201,24 +222,27 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId("55")
       .setPartialSketch("data".toByteString())
       .build()
-    val notFound =
-      assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
+    val notFound = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleNoisedSketch(flowOf(sketch)) }
+    }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    fakeComputationStorage.addComputation(
+    fakeComputationDb.addComputation(
       globalId = "55",
       stage = LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
-    val exception =
-      assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf(sketch)) }
+    val exception = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleNoisedSketch(flowOf(sketch)) }
+    }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `bad request stream`() = runBlocking<Unit> {
-    val exception =
-      assertFailsWith<StatusException> { carinthiaClient.handleNoisedSketch(flowOf()) }
+    val exception = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleNoisedSketch(flowOf()) }
+    }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Empty request stream")
   }
@@ -226,14 +250,15 @@ class LiquidLegionsComputationControlServiceImplTest {
   @Test
   fun `receive blind positions with partial sketches at primary`() = runBlocking<Unit> {
     val id = "123"
-    fakeComputationStorage
+    fakeComputationDb
       .addComputation(
         globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
-    val token = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    val token =
+      assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
     val part1 = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("part1_".toByteString())
@@ -248,24 +273,21 @@ class LiquidLegionsComputationControlServiceImplTest {
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(part1, part2, part3)))
+      assertThat(withSender(carinthia) { handleConcatenatedSketch(flowOf(part1, part2, part3)) })
         .isEqualToDefaultInstance()
       val tokenAfter =
-        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+        assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = generatedBlobKeys[0])
       val output = newEmptyOutputBlobMetadata(id = 1)
 
-      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+      assertThat(tokenAfter).isEqualTo(
         copyOf(token, withBlobs = listOf(input, output))
           .setComputationStage(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage())
           .setVersion(2)
           .build()
       )
-      assertEquals(
-        mapOf(input to "part1_part2_part3"),
-        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-          it.value.toString(Charset.defaultCharset())
-        }
+      assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
+        input.toBlobRef(), ByteString.copyFromUtf8("part1_part2_part3")
       )
     }
   }
@@ -273,14 +295,15 @@ class LiquidLegionsComputationControlServiceImplTest {
   @Test
   fun `receive blind positions at secondary`() = runBlocking<Unit> {
     val id = "4567"
-    fakeComputationStorage
+    fakeComputationDb
       .addComputation(
         globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
-    val token = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    val token =
+      assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
     val sketch = HandleConcatenatedSketchRequest.newBuilder()
       .setComputationId(id)
       .setPartialSketch("full_sketch".toByteString())
@@ -289,24 +312,21 @@ class LiquidLegionsComputationControlServiceImplTest {
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      ProtoTruth.assertThat(carinthiaClient.handleConcatenatedSketch(flowOf(sketch)))
+      assertThat(withSender(carinthia) { handleConcatenatedSketch(flowOf(sketch)) })
         .isEqualToDefaultInstance()
       val tokenAfter =
-        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+        assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = generatedBlobKeys[0])
       val output = newEmptyOutputBlobMetadata(id = 1)
 
-      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+      assertThat(tokenAfter).isEqualTo(
         copyOf(token, withBlobs = listOf(input, output))
           .setComputationStage(TO_BLIND_POSITIONS.toProtocolStage())
           .setVersion(2)
           .build()
       )
-      assertEquals(
-        mapOf(input to "full_sketch"),
-        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-          it.value.toString(Charset.defaultCharset())
-        }
+      assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
+        input.toBlobRef(), ByteString.copyFromUtf8("full_sketch")
       )
     }
   }
@@ -317,31 +337,34 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId("55")
       .setPartialSketch("full_sketch".toByteString())
       .build()
-    val notFound =
-      assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
+    val notFound = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleConcatenatedSketch(flowOf(sketch)) }
+    }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    fakeComputationStorage.addComputation(
+    fakeComputationDb.addComputation(
       globalId = "55",
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
-    val exception =
-      assertFailsWith<StatusException> { carinthiaClient.handleConcatenatedSketch(flowOf(sketch)) }
+    val exception = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleConcatenatedSketch(flowOf(sketch)) }
+    }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `receive decrypt flags at primary`() = runBlocking<Unit> {
     val id = "111213"
-    fakeComputationStorage
+    fakeComputationDb
       .addComputation(
         globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
-    val token = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    val token =
+      assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
     val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
       .setPartialData("full_sketch".toByteString())
@@ -351,24 +374,21 @@ class LiquidLegionsComputationControlServiceImplTest {
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      ProtoTruth.assertThat(carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch)))
+      assertThat(withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(sketch)) })
         .isEqualToDefaultInstance()
       val tokenAfter =
-        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+        assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = generatedBlobKeys[0])
       val output = newEmptyOutputBlobMetadata(id = 1)
 
-      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+      assertThat(tokenAfter).isEqualTo(
         copyOf(token, withBlobs = listOf(input, output))
           .setComputationStage(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage())
           .setVersion(2)
           .build()
       )
-      assertEquals(
-        mapOf(input to "full_sketch"),
-        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-          it.value.toString(Charset.defaultCharset())
-        }
+      assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
+        input.toBlobRef(), ByteString.copyFromUtf8("full_sketch")
       )
     }
   }
@@ -376,14 +396,15 @@ class LiquidLegionsComputationControlServiceImplTest {
   @Test
   fun `receive partial encrypted flags at secondary`() = runBlocking<Unit> {
     val id = "123"
-    fakeComputationStorage
+    fakeComputationDb
       .addComputation(
         globalId = id,
         stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
-    val token = assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
+    val token =
+      assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
     val part1 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
       .setComputationId(id)
       .setPartialData("part1_".toByteString())
@@ -398,25 +419,22 @@ class LiquidLegionsComputationControlServiceImplTest {
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      ProtoTruth.assertThat(
-        carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3))
+      assertThat(
+        withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3)) }
       ).isEqualToDefaultInstance()
       val tokenAfter =
-        assertNotNull(storageClient.getComputationToken(id.toGetTokenRequest())).token
-      val input = newInputBlobMetadata(id = 0, key = token.toBlobPath("output"))
+        assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
+      val input = newInputBlobMetadata(id = 0, key = generatedBlobKeys[0])
       val output = newEmptyOutputBlobMetadata(id = 1)
 
-      ProtoTruth.assertThat(tokenAfter).isEqualTo(
+      assertThat(tokenAfter).isEqualTo(
         copyOf(token, withBlobs = listOf(input, output))
           .setComputationStage(TO_DECRYPT_FLAG_COUNTS.toProtocolStage())
           .setVersion(2)
           .build()
       )
-      assertEquals(
-        mapOf(input to "part1_part2_part3"),
-        computationStorageClients.readInputBlobs(tokenAfter).mapValues {
-          it.value.toString(Charset.defaultCharset())
-        }
+      assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
+        input.toBlobRef(), ByteString.copyFromUtf8("part1_part2_part3")
       )
     }
   }
@@ -427,18 +445,18 @@ class LiquidLegionsComputationControlServiceImplTest {
       .setComputationId("55")
       .setPartialData("data".toByteString())
       .build()
-    val notFound = assertFailsWith<StatusException> {
-      carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch))
+    val notFound = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(sketch)) }
     }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    fakeComputationStorage.addComputation(
+    fakeComputationDb.addComputation(
       globalId = "55",
       stage = WAIT_SKETCHES.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
-    val exception = assertFailsWith<StatusException> {
-      carinthiaClient.handleEncryptedFlagsAndCounts(flowOf(sketch))
+    val exception = assertFailsWith<StatusRuntimeException> {
+      withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(sketch)) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }

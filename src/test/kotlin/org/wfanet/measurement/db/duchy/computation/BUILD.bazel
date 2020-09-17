@@ -25,3 +25,21 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
     ],
 )
+
+kt_jvm_test(
+    name = "LiquidLegionsSketchAggregationComputationStorageClientsTest",
+    srcs = ["LiquidLegionsSketchAggregationComputationStorageClientsTest.kt"],
+    test_class = "org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClientsTest",
+    deps = [
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
+        "//src/main/kotlin/org/wfanet/measurement/service/testing",
+    ],
+)

@@ -23,7 +23,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 
 private const val BLOB_KEY_PREFIX = "computations"
 
-private typealias BlobKeyGenerator = ComputationToken.() -> String
+private typealias ComputationBlobKeyGenerator = ComputationToken.() -> String
 
 /**
  * Blob storage for computations.
@@ -34,7 +34,7 @@ private typealias BlobKeyGenerator = ComputationToken.() -> String
  */
 class ComputationStore private constructor(
   private val storageClient: StorageClient,
-  private val generateBlobKey: BlobKeyGenerator
+  private val generateBlobKey: ComputationBlobKeyGenerator
 ) {
   constructor(storageClient: StorageClient) : this(
     storageClient,
@@ -75,7 +75,7 @@ class ComputationStore private constructor(
   companion object {
     fun forTesting(
       storageClient: StorageClient,
-      blobKeyGenerator: BlobKeyGenerator
+      blobKeyGenerator: ComputationBlobKeyGenerator
     ): ComputationStore {
       return ComputationStore(storageClient, blobKeyGenerator)
     }

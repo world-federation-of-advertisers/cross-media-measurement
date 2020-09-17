@@ -36,6 +36,7 @@ fun String.toGetTokenRequest(
     .setGlobalComputationId(this)
     .build()
 
+@Deprecated("Computation store should generate blob keys")
 fun ComputationToken.toBlobPath(name: String) =
   "$localComputationId/${computationStage.name}_${attempt}_$name"
 

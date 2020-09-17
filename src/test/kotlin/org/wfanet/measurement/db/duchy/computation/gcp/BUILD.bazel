@@ -23,22 +23,6 @@ kt_jvm_test(
     ],
 )
 
-kt_jvm_test(
-    name = "GcpStorageComputationsDbTest",
-    srcs = ["GcpStorageComputationsDbTest.kt"],
-    test_class = "org.wfanet.measurement.db.duchy.computation.gcp.GcpStorageComputationsDbTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/cloud/storage",
-        "//imports/java/com/google/cloud/storage/contrib/nio",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-    ],
-)
-
 spanner_emulator_test(
     name = "ComputationsSchemaTest",
     srcs = ["ComputationsSchemaTest.kt"],
@@ -88,29 +72,5 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
-    ],
-)
-
-spanner_emulator_test(
-    name = "GcpComputationStorageClientsTest",
-    srcs = ["GcpComputationStorageClientsTest.kt"],
-    resources = [
-        "//src/main/db/gcp:computations_schema",
-    ],
-    test_class = "org.wfanet.measurement.db.duchy.computation.gcp.GcpComputationStorageClientsTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/cloud/storage",
-        "//imports/java/com/google/cloud/storage/contrib/nio",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
-        "//src/main/kotlin/org/wfanet/measurement/service/testing",
     ],
 )

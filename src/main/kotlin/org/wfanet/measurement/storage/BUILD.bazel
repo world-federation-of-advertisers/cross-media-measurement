@@ -11,12 +11,20 @@ package_group(
     ],
 )
 
+package_group(
+    name = "integration_tests",
+    packages = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/...",
+    ],
+)
+
 kt_jvm_library(
     name = "client",
     srcs = ["StorageClient.kt"],
     visibility = [
         ":__subpackages__",
         test_target(":__subpackages__"),
+        ":integration_tests",
         ":load_test",
         "//src:internal_services",
     ],
@@ -49,9 +57,11 @@ kt_jvm_library(
 )
 
 package_group(
-    name = "computation_control_service",
+    name = "duchy_computations",
     packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/...",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/mill/...",
         "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
     ],
 )
@@ -69,8 +79,9 @@ kt_jvm_library(
     name = "computation_store",
     srcs = ["ComputationStore.kt"],
     visibility = [
-        ":computation_control_service",
         ":computation_db",
+        ":duchy_computations",
+        ":integration_tests",
     ],
     deps = [
         ":client",

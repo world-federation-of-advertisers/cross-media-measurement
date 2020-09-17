@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
+import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
@@ -45,7 +45,7 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
 class ComputationStorageServiceImplTest {
-  private val fakeDatabase = FakeComputationStorage(listOf("A", "B", "C", "D"))
+  private val fakeDatabase = FakeLiquidLegionsComputationDb()
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.db.duchy.computation
 
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -180,18 +181,4 @@ interface SingleProtocolDatabase :
  */
 data class BlobRef(val idInRelationalDatabase: Long, val key: String)
 
-/** BLOBs storage used by a computation. */
-interface ComputationsBlobDb<StageT> {
-
-  /** Reads and returns a BLOB from storage */
-  suspend fun read(reference: BlobRef): ByteArray
-
-  /** Write a BLOB and ensure it is fully written before returning. */
-  suspend fun blockingWrite(blob: BlobRef, bytes: ByteArray) = blockingWrite(blob.key, bytes)
-
-  /** Write a BLOB and ensure it is fully written before returning. */
-  suspend fun blockingWrite(path: String, bytes: ByteArray)
-
-  /** Deletes a BLOB */
-  suspend fun delete(reference: BlobRef)
-}
+fun ComputationStageBlobMetadata.toBlobRef() = BlobRef(blobId, path)

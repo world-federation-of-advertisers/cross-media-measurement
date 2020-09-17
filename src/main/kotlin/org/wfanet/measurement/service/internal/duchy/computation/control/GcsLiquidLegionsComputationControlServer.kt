@@ -15,8 +15,8 @@
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.db.duchy.computation.gcp.GcpStorageComputationsDb
 import org.wfanet.measurement.storage.gcs.GcsFromFlags
+import org.wfanet.measurement.storage.gcs.GcsStorageClient
 import picocli.CommandLine
 
 /**
@@ -37,7 +37,7 @@ class GcsLiquidLegionsComputationControlServer : LiquidLegionsComputationControl
 
   override fun run() {
     val gcs = GcsFromFlags(gcsFlags)
-    run(GcpStorageComputationsDb(gcs.storage, gcs.bucket))
+    run(GcsStorageClient.fromFlags(gcs))
   }
 }
 

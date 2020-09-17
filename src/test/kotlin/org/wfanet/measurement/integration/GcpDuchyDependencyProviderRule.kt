@@ -1,3 +1,17 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.integration
 
 import com.google.cloud.spanner.DatabaseClient
@@ -9,7 +23,6 @@ import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
@@ -18,12 +31,10 @@ import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.db.duchy.computation.gcp.GcpStorageComputationsDb
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
@@ -61,7 +72,6 @@ class GcpDuchyDependencyProviderRule(
 
     return InProcessDuchy.DuchyDependencies(
       buildSingleProtocolDb(duchy.name, computationsDatabase.databaseClient),
-      buildBlobDb(duchy.name),
       buildMetricValueDb(metricValueDatabase.databaseClient),
       buildStorageClient(duchy.name),
       buildCryptoKeySet(duchy.name)
@@ -98,14 +108,6 @@ class GcpDuchyDependencyProviderRule(
       override val computationType =
         ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
     }
-  }
-
-  private fun buildBlobDb(
-    duchyId: String
-  ): ComputationsBlobDb<LiquidLegionsSketchAggregationStage> {
-    return GcpStorageComputationsDb(
-      LocalStorageHelper.getOptions().service, "bucket-$duchyId"
-    )
   }
 
   private fun buildMetricValueDb(databaseClient: DatabaseClient): MetricValueDatabase {

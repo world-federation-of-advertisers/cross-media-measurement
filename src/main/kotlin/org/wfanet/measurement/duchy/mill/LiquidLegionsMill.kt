@@ -40,10 +40,10 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.common.toByteArray
-import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.mpcAlgorithm
@@ -59,7 +59,6 @@ import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.Com
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
@@ -198,7 +197,7 @@ class LiquidLegionsMill(
 
     // cache the combined local requisitions to blob store.
     val concatenatedContents = streamMetricValueContents(availableRequisitions).flattenConcat()
-    val nextToken = storageClients.writeSingleOutputBlob(token, concatenatedContents.toByteArray())
+    val nextToken = storageClients.writeSingleOutputBlob(token, concatenatedContents)
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -435,7 +434,10 @@ class LiquidLegionsMill(
   ): CachedResult {
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
-      return CachedResult(ByteString.copyFrom(storageClients.readSingleOutputBlob(token)), token)
+      return CachedResult(
+        checkNotNull(storageClients.readSingleOutputBlob(token)).flatten(),
+        token
+      )
     }
     val newResult: ByteString =
       try {
@@ -444,20 +446,17 @@ class LiquidLegionsMill(
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
       }
-    return CachedResult(
-      newResult,
-      storageClients.writeSingleOutputBlob(token, newResult.toByteArray())
-    )
+    return CachedResult(newResult, storageClients.writeSingleOutputBlob(token, newResult))
   }
 
   private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
-    val blobMap: Map<ComputationStageBlobMetadata, ByteArray> = storageClients.readInputBlobs(token)
+    val blobMap: Map<BlobRef, ByteString> = storageClients.readInputBlobs(token)
     if (blobMap.size != count) {
       throw PermanentComputationError(
         Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
       )
     }
-    return blobMap.values.toByteString()
+    return blobMap.values.flatten()
   }
 
   /** Partition a [ByteString] to a [Flow] of chunks of size at most [chunkSize]. */

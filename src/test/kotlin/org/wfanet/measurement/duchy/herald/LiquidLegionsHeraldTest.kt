@@ -34,7 +34,7 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.pollFor
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
+import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
@@ -55,7 +55,7 @@ internal class LiquidLegionsHeraldTest {
     mock(useConstructor = UseConstructor.parameterless()) {}
   private val duchyName = "foo"
   private val otherDuchyNames = listOf("Bavaria", "Carinthia")
-  private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
+  private val fakeComputationStorage = FakeLiquidLegionsComputationDb()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

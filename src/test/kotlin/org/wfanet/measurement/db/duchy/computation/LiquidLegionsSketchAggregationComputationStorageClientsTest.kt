@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.duchy.computation.gcp
+package org.wfanet.measurement.db.duchy.computation
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.protobuf.ByteString
 import java.time.Instant
 import kotlin.test.assertEquals
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -29,10 +30,7 @@ import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
 import org.wfanet.measurement.crypto.DuchyPublicKeyMap
 import org.wfanet.measurement.crypto.ElGamalPublicKey
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
-import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
+import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
@@ -53,6 +51,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
@@ -60,17 +59,16 @@ import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toBlobPath
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.storage.StorageClient
 
 private const val ELLIPTIC_CURVE_ID = 415 // prime256v1
-private val EL_GAMAL_GENERATOR =
-  byteStringOf(
-    0x96, 0x20, 0x45, 0x16, 0x33, 0x9B, 0x7D, 0xD4, 0x33, 0xB0, 0x35, 0xCD, 0x09, 0x6A, 0x03, 0xD8,
-    0xF3, 0x42, 0x7D, 0x86, 0x3C, 0x94, 0x5C, 0x0E, 0x14, 0x11, 0xC6, 0x35, 0x30, 0xC8, 0xEA, 0x88,
-    0xAD
-  )
+private val EL_GAMAL_GENERATOR = byteStringOf(
+  0x03, 0x6B, 0x17, 0xD1, 0xF2, 0xE1, 0x2C, 0x42, 0x47, 0xF8, 0xBC, 0xE6, 0xE5, 0x63, 0xA4, 0x40,
+  0xF2, 0x77, 0x03, 0x7D, 0x81, 0x2D, 0xEB, 0x33, 0xA0, 0xF4, 0xA1, 0x39, 0x45, 0xD8, 0x98, 0xC2,
+  0x96
+)
 private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "123"
 private const val ID_WHERE_ALSACE_IS_PRIMARY = "456"
 private const val ALSACE = "Alsace"
@@ -79,8 +77,8 @@ private const val CARINTHIA = "Carinthia"
 private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
-class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
-  private val fakeDatabase = FakeComputationStorage(DUCHIES.subList(1, 3))
+class LiquidLegionsSketchAggregationComputationStorageClientsTest {
+  private val fakeDatabase = FakeLiquidLegionsComputationDb()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -90,16 +88,34 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
 
   private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
 
+  private val dummyStorageClient = object : StorageClient {
+    override val defaultBufferSizeBytes: Int
+      get() {
+        throw NotImplementedError("Unused by test")
+      }
+
+    override suspend fun createBlob(
+      blobKey: String,
+      content: Flow<ByteString>
+    ): StorageClient.Blob {
+      throw NotImplementedError("Unused by test")
+    }
+
+    override fun getBlob(blobKey: String): StorageClient.Blob? {
+      throw NotImplementedError("Unused by test")
+    }
+  }
+
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
-      newLiquidLegionsSketchAggregationGcpComputationStorageClients(
-        ALSACE,
-        duchyPublicKeys = publicKeysMap,
-        googleCloudStorage = LocalStorageHelper.getOptions().service,
-        storageBucket = "test-mill-bucket",
-        computationStorageServiceChannel = grpcTestServerRule.channel
+      LiquidLegionsSketchAggregationComputationStorageClients(
+        ComputationStorageServiceCoroutineStub(
+          channel = grpcTestServerRule.channel
+        ),
+        storageClient = dummyStorageClient,
+        otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_NOT_PRIMARY,
       testClock
@@ -132,12 +148,12 @@ class GcpComputationStorageClientsTest : UsingSpannerEmulator("/src/main/db/gcp/
   fun runProtocolAtPrimaryWorker() = runBlocking<Unit> {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
-      newLiquidLegionsSketchAggregationGcpComputationStorageClients(
-        ALSACE,
-        duchyPublicKeys = publicKeysMap,
-        googleCloudStorage = LocalStorageHelper.getOptions().service,
-        storageBucket = "test-mill-bucket",
-        computationStorageServiceChannel = grpcTestServerRule.channel
+      LiquidLegionsSketchAggregationComputationStorageClients(
+        ComputationStorageServiceCoroutineStub(
+          channel = grpcTestServerRule.channel
+        ),
+        storageClient = dummyStorageClient,
+        otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
       testClock
@@ -226,7 +242,7 @@ class SingleLiquidLegionsComputation(
             RecordOutputBlobPathRequest.newBuilder()
               .setToken(token)
               .setOutputBlobId(it.blobId)
-              .setBlobPath(token.toBlobPath("output"))
+              .setBlobPath("unused_output_${it.blobId}")
               .build()
           ).token
       }
@@ -283,7 +299,7 @@ class SingleLiquidLegionsComputation(
       val stageDetails = token.stageSpecificDetails.waitSketchStageDetails
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
-      val path = token.toBlobPath("sketch_from_$sender")
+      val path = "unused_${sender}_$blobId"
       token = storageClients.computationStorageClient.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder()
           .setToken(token)
@@ -329,7 +345,9 @@ class SingleLiquidLegionsComputation(
           .build()
       ) {
         storageClients.transitionComputationToStage(
-          it.token, it.outputs.paths(), stage
+          it.token,
+          it.outputs.paths(),
+          stage
         )
       }
     }
@@ -347,7 +365,9 @@ class SingleLiquidLegionsComputation(
           .setComputationStage(stage.toProtocolStage()).setAttempt(0).build()
       ) {
         storageClients.transitionComputationToStage(
-          it.token, it.outputs.paths(), stage
+          it.token,
+          it.outputs.paths(),
+          stage
         )
       }
     }

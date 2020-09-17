@@ -26,7 +26,6 @@
 package org.wfanet.measurement.duchy.mill
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.UseConstructor
@@ -38,10 +37,9 @@ import com.nhaarman.mockitokotlin2.verifyBlocking
 import com.nhaarman.mockitokotlin2.verifyZeroInteractions
 import com.nhaarman.mockitokotlin2.whenever
 import io.grpc.Status
-import java.nio.charset.Charset
 import java.time.Clock
 import java.time.Duration
-import kotlin.test.assertEquals
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -49,6 +47,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
@@ -60,11 +59,13 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.size
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationStorage
-import org.wfanet.measurement.db.duchy.computation.testing.FakeComputationsBlobDb
+import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
@@ -104,25 +105,43 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmpt
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.storage.ComputationStore
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.read
 
 class LiquidLegionsMillTest {
-
   private val mockLiquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockMetricValues: MetricValuesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val fakeBlobs = mutableMapOf<String, ByteArray>()
-  private val fakeComputationStorage = FakeComputationStorage(otherDuchyNames)
+  private val fakeComputationDb = FakeLiquidLegionsComputationDb()
   private val mockCryptoWorker: LiquidLegionsCryptoWorker =
     mock(useConstructor = UseConstructor.parameterless())
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients(
+  private lateinit var computationStorageClients:
+    LiquidLegionsSketchAggregationComputationStorageClients
+  private lateinit var computationStore: ComputationStore
+
+  private val tempDirectory = TemporaryFolder()
+
+  private val blobCount = AtomicInteger()
+  private val generatedBlobKeys = mutableListOf<String>()
+  private fun ComputationToken.generateBlobKey(): String {
+    return listOf(
+      localComputationId,
+      computationStage.name,
+      blobCount.getAndIncrement()
+    ).joinToString("/").also { generatedBlobKeys.add(it) }
+  }
+
+  private val grpcTestServerRule = GrpcTestServerRule {
+    computationStore =
+      ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
+    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients.forTesting(
       ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub(channel),
-      FakeComputationsBlobDb(fakeBlobs),
+      computationStore,
       otherDuchyNames
     )
     addService(mockLiquidLegionsComputationControl)
@@ -130,13 +149,15 @@ class LiquidLegionsMillTest {
     addService(mockGlobalComputations)
     addService(
       ComputationStorageServiceImpl(
-        fakeComputationStorage, globalComputationStub, DUCHY_NAME
+        fakeComputationDb,
+        globalComputationStub,
+        DUCHY_NAME
       )
     )
   }
 
-  private lateinit var computationStorageClients:
-    LiquidLegionsSketchAggregationComputationStorageClients
+  @get:Rule
+  val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   private val workerStub: ComputationControlServiceCoroutineStub by lazy {
     ComputationControlServiceCoroutineStub(grpcTestServerRule.channel)
@@ -205,7 +226,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to confirm requisition, no local requisitions required at primary`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    fakeComputationStorage.addComputation(
+    fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
@@ -216,7 +237,8 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID])
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
           .setGlobalComputationId(GLOBAL_ID)
@@ -228,7 +250,7 @@ class LiquidLegionsMillTest {
               ComputationStageBlobMetadata.newBuilder()
                 .setDependencyType(ComputationBlobDependency.INPUT)
                 .setBlobId(0)
-                .setPath("1111/TO_CONFIRM_REQUISITIONS_1_output").build(),
+                .setPath(blobKey).build(),
               newEmptyOutputBlobMetadata(1),
               newEmptyOutputBlobMetadata(2)
             )
@@ -247,7 +269,7 @@ class LiquidLegionsMillTest {
           .setRole(RoleInComputation.PRIMARY)
           .build()
       )
-    assertThat(fakeBlobs["1111/TO_CONFIRM_REQUISITIONS_1_output"]).isEmpty()
+    assertThat(computationStore.get(blobKey)?.readToString()).isEmpty()
 
     verifyZeroInteractions(mockMetricValues)
     verifyProtoArgument(
@@ -266,7 +288,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to confirm requisition, all local requisitions available non-primary`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    fakeComputationStorage.addComputation(
+    fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
@@ -304,34 +326,34 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.WAIT_TO_START.toProtocolStage())
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.INPUT)
-              .setBlobId(0)
-              .setPath("1111/TO_CONFIRM_REQUISITIONS_1_output")
-          )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + write blob + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
-          .build()
-      )
-    assertEquals(
-      "A_chunk_1_A_chunk_2_A_chunk_3_B_chunk_1_B_chunk_2_",
-      fakeBlobs["1111/TO_CONFIRM_REQUISITIONS_1_output"]!!.toString(Charset.defaultCharset())
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_TO_START.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + write blob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
     )
+    assertThat(
+      computationStore.get(blobKey)
+        ?.readToString()
+    ).isEqualTo("A_chunk_1_A_chunk_2_A_chunk_3_B_chunk_1_B_chunk_2_")
 
-    ProtoTruth.assertThat(metricValuesRequest1).isEqualTo(
+    assertThat(metricValuesRequest1).isEqualTo(
       StreamMetricValueRequest.newBuilder().setResourceKey("1".toMetricValueResourceKey()).build()
     )
-    ProtoTruth.assertThat(metricValuesRequest2).isEqualTo(
+    assertThat(metricValuesRequest2).isEqualTo(
       StreamMetricValueRequest.newBuilder().setResourceKey("2".toMetricValueResourceKey()).build()
     )
     verifyProtoArgument(
@@ -355,7 +377,7 @@ class LiquidLegionsMillTest {
     // Stage 0. preparing the storage and set up mock
     val requisition1 = "1"
     val requisition2 = "2"
-    fakeComputationStorage.addComputation(
+    fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
@@ -398,7 +420,7 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
+    assertThat(fakeComputationDb[LOCAL_ID]!!)
       .isEqualTo(
         ComputationToken.newBuilder()
           .setGlobalComputationId(GLOBAL_ID)
@@ -459,17 +481,20 @@ class LiquidLegionsMillTest {
   @Test
   fun `to add noise using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "to_add_noise/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_ADD_NOISE.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_ADD_NOISE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
 
     lateinit var computationControlRequests: List<HandleNoisedSketchRequest>
     whenever(mockLiquidLegionsComputationControl.handleNoisedSketch(any())).thenAnswer {
@@ -488,34 +513,31 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.WAIT_CONCATENATED.toProtocolStage())
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.INPUT)
-              .setBlobId(0)
-              .setPath("1111/TO_ADD_NOISE_1_output")
-          )
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
-          )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
-          .build()
-      )
-
-    assertEquals(
-      "sketch-AddedNoise",
-      fakeBlobs["1111/TO_ADD_NOISE_1_output"]!!.toString(Charset.defaultCharset())
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_CONCATENATED.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
     )
+
+    assertThat(computationStore.get(blobKey)?.readToString()).isEqualTo("sketch-AddedNoise")
 
     assertThat(computationControlRequests).containsExactly(
       HandleNoisedSketchRequest.newBuilder()
@@ -527,23 +549,24 @@ class LiquidLegionsMillTest {
   @Test
   fun `to append sketches any add noise using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath1 = "to_append_sketches_and_add_noise/input1"
-    val inputBlobPath2 = "to_append_sketches_and_add_noise/input2"
-    val inputBlobPath3 = "to_append_sketches_and_add_noise/input3"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch_1_")
+    computationStore.writeString(partialToken, "sketch_2_")
+    computationStore.writeString(partialToken, "sketch_3_")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.PRIMARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath1),
-        newInputBlobMetadata(1L, inputBlobPath2),
-        newInputBlobMetadata(2L, inputBlobPath3),
+        newInputBlobMetadata(0L, generatedBlobKeys[0]),
+        newInputBlobMetadata(1L, generatedBlobKeys[1]),
+        newInputBlobMetadata(2L, generatedBlobKeys[2]),
         newEmptyOutputBlobMetadata(3L)
       )
     )
-    fakeBlobs[inputBlobPath1] = "sketch_1_".toByteArray()
-    fakeBlobs[inputBlobPath2] = "sketch_2_".toByteArray()
-    fakeBlobs[inputBlobPath3] = "sketch_3_".toByteArray()
 
     lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
     whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
@@ -562,35 +585,32 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.WAIT_CONCATENATED.toProtocolStage())
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.INPUT)
-              .setBlobId(0)
-              .setPath("1111/TO_APPEND_SKETCHES_AND_ADD_NOISE_1_output")
-          )
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
-          )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-          .setRole(RoleInComputation.PRIMARY)
-          .build()
-      )
-
-    assertEquals(
-      "sketch_1_sketch_2_sketch_3_-AddedNoise",
-      fakeBlobs["1111/TO_APPEND_SKETCHES_AND_ADD_NOISE_1_output"]!!
-        .toString(Charset.defaultCharset())
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_CONCATENATED.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.PRIMARY)
+        .build()
     )
+
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("sketch_1_sketch_2_sketch_3_-AddedNoise")
 
     assertThat(computationControlRequests).containsExactly(
       HandleConcatenatedSketchRequest.newBuilder()
@@ -605,19 +625,21 @@ class LiquidLegionsMillTest {
   @Test
   fun `to blind positions using cached result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "to_blind_position/input"
-    val outputBlobPath = "to_blind_position/output"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch")
+    computationStore.writeString(partialToken, "cached result")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
-        newOutputBlobMetadata(1L, outputBlobPath)
+        newInputBlobMetadata(0L, generatedBlobKeys[0]),
+        newOutputBlobMetadata(1L, generatedBlobKeys[1])
       )
     )
-    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
-    fakeBlobs[outputBlobPath] = "cached result".toByteArray()
 
     lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
     whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
@@ -630,30 +652,29 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.WAIT_FLAG_COUNTS.toProtocolStage())
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.INPUT)
-              .setBlobId(0)
-              .setPath("to_blind_position/output")
-          )
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.OUTPUT)
-              .setBlobId(1)
-          )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(2) // CreateComputation + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
-          .build()
-      )
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_FLAG_COUNTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(generatedBlobKeys.last())
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT)
+            .setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(2) // CreateComputation + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
+    )
 
     assertThat(computationControlRequests).containsExactly(
       HandleConcatenatedSketchRequest.newBuilder()
@@ -665,17 +686,20 @@ class LiquidLegionsMillTest {
   @Test
   fun `to blind positions using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "to_blind_position/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
 
     lateinit var computationControlRequests: List<HandleConcatenatedSketchRequest>
     whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any())).thenAnswer {
@@ -696,33 +720,31 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.WAIT_FLAG_COUNTS.toProtocolStage())
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.INPUT)
-              .setBlobId(0)
-              .setPath("1111/TO_BLIND_POSITIONS_1_output")
-          )
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
-          )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
-          .build()
-      )
-    assertEquals(
-      "sketch-BlindedOneLayerRegisterIndex",
-      fakeBlobs["1111/TO_BLIND_POSITIONS_1_output"]!!.toString(Charset.defaultCharset())
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_FLAG_COUNTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
     )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("sketch-BlindedOneLayerRegisterIndex")
 
     assertThat(computationControlRequests).containsExactly(
       HandleConcatenatedSketchRequest.newBuilder()
@@ -737,17 +759,20 @@ class LiquidLegionsMillTest {
   @Test
   fun `to blind positions and merge register using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "TO_BLIND_POSITIONS_AND_JOIN_REGISTERS/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "data".toByteArray()
 
     lateinit var computationControlRequests: List<HandleEncryptedFlagsAndCountsRequest>
     whenever(mockLiquidLegionsComputationControl.handleEncryptedFlagsAndCounts(any())).thenAnswer {
@@ -768,34 +793,31 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.WAIT_FLAG_COUNTS.toProtocolStage())
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.INPUT)
-              .setBlobId(0)
-              .setPath("1111/TO_BLIND_POSITIONS_AND_JOIN_REGISTERS_1_output")
-          )
-          .addBlobs(
-            ComputationStageBlobMetadata.newBuilder()
-              .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
-          )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
-          .build()
-      )
-    assertEquals(
-      "data-BlindedLastLayerIndexThenJoinRegisters",
-      fakeBlobs["1111/TO_BLIND_POSITIONS_AND_JOIN_REGISTERS_1_output"]!!
-        .toString(Charset.defaultCharset())
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.WAIT_FLAG_COUNTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
     )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-BlindedLastLayerIndexThenJoinRegisters")
 
     assertThat(computationControlRequests).containsExactly(
       HandleEncryptedFlagsAndCountsRequest.newBuilder()
@@ -813,17 +835,20 @@ class LiquidLegionsMillTest {
   @Test
   fun `to decrypt FlagCounts using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "TO_DECRYPT_FLAG_COUNTS/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "data".toByteArray()
 
     lateinit var computationControlRequests: List<HandleEncryptedFlagsAndCountsRequest>
     whenever(mockLiquidLegionsComputationControl.handleEncryptedFlagsAndCounts(any())).thenAnswer {
@@ -844,23 +869,21 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
-          .build()
-      )
-    assertEquals(
-      "data-DecryptedOneLayerFlagAndCount",
-      fakeBlobs["1111/TO_DECRYPT_FLAG_COUNTS_1_output"]!!.toString(Charset.defaultCharset())
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setRole(RoleInComputation.SECONDARY)
+        .build()
     )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-DecryptedOneLayerFlagAndCount")
 
     assertThat(computationControlRequests).containsExactly(
       HandleEncryptedFlagsAndCountsRequest.newBuilder()
@@ -875,17 +898,21 @@ class LiquidLegionsMillTest {
   @Test
   fun `to decrypt flag count and compute metric`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.PRIMARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "data".toByteArray()
+
     whenever(mockCryptoWorker.decryptLastLayerFlagAndCount(any()))
       .thenReturn(
         DecryptLastLayerFlagAndCountResponse.newBuilder()
@@ -904,20 +931,20 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
-      .isEqualTo(
-        ComputationToken.newBuilder()
-          .setGlobalComputationId(GLOBAL_ID)
-          .setLocalComputationId(LOCAL_ID)
-          .setAttempt(1)
-          .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(3) // CreateComputation + write blob + transitionStage
-          .setRole(RoleInComputation.PRIMARY)
-          .build()
-      )
-    assertThat(fakeBlobs["1111/TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS_1_output"]).isNotEmpty()
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
+        .setNextDuchy("NEXT_WORKER")
+        .setPrimaryDuchy("PRIMARY_WORKER")
+        .setVersion(3) // CreateComputation + write blob + transitionStage
+        .setRole(RoleInComputation.PRIMARY)
+        .build()
+    )
+    assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
 
     verifyProtoArgument(
       mockGlobalComputations,
@@ -943,17 +970,20 @@ class LiquidLegionsMillTest {
   @Test
   fun `permanent crypto worker failure, computation should FAIL`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "to_blind_position/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
 
     whenever(mockCryptoWorker.blindOneLayerRegisterIndex(any()))
       .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
@@ -965,7 +995,7 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
+    assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
           .setGlobalComputationId(GLOBAL_ID)
@@ -1011,17 +1041,20 @@ class LiquidLegionsMillTest {
   @Test
   fun `trancient grpc failure, result should be cached`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val inputBlobPath = "to_blind_position/input"
-    fakeComputationStorage.addComputation(
-      globalId = GLOBAL_ID,
-      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage(),
+    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
       role = RoleInComputation.SECONDARY,
       blobs = listOf(
-        newInputBlobMetadata(0L, inputBlobPath),
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
       )
     )
-    fakeBlobs[inputBlobPath] = "sketch".toByteArray()
 
     whenever(mockLiquidLegionsComputationControl.handleConcatenatedSketch(any()))
       .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
@@ -1042,7 +1075,9 @@ class LiquidLegionsMillTest {
     mill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    assertThat(fakeComputationStorage[LOCAL_ID]!!)
+    val inputBlobKey = generatedBlobKeys[0]
+    val outputBlobKey = generatedBlobKeys[1]
+    assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
           .setGlobalComputationId(GLOBAL_ID)
@@ -1053,13 +1088,13 @@ class LiquidLegionsMillTest {
             ComputationStageBlobMetadata.newBuilder()
               .setDependencyType(ComputationBlobDependency.INPUT)
               .setBlobId(0)
-              .setPath("to_blind_position/input")
+              .setPath(inputBlobKey)
           )
           .addBlobs(
             ComputationStageBlobMetadata.newBuilder()
               .setDependencyType(ComputationBlobDependency.OUTPUT)
               .setBlobId(1)
-              .setPath("1111/TO_BLIND_POSITIONS_1_output")
+              .setPath(outputBlobKey)
           )
           .setNextDuchy("NEXT_WORKER")
           .setPrimaryDuchy("PRIMARY_WORKER")
@@ -1067,10 +1102,8 @@ class LiquidLegionsMillTest {
           .setRole(RoleInComputation.SECONDARY)
           .build()
       )
-    assertEquals(
-      "sketch-BlindedOneLayerRegisterIndex",
-      fakeBlobs["1111/TO_BLIND_POSITIONS_1_output"]!!.toString(Charset.defaultCharset())
-    )
+    assertThat(computationStore.get(outputBlobKey)?.readToString())
+      .isEqualTo("sketch-BlindedOneLayerRegisterIndex")
 
     argumentCaptor<CreateGlobalComputationStatusUpdateRequest> {
       verifyBlocking(mockGlobalComputations, times(2)) {
@@ -1138,3 +1171,16 @@ class LiquidLegionsMillTest {
     )
   }
 }
+
+private suspend fun ComputationStore.Blob.readToString(): String =
+  read().flatten().toStringUtf8()
+
+private suspend fun ComputationStore.writeString(
+  token: ComputationToken,
+  content: String
+): ComputationStore.Blob = write(token, ByteString.copyFromUtf8(content))
+
+private suspend fun ComputationStore.writeString(
+  tokenBuilder: ComputationToken.Builder,
+  content: String
+) = writeString(tokenBuilder.build(), content)

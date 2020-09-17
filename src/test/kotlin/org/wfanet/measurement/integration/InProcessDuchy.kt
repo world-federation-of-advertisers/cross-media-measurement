@@ -1,3 +1,17 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.integration
 
 import io.grpc.Channel
@@ -19,7 +33,6 @@ import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
-import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
@@ -27,7 +40,6 @@ import org.wfanet.measurement.duchy.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.mill.LiquidLegionsCryptoWorkerImpl
 import org.wfanet.measurement.duchy.mill.LiquidLegionsMill
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -56,7 +68,6 @@ class InProcessDuchy(
 ) : TestRule {
   data class DuchyDependencies(
     val singleProtocolDatabase: SingleProtocolDatabase,
-    val blobDb: ComputationsBlobDb<LiquidLegionsSketchAggregationStage>,
     val metricValueDatabase: MetricValueDatabase,
     val storageClient: StorageClient,
     val cryptoKeySet: CryptoKeySet
@@ -102,7 +113,7 @@ class InProcessDuchy(
   private val computationStorageClients by lazy {
     LiquidLegionsSketchAggregationComputationStorageClients(
       ComputationStorageServiceCoroutineStub(storageServer.channel),
-      duchyDependencies.blobDb,
+      duchyDependencies.storageClient,
       otherDuchyIds
     )
   }

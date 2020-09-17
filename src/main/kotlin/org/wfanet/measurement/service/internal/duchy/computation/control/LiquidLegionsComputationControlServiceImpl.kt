@@ -22,9 +22,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.withIndex
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.common.toByteArray
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.db.duchy.computation.toNoisedSketchBlobMetadataFor
@@ -78,6 +78,7 @@ class LiquidLegionsComputationControlServiceImpl(
       else -> failGrpc { "Unknown role in computation ${token.role}" }
     }
     logger.info("[id=$id]: Saving concatenated sketch.")
+    // TODO(b/167568094): Map input flow rather than reading whole sketch into memory.
     val tokenAfterWrite = clients.writeSingleOutputBlob(token, sketch)
 
     logger.info("[id=$id]: transitioning to $nextStage")
@@ -113,6 +114,7 @@ class LiquidLegionsComputationControlServiceImpl(
     val id = token.globalComputationId
 
     logger.info("[id=$id]: Saving encrypted flags and counts.")
+    // TODO(b/167568094): Map input flow rather than reading whole sketch into memory.
     val tokenAfterWrite = clients.writeSingleOutputBlob(token, bytes)
 
     // The next stage to be worked depends upon the duchy's role in the computation.
@@ -160,6 +162,7 @@ class LiquidLegionsComputationControlServiceImpl(
 
     val id = token.globalComputationId
     logger.info("[id=$id]: Saving noised sketch from $sender.")
+    // TODO(b/167568094): Map input flow rather than reading whole sketch into memory.
     val tokenAfterWrite = clients.writeReceivedNoisedSketch(token, bytes, sender)
     enqueueAppendSketchesOperationIfReceivedAllSketches(tokenAfterWrite)
     return HandleNoisedSketchResponse.getDefaultInstance() // Ack the request
@@ -197,10 +200,10 @@ class LiquidLegionsComputationControlServiceImpl(
    */
   private suspend fun Flow<Pair<String, ByteString>>.reduceToTokenAndAppendedBytesPairOrNullIf(
     wipeFlowPredicate: suspend (ComputationToken) -> Boolean
-  ): Pair<ComputationToken, ByteArray>? {
+  ): Pair<ComputationToken, ByteString>? {
     var wipeFlow = false
     var tokenToReturn: ComputationToken? = null
-    val bytes =
+    val bytes: List<ByteString> =
       withIndex().mapNotNull { (index, value) ->
         if (index == 0) {
           val id = value.first
@@ -219,11 +222,11 @@ class LiquidLegionsComputationControlServiceImpl(
         // This will make the toCollection call basically a noop. Without this we would
         // be concatenating all bytes anyways.
         if (wipeFlow) null else value.second
-      }.toList(mutableListOf())
+      }.toList()
     // The token is retrieved when processing the first item in the flow. If it is still null after
     // collecting the flow that means there wasn't a first item in the flow.
     grpcRequire(tokenToReturn != null, Status.INVALID_ARGUMENT) { "Empty request stream" }
-    return if (wipeFlow) null else tokenToReturn!! to bytes.toByteArray()
+    return if (wipeFlow) null else tokenToReturn!! to bytes.flatten()
   }
 
   companion object {

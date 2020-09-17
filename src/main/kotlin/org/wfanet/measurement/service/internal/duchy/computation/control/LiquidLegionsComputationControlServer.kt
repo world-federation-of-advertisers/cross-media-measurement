@@ -18,12 +18,11 @@ import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
-import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.CommonDuchyFlags
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.service.common.CommonServer
+import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 abstract class LiquidLegionsComputationControlServer : Runnable {
@@ -31,9 +30,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
   protected lateinit var flags: Flags
     private set
 
-  protected fun run(
-    computationStore: ComputationsBlobDb<LiquidLegionsSketchAggregationStage>
-  ) {
+  protected fun run(storageClient: StorageClient) {
     val duchyName = flags.duchy.duchyName
     val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
     require(latestDuchyPublicKeys.containsKey(duchyName)) {
@@ -49,7 +46,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
       LiquidLegionsComputationControlServiceImpl(
         LiquidLegionsSketchAggregationComputationStorageClients(
           ComputationStorageServiceCoroutineStub(channel).withDuchyId(duchyName),
-          computationStore,
+          storageClient,
           otherDuchyNames
         )
       )

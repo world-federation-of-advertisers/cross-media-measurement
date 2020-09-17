@@ -24,12 +24,11 @@ import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.crypto.ElGamalKeyPair
-import org.wfanet.measurement.db.duchy.computation.ComputationsBlobDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 abstract class LiquidLegionsMillDaemon : Runnable {
@@ -41,9 +40,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
   }
 
-  protected fun run(
-    computationStore: ComputationsBlobDb<LiquidLegionsSketchAggregationStage>
-  ) {
+  protected fun run(storageClient: StorageClient) {
     val duchyName = flags.duchy.duchyName
     val latestDuchyPublicKeys = duchyPublicKeys.latest
     require(latestDuchyPublicKeys.containsKey(duchyName)) {
@@ -54,7 +51,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     val storageClients = LiquidLegionsSketchAggregationComputationStorageClients(
       ComputationStorageServiceCoroutineStub(buildChannel(flags.computationStorageServiceTarget))
         .withDuchyId(duchyName),
-      computationStore,
+      storageClient,
       otherDuchyNames
     )
 

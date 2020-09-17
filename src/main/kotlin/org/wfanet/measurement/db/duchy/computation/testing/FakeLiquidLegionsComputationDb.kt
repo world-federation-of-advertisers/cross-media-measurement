@@ -19,7 +19,7 @@ import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol.ComputationStages as LiquidLegionsComputationStages
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
@@ -31,28 +31,33 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 
-/** In memory mapping of computation ids to [ComputationToken]s. */
-class FakeComputationStorage(
-  private val otherDuchies: List<String>
-) : MutableMap<Long, ComputationToken> by mutableMapOf(),
+private const val NEXT_WORKER = "NEXT_WORKER"
+private const val PRIMARY_WORKER = "PRIMARY_WORKER"
+
+/**
+ * In-memory [SingleProtocolDatabase] for [ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1].
+ */
+class FakeLiquidLegionsComputationDb private constructor(
+  /** Map of local computation ID to [ComputationToken]. */
+  private val tokens: MutableMap<Long, ComputationToken>
+) : Map<Long, ComputationToken> by tokens,
   SingleProtocolDatabase,
-  ProtocolStageEnumHelper<ComputationStage> by
-  LiquidLegionsSketchAggregationProtocol.ComputationStages {
-  companion object {
-    const val NEXT_WORKER = "NEXT_WORKER"
-    const val PRIMARY_WORKER = "PRIMARY_WORKER"
-  }
+  ProtocolStageEnumHelper<ComputationStage> by LiquidLegionsComputationStages {
+
+  constructor() : this(mutableMapOf())
 
   override val computationType: ComputationType =
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
   val claimedComputationIds = mutableSetOf<String>()
+
+  fun remove(localId: Long) = tokens.remove(localId)
 
   override suspend fun insertComputation(
     globalId: String,
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails
   ) {
-    if (globalId.toLong() in this) {
+    if (globalId.toLong() in tokens) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
     }
     val role =
@@ -67,7 +72,31 @@ class FakeComputationStorage(
     )
   }
 
-  /** Adds a fake computation to the fake computation storage. */
+  /** Adds a fake computation to the [tokens] map. */
+  fun addComputation(
+    localId: Long,
+    stage: ComputationStage,
+    role: RoleInComputation,
+    blobs: List<ComputationStageBlobMetadata>,
+    stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
+  ) {
+    require(localId!in tokens) {
+      "Cannot add multiple computations with the same id. $localId"
+    }
+    require(blobs.distinctBy { it.blobId }.size == blobs.size) {
+      "Blobs must have distinct IDs"
+    }
+
+    tokens[localId] = newPartialToken(localId, stage).apply {
+      setRole(role)
+      addAllBlobs(blobs)
+      if (stageDetails !== ComputationStageDetails.getDefaultInstance()) {
+        stageSpecificDetails = stageDetails
+      }
+    }.build()
+  }
+
+  /** @see addComputation */
   fun addComputation(
     globalId: String,
     stage: ComputationStage,
@@ -75,26 +104,15 @@ class FakeComputationStorage(
     blobs: List<ComputationStageBlobMetadata>,
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
-    val localId = globalId.toLong()
-    require(localId !in this) {
-      "Cannot add multiple computations with the same id. $localId"
-    }
-    this[localId] = ComputationToken.newBuilder().apply {
-      globalComputationId = globalId
+    addComputation(
       // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long and
       // use the Long value for the localId.
-      localComputationId = localId
-      computationStage = stage
-      version = 0
-      setRole(role)
-      nextDuchy = NEXT_WORKER
-      primaryDuchy = PRIMARY_WORKER
-      attempt = 0
-      addAllBlobs(blobs)
-      if (stageDetails != ComputationStageDetails.getDefaultInstance()) {
-        stageSpecificDetails = stageDetails
-      }
-    }.build()
+      localId = globalId.toLong(),
+      stage = stage,
+      role = role,
+      blobs = blobs,
+      stageDetails = stageDetails
+    )
   }
 
   /**
@@ -110,7 +128,7 @@ class FakeComputationStorage(
     changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder
   ) {
     val current = requireTokenFromCurrent(tokenToUpdate)
-    this[tokenToUpdate.localId] =
+    tokens[tokenToUpdate.localId] =
       changedTokenBuilderFunc(current).setVersion(tokenToUpdate.editVersion + 1).build()
   }
 
@@ -127,7 +145,7 @@ class FakeComputationStorage(
   }
 
   private fun getNonNull(globalId: Long): ComputationToken =
-    this[globalId] ?: error("No computation for $globalId")
+    tokens[globalId] ?: error("No computation for $globalId")
 
   override suspend fun updateComputationStage(
     token: ComputationStorageEditToken<ComputationStage>,
@@ -176,7 +194,6 @@ class FakeComputationStorage(
             attempt = 1
             claimedComputationIds.add(existing.globalComputationId)
           }
-          else -> error("Unknown $afterTransition")
         }
       }
     }
@@ -219,7 +236,7 @@ class FakeComputationStorage(
   }
 
   override suspend fun claimTask(ownerId: String): String? {
-    val claimed = values.asSequence()
+    val claimed = tokens.values.asSequence()
       .filter { it.globalComputationId !in claimedComputationIds }
       .map {
         ComputationStorageEditToken(
@@ -240,8 +257,26 @@ class FakeComputationStorage(
   }
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? =
-    this[globalId.toLong()]
+    tokens[globalId.toLong()]
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
-    filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
+    tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
+
+  companion object {
+    fun newPartialToken(
+      localId: Long,
+      stage: ComputationStage
+    ): ComputationToken.Builder {
+      return ComputationToken.newBuilder().apply {
+        globalComputationId = localId.toString()
+        localComputationId = localId
+        computationStage = stage
+
+        version = 0
+        nextDuchy = NEXT_WORKER
+        primaryDuchy = PRIMARY_WORKER
+        attempt = 0
+      }
+    }
+  }
 }

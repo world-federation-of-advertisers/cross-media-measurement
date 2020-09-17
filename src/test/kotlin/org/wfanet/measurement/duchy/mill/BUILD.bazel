@@ -38,6 +38,8 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:liquid_legions_mill",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
+        "//src/main/kotlin/org/wfanet/measurement/storage:computation_store",
+        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
     ],
 )
