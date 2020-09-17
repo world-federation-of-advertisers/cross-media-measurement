@@ -20,6 +20,7 @@ package kingdom_and_single_duchy
 import (
 	"encoding/yaml"
 	"tool/cli"
+	"strings"
 )
 
 command: dump: task: print: cli.Print & {
@@ -41,6 +42,28 @@ objectSets: [
 	setup_job,
 ]
 
+duchy_pod: [Name=_]: #Pod & {
+	_name:   strings.TrimSuffix(Name, "-pod")
+	_system: "duchy"
+}
+kingdom_pod: [Name=_]: #Pod & {
+	_name:   strings.TrimSuffix(Name, "-pod")
+	_system: "kingdom"
+}
+duchy_service: [Name=_]: #GrpcService & {
+	_name:   Name
+	_system: "duchy"
+}
+kingdom_service: [Name=_]: #GrpcService & {
+	_name:   Name
+	_system: "kingdom"
+}
+
+fake_pod: [Name=_]: {}
+fake_service: [Name=_]: {}
+kingdom_job: [Name=_]: {}
+setup_job: [Name=_]: {}
+
 #Port: {
 	name:       string
 	port:       uint16
@@ -50,11 +73,12 @@ objectSets: [
 
 #GrpcService: {
 	_name:      string
+	_system:    string
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
 		name: _name
-		annotations?: system?: string
+		annotations: system: _system
 	}
 	spec: {
 		selector: app: _name + "-app"
@@ -74,12 +98,13 @@ objectSets: [
 	_args: [...string]
 	_ports:         [{containerPort: 8080}] | *[]
 	_restartPolicy: string | *"Always"
+	_system:        string
 	apiVersion:     "v1"
 	kind:           "Pod"
 	metadata: {
 		name: _name + "-pod"
-		labels: app:           _name + "-app"
-		annotations?: system?: string
+		labels: app:         _name + "-app"
+		annotations: system: _system
 	}
 	spec: {
 		containers: [{
@@ -95,7 +120,6 @@ objectSets: [
 
 #ServerPod: #Pod & {
 	_ports: [{containerPort: 8080}]
-
 }
 
 #DuchyPublicKeysConfig:
@@ -145,44 +169,18 @@ fake_service: "spanner-emulator": {
 }
 
 fake_service: "fake-storage-server": #GrpcService & {
-	_name: "fake-storage-server"
-	metadata: annotations: system: "testing"
+	_name:   "fake-storage-server"
+	_system: "testing"
 }
 
-duchy_service: "gcs-liquid-legions-server": #GrpcService & {
-	_name: "gcs-liquid-legions-server"
-	metadata: annotations: system: "duchy"
-}
+duchy_service: "gcs-liquid-legions-server":                         #GrpcService
+duchy_service: "spanner-liquid-legions-computation-storage-server": #GrpcService
+duchy_service: "gcp-server":                                        #GrpcService
+duchy_service: "publisher-data-server":                             #GrpcService
 
-duchy_service: "spanner-liquid-legions-computation-storage-server": #GrpcService & {
-	_name: "spanner-liquid-legions-computation-storage-server"
-	metadata: annotations: system: "duchy"
-}
-
-duchy_service: "gcp-server": #GrpcService & {
-	_name: "gcp-server"
-	metadata: annotations: system: "duchy"
-}
-
-duchy_service: "publisher-data-server": #GrpcService & {
-	_name: "publisher-data-server"
-	metadata: annotations: system: "duchy"
-}
-
-kingdom_service: "gcp-kingdom-storage-server": #GrpcService & {
-	_name: "gcp-kingdom-storage-server"
-	metadata: annotations: system: "kingdom"
-}
-
-kingdom_service: "global-computation-server": #GrpcService & {
-	_name: "global-computation-server"
-	metadata: annotations: system: "kingdom"
-}
-
-kingdom_service: "requisition-server": #GrpcService & {
-	_name: "requisition-server"
-	metadata: annotations: system: "kingdom"
-}
+kingdom_service: "gcp-kingdom-storage-server": #GrpcService
+kingdom_service: "global-computation-server":  #GrpcService
+kingdom_service: "requisition-server":         #GrpcService
 
 fake_pod: "spanner-emulator-pod": {
 	apiVersion: "v1"
@@ -198,9 +196,7 @@ fake_pod: "spanner-emulator-pod": {
 }
 
 duchy_pod: "liquid-legions-herald-daemon-pod": #Pod & {
-	_name:  "liquid-legions-herald-daemon"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image"
-	metadata: annotations: system: "duchy"
 	_args: [
 		"--channel-shutdown-timeout=3s",
 		"--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)",
@@ -211,9 +207,7 @@ duchy_pod: "liquid-legions-herald-daemon-pod": #Pod & {
 	]
 }
 duchy_pod: "gcs-liquid-legions-mill-daemon-pod": #Pod & {
-	_name:  "gcs-liquid-legions-mill-daemon"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image"
-	metadata: annotations: system: "duchy"
 	_args: [
 		"--bytes-per-chunk=2000000",
 		"--channel-shutdown-timeout=3s",
@@ -234,9 +228,7 @@ duchy_pod: "gcs-liquid-legions-mill-daemon-pod": #Pod & {
 	]
 }
 kingdom_pod: "report-maker-daemon-pod": #Pod & {
-	_name:  "report-maker-daemon"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image"
-	metadata: annotations: system: "kingdom"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)",
@@ -247,9 +239,7 @@ kingdom_pod: "report-maker-daemon-pod": #Pod & {
 	]
 }
 kingdom_pod: "report-starter-daemon-pod": #Pod & {
-	_name:  "report-starter-daemon"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
-	metadata: annotations: system: "kingdom"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)",
@@ -260,9 +250,7 @@ kingdom_pod: "report-starter-daemon-pod": #Pod & {
 	]
 }
 kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
-	_name:  "requisition-linker-daemon"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
-	metadata: annotations: system: "kingdom"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--internal-services-target=$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_HOST):$(GCP_KINGDOM_STORAGE_SERVER_SERVICE_PORT)",
@@ -273,9 +261,7 @@ kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
 	]
 }
 duchy_pod: "gcs-liquid-legions-server-pod": #ServerPod & {
-	_name:  "gcs-liquid-legions-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image"
-	metadata: annotations: system: "duchy"
 	_args: [
 		"--computation-storage-service-target=$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_HOST):$(SPANNER_LIQUID_LEGIONS_COMPUTATION_STORAGE_SERVER_SERVICE_PORT)",
 		"--debug-verbose-grpc-server-logging=true",
@@ -287,9 +273,7 @@ duchy_pod: "gcs-liquid-legions-server-pod": #ServerPod & {
 	]
 }
 duchy_pod: "spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
-	_name:  "spanner-liquid-legions-computation-storage-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image"
-	metadata: annotations: system: "duchy"
 	_args: [
 		"--channel-shutdown-timeout=3s",
 		"--debug-verbose-grpc-server-logging=true",
@@ -304,9 +288,7 @@ duchy_pod: "spanner-liquid-legions-computation-storage-server-pod": #ServerPod &
 	]
 }
 duchy_pod: "gcp-server-pod": #ServerPod & {
-	_name:  "gcp-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image"
-	metadata: annotations: system: "duchy"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",
 		"--google-cloud-storage-bucket=",
@@ -319,9 +301,7 @@ duchy_pod: "gcp-server-pod": #ServerPod & {
 	]
 }
 kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
-	_name:  "gcp-kingdom-storage-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image"
-	metadata: annotations: system: "kingdom"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",
 		"--duchy-ids=test-duchy-1",
@@ -333,18 +313,16 @@ kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 	]
 }
 fake_pod: "fake-storage-server-pod": #ServerPod & {
-	metadata: annotations: system: "testing"
-	_name:  "fake-storage-server"
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"
+	_name:   "fake-storage-server"
+	_image:  "bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"
+	_system: "testing"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",
 		"--port=8080",
 	]
 }
 kingdom_pod: "global-computation-server-pod": #ServerPod & {
-	_name:  "global-computation-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image"
-	metadata: annotations: system: "kingdom"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
@@ -356,9 +334,7 @@ kingdom_pod: "global-computation-server-pod": #ServerPod & {
 	]
 }
 duchy_pod: "publisher-data-server-pod": #ServerPod & {
-	_name:  "publisher-data-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image"
-	metadata: annotations: system: "duchy"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",
 		"--duchy-name=test-duchy-1",
@@ -369,9 +345,7 @@ duchy_pod: "publisher-data-server-pod": #ServerPod & {
 	]
 }
 kingdom_pod: "requisition-server-pod": #ServerPod & {
-	_name:  "requisition-server"
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
-	metadata: annotations: system: "kingdom"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
