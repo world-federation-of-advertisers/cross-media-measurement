@@ -53,6 +53,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
   private val duchies: List<InProcessDuchy> by lazy {
     DUCHIES.map { duchy ->
       InProcessDuchy(
+        verboseGrpcLogging = true,
         duchyId = duchy.name,
         otherDuchyIds = (DUCHY_IDS.toSet() - duchy.name).toList(),
         kingdomChannel = kingdom.publicApiChannel,

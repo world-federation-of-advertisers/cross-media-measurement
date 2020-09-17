@@ -61,6 +61,7 @@ import org.wfanet.measurement.storage.StorageClient
  *
  */
 class InProcessDuchy(
+  val verboseGrpcLogging: Boolean = true,
   duchyId: String,
   otherDuchyIds: List<String>,
   kingdomChannel: Channel,
@@ -79,7 +80,7 @@ class InProcessDuchy(
     GlobalComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
   }
 
-  private val storageServer = GrpcTestServerRule(logAllRequests = true) {
+  private val storageServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     addService(
       ComputationStorageServiceImpl(
         duchyDependencies.singleProtocolDatabase, kingdomGlobalComputationsStub, duchyId
@@ -87,7 +88,7 @@ class InProcessDuchy(
     )
   }
 
-  private val metricValuesServer = GrpcTestServerRule(logAllRequests = true) {
+  private val metricValuesServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     addService(
       MetricValuesService(duchyDependencies.metricValueDatabase, duchyDependencies.storageClient)
     )
@@ -119,7 +120,10 @@ class InProcessDuchy(
   }
 
   private val computationControlServer =
-    GrpcTestServerRule(computationControlChannelName(duchyId), logAllRequests = true) {
+    GrpcTestServerRule(
+      computationControlChannelName(duchyId),
+      logAllRequests = verboseGrpcLogging
+    ) {
       addService(
         LiquidLegionsComputationControlServiceImpl(computationStorageClients).withDuchyIdentities()
       )
@@ -134,7 +138,7 @@ class InProcessDuchy(
       InProcessChannelBuilder
         .forName(computationControlChannelName(duchyId))
         .build()
-    return channelCloserRule.register(channel).withVerboseLogging()
+    return channelCloserRule.register(channel).withVerboseLogging(verboseGrpcLogging)
   }
 
   private val millRule = CloseableResource {
@@ -164,7 +168,7 @@ class InProcessDuchy(
   private val publisherDataChannelName = "duchy-publisher-data-$duchyId"
 
   private val publisherDataServer =
-    GrpcTestServerRule(publisherDataChannelName, logAllRequests = true) {
+    GrpcTestServerRule(publisherDataChannelName, logAllRequests = verboseGrpcLogging) {
       addService(
         PublisherDataService(
           MetricValuesCoroutineStub(metricValuesServer.channel),
@@ -177,7 +181,7 @@ class InProcessDuchy(
   fun newPublisherDataProviderStub(): PublisherDataCoroutineStub {
     val channel = InProcessChannelBuilder.forName(publisherDataChannelName).build()
     channelCloserRule.register(channel)
-    return PublisherDataCoroutineStub(channel.withVerboseLogging())
+    return PublisherDataCoroutineStub(channel.withVerboseLogging(verboseGrpcLogging))
   }
 
   override fun apply(statement: Statement, description: Description): Statement {

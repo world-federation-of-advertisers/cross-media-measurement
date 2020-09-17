@@ -21,6 +21,7 @@ import java.nio.file.Paths
 import java.time.Clock
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -124,7 +125,15 @@ class LiquidLegionsMill(
     val claimWorkResponse: ClaimWorkResponse =
       storageClients.computationStorageClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
-      processNextComputation(claimWorkResponse.token)
+      val timeElapsedMills = measureTimeMillis {
+        processNextComputation(claimWorkResponse.token)
+      }
+      val globalId = claimWorkResponse.token.globalComputationId
+      val stage = claimWorkResponse.token.computationStage
+      logger.info(
+        "@Mill $millId: Finished processing computation $globalId, stage $stage, " +
+          "Time elapsed: ${timeElapsedMills.toHumanFriendlyTime()}."
+      )
     } else {
       logger.info("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -133,6 +142,7 @@ class LiquidLegionsMill(
   private suspend fun processNextComputation(token: ComputationToken) {
     val stage = token.computationStage.liquidLegionsSketchAggregation
     logger.info("@Mill $millId: Processing computation ${token.globalComputationId}, stage $stage")
+
     try {
       when (token.computationStage.liquidLegionsSketchAggregation) {
         LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
@@ -549,6 +559,21 @@ class LiquidLegionsMill(
       ?: throw PermanentComputationError(
         Exception("No ComputationControlService stub for primary duchy '$primaryDuchy'")
       )
+  }
+
+  /**
+   * Convert a milliseconds to a human friendly string
+   */
+  private fun Long.toHumanFriendlyTime(): String {
+    val seconds = this / 1000;
+    val ms = this % 1000
+    val hh = seconds / 3600
+    val mm = (seconds % 3600) / 60
+    val ss = seconds % 60
+    val hoursString = if (hh == 0L) "" else "$hh hours "
+    val minutesString = if (mm == 0L) "" else "$mm minutes "
+    val secondsString = if (ss == 0L) "" else "$ss seconds "
+    return "$hoursString$minutesString$secondsString$ms milliseconds"
   }
 
   private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
