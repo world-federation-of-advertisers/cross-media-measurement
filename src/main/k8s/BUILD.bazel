@@ -62,10 +62,7 @@ package_group(
 
 filegroup(
     name = "k8s_deployement_config",
-    srcs = [
-        ":kingdom_and_three_duchies_from_cue.yaml",
-        ":kingdom_and_single_duchy_from_cue.yaml",
-    ],
+    srcs = [":kingdom_and_three_duchies_from_cue.yaml"],
     data = [
         ":all_archives",
     ],
@@ -73,18 +70,13 @@ filegroup(
 )
 
 genrule(
-    name = "kingdom_and_single_duchy_from_cue",
-    srcs = ["kingdom_and_single_duchy.cue"],
-    outs = ["kingdom_and_single_duchy_from_cue.yaml"],
-    cmd = "cue cmd dump $< > $@",
-    tools = [],
-)
-
-genrule(
     name = "kingdom_and_three_duchies_from_cue",
-    srcs = ["kingdom_and_three_duchies.cue"],
+    srcs = [
+        ":base.cue",
+        ":kingdom_and_three_duchies.cue",
+    ],
     outs = ["kingdom_and_three_duchies_from_cue.yaml"],
-    cmd = "cue cmd dump $< > $@",
+    cmd = "cue cmd dump $(SRCS) > $@",
     tools = [],
 )
 
@@ -93,15 +85,15 @@ ALL_IMAGES = DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES + SETUP_IMAGES
 ALL_IMAGE_ARCHIVES = [name + ".tar" for name in ALL_IMAGES]
 
 k8s_apply(
-    name = "kingdom_and_single_duchy_kind",
-    src = ":kingdom_and_single_duchy_from_cue.yaml",
+    name = "kingdom_and_three_duchies_kind",
+    src = ":kingdom_and_three_duchies_from_cue.yaml",
     image_archives = ALL_IMAGE_ARCHIVES,
     k8s_environment = "kind",
 )
 
 k8s_apply(
-    name = "kingdom_and_single_duchy_u7s",
-    src = ":kingdom_and_single_duchy_from_cue.yaml",
+    name = "kingdom_and_three_duchies_u7s",
+    src = ":kingdom_and_three_duchies_from_cue.yaml",
     image_archives = ALL_IMAGE_ARCHIVES,
     k8s_environment = "usernetes-containerd",
 )
