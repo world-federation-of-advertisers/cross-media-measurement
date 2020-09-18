@@ -23,7 +23,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.read
@@ -145,16 +144,14 @@ class LiquidLegionsSketchAggregationComputationStorageClients private constructo
     }
 
     val blob = writeContent(computationToken)
-    computationStorageClient.recordOutputBlobPath(
+    val response = computationStorageClient.recordOutputBlobPath(
       RecordOutputBlobPathRequest.newBuilder().apply {
         token = computationToken
         outputBlobId = metadata.blobId
         blobPath = blob.blobKey
       }.build()
     )
-    return computationStorageClient.getComputationToken(
-      computationToken.globalComputationId.toGetTokenRequest()
-    ).token
+    return response.token
   }
 
   /**
