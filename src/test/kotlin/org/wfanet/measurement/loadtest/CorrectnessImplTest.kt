@@ -168,7 +168,7 @@ class CorrectnessImplTest {
       .setConfig(sketchConfig)
       .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
       .build()
-    val blobKey = correctness.storeSketch(SketchProtos.toAnySketch(sketchConfig, expectedSketch))
+    val blobKey = correctness.storeSketch(expectedSketch)
     val actualSketch =
       Sketch.parseFrom(storageClient.getBlob(blobKey)?.read()?.flatten())
 

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest
 
 import com.google.protobuf.ByteString
+import io.grpc.StatusException
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
@@ -85,37 +86,38 @@ class CorrectnessImpl(
     logger.info("Created an Advertiser: $advertiser")
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
 
-    val (campaignIds, anySketches) =
+    val campaignTriples =
       (1..dataProviderCount)
         .asFlow()
         .transform {
           emitAll(
-            relationalDatabase.createDataProvider(
-              externalAdvertiserId,
-              testResult
-            )
+            relationalDatabase.createDataProvider(externalAdvertiserId)
           )
         }
         .toList()
-        .unzip()
 
+    // Schedule a report before loading the metric requisitions.
+    val campaignIds = campaignTriples.map { it.second }
+    relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
+
+    val anySketches = campaignTriples.map { it.third }
     val reach = estimateCardinality(anySketches)
     val frequency = estimateFrequency(anySketches)
     val storedResultsPath = storeEstimationResults(reach, frequency)
     testResult.setComputationBlobKey(storedResultsPath)
     logger.info("Estimation Results saved with blob key: $storedResultsPath")
 
-    relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
+    // Finally, we are sending encrypted sketches to the PublisherDataService.
+    campaignTriples.forEach { (externalDataProviderId, externalCampaignId, anySketch) ->
+      encryptAndSend(externalDataProviderId, externalCampaignId, anySketch, testResult)
+    }
 
     val blobKey = storeTestResult(testResult.build())
     println("Test Result saved with blob key: $blobKey")
     logger.info("Finished with manifest: $blobKey.")
   }
 
-  private fun KingdomRelationalDatabase.createDataProvider(
-    externalAdvertiserId: ExternalId,
-    testResult: TestResult.Builder
-  ): Flow<Pair<ExternalId, AnySketch>> {
+  private fun KingdomRelationalDatabase.createDataProvider(externalAdvertiserId: ExternalId): Flow<Triple<ExternalId, ExternalId, AnySketch>> {
     val dataProvider = this.createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
@@ -125,18 +127,16 @@ class CorrectnessImpl(
         createCampaign(
           reach,
           externalAdvertiserId,
-          externalDataProviderId,
-          testResult
+          externalDataProviderId
         )
       }
   }
 
-  private suspend fun KingdomRelationalDatabase.createCampaign(
+  private fun KingdomRelationalDatabase.createCampaign(
     reach: Set<Long>,
     externalAdvertiserId: ExternalId,
-    externalDataProviderId: ExternalId,
-    testResult: TestResult.Builder
-  ): Pair<ExternalId, AnySketch> {
+    externalDataProviderId: ExternalId
+  ): Triple<ExternalId, ExternalId, AnySketch> {
     val campaign = this.createCampaign(
       externalDataProviderId,
       externalAdvertiserId,
@@ -145,34 +145,8 @@ class CorrectnessImpl(
     logger.info("Created a Campaign $campaign")
     val externalCampaignId = ExternalId(campaign.externalCampaignId)
     val anySketch = generateSketch(reach)
-    val sketchProto = anySketch.toSketchProto(sketchConfig)
-    logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
 
-    val storedSketchPath = storeSketch(anySketch)
-    val sketchBlobKeys = TestResult.Sketch.newBuilder().setBlobKey(storedSketchPath)
-    logger.info("Raw Sketch saved with blob key: $storedSketchPath")
-
-    val encryptedSketch = encryptSketch(sketchProto)
-    val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
-    sketchBlobKeys.setEncryptedBlobKey(storedEncryptedSketchPath)
-    testResult.addSketches(sketchBlobKeys)
-    logger.info("Encrypted Sketch saved with blob key: $storedEncryptedSketchPath")
-
-    try {
-      sendToServer(
-        externalDataProviderId.toString(),
-        externalCampaignId.toString(),
-        encryptedSketch
-      )
-    } catch (e: Exception) {
-      logger.warning(
-        "Failed sending the sketch for Campaign: " +
-          "${externalCampaignId.value} to the server due to ${e.cause!!.message}."
-      )
-      throw e
-    }
-
-    return Pair(externalCampaignId, anySketch)
+    return Triple(externalDataProviderId, externalCampaignId, anySketch)
   }
 
   private fun KingdomRelationalDatabase.scheduleReport(
@@ -218,6 +192,40 @@ class CorrectnessImpl(
         }.build()
     )
     logger.info("Created a ReportConfigSchedule: $schedule")
+  }
+
+  private suspend fun encryptAndSend(
+    externalDataProviderId: ExternalId,
+    externalCampaignId: ExternalId,
+    anySketch: AnySketch,
+    testResult: TestResult.Builder
+  ) {
+    val sketchProto = anySketch.toSketchProto(sketchConfig)
+    logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
+
+    val storedSketchPath = storeSketch(sketchProto)
+    val sketchBlobKeys = TestResult.Sketch.newBuilder().setBlobKey(storedSketchPath)
+    logger.info("Raw Sketch saved with blob key: $storedSketchPath")
+
+    val encryptedSketch = encryptSketch(sketchProto)
+    val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
+    sketchBlobKeys.setEncryptedBlobKey(storedEncryptedSketchPath)
+    testResult.addSketches(sketchBlobKeys)
+    logger.info("Encrypted Sketch saved with blob key: $storedEncryptedSketchPath")
+
+    try {
+      sendToServer(
+        externalDataProviderId.apiId.value,
+        externalCampaignId.apiId.value,
+        encryptedSketch
+      )
+    } catch (e: StatusException) {
+      logger.warning(
+        "Failed sending the sketch for Campaign: " +
+          "${externalCampaignId.value} to the server due to $e."
+      )
+      throw e
+    }
   }
 
   override fun generateReach(): Sequence<Set<Long>> {
@@ -270,8 +278,8 @@ class CorrectnessImpl(
     return response.encryptedSketch
   }
 
-  override suspend fun storeSketch(anySketch: AnySketch): String {
-    return storeBlob(anySketch.toSketchProto(sketchConfig).toByteString())
+  override suspend fun storeSketch(sketch: Sketch): String {
+    return storeBlob(sketch.toByteString())
   }
 
   override suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String {
@@ -290,6 +298,7 @@ class CorrectnessImpl(
         putAllFrequency(frequency)
       }
     }.build()
+    logger.info("Reach and Frequency are computed: $computation")
     return storeBlob(computation.toByteString())
   }
 
@@ -313,6 +322,7 @@ class CorrectnessImpl(
       throttler.onReady {
         val requisition: MetricRequisition? = loadMetricRequisitions(dataProviderId, campaignId)
         if (requisition != null) {
+          logger.info("Server returned with a Requisition: $requisition")
           uploadRequisition(combinedPublicKey, requisition, encryptedSketch)
           uploaded = true
         }

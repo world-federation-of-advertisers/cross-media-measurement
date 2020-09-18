@@ -98,10 +98,10 @@ interface Correctness {
   /**
    * Stores a binary-serialized [Sketch] message into a blob.
    *
-   * @param AnySketch object
+   * @param Sketch proto
    * @return blob key of the stored [Sketch]
    */
-  suspend fun storeSketch(anySketch: AnySketch): String
+  suspend fun storeSketch(sketch: Sketch): String
 
   /**
    * Stores an encrypted Sketch into a blob.
