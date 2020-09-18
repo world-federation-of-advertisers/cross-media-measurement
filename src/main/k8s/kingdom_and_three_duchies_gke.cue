@@ -106,6 +106,7 @@ for duchy in #Duchies {
 				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
 				"--polling-interval=1m",
 			]
+			_imagePullPolicy: "Always"
 		}
 		"\(duchy.name)-gcs-liquid-legions-mill-daemon-pod": #Pod & {
 			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
@@ -125,6 +126,7 @@ for duchy in #Duchies {
 				"--mill-id=duchy-\(duchy.name)-mill-1",
 				"--polling-interval=1s",
 			] + #ComputationControlServiceFlags
+			_imagePullPolicy: "Always"
 		}
 		"\(duchy.name)-gcs-liquid-legions-server-pod": #ServerPod & {
 			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-computation-control"
@@ -137,6 +139,7 @@ for duchy in #Duchies {
 				"--google-cloud-storage-project=",
 				"--port=8080",
 			]
+			_imagePullPolicy: "Always"
 		}
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
 			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-spanner-computation-storage"
@@ -152,6 +155,7 @@ for duchy in #Duchies {
 				"--spanner-instance=emulator-instance",
 				"--spanner-project=ads-open-measurement",
 			]
+			_imagePullPolicy: "Always"
 		}
 		"\(duchy.name)-gcp-server-pod": #ServerPod & {
 			_image: "gcr.io/ads-open-measurement/duchy/metric-values"
@@ -165,6 +169,7 @@ for duchy in #Duchies {
 				"--spanner-instance=emulator-instance",
 				"--spanner-project=ads-open-measurement",
 			]
+			_imagePullPolicy: "Always"
 		}
 		"\(duchy.name)-publisher-data-server-pod": #ServerPod & {
 			_image: "gcr.io/ads-open-measurement/duchy/publisher-data"
@@ -176,6 +181,7 @@ for duchy in #Duchies {
 				"--registration-service-target=127.0.0.1:9000",     // TODO: change once implemented.
 				"--requisition-service-target=" + (#Target & {name: "requisition-server"}).target,
 			]
+			_imagePullPolicy: "Always"
 		}
 	}
 	setup_job: "\(duchy.name)_push-spanner-schema-job": {
@@ -186,7 +192,7 @@ for duchy in #Duchies {
 			containers: [{
 				name:            "push-spanner-schema-container"
 				image:           "gcr.io/ads-open-measurement/setup/push-spanner-schema"
-				imagePullPolicy: "Never"
+				imagePullPolicy: "Always"
 				args: [
 					"--ignore-already-existing-databases",
 					"--databases=\(duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
@@ -215,6 +221,7 @@ kingdom_pod: "report-maker-daemon-pod": #Pod & {
 		"--throttler-poll-delay=1ms",
 		"--throttler-time-horizon=2m",
 	]
+	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "report-starter-daemon-pod": #Pod & {
@@ -227,6 +234,7 @@ kingdom_pod: "report-starter-daemon-pod": #Pod & {
 		"--throttler-poll-delay=1ms",
 		"--throttler-time-horizon=2m",
 	]
+	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
@@ -239,6 +247,7 @@ kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
 		"--throttler-poll-delay=1ms",
 		"--throttler-time-horizon=2m",
 	]
+	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
@@ -254,6 +263,7 @@ kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 		"--spanner-instance=emulator-instance",
 		"--spanner-project=ads-open-measurement",
 	]
+	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "global-computation-server-pod": #ServerPod & {
@@ -267,6 +277,7 @@ kingdom_pod: "global-computation-server-pod": #ServerPod & {
 		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
 	]
+	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "requisition-server-pod": #ServerPod & {
@@ -280,6 +291,7 @@ kingdom_pod: "requisition-server-pod": #ServerPod & {
 		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
 	]
+	_imagePullPolicy: "Always"
 }
 
 kingdom_job: "kingdom-push-spanner-schema-job": {

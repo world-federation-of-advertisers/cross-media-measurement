@@ -64,11 +64,12 @@ setup_job: [Name=_]: {}
 	_name:  string
 	_image: string
 	_args: [...string]
-	_ports:         [{containerPort: 8080}] | *[]
-	_restartPolicy: string | *"Always"
-	_system:        string
-	apiVersion:     "v1"
-	kind:           "Pod"
+	_ports:           [{containerPort: 8080}] | *[]
+	_restartPolicy:   string | *"Always"
+	_imagePullPolicy: string | *"Never"
+	_system:          string
+	apiVersion:       "v1"
+	kind:             "Pod"
 	metadata: {
 		name: _name + "-pod"
 		labels: app:         _name + "-app"
@@ -78,7 +79,7 @@ setup_job: [Name=_]: {}
 		containers: [{
 			name:            _name + "-container"
 			image:           _image
-			imagePullPolicy: "Never"
+			imagePullPolicy: _imagePullPolicy
 			args:            _args
 			ports:           _ports
 		}]
