@@ -1,5 +1,5 @@
 load("//build/k8s:defs.bzl", "k8s_apply")
-load("@com_github_tnarg_rules_cue//cue:cue.bzl", "cue_export")
+load("macros.bzl", "cue_dump")
 
 DUCHY_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image",
@@ -24,6 +24,22 @@ BACKEND_FAKE_IMAGES = ["//src/main/kotlin/org/wfanet/measurement/service/testing
 SETUP_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
 ]
+
+cue_dump(
+    name = "kingdom_and_three_duchies_from_cue_local",
+    srcs = [
+        ":base.cue",
+        ":kingdom_and_three_duchies_local.cue",
+    ],
+)
+
+cue_dump(
+    name = "kingdom_and_three_duchies_from_cue_gke",
+    srcs = [
+        "base.cue",
+        "kingdom_and_three_duchies_gke.cue",
+    ],
+)
 
 filegroup(
     name = "duchy_image_archives",
@@ -55,29 +71,21 @@ filegroup(
     ],
 )
 
-package_group(
-    name = "k8s_deployer",
-    packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
-)
-
 filegroup(
     name = "k8s_deployement_config",
-    srcs = [":kingdom_and_three_duchies_from_cue.yaml"],
+    srcs = [
+        ":kingdom_and_three_duchies_from_cue_gke.yaml",
+        ":kingdom_and_three_duchies_from_cue_local.yaml",
+    ],
     data = [
         ":all_archives",
     ],
     visibility = [":k8s_deployer"],
 )
 
-genrule(
-    name = "kingdom_and_three_duchies_from_cue",
-    srcs = [
-        ":base.cue",
-        ":kingdom_and_three_duchies.cue",
-    ],
-    outs = ["kingdom_and_three_duchies_from_cue.yaml"],
-    cmd = "cue cmd dump $(SRCS) > $@",
-    tools = [],
+package_group(
+    name = "k8s_deployer",
+    packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
 )
 
 ALL_IMAGES = DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES + SETUP_IMAGES
@@ -86,14 +94,14 @@ ALL_IMAGE_ARCHIVES = [name + ".tar" for name in ALL_IMAGES]
 
 k8s_apply(
     name = "kingdom_and_three_duchies_kind",
-    src = ":kingdom_and_three_duchies_from_cue.yaml",
+    src = ":kingdom_and_three_duchies_from_cue_local.yaml",
     image_archives = ALL_IMAGE_ARCHIVES,
     k8s_environment = "kind",
 )
 
 k8s_apply(
     name = "kingdom_and_three_duchies_u7s",
-    src = ":kingdom_and_three_duchies_from_cue.yaml",
+    src = ":kingdom_and_three_duchies_from_cue_local.yaml",
     image_archives = ALL_IMAGE_ARCHIVES,
     k8s_environment = "usernetes-containerd",
 )

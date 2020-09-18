@@ -22,9 +22,9 @@ kingdom_service: [Name=_]: #GrpcService & {
 }
 
 #Target: {
-  name: string
-  _caps: strings.Replace(strings.ToUpper(name), "-", "_", -1)
-  target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
+	name:   string
+	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
+	target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
 }
 
 fake_pod: [Name=_]: {}

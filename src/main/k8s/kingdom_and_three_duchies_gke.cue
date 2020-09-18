@@ -42,55 +42,6 @@ objectSets: [
 	setup_job,
 ]
 
-fake_service: "spanner-emulator": {
-	apiVersion: "v1"
-	kind:       "Service"
-	metadata: name: "spanner-emulator"
-	spec: {
-		selector: app: "spanner-emulator-app"
-		type: "ClusterIP"
-		ports: [{
-			name:       "grpc"
-			port:       9010
-			protocol:   "TCP"
-			targetPort: 9010
-		}, {
-			name:       "http"
-			port:       9020
-			protocol:   "TCP"
-			targetPort: 9020
-		}]
-	}
-}
-
-fake_service: "fake-storage-server": #GrpcService & {
-	_name:   "fake-storage-server"
-	_system: "testing"
-}
-
-fake_pod: "spanner-emulator-pod": {
-	apiVersion: "v1"
-	kind:       "Pod"
-	metadata: {
-		name: "spanner-emulator-pod"
-		labels: app: "spanner-emulator-app"
-	}
-	spec: containers: [{
-		name:  "spanner-emulator-container"
-		image: "gcr.io/cloud-spanner-emulator/emulator"
-	}]
-}
-
-fake_pod: "fake-storage-server-pod": #ServerPod & {
-	_name:   "fake-storage-server"
-	_image:  "bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"
-	_system: "testing"
-	_args: [
-		"--debug-verbose-grpc-server-logging=true",
-		"--port=8080",
-	]
-}
-
 #Duchies: [
 	{
 		name: "a"
@@ -131,9 +82,9 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		}
 	"""#
 
-#ComputationControlServiceFlags : [for duchy_target in #Duchies
-  {"--computation-control-service-target=duchy-\(duchy_target.name)="+
-  (#Target & { name: "\(duchy_target.name)-gcs-liquid-legions-server" }).target}]
+#ComputationControlServiceFlags: [ for duchy_target in #Duchies {"--computation-control-service-target=duchy-\(duchy_target.name)=" +
+	(#Target & {name: "\(duchy_target.name)-gcs-liquid-legions-server"}).target
+}]
 
 for duchy in #Duchies {
 
@@ -146,39 +97,39 @@ for duchy in #Duchies {
 
 	duchy_pod: {
 		"\(duchy.name)-liquid-legions-herald-daemon-pod": #Pod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image"
+			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-herald"
 			_args: [
 				"--channel-shutdown-timeout=3s",
-				"--computation-storage-service-target="+ (#Target & { name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server" }).target,
+				"--computation-storage-service-target=" + (#Target & {name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server"}).target,
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
-				"--global-computation-service-target="+(#Target & { name: "global-computation-server" }).target,
+				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
 				"--polling-interval=1m",
 			]
 		}
 		"\(duchy.name)-gcs-liquid-legions-mill-daemon-pod": #Pod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image"
-			_args: [
+			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
+			_args:  [
 				"--bytes-per-chunk=2000000",
 				"--channel-shutdown-timeout=3s",
-				"--computation-storage-service-target=" + (#Target & { name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server" }).target,
+				"--computation-storage-service-target=" + (#Target & {name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server"}).target,
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
 				"--duchy-secret-key=\(duchy.key)",
-				"--global-computation-service-target="+ (#Target & { name: "global-computation-server" }).target,
+				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
 				"--google-cloud-storage-bucket=",
 				"--google-cloud-storage-project=",
 				"--liquid-legions-decay-rate=23.0",
 				"--liquid-legions-size=330000",
-				"--metric-values-service-target="+ (#Target & { name: "\(duchy.name)-gcp-server" }).target,
+				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
 				"--mill-id=duchy-\(duchy.name)-mill-1",
 				"--polling-interval=1s",
-			]+#ComputationControlServiceFlags
+			] + #ComputationControlServiceFlags
 		}
 		"\(duchy.name)-gcs-liquid-legions-server-pod": #ServerPod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image"
+			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-computation-control"
 			_args: [
-				"--computation-storage-service-target="+ (#Target & { name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server" }).target,
+				"--computation-storage-service-target=" + (#Target & {name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server"}).target,
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
@@ -188,42 +139,42 @@ for duchy in #Duchies {
 			]
 		}
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image"
+			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-spanner-computation-storage"
 			_args: [
 				"--channel-shutdown-timeout=3s",
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
-				"--global-computation-service-target="+ (#Target & { name: "global-computation-server" }).target,
+				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_computations",
-				"--spanner-emulator-host="+ (#Target & { name: "spanner-emulator" }).target,
+				"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 				"--spanner-instance=emulator-instance",
 				"--spanner-project=ads-open-measurement",
 			]
 		}
 		"\(duchy.name)-gcp-server-pod": #ServerPod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image"
+			_image: "gcr.io/ads-open-measurement/duchy/metric-values"
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
 				"--google-cloud-storage-bucket=",
 				"--google-cloud-storage-project=",
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_metric_values",
-				"--spanner-emulator-host="+ (#Target & { name: "spanner-emulator" }).target,
+				"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 				"--spanner-instance=emulator-instance",
 				"--spanner-project=ads-open-measurement",
 			]
 		}
 		"\(duchy.name)-publisher-data-server-pod": #ServerPod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image"
+			_image: "gcr.io/ads-open-measurement/duchy/publisher-data"
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
-				"--metric-values-service-target="+ (#Target & { name: "\(duchy.name)-gcp-server" }).target,
+				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
 				"--port=8080",
-				"--registration-service-target=127.0.0.1:9000", // TODO: change once implemented.
-				"--requisition-service-target="+ (#Target & { name: "requisition-server" }).target,
+				"--registration-service-target=127.0.0.1:9000",     // TODO: change once implemented.
+				"--requisition-service-target=" + (#Target & {name: "requisition-server"}).target,
 			]
 		}
 	}
@@ -234,17 +185,14 @@ for duchy in #Duchies {
 		spec: template: spec: {
 			containers: [{
 				name:            "push-spanner-schema-container"
-				image:           "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
+				image:           "gcr.io/ads-open-measurement/setup/push-spanner-schema"
 				imagePullPolicy: "Never"
 				args: [
-					"--create-instance",
+					"--ignore-already-existing-databases",
 					"--databases=\(duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
 					"--databases=\(duchy.name)_duchy_metric_values=/app/wfa_measurement_system/src/main/db/gcp/metric_values.sdl",
-					"--emulator-host="+ (#Target & { name: "spanner-emulator" }).target,
-					"--instance-config-id=spanner-emulator",
-					"--instance-display-name=EmulatorInstance",
-					"--instance-name=emulator-instance",
-					"--instance-node-count=1",
+					"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+					"--instance-name=qa-instance",
 					"--project-name=ads-open-measurement",
 				]
 			}]
@@ -258,10 +206,10 @@ kingdom_service: "global-computation-server":  #GrpcService
 kingdom_service: "requisition-server":         #GrpcService
 
 kingdom_pod: "report-maker-daemon-pod": #Pod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image"
+	_image: "gcr.io/ads-open-measurement/kingdom/report-maker"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target="+ (#Target & { name: "gcp-kingdom-storage-server" }).target,
+		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--max-concurrency=32",
 		"--throttler-overload-factor=1.2",
 		"--throttler-poll-delay=1ms",
@@ -270,10 +218,10 @@ kingdom_pod: "report-maker-daemon-pod": #Pod & {
 }
 
 kingdom_pod: "report-starter-daemon-pod": #Pod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
+	_image: "gcr.io/ads-open-measurement/kingdom/report-starter"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target="+ (#Target & { name: "gcp-kingdom-storage-server" }).target,
+		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--max-concurrency=32",
 		"--throttler-overload-factor=1.2",
 		"--throttler-poll-delay=1ms",
@@ -282,10 +230,10 @@ kingdom_pod: "report-starter-daemon-pod": #Pod & {
 }
 
 kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
+	_image: "gcr.io/ads-open-measurement/kingdom/requisition-linker"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target="+ (#Target & { name: "gcp-kingdom-storage-server" }).target,
+		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--max-concurrency=32",
 		"--throttler-overload-factor=1.2",
 		"--throttler-poll-delay=1ms",
@@ -294,7 +242,7 @@ kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
 }
 
 kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image"
+	_image: "gcr.io/ads-open-measurement/kingdom/storage-server"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",
 		"--duchy-ids=duchy-\(#Duchies[0].name)",
@@ -302,34 +250,34 @@ kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--port=8080",
 		"--spanner-database=kingdom",
-		"--spanner-emulator-host="+ (#Target & { name: "spanner-emulator" }).target,
+		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 		"--spanner-instance=emulator-instance",
 		"--spanner-project=ads-open-measurement",
 	]
 }
 
 kingdom_pod: "global-computation-server-pod": #ServerPod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image"
+	_image: "gcr.io/ads-open-measurement/kingdom/global-computation"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
 		"--duchy-ids=duchy-\(#Duchies[0].name)",
 		"--duchy-ids=duchy-\(#Duchies[1].name)",
 		"--duchy-ids=duchy-\(#Duchies[2].name)",
-		"--internal-api-target="+ (#Target & { name: "gcp-kingdom-storage-server" }).target,
+		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
 	]
 }
 
 kingdom_pod: "requisition-server-pod": #ServerPod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
+	_image: "gcr.io/ads-open-measurement/kingdom/requisition"
 	_args: [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
 		"--duchy-ids=duchy-\(#Duchies[0].name)",
 		"--duchy-ids=duchy-\(#Duchies[1].name)",
 		"--duchy-ids=duchy-\(#Duchies[2].name)",
-		"--internal-api-target="+ (#Target & { name: "gcp-kingdom-storage-server" }).target,
+		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
 	]
 }
@@ -341,16 +289,13 @@ kingdom_job: "kingdom-push-spanner-schema-job": {
 	spec: template: spec: {
 		containers: [{
 			name:            "push-spanner-schema-container"
-			image:           "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-			imagePullPolicy: "Never"
+			image:           "gcr.io/ads-open-measurement/setup/push-spanner-schemak"
+			imagePullPolicy: "Always"
 			args: [
-				"--create-instance",
+				"--ignore-already-existing-databases",
 				"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
-				"--emulator-host="+ (#Target & { name: "spanner-emulator" }).target,
-				"--instance-config-id=spanner-emulator",
-				"--instance-display-name=EmulatorInstance",
-				"--instance-name=emulator-instance",
-				"--instance-node-count=1",
+				"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+				"--instance-name=qa-instance",
 				"--project-name=ads-open-measurement",
 			]
 		}]

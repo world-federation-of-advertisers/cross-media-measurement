@@ -31,7 +31,7 @@ import picocli.CommandLine.Command
 )
 class DeployToKind() : Callable<Int> {
   private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement"
-  private val yamlFile = "kingdom_and_three_duchies_from_cue.yaml"
+  private val yamlFile = "kingdom_and_three_duchies_from_cue_local.yaml"
 
   private fun String.runAsProcess(
     // A lot of tools write things that aren't errors to stderr.
