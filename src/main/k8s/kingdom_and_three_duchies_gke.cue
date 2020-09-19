@@ -151,8 +151,7 @@ for duchy in #Duchies {
 				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_computations",
-				"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-				"--spanner-instance=emulator-instance",
+				"--spanner-instance=qa-instance",
 				"--spanner-project=ads-open-measurement",
 			]
 			_imagePullPolicy: "Always"
@@ -165,8 +164,7 @@ for duchy in #Duchies {
 				"--google-cloud-storage-project=",
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_metric_values",
-				"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-				"--spanner-instance=emulator-instance",
+				"--spanner-instance=qa-instance",
 				"--spanner-project=ads-open-measurement",
 			]
 			_imagePullPolicy: "Always"
@@ -197,7 +195,6 @@ for duchy in #Duchies {
 					"--ignore-already-existing-databases",
 					"--databases=\(duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
 					"--databases=\(duchy.name)_duchy_metric_values=/app/wfa_measurement_system/src/main/db/gcp/metric_values.sdl",
-					"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 					"--instance-name=qa-instance",
 					"--project-name=ads-open-measurement",
 				]
@@ -259,8 +256,7 @@ kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--port=8080",
 		"--spanner-database=kingdom",
-		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-		"--spanner-instance=emulator-instance",
+		"--spanner-instance=qa-instance",
 		"--spanner-project=ads-open-measurement",
 	]
 	_imagePullPolicy: "Always"
@@ -306,7 +302,6 @@ kingdom_job: "kingdom-push-spanner-schema-job": {
 			args: [
 				"--ignore-already-existing-databases",
 				"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
-				"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 				"--instance-name=qa-instance",
 				"--project-name=ads-open-measurement",
 			]

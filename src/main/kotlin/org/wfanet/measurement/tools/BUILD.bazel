@@ -19,10 +19,29 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "deploy_to_gke_impl",
+    srcs = [
+        "DeployToGKE.kt",
+    ],
+    data = ["//src/main/k8s:k8s_deployement_config"],
+    deps = [
+        "//imports/java/com/google/devtools/build/runfiles",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
 java_binary(
     name = "deploy_to_kind",
     main_class = "org.wfanet.measurement.tools.DeployToKindKt",
     runtime_deps = ["deploy_to_kind_impl"],
+)
+
+java_binary(
+    name = "deploy_to_gke",
+    main_class = "org.wfanet.measurement.tools.DeployToGKEKt",
+    runtime_deps = ["deploy_to_gke_impl"],
 )
 
 kt_jvm_library(
