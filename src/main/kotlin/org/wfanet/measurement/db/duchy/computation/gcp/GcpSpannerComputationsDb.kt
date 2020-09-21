@@ -535,11 +535,17 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         )
       require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
       ctx.buffer(
-        computationMutations.updateComputationBlobReference(
-          localId = token.localId,
-          stage = token.stage,
-          blobId = blobRef.idInRelationalDatabase,
-          pathToBlob = blobRef.key
+        listOf(
+          computationMutations.updateComputation(
+            localId = token.localId,
+            updateTime = clock.gcpTimestamp()
+          ),
+          computationMutations.updateComputationBlobReference(
+            localId = token.localId,
+            stage = token.stage,
+            blobId = blobRef.idInRelationalDatabase,
+            pathToBlob = blobRef.key
+          )
         )
       )
     }

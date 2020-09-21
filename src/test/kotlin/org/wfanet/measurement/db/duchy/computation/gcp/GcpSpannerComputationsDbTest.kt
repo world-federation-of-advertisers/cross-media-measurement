@@ -824,12 +824,15 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       dependencyType = ComputationBlobDependency.INPUT
     )
     databaseClient.write(listOf(computation, stage, outputRef, inputRef))
+    testClock.tickSeconds("write-blob-ref")
     database.writeOutputBlobReference(token, BlobRef(1234L, "/wrote/something/there"))
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, BlobId, PathToBlob, DependencyType
-      FROM ComputationBlobReferences
+      SELECT b.ComputationId, b.ComputationStage, b.BlobId, b.PathToBlob, b.DependencyType,
+             c.UpdateTime
+      FROM ComputationBlobReferences AS b
+      JOIN Computations AS c USING(ComputationId)
       ORDER BY ComputationStage, BlobId
       """.trimIndent(),
       Struct.newBuilder()
@@ -838,6 +841,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("BlobId").to(1234L)
         .set("PathToBlob").to("/wrote/something/there")
         .set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
+        .set("UpdateTime").to(testClock.get("write-blob-ref").toGcpTimestamp())
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
@@ -845,6 +849,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("BlobId").to(5678L)
         .set("PathToBlob").to("/path/to/input/blob")
         .set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)
+        .set("UpdateTime").to(testClock.get("write-blob-ref").toGcpTimestamp())
         .build()
     )
 
