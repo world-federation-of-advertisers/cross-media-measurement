@@ -33,6 +33,9 @@ message MetricRequisition {
   // Resource key.
   Key key = 1;
 
+  // Identifier for the campaign provided by the Data Provider.
+  string campaign_reference_id = 5;
+
   // A time interval for a requisition.
   message TimeInterval {
     // Start of the time interval, inclusive. Required.
