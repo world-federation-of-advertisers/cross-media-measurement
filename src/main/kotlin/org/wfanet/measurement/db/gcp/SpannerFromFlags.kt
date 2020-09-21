@@ -67,7 +67,7 @@ class SpannerFromFlags(
       description = ["Host name and port of the spanner emulator."],
       required = false
     )
-    lateinit var spannerEmulatorHost: String
+    var spannerEmulatorHost: String ? = null
       private set
   }
 }
