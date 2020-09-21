@@ -1,5 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("//src/main/kotlin/org/wfanet/measurement/common:macros.bzl", "kt_jvm_binary_and_image")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -11,8 +12,8 @@ kt_jvm_library(
     srcs = [
         "SpannerEmulator.kt",
     ],
+    visibility = ["//visibility:private"],
     deps = [
-        "//imports/java/com/google/api/core",
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/devtools/build/runfiles",
         "//imports/kotlin/kotlinx/coroutines:core",
@@ -29,6 +30,7 @@ kt_jvm_library(
             "SpannerEmulatorMain.kt",
         ],
     ),
+    exports = [":spanner_emulator"],
     deps = [
         ":spanner_emulator",
         "//imports/java/com/google/api/core",
@@ -42,12 +44,9 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_binary_and_image(
+kt_jvm_library(
     name = "spanner_emulator_main",
     srcs = ["SpannerEmulatorMain.kt"],
-    data = ["@cloud_spanner_emulator//:emulator"],
-    main_class = "org.wfanet.measurement.db.gcp.testing.SpannerEmulatorMainKt",
-    visibility = ["//visibility:public"],
     runtime_deps = [
         # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
         # See https://github.com/bazelbuild/rules_kotlin/issues/333
@@ -55,10 +54,22 @@ kt_jvm_binary_and_image(
     ],
     deps = [
         ":spanner_emulator",
-        "//imports/java/com/google/api/core",
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
     ],
+)
+
+java_binary(
+    name = "SpannerEmulator",
+    main_class = "org.wfanet.measurement.db.gcp.testing.SpannerEmulatorMainKt",
+    runtime_deps = [":spanner_emulator_main"],
+)
+
+java_image(
+    name = "spanner_emulator_image",
+    main_class = "org.wfanet.measurement.db.gcp.testing.SpannerEmulatorMainKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":spanner_emulator_main"],
 )
