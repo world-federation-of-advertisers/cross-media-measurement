@@ -60,6 +60,7 @@ private val REQUISITION: Requisition = Requisition.newBuilder().apply {
   externalDataProviderId = 1
   externalCampaignId = 2
   externalRequisitionId = 3
+  providedCampaignId = "some-provided-campaign-id"
   createTime = CREATE_TIME
   state = RequisitionState.FULFILLED
   windowStartTime = WINDOW_START_TIME
@@ -114,6 +115,7 @@ class RequisitionServiceTest {
     val expected = MetricRequisition.newBuilder().apply {
       key = REQUISITION_API_KEY
       state = MetricRequisition.State.FULFILLED
+      campaignReferenceId = "some-provided-campaign-id"
     }.build()
 
     assertThat(result).isEqualTo(expected)
@@ -153,10 +155,12 @@ class RequisitionServiceTest {
       addMetricRequisitionsBuilder().apply {
         key = REQUISITION_API_KEY
         state = MetricRequisition.State.FULFILLED
+        campaignReferenceId = "some-provided-campaign-id"
       }
       addMetricRequisitionsBuilder().apply {
         key = REQUISITION_API_KEY
         state = MetricRequisition.State.FULFILLED
+        campaignReferenceId = "some-provided-campaign-id"
       }
       nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }.build()

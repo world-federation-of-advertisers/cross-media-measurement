@@ -29,6 +29,7 @@ fun Requisition.toV1Api(): MetricRequisition =
       campaignId = ExternalId(externalCampaignId).apiId.value
       metricRequisitionId = ExternalId(externalRequisitionId).apiId.value
     }
+    campaignReferenceId = providedCampaignId
     state = this@toV1Api.state.toV1Api()
   }.build()
 

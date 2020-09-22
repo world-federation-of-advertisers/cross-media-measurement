@@ -27,6 +27,9 @@ message Requisition {
   fixed64 external_campaign_id = 2;
   fixed64 external_requisition_id = 3;
 
+  // See `provided_campaign_id` in the Campaign message.
+  string provided_campaign_id = 11;
+
   google.protobuf.Timestamp create_time = 4;
 
   google.protobuf.Timestamp window_start_time = 5;

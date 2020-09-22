@@ -46,7 +46,8 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
            Requisitions.RequisitionDetails,
            Requisitions.RequisitionDetailsJson,
            DataProviders.ExternalDataProviderId,
-           Campaigns.ExternalCampaignId
+           Campaigns.ExternalCampaignId,
+           Campaigns.ProvidedCampaignId
     FROM Requisitions
     JOIN DataProviders USING (DataProviderId)
     JOIN Campaigns USING (DataProviderId, CampaignId)
@@ -66,6 +67,8 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     externalCampaignId = struct.getLong("ExternalCampaignId")
     externalRequisitionId = struct.getLong("ExternalRequisitionId")
+
+    providedCampaignId = struct.getString("ProvidedCampaignId")
 
     createTime = struct.getTimestamp("CreateTime").toProto()
 

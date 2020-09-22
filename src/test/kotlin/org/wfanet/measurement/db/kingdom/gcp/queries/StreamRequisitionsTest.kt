@@ -67,9 +67,6 @@ private val REQUISITION3 = buildRequisition(
 
 @RunWith(JUnit4::class)
 class StreamRequisitionsTest : KingdomDatabaseTestBase() {
-  companion object {
-  }
-
   @Before
   /**
    * Set-up: there are 4 requisitions in the database: two belonging to two campaigns under the same
