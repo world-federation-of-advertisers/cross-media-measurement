@@ -163,7 +163,7 @@ class CorrectnessImpl(
       ReportConfig.newBuilder()
         .setExternalAdvertiserId(externalAdvertiserId.value)
         .apply {
-          numRequisitions = campaignCount.toLong()
+          numRequisitions = campaignIds.size.toLong()
           reportConfigDetailsBuilder.apply {
             addMetricDefinitions(metricDefinition)
             reportDurationBuilder.apply {

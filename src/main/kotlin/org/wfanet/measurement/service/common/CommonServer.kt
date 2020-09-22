@@ -96,10 +96,18 @@ class CommonServer(
       nameForLogging: String,
       vararg services: BindableService
     ): CommonServer {
+      return fromFlags(flags, nameForLogging, *services.map { it.bindService() }.toTypedArray())
+    }
+
+    fun fromFlags(
+      flags: Flags,
+      nameForLogging: String,
+      vararg services: ServerServiceDefinition
+    ): CommonServer {
       if (flags.debugVerboseGrpcLogging) {
         return CommonServer(nameForLogging, flags.port, services.map { it.withVerboseLogging() })
       }
-      return CommonServer(nameForLogging, flags.port, *services)
+      return CommonServer(nameForLogging, flags.port, services.toList())
     }
   }
 }

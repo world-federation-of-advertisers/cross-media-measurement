@@ -16,7 +16,10 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.identity.DuchyIdFlags
+import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.CommonDuchyFlags
@@ -30,12 +33,18 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
   protected lateinit var flags: Flags
     private set
 
+  @CommandLine.Mixin
+  protected lateinit var duchyIdFlags: DuchyIdFlags
+    private set
+
   protected fun run(storageClient: StorageClient) {
     val duchyName = flags.duchy.duchyName
     val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
     require(latestDuchyPublicKeys.containsKey(duchyName)) {
       "Public key not specified for Duchy $duchyName"
     }
+    DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+    require(latestDuchyPublicKeys.keys.toSet() == DuchyIds.ALL)
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
     val channel: ManagedChannel = buildChannel(flags.computationStorageServiceTarget)
@@ -49,7 +58,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
           storageClient,
           otherDuchyNames
         )
-      )
+      ).withDuchyIdentities()
     ).start().blockUntilShutdown()
   }
 

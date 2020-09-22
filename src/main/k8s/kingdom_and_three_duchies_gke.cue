@@ -135,6 +135,9 @@ for duchy in #Duchies {
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
+				"--duchy-ids=duchy-\(#Duchies[0].name)",
+				"--duchy-ids=duchy-\(#Duchies[1].name)",
+				"--duchy-ids=duchy-\(#Duchies[2].name)",
 				"--google-cloud-storage-bucket=",
 				"--google-cloud-storage-project=",
 				"--port=8080",
@@ -193,7 +196,7 @@ for duchy in #Duchies {
 				imagePullPolicy: "Always"
 				args: [
 					"--ignore-already-existing-databases",
-          "--drop-databases-first",
+					"--drop-databases-first",
 					"--databases=\(duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
 					"--databases=\(duchy.name)_duchy_metric_values=/app/wfa_measurement_system/src/main/db/gcp/metric_values.sdl",
 					"--instance-name=qa-instance",
@@ -302,7 +305,7 @@ kingdom_job: "kingdom-push-spanner-schema-job": {
 			imagePullPolicy: "Always"
 			args: [
 				"--ignore-already-existing-databases",
-        "--drop-databases-first",
+				"--drop-databases-first",
 				"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
 				"--instance-name=qa-instance",
 				"--project-name=ads-open-measurement",

@@ -107,7 +107,7 @@ class GlobalComputationService(
 
         reportMessage = request.statusUpdate.updateMessage
 
-        if (request.hasStatusUpdate()) {
+        if (request.statusUpdate.hasErrorDetails()) {
           val errorDetails = request.statusUpdate.errorDetails
           errorDetailsBuilder.apply {
             errorTime = errorDetails.errorTime
