@@ -1,5 +1,6 @@
 package org.wfanet.measurement.service.common
 
+import com.google.protobuf.Message
 import io.grpc.CallOptions
 import io.grpc.Channel
 import io.grpc.ClientCall
@@ -11,6 +12,7 @@ import io.grpc.Metadata
 import io.grpc.MethodDescriptor
 import java.util.logging.Level
 import java.util.logging.Logger
+import org.wfanet.measurement.common.truncateByteFields
 
 /**
  * Logs all gRPC requests and responses for clients.
@@ -29,8 +31,9 @@ class LoggingClientInterceptor : ClientInterceptor {
         )
         val listener = object : SimpleForwardingClientCallListener<RespT>(responseListener) {
           override fun onMessage(message: RespT) {
+            val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
             logger.logp(
-              Level.INFO, method.fullMethodName, "gRPC response", "[$threadName] $message"
+              Level.INFO, method.fullMethodName, "gRPC response", "[$threadName] $messageToLog"
             )
             super.onMessage(message)
           }
@@ -38,7 +41,10 @@ class LoggingClientInterceptor : ClientInterceptor {
         super.start(listener, headers)
       }
       override fun sendMessage(message: ReqT) {
-        logger.logp(Level.INFO, method.fullMethodName, "gRPC request", "[$threadName] $message")
+        val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
+        logger.logp(
+          Level.INFO, method.fullMethodName, "gRPC request", "[$threadName] $messageToLog"
+        )
         super.sendMessage(message)
       }
     }
@@ -46,6 +52,7 @@ class LoggingClientInterceptor : ClientInterceptor {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val BYTES_TO_LOG = 100
     private val threadName: String
       get() = Thread.currentThread().name
   }

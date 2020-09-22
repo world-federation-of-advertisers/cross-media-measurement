@@ -11,5 +11,6 @@ kt_jvm_library(
     deps = [
         "//:grpc_core",
         "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

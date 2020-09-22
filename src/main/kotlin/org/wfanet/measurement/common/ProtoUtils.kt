@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.common
 
+import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
+import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.ProtocolMessageEnum
 import com.google.protobuf.Timestamp
@@ -24,6 +27,46 @@ import java.time.Instant
 /** Converts a protobuf [MessageOrBuilder] into its canonical JSON representation.*/
 fun MessageOrBuilder.toJson(): String {
   return JsonFormat.printer().omittingInsignificantWhitespace().print(this)
+}
+
+/** Truncate all byte fields inside a protobuf [Message].*/
+fun Message.truncateByteFields(truncatedSize: Int): Message {
+  val builder = this.toBuilder()
+  for (descriptor in this.descriptorForType.fields) {
+    when (descriptor.type) {
+      Descriptors.FieldDescriptor.Type.BYTES -> {
+        if (!descriptor.isRepeated) {
+          val bytes = this.getField(descriptor) as ByteString
+          builder.setField(descriptor, bytes.substring(0, minOf(bytes.size(), truncatedSize)))
+        } else {
+          val bytesList = this.getField(descriptor) as List<*>
+          builder.clearField(descriptor)
+          for (bytes in bytesList) {
+            builder.addRepeatedField(
+              descriptor, (bytes as ByteString).substring(0, minOf(bytes.size(), truncatedSize))
+            )
+          }
+        }
+      }
+      Descriptors.FieldDescriptor.Type.MESSAGE -> {
+        if (!descriptor.isRepeated) {
+          val message = this.getField(descriptor) as Message
+          builder.setField(descriptor, message.truncateByteFields(truncatedSize))
+        } else {
+          val messages = this.getField(descriptor) as List<*>
+          builder.clearField(descriptor)
+          for (message in messages) {
+            builder.addRepeatedField(
+              descriptor,
+              (message as Message).truncateByteFields(truncatedSize)
+            )
+          }
+        }
+      }
+      else -> {} // do nothing
+    }
+  }
+  return builder.build()
 }
 
 fun Instant.toProtoTime(): Timestamp =

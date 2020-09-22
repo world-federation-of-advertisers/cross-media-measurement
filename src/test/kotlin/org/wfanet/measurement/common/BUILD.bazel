@@ -55,6 +55,19 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ProtoUtilsTest",
+    srcs = ["ProtoUtilsTest.kt"],
+    test_class = "org.wfanet.measurement.common.ProtoUtilsTest",
+    deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "AdaptiveThrottlerTest",
     srcs = ["AdaptiveThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.AdaptiveThrottlerTest",

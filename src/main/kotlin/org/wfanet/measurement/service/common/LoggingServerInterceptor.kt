@@ -1,5 +1,6 @@
 package org.wfanet.measurement.service.common
 
+import com.google.protobuf.Message
 import io.grpc.BindableService
 import io.grpc.ForwardingServerCall.SimpleForwardingServerCall
 import io.grpc.ForwardingServerCallListener.SimpleForwardingServerCallListener
@@ -12,6 +13,7 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import java.util.logging.Level
 import java.util.logging.Logger
+import org.wfanet.measurement.common.truncateByteFields
 
 /**
  * Logs all gRPC requests and responses.
@@ -25,7 +27,8 @@ class LoggingServerInterceptor : ServerInterceptor {
     val methodName = call.methodDescriptor.fullMethodName
     val interceptedCall = object : SimpleForwardingServerCall<ReqT, RespT>(call) {
       override fun sendMessage(message: RespT) {
-        logger.logp(Level.INFO, methodName, "gRPC response", "[$threadName] $message")
+        val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
+        logger.logp(Level.INFO, methodName, "gRPC response", "[$threadName] $messageToLog")
         super.sendMessage(message)
       }
       override fun close(status: Status, trailers: Metadata) {
@@ -38,7 +41,13 @@ class LoggingServerInterceptor : ServerInterceptor {
     val originalListener = next.startCall(interceptedCall, headers)
     return object : SimpleForwardingServerCallListener<ReqT>(originalListener) {
       override fun onMessage(message: ReqT) {
-        logger.logp(Level.INFO, methodName, "gRPC request", "[$threadName] $headers $message")
+        val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
+        logger.logp(
+          Level.INFO,
+          methodName,
+          "gRPC request",
+          "[$threadName] $headers $messageToLog"
+        )
         super.onMessage(message)
       }
     }
@@ -46,6 +55,7 @@ class LoggingServerInterceptor : ServerInterceptor {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val BYTES_TO_LOG = 100
     private val threadName: String
       get() = Thread.currentThread().name
   }
