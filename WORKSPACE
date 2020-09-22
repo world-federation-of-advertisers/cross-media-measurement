@@ -153,6 +153,17 @@ load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
 
 pip_deps()
 
+load("//build/io_bazel_rules_docker:base_images.bzl", "base_java_images")
+
+# Defualt base images for java_image targets. Must come before
+# java_image_repositories().
+base_java_images(
+    # gcr.io/distroless/java:11-debug
+    debug_digest = "sha256:c3fe781de55d375de2675c3f23beb3e76f007e53fed9366ba931cc6d1df4b457",
+    # gcr.io/distroless/java:11
+    digest = "sha256:7fc091e8686df11f7bf0b7f67fd7da9862b2b9a3e49978d1184f0ff62cb673cc",
+)
+
 load(
     "@io_bazel_rules_docker//java:image.bzl",
     java_image_repositories = "repositories",
@@ -160,17 +171,7 @@ load(
 
 java_image_repositories()
 
-load(
-    "@io_bazel_rules_docker//kotlin:image.bzl",
-    kotlin_image_repositories = "repositories",
-)
-
-kotlin_image_repositories()
-
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_pull",
-)
+load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
 
 # docker.io/debian:bullseye-slim
 container_pull(
