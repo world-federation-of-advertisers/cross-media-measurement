@@ -122,9 +122,13 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val instance = spanner.instanceAdminClient.getInstance(flags.instanceName)
 
   for ((databaseName, ddlFilePath) in flags.databases.entries) {
-    if (flags.dropDatabasesFirst) {
-      logger.info("Dropping database $databaseName")
-      instance.getDatabase(databaseName).drop()
+    try {
+      if (flags.dropDatabasesFirst) {
+        logger.info("Dropping database $databaseName")
+        instance.getDatabase(databaseName).drop()
+      }
+    } catch (e: ExecutionException) {
+      logger.info("Database $databaseName doesn't exist but tried to drop")
     }
     logger.info("Creating database $databaseName from DDL file $ddlFilePath")
     val ddl = File(ddlFilePath).readText()
