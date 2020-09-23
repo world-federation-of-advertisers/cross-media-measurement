@@ -245,8 +245,11 @@ class CorrectnessImplTest {
         .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
         .build()
     )
-    val actualCardinality =
-      correctness.estimateCardinality(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
+    val actualCardinality = correctness.estimateCardinality(
+      SketchProtos.toAnySketch(sketchConfig).apply {
+        mergeAll(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
+      }
+    )
     assertThat(actualCardinality).isEqualTo(4)
   }
 
@@ -288,8 +291,13 @@ class CorrectnessImplTest {
         .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
         .build()
     )
+
     val actualFrequency =
-      correctness.estimateFrequency(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
+      correctness.estimateFrequency(
+        SketchProtos.toAnySketch(sketchConfig).apply {
+          mergeAll(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
+        }
+      )
     assertThat(actualFrequency).isEqualTo(mapOf((2L to 2L), (1L to 1L)))
   }
 

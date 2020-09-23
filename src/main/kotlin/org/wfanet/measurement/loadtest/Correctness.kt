@@ -18,13 +18,13 @@ import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.ElGamalPublicKeys
+import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
 
 /** Interface for E2E Correctness Test */
 interface Correctness {
@@ -80,20 +80,20 @@ interface Correctness {
   fun encryptSketch(sketch: Sketch): ByteString
 
   /**
-   * Unions multiple [AnySketch] objects into one and runs Cardinality Estimation on it.
+   * Runs Cardinality Estimation on the given [AnySketch].
    *
-   * @param anySketches List of AnySketch objects
+   * @param anySketch AnySketch object.
    * @return Long value of Estimated Cardinality
    */
-  fun estimateCardinality(anySketches: List<AnySketch>): Long
+  fun estimateCardinality(anySketch: AnySketch): Long
 
   /**
-   * Unions multiple [AnySketch] objects into one and runs Frequency Estimation on it.
+   * Runs Frequency Estimation on the given [AnySketch].
    *
-   * @param anySketches List of AnySketch objects
+   * @param anySketch AnySketch object.
    * @return Map<Long, Long> Value Histogram for Estimated Frequency
    */
-  fun estimateFrequency(anySketches: List<AnySketch>): Map<Long, Long>
+  fun estimateFrequency(anySketch: AnySketch): Map<Long, Long>
 
   /**
    * Stores a binary-serialized [Sketch] message into a blob.

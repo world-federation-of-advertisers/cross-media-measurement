@@ -101,8 +101,9 @@ class CorrectnessImpl(
     relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
 
     val anySketches = campaignTriples.map { it.third }
-    val reach = estimateCardinality(anySketches)
-    val frequency = estimateFrequency(anySketches)
+    val combinedAnySketch = SketchProtos.toAnySketch(sketchConfig).apply { mergeAll(anySketches) }
+    val reach = estimateCardinality(combinedAnySketch)
+    val frequency = estimateFrequency(combinedAnySketch)
     val storedResultsPath = storeEstimationResults(reach, frequency)
     testResult.setComputationBlobKey(storedResultsPath)
     logger.info("Estimation Results saved with blob key: $storedResultsPath")
@@ -240,8 +241,7 @@ class CorrectnessImpl(
     return anySketch
   }
 
-  override fun estimateCardinality(anySketches: List<AnySketch>): Long {
-    val anySketch = anySketches.union()
+  override fun estimateCardinality(anySketch: AnySketch): Long {
     val activeRegisterCount = anySketch.toList().size.toLong()
     return Estimators.EstimateCardinalityLiquidLegions(
       DECAY_RATE,
@@ -250,8 +250,7 @@ class CorrectnessImpl(
     )
   }
 
-  override fun estimateFrequency(anySketches: List<AnySketch>): Map<Long, Long> {
-    val anySketch = anySketches.union()
+  override fun estimateFrequency(anySketch: AnySketch): Map<Long, Long> {
     val valueIndex = anySketch.getValueIndex("SamplingIndicator").asInt
     return ValueHistogram.calculateHistogram(
       anySketch,
@@ -377,17 +376,6 @@ class CorrectnessImpl(
         chunkBuilder.data = encryptedSketch
       }.build()
     )
-  }
-
-  private fun List<AnySketch>.union(): AnySketch {
-    require(!this.isNullOrEmpty()) {
-      "At least one AnySketch expected."
-    }
-    val anySketch = this.first()
-    if (this.size > 1) {
-      anySketch.mergeAll(this.subList(1, this.size))
-    }
-    return anySketch
   }
 
   private suspend fun storeBlob(blob: ByteString): String {
