@@ -18,7 +18,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.consumeFirst
+import org.wfanet.measurement.common.consumeFirstOr
 import org.wfanet.measurement.internal.testing.BlobMetadata
 import org.wfanet.measurement.internal.testing.CreateBlobRequest
 import org.wfanet.measurement.internal.testing.DeleteBlobRequest
@@ -34,14 +34,17 @@ class FakeStorageService :
   val storageClient: FileSystemStorageClient = FileSystemStorageClient(createTempDir())
 
   override suspend fun createBlob(requests: Flow<CreateBlobRequest>): BlobMetadata {
-    val (headerRequest, bodyRequests) = requests.consumeFirst()
-    val blobKey = headerRequest.header.blobKey
-    if (blobKey.isBlank()) {
-      throw Status.INVALID_ARGUMENT.withDescription("Missing blob key").asRuntimeException()
+    val blob = requests.consumeFirstOr { CreateBlobRequest.getDefaultInstance() }.use { consumed ->
+      val headerRequest = consumed.item
+      val blobKey = headerRequest.header.blobKey
+      if (blobKey.isBlank()) {
+        throw Status.INVALID_ARGUMENT.withDescription("Missing blob key").asRuntimeException()
+      }
+
+      val content = consumed.remaining.map { it.bodyChunk.content }
+      storageClient.createBlob(blobKey, content)
     }
 
-    val content = bodyRequests.map { it.bodyChunk.content }
-    val blob = storageClient.createBlob(blobKey, content)
     return BlobMetadata.newBuilder().setSize(blob.size).build()
   }
 

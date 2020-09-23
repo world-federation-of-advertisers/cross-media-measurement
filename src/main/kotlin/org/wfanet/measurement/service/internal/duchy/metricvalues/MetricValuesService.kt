@@ -14,13 +14,13 @@
 
 package org.wfanet.measurement.service.internal.duchy.metricvalues
 
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.consumeFirstOr
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue
@@ -63,23 +63,23 @@ class MetricValuesService private constructor(
   }
 
   override suspend fun storeMetricValue(requests: Flow<StoreMetricValueRequest>): MetricValue {
-    lateinit var resourceKey: MetricValue.ResourceKey
-    val bytes = requests.transform<StoreMetricValueRequest, ByteString> { requestMessage ->
-      if (requestMessage.hasHeader()) {
-        resourceKey = requestMessage.header.resourceKey
-        return@transform
+    val metricValue = requests.consumeFirstOr { StoreMetricValueRequest.getDefaultInstance() }
+      .use { consumed ->
+        val resourceKey = consumed.item.header.resourceKey
+        if (!resourceKey.valid) {
+          throw Status.INVALID_ARGUMENT.withDescription("resource_key missing or incomplete")
+            .asRuntimeException()
+        }
+
+        val blob = metricValueStore.write(consumed.remaining.map { it.chunk.data })
+
+        MetricValue.newBuilder().apply {
+          this.resourceKey = resourceKey
+          blobStorageKey = blob.blobKey
+        }.build()
       }
 
-      emit(requestMessage.chunk.data)
-    }
-
-    val blob = metricValueStore.write(bytes)
-    return metricValueDb.insertMetricValue(
-      MetricValue.newBuilder().apply {
-        this.resourceKey = resourceKey
-        blobStorageKey = blob.blobKey
-      }.build()
-    )
+    return metricValueDb.insertMetricValue(metricValue)
   }
 
   override fun streamMetricValue(request: StreamMetricValueRequest) =
@@ -120,3 +120,10 @@ class MetricValuesService private constructor(
       MetricValuesService(metricValueDb, metricValueStore)
   }
 }
+
+val MetricValue.ResourceKey.valid: Boolean
+  get() {
+    return dataProviderResourceId.isNotEmpty() &&
+      campaignResourceId.isNotEmpty() &&
+      metricRequisitionResourceId.isNotEmpty()
+  }

@@ -16,13 +16,17 @@ package org.wfanet.measurement.common
 
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.produceIn
@@ -102,18 +106,74 @@ fun <T, R> Flow<T>.mapConcurrently(
   return map { scope.async { transform(it) } }.buffer(concurrency).map { it.await() }
 }
 
+/** An item consumed from a [Flow] with a [Flow] of remaining items. */
+abstract class ConsumedFlowItem<T> : AutoCloseable {
+  /** [Flow] item. */
+  abstract val item: T
+
+  /** [Flow] producing the remaining items. */
+  abstract val remaining: Flow<T>
+
+  /** Whether the [Flow] has remaining items. */
+  abstract val hasRemaining: Boolean
+}
+
 /**
- * Consumes the first item of the [Flow], returning that item and a [Flow] with
- * the remaining items.
+ * A [ConsumedFlowItem] wrapping a single item value, as if it was consumed from
+ * a single-item [Flow].
+ */
+private class SingleConsumedFlowItem<T>(singleItem: T) : ConsumedFlowItem<T>() {
+  override val item = singleItem
+  override val remaining = flowOf<T>()
+  override val hasRemaining = false
+
+  override fun close() {
+    // No-op.
+  }
+}
+
+/**
+ * Consumes the first item of the [Flow], producing a [Flow] for the remaining
+ * items.
  *
  * Note that this starts a new coroutine in a separate [CoroutineScope] to
  * produce the returned [Flow] items using a [Channel]. As a result, the
  * returned [Flow] is hot.
+ *
+ * @return a [ConsumedFlowItem] containing the first item and the [Flow] of
+ *     remaining items, or `null` if there is no first item. The caller must
+ *     ensure that the returned object is [closed][ConsumedFlowItem.close].
  */
-@OptIn(FlowPreview::class) // For `produceIn`
-suspend fun <T> Flow<T>.consumeFirst(): Pair<T, Flow<T>> {
+@OptIn(
+  FlowPreview::class, // For `produceIn`
+  ExperimentalCoroutinesApi::class // For `Channel.isClosedForReceive`.
+)
+suspend fun <T> Flow<T>.consumeFirst(): ConsumedFlowItem<T>? {
   val producerScope = CoroutineScope(coroutineContext)
-  val channel = buffer(Channel.RENDEZVOUS).produceIn(producerScope)
+  val channel: ReceiveChannel<T> = buffer(Channel.RENDEZVOUS).produceIn(producerScope)
 
-  return Pair(channel.receive(), channel.consumeAsFlow())
+  // We can't know whether the flow is empty until we start collecting. Since
+  // we're using a rendezvous channel, this means the channel won't be closed
+  // until after we attempt to receive the first item.
+  val item = try {
+    channel.receive()
+  } catch (e: ClosedReceiveChannelException) {
+    return null
+  }
+
+  val hasRemaining = !channel.isClosedForReceive
+  return object : ConsumedFlowItem<T>() {
+    override val item = item
+    override val remaining = if (hasRemaining) channel.consumeAsFlow() else flowOf()
+    override val hasRemaining = hasRemaining
+
+    override fun close() {
+      channel.cancel()
+    }
+  }
+}
+
+/** @see consumeFirst */
+suspend fun <T> Flow<T>.consumeFirstOr(lazySingleItem: () -> T): ConsumedFlowItem<T> {
+  return consumeFirst() ?: SingleConsumedFlowItem(lazySingleItem())
 }

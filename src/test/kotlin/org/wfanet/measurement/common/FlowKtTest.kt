@@ -16,6 +16,9 @@ package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -139,5 +142,80 @@ class FlowKtTest {
     assertThat(result)
       .containsExactly(-1, -2)
       .inOrder()
+  }
+
+  @Test
+  fun `consumeFirst returns null for empty flow`() = runBlocking {
+    assertThat(flowOf<String>().consumeFirst()).isNull()
+  }
+
+  @Test
+  fun `consumeFirst hasRemaining is false for single-item flow`() = runBlocking {
+    assertNotNull(flowOf("foo").consumeFirst()).use { consumed ->
+      assertFalse(consumed.hasRemaining)
+    }
+  }
+
+  @Test
+  fun `consumeFirst remaining is empty for single-item flow`() = runBlocking {
+    assertNotNull(flowOf("foo").consumeFirst()).use { consumed ->
+      assertThat(consumed.remaining.toList()).isEmpty()
+    }
+  }
+
+  @Test
+  fun `consumeFirst item is first item for single-item flow`() = runBlocking {
+    val item = "foo"
+    assertNotNull(flowOf(item).consumeFirst()).use { consumed ->
+      assertThat(consumed.item).isEqualTo(item)
+    }
+  }
+
+  @Test
+  fun `consumeFirst hasRemaining is true for multi-item flow`() = runBlocking {
+    val items = listOf("foo", "bar", "baz")
+    assertNotNull(items.asFlow().consumeFirst()).use { consumed ->
+      assertTrue(consumed.hasRemaining)
+    }
+  }
+
+  @Test
+  fun `consumeFirst item is first item for multi-item flow`() = runBlocking {
+    val items = listOf("foo", "bar", "baz")
+    assertNotNull(items.asFlow().consumeFirst()).use { consumed ->
+      assertThat(consumed.item).isEqualTo(items.first())
+    }
+  }
+
+  @Test
+  fun `consumeFirst remaining contains remaining items`() = runBlocking {
+    val items = listOf("foo", "bar", "baz")
+    assertNotNull(items.asFlow().consumeFirst()).use { consumed ->
+      assertThat(consumed.remaining.toList()).containsExactlyElementsIn(items.drop(1)).inOrder()
+    }
+  }
+
+  @Test
+  fun `consumeFirstOr returns alternate for empty flow`() = runBlocking {
+    val alternate = "foo"
+    flowOf<String>().consumeFirstOr { alternate }.use { consumed ->
+      assertThat(consumed.item).isEqualTo(alternate)
+      assertFalse(consumed.hasRemaining)
+      assertThat(consumed.remaining.toList()).isEmpty()
+    }
+  }
+
+  @Test
+  fun `consumeFirstOr returns same as consumeFirst for non-empty flow`() = runBlocking {
+    val items = listOf("foo", "bar", "baz")
+    items.asFlow().consumeFirstOr { "alternate" }.use { consumed1 ->
+      assertNotNull(items.asFlow().consumeFirst()).use { consumed2 ->
+        assertThat(consumed1.item).isEqualTo(consumed2.item)
+        assertThat(consumed1.hasRemaining).isEqualTo(consumed2.hasRemaining)
+        assertThat(consumed1.remaining.toList())
+          .containsExactlyElementsIn(consumed2.remaining.toList())
+          .inOrder()
+      }
+    }
   }
 }
