@@ -1,8 +1,6 @@
 package org.wfanet.measurement.integration
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.math.BigInteger
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -19,6 +17,8 @@ import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.integration.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
+import java.math.BigInteger
+import java.util.logging.Logger
 
 val DUCHY_IDS = listOf("duchy1", "duchy2", "duchy3")
 
@@ -102,7 +102,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 50_000) {
+    val doneReport: Report = pollFor(timeoutMillis = 120_000) {
       kingdomRelationalDatabase
         .streamReports(
           filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
@@ -155,7 +155,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 50_000) {
+    val doneReport: Report = pollFor(timeoutMillis = 120_000) {
       kingdomRelationalDatabase
         .streamReports(
           filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
