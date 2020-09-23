@@ -196,9 +196,12 @@ message RecordOutputBlobPathResponse {
 }
 
 // Request that a computation is enqueued in the Mill work queue.
-// The lock is released.
+// The lock is released after the delay.
 message EnqueueComputationRequest {
   ComputationToken token = 1;
+
+  // The delay when the computation is ready for a mill to work.
+  int32 delay_second = 2;
 }
 // Response to enqueuing a computation. This is an ack
 // of the request which signifies the computation was
