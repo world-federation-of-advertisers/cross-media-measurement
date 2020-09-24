@@ -51,8 +51,11 @@ import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
+import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
@@ -65,6 +68,7 @@ import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
+import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
@@ -128,12 +132,7 @@ class LiquidLegionsMill(
       val timeElapsedMills = measureTimeMillis {
         processNextComputation(claimWorkResponse.token)
       }
-      val globalId = claimWorkResponse.token.globalComputationId
-      val stage = claimWorkResponse.token.computationStage
-      logger.info(
-        "@Mill $millId: Finished processing computation $globalId, stage $stage, " +
-          "Time elapsed: ${timeElapsedMills.toHumanFriendlyTime()}."
-      )
+      logStageElapsedTime(claimWorkResponse.token, STAGE_TOTAL_WALL_CLOCK_TIME, timeElapsedMills)
     } else {
       logger.info("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -271,13 +270,16 @@ class LiquidLegionsMill(
         RoleInComputation.SECONDARY -> 1
         else -> error("Unknown role: ${token.role}")
       }
-      cryptoWorker.addNoiseToSketch(
-        // TODO: set other parameters when AddNoise actually adds noise.
-        //  Now it just shuffle the registers.
-        AddNoiseToSketchRequest.newBuilder()
-          .setSketch(readAndCombineAllInputBlobs(token, inputCount))
-          .build()
-      ).sketch
+      val cryptoResult: AddNoiseToSketchResponse =
+        cryptoWorker.addNoiseToSketch(
+          // TODO: set other parameters when AddNoise actually adds noise.
+          //  Now it just shuffle the registers.
+          AddNoiseToSketchRequest.newBuilder()
+            .setSketch(readAndCombineAllInputBlobs(token, inputCount))
+            .build()
+        )
+      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      cryptoResult.sketch
     }
 
     when (token.role) {
@@ -318,14 +320,17 @@ class LiquidLegionsMill(
   /** Process computation in the TO_BLIND_POSITIONS stage */
   private suspend fun blindPositions(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.blindOneLayerRegisterIndex(
-        BlindOneLayerRegisterIndexRequest.newBuilder()
-          .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
-          .setCurveId(cryptoKeySet.curveId.toLong())
-          .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
-          .setSketch(readAndCombineAllInputBlobs(token, 1))
-          .build()
-      ).sketch
+      val cryptoResult: BlindOneLayerRegisterIndexResponse =
+        cryptoWorker.blindOneLayerRegisterIndex(
+          BlindOneLayerRegisterIndexRequest.newBuilder()
+            .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+            .setCurveId(cryptoKeySet.curveId.toLong())
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setSketch(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        )
+      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      cryptoResult.sketch
     }
 
     // Pass the computation to the next duchy.
@@ -341,14 +346,17 @@ class LiquidLegionsMill(
   /** Process computation in the TO_BLIND_POSITIONS_AND_JOIN_REGISTERS stage */
   private suspend fun blindPositionsAndJoinRegisters(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.blindLastLayerIndexThenJoinRegisters(
-        BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
-          .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
-          .setCurveId(cryptoKeySet.curveId.toLong())
-          .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
-          .setSketch(readAndCombineAllInputBlobs(token, 1))
-          .build()
-      ).flagCounts
+      val cryptoResult: BlindLastLayerIndexThenJoinRegistersResponse =
+        cryptoWorker.blindLastLayerIndexThenJoinRegisters(
+          BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
+            .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+            .setCurveId(cryptoKeySet.curveId.toLong())
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setSketch(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        )
+      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      cryptoResult.flagCounts
     }
 
     // Pass the computation to the next duchy.
@@ -364,13 +372,16 @@ class LiquidLegionsMill(
   /** Process computation in the TO_DECRYPT_FLAG_COUNTS stage */
   private suspend fun decryptFlagCounts(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.decryptOneLayerFlagAndCount(
-        DecryptOneLayerFlagAndCountRequest.newBuilder()
-          .setCurveId(cryptoKeySet.curveId.toLong())
-          .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
-          .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
-          .build()
-      ).flagCounts
+      val cryptoResult: DecryptOneLayerFlagAndCountResponse =
+        cryptoWorker.decryptOneLayerFlagAndCount(
+          DecryptOneLayerFlagAndCountRequest.newBuilder()
+            .setCurveId(cryptoKeySet.curveId.toLong())
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
+            .build()
+        )
+      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      cryptoResult.flagCounts
     }
 
     // Pass the computation to the next duchy.
@@ -385,14 +396,17 @@ class LiquidLegionsMill(
     token: ComputationToken
   ): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      cryptoWorker.decryptLastLayerFlagAndCount(
-        DecryptLastLayerFlagAndCountRequest.newBuilder()
-          .setCurveId(cryptoKeySet.curveId.toLong())
-          .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
-          .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
-          .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
-          .build()
-      ).toByteString()
+      val cryptoResult: DecryptLastLayerFlagAndCountResponse =
+        cryptoWorker.decryptLastLayerFlagAndCount(
+          DecryptLastLayerFlagAndCountRequest.newBuilder()
+            .setCurveId(cryptoKeySet.curveId.toLong())
+            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
+            .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
+            .build()
+        )
+      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      cryptoResult.toByteString()
     }
 
     val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes.flatten()).flagCountsList
@@ -432,7 +446,11 @@ class LiquidLegionsMill(
     }
     val newResult: ByteString =
       try {
-        block()
+        val (timeElapsedMills, result) = measureTimeMillisAndReturnResult {
+          block()
+        }
+        logStageElapsedTime(token, JNI_WALL_CLOCK_TIME, timeElapsedMills)
+        result
       } catch (error: Throwable) {
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
@@ -556,6 +574,23 @@ class LiquidLegionsMill(
       )
   }
 
+  private fun logStageElapsedTime(
+    token: ComputationToken,
+    description: String,
+    elapsedMillis: Long
+  ) {
+    logger.info(
+      "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$description:" +
+        " ${elapsedMillis.toHumanFriendlyTime()}"
+    )
+  }
+
+  inline fun <T> measureTimeMillisAndReturnResult(block: () -> T): Pair<Long, T> {
+    val start = System.currentTimeMillis()
+    val res = block()
+    return Pair(System.currentTimeMillis() - start, res)
+  }
+
   /**
    * Convert a milliseconds to a human friendly string
    */
@@ -577,6 +612,9 @@ class LiquidLegionsMill(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val CRYPTO_LIB_CPU_TIME = "crypto_lib_cpu_time"
+    private const val STAGE_TOTAL_WALL_CLOCK_TIME = "stage_total_wall_time"
+    private const val JNI_WALL_CLOCK_TIME = "jni_wall_clock_time"
 
     init {
       loadLibrary(
