@@ -19,9 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -36,10 +34,12 @@ import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.db.duchy.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.testing.buildConcatenatedSketchRequests
+import org.wfanet.measurement.duchy.testing.buildEncryptedFlagsAndCountsRequests
+import org.wfanet.measurement.duchy.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
@@ -52,9 +52,6 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputatio
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
-import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
@@ -62,6 +59,10 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
@@ -155,32 +156,20 @@ class LiquidLegionsComputationControlServiceImplTest {
     )
 
     assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest()))
-    val part1 = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialSketch("part1_".toByteString())
-      .build()
-    val part2 = HandleNoisedSketchRequest.newBuilder()
-      .setPartialSketch("part2_".toByteString())
-      .build()
-    val part3 = HandleNoisedSketchRequest.newBuilder()
-      .setPartialSketch("part3".toByteString())
-      .build()
-    assertThat(withSender(bavaria) { handleNoisedSketch(flowOf(part1, part2, part3)) })
+    val requests = buildNoisedSketchRequests(id, "part1_", "part2_", "part3")
+    assertThat(withSender(bavaria) { handleNoisedSketch(requests.asFlow()) })
       .isEqualToDefaultInstance()
     val tokenAfter =
       assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
 
     assertThat(tokenAfter.computationStage).isEqualTo(WAIT_SKETCHES.toProtocolStage())
 
-    val fullSketch = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialSketch("full_sketch_fit_in_message".toByteString())
-      .build()
+    val fullSketchRequests = buildNoisedSketchRequests(id, "full_sketch_fit_in_message")
     // Test the idempotency of receiving the same request by sending and checking results multiple
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      assertThat(withSender(carinthia) { handleNoisedSketch(flowOf(fullSketch)) })
+      assertThat(withSender(carinthia) { handleNoisedSketch(fullSketchRequests.asFlow()) })
         .isEqualToDefaultInstance()
       val tokenAfterSecondSketch =
         assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
@@ -218,22 +207,20 @@ class LiquidLegionsComputationControlServiceImplTest {
 
   @Test
   fun `receive noised sketch when not expected`() = runBlocking<Unit> {
-    val sketch = HandleNoisedSketchRequest.newBuilder()
-      .setComputationId("55")
-      .setPartialSketch("data".toByteString())
-      .build()
+    val id = "55"
+    val requests = buildNoisedSketchRequests(id, "data")
     val notFound = assertFailsWith<StatusRuntimeException> {
-      withSender(carinthia) { handleNoisedSketch(flowOf(sketch)) }
+      withSender(carinthia) { handleNoisedSketch(requests.asFlow()) }
     }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationDb.addComputation(
-      globalId = "55",
+      globalId = id,
       stage = LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
     val exception = assertFailsWith<StatusRuntimeException> {
-      withSender(carinthia) { handleNoisedSketch(flowOf(sketch)) }
+      withSender(carinthia) { handleNoisedSketch(requests.asFlow()) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -259,21 +246,12 @@ class LiquidLegionsComputationControlServiceImplTest {
       )
     val token =
       assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
-    val part1 = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialSketch("part1_".toByteString())
-      .build()
-    val part2 = HandleConcatenatedSketchRequest.newBuilder()
-      .setPartialSketch("part2_".toByteString())
-      .build()
-    val part3 = HandleConcatenatedSketchRequest.newBuilder()
-      .setPartialSketch("part3".toByteString())
-      .build()
+    val requests = buildConcatenatedSketchRequests(id, "part1_", "part2_", "part3")
     // Test the idempotency of receiving the same request by sending and checking results multiple
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      assertThat(withSender(carinthia) { handleConcatenatedSketch(flowOf(part1, part2, part3)) })
+      assertThat(withSender(carinthia) { handleConcatenatedSketch(requests.asFlow()) })
         .isEqualToDefaultInstance()
       val tokenAfter =
         assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
@@ -287,7 +265,8 @@ class LiquidLegionsComputationControlServiceImplTest {
           .build()
       )
       assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
-        input.toBlobRef(), ByteString.copyFromUtf8("part1_part2_part3")
+        input.toBlobRef(),
+        ByteString.copyFromUtf8("part1_part2_part3")
       )
     }
   }
@@ -304,15 +283,12 @@ class LiquidLegionsComputationControlServiceImplTest {
       )
     val token =
       assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
-    val sketch = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialSketch("full_sketch".toByteString())
-      .build()
+    val requests = buildConcatenatedSketchRequests(id, "full_sketch")
     // Test the idempotency of receiving the same request by sending and checking results multiple
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      assertThat(withSender(carinthia) { handleConcatenatedSketch(flowOf(sketch)) })
+      assertThat(withSender(carinthia) { handleConcatenatedSketch(requests.asFlow()) })
         .isEqualToDefaultInstance()
       val tokenAfter =
         assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
@@ -326,29 +302,28 @@ class LiquidLegionsComputationControlServiceImplTest {
           .build()
       )
       assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
-        input.toBlobRef(), ByteString.copyFromUtf8("full_sketch")
+        input.toBlobRef(),
+        ByteString.copyFromUtf8("full_sketch")
       )
     }
   }
 
   @Test
   fun `receive concatenated sketch when not expected`() = runBlocking<Unit> {
-    val sketch = HandleConcatenatedSketchRequest.newBuilder()
-      .setComputationId("55")
-      .setPartialSketch("full_sketch".toByteString())
-      .build()
+    val id = "55"
+    val requests = buildConcatenatedSketchRequests(id, "full_sketch")
     val notFound = assertFailsWith<StatusRuntimeException> {
-      withSender(carinthia) { handleConcatenatedSketch(flowOf(sketch)) }
+      withSender(carinthia) { handleConcatenatedSketch(requests.asFlow()) }
     }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationDb.addComputation(
-      globalId = "55",
+      globalId = id,
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
     val exception = assertFailsWith<StatusRuntimeException> {
-      withSender(carinthia) { handleConcatenatedSketch(flowOf(sketch)) }
+      withSender(carinthia) { handleConcatenatedSketch(requests.asFlow()) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -365,16 +340,13 @@ class LiquidLegionsComputationControlServiceImplTest {
       )
     val token =
       assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
-    val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialData("full_sketch".toByteString())
-      .build()
+    val requests = buildEncryptedFlagsAndCountsRequests(id, "full_sketch")
 
     // Test the idempotency of receiving the same request by sending and checking results multiple
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
-      assertThat(withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(sketch)) })
+      assertThat(withSender(carinthia) { handleEncryptedFlagsAndCounts(requests.asFlow()) })
         .isEqualToDefaultInstance()
       val tokenAfter =
         assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
@@ -388,7 +360,8 @@ class LiquidLegionsComputationControlServiceImplTest {
           .build()
       )
       assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
-        input.toBlobRef(), ByteString.copyFromUtf8("full_sketch")
+        input.toBlobRef(),
+        ByteString.copyFromUtf8("full_sketch")
       )
     }
   }
@@ -405,22 +378,13 @@ class LiquidLegionsComputationControlServiceImplTest {
       )
     val token =
       assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
-    val part1 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId(id)
-      .setPartialData("part1_".toByteString())
-      .build()
-    val part2 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setPartialData("part2_".toByteString())
-      .build()
-    val part3 = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setPartialData("part3".toByteString())
-      .build()
+    val requests = buildEncryptedFlagsAndCountsRequests(id, "part1_", "part2_", "part3")
     // Test the idempotency of receiving the same request by sending and checking results multiple
     // times. The token should be the same each time because only the first request makes changes
     // to the database.
     repeat(times = 2) {
       assertThat(
-        withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(part1, part2, part3)) }
+        withSender(carinthia) { handleEncryptedFlagsAndCounts(requests.asFlow()) }
       ).isEqualToDefaultInstance()
       val tokenAfter =
         assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest())).token
@@ -434,35 +398,32 @@ class LiquidLegionsComputationControlServiceImplTest {
           .build()
       )
       assertThat(computationStorageClients.readInputBlobs(tokenAfter)).containsExactly(
-        input.toBlobRef(), ByteString.copyFromUtf8("part1_part2_part3")
+        input.toBlobRef(),
+        ByteString.copyFromUtf8("part1_part2_part3")
       )
     }
   }
 
   @Test
   fun `receive decrypt flags when not expected`() = runBlocking<Unit> {
-    val sketch = HandleEncryptedFlagsAndCountsRequest.newBuilder()
-      .setComputationId("55")
-      .setPartialData("data".toByteString())
-      .build()
+    val id = "55"
+    val requests = buildEncryptedFlagsAndCountsRequests(id, "data")
     val notFound = assertFailsWith<StatusRuntimeException> {
-      withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(sketch)) }
+      withSender(carinthia) { handleEncryptedFlagsAndCounts(requests.asFlow()) }
     }
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationDb.addComputation(
-      globalId = "55",
+      globalId = id,
       stage = WAIT_SKETCHES.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
     val exception = assertFailsWith<StatusRuntimeException> {
-      withSender(carinthia) { handleEncryptedFlagsAndCounts(flowOf(sketch)) }
+      withSender(carinthia) { handleEncryptedFlagsAndCounts(requests.asFlow()) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
-
-private fun String.toByteString(): ByteString = ByteString.copyFrom(this.toByteArray())
 
 private fun copyOf(
   token: ComputationToken,

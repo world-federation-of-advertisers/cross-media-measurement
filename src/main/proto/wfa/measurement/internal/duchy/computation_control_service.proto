@@ -57,15 +57,24 @@ service ComputationControlService {
 // worker. The primary expects a sketch from all secondary duchies. This request
 // is essentially storing a mapping of (computation_id, sender) -> sketch.
 message HandleNoisedSketchRequest {
-  // The globally unique identifier of the multi-party computation.
-  // Only the first message in the request stream needs to set this value, it
-  // will be ignored on all other requests in the stream.
-  string computation_id = 1;
+  message Header {
+    // The globally unique identifier of the multi-party computation.
+    string computation_id = 1;
+  }
 
-  // The sketch contains a list of registers each is a three tuple of position,
-  // key, and count. Sketches can exceed the maximum message size so split them
-  // into chunks and send a sequence of requests via the stream.
-  bytes partial_sketch = 2;
+  message BodyChunk {
+    // The sketch contains a list of registers each is a three tuple of
+    // position, key, and count.
+    bytes partial_sketch = 1;
+  }
+
+  oneof payload {
+    // Payload of first request message.
+    Header header = 1;
+
+    // Payload of subsequent request messages.
+    BodyChunk body_chunk = 2;
+  }
 }
 
 message HandleNoisedSketchResponse {
@@ -77,15 +86,24 @@ message HandleNoisedSketchResponse {
 // its predecessor in ring for the computation.
 // This request is essentially storing a mapping of (computation_id) -> sketch.
 message HandleConcatenatedSketchRequest {
-  // The globally unique identifier of the multi-party computation.
-  // Only the first message in the request stream needs to set this value, it
-  // will be ignored on all other requests in the stream.
-  string computation_id = 1;
+  message Header {
+    // The globally unique identifier of the multi-party computation.
+    string computation_id = 1;
+  }
 
-  // The sketch contains a list of registers each is a three tuple of position,
-  // key, and count. Sketches can exceed the maximum message size so split them
-  // into chunks and send a sequence of requests via the stream.
-  bytes partial_sketch = 4;
+  message BodyChunk {
+    // The sketch contains a list of registers each is a three tuple of
+    // position, key, and count.
+    bytes partial_sketch = 1;
+  }
+
+  oneof payload {
+    // Payload of first request message.
+    Header header = 1;
+
+    // Payload of subsequent request messages.
+    BodyChunk body_chunk = 2;
+  }
 }
 
 message HandleConcatenatedSketchResponse {
@@ -97,15 +115,23 @@ message HandleConcatenatedSketchResponse {
 // only from its predecessor in ring for the computation. This request is
 // essentially storing a mapping of (computation_id) -> pairs.
 message HandleEncryptedFlagsAndCountsRequest {
-  // The globally unique identifier of the multi-party computation.
-  // Only the first message in the request stream needs to set this value, it
-  // will be ignored on all other requests in the stream.
-  string computation_id = 1;
+  message Header {
+    // The globally unique identifier of the multi-party computation.
+    string computation_id = 1;
+  }
 
-  // The data is a list of flag count pairs. These pairs can exceed the maximum
-  // message size so split them into chunks and send a sequence of requests via
-  // the stream.
-  bytes partial_data = 2;
+  message BodyChunk {
+    // The data is a list of flag count pairs.
+    bytes partial_data = 1;
+  }
+
+  oneof payload {
+    // Payload of first request message.
+    Header header = 1;
+
+    // Payload of subsequent request messages.
+    BodyChunk body_chunk = 2;
+  }
 }
 
 message HandleEncryptedFlagsAndCountsResponse {

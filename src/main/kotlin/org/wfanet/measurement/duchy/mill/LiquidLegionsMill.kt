@@ -17,20 +17,14 @@ package org.wfanet.measurement.duchy.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import java.nio.file.Paths
-import java.time.Clock
-import java.util.logging.Level
-import java.util.logging.Logger
-import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEmpty
 import kotlinx.coroutines.withContext
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
@@ -40,17 +34,16 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDet
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
-import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
+import org.wfanet.measurement.duchy.ComputationControlRequests
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
 import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
@@ -67,14 +60,17 @@ import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRespons
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
-import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
+import java.nio.file.Paths
+import java.time.Clock
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.system.measureTimeMillis
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -103,10 +99,12 @@ class LiquidLegionsMill(
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsCryptoWorker,
   private val throttler: MinimumIntervalThrottler,
-  private val chunkSize: Int = 2_000_000,
+  chunkSize: Int = 1024 * 32, // 32 KiB
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 10_000_000L, 10),
   private val clock: Clock = Clock.systemUTC()
 ) {
+  private val controlRequests = ComputationControlRequests(chunkSize)
+
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
     withContext(CoroutineName("Mill $millId")) {
@@ -270,10 +268,9 @@ class LiquidLegionsMill(
       ).sketch
     }
 
-    val bytesFlow = bytes.chunkedFlow()
     when (token.role) {
-      RoleInComputation.PRIMARY -> sendConcatenatedSketch(nextToken, bytesFlow)
-      RoleInComputation.SECONDARY -> sendNoisedSketch(nextToken, bytesFlow)
+      RoleInComputation.PRIMARY -> sendConcatenatedSketch(nextToken, bytes)
+      RoleInComputation.SECONDARY -> sendNoisedSketch(nextToken, bytes)
       else -> error("Unknown role: ${token.role}")
     }
 
@@ -286,28 +283,24 @@ class LiquidLegionsMill(
 
   /** Send the merged sketch to the next duchy to start MPC round 1. */
   private suspend fun sendConcatenatedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
-    nextDuchyStub(token)
-      .handleConcatenatedSketch(
-        bytes.map {
-          HandleConcatenatedSketchRequest.newBuilder()
-            .setComputationId(token.globalComputationId)
-            .setPartialSketch(it)
-            .build()
-        }
-      )
+    val requests = controlRequests.buildConcatenatedSketchRequests(token.globalComputationId, bytes)
+    nextDuchyStub(token).handleConcatenatedSketch(requests)
   }
 
   /** Send the noised sketch to the primary duchy. */
   private suspend fun sendNoisedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
-    primaryDuchyStub(token)
-      .handleNoisedSketch(
-        bytes.map {
-          HandleNoisedSketchRequest.newBuilder()
-            .setComputationId(token.globalComputationId)
-            .setPartialSketch(it)
-            .build()
-        }
-      )
+    val requests = controlRequests.buildNoisedSketchRequests(token.globalComputationId, bytes)
+    primaryDuchyStub(token).handleNoisedSketch(requests)
+  }
+
+  /** Sends the encrypted flags and counts to the next Duchy. */
+  private suspend fun sendEncryptedFlagsAndCounts(
+    token: ComputationToken,
+    bytes: Flow<ByteString>
+  ) {
+    val requests =
+      controlRequests.buildEncryptedFlagsAndCountsRequests(token.globalComputationId, bytes)
+    nextDuchyStub(token).handleEncryptedFlagsAndCounts(requests)
   }
 
   /** Process computation in the TO_BLIND_POSITIONS stage */
@@ -324,16 +317,8 @@ class LiquidLegionsMill(
     }
 
     // Pass the computation to the next duchy.
-    nextDuchyStub(nextToken)
-      .handleConcatenatedSketch(
-        bytes.chunkedFlow()
-          .map {
-            HandleConcatenatedSketchRequest.newBuilder()
-              .setComputationId(nextToken.globalComputationId)
-              .setPartialSketch(it)
-              .build()
-          }
-      )
+    sendConcatenatedSketch(nextToken, bytes)
+
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -355,16 +340,8 @@ class LiquidLegionsMill(
     }
 
     // Pass the computation to the next duchy.
-    nextDuchyStub(nextToken)
-      .handleEncryptedFlagsAndCounts(
-        bytes.chunkedFlow()
-          .map {
-            HandleEncryptedFlagsAndCountsRequest.newBuilder()
-              .setComputationId(nextToken.globalComputationId)
-              .setPartialData(it)
-              .build()
-          }
-      )
+    sendEncryptedFlagsAndCounts(nextToken, bytes)
+
     return storageClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -385,16 +362,8 @@ class LiquidLegionsMill(
     }
 
     // Pass the computation to the next duchy.
-    nextDuchyStub(nextToken)
-      .handleEncryptedFlagsAndCounts(
-        bytes.chunkedFlow()
-          .map {
-            HandleEncryptedFlagsAndCountsRequest.newBuilder()
-              .setComputationId(nextToken.globalComputationId)
-              .setPartialData(it)
-              .build()
-          }
-      )
+    sendEncryptedFlagsAndCounts(nextToken, bytes)
+
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
@@ -414,7 +383,7 @@ class LiquidLegionsMill(
       ).toByteString()
     }
 
-    val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes).flagCountsList
+    val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes.flatten()).flagCountsList
     val frequencyHistogram: Map<Long, Long> = flagCounts
       .filter { it.isNotDestroyed }
       .groupBy { it.frequency }
@@ -445,7 +414,7 @@ class LiquidLegionsMill(
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
       return CachedResult(
-        checkNotNull(storageClients.readSingleOutputBlob(token)).flatten(),
+        checkNotNull(storageClients.readSingleOutputBlob(token)),
         token
       )
     }
@@ -456,7 +425,7 @@ class LiquidLegionsMill(
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
       }
-    return CachedResult(newResult, storageClients.writeSingleOutputBlob(token, newResult))
+    return CachedResult(flowOf(newResult), storageClients.writeSingleOutputBlob(token, newResult))
   }
 
   private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
@@ -467,12 +436,6 @@ class LiquidLegionsMill(
       )
     }
     return blobMap.values.flatten()
-  }
-
-  /** Partition a [ByteString] to a [Flow] of chunks of size at most [chunkSize]. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onEmpty`.
-  private fun ByteString.chunkedFlow(): Flow<ByteString> {
-    return asBufferedFlow(chunkSize).onEmpty { emit(ByteString.EMPTY) }
   }
 
   private suspend fun completeComputation(
@@ -565,7 +528,7 @@ class LiquidLegionsMill(
    * Convert a milliseconds to a human friendly string
    */
   private fun Long.toHumanFriendlyTime(): String {
-    val seconds = this / 1000;
+    val seconds = this / 1000
     val ms = this % 1000
     val hh = seconds / 3600
     val mm = (seconds % 3600) / 60
@@ -576,7 +539,7 @@ class LiquidLegionsMill(
     return "$hoursString$minutesString$secondsString$ms milliseconds"
   }
 
-  private data class CachedResult(val bytes: ByteString, val token: ComputationToken)
+  private data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
 
   data class LiquidLegionsConfig(val decayRate: Double, val size: Long, val maxFrequency: Int)
 

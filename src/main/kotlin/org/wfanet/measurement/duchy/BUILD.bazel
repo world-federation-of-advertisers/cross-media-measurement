@@ -32,3 +32,20 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_java_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "computation_control_requests",
+    srcs = ["ComputationControlRequests.kt"],
+    visibility = [
+        ":__subpackages__",
+        test_target(":__subpackages__"),
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
+    ],
+    deps = [
+        "//imports/java/com/google/protobuf",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_java_proto",
+    ],
+)

@@ -15,8 +15,6 @@
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import io.grpc.Status
-import java.time.Clock
-import java.util.logging.Logger
 import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
@@ -49,6 +47,8 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
+import java.time.Clock
+import java.util.logging.Logger
 
 /** Implementation of the Computation Storage Service. */
 class ComputationStorageServiceImpl(
@@ -137,8 +137,10 @@ class ComputationStorageServiceImpl(
       "May only read tokens for type ${computationsDatabase.computationType}. " +
         "${request.computationType} is not supported"
     }
-    return computationsDatabase.readComputationToken(request.globalComputationId)!!
-      .toGetComputationTokenResponse()
+
+    val computationToken = computationsDatabase.readComputationToken(request.globalComputationId)
+      ?: throw Status.NOT_FOUND.asRuntimeException()
+    return computationToken.toGetComputationTokenResponse()
   }
 
   override suspend fun recordOutputBlobPath(

@@ -37,9 +37,6 @@ import com.nhaarman.mockitokotlin2.verifyBlocking
 import com.nhaarman.mockitokotlin2.verifyZeroInteractions
 import com.nhaarman.mockitokotlin2.whenever
 import io.grpc.Status
-import java.time.Clock
-import java.time.Duration
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -66,8 +63,10 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.testing.buildConcatenatedSketchRequests
+import org.wfanet.measurement.duchy.testing.buildEncryptedFlagsAndCountsRequests
+import org.wfanet.measurement.duchy.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
@@ -108,6 +107,10 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
+import java.time.Clock
+import java.time.Duration
+import java.util.concurrent.atomic.AtomicInteger
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 
 class LiquidLegionsMillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =
@@ -116,9 +119,9 @@ class LiquidLegionsMillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val fakeComputationDb = FakeLiquidLegionsComputationDb()
   private val mockCryptoWorker: LiquidLegionsCryptoWorker =
     mock(useConstructor = UseConstructor.parameterless())
+  private val fakeComputationDb = FakeLiquidLegionsComputationDb()
 
   private lateinit var computationStorageClients:
     LiquidLegionsSketchAggregationComputationStorageClients
@@ -539,11 +542,12 @@ class LiquidLegionsMillTest {
 
     assertThat(computationStore.get(blobKey)?.readToString()).isEqualTo("sketch-AddedNoise")
 
-    assertThat(computationControlRequests).containsExactly(
-      HandleNoisedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8("sketch-AddedNoise"))
-        .setComputationId(GLOBAL_ID).build()
-    )
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildNoisedSketchRequests(
+        GLOBAL_ID,
+        "sketch-AddedNoise"
+      ).asIterable()
+    ).inOrder()
   }
 
   @Test
@@ -612,14 +616,13 @@ class LiquidLegionsMillTest {
     assertThat(computationStore.get(blobKey)?.readToString())
       .isEqualTo("sketch_1_sketch_2_sketch_3_-AddedNoise")
 
-    assertThat(computationControlRequests).containsExactly(
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8("sketch_1_sketch_2_sk"))
-        .setComputationId(GLOBAL_ID).build(),
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8("etch_3_-AddedNoise"))
-        .setComputationId(GLOBAL_ID).build()
-    )
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildConcatenatedSketchRequests(
+        GLOBAL_ID,
+        "sketch_1_sketch_2_sk",
+        "etch_3_-AddedNoise"
+      ).asIterable()
+    ).inOrder()
   }
 
   @Test
@@ -676,11 +679,12 @@ class LiquidLegionsMillTest {
         .build()
     )
 
-    assertThat(computationControlRequests).containsExactly(
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8("cached result"))
-        .setComputationId(GLOBAL_ID).build()
-    )
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildConcatenatedSketchRequests(
+        GLOBAL_ID,
+        "cached result"
+      ).asIterable()
+    ).inOrder()
   }
 
   @Test
@@ -746,14 +750,13 @@ class LiquidLegionsMillTest {
     assertThat(computationStore.get(blobKey)?.readToString())
       .isEqualTo("sketch-BlindedOneLayerRegisterIndex")
 
-    assertThat(computationControlRequests).containsExactly(
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8("sketch-BlindedOneLay")) // Chunk 1, size 20
-        .setComputationId(GLOBAL_ID).build(),
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setPartialSketch(ByteString.copyFromUtf8("erRegisterIndex")) // Chunk 2, the rest
-        .setComputationId(GLOBAL_ID).build()
-    )
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildConcatenatedSketchRequests(
+        GLOBAL_ID,
+        "sketch-BlindedOneLay", // Chunk 1, size 20
+        "erRegisterIndex" // Chunk 2, the rest
+      ).asIterable()
+    ).inOrder()
   }
 
   @Test
@@ -819,17 +822,14 @@ class LiquidLegionsMillTest {
     assertThat(computationStore.get(blobKey)?.readToString())
       .isEqualTo("data-BlindedLastLayerIndexThenJoinRegisters")
 
-    assertThat(computationControlRequests).containsExactly(
-      HandleEncryptedFlagsAndCountsRequest.newBuilder()
-        .setPartialData(ByteString.copyFromUtf8("data-BlindedLastLaye")) // Chunk 1, size 20
-        .setComputationId(GLOBAL_ID).build(),
-      HandleEncryptedFlagsAndCountsRequest.newBuilder()
-        .setPartialData(ByteString.copyFromUtf8("rIndexThenJoinRegist")) // Chunk 2, size 20
-        .setComputationId(GLOBAL_ID).build(),
-      HandleEncryptedFlagsAndCountsRequest.newBuilder()
-        .setPartialData(ByteString.copyFromUtf8("ers")) // Chunk 3, the rest
-        .setComputationId(GLOBAL_ID).build()
-    )
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildEncryptedFlagsAndCountsRequests(
+        GLOBAL_ID,
+        "data-BlindedLastLaye", // Chunk 1, size 20
+        "rIndexThenJoinRegist", // Chunk 2, size 20
+        "ers" // Chunk 3, the rest
+      ).asIterable()
+    ).inOrder()
   }
 
   @Test
@@ -885,14 +885,13 @@ class LiquidLegionsMillTest {
     assertThat(computationStore.get(blobKey)?.readToString())
       .isEqualTo("data-DecryptedOneLayerFlagAndCount")
 
-    assertThat(computationControlRequests).containsExactly(
-      HandleEncryptedFlagsAndCountsRequest.newBuilder()
-        .setPartialData(ByteString.copyFromUtf8("data-DecryptedOneLay")) // Chunk 1, size 20
-        .setComputationId(GLOBAL_ID).build(),
-      HandleEncryptedFlagsAndCountsRequest.newBuilder()
-        .setPartialData(ByteString.copyFromUtf8("erFlagAndCount")) // Chunk 2, the rest
-        .setComputationId(GLOBAL_ID).build()
-    )
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildEncryptedFlagsAndCountsRequests(
+        GLOBAL_ID,
+        "data-DecryptedOneLay", // Chunk 1, size 20
+        "erFlagAndCount" // Chunk 2, the rest
+      ).asIterable()
+    ).inOrder()
   }
 
   @Test

@@ -34,6 +34,24 @@ fun grpcRequire(
 }
 
 /**
+ * Throws a [StatusRuntimeException] with [Status.INVALID_ARGUMENT] if [subject]
+ * is `null`.
+ *
+ * This is the gRPC equivalent of [requireNotNull].
+ *
+ * @return the non-null [subject]
+ */
+fun <T> grpcRequireNotNull(
+  subject: T?,
+  lazyDescription: () -> String = { "" }
+): T {
+  if (subject == null) {
+    failGrpc(Status.INVALID_ARGUMENT, lazyDescription)
+  }
+  return subject
+}
+
+/**
  * Throws [StatusRuntimeException] with a description.
  *
  * @param status what gRPC error code to use
@@ -41,7 +59,7 @@ fun grpcRequire(
  * @throws StatusRuntimeException
  */
 fun failGrpc(status: Status = Status.INVALID_ARGUMENT, block: () -> String): Nothing =
-  throw StatusRuntimeException(status.withDescription(block()))
+  throw status.withDescription(block()).asRuntimeException()
 
 /**
  * Executes the [tryBlock] throwing a [StatusRuntimeException] for any errors caught.

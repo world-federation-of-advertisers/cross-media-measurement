@@ -85,19 +85,6 @@ class LiquidLegionsSketchAggregationComputationStorageClients private constructo
     }
   }
 
-  /** @see writeReceivedNoisedSketch */
-  @Deprecated(message = "Map input flow for content.")
-  suspend fun writeReceivedNoisedSketch(
-    computationToken: ComputationToken,
-    content: ByteString,
-    sender: String
-  ): ComputationToken {
-    val metadata = computationToken.toNoisedSketchBlobMetadataFor(sender)
-    return writeBlobIfNotPresent(computationToken, metadata) { token ->
-      computationStore.write(token, content)
-    }
-  }
-
   /**
    * Writes the content as a single output blob to the current stage if no
    * output blob has yet been written.

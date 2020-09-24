@@ -1,9 +1,10 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+load("@rules_java//java:defs.bzl", "java_test")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-kt_jvm_test(
-    name = "LiquidLegionsComputationControlServiceImplTest",
+kt_jvm_library(
+    name = "liquid_legions_computation_control_service_impl_test",
+    testonly = True,
     srcs = ["LiquidLegionsComputationControlServiceImplTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.duchy.computation.control.LiquidLegionsComputationControlServiceImplTest",
     deps = [
         "//:grpc_core",
         "//imports/java/com/google/common/truth",
@@ -15,9 +16,17 @@ kt_jvm_test(
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_service",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
     ],
+)
+
+java_test(
+    name = "LiquidLegionsComputationControlServiceImplTest",
+    size = "small",
+    test_class = "org.wfanet.measurement.service.internal.duchy.computation.control.LiquidLegionsComputationControlServiceImplTest",
+    runtime_deps = [":liquid_legions_computation_control_service_impl_test"],
 )

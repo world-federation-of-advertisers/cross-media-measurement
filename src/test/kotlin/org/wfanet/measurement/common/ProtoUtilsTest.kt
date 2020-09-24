@@ -15,74 +15,61 @@
 package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import kotlin.test.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 
 @RunWith(JUnit4::class)
 class ProtoUtilsTest {
-
   @Test
-  fun `truncated if longer than threshold`() {
-    assertEquals(
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setComputationId("id")
-        .setPartialSketch(ByteString.copyFromUtf8("1234"))
-        .build(),
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setComputationId("id")
-        .setPartialSketch(ByteString.copyFromUtf8("1234567890"))
-        .build()
-        .truncateByteFields(4)
-    )
+  fun `truncateByteFields truncates if longer than threshold`() {
+    val message = HandleConcatenatedSketchRequest.BodyChunk.newBuilder().apply {
+      partialSketch = ByteString.copyFromUtf8("1234567890")
+    }.build()
+
+    val result = message.truncateByteFields(4)
+
+    assertThat(result.partialSketch.toStringUtf8()).isEqualTo("1234")
   }
 
   @Test
-  fun `not truncated if no longer than threshold`() {
-    assertEquals(
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setComputationId("id")
-        .setPartialSketch(ByteString.copyFromUtf8("123456"))
-        .build(),
-      HandleConcatenatedSketchRequest.newBuilder()
-        .setComputationId("id")
-        .setPartialSketch(ByteString.copyFromUtf8("123456"))
-        .build()
-        .truncateByteFields(10)
-    )
+  fun `truncateByteFields does not truncate if not longer than threshold`() {
+    val message = HandleConcatenatedSketchRequest.BodyChunk.newBuilder().apply {
+      partialSketch = ByteString.copyFromUtf8("123456")
+    }.build()
+
+    val result = message.truncateByteFields(10)
+
+    assertThat(result).isEqualTo(message)
   }
 
   @Test
-  fun `truncate bytes in embedded proto field`() {
-    assertEquals(
-      AddNoiseToSketchRequest.newBuilder().apply {
-        compositeElGamalKeysBuilder.apply {
-          elGamalG = ByteString.copyFromUtf8("123456")
-        }
-      }.build(),
-      AddNoiseToSketchRequest.newBuilder().apply {
-        compositeElGamalKeysBuilder.apply {
-          elGamalG = ByteString.copyFromUtf8("1234567890")
-        }
-      }.build()
-        .truncateByteFields(6)
-    )
+  fun `truncateByteFields truncates in embedded proto field`() {
+    val message = HandleConcatenatedSketchRequest.newBuilder().apply {
+      bodyChunkBuilder.partialSketch = ByteString.copyFromUtf8("1234567890")
+    }.build()
+
+    val result = message.truncateByteFields(4)
+
+    assertThat(result.bodyChunk.partialSketch.toStringUtf8()).isEqualTo("1234")
   }
 
   @Test
-  fun `truncate bytes in map field`() {
+  fun `truncateByteFields truncates in map field`() {
     val originalBytes = ByteString.copyFromUtf8("1234567890")
     val combinedPublicKeyId = "combined-public-key-1"
     val message = DuchyPublicKeyConfig.newBuilder().apply {
-      putEntries(combinedPublicKeyId, DuchyPublicKeyConfig.Entry.newBuilder().apply {
-        putElGamalElements("duchy-1", originalBytes)
-        putElGamalElements("duchy-2", originalBytes)
-      }.build())
+      putEntries(
+        combinedPublicKeyId,
+        DuchyPublicKeyConfig.Entry.newBuilder().apply {
+          putElGamalElements("duchy-1", originalBytes)
+          putElGamalElements("duchy-2", originalBytes)
+        }.build()
+      )
     }
 
     val results = message.truncateByteFields(5)
