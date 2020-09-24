@@ -198,7 +198,10 @@ class ComputationStorageServiceImpl(
   override suspend fun enqueueComputation(
     request: EnqueueComputationRequest
   ): EnqueueComputationResponse {
-    computationsDatabase.enqueue(request.token.toDatabaseEditToken())
+    grpcRequire(request.delaySecond >= 0) {
+      "DelaySecond ${request.delaySecond} should be non-negative."
+    }
+    computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
     return EnqueueComputationResponse.getDefaultInstance()
   }
 

@@ -228,7 +228,11 @@ class FakeLiquidLegionsComputationDb private constructor(
     }
   }
 
-  override suspend fun enqueue(token: ComputationStorageEditToken<ComputationStage>) {
+  override suspend fun enqueue(
+    token: ComputationStorageEditToken<ComputationStage>,
+    delaySecond: Int
+  ) {
+    // ignore the delaySecond in the fake
     updateToken(token) { existing ->
       claimedComputationIds.remove(existing.globalComputationId)
       existing.toBuilder()

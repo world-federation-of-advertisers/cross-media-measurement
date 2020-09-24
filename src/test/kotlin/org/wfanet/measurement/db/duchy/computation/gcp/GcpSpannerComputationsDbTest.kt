@@ -319,7 +319,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     )
 
     databaseClient.write(listOf(computation, differentComputation))
-    database.enqueue(token)
+    database.enqueue(token, 2)
 
     assertQueryReturns(
       databaseClient,
@@ -333,7 +333,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
         .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(TEST_INSTANT.toGcpTimestamp())
+        .set("LockExpirationTime").to(TEST_INSTANT.plusSeconds(2).toGcpTimestamp())
         .set("ComputationDetails").toProtoBytes(COMPUTATION_DETAILS)
         .set("ComputationDetailsJSON").toProtoJson(COMPUTATION_DETAILS)
         .build(),
@@ -356,7 +356,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       attempt = 1,
       editVersion = 0
     )
-    assertFailsWith<SpannerException> { database.enqueue(token) }
+    assertFailsWith<SpannerException> { database.enqueue(token, 0) }
   }
 
   @Test
@@ -380,7 +380,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
       details = COMPUTATION_DETAILS
     )
     databaseClient.write(listOf(computation))
-    assertFailsWith<SpannerException> { database.enqueue(token) }
+    assertFailsWith<SpannerException> { database.enqueue(token, 0) }
   }
 
   @Test

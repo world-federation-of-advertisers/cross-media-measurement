@@ -132,7 +132,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     )
   }
 
-  override suspend fun enqueue(token: ComputationStorageEditToken<StageT>) {
+  override suspend fun enqueue(token: ComputationStorageEditToken<StageT>, delaySecond: Int) {
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(
         computationMutations.updateComputation(
@@ -147,7 +147,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
           // by a mill, and by using the commit timestamp we pretty much get the behaviour
           // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
           lockOwner = WRITE_NULL_STRING,
-          lockExpirationTime = clock.gcpTimestamp()
+          lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcpTimestamp()
         )
       )
     }

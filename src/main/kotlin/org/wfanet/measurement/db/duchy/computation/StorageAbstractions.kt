@@ -117,9 +117,9 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.
    *
-   * This will release any ownership and locks associated with the computation.
+   * This will release any ownership and locks associated with the computation after delaySecond.
    */
-  suspend fun enqueue(token: ComputationStorageEditToken<StageT>)
+  suspend fun enqueue(token: ComputationStorageEditToken<StageT>, delaySecond: Int)
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.
