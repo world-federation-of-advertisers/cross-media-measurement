@@ -416,6 +416,8 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   DecryptLastLayerFlagAndCountResponse expected;
   *expected.add_flag_counts() = CreateFlagCount(true, 9);
 
+  EXPECT_GE(final_response.elapsed_cpu_time_millis(), 0);
+  final_response.clear_elapsed_cpu_time_millis();
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
@@ -434,6 +436,8 @@ TEST(EndToEnd, SumOfCoutsShouldBeCappedByMaximumFrequency) {
   DecryptLastLayerFlagAndCountResponse expected;
   *expected.add_flag_counts() = CreateFlagCount(true, kMaxFrequency);
 
+  EXPECT_GE(final_response.elapsed_cpu_time_millis(), 0);
+  final_response.clear_elapsed_cpu_time_millis();
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
@@ -451,6 +455,8 @@ TEST(EndToEnd, KeyCollisionShouldDestroyCount) {
   DecryptLastLayerFlagAndCountResponse expected;
   *expected.add_flag_counts() = CreateFlagCount(false, kMaxFrequency);
 
+  EXPECT_GE(final_response.elapsed_cpu_time_millis(), 0);
+  final_response.clear_elapsed_cpu_time_millis();
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
@@ -466,6 +472,8 @@ TEST(EndToEnd, ZeroCountShouldBeSkipped) {
 
   DecryptLastLayerFlagAndCountResponse expected;
 
+  EXPECT_GE(final_response.elapsed_cpu_time_millis(), 0);
+  final_response.clear_elapsed_cpu_time_millis();
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
@@ -502,6 +510,8 @@ TEST(EndToEnd, CombinedCases) {
   *expected.add_flag_counts() = CreateFlagCount(true, 4);
   // For index 5, no key collision, count sum = 0; ignored in the result.
 
+  EXPECT_GE(final_response.elapsed_cpu_time_millis(), 0);
+  final_response.clear_elapsed_cpu_time_millis();
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 

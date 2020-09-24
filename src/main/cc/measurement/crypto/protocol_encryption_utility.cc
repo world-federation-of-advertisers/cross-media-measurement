@@ -434,6 +434,8 @@ Status JoinRegistersByIndexAndMergeCounts(
 
 StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request) {
+  clock_t start = clock();
+
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
   // Composite cipher used to blind the positions.
   ASSIGN_OR_RETURN(
@@ -488,12 +490,19 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   }
   RETURN_IF_ERROR(
       util::SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
+
+  clock_t end = clock();
+  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  response.set_elapsed_cpu_time_millis(
+      static_cast<int64_t>(cpu_time_millis_used));
   return response;
 };
 
 StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
 BlindLastLayerIndexThenJoinRegisters(
     const BlindLastLayerIndexThenJoinRegistersRequest& request) {
+  clock_t start = clock();
+
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
   // Create a CompositeCipher to blind the register index;
   ASSIGN_OR_RETURN(
@@ -524,11 +533,18 @@ BlindLastLayerIndexThenJoinRegisters(
       blinded_register_indexes, permutation, *response_data));
   RETURN_IF_ERROR(
       util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
+
+  clock_t end = clock();
+  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  response.set_elapsed_cpu_time_millis(
+      static_cast<int64_t>(cpu_time_millis_used));
   return response;
 };
 
 StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     const DecryptOneLayerFlagAndCountRequest& request) {
+  clock_t start = clock();
+
   // Each unit contains 2 ciphertexts, e.g., flag and count.
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
@@ -565,11 +581,18 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
 
   RETURN_IF_ERROR(
       util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
+
+  clock_t end = clock();
+  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  response.set_elapsed_cpu_time_millis(
+      static_cast<int64_t>(cpu_time_millis_used));
   return response;
 };
 
 StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request) {
+  clock_t start = clock();
+
   // Each register contains 2 ciphertexts, e.g., flag and count.
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
@@ -630,17 +653,29 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
       return count_plaintext.status();
     }
   }
+
+  clock_t end = clock();
+  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  response.set_elapsed_cpu_time_millis(
+      static_cast<int64_t>(cpu_time_millis_used));
   return response;
 };
 
 StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
     const AddNoiseToSketchRequest& request) {
+  clock_t start = clock();
+
   AddNoiseToSketchResponse response;
   *response.mutable_sketch() = request.sketch();
   // TODO: actually add noise to the sketch.
   //  For the POC, we only shuffle the registers.
   RETURN_IF_ERROR(util::SortStringByBlock<kBytesPerCipherRegister>(
       *response.mutable_sketch()));
+
+  clock_t end = clock();
+  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  response.set_elapsed_cpu_time_millis(
+      static_cast<int64_t>(cpu_time_millis_used));
   return response;
 }
 
