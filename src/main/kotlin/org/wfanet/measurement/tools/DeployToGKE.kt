@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.tools
 
-import com.google.devtools.build.runfiles.Runfiles
 import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
@@ -22,6 +21,7 @@ import kotlin.system.exitProcess
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.getRuntimePath
 import picocli.CommandLine
 import picocli.CommandLine.Command
 
@@ -30,7 +30,6 @@ import picocli.CommandLine.Command
   description = ["Builds container images from source and deploys them to a local kind cluster."]
 )
 class DeployToGke() : Callable<Int> {
-  private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement"
   private val yamlFile = "kingdom_and_three_duchies_from_cue_gke.yaml"
   private val clusterName = "om-test-cluster"
   private fun String.runAsProcess(
@@ -60,18 +59,24 @@ class DeployToGke() : Callable<Int> {
   }
 
   override fun call(): Int {
-    val runfiles = Runfiles.create()
-    val yaml = Paths.get(
-      runfiles.rlocation(
-        "wfa_measurement_system/src/main/k8s/$yamlFile"
+    val manifestPath =
+      checkNotNull(
+        getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "k8s",
+            yamlFile
+          )
+        )
       )
-    ).toFile()
     logger.info("*** STARTING ***")
 
     "gcloud container clusters get-credentials $clusterName".runAsProcess()
 
     // Create the pods and services.
-    "kubectl apply -f ${yaml.absolutePath}".runAsProcess()
+    "kubectl apply -f $manifestPath".runAsProcess()
 
     logger.info("*** DONE: Completed successfully. ***")
 

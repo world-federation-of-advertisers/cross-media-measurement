@@ -13,9 +13,9 @@ kt_jvm_library(
     ],
     data = ["//src/main/k8s:k8s_deployement_config"],
     deps = [
-        "//imports/java/com/google/devtools/build/runfiles",
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -26,9 +26,9 @@ kt_jvm_library(
     ],
     data = ["//src/main/k8s:k8s_deployement_config"],
     deps = [
-        "//imports/java/com/google/devtools/build/runfiles",
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

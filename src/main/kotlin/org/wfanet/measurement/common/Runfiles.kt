@@ -18,8 +18,20 @@ import com.google.devtools.build.runfiles.Runfiles
 import java.nio.file.Path
 import java.nio.file.Paths
 
-val runfiles: Runfiles by lazy {
+private val runfiles: Runfiles by lazy {
   Runfiles.create()
+}
+
+/**
+ * Returns the runtime [Path] for the given runfiles-root-relative [Path],
+ * or null if it cannot be found.
+ *
+ * Note that this may return a non-null value even if the path doesn't exist.
+ *
+ * @param runfilesRelativePath path relative to the Bazel runfiles root
+ */
+fun getRuntimePath(runfilesRelativePath: Path): Path? {
+  return runfiles.rlocation(runfilesRelativePath.normalize().toString())?.let { Paths.get(it) }
 }
 
 /**
@@ -31,7 +43,7 @@ val runfiles: Runfiles by lazy {
  */
 fun loadLibrary(name: String, directoryPath: Path) {
   val relativePath = directoryPath.resolve(System.mapLibraryName(name))
-  val runtimePath = Paths.get(runfiles.rlocation(relativePath.toString()))
+  val runtimePath = requireNotNull(getRuntimePath(relativePath))
 
   System.load(runtimePath.toAbsolutePath().toString())
 }

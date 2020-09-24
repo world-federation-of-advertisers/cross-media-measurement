@@ -14,18 +14,16 @@
 
 package org.wfanet.measurement.db.gcp.testing
 
-import com.google.devtools.build.runfiles.Runfiles
-import java.io.File
 import java.net.ServerSocket
+import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-
-/** Relative runfiles path to Cloud Spanner Emulator binary. */
-private const val EMULATOR_RUNFILES_PATH = "cloud_spanner_emulator/emulator"
+import org.wfanet.measurement.common.getRuntimePath
 
 private const val EMULATOR_HOSTNAME = "localhost"
 
@@ -33,16 +31,8 @@ private const val EMULATOR_HOSTNAME = "localhost"
  * Wrapper for Cloud Spanner Emulator binary.
  */
 class SpannerEmulator : AutoCloseable {
-  private val emulatorFile: File
   private lateinit var emulator: Process
   private lateinit var emulatorHost: String
-
-  init {
-    val runfiles = Runfiles.create()
-    emulatorFile = Paths.get(runfiles.rlocation(EMULATOR_RUNFILES_PATH)).toFile()
-    check(emulatorFile.exists()) { "$EMULATOR_RUNFILES_PATH not found in runfiles" }
-    check(emulatorFile.canExecute()) { "$emulatorFile is not executable" }
-  }
 
   /**
    * Starts the emulator process.
@@ -55,7 +45,7 @@ class SpannerEmulator : AutoCloseable {
     val port = findUnusedPort()
     emulatorHost = "$EMULATOR_HOSTNAME:$port"
     emulator =
-      ProcessBuilder(emulatorFile.canonicalPath, "--host_port=$emulatorHost")
+      ProcessBuilder(emulatorPath.toString(), "--host_port=$emulatorHost")
         .redirectError(ProcessBuilder.Redirect.INHERIT)
         .start()
   }
@@ -108,6 +98,20 @@ class SpannerEmulator : AutoCloseable {
   override fun close() {
     if (this::emulator.isInitialized) {
       emulator.destroy()
+    }
+  }
+
+  companion object {
+    val emulatorPath: Path
+    init {
+      val runfilesRelativePath = Paths.get("cloud_spanner_emulator", "emulator")
+      val runtimePath = getRuntimePath(runfilesRelativePath)
+      check(runtimePath != null && Files.exists(runtimePath)) {
+        "$runfilesRelativePath not found in runfiles"
+      }
+      check(Files.isExecutable(runtimePath)) { "$runtimePath is not executable" }
+
+      emulatorPath = runtimePath
     }
   }
 }

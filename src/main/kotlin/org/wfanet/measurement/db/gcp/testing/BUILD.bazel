@@ -15,8 +15,8 @@ kt_jvm_library(
     visibility = ["//visibility:private"],
     deps = [
         "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/devtools/build/runfiles",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

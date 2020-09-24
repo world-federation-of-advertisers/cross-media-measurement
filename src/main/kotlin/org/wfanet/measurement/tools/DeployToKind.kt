@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.tools
 
-import com.google.devtools.build.runfiles.Runfiles
 import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
@@ -22,6 +21,7 @@ import kotlin.system.exitProcess
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.getRuntimePath
 import picocli.CommandLine
 import picocli.CommandLine.Command
 
@@ -62,12 +62,9 @@ class DeployToKind() : Callable<Int> {
   override fun call(): Int {
     logger.info("*** STARTING ***")
 
-    val runfiles = Runfiles.create()
-
     // Load Duchy images.
-    val duchyRunfiles = Paths.get(
-      runfiles.rlocation("wfa_measurement_system/$duchyFilePath")
-    ).toFile()
+    val duchyRunfiles =
+      checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", duchyFilePath))).toFile()
     duchyRunfiles
       .walk().filter { !it.isDirectory && it.extension == "tar" }
       .forEach { imageFile ->
@@ -97,11 +94,18 @@ class DeployToKind() : Callable<Int> {
 
     logger.info("*** DONE LOADING ALL IMAGES ***")
 
-    val yaml = Paths.get(
-      runfiles.rlocation(
-        "wfa_measurement_system/src/main/k8s/$yamlFile"
+    val manifestPath =
+      checkNotNull(
+        getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "k8s",
+            yamlFile
+          )
+        )
       )
-    ).toFile()
 
     // kubectl apply does not necessarily overwrite previous configuration.
     // Delete existing pods/services to be safe.
@@ -109,10 +113,10 @@ class DeployToKind() : Callable<Int> {
       "*** FYI: If the pods don't exist the next command fails. " +
         "This is expected and not a big deal. ***"
     )
-    "kubectl delete -f ${yaml.absolutePath}".runAsProcess(exitOnFail = false)
+    "kubectl delete -f $manifestPath".runAsProcess(exitOnFail = false)
 
     // Create the pods and services.
-    "kubectl apply -f ${yaml.absolutePath}".runAsProcess()
+    "kubectl apply -f $manifestPath".runAsProcess()
 
     logger.info("*** DONE: Completed successfully. ***")
 
