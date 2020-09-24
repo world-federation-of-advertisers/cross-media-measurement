@@ -15,7 +15,7 @@
 package org.wfanet.measurement.common
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Descriptors
+import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.ProtocolMessageEnum
@@ -29,44 +29,59 @@ fun MessageOrBuilder.toJson(): String {
   return JsonFormat.printer().omittingInsignificantWhitespace().print(this)
 }
 
-/** Truncate all byte fields inside a protobuf [Message].*/
-fun Message.truncateByteFields(truncatedSize: Int): Message {
-  val builder = this.toBuilder()
-  for (descriptor in this.descriptorForType.fields) {
+/**
+ * Truncates all of the [bytes][FieldDescriptor.Type.BYTES] fields in this
+ * [Message.Builder] in-place, returning itself for chaining.
+ *
+ * @param truncatedSize the size in bytes to truncate to
+ */
+fun <T : Message.Builder> T.truncateByteFields(truncatedSize: Int): T {
+  descriptors@ for (descriptor in descriptorForType.fields) {
     when (descriptor.type) {
-      Descriptors.FieldDescriptor.Type.BYTES -> {
-        if (!descriptor.isRepeated) {
-          val bytes = this.getField(descriptor) as ByteString
-          builder.setField(descriptor, bytes.substring(0, minOf(bytes.size(), truncatedSize)))
+      FieldDescriptor.Type.BYTES -> {
+        if (descriptor.isRepeated) {
+          val fields = getField(descriptor) as List<*>
+          fields.forEachIndexed { index, value ->
+            val bytes = value as ByteString
+            if (bytes.size() > truncatedSize) {
+              setRepeatedField(descriptor, index, bytes.substring(0, truncatedSize))
+            }
+          }
         } else {
-          val bytesList = this.getField(descriptor) as List<*>
-          builder.clearField(descriptor)
-          for (bytes in bytesList) {
-            builder.addRepeatedField(
-              descriptor, (bytes as ByteString).substring(0, minOf(bytes.size(), truncatedSize))
-            )
+          val bytes = getField(descriptor) as ByteString
+          if (bytes.size() > truncatedSize) {
+            setField(descriptor, bytes.substring(0, truncatedSize))
           }
         }
       }
-      Descriptors.FieldDescriptor.Type.MESSAGE -> {
-        if (!descriptor.isRepeated) {
-          val message = this.getField(descriptor) as Message
-          builder.setField(descriptor, message.truncateByteFields(truncatedSize))
-        } else {
-          val messages = this.getField(descriptor) as List<*>
-          builder.clearField(descriptor)
-          for (message in messages) {
-            builder.addRepeatedField(
-              descriptor,
-              (message as Message).truncateByteFields(truncatedSize)
-            )
+      FieldDescriptor.Type.MESSAGE -> {
+        if (descriptor.isRepeated) {
+          val fields = getField(descriptor) as List<*>
+          fields.forEachIndexed { index, field ->
+            val message = field as Message
+            setRepeatedField(descriptor, index, message.truncateByteFields(truncatedSize))
           }
+      } else {
+          if (!hasField(descriptor)) {
+            // Skip unset fields. This also avoids clobbering oneofs.
+            continue@descriptors
+          }
+
+          val message = getField(descriptor) as Message
+          setField(descriptor, message.truncateByteFields(truncatedSize))
         }
       }
-      else -> {} // do nothing
+      else -> {} // No-op.
     }
   }
-  return builder.build()
+
+  return this
+}
+
+/** Truncate all byte fields inside a protobuf [Message].*/
+fun <T : Message> T.truncateByteFields(truncatedSize: Int): T {
+  @Suppress("UNCHECKED_CAST") // Safe due to Message contract.
+  return toBuilder().truncateByteFields(truncatedSize).build() as T
 }
 
 fun Instant.toProtoTime(): Timestamp =

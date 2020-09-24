@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.common
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import kotlin.test.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.DuchyPublicKeyConfig
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
 
@@ -70,5 +72,23 @@ class ProtoUtilsTest {
       }.build()
         .truncateByteFields(6)
     )
+  }
+
+  @Test
+  fun `truncate bytes in map field`() {
+    val originalBytes = ByteString.copyFromUtf8("1234567890")
+    val combinedPublicKeyId = "combined-public-key-1"
+    val message = DuchyPublicKeyConfig.newBuilder().apply {
+      putEntries(combinedPublicKeyId, DuchyPublicKeyConfig.Entry.newBuilder().apply {
+        putElGamalElements("duchy-1", originalBytes)
+        putElGamalElements("duchy-2", originalBytes)
+      }.build())
+    }
+
+    val results = message.truncateByteFields(5)
+
+    val expectedBytes = ByteString.copyFromUtf8("12345")
+    val entry = checkNotNull(results.entriesMap[combinedPublicKeyId])
+    assertThat(entry.elGamalElementsMap.values).containsExactly(expectedBytes, expectedBytes)
   }
 }

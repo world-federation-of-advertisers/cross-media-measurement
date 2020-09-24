@@ -59,10 +59,12 @@ kt_jvm_test(
     srcs = ["ProtoUtilsTest.kt"],
     test_class = "org.wfanet.measurement.common.ProtoUtilsTest",
     deps = [
+        "//imports/java/com/google/common/truth",
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
     ],
 )
