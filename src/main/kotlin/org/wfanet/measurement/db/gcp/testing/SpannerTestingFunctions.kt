@@ -52,8 +52,9 @@ fun assertQueryReturns(dbClient: DatabaseClient, sqlQuery: String, vararg expect
   )
   assertEquals(expectedColumns, resultsColumns)
   assertEquals(
-    expected.toList(), results,
-"""
+    expected.toList(),
+    results,
+    """
 Query did not return expected results:
 '$sqlQuery'
 

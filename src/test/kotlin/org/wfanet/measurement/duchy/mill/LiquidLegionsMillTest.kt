@@ -37,6 +37,9 @@ import com.nhaarman.mockitokotlin2.verifyBlocking
 import com.nhaarman.mockitokotlin2.verifyZeroInteractions
 import com.nhaarman.mockitokotlin2.whenever
 import io.grpc.Status
+import java.time.Clock
+import java.time.Duration
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -67,6 +70,7 @@ import org.wfanet.measurement.duchy.testing.buildConcatenatedSketchRequests
 import org.wfanet.measurement.duchy.testing.buildEncryptedFlagsAndCountsRequests
 import org.wfanet.measurement.duchy.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
@@ -107,10 +111,6 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
-import java.time.Clock
-import java.time.Duration
-import java.util.concurrent.atomic.AtomicInteger
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 
 class LiquidLegionsMillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =

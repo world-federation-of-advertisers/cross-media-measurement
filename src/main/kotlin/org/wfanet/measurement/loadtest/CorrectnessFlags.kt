@@ -91,7 +91,7 @@ class CorrectnessFlags {
 
   @CommandLine.Option(
     names = ["--combined-public-key-id"],
-    description = ["Representation of a combined public encryption key for  publisher data service."],
+    description = ["Resource ID of the CombinedPublicKey."],
     required = true
   )
   lateinit var combinedPublicKeyId: String

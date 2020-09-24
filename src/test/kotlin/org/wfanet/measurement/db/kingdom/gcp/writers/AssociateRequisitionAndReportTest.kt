@@ -78,14 +78,23 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
 
   private fun insertTheReport(reportDetails: ReportDetails = ReportDetails.getDefaultInstance()) {
     insertReport(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
-      ReportState.AWAITING_REQUISITION_CREATION, reportDetails = reportDetails
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      EXTERNAL_REPORT_ID,
+      ReportState.AWAITING_REQUISITION_CREATION,
+      reportDetails = reportDetails
     )
   }
 
   private fun insertTheRequisition() {
     insertRequisition(
-      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID, EXTERNAL_REQUISITION_ID, duchyId = DUCHY_ID
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
+      REQUISITION_ID,
+      EXTERNAL_REQUISITION_ID,
+      duchyId = DUCHY_ID
     )
   }
 

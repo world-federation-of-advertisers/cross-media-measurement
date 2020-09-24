@@ -68,7 +68,11 @@ class StreamReportsTest : KingdomDatabaseTestBase() {
 
     fun insertReportWithIds(reportId: Long, externalReportId: Long) =
       insertReport(
-        ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, reportId, externalReportId,
+        ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        reportId,
+        externalReportId,
         state = ReportState.IN_PROGRESS
       )
 

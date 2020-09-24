@@ -293,7 +293,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationStorageEditToken(
-      localId = 1, stage = C, attempt = 1, editVersion = lastUpdated.toEpochMilli()
+      localId = 1,
+      stage = C,
+      attempt = 1,
+      editVersion = lastUpdated.toEpochMilli()
     )
 
     val computation = computationMutations.insertComputation(
@@ -348,8 +351,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `enqueue deteleted computation fails`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
-      localId = 1, stage = C,
-      attempt = 1, editVersion = 0
+      localId = 1,
+      stage = C,
+      attempt = 1,
+      editVersion = 0
     )
     assertFailsWith<SpannerException> { database.enqueue(token) }
   }
@@ -359,7 +364,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1)
     val token = ComputationStorageEditToken(
-      localId = 1, stage = C,
+      localId = 1,
+      stage = C,
       attempt = 1,
       editVersion = lastUpdated.minusSeconds(200).toEpochMilli()
     )
@@ -557,7 +563,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     testClock.tickSeconds("lock_expires", 100)
     val globalId = "55"
     val token = ComputationStorageEditToken(
-      localId = 4315, stage = B,
+      localId = 4315,
+      stage = B,
       attempt = 2,
       editVersion = testClock["last_updated"].toEpochMilli()
     )
@@ -773,7 +780,8 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun `updateComputationStage illegal stage transition fails`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 1,
-      attempt = 1, stage = A,
+      attempt = 1,
+      stage = A,
       editVersion = 0
     )
     assertFailsWith<IllegalArgumentException> {
@@ -791,8 +799,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun writeOutputBlobReference() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
-      localId = 4315, stage = B,
-      attempt = 1, editVersion = testClock.last().toEpochMilli()
+      localId = 4315,
+      stage = B,
+      attempt = 1,
+      editVersion = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
@@ -870,8 +880,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `end successful computation`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
-      localId = 4315, stage = C,
-      attempt = 1, editVersion = testClock.last().toEpochMilli()
+      localId = 4315,
+      stage = C,
+      attempt = 1,
+      editVersion = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
@@ -920,8 +932,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   fun `end failed computation`() = runBlocking<Unit> {
     val globalId = "474747"
     val token = ComputationStorageEditToken(
-      localId = 4315, stage = C,
-      attempt = 1, editVersion = testClock.last().toEpochMilli()
+      localId = 4315,
+      stage = C,
+      attempt = 1,
+      editVersion = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
@@ -996,8 +1010,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   @Test
   fun `endComputation throws for non-ending state`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
-      localId = 4315, stage = C,
-      attempt = 1, editVersion = testClock.last().toEpochMilli()
+      localId = 4315,
+      stage = C,
+      attempt = 1,
+      editVersion = testClock.last().toEpochMilli()
     )
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
       database.endComputation(token, B, EndComputationReason.CANCELED)

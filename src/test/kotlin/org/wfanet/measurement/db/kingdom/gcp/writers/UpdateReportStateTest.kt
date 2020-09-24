@@ -105,7 +105,9 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
   @Test
   fun `terminal states do not allow updates`() {
     val terminalStates = setOf(
-      ReportState.REPORT_STATE_UNKNOWN, ReportState.FAILED, ReportState.CANCELLED,
+      ReportState.REPORT_STATE_UNKNOWN,
+      ReportState.FAILED,
+      ReportState.CANCELLED,
       ReportState.SUCCEEDED
     )
     for (terminalState in terminalStates) {

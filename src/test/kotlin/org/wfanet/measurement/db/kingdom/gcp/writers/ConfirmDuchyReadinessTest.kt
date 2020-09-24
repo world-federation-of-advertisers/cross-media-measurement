@@ -110,7 +110,12 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
 
   private fun linkRequisitionToReport(requisitionId: Long) {
     insertReportRequisition(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, DATA_PROVIDER_ID, CAMPAIGN_ID,
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
       requisitionId
     )
   }

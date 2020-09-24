@@ -40,7 +40,11 @@ class GetReportTest : KingdomDatabaseTestBase() {
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
     insertReport(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      EXTERNAL_REPORT_ID,
       state = ReportState.IN_PROGRESS
     )
   }

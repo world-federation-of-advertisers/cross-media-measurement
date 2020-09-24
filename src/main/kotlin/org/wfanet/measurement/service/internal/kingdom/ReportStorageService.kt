@@ -80,7 +80,8 @@ class ReportStorageService(
 
   override suspend fun finishReport(request: FinishReportRequest): Report {
     return kingdomRelationalDatabase.finishReport(
-      ExternalId(request.externalReportId), request.result
+      ExternalId(request.externalReportId),
+      request.result
     )
   }
 }

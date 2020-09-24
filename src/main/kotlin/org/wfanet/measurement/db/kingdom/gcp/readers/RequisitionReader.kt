@@ -82,7 +82,8 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     }
 
     requisitionDetails = struct.getProtoMessage(
-      "RequisitionDetails", RequisitionDetails.parser()
+      "RequisitionDetails",
+      RequisitionDetails.parser()
     )
     requisitionDetailsJson = struct.getString("RequisitionDetailsJson")
   }.build()

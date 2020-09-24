@@ -59,7 +59,9 @@ class ComputationStorageServiceImplTest {
   init {
     val channel = grpcTestServerRule.channel
     fakeService = ComputationStorageServiceImpl(
-      fakeDatabase, GlobalComputationsCoroutineStub(channel), "duchy 1"
+      fakeDatabase,
+      GlobalComputationsCoroutineStub(channel),
+      "duchy 1"
     )
   }
 

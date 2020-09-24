@@ -51,27 +51,33 @@ private const val REQUISITION_ID3 = 2004L
 private const val EXTERNAL_REQUISITION_ID3 = 2005L
 
 private val REQUISITION1 = buildRequisition(
-  EXTERNAL_CAMPAIGN_ID1, EXTERNAL_REQUISITION_ID1, Instant.ofEpochSecond(100),
+  EXTERNAL_CAMPAIGN_ID1,
+  EXTERNAL_REQUISITION_ID1,
+  Instant.ofEpochSecond(100),
   RequisitionState.FULFILLED
 )
 
 private val REQUISITION2 = buildRequisition(
-  EXTERNAL_CAMPAIGN_ID1, EXTERNAL_REQUISITION_ID2, Instant.ofEpochSecond(200),
+  EXTERNAL_CAMPAIGN_ID1,
+  EXTERNAL_REQUISITION_ID2,
+  Instant.ofEpochSecond(200),
   RequisitionState.UNFULFILLED
 )
 
 private val REQUISITION3 = buildRequisition(
-  EXTERNAL_CAMPAIGN_ID2, EXTERNAL_REQUISITION_ID3, Instant.ofEpochSecond(300),
+  EXTERNAL_CAMPAIGN_ID2,
+  EXTERNAL_REQUISITION_ID3,
+  Instant.ofEpochSecond(300),
   RequisitionState.FULFILLED
 )
 
 @RunWith(JUnit4::class)
 class StreamRequisitionsTest : KingdomDatabaseTestBase() {
-  @Before
   /**
    * Set-up: there are 4 requisitions in the database: two belonging to two campaigns under the same
    * data provider.
    */
+  @Before
   fun populateDatabase() {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
 

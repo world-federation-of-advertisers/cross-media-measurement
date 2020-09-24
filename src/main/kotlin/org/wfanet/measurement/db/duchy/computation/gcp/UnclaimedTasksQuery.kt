@@ -47,6 +47,7 @@ class UnclaimedTasksQuery<StageT>(
       nextAttempt = struct.getLong("NextAttempt")
     )
 }
+
 /** @see [UnclaimedTasksQuery.asResult] .*/
 data class UnclaimedTaskQueryResult<StageT>(
   val computationId: Long,

@@ -68,7 +68,8 @@ class ComputationTokenProtoQuery(
       // Empty list if the column was null.
       ?: listOf()
     val computationDetails = struct.getProtoMessage(
-      "ComputationDetails", ComputationDetails.parser()
+      "ComputationDetails",
+      ComputationDetails.parser()
     )
     val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
     return ComputationToken.newBuilder().apply {

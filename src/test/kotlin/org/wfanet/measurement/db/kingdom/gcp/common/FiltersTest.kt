@@ -86,9 +86,12 @@ class FiltersTest {
 
     assertThat(query.parameters)
       .containsExactly(
-        "bindingA", Value.int64Array(listOf(1L, 2L, 3L)),
-        "bindingB", Value.stringArray(listOf("a", "b", "c")),
-        "bindingC", Value.int64(456)
+        "bindingA",
+        Value.int64Array(listOf(1L, 2L, 3L)),
+        "bindingB",
+        Value.stringArray(listOf("a", "b", "c")),
+        "bindingC",
+        Value.int64(456)
       )
   }
 }

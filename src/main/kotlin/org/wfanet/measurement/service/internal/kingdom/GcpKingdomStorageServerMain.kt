@@ -55,7 +55,9 @@ private fun run(
   val clock = Clock.systemUTC()
 
   val relationalDatabase = GcpKingdomRelationalDatabase(
-    clock, RandomIdGenerator(clock), spannerFromFlags.databaseClient
+    clock,
+    RandomIdGenerator(clock),
+    spannerFromFlags.databaseClient
   )
 
   val services = buildStorageServices(relationalDatabase).toTypedArray()

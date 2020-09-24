@@ -83,7 +83,9 @@ class InProcessDuchy(
   private val storageServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     addService(
       ComputationStorageServiceImpl(
-        duchyDependencies.singleProtocolDatabase, kingdomGlobalComputationsStub, duchyId
+        duchyDependencies.singleProtocolDatabase,
+        kingdomGlobalComputationsStub,
+        duchyId
       )
     )
   }

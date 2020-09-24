@@ -1,6 +1,22 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.integration
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.math.BigInteger
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -17,8 +33,6 @@ import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.integration.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
-import java.math.BigInteger
-import java.util.logging.Logger
 
 val DUCHY_IDS = listOf("duchy1", "duchy2", "duchy3")
 

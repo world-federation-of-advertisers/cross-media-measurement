@@ -118,7 +118,9 @@ class CorrectnessImpl(
     logger.info("Finished with manifest: $blobKey.")
   }
 
-  private fun KingdomRelationalDatabase.createDataProvider(externalAdvertiserId: ExternalId): Flow<Triple<ExternalId, ExternalId, AnySketch>> {
+  private fun KingdomRelationalDatabase.createDataProvider(
+    externalAdvertiserId: ExternalId
+  ): Flow<Triple<ExternalId, ExternalId, AnySketch>> {
     val dataProvider = this.createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)

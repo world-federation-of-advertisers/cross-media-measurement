@@ -140,8 +140,13 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
       reportDetails = reportDetails
     )
     insertReportRequisition(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID,
-      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
+      REQUISITION_ID
     )
 
     fulfillRequisition(EXTERNAL_REQUISITION_ID)

@@ -49,14 +49,16 @@ class CommonServer(
       Level.INFO,
       "$nameForLogging started, listening on $port"
     )
-    Runtime.getRuntime().addShutdownHook(object : Thread() {
-      override fun run() {
-        // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-        System.err.println("*** $nameForLogging shutting down...")
-        this@CommonServer.stop()
-        System.err.println("*** $nameForLogging shut down")
+    Runtime.getRuntime().addShutdownHook(
+      object : Thread() {
+        override fun run() {
+          // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+          System.err.println("*** $nameForLogging shutting down...")
+          this@CommonServer.stop()
+          System.err.println("*** $nameForLogging shut down")
+        }
       }
-    })
+    )
     return this
   }
 

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.crypto;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 

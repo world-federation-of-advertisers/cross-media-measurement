@@ -90,7 +90,9 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
     insertRequisition(
       DATA_PROVIDER_ID,
       CAMPAIGN_ID,
-      REQUISITION_ID, EXTERNAL_REQUISITION_ID, state = state
+      REQUISITION_ID,
+      EXTERNAL_REQUISITION_ID,
+      state = state
     )
   }
 

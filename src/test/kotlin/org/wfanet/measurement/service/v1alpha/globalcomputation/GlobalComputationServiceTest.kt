@@ -286,7 +286,8 @@ class GlobalComputationServiceTest {
       .isEqualTo(expectedResult)
 
     verifyProtoArgument(
-      reportLogEntryStorage, ReportLogEntryStorageCoroutineImplBase::createReportLogEntry
+      reportLogEntryStorage,
+      ReportLogEntryStorageCoroutineImplBase::createReportLogEntry
     )
       .isEqualTo(expectedReportLogEntry)
   }

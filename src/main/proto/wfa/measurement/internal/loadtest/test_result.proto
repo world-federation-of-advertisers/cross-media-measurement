@@ -25,7 +25,7 @@ message TestResult {
   string run_id = 1;
   // BlobKey for the output computation.
   string computation_blob_key = 2;
-  
+
   message Sketch {
     string blob_key = 1;
     string encrypted_blob_key = 2;

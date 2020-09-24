@@ -17,6 +17,7 @@ package org.wfanet.measurement.service.internal.duchy.computation.control
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
@@ -42,7 +43,6 @@ import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.service.v1alpha.common.failGrpc
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.grpcRequireNotNull
-import java.util.logging.Logger
 
 private val COMPUTATION_TYPE = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 

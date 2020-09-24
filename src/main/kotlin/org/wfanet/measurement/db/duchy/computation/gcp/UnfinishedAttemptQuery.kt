@@ -43,6 +43,7 @@ class UnfinishedAttemptQuery<StageT>(
       details = struct.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
     )
 }
+
 /** @see [UnfinishedAttemptQuery.asResult] .*/
 data class UnfinishedAttemptQueryResult<StageT>(
   val computationId: Long,

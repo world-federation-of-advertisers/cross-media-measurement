@@ -28,15 +28,19 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /** Tells the mutation to write a null value to a string column. */
 const val WRITE_NULL_STRING = ""
+
 /** Returns null if a string equals [WRITE_NULL_STRING]. */
 private fun stringOrNull(s: String) = if (s == WRITE_NULL_STRING) null else s
+
 /** Ensures a string] does not equal [WRITE_NULL_STRING]. */
 private fun nonNullValueString(t: String) = requireNotNull(stringOrNull(t))
 
 /** Tells the mutation to write a null value to a Timestamp column. */
 val WRITE_NULL_TIMESTAMP = Timestamp.ofTimeMicroseconds(0)
+
 /** Returns null if a [Timestamp] equals [WRITE_NULL_TIMESTAMP]. */
 private fun timestampOrNull(t: Timestamp) = if (t == WRITE_NULL_TIMESTAMP) null else t
+
 /** Ensures a [Timestamp] does not equal [WRITE_NULL_TIMESTAMP]. */
 private fun nonNullValueTimestamp(t: Timestamp) = requireNotNull(timestampOrNull(t))
 
@@ -239,7 +243,13 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     details: ComputationStageAttemptDetails
   ): Mutation {
     return computationStageAttempt(
-      Mutation::newInsertBuilder, localId, stage, attempt, beginTime, endTime, details
+      Mutation::newInsertBuilder,
+      localId,
+      stage,
+      attempt,
+      beginTime,
+      endTime,
+      details
     )
   }
 
@@ -258,7 +268,13 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     details: ComputationStageAttemptDetails? = null
   ): Mutation {
     return computationStageAttempt(
-      Mutation::newUpdateBuilder, localId, stage, attempt, beginTime, endTime, details
+      Mutation::newUpdateBuilder,
+      localId,
+      stage,
+      attempt,
+      beginTime,
+      endTime,
+      details
     )
   }
 
@@ -294,7 +310,12 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     dependencyType: ComputationBlobDependency
   ): Mutation {
     return computationBlobReference(
-      Mutation::newInsertBuilder, localId, stage, blobId, pathToBlob, dependencyType
+      Mutation::newInsertBuilder,
+      localId,
+      stage,
+      blobId,
+      pathToBlob,
+      dependencyType
     )
   }
 
@@ -312,7 +333,12 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     dependencyType: ComputationBlobDependency? = null
   ): Mutation {
     return computationBlobReference(
-      Mutation::newUpdateBuilder, localId, stage, blobId, pathToBlob, dependencyType
+      Mutation::newUpdateBuilder,
+      localId,
+      stage,
+      blobId,
+      pathToBlob,
+      dependencyType
     )
   }
 }

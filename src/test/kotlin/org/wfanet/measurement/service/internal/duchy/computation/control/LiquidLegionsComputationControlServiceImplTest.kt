@@ -19,6 +19,9 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -34,6 +37,7 @@ import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.db.duchy.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
@@ -59,10 +63,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"

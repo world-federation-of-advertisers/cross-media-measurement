@@ -129,15 +129,25 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   fun populateDatabase() {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(
-      ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID,
-      reportConfigDetails = REPORT_CONFIG_DETAILS, numRequisitions = 1
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      EXTERNAL_REPORT_CONFIG_ID,
+      reportConfigDetails = REPORT_CONFIG_DETAILS,
+      numRequisitions = 1
     )
     insertReportConfigSchedule(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID,
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      EXTERNAL_SCHEDULE_ID,
       repetitionSpec = REPETITION_SPEC
     )
     insertReport(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      EXTERNAL_REPORT_ID,
       ReportState.IN_PROGRESS
     )
 
@@ -282,8 +292,13 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     }
 
     insertReportRequisition(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID,
-      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
+      REQUISITION_ID
     )
 
     val request = StreamReadyReportsRequest.getDefaultInstance()
@@ -332,8 +347,13 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     assertThat(result).isEqualTo(expected)
 
     val key = Key.of(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, // Report PK
-      DATA_PROVIDER_ID, CAMPAIGN_ID, REQUISITION_ID
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID, // Report PK
+      DATA_PROVIDER_ID,
+      CAMPAIGN_ID,
+      REQUISITION_ID
     ) // Requisition PK
 
     val spannerResult =
@@ -363,7 +383,11 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     assertThat(createTime).isIn(Range.open(timeBefore, timeAfter))
 
     val key = Key.of(
-      ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, REPORT_ID, result.createTime.toGcpTimestamp()
+      ADVERTISER_ID,
+      REPORT_CONFIG_ID,
+      SCHEDULE_ID,
+      REPORT_ID,
+      result.createTime.toGcpTimestamp()
     )
 
     val spannerResult =

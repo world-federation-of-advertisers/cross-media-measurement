@@ -25,8 +25,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
-@OptIn(ExperimentalCoroutinesApi::class) // For runBlockingTest
 @RunWith(JUnit4::class)
+@OptIn(ExperimentalCoroutinesApi::class) // For `runBlockingTest`.
 class BytesTest {
   @Test
   fun `ByteString asBufferedFlow with non-full last part`() = runBlockingTest {
