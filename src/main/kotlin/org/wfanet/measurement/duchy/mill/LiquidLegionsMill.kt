@@ -64,7 +64,9 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -139,7 +141,8 @@ class LiquidLegionsMill(
 
   private suspend fun processNextComputation(token: ComputationToken) {
     val stage = token.computationStage.liquidLegionsSketchAggregation
-    logger.info("@Mill $millId: Processing computation ${token.globalComputationId}, stage $stage")
+    val globalId = token.globalComputationId
+    logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
 
     try {
       when (token.computationStage.liquidLegionsSketchAggregation) {
@@ -159,18 +162,27 @@ class LiquidLegionsMill(
         else -> error("Unexpected stage: $stage")
       }
     } catch (e: Exception) {
+      // The token version may have already changed. We need the latest token in order to complete
+      // or enqueue the computation.
+      val latestToken = getLatestComputationToken(globalId)
       when (e) {
         is IllegalStateException,
         is PermanentComputationError -> {
-          logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: PERMANENT error:", e)
-          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.PERMANENT))
+          logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
+          sendStatusUpdateToKingdom(
+            newErrorUpdateRequest(latestToken, e.toString(), ErrorType.PERMANENT)
+          )
           // Mark the computation FAILED for all permanent errors
-          completeComputation(token, CompletedReason.FAILED)
+          completeComputation(latestToken, CompletedReason.FAILED)
         }
         else -> {
           // Treat all other errors as transient.
-          logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: TRANSIENT error", e)
-          sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.toString(), ErrorType.TRANSIENT))
+          logger.log(Level.SEVERE, "$globalId@$millId: TRANSIENT error", e)
+          sendStatusUpdateToKingdom(
+            newErrorUpdateRequest(latestToken, e.toString(), ErrorType.TRANSIENT)
+          )
+          // Enqueue the computation again for future retry
+          enqueueComputation(latestToken)
         }
       }
     }
@@ -453,6 +465,26 @@ class LiquidLegionsMill(
         .build()
     )
     return response.token
+  }
+
+  private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
+    return storageClients.computationStorageClient.getComputationToken(
+      GetComputationTokenRequest.newBuilder().apply {
+        computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+        globalComputationId = globalId
+      }.build()
+    ).token
+  }
+
+  private suspend fun enqueueComputation(
+    token: ComputationToken
+  ) {
+    storageClients.computationStorageClient.enqueueComputation(
+      EnqueueComputationRequest.newBuilder()
+        .setToken(token)
+        .setDelaySecond(minOf(60, token.attempt * 5))
+        .build()
+    )
   }
 
   private suspend fun sendStatusUpdateToKingdom(

@@ -1097,7 +1097,7 @@ class LiquidLegionsMillTest {
           )
           .setNextDuchy("NEXT_WORKER")
           .setPrimaryDuchy("PRIMARY_WORKER")
-          .setVersion(2) // CreateComputation + writeOutputBlob
+          .setVersion(3) // CreateComputation + writeOutputBlob + enqueue
           .setRole(RoleInComputation.SECONDARY)
           .build()
       )
