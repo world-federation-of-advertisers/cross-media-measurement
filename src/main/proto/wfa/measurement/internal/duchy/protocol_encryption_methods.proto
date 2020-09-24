@@ -71,6 +71,8 @@ message AddNoiseToSketchResponse {
   // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
   // divisible by 66*3.
   bytes sketch = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to blind (one layer) all register indexes of a sketch.
@@ -104,6 +106,8 @@ message BlindOneLayerRegisterIndexResponse {
   // If the request specifies this key, the same value is returned,
   // otherwise, the randomly generated key is returned.
   bytes local_pohlig_hellman_sk = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
 }
 
 // The request to blind (last layer) the register indexes, and then join the
@@ -140,6 +144,8 @@ message BlindLastLayerIndexThenJoinRegistersResponse {
   // If the request specifies this key, the same value is returned,
   // otherwise, the randomly generated key is returned.
   bytes local_pohlig_hellman_sk = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
 }
 
 // The request to decrypt one layer of ElGamal encryption on the flag and count
@@ -161,6 +167,8 @@ message DecryptOneLayerFlagAndCountResponse {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 132.
   bytes flag_counts = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to decrypt the last layer of ElGamal encryption on the flag and
@@ -192,4 +200,6 @@ message DecryptLastLayerFlagAndCountResponse {
   }
   // (flag, count) result for each register index.
   repeated FlagCount flag_counts = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
 }
