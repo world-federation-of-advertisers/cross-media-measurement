@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.loadtest
 
-import com.google.common.io.Resources
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.TextFormat
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.mock
 import kotlin.math.max
@@ -37,6 +35,7 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.internal.loadtest.TestResult
@@ -382,15 +381,15 @@ class CorrectnessImplTest {
       TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY.elGamalG,
       TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY.elGamalY
     )
-    private val sketchConfig = readSketchConfigTextproto()
 
-    private fun readSketchConfigTextproto(): SketchConfig {
-      val textproto: String =
-        Resources.toString(
-          CorrectnessImpl::class.java.getResource("config/liquid_legions_sketch_config.textproto"),
-          Charsets.UTF_8
-        )
-      return TextFormat.parse(textproto, SketchConfig::class.java)
+    private val sketchConfig: SketchConfig
+    init {
+      val configPath = "config/liquid_legions_sketch_config.textproto"
+      val resource = this::class.java.getResource(configPath)
+
+      sketchConfig = resource.openStream().use { input ->
+        parseTextProto(input.bufferedReader(), SketchConfig.getDefaultInstance())
+      }
     }
   }
 }

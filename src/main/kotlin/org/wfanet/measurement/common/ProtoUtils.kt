@@ -19,8 +19,10 @@ import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.ProtocolMessageEnum
+import com.google.protobuf.TextFormat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.JsonFormat
+import java.io.File
 import java.time.Clock
 import java.time.Instant
 
@@ -61,7 +63,7 @@ fun <T : Message.Builder> T.truncateByteFields(truncatedSize: Int): T {
             val message = field as Message
             setRepeatedField(descriptor, index, message.truncateByteFields(truncatedSize))
           }
-      } else {
+        } else {
           if (!hasField(descriptor)) {
             // Skip unset fields. This also avoids clobbering oneofs.
             continue@descriptors
@@ -96,3 +98,18 @@ fun Clock.protoTimestamp(): Timestamp = instant().toProtoTime()
 
 val ProtocolMessageEnum.numberAsLong: Long
   get() = number.toLong()
+
+fun Message.Builder.mergeFromTextProto(textProto: Readable) {
+  TextFormat.merge(textProto, this)
+}
+
+@Suppress("UNCHECKED_CAST") // Safe per Message contract.
+fun <T : Message> parseTextProto(textProto: Readable, messageInstance: T): T {
+  return messageInstance.newBuilderForType().apply { mergeFromTextProto(textProto) }.build() as T
+}
+
+fun <T : Message> parseTextProto(textProto: File, messageInstance: T): T {
+  return textProto.bufferedReader().use { reader ->
+    parseTextProto(reader, messageInstance)
+  }
+}

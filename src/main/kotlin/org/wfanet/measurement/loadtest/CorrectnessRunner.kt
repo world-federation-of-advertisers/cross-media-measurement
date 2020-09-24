@@ -1,6 +1,19 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.loadtest
 
-import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.io.File
@@ -15,6 +28,7 @@ import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.hexAsByteString
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
@@ -43,7 +57,7 @@ private fun run(@CommandLine.Mixin flags: CorrectnessFlags) {
       .format(Instant.now())
   }
   val storageClient = FileSystemStorageClient(makeFile(flags.outputDir))
-  val sketchConfig = flags.sketchConfigFile.toSketchConfig()
+  val sketchConfig = parseTextProto(flags.sketchConfigFile, SketchConfig.getDefaultInstance())
   val encryptionPublicKey = ElGamalPublicKey(
     flags.curveId,
     flags.encryptionKeyGenerator.hexAsByteString(),
@@ -70,13 +84,6 @@ private fun run(@CommandLine.Mixin flags: CorrectnessFlags) {
   runBlocking {
     correctness.process(relationalDatabase)
   }
-}
-
-private fun File.toSketchConfig(): SketchConfig {
-  return TextFormat.parse(
-    this.readText(),
-    SketchConfig::class.java
-  )
 }
 
 private fun makeFile(directory: File): File {

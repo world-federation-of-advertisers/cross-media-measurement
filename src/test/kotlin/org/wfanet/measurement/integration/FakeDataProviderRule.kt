@@ -1,7 +1,20 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package org.wfanet.measurement.integration
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.TextFormat
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
@@ -29,6 +42,7 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.duchy.testing.TestKeys
 
 /**
@@ -142,18 +156,22 @@ class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : Test
   }
 
   companion object {
-    private const val configPath =
-      "/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto"
-    private val sketchConfig = TextFormat.parse(
-      this::class.java.getResource(configPath).readText(),
-      SketchConfig::class.java
-    )
-
     init {
       loadLibrary(
         name = "sketch_encrypter_adapter",
         directoryPath = Paths.get("any_sketch/src/main/java/org/wfanet/anysketch/crypto")
       )
+    }
+
+    private val sketchConfig: SketchConfig
+    init {
+      val configPath =
+        "/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto"
+      val resource = this::class.java.getResource(configPath)
+
+      sketchConfig = resource.openStream().use { input ->
+        parseTextProto(input.bufferedReader(), SketchConfig.getDefaultInstance())
+      }
     }
   }
 }

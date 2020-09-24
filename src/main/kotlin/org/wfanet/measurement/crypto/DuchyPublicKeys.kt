@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.crypto
 
-import com.google.protobuf.TextFormat
 import java.math.BigInteger
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
 import picocli.CommandLine
 
@@ -59,7 +59,9 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
   companion object {
     /** Constructs a [DuchyPublicKeys] instance from command-line flags. */
     fun fromFlags(flags: Flags): DuchyPublicKeys {
-      val configMessage = TextFormat.parse(flags.config, DuchyPublicKeyConfig::class.java)
+      val configMessage = flags.config.reader().use {
+        parseTextProto(it, DuchyPublicKeyConfig.getDefaultInstance())
+      }
       return DuchyPublicKeys(configMessage)
     }
   }
