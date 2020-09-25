@@ -132,15 +132,15 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 	"""#
 
 #ComputationControlServiceFlags: [ for duchy_target in #Duchies {"--computation-control-service-target=duchy-\(duchy_target.name)=" +
-	(#Target & {name: "\(duchy_target.name)-gcs-liquid-legions-server"}).target
+	(#Target & {name: "\(duchy_target.name)-forwarding-storage-liquid-legions-server"}).target
 }]
 
 for duchy in #Duchies {
 
 	duchy_service: {
-		"\(duchy.name)-gcs-liquid-legions-server":                         #GrpcService
+		"\(duchy.name)-forwarding-storage-liquid-legions-server":          #GrpcService
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server": #GrpcService
-		"\(duchy.name)-gcp-server":                                        #GrpcService
+		"\(duchy.name)-spanner-forwarding-storage-server":                 #GrpcService
 		"\(duchy.name)-publisher-data-server":                             #GrpcService
 	}
 
@@ -156,8 +156,8 @@ for duchy in #Duchies {
 				"--polling-interval=1m",
 			]
 		}
-		"\(duchy.name)-gcs-liquid-legions-mill-daemon-pod": #Pod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image"
+		"\(duchy.name)-forwarding-storage-liquid-legions-mill-daemon-pod": #Pod & {
+			_image: "bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarding_storage_liquid_legions_mill_daemon_image"
 			_args:  [
 				"--bytes-per-chunk=2000000",
 				"--channel-shutdown-timeout=3s",
@@ -166,17 +166,16 @@ for duchy in #Duchies {
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
 				"--duchy-secret-key=\(duchy.key)",
 				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
-				"--google-cloud-storage-bucket=",
-				"--google-cloud-storage-project=",
 				"--liquid-legions-decay-rate=23.0",
 				"--liquid-legions-size=330000",
-				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
+				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-spanner-forwarding-storage-server"}).target,
 				"--mill-id=duchy-\(duchy.name)-mill-1",
 				"--polling-interval=1s",
+				"--forwarding-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			] + #ComputationControlServiceFlags
 		}
-		"\(duchy.name)-gcs-liquid-legions-server-pod": #ServerPod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image"
+		"\(duchy.name)-forwarding-storage-liquid-legions-server-pod": #ServerPod & {
+			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarding_storage_liquid_legions_server_image"
 			_args: [
 				"--computation-storage-service-target=" + (#Target & {name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server"}).target,
 				"--debug-verbose-grpc-server-logging=true",
@@ -185,9 +184,8 @@ for duchy in #Duchies {
 				"--duchy-ids=duchy-\(#Duchies[0].name)",
 				"--duchy-ids=duchy-\(#Duchies[1].name)",
 				"--duchy-ids=duchy-\(#Duchies[2].name)",
-				"--google-cloud-storage-bucket=",
-				"--google-cloud-storage-project=",
 				"--port=8080",
+				"--forwarding-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			]
 		}
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
@@ -205,17 +203,16 @@ for duchy in #Duchies {
 				"--spanner-project=ads-open-measurement",
 			]
 		}
-		"\(duchy.name)-gcp-server-pod": #ServerPod & {
-			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image"
+		"\(duchy.name)-spanner-forwarding-storage-server-pod": #ServerPod & {
+			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarding_storage_server_image"
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
-				"--google-cloud-storage-bucket=",
-				"--google-cloud-storage-project=",
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_metric_values",
 				"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 				"--spanner-instance=emulator-instance",
 				"--spanner-project=ads-open-measurement",
+				"--forwarding-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			]
 		}
 		"\(duchy.name)-publisher-data-server-pod": #ServerPod & {
@@ -223,7 +220,7 @@ for duchy in #Duchies {
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
-				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
+				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-spanner-forwarding-storage-server"}).target,
 				"--port=8080",
 				"--registration-service-target=127.0.0.1:9000",     // TODO: change once implemented.
 				"--requisition-service-target=" + (#Target & {name: "requisition-server"}).target,

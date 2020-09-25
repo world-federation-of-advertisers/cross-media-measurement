@@ -15,6 +15,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_service",
+        "//src/main/kotlin/org/wfanet/measurement/storage/forwarding",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
         "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_java_proto",
         "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_kt_jvm_grpc",

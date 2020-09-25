@@ -57,10 +57,27 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "forwarding_storage_liquid_legions_server",
+    srcs = ["ForwardingStorageLiquidLegionsComputationControlServer.kt"],
+    deps = [
+        ":liquid_legions_server",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/storage/forwarding",
+    ],
+)
+
 java_binary(
     name = "GcsLiquidLegionsComputationControlServer",
     main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.GcsLiquidLegionsComputationControlServerKt",
     runtime_deps = [":gcs_liquid_legions_server"],
+)
+
+java_binary(
+    name = "ForwardingStorageLiquidLegionsComputationControlServer",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.ForwardingStorageLiquidLegionsComputationControlServerKt",
+    runtime_deps = [":forwarding_storage_liquid_legions_server"],
 )
 
 java_image(
@@ -70,4 +87,13 @@ java_image(
         "//src:docker_image_deployment",
     ],
     runtime_deps = [":gcs_liquid_legions_server"],
+)
+
+java_image(
+    name = "forwarding_storage_liquid_legions_server_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.ForwardingStorageLiquidLegionsComputationControlServerKt",
+    visibility = [
+        "//src:docker_image_deployment",
+    ],
+    runtime_deps = [":forwarding_storage_liquid_legions_server"],
 )

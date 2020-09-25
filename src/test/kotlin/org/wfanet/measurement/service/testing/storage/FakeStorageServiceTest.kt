@@ -31,7 +31,7 @@ import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.storage.testing.ForwardingStorageClient
+import org.wfanet.measurement.storage.forwarding.ForwardingStorageClient
 
 @RunWith(JUnit4::class)
 class FakeStorageServiceTest {

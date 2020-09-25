@@ -18,7 +18,5 @@ kt_jvm_library(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_java_proto",
-        "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_kt_jvm_grpc",
     ],
 )

@@ -1,15 +1,28 @@
 load("//build/k8s:defs.bzl", "k8s_apply")
 load("macros.bzl", "cue_dump")
 
-DUCHY_IMAGES = [
+# Base Duchy images that does not depend on Storage system.
+BASE_DUCHY_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image",
-    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image",
-    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image",
     "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image",
-    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image",
     "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image",
 ]
 
+# Duchy images using GCS to run on GKE.
+GKE_DUCHY_IMAGES = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image",
+]
+
+# Duchy images using Forwarding Storage to run locally.
+LOCAL_DUCHY_IMAGES = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarding_storage_liquid_legions_mill_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarding_storage_liquid_legions_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarding_storage_server_image",
+]
+
+# Kingdom images.
 KINGDOM_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image",
     "//src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image",
@@ -19,8 +32,10 @@ KINGDOM_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image",
 ]
 
+# Backend fake images (Filesystem storage server etc.).
 BACKEND_FAKE_IMAGES = ["//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"]
 
+# Setup job images.
 SETUP_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
 ]
@@ -43,7 +58,7 @@ cue_dump(
 
 filegroup(
     name = "duchy_image_archives",
-    srcs = [name + ".tar" for name in DUCHY_IMAGES],
+    srcs = [name + ".tar" for name in BASE_DUCHY_IMAGES + LOCAL_DUCHY_IMAGES],
 )
 
 filegroup(
@@ -88,20 +103,20 @@ package_group(
     packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
 )
 
-ALL_IMAGES = DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES + SETUP_IMAGES
+ALL_LOCAL_IMAGES = BASE_DUCHY_IMAGES + LOCAL_DUCHY_IMAGES + KINGDOM_IMAGES + BACKEND_FAKE_IMAGES + SETUP_IMAGES
 
-ALL_IMAGE_ARCHIVES = [name + ".tar" for name in ALL_IMAGES]
+ALL_LOCAL_IMAGE_ARCHIVES = [name + ".tar" for name in ALL_LOCAL_IMAGES]
 
 k8s_apply(
     name = "kingdom_and_three_duchies_kind",
     src = ":kingdom_and_three_duchies_from_cue_local.yaml",
-    image_archives = ALL_IMAGE_ARCHIVES,
+    image_archives = ALL_LOCAL_IMAGE_ARCHIVES,
     k8s_environment = "kind",
 )
 
 k8s_apply(
     name = "kingdom_and_three_duchies_u7s",
     src = ":kingdom_and_three_duchies_from_cue_local.yaml",
-    image_archives = ALL_IMAGE_ARCHIVES,
+    image_archives = ALL_LOCAL_IMAGE_ARCHIVES,
     k8s_environment = "usernetes-containerd",
 )
