@@ -430,11 +430,22 @@ Status JoinRegistersByIndexAndMergeCounts(
   return Status::OK;
 }
 
+absl::Duration getCurrentThreadCpuDuration() {
+  struct timespec ts;
+#ifdef __linux__
+  CHECK(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
+      << "Failed to get the thread cpu time.";
+  return absl::DurationFromTimespec(ts);
+#else
+  return absl::ZeroDuration();
+#endif
+}
+
 }  // namespace
 
 StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request) {
-  clock_t start = clock();
+  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
   // Composite cipher used to blind the positions.
@@ -491,17 +502,17 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   RETURN_IF_ERROR(
       util::SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
 
-  clock_t end = clock();
-  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  absl::Duration elaspedDuration =
+      getCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
-      static_cast<int64_t>(cpu_time_millis_used));
+      absl::ToInt64Milliseconds(elaspedDuration));
   return response;
 };
 
 StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
 BlindLastLayerIndexThenJoinRegisters(
     const BlindLastLayerIndexThenJoinRegistersRequest& request) {
-  clock_t start = clock();
+  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
   // Create a CompositeCipher to blind the register index;
@@ -534,16 +545,16 @@ BlindLastLayerIndexThenJoinRegisters(
   RETURN_IF_ERROR(
       util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
-  clock_t end = clock();
-  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  absl::Duration elaspedDuration =
+      getCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
-      static_cast<int64_t>(cpu_time_millis_used));
+      absl::ToInt64Milliseconds(elaspedDuration));
   return response;
 };
 
 StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     const DecryptOneLayerFlagAndCountRequest& request) {
-  clock_t start = clock();
+  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   // Each unit contains 2 ciphertexts, e.g., flag and count.
   RETURN_IF_ERROR(
@@ -582,16 +593,16 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   RETURN_IF_ERROR(
       util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
-  clock_t end = clock();
-  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  absl::Duration elaspedDuration =
+      getCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
-      static_cast<int64_t>(cpu_time_millis_used));
+      absl::ToInt64Milliseconds(elaspedDuration));
   return response;
 };
 
 StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request) {
-  clock_t start = clock();
+  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   // Each register contains 2 ciphertexts, e.g., flag and count.
   RETURN_IF_ERROR(
@@ -654,16 +665,16 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     }
   }
 
-  clock_t end = clock();
-  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  absl::Duration elaspedDuration =
+      getCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
-      static_cast<int64_t>(cpu_time_millis_used));
+      absl::ToInt64Milliseconds(elaspedDuration));
   return response;
 };
 
 StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
     const AddNoiseToSketchRequest& request) {
-  clock_t start = clock();
+  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   AddNoiseToSketchResponse response;
   *response.mutable_sketch() = request.sketch();
@@ -672,10 +683,10 @@ StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
   RETURN_IF_ERROR(util::SortStringByBlock<kBytesPerCipherRegister>(
       *response.mutable_sketch()));
 
-  clock_t end = clock();
-  double cpu_time_millis_used = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  absl::Duration elaspedDuration =
+      getCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
-      static_cast<int64_t>(cpu_time_millis_used));
+      absl::ToInt64Milliseconds(elaspedDuration));
   return response;
 }
 
