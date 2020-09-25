@@ -17,8 +17,11 @@ package org.wfanet.measurement.duchy.daemon.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.lang.management.ManagementFactory
+import java.lang.management.ThreadMXBean
 import java.nio.file.Paths
 import java.time.Clock
+import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.system.measureTimeMillis
@@ -134,13 +137,22 @@ class LiquidLegionsMill(
     val claimWorkResponse: ClaimWorkResponse =
       storageClients.computationStorageClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
-      val timeElapsedMills = measureTimeMillis {
-        processNextComputation(claimWorkResponse.token)
+      val cpuTimeElapsedMillis = measureKotlinCpuTimeMillis {
+        val wallTimeElapsedMills = measureTimeMillis {
+          processNextComputation(claimWorkResponse.token)
+        }
+        logStageElapsedTime(claimWorkResponse.token, STAGE_WALL_CLOCK_TIME, wallTimeElapsedMills)
       }
-      logStageElapsedTime(claimWorkResponse.token, STAGE_TOTAL_WALL_CLOCK_TIME, timeElapsedMills)
+      logStageElapsedTime(claimWorkResponse.token, STAGE_CPU_TIME, cpuTimeElapsedMillis)
     } else {
       logger.info("@Mill $millId: No computation available, waiting for the next poll...")
     }
+  }
+
+  // TODO: figure out if this is really the CPU time we want
+  private fun getCpuTimeMillis(): Long {
+    var cpuTime = Duration.ofNanos(threadBean.allThreadIds.map(threadBean::getThreadCpuTime).sum())
+    return cpuTime.toMillis()
   }
 
   private suspend fun processNextComputation(token: ComputationToken) {
@@ -385,8 +397,10 @@ class LiquidLegionsMill(
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageElapsedTime(token,
-        CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageElapsedTime(
+        token,
+        CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis
+      )
       cryptoResult.flagCounts
     }
 
@@ -591,6 +605,12 @@ class LiquidLegionsMill(
     )
   }
 
+  private inline fun <T> measureKotlinCpuTimeMillis(block: () -> T): Long {
+    val startCpuTimeMillis = getCpuTimeMillis()
+    block()
+    return getCpuTimeMillis() - startCpuTimeMillis
+  }
+
   private inline fun <T> measureTimeMillisAndReturnResult(block: () -> T): Pair<Long, T> {
     val start = System.currentTimeMillis()
     val res = block()
@@ -619,8 +639,10 @@ class LiquidLegionsMill(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val CRYPTO_LIB_CPU_TIME = "crypto_lib_cpu_time"
-    private const val STAGE_TOTAL_WALL_CLOCK_TIME = "stage_total_wall_time"
     private const val JNI_WALL_CLOCK_TIME = "jni_wall_clock_time"
+    private const val STAGE_CPU_TIME = "stage_cpu_time"
+    private const val STAGE_WALL_CLOCK_TIME = "stage_wall_clock_time"
+    private val threadBean: ThreadMXBean = ManagementFactory.getThreadMXBean()
 
     init {
       loadLibrary(
