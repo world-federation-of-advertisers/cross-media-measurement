@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
 import java.time.Period
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,9 +51,8 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
   private val clock = TestClockWithNamedInstants(Instant.now())
   private val idGenerator = FixedIdGenerator(InternalId(REPORT_ID), ExternalId(EXTERNAL_REPORT_ID))
 
-  private fun createNextReport(): Report {
-    return CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID))
-      .execute(databaseClient, idGenerator, clock)
+  private fun createNextReport(): Report = runBlocking {
+    CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID)).execute(databaseClient, idGenerator, clock)
   }
 
   @Before

@@ -46,7 +46,10 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(CAMPAIGN_ID), ExternalId(EXTERNAL_CAMPAIGN_ID))
 
-  private fun createCampaign(externalDataProviderId: Long, externalAdvertiserId: Long): Campaign {
+  private suspend fun createCampaign(
+    externalDataProviderId: Long,
+    externalAdvertiserId: Long
+  ): Campaign {
     return CreateCampaign(
       ExternalId(externalDataProviderId),
       ExternalId(externalAdvertiserId),

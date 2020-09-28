@@ -54,19 +54,19 @@ interface KingdomRelationalDatabase {
   fun streamRequisitions(filter: StreamRequisitionsFilter, limit: Long): Flow<Requisition>
 
   /** Returns a Report given its external id. */
-  fun getReport(externalId: ExternalId): Report
+  suspend fun getReport(externalId: ExternalId): Report
 
   /**
    * Creates the next [Report] for a [ReportConfigSchedule].
    *
    * If the report start window would be in the future, this does nothing.
    */
-  fun createNextReport(externalScheduleId: ExternalId): Report
+  suspend fun createNextReport(externalScheduleId: ExternalId): Report
 
   /**
    * Updates the state of a [Report].
    */
-  fun updateReportState(externalReportId: ExternalId, state: ReportState): Report
+  suspend fun updateReportState(externalReportId: ExternalId, state: ReportState): Report
 
   /**
    * Streams [Report]s ordered by ascending update time.
@@ -82,7 +82,10 @@ interface KingdomRelationalDatabase {
   /**
    * Associates a [Requisition] and a [Report].
    */
-  fun associateRequisitionToReport(externalRequisitionId: ExternalId, externalReportId: ExternalId)
+  suspend fun associateRequisitionToReport(
+    externalRequisitionId: ExternalId,
+    externalReportId: ExternalId
+  )
 
   /** Lists the idealized [RequisitionTemplate]s for a [ReportConfig]. */
   fun listRequisitionTemplates(reportConfigId: ExternalId): Flow<RequisitionTemplate>
@@ -91,7 +94,7 @@ interface KingdomRelationalDatabase {
   fun streamReadySchedules(limit: Long): Flow<ReportConfigSchedule>
 
   /** Appends a ReportLogEntry to a Report. Returns a copy with all fields filled in. */
-  fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry
+  suspend fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry
 
   /**
    * Confirms that [duchyId] is ready to start work on the Report for [externalReportId].
@@ -121,12 +124,12 @@ interface KingdomRelationalDatabase {
   /**
    * Registers a Data Provider.
    */
-  fun createDataProvider(): DataProvider
+  suspend fun createDataProvider(): DataProvider
 
   /**
    * Registers an Advertiser.
    */
-  fun createAdvertiser(): Advertiser
+  suspend fun createAdvertiser(): Advertiser
 
   /**
    * Registers a Campaign.
@@ -136,7 +139,7 @@ interface KingdomRelationalDatabase {
    * @param providedCampaignId user-provided, unvalidated name of the campaign (for display in UIs)
    * @return the created [Campaign]
    */
-  fun createCampaign(
+  suspend fun createCampaign(
     externalDataProviderId: ExternalId,
     externalAdvertiserId: ExternalId,
     providedCampaignId: String
@@ -148,7 +151,10 @@ interface KingdomRelationalDatabase {
    * The `externalReportConfigId` in [reportConfig] is ignored and the return value will have a
    * new `externalReportConfigId` populated.
    */
-  fun createReportConfig(reportConfig: ReportConfig, campaigns: List<ExternalId>): ReportConfig
+  suspend fun createReportConfig(
+    reportConfig: ReportConfig,
+    campaigns: List<ExternalId>
+  ): ReportConfig
 
   /**
    * Creates a [ReportConfigSchedule] for a [ReportConfig].
@@ -156,5 +162,5 @@ interface KingdomRelationalDatabase {
    * The `externalScheduleId` in [schedule] is ignored and the return value will have a new
    * `externalScheduleId` populated.
    */
-  fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule
+  suspend fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule
 }

@@ -17,6 +17,7 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,8 +75,8 @@ class FinishReportTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun finishReport(): Report {
-    return FinishReport(ExternalId(EXTERNAL_REPORT_ID), RESULT).execute(databaseClient)
+  private fun finishReport(): Report = runBlocking {
+    FinishReport(ExternalId(EXTERNAL_REPORT_ID), RESULT).execute(databaseClient)
   }
 
   @Test

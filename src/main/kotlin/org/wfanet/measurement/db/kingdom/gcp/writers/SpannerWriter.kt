@@ -21,6 +21,7 @@ import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.spannerDispatcher
@@ -72,7 +73,7 @@ abstract class SpannerWriter<T, R> {
    *
    * @return the output of [buildResult]
    */
-  fun execute(
+  suspend fun execute(
     databaseClient: DatabaseClient,
     idGenerator: IdGenerator = RandomIdGenerator(),
     clock: Clock = Clock.systemUTC()
@@ -85,7 +86,7 @@ abstract class SpannerWriter<T, R> {
       runBlocking(spannerDispatcher()) { scope.runTransaction() }
     }
     val resultScope = ResultScope(transactionResult, runner.commitTimestamp)
-    return runBlocking(spannerDispatcher()) { resultScope.buildResult() }
+    return withContext(spannerDispatcher()) { resultScope.buildResult() }
   }
 
   companion object {

@@ -21,6 +21,7 @@ import com.nhaarman.mockitokotlin2.check
 import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
+import com.nhaarman.mockitokotlin2.whenever
 import java.time.Instant
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -53,20 +54,13 @@ private val REPORT: Report = Report.newBuilder().apply {
 
 @RunWith(JUnit4::class)
 class ReportStorageServiceTest {
-
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
-    onBlocking { getReport(any()) }.thenReturn(REPORT)
-    on { createNextReport(any()) }.thenReturn(REPORT)
-    on { updateReportState(any(), any()) }.thenReturn(REPORT)
-    on { streamReports(any(), any()) }.thenReturn(flowOf(REPORT, REPORT))
-    on { streamReadyReports(any()) }.thenReturn(flowOf(REPORT, REPORT))
-    onBlocking { confirmDuchyReadiness(any(), any(), any()) }.thenReturn(REPORT)
-  }
-
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock()
   private val service = ReportStorageService(kingdomRelationalDatabase)
 
   @Test
   fun getReport() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.getReport(any())).thenReturn(REPORT)
+
     val request = GetReportRequest.newBuilder().setExternalReportId(12345).build()
 
     assertThat(service.getReport(request)).isEqualTo(REPORT)
@@ -75,6 +69,8 @@ class ReportStorageServiceTest {
 
   @Test
   fun createNextReport() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.createNextReport(any())).thenReturn(REPORT)
+
     val request: CreateNextReportRequest =
       CreateNextReportRequest.newBuilder().apply {
         externalScheduleId = 12345
@@ -87,6 +83,8 @@ class ReportStorageServiceTest {
 
   @Test
   fun updateReportState() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.updateReportState(any(), any())).thenReturn(REPORT)
+
     val request: UpdateReportStateRequest =
       UpdateReportStateRequest.newBuilder().apply {
         externalReportId = REPORT.externalReportId
@@ -101,6 +99,9 @@ class ReportStorageServiceTest {
 
   @Test
   fun streamReports() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.streamReports(any(), any()))
+      .thenReturn(flowOf(REPORT, REPORT))
+
     val request: StreamReportsRequest =
       StreamReportsRequest.newBuilder().apply {
         limit = 10
@@ -133,6 +134,9 @@ class ReportStorageServiceTest {
 
   @Test
   fun streamReadyReports() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.streamReadyReports(any()))
+      .thenReturn(flowOf(REPORT, REPORT))
+
     val request: StreamReadyReportsRequest =
       StreamReadyReportsRequest.newBuilder().setLimit(10L).build()
 
@@ -158,6 +162,9 @@ class ReportStorageServiceTest {
 
   @Test
   fun confirmDuchyReadiness() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.confirmDuchyReadiness(any(), any(), any()))
+      .thenReturn(REPORT)
+
     val request = ConfirmDuchyReadinessRequest.newBuilder().apply {
       externalReportId = 1
       duchyId = "some-duchy"

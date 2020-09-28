@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,8 +75,8 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(NEW_REQUISITION_ID), ExternalId(NEW_EXTERNAL_REQUISITION_ID))
 
-  private fun createRequisition(requisition: Requisition): Requisition {
-    return CreateRequisition(requisition).execute(databaseClient, idGenerator)
+  private fun createRequisition(requisition: Requisition): Requisition = runBlocking {
+    CreateRequisition(requisition).execute(databaseClient, idGenerator)
   }
 
   @Before

@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
 import kotlin.test.assertFails
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -83,8 +84,8 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun fulfillRequisition(externalRequisitionId: Long): Requisition {
-    return FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID).execute(databaseClient)
+  private fun fulfillRequisition(externalRequisitionId: Long): Requisition = runBlocking {
+    FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID).execute(databaseClient)
   }
 
   @Before

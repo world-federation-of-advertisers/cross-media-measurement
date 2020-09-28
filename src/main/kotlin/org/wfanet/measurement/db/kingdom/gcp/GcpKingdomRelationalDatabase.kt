@@ -86,15 +86,15 @@ class GcpKingdomRelationalDatabase(
     return StreamRequisitions(filter, limit).execute()
   }
 
-  override fun getReport(externalId: ExternalId): Report {
+  override suspend fun getReport(externalId: ExternalId): Report {
     return GetReport(externalId).executeSingle()
   }
 
-  override fun createNextReport(externalScheduleId: ExternalId): Report {
+  override suspend fun createNextReport(externalScheduleId: ExternalId): Report {
     return CreateNextReport(externalScheduleId).execute()
   }
 
-  override fun updateReportState(externalReportId: ExternalId, state: ReportState): Report {
+  override suspend fun updateReportState(externalReportId: ExternalId, state: ReportState): Report {
     return UpdateReportState(externalReportId, state).execute()
   }
 
@@ -106,7 +106,7 @@ class GcpKingdomRelationalDatabase(
     return StreamReadyReports(limit).execute()
   }
 
-  override fun associateRequisitionToReport(
+  override suspend fun associateRequisitionToReport(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
@@ -121,7 +121,7 @@ class GcpKingdomRelationalDatabase(
     return StreamReadySchedules(limit).execute()
   }
 
-  override fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
+  override suspend fun addReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
     return CreateReportLogEntry(reportLogEntry).execute()
   }
 
@@ -140,15 +140,15 @@ class GcpKingdomRelationalDatabase(
     return FinishReport(externalReportId, result).execute()
   }
 
-  override fun createDataProvider(): DataProvider {
+  override suspend fun createDataProvider(): DataProvider {
     return CreateDataProvider().execute()
   }
 
-  override fun createAdvertiser(): Advertiser {
+  override suspend fun createAdvertiser(): Advertiser {
     return CreateAdvertiser().execute()
   }
 
-  override fun createCampaign(
+  override suspend fun createCampaign(
     externalDataProviderId: ExternalId,
     externalAdvertiserId: ExternalId,
     providedCampaignId: String
@@ -157,19 +157,19 @@ class GcpKingdomRelationalDatabase(
       .execute()
   }
 
-  override fun createReportConfig(
+  override suspend fun createReportConfig(
     reportConfig: ReportConfig,
     campaigns: List<ExternalId>
   ): ReportConfig {
     return CreateReportConfig(reportConfig, campaigns).execute()
   }
 
-  override fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule {
+  override suspend fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule {
     return CreateSchedule(schedule).execute()
   }
 
   // Convenience functions for executing reads and writes.
-  private fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)
+  private suspend fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)
   private fun <R> SpannerQuery<*, R>.execute(): Flow<R> = execute(client.singleUse())
-  private fun <R> SpannerQuery<*, R>.executeSingle(): R = executeSingle(client.singleUse())
+  private suspend fun <R> SpannerQuery<*, R>.executeSingle(): R = executeSingle(client.singleUse())
 }

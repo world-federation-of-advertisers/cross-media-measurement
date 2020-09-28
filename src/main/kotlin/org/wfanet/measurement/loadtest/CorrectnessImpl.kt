@@ -25,8 +25,8 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
 import org.wfanet.anysketch.AnySketch
@@ -120,22 +120,17 @@ class CorrectnessImpl(
 
   private fun KingdomRelationalDatabase.createDataProvider(
     externalAdvertiserId: ExternalId
-  ): Flow<Triple<ExternalId, ExternalId, AnySketch>> {
+  ): Flow<Triple<ExternalId, ExternalId, AnySketch>> = flow {
     val dataProvider = createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
 
-    return generateReach().asFlow()
-      .map { reach ->
-        createCampaign(
-          reach,
-          externalAdvertiserId,
-          externalDataProviderId
-        )
-      }
+    generateReach().forEach { reach ->
+      emit(createCampaign(reach, externalAdvertiserId, externalDataProviderId))
+    }
   }
 
-  private fun KingdomRelationalDatabase.createCampaign(
+  private suspend fun KingdomRelationalDatabase.createCampaign(
     reach: Set<Long>,
     externalAdvertiserId: ExternalId,
     externalDataProviderId: ExternalId
@@ -152,7 +147,7 @@ class CorrectnessImpl(
     return Triple(externalDataProviderId, externalCampaignId, anySketch)
   }
 
-  private fun KingdomRelationalDatabase.scheduleReport(
+  private suspend fun KingdomRelationalDatabase.scheduleReport(
     externalAdvertiserId: ExternalId,
     campaignIds: List<ExternalId>
   ) {

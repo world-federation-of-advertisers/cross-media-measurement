@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.toInstant
@@ -65,8 +66,8 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun createReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry {
-    return CreateReportLogEntry(reportLogEntry).execute(databaseClient)
+  private fun createReportLogEntry(reportLogEntry: ReportLogEntry): ReportLogEntry = runBlocking {
+    CreateReportLogEntry(reportLogEntry).execute(databaseClient)
   }
 
   private fun readReportLogEntries(): List<Struct> {

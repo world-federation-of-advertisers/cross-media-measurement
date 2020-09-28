@@ -18,6 +18,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.whenever
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,17 +32,17 @@ private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).buil
 @RunWith(JUnit4::class)
 class ReportLogEntryStorageServiceTest {
 
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
-    on { addReportLogEntry(any()) }
-      .thenAnswer {
-        it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()
-      }
-  }
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock()
 
   private val service = ReportLogEntryStorageService(kingdomRelationalDatabase)
 
   @Test
   fun success() = runBlocking<Unit> {
+    whenever(kingdomRelationalDatabase.addReportLogEntry(any()))
+      .thenAnswer {
+        it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()
+      }
+
     val request = ReportLogEntry.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
     }.build()

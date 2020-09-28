@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -151,7 +152,7 @@ class InProcessKingdom(
    * Adds an Advertiser, two DataProviders, two Campaigns, a ReportConfig, and a
    * ReportConfigSchedule to [kingdomRelationalDatabase].
    */
-  fun populateKingdomRelationalDatabase(): SetupIdentifiers {
+  fun populateKingdomRelationalDatabase(): SetupIdentifiers = runBlocking {
     val advertiser = kingdomRelationalDatabase.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
 
@@ -235,7 +236,7 @@ class InProcessKingdom(
     )
     logger.info("Created a ReportConfigSchedule: $schedule")
 
-    return SetupIdentifiers(
+    SetupIdentifiers(
       listOf(externalDataProviderId1, externalDataProviderId2),
       listOf(externalCampaignId1, externalCampaignId2, externalCampaignId3)
     )

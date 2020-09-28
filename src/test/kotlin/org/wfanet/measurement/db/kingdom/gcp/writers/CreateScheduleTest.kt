@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.ExternalId
@@ -58,9 +59,9 @@ class CreateScheduleTest : KingdomDatabaseTestBase() {
     schedule: ReportConfigSchedule,
     scheduleId: Long,
     externalScheduleId: Long
-  ): ReportConfigSchedule {
+  ): ReportConfigSchedule = runBlocking {
     val idGenerator = FixedIdGenerator(InternalId(scheduleId), ExternalId(externalScheduleId))
-    return CreateSchedule(schedule).execute(databaseClient, idGenerator)
+    CreateSchedule(schedule).execute(databaseClient, idGenerator)
   }
 
   private fun readSchedules(): List<Struct> {

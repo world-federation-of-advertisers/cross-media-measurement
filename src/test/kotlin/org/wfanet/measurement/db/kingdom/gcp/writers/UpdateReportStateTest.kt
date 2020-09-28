@@ -17,6 +17,7 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,8 +68,8 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun updateReportState(state: ReportState): Report {
-    return UpdateReportState(ExternalId(EXTERNAL_REPORT_ID), state).execute(databaseClient)
+  private fun updateReportState(state: ReportState): Report = runBlocking {
+    UpdateReportState(ExternalId(EXTERNAL_REPORT_ID), state).execute(databaseClient)
   }
 
   private fun assertContainsReportInState(state: ReportState) {

@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -123,14 +124,14 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   private fun confirmDuchyReadiness(
     duchyId: String,
     vararg requisitions: Long
-  ): Report {
+  ): Report = runBlocking {
     val writer = ConfirmDuchyReadiness(
       ExternalId(EXTERNAL_REPORT_ID),
       duchyId,
       requisitions.map(::ExternalId).toSet()
     )
 
-    return writer.execute(databaseClient)
+    writer.execute(databaseClient)
   }
 
   @Test

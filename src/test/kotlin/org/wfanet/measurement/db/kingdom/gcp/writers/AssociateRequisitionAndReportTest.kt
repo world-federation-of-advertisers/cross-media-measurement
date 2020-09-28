@@ -54,7 +54,9 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute(databaseClient)
+    runBlocking {
+      AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute(databaseClient)
+    }
   }
 
   @Before

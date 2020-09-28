@@ -50,7 +50,7 @@ class GetReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `the Report exists`() {
+  fun `the Report exists`() = runBlocking<Unit> {
     val report = GetReport(ExternalId(EXTERNAL_REPORT_ID)).executeSingle(databaseClient.singleUse())
 
     val expected = Report.newBuilder().apply {

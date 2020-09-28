@@ -58,8 +58,8 @@ class CreateReportConfigTest : KingdomDatabaseTestBase() {
   private fun createReportConfig(
     reportConfig: ReportConfig,
     vararg externalCampaignIds: Long
-  ): ReportConfig {
-    return CreateReportConfig(reportConfig, externalCampaignIds.map(::ExternalId).toList())
+  ): ReportConfig = runBlocking {
+    CreateReportConfig(reportConfig, externalCampaignIds.map(::ExternalId).toList())
       .execute(databaseClient, idGenerator)
   }
 
