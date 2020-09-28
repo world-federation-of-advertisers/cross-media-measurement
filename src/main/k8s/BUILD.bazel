@@ -1,4 +1,5 @@
 load("//build/k8s:defs.bzl", "k8s_apply")
+load("//build/cue:defs.bzl", "cue_string_field")
 load("macros.bzl", "cue_dump")
 
 # Base Duchy images that does not depend on Storage system.
@@ -40,11 +41,21 @@ SETUP_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
 ]
 
+exports_files(["duchy_public_key_config.textproto"])
+
+cue_string_field(
+    name = "duchy_public_key_config",
+    src = "duchy_public_key_config.textproto",
+    identifier = "#DuchyPublicKeysConfig",
+    package = "k8s",
+)
+
 cue_dump(
     name = "kingdom_and_three_duchies_from_cue_local",
     srcs = [
-        ":base.cue",
-        ":kingdom_and_three_duchies_local.cue",
+        "base.cue",
+        "kingdom_and_three_duchies_local.cue",
+        ":duchy_public_key_config.cue",
     ],
 )
 
@@ -53,6 +64,7 @@ cue_dump(
     srcs = [
         "base.cue",
         "kingdom_and_three_duchies_gke.cue",
+        ":duchy_public_key_config.cue",
     ],
 )
 
