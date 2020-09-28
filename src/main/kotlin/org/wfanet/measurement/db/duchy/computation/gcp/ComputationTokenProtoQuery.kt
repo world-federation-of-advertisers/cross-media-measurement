@@ -16,9 +16,6 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getNullableString
-import org.wfanet.measurement.db.gcp.getNullableStructList
-import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.db.gcp.toMillis
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -35,42 +32,50 @@ class ComputationTokenProtoQuery(
 ) :
   SqlBasedQuery<ComputationToken> {
   companion object {
-    private const val parameterizedQueryString =
+    private val parameterizedQueryString =
       """
-      WITH current_stage_data AS (
-        SELECT c.ComputationId, c.GlobalComputationId, c.LockOwner, c.ComputationStage,
-               c.ComputationDetails, c.UpdateTime, cs.NextAttempt, cs.Details AS StageDetails
-        FROM Computations AS c
-        JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
-        WHERE c.GlobalComputationId = @global_id
-      ),
-      blobs_for_stage as (
-        SELECT ARRAY_AGG(STRUCT(b.BlobId, b.PathToBlob, b.DependencyType)) as blobs
-        FROM ComputationBlobReferences AS b
-        JOIN current_stage_data USING(ComputationId, ComputationStage)
-      )
-      SELECT current_stage_data.*, blobs_for_stage.*
-      FROM current_stage_data, blobs_for_stage
-      """
+      SELECT c.ComputationId,
+             c.GlobalComputationId,
+             c.LockOwner,
+             c.ComputationStage,
+             c.ComputationDetails,
+             c.UpdateTime,
+             cs.NextAttempt,
+             cs.Details AS StageDetails,
+             ARRAY_AGG(b.BlobId) AS BlobIds,
+             ARRAY_AGG(b.PathToBlob) AS BlobPaths,
+             ARRAY_AGG(b.DependencyType) AS DependencyTypes
+      FROM Computations AS c
+      JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
+      JOIN ComputationBlobReferences AS b USING (ComputationId, ComputationStage)
+      WHERE c.GlobalComputationId = @global_id
+      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+      """.trimIndent()
   }
 
   override val sql: Statement =
     Statement.newBuilder(parameterizedQueryString).bind("global_id").to(globalId).build()
 
   override fun asResult(struct: Struct): ComputationToken {
-    val blobs = struct.getNullableStructList("blobs")?.map {
-      ComputationStageBlobMetadata.newBuilder().apply {
-        blobId = it.getLong("BlobId")
-        dependencyType = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
-        it.getNullableString("PathToBlob")?.let { setPath(it) }
-      }.build()
-    }?.sortedBy { it.blobId }
-      // Empty list if the column was null.
-      ?: listOf()
-    val computationDetails = struct.getProtoMessage(
-      "ComputationDetails",
-      ComputationDetails.parser()
-    )
+    val blobIds: List<Long> = struct.getLongList("BlobIds")
+    val blobPaths: List<String?> = struct.getStringList("BlobPaths")
+    val dependencyTypes: List<Long> = struct.getLongList("DependencyTypes")
+    require(blobIds.size == blobPaths.size)
+    require(blobIds.size == dependencyTypes.size)
+
+    val blobs =
+      zip(blobIds, blobPaths, dependencyTypes)
+        .map { (blobId, blobPath, dependencyType) ->
+          ComputationStageBlobMetadata.newBuilder().apply {
+            this.blobId = blobId
+            this.dependencyType = ComputationBlobDependency.forNumber(dependencyType.toInt())
+            blobPath?.let { path = blobPath }
+          }.build()
+        }
+        .sortedBy { it.blobId }
+
+    val computationDetails =
+      struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
     val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
     return ComputationToken.newBuilder().apply {
       globalComputationId = struct.getString("GlobalComputationId")
@@ -82,7 +87,19 @@ class ComputationTokenProtoQuery(
       version = struct.getTimestamp("UpdateTime").toMillis()
       role = computationDetails.role
       stageSpecificDetails = stageDetails
-      addAllBlobs(blobs)
+      addAllBlobs(blobs.asIterable())
     }.build()
   }
+}
+
+private fun <T1, T2, T3> zip(
+  i1: Iterable<T1>,
+  i2: Iterable<T2>,
+  i3: Iterable<T3>
+): Sequence<Triple<T1, T2, T3>> {
+  return i1
+    .asSequence()
+    .zip(i2.asSequence())
+    .zip(i3.asSequence())
+    .map { Triple(it.first.first, it.first.second, it.second) }
 }
