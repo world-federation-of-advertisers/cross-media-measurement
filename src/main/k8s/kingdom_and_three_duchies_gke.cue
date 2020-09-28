@@ -172,7 +172,6 @@ for duchy in #Duchies {
 				imagePullPolicy: "Always"
 				args: [
 					"--ignore-already-existing-databases",
-					"--drop-databases-first",
 					"--databases=\(duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
 					"--databases=\(duchy.name)_duchy_metric_values=/app/wfa_measurement_system/src/main/db/gcp/metric_values.sdl",
 					"--instance-name=qa-instance",
@@ -281,7 +280,6 @@ kingdom_job: "kingdom-push-spanner-schema-job": {
 			imagePullPolicy: "Always"
 			args: [
 				"--ignore-already-existing-databases",
-				"--drop-databases-first",
 				"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
 				"--instance-name=qa-instance",
 				"--project-name=ads-open-measurement",
