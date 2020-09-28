@@ -23,28 +23,25 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.pollFor
+import org.wfanet.measurement.crypto.testing.DUCHY_IDS
+import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
+import org.wfanet.measurement.crypto.toDuchyOrder
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
-import org.wfanet.measurement.duchy.testing.TestKeys
 import org.wfanet.measurement.integration.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
 
-val DUCHY_IDS = listOf("duchy1", "duchy2", "duchy3")
+val DUCHY_IDS = DUCHY_IDS
 
-val EL_GAMAL_KEYS = DUCHY_IDS.zip(TestKeys.EL_GAMAL_KEYS).toMap()
-val CLIENT_PUBLIC_KEY = TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY
-const val CURVE_ID = TestKeys.CURVE_ID
-
-val DUCHIES = EL_GAMAL_KEYS.map {
-  Duchy(it.key, BigInteger(it.value.elGamalPk.toByteArray()))
+val DUCHIES = DUCHY_PUBLIC_KEYS.latest.map {
+  Duchy(it.key, BigInteger(it.value.toByteArray()))
 }
 
-val DUCHY_ORDER = DuchyOrder(DUCHIES.toSet())
+val DUCHY_ORDER = DUCHY_PUBLIC_KEYS.latest.toDuchyOrder()
 
 /**
  * Test that everything is wired up properly.
@@ -76,7 +73,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     }
   }
 
-  private val dataProviderRule = FakeDataProviderRule("some-key-id")
+  private val dataProviderRule = FakeDataProviderRule(DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId)
 
   @get:Rule
   val ruleChain: TestRule by lazy {

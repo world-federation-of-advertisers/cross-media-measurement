@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
+import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
@@ -71,6 +72,7 @@ class InProcessDuchy(
     val singleProtocolDatabase: SingleProtocolDatabase,
     val metricValueDatabase: MetricValueDatabase,
     val storageClient: StorageClient,
+    val duchyPublicKeys: DuchyPublicKeys,
     val cryptoKeySet: CryptoKeySet
   )
 
@@ -175,7 +177,8 @@ class InProcessDuchy(
         PublisherDataService(
           MetricValuesCoroutineStub(metricValuesServer.channel),
           RequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
-          DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+          DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId),
+          duchyDependencies.duchyPublicKeys
         )
       )
     }

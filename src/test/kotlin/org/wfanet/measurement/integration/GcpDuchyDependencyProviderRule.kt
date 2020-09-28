@@ -23,6 +23,9 @@ import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.crypto.ElGamalKeyPair
+import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
+import org.wfanet.measurement.crypto.testing.DUCHY_SECRET_KEYS
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
@@ -35,6 +38,7 @@ import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.mill.toProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
@@ -45,7 +49,7 @@ private const val METRIC_VALUE_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_v
 private const val COMPUTATIONS_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/computations.sdl"
 
 class GcpDuchyDependencyProviderRule(
-  duchyIds: List<String>
+  duchyIds: Iterable<String>
 ) : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
   override val value: (Duchy) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
 
@@ -74,6 +78,7 @@ class GcpDuchyDependencyProviderRule(
       buildSingleProtocolDb(duchy.name, computationsDatabase.databaseClient),
       buildMetricValueDb(metricValueDatabase.databaseClient),
       buildStorageClient(duchy.name),
+      DUCHY_PUBLIC_KEYS,
       buildCryptoKeySet(duchy.name)
     )
   }
@@ -119,11 +124,17 @@ class GcpDuchyDependencyProviderRule(
   }
 
   private fun buildCryptoKeySet(duchyId: String): CryptoKeySet {
+    val latestDuchyPublicKeys = DUCHY_PUBLIC_KEYS.latest
+    val keyPair =
+      ElGamalKeyPair(
+        latestDuchyPublicKeys.getValue(duchyId),
+        checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
+      )
     return CryptoKeySet(
-      requireNotNull(EL_GAMAL_KEYS[duchyId]),
-      EL_GAMAL_KEYS.filter { it.key != duchyId }.map { it.key to it.value.elGamalPk }.toMap(),
-      CLIENT_PUBLIC_KEY,
-      CURVE_ID
+      ownPublicAndPrivateKeys = keyPair.toProtoMessage(),
+      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value.toProtoMessage() },
+      clientPublicKey = latestDuchyPublicKeys.combinedPublicKey.toProtoMessage(),
+      curveId = latestDuchyPublicKeys.combinedPublicKey.ellipticCurveId
     )
   }
 }

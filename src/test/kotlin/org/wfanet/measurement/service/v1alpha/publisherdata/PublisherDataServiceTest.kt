@@ -24,7 +24,10 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.stub
 import com.nhaarman.mockitokotlin2.times
 import com.nhaarman.mockitokotlin2.verifyBlocking
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -35,12 +38,15 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineImplBase as DataProviderRegistrationCoroutineService
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
+import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase as RequisitionCoroutineService
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
+import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEY_CONFIG
 import org.wfanet.measurement.internal.duchy.MetricValue as InternalMetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase as MetricValuesCoroutineService
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -72,7 +78,8 @@ class PublisherDataServiceTest {
     service = PublisherDataService(
       MetricValuesCoroutineStub(channel),
       RequisitionCoroutineStub(channel),
-      DataProviderRegistrationCoroutineStub(channel)
+      DataProviderRegistrationCoroutineStub(channel),
+      DuchyPublicKeys(duchyPublicKeyConfig)
     )
   }
 
@@ -153,8 +160,48 @@ class PublisherDataServiceTest {
     ).inOrder()
   }
 
+  @Test fun `getCombinedPublicKey throws NOT_FOUND for unknown ID`() {
+    val request = GetCombinedPublicKeyRequest.newBuilder()
+      .apply { keyBuilder.combinedPublicKeyId = "unknown-id" }
+      .build()
+
+    val exception = assertFailsWith<StatusRuntimeException> {
+      runBlocking { service.getCombinedPublicKey(request) }
+    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test fun `getCombinedPublicKey throws INVALID_ARGUMENT for missing ID`() {
+    val request = GetCombinedPublicKeyRequest.newBuilder()
+      .apply { keyBuilder }
+      .build()
+
+    val exception = assertFailsWith<StatusRuntimeException> {
+      runBlocking { service.getCombinedPublicKey(request) }
+    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test fun `getCombinedPublicKey returns CombinedPublicKey`() {
+    val combinedPublicKeyId = "combined-public-key-1"
+    val request = GetCombinedPublicKeyRequest.newBuilder()
+      .apply { keyBuilder.combinedPublicKeyId = combinedPublicKeyId }
+      .build()
+
+    val response = runBlocking { service.getCombinedPublicKey(request) }
+
+    assertThat(response.key).isEqualTo(request.key)
+    val configEntry = checkNotNull(duchyPublicKeyConfig.entriesMap[combinedPublicKeyId])
+    assertThat(response.publicKey)
+      .isEqualTo(configEntry.elGamalGenerator.concat(configEntry.combinedElGamalElement))
+  }
+
   companion object {
     private val random = Random.Default
     private val testMetricValueData = ByteString.copyFrom(random.nextBytes(1024 * 1024 * 2))
+
+    private val duchyPublicKeyConfig = DUCHY_PUBLIC_KEY_CONFIG
   }
 }

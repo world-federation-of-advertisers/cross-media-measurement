@@ -14,6 +14,8 @@ kt_jvm_library(
     srcs = ["PublisherDataService.kt"],
     deps = [
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_registration_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v1alpha:metric_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
@@ -32,6 +34,7 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
         "//src/main/kotlin/org/wfanet/measurement/service/common",
     ],

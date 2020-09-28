@@ -15,7 +15,6 @@
 package org.wfanet.measurement.crypto
 
 import com.google.protobuf.ByteString
-import java.nio.ByteBuffer
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.toByteArray
 
@@ -48,6 +47,9 @@ data class ElGamalPublicKey(
   /** Returns the concatenation of [generator] and [element]. */
   fun toByteArray(): ByteArray = listOf(generator, element).toByteArray()
 
+  /** Returns the concatenation of [generator] and [element]. */
+  fun toByteString(): ByteString = generator.concat(element)
+
   companion object {
     /** The size of a [generator]. */
     const val GENERATOR_SIZE = BYTES_PER_EC_POINT
@@ -57,34 +59,14 @@ data class ElGamalPublicKey(
 
     /**
      * Constructs an [ElGamalPublicKey] from the generator and element as a
-     * concatenated byte array.
+     * concatenated [ByteString].
      */
-    fun fromByteArray(bytes: ByteArray, ellipticCurveId: Int): ElGamalPublicKey {
-      val buffer = ByteBuffer.wrap(bytes)
-
+    fun fromByteString(concatenated: ByteString, ellipticCurveId: Int): ElGamalPublicKey {
       return ElGamalPublicKey(
         ellipticCurveId,
-        ByteString.copyFrom(buffer, BYTES_PER_EC_POINT),
-        ByteString.copyFrom(buffer, BYTES_PER_EC_POINT)
+        concatenated.substring(0, GENERATOR_SIZE),
+        concatenated.substring(GENERATOR_SIZE)
       )
-    }
-
-    fun combine(vararg publicKeys: ElGamalPublicKey): ElGamalPublicKey {
-      require(publicKeys.isNotEmpty())
-      return combine(publicKeys.asSequence())
-    }
-
-    fun combine(publicKeys: Sequence<ElGamalPublicKey>): ElGamalPublicKey {
-      val (ellipticCurveId, generator, _) = publicKeys.first()
-
-      for (publicKey in publicKeys.drop(1)) {
-        require(publicKey.ellipticCurveId == ellipticCurveId && publicKey.generator == generator) {
-          "Cannot combine public keys with different curve IDs or generators."
-        }
-      }
-
-      // TODO(wangyaopw): Expose ECPoint addition to JVM code so this can be implemented.
-      TODO()
     }
   }
 }

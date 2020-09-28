@@ -21,6 +21,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
 import picocli.CommandLine
 
+private typealias ConfigMapEntry = Map.Entry<String, DuchyPublicKeyConfig.Entry>
+
 /** Map of Duchy name to public key. */
 typealias DuchyPublicKeyMap = Map<String, ElGamalPublicKey>
 
@@ -29,7 +31,7 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
   private val entries: Map<String, Entry>
   init {
     require(configMessage.entriesCount > 0) { "Duchy public key config has no entries" }
-    entries = configMessage.entriesMap.mapValues { it.value.toDuchyPublicKeysEntry() }
+    entries = configMessage.entriesMap.mapValues { it.toDuchyPublicKeysEntry() }
   }
 
   /** The latest (most recent) entry. */
@@ -42,6 +44,7 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
 
   data class Entry(
     private val publicKeyMap: DuchyPublicKeyMap,
+    val combinedPublicKeyId: String,
     val combinedPublicKey: ElGamalPublicKey,
     val combinedPublicKeyVersion: Long
   ) : DuchyPublicKeyMap by publicKeyMap
@@ -67,14 +70,21 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
   }
 }
 
-private fun DuchyPublicKeyConfig.Entry.toDuchyPublicKeysEntry(): DuchyPublicKeys.Entry {
-  return DuchyPublicKeys.Entry(
-    elGamalElementsMap.mapValues {
-      ElGamalPublicKey(ellipticCurveId, elGamalGenerator, it.value)
-    },
-    ElGamalPublicKey(ellipticCurveId, elGamalGenerator, combinedElGamalElement),
-    combinedPublicKeyVersion
-  )
+private fun ConfigMapEntry.toDuchyPublicKeysEntry(): DuchyPublicKeys.Entry {
+  with(value) {
+    return DuchyPublicKeys.Entry(
+      publicKeyMap = elGamalElementsMap.mapValues {
+        ElGamalPublicKey(ellipticCurveId, elGamalGenerator, it.value)
+      },
+      combinedPublicKeyId = key,
+      combinedPublicKey = ElGamalPublicKey(
+        ellipticCurveId,
+        elGamalGenerator,
+        combinedElGamalElement
+      ),
+      combinedPublicKeyVersion = combinedPublicKeyVersion
+    )
+  }
 }
 
 fun DuchyPublicKeyMap.toDuchyOrder(): DuchyOrder {

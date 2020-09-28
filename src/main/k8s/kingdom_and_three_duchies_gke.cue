@@ -152,6 +152,7 @@ for duchy in #Duchies {
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
+				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
 				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
 				"--port=8080",
 				"--registration-service-target=127.0.0.1:9000",     // TODO: change once implemented.

@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//src:jvm_test"])
+
+kt_jvm_library(
+    name = "testing",
+    testonly = True,
+    srcs = glob(["*.kt"]),
+    data = ["//src/main/k8s:duchy_public_key_config.textproto"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
+        "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
+    ],
+)

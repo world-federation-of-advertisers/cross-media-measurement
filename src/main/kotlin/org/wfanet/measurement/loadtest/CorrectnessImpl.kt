@@ -309,6 +309,7 @@ class CorrectnessImpl(
     encryptedSketch: ByteString
   ) {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(250))
+    // TODO(b/159036541): Use PublisherDataService.getCombinedPublicKey method to get this.
     val combinedPublicKey = CombinedPublicKey.newBuilder().apply {
       keyBuilder.combinedPublicKeyId = combinedPublicKeyId
       publicKey = with(encryptionPublicKey) { generator.concat(element) }

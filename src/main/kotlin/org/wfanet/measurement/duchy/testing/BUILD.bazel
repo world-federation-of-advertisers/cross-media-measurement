@@ -4,7 +4,6 @@ package(
     default_visibility = [
         "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
     ],
 )
@@ -15,8 +14,6 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_control_requests",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:crypto_key_set",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
     ],
 )

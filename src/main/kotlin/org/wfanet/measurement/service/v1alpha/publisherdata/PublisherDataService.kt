@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.service.v1alpha.publisherdata
 
+import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
@@ -27,10 +28,12 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueResponse
+import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKeyOrBuilder
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
+import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 
 /**
  * Implementation of `wfa.measurement.api.v1alpha.PublisherData` service.
@@ -42,7 +45,8 @@ import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 class PublisherDataService(
   private val metricValuesClient: MetricValuesCoroutineStub,
   private val requisitionClient: RequisitionCoroutineStub,
-  private val registrationClient: DataProviderRegistrationCoroutineStub
+  private val registrationClient: DataProviderRegistrationCoroutineStub,
+  private val duchyPublicKeys: DuchyPublicKeys
 ) : PublisherDataCoroutineService() {
 
   override suspend fun listMetricRequisitions(request: ListMetricRequisitionsRequest) =
@@ -81,7 +85,16 @@ class PublisherDataService(
   override suspend fun getCombinedPublicKey(
     request: GetCombinedPublicKeyRequest
   ): CombinedPublicKey {
-    TODO("No key store")
+    val combinedPublicKeyId = request.key.combinedPublicKeyId
+    grpcRequire(combinedPublicKeyId.isNotEmpty()) { "CombinedPublicKey ID missing" }
+
+    val entry =
+      duchyPublicKeys.get(combinedPublicKeyId) ?: throw Status.NOT_FOUND.asRuntimeException()
+
+    return CombinedPublicKey.newBuilder().apply {
+      key = request.key
+      publicKey = entry.combinedPublicKey.toByteString()
+    }.build()
   }
 }
 

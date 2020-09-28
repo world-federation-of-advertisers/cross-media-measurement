@@ -19,14 +19,22 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutine
 import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
+private const val SERVICE_NAME = "PublisherData"
+private const val SERVER_NAME = "${SERVICE_NAME}Server"
+
 private class Flags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
     private set
 
   @CommandLine.Mixin
@@ -59,25 +67,28 @@ private class Flags {
 }
 
 @CommandLine.Command(
-  name = "PublisherDataServer",
-  description = ["Run server daemon for PublisherData service."],
+  name = SERVER_NAME,
+  description = ["Server daemon for $SERVICE_NAME service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
   val metricValuesClient = MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
-
   val requisitionClient =
     RequisitionCoroutineStub(buildChannel(flags.requisitionServiceTarget))
       .withDuchyId(flags.duchy.duchyName)
-
   val registrationClient =
     DataProviderRegistrationCoroutineStub(buildChannel(flags.registrationServiceTarget))
 
-  val service = PublisherDataService(metricValuesClient, requisitionClient, registrationClient)
+  val service = PublisherDataService(
+    metricValuesClient,
+    requisitionClient,
+    registrationClient,
+    DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
+  )
 
   CommonServer
-    .fromFlags(flags.server, "PublisherDataServer", service)
+    .fromFlags(flags.server, SERVER_NAME, service)
     .start()
     .blockUntilShutdown()
 }

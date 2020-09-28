@@ -36,8 +36,7 @@ import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.crypto.ElGamalPublicKey
-import org.wfanet.measurement.duchy.testing.TestKeys
+import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.StorageClient
@@ -45,7 +44,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 
 private const val RUN_ID = "TEST"
-private const val COMBINED_PUBLIC_KEY_ID = "1"
+private val COMBINED_PUBLIC_KEY_ID = DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId
 
 @RunWith(JUnit4::class)
 class CorrectnessImplTest {
@@ -376,11 +375,7 @@ class CorrectnessImplTest {
   )
 
   companion object {
-    private val encryptionKey = ElGamalPublicKey(
-      TestKeys.CURVE_ID,
-      TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY.elGamalG,
-      TestKeys.COMBINED_EL_GAMAL_PUBLIC_KEY.elGamalY
-    )
+    private val encryptionKey = DUCHY_PUBLIC_KEYS.latest.combinedPublicKey
 
     private val sketchConfig: SketchConfig
     init {
