@@ -25,7 +25,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
@@ -60,6 +60,11 @@ import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 
+private const val MAX_COUNTER_VALUE = 10
+private const val DECAY_RATE = 23.0
+private const val INDEX_SIZE = 330_000L
+private const val GLOBAL_COMPUTATION_ID = "1"
+
 class CorrectnessImpl(
   override val dataProviderCount: Int,
   override val campaignCount: Int,
@@ -72,11 +77,6 @@ class CorrectnessImpl(
   override val combinedPublicKeyId: String,
   override val publisherDataStub: PublisherDataCoroutineStub
 ) : Correctness {
-
-  private val MAX_COUNTER_VALUE = 10
-  private val DECAY_RATE = 23.0
-  private val INDEX_SIZE = 330_000L
-  private val GLOBAL_COMPUTATION_ID = "1"
 
   suspend fun process(relationalDatabase: KingdomRelationalDatabase) {
     logger.info("Starting with RunID: $runId ...")
@@ -105,7 +105,7 @@ class CorrectnessImpl(
     val reach = estimateCardinality(combinedAnySketch)
     val frequency = estimateFrequency(combinedAnySketch)
     val storedResultsPath = storeEstimationResults(reach, frequency)
-    testResult.setComputationBlobKey(storedResultsPath)
+    testResult.computationBlobKey = storedResultsPath
     logger.info("Estimation Results saved with blob key: $storedResultsPath")
 
     // Finally, we are sending encrypted sketches to the PublisherDataService.
@@ -121,7 +121,7 @@ class CorrectnessImpl(
   private fun KingdomRelationalDatabase.createDataProvider(
     externalAdvertiserId: ExternalId
   ): Flow<Triple<ExternalId, ExternalId, AnySketch>> {
-    val dataProvider = this.createDataProvider()
+    val dataProvider = createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
 
@@ -140,7 +140,7 @@ class CorrectnessImpl(
     externalAdvertiserId: ExternalId,
     externalDataProviderId: ExternalId
   ): Triple<ExternalId, ExternalId, AnySketch> {
-    val campaign = this.createCampaign(
+    val campaign = createCampaign(
       externalDataProviderId,
       externalAdvertiserId,
       "Campaign name"
@@ -158,41 +158,39 @@ class CorrectnessImpl(
   ) {
     val metricDefinition = MetricDefinition.newBuilder().apply {
       sketchBuilder.apply {
-        setSketchConfigId(12345L)
+        sketchConfigId = 12345L
         type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
       }
     }.build()
-    val reportConfig = this.createReportConfig(
-      ReportConfig.newBuilder()
-        .setExternalAdvertiserId(externalAdvertiserId.value)
-        .apply {
-          numRequisitions = campaignIds.size.toLong()
-          reportConfigDetailsBuilder.apply {
-            addMetricDefinitions(metricDefinition)
-            reportDurationBuilder.apply {
-              unit = TimePeriod.Unit.DAY
-              count = 1
-            }
+    val reportConfig = createReportConfig(
+      ReportConfig.newBuilder().apply {
+        this.externalAdvertiserId = externalAdvertiserId.value
+        numRequisitions = campaignIds.size.toLong()
+        reportConfigDetailsBuilder.apply {
+          addMetricDefinitions(metricDefinition)
+          reportDurationBuilder.apply {
+            unit = TimePeriod.Unit.DAY
+            count = 1
           }
-        }.build(),
+        }
+      }.build(),
       campaignIds
     )
     logger.info("Created a ReportConfig: $reportConfig")
     val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
-    val schedule = this.createSchedule(
-      ReportConfigSchedule.newBuilder()
-        .setExternalAdvertiserId(externalAdvertiserId.value)
-        .setExternalReportConfigId(externalReportConfigId.value)
-        .apply {
-          repetitionSpecBuilder.apply {
-            start = Instant.now().toProtoTime()
-            repetitionPeriodBuilder.apply {
-              unit = TimePeriod.Unit.DAY
-              count = 1
-            }
+    val schedule = createSchedule(
+      ReportConfigSchedule.newBuilder().apply {
+        this.externalAdvertiserId = externalAdvertiserId.value
+        this.externalReportConfigId = externalReportConfigId.value
+        repetitionSpecBuilder.apply {
+          start = Instant.now().toProtoTime()
+          repetitionPeriodBuilder.apply {
+            unit = TimePeriod.Unit.DAY
+            count = 1
           }
-          nextReportStartTime = repetitionSpec.start
-        }.build()
+        }
+        nextReportStartTime = repetitionSpec.start
+      }.build()
     )
     logger.info("Created a ReportConfigSchedule: $schedule")
   }
@@ -212,7 +210,7 @@ class CorrectnessImpl(
 
     val encryptedSketch = encryptSketch(sketchProto)
     val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
-    sketchBlobKeys.setEncryptedBlobKey(storedEncryptedSketchPath)
+    sketchBlobKeys.encryptedBlobKey = storedEncryptedSketchPath
     testResult.addSketches(sketchBlobKeys)
     logger.info("Encrypted Sketch saved with blob key: $storedEncryptedSketchPath")
 
@@ -254,11 +252,9 @@ class CorrectnessImpl(
 
   override fun estimateFrequency(anySketch: AnySketch): Map<Long, Long> {
     val valueIndex = anySketch.getValueIndex("SamplingIndicator").asInt
-    return ValueHistogram.calculateHistogram(
-      anySketch,
-      "Frequency",
-      { it.getValues().get(valueIndex) != -1L }
-    )
+    return ValueHistogram.calculateHistogram(anySketch, "Frequency") {
+      it.values[valueIndex] != -1L
+    }
   }
 
   override fun encryptSketch(sketch: Sketch): ByteString {
@@ -363,22 +359,17 @@ class CorrectnessImpl(
     combinedPublicKey: CombinedPublicKey,
     metricRequisition: MetricRequisition,
     encryptedSketch: ByteString
-  ): Flow<UploadMetricValueRequest> = flow {
-    emit(
-      UploadMetricValueRequest.newBuilder().apply {
-        headerBuilder.apply {
-          key = metricRequisition.key
-          this.combinedPublicKey = combinedPublicKey.key
-        }
-      }.build()
-    )
-
-    emit(
-      UploadMetricValueRequest.newBuilder().apply {
-        chunkBuilder.data = encryptedSketch
-      }.build()
-    )
-  }
+  ): Flow<UploadMetricValueRequest> = flowOf(
+    UploadMetricValueRequest.newBuilder().apply {
+      headerBuilder.apply {
+        key = metricRequisition.key
+        this.combinedPublicKey = combinedPublicKey.key
+      }
+    }.build(),
+    UploadMetricValueRequest.newBuilder().apply {
+      chunkBuilder.data = encryptedSketch
+    }.build()
+  )
 
   private suspend fun storeBlob(blob: ByteString): String {
     val blobKey = generateBlobKey()
