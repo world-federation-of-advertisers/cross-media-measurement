@@ -21,6 +21,8 @@ import java.util.ArrayDeque
 import kotlin.properties.Delegates
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import picocli.CommandLine
 
 /**
@@ -52,6 +54,7 @@ class AdaptiveThrottler(
     flags.throttlePollDelay
   )
 
+  private val mutex = Mutex(false)
   private val requests = ArrayDeque<Instant>()
   private val accepts = ArrayDeque<Instant>()
 
@@ -86,11 +89,13 @@ class AdaptiveThrottler(
     return result
   }
 
-  private fun updateQueue(queue: ArrayDeque<Instant>) {
-    val now = clock.instant()
-    queue.offer(now)
-    while (Duration.between(queue.peek(), now) > timeHorizon) {
-      queue.poll()
+  private suspend fun updateQueue(queue: ArrayDeque<Instant>) {
+    mutex.withLock {
+      val now = clock.instant()
+      queue.offer(now)
+      while (Duration.between(queue.peek(), now) > timeHorizon) {
+        queue.poll()
+      }
     }
   }
 
