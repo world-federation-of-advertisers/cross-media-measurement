@@ -42,12 +42,14 @@ class ComputationTokenProtoQuery(
              c.UpdateTime,
              cs.NextAttempt,
              cs.Details AS StageDetails,
-             ARRAY_AGG(b.BlobId) AS BlobIds,
-             ARRAY_AGG(b.PathToBlob) AS BlobPaths,
-             ARRAY_AGG(b.DependencyType) AS DependencyTypes
+             ARRAY(
+               SELECT AS STRUCT b.BlobId, IFNULL(b.PathToBlob, "") AS PathToBlob, b.DependencyType
+               FROM ComputationBlobReferences AS b
+               WHERE c.ComputationId = b.ComputationId
+                 AND c.ComputationStage = b.ComputationStage
+             ) AS Blobs
       FROM Computations AS c
       JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
-      JOIN ComputationBlobReferences AS b USING (ComputationId, ComputationStage)
       WHERE c.GlobalComputationId = @global_id
       GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
       """.trimIndent()
@@ -57,22 +59,22 @@ class ComputationTokenProtoQuery(
     Statement.newBuilder(parameterizedQueryString).bind("global_id").to(globalId).build()
 
   override fun asResult(struct: Struct): ComputationToken {
-    val blobIds: List<Long> = struct.getLongList("BlobIds")
-    val blobPaths: List<String?> = struct.getStringList("BlobPaths")
-    val dependencyTypes: List<Long> = struct.getLongList("DependencyTypes")
-    require(blobIds.size == blobPaths.size)
-    require(blobIds.size == dependencyTypes.size)
-
     val blobs =
-      zip(blobIds, blobPaths, dependencyTypes)
-        .map { (blobId, blobPath, dependencyType) ->
+      struct
+        .getStructList("Blobs")
+        .map {
           ComputationStageBlobMetadata.newBuilder().apply {
-            this.blobId = blobId
-            this.dependencyType = ComputationBlobDependency.forNumber(dependencyType.toInt())
-            blobPath?.let { path = blobPath }
+            blobId = it.getLong("BlobId")
+            val blobPath = it.getString("PathToBlob")
+            if (!blobPath.isNullOrBlank()) {
+              path = blobPath
+            }
+            dependencyType =
+              ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
           }.build()
         }
         .sortedBy { it.blobId }
+        .toList()
 
     val computationDetails =
       struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
@@ -87,19 +89,10 @@ class ComputationTokenProtoQuery(
       version = struct.getTimestamp("UpdateTime").toMillis()
       role = computationDetails.role
       stageSpecificDetails = stageDetails
-      addAllBlobs(blobs.asIterable())
+
+      if (blobs.isNotEmpty()) {
+        addAllBlobs(blobs)
+      }
     }.build()
   }
-}
-
-private fun <T1, T2, T3> zip(
-  i1: Iterable<T1>,
-  i2: Iterable<T2>,
-  i3: Iterable<T3>
-): Sequence<Triple<T1, T2, T3>> {
-  return i1
-    .asSequence()
-    .zip(i2.asSequence())
-    .zip(i3.asSequence())
-    .map { Triple(it.first.first, it.first.second, it.second) }
 }

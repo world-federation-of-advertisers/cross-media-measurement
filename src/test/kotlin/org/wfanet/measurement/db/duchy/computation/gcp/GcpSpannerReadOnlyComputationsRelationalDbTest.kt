@@ -238,6 +238,51 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
   }
 
   @Test
+  fun `readComputationToken no references`() = runBlocking<Unit> {
+    val globalId = "998877665555"
+    val localId = 100L
+    val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val computationRow = computationMutations.insertComputation(
+      localId = localId,
+      updateTime = lastUpdated.toGcpTimestamp(),
+      globalId = globalId,
+      stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
+      details = DETAILS_WHEN_SECONDARY
+    )
+    val waitConcatenatedComputationStageRow = computationMutations.insertComputationStage(
+      localId = localId,
+      stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
+      nextAttempt = 2,
+      creationTime = lastUpdated.toGcpTimestamp(),
+      details =
+        computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
+    )
+    databaseClient.write(
+      listOf(
+        computationRow,
+        waitConcatenatedComputationStageRow
+      )
+    )
+    val expectedTokenWhenOutputNotWritten =
+      ComputationToken.newBuilder().apply {
+        globalComputationId = globalId
+        localComputationId = localId
+        computationStage = ComputationStage.newBuilder()
+          .setLiquidLegionsSketchAggregation(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
+          .build()
+        role = DETAILS_WHEN_SECONDARY.role
+        nextDuchy = DETAILS_WHEN_SECONDARY.outgoingNodeId
+        attempt = 1
+        version = lastUpdated.toEpochMilli()
+        stageSpecificDetails =
+          computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
+      }.build()
+
+    assertThat(liquidLegionsSketchAggregationSpannerReader.readComputationToken(globalId))
+      .isEqualTo(expectedTokenWhenOutputNotWritten)
+  }
+
+  @Test
   fun `readGlobalComputationIds by stage`() = runBlocking<Unit> {
     val lastUpdatedTimeStamp = Instant.ofEpochMilli(12345678910L).toGcpTimestamp()
     val toAddNoiseRow = computationMutations.insertComputation(
