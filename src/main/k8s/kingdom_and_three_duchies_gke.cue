@@ -93,8 +93,8 @@ for duchy in #Duchies {
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
 				"--duchy-secret-key=\(duchy.key)",
 				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
-				"--google-cloud-storage-bucket=",
-				"--google-cloud-storage-project=",
+				"--google-cloud-storage-bucket=local-measurement-providers",
+        "--google-cloud-storage-project=ads-open-measurement",
 				"--liquid-legions-decay-rate=23.0",
 				"--liquid-legions-size=330000",
 				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
@@ -113,8 +113,8 @@ for duchy in #Duchies {
 				"--duchy-ids=duchy-\(#Duchies[0].name)",
 				"--duchy-ids=duchy-\(#Duchies[1].name)",
 				"--duchy-ids=duchy-\(#Duchies[2].name)",
-				"--google-cloud-storage-bucket=",
-				"--google-cloud-storage-project=",
+				"--google-cloud-storage-bucket=local-measurement-providers",
+        "--google-cloud-storage-project=ads-open-measurement",
 				"--port=8080",
 			]
 			_imagePullPolicy: "Always"
@@ -138,8 +138,8 @@ for duchy in #Duchies {
 			_image: "gcr.io/ads-open-measurement/duchy/metric-values"
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
-				"--google-cloud-storage-bucket=",
-				"--google-cloud-storage-project=",
+				"--google-cloud-storage-bucket=local-measurement-providers",
+        "--google-cloud-storage-project=ads-open-measurement",
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_metric_values",
 				"--spanner-instance=qa-instance",
