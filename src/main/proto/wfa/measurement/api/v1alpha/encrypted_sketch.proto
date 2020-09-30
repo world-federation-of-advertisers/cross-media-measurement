@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.api.v1alpha;
 
-import "wfa/measurement/api/v1alpha/crypto.proto";
-
 option java_package = "org.wfanet.measurement.api.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EncryptedSketchProto";
@@ -66,9 +64,4 @@ message EncryptedSketch {
   //
   // It is invalid to have two registers with the same index.
   bytes register_data = 1;
-
-  // Resource key of the CombinedPublicKey used to encrypt the sketch registers.
-  CombinedPublicKey.Key combined_public_key = 2;
 }
-
-// (-- TODO(sanjayvas): add SketchConfig. --)

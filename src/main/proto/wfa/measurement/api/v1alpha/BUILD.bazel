@@ -6,7 +6,6 @@ proto_library(
     name = "encrypted_sketch_proto",
     srcs = ["encrypted_sketch.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":crypto_proto"],
 )
 
 cc_proto_library(
@@ -36,6 +35,7 @@ proto_library(
     srcs = ["requisition.proto"],
     strip_import_prefix = "/src/main/proto",
     deps = [
+        ":crypto_proto",
         ":data_provider_proto",
         ":sketch_proto",
         "@com_google_protobuf//:timestamp_proto",

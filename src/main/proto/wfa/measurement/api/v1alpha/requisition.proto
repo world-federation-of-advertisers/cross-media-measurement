@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v1alpha;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/api/v1alpha/crypto.proto";
 import "wfa/measurement/api/v1alpha/sketch.proto";
 
 option java_package = "org.wfanet.measurement.api.v1alpha";
@@ -61,6 +62,10 @@ message MetricRequisition {
 
   // Definition of metric that's needed to fulfill this requisition. Required.
   MetricDefinition metric_definition = 4;
+
+  // Resource key of the CombinedPublicKey that is used to encrypt the metric
+  // value.
+  CombinedPublicKey.Key combined_public_key = 6;
 }
 
 // Representation of a metric to be collected.

@@ -29,7 +29,24 @@ message CombinedPublicKey {
   // Resource key.
   Key key = 1;
 
-  // The encryption key itself. This is assumed to be a combined ElGamal public
-  // key.
-  bytes public_key = 2;
+  // Encryption key.
+  ElGamalPublicKey encryption_key = 2;
+
+  // Strictly increasing version, such that the version of a newer resource
+  // will always be greater than that of an older resource.
+  int64 version = 3;
+}
+
+// A public key in the ElGamal crypto system.
+message ElGamalPublicKey {
+  // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
+  // prime256v1 curve.
+  int32 elliptic_curve_id = 1;
+
+  // Public key generator `g`.
+  bytes generator = 2;
+
+  // Public key element `y = g^x`, where `g` is the generator and `x` is the
+  // secret key.
+  bytes element = 3;
 }

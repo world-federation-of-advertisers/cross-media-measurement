@@ -60,10 +60,6 @@ message UploadMetricValueRequest {
   message Header {
     // Resource key of the MetricValue. Required.
     MetricRequisition.Key key = 1;
-
-    // Resource key of the combined public key used to encrypt any sketch
-    // registers.
-    CombinedPublicKey.Key combined_public_key = 3;
   }
 
   // The chunk message for this streaming request.
