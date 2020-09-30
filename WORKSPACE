@@ -282,8 +282,8 @@ load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries
 
 cloud_spanner_emulator_binaries(
     name = "cloud_spanner_emulator",
-    sha256 = "19eb279c0f0a93b14796e347e6b26a27bc90b91c5578f1de1532448a37b3e3d2",
-    version = "0.8.0",
+    sha256 = "6877c40d635628dc294f1a5b03f5ac3b96c2b9a8b86a994b5b011b1b482d0042",
+    version = "1.0.0",
 )
 
 # CUE
