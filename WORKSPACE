@@ -313,7 +313,7 @@ git_repository(
 # Public APIs for measurement system.
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "c44aee00abe0bb14a5771291faecb9ac2fc72579",
+    commit = "5eb82b5732f588a899e64153973bfcd38f2376ad",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
     shallow_since = "1600720718 +0000",
 )

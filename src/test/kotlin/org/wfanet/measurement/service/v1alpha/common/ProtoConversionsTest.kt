@@ -31,10 +31,12 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 class ProtoConversionsTest {
   @Test
   fun `convert Requisition to apiProto`() {
+    val combinedPublicKeyId = "combined-public-key"
     val requisition = Requisition.newBuilder().apply {
       externalDataProviderId = ExternalId(1).value
       externalCampaignId = ExternalId(2).value
       externalRequisitionId = ExternalId(3).value
+      combinedPublicKeyResourceId = combinedPublicKeyId
 
       state = RequisitionState.FULFILLED
       windowStartTime = Instant.MIN.toProtoTime()
@@ -48,6 +50,7 @@ class ProtoConversionsTest {
             dataProviderId = ExternalId(1).apiId.value
             campaignId = ExternalId(2).apiId.value
             metricRequisitionId = ExternalId(3).apiId.value
+            combinedPublicKeyBuilder.combinedPublicKeyId = combinedPublicKeyId
           }
 
           state = MetricRequisition.State.FULFILLED

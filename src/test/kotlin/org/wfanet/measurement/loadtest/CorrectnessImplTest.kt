@@ -39,12 +39,13 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.service.v1alpha.common.toApiMessage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 
 private const val RUN_ID = "TEST"
-private val COMBINED_PUBLIC_KEY_ID = DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId
+private val COMBINED_PUBLIC_KEY = DUCHY_PUBLIC_KEYS.latest.combinedPublicKey.toApiMessage()
 
 @RunWith(JUnit4::class)
 class CorrectnessImplTest {
@@ -185,7 +186,7 @@ class CorrectnessImplTest {
       .setConfig(sketchConfig)
       .addRegisters(Sketch.Register.newBuilder().setIndex(0).addValues(12678).addValues(1))
       .build()
-    val actualEncryptedSketch = correctness.encryptSketch(sketch)
+    val actualEncryptedSketch = correctness.encryptSketch(sketch, COMBINED_PUBLIC_KEY)
     assertThat(actualEncryptedSketch.isEmpty).isFalse()
   }
 
@@ -361,18 +362,18 @@ class CorrectnessImplTest {
     campaignCount: Int,
     generatedSetSize: Int,
     universeSize: Long
-  ) = CorrectnessImpl(
-    dataProviderCount,
-    campaignCount,
-    generatedSetSize,
-    universeSize,
-    RUN_ID,
-    sketchConfig,
-    encryptionKey,
-    storageClient,
-    COMBINED_PUBLIC_KEY_ID,
-    publisherDataStub
-  )
+  ): Correctness {
+    return CorrectnessImpl(
+      dataProviderCount = dataProviderCount,
+      campaignCount = campaignCount,
+      generatedSetSize = generatedSetSize,
+      universeSize = universeSize,
+      runId = RUN_ID,
+      sketchConfig = sketchConfig,
+      storageClient = storageClient,
+      publisherDataStub = publisherDataStub
+    )
+  }
 
   companion object {
     private val encryptionKey = DUCHY_PUBLIC_KEYS.latest.combinedPublicKey

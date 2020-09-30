@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.service.v1alpha.common
 
+import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.crypto.ElGamalPublicKey as CryptoElGamalPublicKey
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
@@ -30,6 +32,7 @@ fun Requisition.toV1Api(): MetricRequisition =
       metricRequisitionId = ExternalId(externalRequisitionId).apiId.value
     }
     campaignReferenceId = providedCampaignId
+    combinedPublicKeyBuilder.combinedPublicKeyId = combinedPublicKeyResourceId
     state = this@toV1Api.state.toV1Api()
   }.build()
 
@@ -52,3 +55,11 @@ fun MetricRequisition.State.toRequisitionState(): RequisitionState =
     MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
     else -> error("Invalid state: $this")
   }
+
+fun CryptoElGamalPublicKey.toApiMessage(): ElGamalPublicKey {
+  return ElGamalPublicKey.newBuilder().also {
+    it.ellipticCurveId = ellipticCurveId
+    it.generator = generator
+    it.element = element
+  }.build()
+}

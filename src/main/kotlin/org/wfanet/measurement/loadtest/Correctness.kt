@@ -17,12 +17,12 @@ package org.wfanet.measurement.loadtest
 import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
-import org.wfanet.anysketch.crypto.ElGamalPublicKeys
+import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
+import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
-import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
 
@@ -47,14 +47,8 @@ interface Correctness {
   /** [SketchConfig] with necessary parameters to generate [Sketch]. */
   val sketchConfig: SketchConfig
 
-  /** [ElGamalPublicKeys] keys required to encrypt the sketches. */
-  val encryptionPublicKey: ElGamalPublicKey
-
   /** Instance of [StorageClient] to store sketches, estimates, and test results. */
   val storageClient: StorageClient
-
-  /** CombinedPublicKeyId required for Publisher Data Service. */
-  val combinedPublicKeyId: String
 
   /** Instance of a [PublisherDataCoroutineStub] to send encrypted sketches to Publisher Data Service. */
   val publisherDataStub: PublisherDataCoroutineStub
@@ -77,7 +71,7 @@ interface Correctness {
   fun generateSketch(reach: Set<Long>): AnySketch
 
   /** Encrypts the [Sketch] proto. */
-  fun encryptSketch(sketch: Sketch): ByteString
+  fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): ByteString
 
   /**
    * Runs Cardinality Estimation on the given [AnySketch].
@@ -132,9 +126,8 @@ interface Correctness {
   suspend fun storeTestResult(testResult: TestResult): String
 
   /** Sends encryptedSketch to Publisher Data Service. */
-  suspend fun sendToServer(
-    dataProviderId: String,
-    campaignId: String,
+  suspend fun uploadMetricValue(
+    metricValueKey: MetricRequisition.Key,
     encryptedSketch: ByteString
   )
 }

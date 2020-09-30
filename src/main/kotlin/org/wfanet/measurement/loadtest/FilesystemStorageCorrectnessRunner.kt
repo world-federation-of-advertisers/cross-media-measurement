@@ -25,10 +25,16 @@ import picocli.CommandLine
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-
 private class FilesystemStorageCorrectnessRunner : CorrectnessRunner() {
+  @CommandLine.Option(
+    names = ["--output-directory"],
+    description = ["File path of output directory where files will be written."],
+    required = true
+  )
+  private lateinit var outputDir: File
+
   override fun run() {
-    run(FileSystemStorageClient(makeFile(flags.outputDir)))
+    run(FileSystemStorageClient(makeFile(outputDir)))
   }
 
   private fun makeFile(directory: File): File {

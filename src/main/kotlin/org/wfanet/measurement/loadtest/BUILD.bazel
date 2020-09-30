@@ -1,22 +1,24 @@
+load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ":__subpackages__",
+    test_target(":__subpackages__"),
 ])
 
 kt_jvm_library(
-    name = "loadtest",
-    srcs = glob(["*.kt"]),
+    name = "correctness",
+    srcs = [
+        "Correctness.kt",
+        "CorrectnessImpl.kt",
+        "IndependentSetGenerator.kt",
+    ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_service",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_java_proto",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/loadtest:test_result_java_proto",
         "@any_sketch//src/main/java/org/wfanet/anysketch",
         "@any_sketch//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
@@ -28,16 +30,53 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "correctness_runner",
+    srcs = [
+        "CorrectnessFlags.kt",
+        "CorrectnessRunner.kt",
+    ],
+    deps = [
+        ":correctness",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "file_system_storage_correctness_runner",
+    srcs = ["FilesystemStorageCorrectnessRunner.kt"],
+    deps = [
+        ":correctness_runner",
+        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
+    ],
+)
+
+kt_jvm_library(
+    name = "gcs_correctness_runner",
+    srcs = ["GcsCorrectnessRunner.kt"],
+    deps = [
+        ":correctness_runner",
+        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+    ],
+)
+
 java_binary(
     name = "FileSystemStorageCorrectnessRunner",
     main_class = "org.wfanet.measurement.loadtest.FilesystemStorageCorrectnessRunnerKt",
-    runtime_deps = [":loadtest"],
+    runtime_deps = [":file_system_storage_correctness_runner"],
 )
 
 java_binary(
     name = "GcsCorrectnessRunner",
     main_class = "org.wfanet.measurement.loadtest.GcsCorrectnessRunnerKt",
-    runtime_deps = [":loadtest"],
+    runtime_deps = [":gcs_correctness_runner"],
 )
 
 java_image(
@@ -46,7 +85,7 @@ java_image(
     data = ["//src/main/kotlin/org/wfanet/measurement/loadtest/config"],
     main_class = "org.wfanet.measurement.loadtest.FilesystemStorageCorrectnessRunnerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":loadtest"],
+    runtime_deps = [":file_system_storage_correctness_runner"],
 )
 
 java_image(
@@ -55,5 +94,5 @@ java_image(
     data = ["//src/main/kotlin/org/wfanet/measurement/loadtest/config"],
     main_class = "org.wfanet.measurement.loadtest.GcsCorrectnessRunnerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":loadtest"],
+    runtime_deps = [":gcs_correctness_runner"],
 )

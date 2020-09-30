@@ -73,7 +73,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTest {
     }
   }
 
-  private val dataProviderRule = FakeDataProviderRule(DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId)
+  private val dataProviderRule = FakeDataProviderRule()
 
   @get:Rule
   val ruleChain: TestRule by lazy {

@@ -32,6 +32,7 @@ import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
+import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -44,13 +45,11 @@ import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.crypto.ElGamalPublicKey
-import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
 
 /**
  * JUnit rule for spawning fake DataProvider jobs that attempt to fulfill all their requisitions.
  */
-class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : TestRule {
+class FakeDataProviderRule : TestRule {
   private var jobs = mutableListOf<Job>()
 
   fun startDataProviderForCampaign(
@@ -71,18 +70,8 @@ class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : Test
     publisherDataStub: PublisherDataCoroutineStub
   ) {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(250))
+    val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
     var lastPageToken = ""
-
-    val combinedPublicKey =
-      publisherDataStub.getCombinedPublicKey(
-        GetCombinedPublicKeyRequest.newBuilder()
-          .apply {
-            // TODO(b/159036541): Use combined public key resource ID from
-            //  requisition once it has that field.
-            keyBuilder.combinedPublicKeyId = globalCombinedPublicKeyId
-          }
-          .build()
-      )
 
     throttler.loopOnReady {
       val request = ListMetricRequisitionsRequest.newBuilder().apply {
@@ -97,22 +86,25 @@ class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : Test
       val response = publisherDataStub.listMetricRequisitions(request)
       lastPageToken = response.nextPageToken
       for (metricRequisition in response.metricRequisitionsList) {
+        val resourceKey = metricRequisition.combinedPublicKey
+        val combinedPublicKey = publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
+          publisherDataStub.getCombinedPublicKey(resourceKey)
+        }
         publisherDataStub.uploadMetricValue(
-          makeMetricValueFlow(combinedPublicKey, metricRequisition)
+          makeMetricValueFlow(combinedPublicKey.encryptionKey, metricRequisition)
         )
       }
     }
   }
 
   private fun makeMetricValueFlow(
-    combinedPublicKey: CombinedPublicKey,
+    combinedPublicKey: ElGamalPublicKey,
     metricRequisition: MetricRequisition
   ): Flow<UploadMetricValueRequest> = flow {
     emit(
       UploadMetricValueRequest.newBuilder().apply {
         headerBuilder.apply {
           key = metricRequisition.key
-          this.combinedPublicKey = combinedPublicKey.key
         }
       }.build()
     )
@@ -124,7 +116,7 @@ class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : Test
     )
   }
 
-  private fun generateFakeEncryptedSketch(combinedPublicKey: CombinedPublicKey): ByteString {
+  private fun generateFakeEncryptedSketch(combinedElGamalKey: ElGamalPublicKey): ByteString {
     val sketch = Sketch.newBuilder().apply {
       config = sketchConfig
       for (i in 1L..10L) {
@@ -135,12 +127,6 @@ class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : Test
         }
       }
     }.build()
-    // TODO(b/159036541): Use curve ID from CombinedPublicKey once it has that field.
-    val combinedElGamalKey =
-      ElGamalPublicKey.fromByteString(
-        combinedPublicKey.publicKey,
-        DUCHY_PUBLIC_KEYS.latest.combinedPublicKey.ellipticCurveId
-      )
     val request = EncryptSketchRequest.newBuilder().apply {
       this.sketch = sketch
       curveId = combinedElGamalKey.ellipticCurveId.toLong()
@@ -166,6 +152,16 @@ class FakeDataProviderRule(private val globalCombinedPublicKeyId: String) : Test
         }
       }
     }
+  }
+
+  private suspend fun PublisherDataCoroutineStub.getCombinedPublicKey(
+    resourceKey: CombinedPublicKey.Key
+  ): CombinedPublicKey {
+    return getCombinedPublicKey(
+      GetCombinedPublicKeyRequest.newBuilder().apply {
+        key = resourceKey
+      }.build()
+    )
   }
 
   companion object {

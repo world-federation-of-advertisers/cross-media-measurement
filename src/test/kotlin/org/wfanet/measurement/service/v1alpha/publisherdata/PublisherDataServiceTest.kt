@@ -45,8 +45,7 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase as RequisitionCoroutineService
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
-import org.wfanet.measurement.crypto.DuchyPublicKeys
-import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEY_CONFIG
+import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.duchy.MetricValue as InternalMetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase as MetricValuesCoroutineService
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -79,7 +78,7 @@ class PublisherDataServiceTest {
       MetricValuesCoroutineStub(channel),
       RequisitionCoroutineStub(channel),
       DataProviderRegistrationCoroutineStub(channel),
-      DuchyPublicKeys(duchyPublicKeyConfig)
+      DUCHY_PUBLIC_KEYS
     )
   }
 
@@ -185,7 +184,8 @@ class PublisherDataServiceTest {
   }
 
   @Test fun `getCombinedPublicKey returns CombinedPublicKey`() {
-    val combinedPublicKeyId = "combined-public-key-1"
+    val latestPublicKeys = DUCHY_PUBLIC_KEYS.latest
+    val combinedPublicKeyId = latestPublicKeys.combinedPublicKeyId
     val request = GetCombinedPublicKeyRequest.newBuilder()
       .apply { keyBuilder.combinedPublicKeyId = combinedPublicKeyId }
       .build()
@@ -193,15 +193,16 @@ class PublisherDataServiceTest {
     val response = runBlocking { service.getCombinedPublicKey(request) }
 
     assertThat(response.key).isEqualTo(request.key)
-    val configEntry = checkNotNull(duchyPublicKeyConfig.entriesMap[combinedPublicKeyId])
-    assertThat(response.publicKey)
-      .isEqualTo(configEntry.elGamalGenerator.concat(configEntry.combinedElGamalElement))
+    assertThat(response.version).isEqualTo(latestPublicKeys.combinedPublicKeyVersion)
+
+    val combinedPublicKey = latestPublicKeys.combinedPublicKey
+    assertThat(response.encryptionKey.ellipticCurveId).isEqualTo(combinedPublicKey.ellipticCurveId)
+    assertThat(response.encryptionKey.generator).isEqualTo(combinedPublicKey.generator)
+    assertThat(response.encryptionKey.element).isEqualTo(combinedPublicKey.element)
   }
 
   companion object {
     private val random = Random.Default
     private val testMetricValueData = ByteString.copyFrom(random.nextBytes(1024 * 1024 * 2))
-
-    private val duchyPublicKeyConfig = DUCHY_PUBLIC_KEY_CONFIG
   }
 }

@@ -28,12 +28,12 @@ unencrypted data.
 
 ```
 bazel build //src/main/kotlin/org/wfanet/measurement/loadtest:CorrectnessRunner
-bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/CorrectnessRunner --encryption-key-generator=036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296 --encryption-key-element=02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04 --combined-public-key-id=123 --output-directory=correctness --run-id= --publisher-data-service-target="localhost:8080" --spanner-project=ads-open-measurement --spanner-instance=qa-instance --spanner-database=local-measurement-providers --spanner-emulator-host= --sketch-config-file=src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto
+bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/CorrectnessRunner --output-directory=correctness --run-id= --publisher-data-service-target="localhost:8080" --spanner-project=ads-open-measurement --spanner-instance=qa-instance --spanner-database=local-measurement-providers --spanner-emulator-host= --sketch-config-file=src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto
 ```
 
 ##### 5 Data Providers with 5 Campaigns each
 
 ```
 bazel build //src/main/kotlin/org/wfanet/measurement/loadtest:CorrectnessRunner
-bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/CorrectnessRunner --data-provider-count=5 --campaign-count=5 --encryption-key-generator=036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296 --encryption-key-element=02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04 --combined-public-key-id=123 --output-directory=correctness --run-id= --publisher-data-service-target="localhost:8080" --spanner-project=ads-open-measurement --spanner-instance=qa-instance --spanner-database=local-measurement-providers --spanner-emulator-host= --sketch-config-file=src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto
+bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/CorrectnessRunner --data-provider-count=5 --campaign-count=5 --output-directory=correctness --run-id= --publisher-data-service-target="localhost:8080" --spanner-project=ads-open-measurement --spanner-instance=qa-instance --spanner-database=local-measurement-providers --spanner-emulator-host= --sketch-config-file=src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto
 ```

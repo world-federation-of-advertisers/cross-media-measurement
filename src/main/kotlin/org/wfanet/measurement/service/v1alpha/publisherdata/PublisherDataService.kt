@@ -29,11 +29,13 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutine
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueResponse
 import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKeyOrBuilder
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
+import org.wfanet.measurement.service.v1alpha.common.toApiMessage
 
 /**
  * Implementation of `wfa.measurement.api.v1alpha.PublisherData` service.
@@ -48,6 +50,15 @@ class PublisherDataService(
   private val registrationClient: DataProviderRegistrationCoroutineStub,
   private val duchyPublicKeys: DuchyPublicKeys
 ) : PublisherDataCoroutineService() {
+
+  /**
+   * Latest [CombinedPublicKey] resource.
+   *
+   * This is eagerly cached as most [GetCombinedPublicKeyRequest]s will be for
+   * this value.
+   */
+  private val latestCombinedPublicKey: CombinedPublicKey =
+    getCombinedPublicKey(duchyPublicKeys.latest.combinedPublicKeyId)!!
 
   override suspend fun listMetricRequisitions(request: ListMetricRequisitionsRequest) =
     requisitionClient.listMetricRequisitions(request)
@@ -85,20 +96,28 @@ class PublisherDataService(
   override suspend fun getCombinedPublicKey(
     request: GetCombinedPublicKeyRequest
   ): CombinedPublicKey {
-    val combinedPublicKeyId = request.key.combinedPublicKeyId
+    val combinedPublicKeyId: String = request.key.combinedPublicKeyId
     grpcRequire(combinedPublicKeyId.isNotEmpty()) { "CombinedPublicKey ID missing" }
 
-    val entry =
-      duchyPublicKeys.get(combinedPublicKeyId) ?: throw Status.NOT_FOUND.asRuntimeException()
+    if (combinedPublicKeyId == latestCombinedPublicKey.key.combinedPublicKeyId) {
+      return latestCombinedPublicKey
+    }
+    return getCombinedPublicKey(combinedPublicKeyId) ?: throw Status.NOT_FOUND.asRuntimeException()
+  }
 
+  private fun getCombinedPublicKey(combinedPublicKeyId: String): CombinedPublicKey? {
+    val entry = duchyPublicKeys.get(combinedPublicKeyId) ?: return null
+
+    val combinedPublicKey: ElGamalPublicKey = entry.combinedPublicKey
     return CombinedPublicKey.newBuilder().apply {
-      key = request.key
-      publicKey = entry.combinedPublicKey.toByteString()
+      keyBuilder.combinedPublicKeyId = combinedPublicKeyId
+      version = entry.combinedPublicKeyVersion
+      encryptionKey = combinedPublicKey.toApiMessage()
     }.build()
   }
 }
 
-fun ResourceKeyOrBuilder.toRequisitionKey(): MetricRequisition.Key {
+private fun ResourceKeyOrBuilder.toRequisitionKey(): MetricRequisition.Key {
   return MetricRequisition.Key.newBuilder().apply {
     dataProviderId = dataProviderResourceId
     campaignId = campaignResourceId

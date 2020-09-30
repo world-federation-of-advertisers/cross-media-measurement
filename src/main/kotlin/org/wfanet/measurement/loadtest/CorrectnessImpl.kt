@@ -25,19 +25,20 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
-import org.wfanet.anysketch.crypto.ElGamalPublicKeys
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.estimation.Estimators
 import org.wfanet.estimation.ValueHistogram
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
+import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -45,11 +46,11 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
+import org.wfanet.measurement.common.ApiId
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
@@ -72,11 +73,12 @@ class CorrectnessImpl(
   override val universeSize: Long = 10_000_000_000L,
   override val runId: String,
   override val sketchConfig: SketchConfig,
-  override val encryptionPublicKey: ElGamalPublicKey,
   override val storageClient: StorageClient,
-  override val combinedPublicKeyId: String,
   override val publisherDataStub: PublisherDataCoroutineStub
 ) : Correctness {
+
+  /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
+  private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
   suspend fun process(relationalDatabase: KingdomRelationalDatabase) {
     logger.info("Starting with RunID: $runId ...")
@@ -86,7 +88,7 @@ class CorrectnessImpl(
     logger.info("Created an Advertiser: $advertiser")
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
 
-    val campaignTriples =
+    val generatedCampaigns: List<GeneratedCampaign> =
       (1..dataProviderCount)
         .asFlow()
         .transform {
@@ -97,10 +99,10 @@ class CorrectnessImpl(
         .toList()
 
     // Schedule a report before loading the metric requisitions.
-    val campaignIds = campaignTriples.map { it.second }
+    val campaignIds = generatedCampaigns.map { it.campaignId }
     relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
 
-    val anySketches = campaignTriples.map { it.third }
+    val anySketches = generatedCampaigns.map { it.sketch }
     val combinedAnySketch = SketchProtos.toAnySketch(sketchConfig).apply { mergeAll(anySketches) }
     val reach = estimateCardinality(combinedAnySketch)
     val frequency = estimateFrequency(combinedAnySketch)
@@ -109,8 +111,8 @@ class CorrectnessImpl(
     logger.info("Estimation Results saved with blob key: $storedResultsPath")
 
     // Finally, we are sending encrypted sketches to the PublisherDataService.
-    campaignTriples.forEach { (externalDataProviderId, externalCampaignId, anySketch) ->
-      encryptAndSend(externalDataProviderId, externalCampaignId, anySketch, testResult)
+    generatedCampaigns.forEach {
+      encryptAndSend(it, testResult)
     }
 
     val blobKey = storeTestResult(testResult.build())
@@ -118,15 +120,15 @@ class CorrectnessImpl(
     logger.info("Finished with manifest: $blobKey.")
   }
 
-  private fun KingdomRelationalDatabase.createDataProvider(
+  private suspend fun KingdomRelationalDatabase.createDataProvider(
     externalAdvertiserId: ExternalId
-  ): Flow<Triple<ExternalId, ExternalId, AnySketch>> = flow {
+  ): Flow<GeneratedCampaign> {
     val dataProvider = createDataProvider()
     logger.info("Created a Data Provider: $dataProvider")
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
 
-    generateReach().forEach { reach ->
-      emit(createCampaign(reach, externalAdvertiserId, externalDataProviderId))
+    return generateReach().asFlow().map { reach ->
+      createCampaign(reach, externalAdvertiserId, externalDataProviderId)
     }
   }
 
@@ -134,7 +136,7 @@ class CorrectnessImpl(
     reach: Set<Long>,
     externalAdvertiserId: ExternalId,
     externalDataProviderId: ExternalId
-  ): Triple<ExternalId, ExternalId, AnySketch> {
+  ): GeneratedCampaign {
     val campaign = createCampaign(
       externalDataProviderId,
       externalAdvertiserId,
@@ -144,7 +146,7 @@ class CorrectnessImpl(
     val externalCampaignId = ExternalId(campaign.externalCampaignId)
     val anySketch = generateSketch(reach)
 
-    return Triple(externalDataProviderId, externalCampaignId, anySketch)
+    return GeneratedCampaign(externalDataProviderId, externalCampaignId, anySketch)
   }
 
   private suspend fun KingdomRelationalDatabase.scheduleReport(
@@ -191,37 +193,51 @@ class CorrectnessImpl(
   }
 
   private suspend fun encryptAndSend(
-    externalDataProviderId: ExternalId,
-    externalCampaignId: ExternalId,
-    anySketch: AnySketch,
+    generatedCampaign: GeneratedCampaign,
     testResult: TestResult.Builder
   ) {
-    val sketchProto = anySketch.toSketchProto(sketchConfig)
-    logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
+    val dataProviderId = generatedCampaign.dataProviderId.apiId
+    val campaignId = generatedCampaign.campaignId.apiId
 
-    val storedSketchPath = storeSketch(sketchProto)
-    val sketchBlobKeys = TestResult.Sketch.newBuilder().setBlobKey(storedSketchPath)
-    logger.info("Raw Sketch saved with blob key: $storedSketchPath")
-
-    val encryptedSketch = encryptSketch(sketchProto)
-    val storedEncryptedSketchPath = storeEncryptedSketch(encryptedSketch)
-    sketchBlobKeys.encryptedBlobKey = storedEncryptedSketchPath
-    testResult.addSketches(sketchBlobKeys)
-    logger.info("Encrypted Sketch saved with blob key: $storedEncryptedSketchPath")
+    val requisition = getMetricRequisition(dataProviderId, campaignId)
+    val resourceKey = requisition.combinedPublicKey
+    val combinedPublicKey = publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
+      publisherDataStub.getCombinedPublicKey(resourceKey)
+    }
+    val encryptedSketch =
+      encryptAndStore(generatedCampaign.sketch, combinedPublicKey.encryptionKey, testResult)
 
     try {
-      sendToServer(
-        externalDataProviderId.apiId.value,
-        externalCampaignId.apiId.value,
-        encryptedSketch
-      )
+      uploadMetricValue(requisition.key, encryptedSketch)
     } catch (e: StatusException) {
       logger.warning(
         "Failed sending the sketch for Campaign: " +
-          "${externalCampaignId.value} to the server due to $e."
+          "${dataProviderId.value} to the server due to $e."
       )
       throw e
     }
+  }
+
+  private suspend fun encryptAndStore(
+    anySketch: AnySketch,
+    publicKey: ElGamalPublicKey,
+    testResult: TestResult.Builder
+  ): ByteString {
+    val sketchProto = anySketch.toSketchProto(sketchConfig)
+    logger.info("Created a Sketch with ${sketchProto.registersCount} registers.")
+    val sketchBlobKey = storeSketch(sketchProto)
+    logger.info("Raw Sketch saved with blob key: $sketchBlobKey")
+
+    val encryptedSketch = encryptSketch(sketchProto, publicKey)
+    val encryptedSketchBlobKey = storeEncryptedSketch(encryptedSketch)
+    logger.info("Encrypted Sketch saved with blob key: $encryptedSketchBlobKey")
+
+    testResult.addSketchesBuilder().apply {
+      blobKey = sketchBlobKey
+      encryptedBlobKey = encryptedSketchBlobKey
+    }
+
+    return encryptedSketch
   }
 
   override fun generateReach(): Sequence<Set<Long>> {
@@ -252,18 +268,14 @@ class CorrectnessImpl(
     }
   }
 
-  override fun encryptSketch(sketch: Sketch): ByteString {
-    val request: EncryptSketchRequest = EncryptSketchRequest.newBuilder()
-      .setSketch(sketch)
-      .setCurveId(encryptionPublicKey.ellipticCurveId.toLong())
-      .setMaximumValue(MAX_COUNTER_VALUE)
-      .setElGamalKeys(
-        ElGamalPublicKeys.newBuilder()
-          .setElGamalG(encryptionPublicKey.generator)
-          .setElGamalY(encryptionPublicKey.element)
-          .build()
-      )
-      .build()
+  override fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): ByteString {
+    val request: EncryptSketchRequest = EncryptSketchRequest.newBuilder().apply {
+      this.sketch = sketch
+      maximumValue = MAX_COUNTER_VALUE
+      curveId = combinedPublicKey.ellipticCurveId.toLong()
+      elGamalKeysBuilder.elGamalG = combinedPublicKey.generator
+      elGamalKeysBuilder.elGamalY = combinedPublicKey.element
+    }.build()
     val response = EncryptSketchResponse.parseFrom(
       SketchEncrypterAdapter.EncryptSketch(request.toByteArray())
     )
@@ -298,39 +310,29 @@ class CorrectnessImpl(
     return storeBlob(testResult.toByteString())
   }
 
-  override suspend fun sendToServer(
-    dataProviderId: String,
-    campaignId: String,
-    encryptedSketch: ByteString
-  ) {
+  private suspend fun getMetricRequisition(
+    dataProviderId: ApiId,
+    campaignId: ApiId
+  ): MetricRequisition {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(250))
-    // TODO(b/159036541): Use PublisherDataService.getCombinedPublicKey method to get this.
-    val combinedPublicKey = CombinedPublicKey.newBuilder().apply {
-      keyBuilder.combinedPublicKeyId = combinedPublicKeyId
-      publicKey = with(encryptionPublicKey) { generator.concat(element) }
-    }.build()
 
-    var uploaded = false
-    while (!uploaded) {
+    var requisition: MetricRequisition? = null
+    while (requisition == null) {
       throttler.onReady {
-        val requisition: MetricRequisition? = loadMetricRequisitions(dataProviderId, campaignId)
-        if (requisition != null) {
-          logger.info("Server returned with a Requisition: $requisition")
-          uploadRequisition(combinedPublicKey, requisition, encryptedSketch)
-          uploaded = true
-        }
+        requisition = loadMetricRequisitions(dataProviderId, campaignId)
       }
     }
+    return requisition as MetricRequisition
   }
 
   private suspend fun loadMetricRequisitions(
-    dataProviderId: String,
-    campaignId: String
+    dataProviderId: ApiId,
+    campaignId: ApiId
   ): MetricRequisition? {
     val request = ListMetricRequisitionsRequest.newBuilder().apply {
       parentBuilder.apply {
-        this.dataProviderId = dataProviderId
-        this.campaignId = campaignId
+        this.dataProviderId = dataProviderId.value
+        this.campaignId = campaignId.value
       }
       filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
       pageSize = 1
@@ -340,32 +342,21 @@ class CorrectnessImpl(
     return response.metricRequisitionsList.firstOrNull()
   }
 
-  private suspend fun uploadRequisition(
-    combinedPublicKey: CombinedPublicKey,
-    metricRequisition: MetricRequisition,
+  override suspend fun uploadMetricValue(
+    metricValueKey: MetricRequisition.Key,
     encryptedSketch: ByteString
   ) {
-    publisherDataStub.uploadMetricValue(
-      makeMetricValueFlow(combinedPublicKey, metricRequisition, encryptedSketch)
+    val requests = flowOf(
+      UploadMetricValueRequest.newBuilder().apply {
+        headerBuilder.key = metricValueKey
+      }.build(),
+      UploadMetricValueRequest.newBuilder().apply {
+        chunkBuilder.data = encryptedSketch
+      }.build()
     )
+    publisherDataStub.uploadMetricValue(requests)
     logger.info("Encrypted Sketch successfully sent to the Publisher Data Service.")
   }
-
-  private fun makeMetricValueFlow(
-    combinedPublicKey: CombinedPublicKey,
-    metricRequisition: MetricRequisition,
-    encryptedSketch: ByteString
-  ): Flow<UploadMetricValueRequest> = flowOf(
-    UploadMetricValueRequest.newBuilder().apply {
-      headerBuilder.apply {
-        key = metricRequisition.key
-        this.combinedPublicKey = combinedPublicKey.key
-      }
-    }.build(),
-    UploadMetricValueRequest.newBuilder().apply {
-      chunkBuilder.data = encryptedSketch
-    }.build()
-  )
 
   private suspend fun storeBlob(blob: ByteString): String {
     val blobKey = generateBlobKey()
@@ -391,4 +382,20 @@ class CorrectnessImpl(
       )
     }
   }
+}
+
+private data class GeneratedCampaign(
+  val dataProviderId: ExternalId,
+  val campaignId: ExternalId,
+  val sketch: AnySketch
+)
+
+private suspend fun PublisherDataCoroutineStub.getCombinedPublicKey(
+  resourceKey: CombinedPublicKey.Key
+): CombinedPublicKey {
+  return getCombinedPublicKey(
+    GetCombinedPublicKeyRequest.newBuilder().apply {
+      key = resourceKey
+    }.build()
+  )
 }

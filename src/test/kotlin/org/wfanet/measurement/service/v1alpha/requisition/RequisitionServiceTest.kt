@@ -50,17 +50,20 @@ import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.Requisit
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
+private const val CAMPAIGN_REFERENCE_ID = "some-provided-campaign-id"
+private const val COMBINED_PUBLIC_KEY_ID = "some-combined-public-key-id"
+
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 private val WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
 
 private val IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
-
 private val REQUISITION: Requisition = Requisition.newBuilder().apply {
   externalDataProviderId = 1
   externalCampaignId = 2
   externalRequisitionId = 3
-  providedCampaignId = "some-provided-campaign-id"
+  combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_ID
+  providedCampaignId = CAMPAIGN_REFERENCE_ID
   createTime = CREATE_TIME
   state = RequisitionState.FULFILLED
   windowStartTime = WINDOW_START_TIME
@@ -115,7 +118,8 @@ class RequisitionServiceTest {
     val expected = MetricRequisition.newBuilder().apply {
       key = REQUISITION_API_KEY
       state = MetricRequisition.State.FULFILLED
-      campaignReferenceId = "some-provided-campaign-id"
+      campaignReferenceId = REQUISITION.providedCampaignId
+      combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
     }.build()
 
     assertThat(result).isEqualTo(expected)
@@ -155,12 +159,14 @@ class RequisitionServiceTest {
       addMetricRequisitionsBuilder().apply {
         key = REQUISITION_API_KEY
         state = MetricRequisition.State.FULFILLED
-        campaignReferenceId = "some-provided-campaign-id"
+        campaignReferenceId = CAMPAIGN_REFERENCE_ID
+        combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
       }
       addMetricRequisitionsBuilder().apply {
         key = REQUISITION_API_KEY
         state = MetricRequisition.State.FULFILLED
-        campaignReferenceId = "some-provided-campaign-id"
+        campaignReferenceId = CAMPAIGN_REFERENCE_ID
+        combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
       }
       nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }.build()

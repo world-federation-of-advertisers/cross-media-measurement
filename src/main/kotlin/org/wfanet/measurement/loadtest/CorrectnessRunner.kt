@@ -24,9 +24,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.RandomIdGenerator
-import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.crypto.ElGamalPublicKey
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.storage.StorageClient
@@ -34,7 +32,7 @@ import picocli.CommandLine
 
 abstract class CorrectnessRunner : Runnable {
   @CommandLine.Mixin
-  protected lateinit var flags: CorrectnessFlags
+  private lateinit var flags: CorrectnessFlags
 
   protected fun run(storageClient: StorageClient) {
     val channel: ManagedChannel =
@@ -53,11 +51,6 @@ abstract class CorrectnessRunner : Runnable {
         .format(Instant.now())
     }
     val sketchConfig = parseTextProto(flags.sketchConfigFile, SketchConfig.getDefaultInstance())
-    val encryptionPublicKey = ElGamalPublicKey(
-      flags.curveId,
-      flags.encryptionKeyGenerator.hexAsByteString(),
-      flags.encryptionKeyElement.hexAsByteString()
-    )
     val clock = Clock.systemUTC()
     val spannerFromFlags = SpannerFromFlags(flags.spannerFlags)
     val relationalDatabase =
@@ -70,9 +63,7 @@ abstract class CorrectnessRunner : Runnable {
       universeSize = flags.universeSize,
       runId = runId,
       sketchConfig = sketchConfig,
-      encryptionPublicKey = encryptionPublicKey,
       storageClient = storageClient,
-      combinedPublicKeyId = flags.combinedPublicKeyId,
       publisherDataStub = publisherDataStub
     )
 

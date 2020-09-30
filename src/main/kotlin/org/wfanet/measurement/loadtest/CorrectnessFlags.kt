@@ -65,52 +65,12 @@ class CorrectnessFlags {
   lateinit var sketchConfigFile: File
     private set
 
-  @set:CommandLine.Option(
-    names = ["--elliptic-curve-id"],
-    description = ["ID of the OpenSSL built-in elliptic curve required to encrypt sketches."],
-    defaultValue = "415"
-  )
-  var curveId by Delegates.notNull<Int>()
-    private set
-
-  @CommandLine.Option(
-    names = ["--encryption-key-generator"],
-    description = ["Generator `g` of the public key."],
-    required = true
-  )
-  lateinit var encryptionKeyGenerator: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--encryption-key-element"],
-    description = ["Element `g^x` where `x` is the secret key."],
-    required = true
-  )
-  lateinit var encryptionKeyElement: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--combined-public-key-id"],
-    description = ["Resource ID of the CombinedPublicKey."],
-    required = true
-  )
-  lateinit var combinedPublicKeyId: String
-    private set
-
   @CommandLine.Option(
     names = ["--publisher-data-service-target"],
     description = ["Address and port of the Publisher Data Service."],
     required = true
   )
   lateinit var publisherDataServiceTarget: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--output-directory"],
-    description = ["File path of output directory where files will be written."],
-    required = true
-  )
-  lateinit var outputDir: File
     private set
 
   @CommandLine.Option(

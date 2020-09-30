@@ -3,6 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 # TODO: Move the RequestValidation to service/common.
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/service:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/loadtest:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/service:__subpackages__",
 ])
 
@@ -14,6 +15,7 @@ kt_jvm_library(
         "//imports/java/io/grpc/stub",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/service/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
