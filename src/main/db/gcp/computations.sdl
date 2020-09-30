@@ -98,7 +98,8 @@ CREATE TABLE Computations (
 -- Query computations ready for work. All computations that can be worked on
 -- have a non null LockExpirationTime.
 CREATE NULL_FILTERED INDEX ComputationsByLockExpirationTime
-  ON Computations(LockExpirationTime ASC, UpdateTime ASC);
+  ON Computations(LockExpirationTime ASC, UpdateTime ASC)
+  STORING (ComputationStage, GlobalComputationId);
 
 -- Query computations by the owner of the lock.
 CREATE INDEX ComputationsByLockOwner ON Computations(LockOwner);
