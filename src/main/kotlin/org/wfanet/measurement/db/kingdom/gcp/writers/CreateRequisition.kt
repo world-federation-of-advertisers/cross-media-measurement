@@ -98,6 +98,7 @@ class CreateRequisition(
       """
       WHERE DataProviders.ExternalDataProviderId = @external_data_provider_id
         AND Campaigns.ExternalCampaignId = @external_campaign_id
+        AND Requisitions.CombinedPublicKeyResourceId = @combined_public_key_resource_id
         AND Requisitions.WindowStartTime = @window_start_time
         AND Requisitions.WindowEndTime = @window_end_time
       """.trimIndent()
@@ -107,6 +108,7 @@ class CreateRequisition(
         appendClause(whereClause)
         bind("external_data_provider_id").to(requisition.externalDataProviderId)
         bind("external_campaign_id").to(requisition.externalCampaignId)
+        bind("combined_public_key_resource_id").to(requisition.combinedPublicKeyResourceId)
         bind("window_start_time").to(requisition.windowStartTime.toGcpTimestamp())
         bind("window_end_time").to(requisition.windowEndTime.toGcpTimestamp())
       }
@@ -126,6 +128,7 @@ class CreateRequisition(
       .set("CampaignId").to(parentKey.campaignId)
       .set("RequisitionId").to(requisitionId.value)
       .set("ExternalRequisitionId").to(externalRequisitionId.value)
+      .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)

@@ -90,8 +90,11 @@ class GcpKingdomRelationalDatabase(
     return GetReport(externalId).executeSingle()
   }
 
-  override suspend fun createNextReport(externalScheduleId: ExternalId): Report {
-    return CreateNextReport(externalScheduleId).execute()
+  override suspend fun createNextReport(
+    externalScheduleId: ExternalId,
+    combinedPublicKeyResourceId: String
+  ): Report {
+    return CreateNextReport(externalScheduleId, combinedPublicKeyResourceId).execute()
   }
 
   override suspend fun updateReportState(externalReportId: ExternalId, state: ReportState): Report {

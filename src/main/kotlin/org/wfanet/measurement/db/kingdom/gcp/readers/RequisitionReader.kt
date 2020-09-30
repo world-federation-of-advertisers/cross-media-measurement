@@ -39,6 +39,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
            Requisitions.RequisitionId,
            Requisitions.CreateTime,
            Requisitions.ExternalRequisitionId,
+           Requisitions.CombinedPublicKeyResourceId,
            Requisitions.WindowStartTime,
            Requisitions.WindowEndTime,
            Requisitions.State,
@@ -67,6 +68,7 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     externalCampaignId = struct.getLong("ExternalCampaignId")
     externalRequisitionId = struct.getLong("ExternalRequisitionId")
+    combinedPublicKeyResourceId = struct.getString("CombinedPublicKeyResourceId")
 
     providedCampaignId = struct.getString("ProvidedCampaignId")
 

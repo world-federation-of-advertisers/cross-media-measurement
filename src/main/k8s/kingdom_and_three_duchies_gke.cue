@@ -196,6 +196,7 @@ kingdom_pod: "report-maker-daemon-pod": #Pod & {
 		"--throttler-overload-factor=1.2",
 		"--throttler-poll-delay=1ms",
 		"--throttler-time-horizon=2m",
+		"--combined-public-key-id=combined-public-key-1",
 	]
 	_imagePullPolicy: "Always"
 }

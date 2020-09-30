@@ -49,6 +49,7 @@ private val REPORT: Report = Report.newBuilder().apply {
   externalScheduleId = 3
   externalReportId = 4
   createTimeBuilder.seconds = 567
+  reportDetailsBuilder.combinedPublicKeyResourceId = "890"
   state = ReportState.FAILED
 }.build()
 
@@ -69,16 +70,21 @@ class ReportStorageServiceTest {
 
   @Test
   fun createNextReport() = runBlocking<Unit> {
-    whenever(kingdomRelationalDatabase.createNextReport(any())).thenReturn(REPORT)
+    val combinedPublicKeyResourceId = REPORT.reportDetails.combinedPublicKeyResourceId
+    whenever(kingdomRelationalDatabase.createNextReport(any(), any())).thenReturn(REPORT)
 
     val request: CreateNextReportRequest =
       CreateNextReportRequest.newBuilder().apply {
         externalScheduleId = 12345
+        this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
       }.build()
 
     assertThat(service.createNextReport(request)).isEqualTo(REPORT)
 
-    verify(kingdomRelationalDatabase).createNextReport(ExternalId(12345))
+    verify(kingdomRelationalDatabase).createNextReport(
+      ExternalId(12345),
+      combinedPublicKeyResourceId
+    )
   }
 
   @Test

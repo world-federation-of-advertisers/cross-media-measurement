@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/icenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,13 +25,13 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
  * The next Report for a ReportConfigSchedule is created at the beginning of the period of time that
  * the Report covers.
  */
-suspend fun Daemon.runReportMaker() {
+suspend fun Daemon.runReportMaker(combinedPublicKeyResourceId: String) {
   streamReadySchedules()
     .onEach { logger.info("Schedule is ready: $it") }
     .collect { schedule ->
       throttleAndLog {
         logger.info("Creating next report for schedule: $schedule")
-        daemonDatabaseServicesClient.createNextReport(schedule)
+        daemonDatabaseServicesClient.createNextReport(schedule, combinedPublicKeyResourceId)
       }
     }
 }

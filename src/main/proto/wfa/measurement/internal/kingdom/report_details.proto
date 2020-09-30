@@ -44,4 +44,8 @@ message ReportDetails {
     string duchy_id = 4;
   }
   repeated ExternalRequisitionKey requisitions = 3;
+
+  // ID of the CombinedPublicKey resource for the encryption key used to encrypt
+  // all metric values for this report.
+  string combined_public_key_resource_id = 5;
 }

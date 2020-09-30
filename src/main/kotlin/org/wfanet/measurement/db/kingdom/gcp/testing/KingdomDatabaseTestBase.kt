@@ -40,6 +40,11 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
+private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
+private val REPORT_DETAILS = ReportDetails.newBuilder().apply {
+  combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
+}.build()
+
 abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
   private fun write(mutation: Mutation) {
     databaseClient.write(listOf(mutation))
@@ -129,7 +134,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     updateTime: Instant? = null,
     windowStartTime: Instant = Instant.EPOCH,
     windowEndTime: Instant = Instant.EPOCH,
-    reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
+    reportDetails: ReportDetails = REPORT_DETAILS
   ) {
     write(
       Mutation.newInsertBuilder("Reports")
@@ -213,6 +218,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     campaignId: Long,
     requisitionId: Long,
     externalRequisitionId: Long,
+    combinedPublicKeyResourceId: String = COMBINED_PUBLIC_KEY_RESOURCE_ID,
     createTime: Instant = Instant.EPOCH,
     windowStartTime: Instant = Instant.EPOCH,
     windowEndTime: Instant = Instant.EPOCH,
@@ -226,6 +232,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
         .set("CampaignId").to(campaignId)
         .set("RequisitionId").to(requisitionId)
         .set("ExternalRequisitionId").to(externalRequisitionId)
+        .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
         .set("CreateTime").to(createTime.toGcpTimestamp())
         .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
         .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())

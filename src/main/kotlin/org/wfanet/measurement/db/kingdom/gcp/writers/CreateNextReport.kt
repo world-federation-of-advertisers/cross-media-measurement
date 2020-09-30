@@ -27,7 +27,6 @@ import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
-import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportBySchedule
 import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
 import org.wfanet.measurement.internal.kingdom.Report
@@ -43,7 +42,8 @@ import org.wfanet.measurement.internal.kingdom.TimePeriod
  * no reports for this schedule yet.
  */
 class CreateNextReport(
-  private val externalScheduleId: ExternalId
+  private val externalScheduleId: ExternalId,
+  private val combinedPublicKeyResourceId: String
 ) : SpannerWriter<Report, Report>() {
 
   override suspend fun TransactionScope.runTransaction(): Report {
@@ -77,6 +77,11 @@ class CreateNextReport(
 
     val nextNextReportStartTime = windowStartTime.plus(repetitionPeriod)
 
+    val reportDetails = ReportDetails.newBuilder().also {
+      it.combinedPublicKeyResourceId = combinedPublicKeyResourceId
+    }.build()
+    val reportDetailsJson: String = reportDetails.toJson()
+
     Mutation.newUpdateBuilder("ReportConfigSchedules")
       .set("AdvertiserId").to(scheduleReadResult.advertiserId)
       .set("ReportConfigId").to(scheduleReadResult.reportConfigId)
@@ -97,8 +102,8 @@ class CreateNextReport(
       .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
       .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
-      .set("ReportDetails").toProtoBytes(ReportDetails.getDefaultInstance())
-      .set("ReportDetailsJson").toProtoJson(ReportDetails.getDefaultInstance())
+      .set("ReportDetails").toProtoBytes(reportDetails)
+      .set("ReportDetailsJson").to(reportDetailsJson)
       .build()
       .bufferTo(transactionContext)
 
@@ -110,8 +115,8 @@ class CreateNextReport(
       this.windowStartTime = windowStartTime.toProtoTime()
       this.windowEndTime = windowEndTime.toProtoTime()
       state = ReportState.AWAITING_REQUISITION_CREATION
-      reportDetails = ReportDetails.getDefaultInstance()
-      reportDetailsJson = reportDetails.toJson()
+      this.reportDetails = reportDetails
+      this.reportDetailsJson = reportDetailsJson
     }.build()
   }
 

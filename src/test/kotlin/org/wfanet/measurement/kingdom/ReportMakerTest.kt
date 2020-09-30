@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom
 
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.atLeast
+import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.same
 import com.nhaarman.mockitokotlin2.stub
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.launchAndCancelWithLatch
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
+private const val COMBINED_PUBLIC_KEY_ID = "combined-public-key"
 private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.getDefaultInstance()
 
 @RunWith(JUnit4::class)
@@ -45,16 +47,16 @@ class ReportMakerTest {
       on { streamReadySchedules() }
         .thenReturn((1..10).map { SCHEDULE }.asFlow())
 
-      onBlocking { createNextReport(any()) }
+      onBlocking { createNextReport(any(), any()) }
         .then { latch.countDown() }
     }
 
-    launchAndCancelWithLatch(latch) { daemon.runReportMaker() }
+    launchAndCancelWithLatch(latch) { daemon.runReportMaker(COMBINED_PUBLIC_KEY_ID) }
 
     verify(daemonDatabaseServicesClient, atLeast(2))
       .streamReadySchedules()
 
     verify(daemonDatabaseServicesClient, atLeast(15))
-      .createNextReport(same(SCHEDULE))
+      .createNextReport(same(SCHEDULE), eq(COMBINED_PUBLIC_KEY_ID))
   }
 }

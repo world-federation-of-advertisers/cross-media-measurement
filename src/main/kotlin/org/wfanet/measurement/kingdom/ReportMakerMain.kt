@@ -22,8 +22,17 @@ import picocli.CommandLine
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(@CommandLine.Mixin flags: DaemonFlags) {
-  runDaemon(flags, Daemon::runReportMaker)
+private fun run(
+  @CommandLine.Mixin
+  flags: DaemonFlags,
+  @CommandLine.Option(
+    names = ["--combined-public-key-id"],
+    description = ["ID of the CombinedPublicKey resource to associate with created reports."],
+    required = true
+  )
+  combinedPublicKeyId: String
+) {
+  runDaemon(flags) { runReportMaker(combinedPublicKeyId) }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

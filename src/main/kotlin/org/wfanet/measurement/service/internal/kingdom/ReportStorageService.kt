@@ -38,7 +38,10 @@ class ReportStorageService(
     kingdomRelationalDatabase.getReport(ExternalId(request.externalReportId))
 
   override suspend fun createNextReport(request: CreateNextReportRequest): Report =
-    kingdomRelationalDatabase.createNextReport(ExternalId(request.externalScheduleId))
+    kingdomRelationalDatabase.createNextReport(
+      ExternalId(request.externalScheduleId),
+      request.combinedPublicKeyResourceId
+    )
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> =
     kingdomRelationalDatabase.streamReports(

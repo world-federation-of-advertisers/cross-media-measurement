@@ -41,6 +41,10 @@ message Requisition {
   RequisitionDetails requisition_details = 8;
   string requisition_details_json = 9;
 
+  // ID of the CombinedPublicKey resource for the encryption key used to encrypt
+  // the metric value.
+  string combined_public_key_resource_id = 12;
+
   enum RequisitionState {
     REQUISITION_STATE_UNKNOWN = 0;
 

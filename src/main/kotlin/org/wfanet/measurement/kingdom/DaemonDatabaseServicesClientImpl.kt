@@ -39,11 +39,14 @@ class DaemonDatabaseServicesClientImpl(
   private val reportStorage: ReportStorageCoroutineStub,
   private val requisitionStorage: RequisitionStorageCoroutineStub
 ) : DaemonDatabaseServicesClient {
-  override suspend fun createNextReport(reportConfigSchedule: ReportConfigSchedule) {
-    val request =
-      CreateNextReportRequest.newBuilder()
-        .setExternalScheduleId(reportConfigSchedule.externalScheduleId)
-        .build()
+  override suspend fun createNextReport(
+    reportConfigSchedule: ReportConfigSchedule,
+    combinedPublicKeyResourceId: String
+  ) {
+    val request = CreateNextReportRequest.newBuilder().apply {
+      externalScheduleId = reportConfigSchedule.externalScheduleId
+      this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
+    }.build()
     reportStorage.createNextReport(request)
   }
 
@@ -62,6 +65,7 @@ class DaemonDatabaseServicesClientImpl(
     Requisition.newBuilder().apply {
       externalDataProviderId = template.externalDataProviderId
       externalCampaignId = template.externalCampaignId
+      combinedPublicKeyResourceId = report.reportDetails.combinedPublicKeyResourceId
       windowStartTime = report.windowStartTime
       windowEndTime = report.windowEndTime
       state = RequisitionState.UNFULFILLED

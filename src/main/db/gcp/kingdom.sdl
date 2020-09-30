@@ -238,26 +238,28 @@ CREATE TABLE ReportConfigCampaigns (
 -- the ExternalRequisitionId to the blob storage path for the metric value (i.e.
 -- the bytes provided by the Data Provider).
 CREATE TABLE Requisitions (
-  DataProviderId         INT64 NOT NULL,
-  CampaignId             INT64 NOT NULL,
-  RequisitionId          INT64 NOT NULL,
+  DataProviderId              INT64 NOT NULL,
+  CampaignId                  INT64 NOT NULL,
+  RequisitionId               INT64 NOT NULL,
 
-  CreateTime             TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+  CreateTime                  TIMESTAMP NOT NULL
+                              OPTIONS (allow_commit_timestamp = true),
 
-  ExternalRequisitionId  INT64 NOT NULL,
+  ExternalRequisitionId       INT64 NOT NULL,
+  CombinedPublicKeyResourceId STRING(MAX) NOT NULL,
 
-  WindowStartTime        TIMESTAMP NOT NULL,
-  WindowEndTime          TIMESTAMP NOT NULL,
+  WindowStartTime             TIMESTAMP NOT NULL,
+  WindowEndTime               TIMESTAMP NOT NULL,
 
-  State                  INT64 NOT NULL,  -- RequisitionState proto enum
+  State                       INT64 NOT NULL,  -- RequisitionState proto enum
 
   -- When a Requisition is fulfilled, this is set to the Duchy that fulfilled
   -- the Requisition.
-  DuchyId                STRING(MAX),
+  DuchyId                     STRING(MAX),
 
   -- RequisitionDetails serialized proto
-  RequisitionDetails     BYTES(MAX),
-  RequisitionDetailsJson STRING(MAX),
+  RequisitionDetails          BYTES(MAX),
+  RequisitionDetailsJson      STRING(MAX),
 ) PRIMARY KEY (DataProviderId, CampaignId, RequisitionId),
   INTERLEAVE IN PARENT Campaigns ON DELETE CASCADE;
 

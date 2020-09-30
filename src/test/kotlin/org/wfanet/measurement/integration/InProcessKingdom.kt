@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
@@ -126,7 +127,7 @@ class InProcessKingdom(
           daemon.runReportStarter()
         }
         launch(exceptionHandler + CoroutineName("ReportMaker")) {
-          daemon.runReportMaker()
+          daemon.runReportMaker(DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId)
         }
       }
     }

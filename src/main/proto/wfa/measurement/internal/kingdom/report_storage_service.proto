@@ -65,6 +65,7 @@ message GetReportRequest {
 
 message CreateNextReportRequest {
   int64 external_schedule_id = 1;
+  string combined_public_key_resource_id = 2;
 }
 
 message StreamReportsRequest {

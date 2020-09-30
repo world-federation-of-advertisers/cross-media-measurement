@@ -85,14 +85,19 @@ class DaemonDatabaseServicesClientImplTest {
 
   @Test
   fun createNextReport() = runBlocking<Unit> {
+    val externalScheduleId = 12345L
+    val combinedPublicKeyResourceId = "combined-public-key"
     val schedule =
       ReportConfigSchedule.newBuilder()
         .setExternalScheduleId(12345)
         .build()
 
-    daemonDatabaseServicesClient.createNextReport(schedule)
+    daemonDatabaseServicesClient.createNextReport(schedule, combinedPublicKeyResourceId)
 
-    val expectedRequest = CreateNextReportRequest.newBuilder().setExternalScheduleId(12345).build()
+    val expectedRequest = CreateNextReportRequest.newBuilder().apply {
+      this.externalScheduleId = externalScheduleId
+      this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
+    }.build()
     verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::createNextReport)
       .isEqualTo(expectedRequest)
   }

@@ -28,7 +28,10 @@ import org.wfanet.measurement.internal.kingdom.Requisition
  */
 interface DaemonDatabaseServicesClient {
   /** Creates the next [Report] for a [ReportConfigSchedule]. */
-  suspend fun createNextReport(reportConfigSchedule: ReportConfigSchedule)
+  suspend fun createNextReport(
+    reportConfigSchedule: ReportConfigSchedule,
+    combinedPublicKeyResourceId: String
+  )
 
   /**
    * Lists all the [Requisition]s necessary for a [Report].

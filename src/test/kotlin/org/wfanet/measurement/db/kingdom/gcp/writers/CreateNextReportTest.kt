@@ -45,6 +45,7 @@ private const val EXTERNAL_REPORT_CONFIG_ID = 5L
 private const val EXTERNAL_SCHEDULE_ID = 6L
 private const val REPORT_ID = 7L
 private const val EXTERNAL_REPORT_ID = 8L
+private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
 
 @RunWith(JUnit4::class)
 class CreateNextReportTest : KingdomDatabaseTestBase() {
@@ -52,7 +53,11 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
   private val idGenerator = FixedIdGenerator(InternalId(REPORT_ID), ExternalId(EXTERNAL_REPORT_ID))
 
   private fun createNextReport(): Report = runBlocking {
-    CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID)).execute(databaseClient, idGenerator, clock)
+    CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID), COMBINED_PUBLIC_KEY_RESOURCE_ID).execute(
+      databaseClient,
+      idGenerator,
+      clock
+    )
   }
 
   @Before
@@ -101,6 +106,7 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
       externalScheduleId = EXTERNAL_SCHEDULE_ID
       externalReportId = EXTERNAL_REPORT_ID
+      reportDetailsBuilder.combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
       windowStartTime = clock["nextReportStartTime"].toProtoTime()
       windowEndTime = (clock["nextReportStartTime"] + Period.ofDays(3)).toProtoTime()
       state = ReportState.AWAITING_REQUISITION_CREATION

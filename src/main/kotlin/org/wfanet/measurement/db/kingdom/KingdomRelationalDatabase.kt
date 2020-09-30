@@ -61,7 +61,10 @@ interface KingdomRelationalDatabase {
    *
    * If the report start window would be in the future, this does nothing.
    */
-  suspend fun createNextReport(externalScheduleId: ExternalId): Report
+  suspend fun createNextReport(
+    externalScheduleId: ExternalId,
+    combinedPublicKeyResourceId: String
+  ): Report
 
   /**
    * Updates the state of a [Report].
