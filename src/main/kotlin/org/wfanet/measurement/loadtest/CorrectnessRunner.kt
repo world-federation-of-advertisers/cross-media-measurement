@@ -34,7 +34,7 @@ import picocli.CommandLine
 
 abstract class CorrectnessRunner : Runnable {
   @CommandLine.Mixin
-  private lateinit var flags: CorrectnessFlags
+  protected lateinit var flags: CorrectnessFlags
 
   protected fun run(storageClient: StorageClient) {
     val channel: ManagedChannel =

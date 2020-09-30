@@ -27,9 +27,6 @@ import picocli.CommandLine
 )
 
 private class FilesystemStorageCorrectnessRunner : CorrectnessRunner() {
-  @CommandLine.Mixin
-  private lateinit var flags: CorrectnessFlags
-
   override fun run() {
     run(FileSystemStorageClient(makeFile(flags.outputDir)))
   }
