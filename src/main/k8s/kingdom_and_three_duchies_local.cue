@@ -106,6 +106,8 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 	},
 ]
 
+#DuchyIdFlags: [ for duchy in #Duchies {"--duchy-ids=duchy-\(#Duchies[0].name)"}]
+
 #ComputationControlServiceFlags: [ for duchy_target in #Duchies {"--computation-control-service-target=duchy-\(duchy_target.name)=" +
 	(#Target & {name: "\(duchy_target.name)-forwarding-storage-liquid-legions-server"}).target
 }]
@@ -151,17 +153,14 @@ for duchy in #Duchies {
 		}
 		"\(duchy.name)-forwarding-storage-liquid-legions-server-pod": #ServerPod & {
 			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarding_storage_liquid_legions_server_image"
-			_args: [
+			_args:  [
 				"--computation-storage-service-target=" + (#Target & {name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server"}).target,
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
-				"--duchy-ids=duchy-\(#Duchies[0].name)",
-				"--duchy-ids=duchy-\(#Duchies[1].name)",
-				"--duchy-ids=duchy-\(#Duchies[2].name)",
 				"--port=8080",
 				"--forwarding-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
-			]
+			] + #DuchyIdFlags
 		}
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
 			_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image"
@@ -272,43 +271,34 @@ kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
 
 kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image"
-	_args: [
+	_args:  [
 		"--debug-verbose-grpc-server-logging=true",
-		"--duchy-ids=duchy-\(#Duchies[0].name)",
-		"--duchy-ids=duchy-\(#Duchies[1].name)",
-		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--port=8080",
 		"--spanner-database=kingdom",
 		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 		"--spanner-instance=emulator-instance",
 		"--spanner-project=ads-open-measurement",
-	]
+	] + #DuchyIdFlags
 }
 
 kingdom_pod: "global-computation-server-pod": #ServerPod & {
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image"
-	_args: [
+	_args:  [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
-		"--duchy-ids=duchy-\(#Duchies[0].name)",
-		"--duchy-ids=duchy-\(#Duchies[1].name)",
-		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
-	]
+	] + #DuchyIdFlags
 }
 
 kingdom_pod: "requisition-server-pod": #ServerPod & {
 	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
-	_args: [
+	_args:  [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
-		"--duchy-ids=duchy-\(#Duchies[0].name)",
-		"--duchy-ids=duchy-\(#Duchies[1].name)",
-		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
-	]
+	] + #DuchyIdFlags
 }
 
 kingdom_job: "kingdom-push-spanner-schema-job": {

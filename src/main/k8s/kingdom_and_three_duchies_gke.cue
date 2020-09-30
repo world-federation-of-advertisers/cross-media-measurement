@@ -57,6 +57,8 @@ objectSets: [
 	},
 ]
 
+#DuchyIdFlags: [ for duchy in #Duchies {"--duchy-ids=duchy-\(#Duchies[0].name)"}]
+
 #ComputationControlServiceFlags: [ for duchy_target in #Duchies {"--computation-control-service-target=duchy-\(duchy_target.name)=" +
 	(#Target & {name: "\(duchy_target.name)-gcs-liquid-legions-server"}).target
 }]
@@ -94,7 +96,7 @@ for duchy in #Duchies {
 				"--duchy-secret-key=\(duchy.key)",
 				"--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target,
 				"--google-cloud-storage-bucket=local-measurement-providers",
-        "--google-cloud-storage-project=ads-open-measurement",
+				"--google-cloud-storage-project=ads-open-measurement",
 				"--liquid-legions-decay-rate=23.0",
 				"--liquid-legions-size=330000",
 				"--metric-values-service-target=" + (#Target & {name: "\(duchy.name)-gcp-server"}).target,
@@ -105,18 +107,15 @@ for duchy in #Duchies {
 		}
 		"\(duchy.name)-gcs-liquid-legions-server-pod": #ServerPod & {
 			_image: "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-computation-control"
-			_args: [
+			_args:  [
 				"--computation-storage-service-target=" + (#Target & {name: "\(duchy.name)-spanner-liquid-legions-computation-storage-server"}).target,
 				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-name=duchy-\(duchy.name)",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
-				"--duchy-ids=duchy-\(#Duchies[0].name)",
-				"--duchy-ids=duchy-\(#Duchies[1].name)",
-				"--duchy-ids=duchy-\(#Duchies[2].name)",
 				"--google-cloud-storage-bucket=local-measurement-providers",
-        "--google-cloud-storage-project=ads-open-measurement",
+				"--google-cloud-storage-project=ads-open-measurement",
 				"--port=8080",
-			]
+			] + #DuchyIdFlags
 			_imagePullPolicy: "Always"
 		}
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
@@ -139,7 +138,7 @@ for duchy in #Duchies {
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
 				"--google-cloud-storage-bucket=local-measurement-providers",
-        "--google-cloud-storage-project=ads-open-measurement",
+				"--google-cloud-storage-project=ads-open-measurement",
 				"--port=8080",
 				"--spanner-database=\(duchy.name)_duchy_metric_values",
 				"--spanner-instance=qa-instance",
@@ -229,44 +228,35 @@ kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
 
 kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
 	_image: "gcr.io/ads-open-measurement/kingdom/storage-server"
-	_args: [
+	_args:  [
 		"--debug-verbose-grpc-server-logging=true",
-		"--duchy-ids=duchy-\(#Duchies[0].name)",
-		"--duchy-ids=duchy-\(#Duchies[1].name)",
-		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--port=8080",
 		"--spanner-database=kingdom",
 		"--spanner-instance=qa-instance",
 		"--spanner-project=ads-open-measurement",
-	]
+	] + #DuchyIdFlags
 	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "global-computation-server-pod": #ServerPod & {
 	_image: "gcr.io/ads-open-measurement/kingdom/global-computation"
-	_args: [
+	_args:  [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
-		"--duchy-ids=duchy-\(#Duchies[0].name)",
-		"--duchy-ids=duchy-\(#Duchies[1].name)",
-		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
-	]
+	] + #DuchyIdFlags
 	_imagePullPolicy: "Always"
 }
 
 kingdom_pod: "requisition-server-pod": #ServerPod & {
 	_image: "gcr.io/ads-open-measurement/kingdom/requisition"
-	_args: [
+	_args:  [
 		"--debug-verbose-grpc-client-logging=true",
 		"--debug-verbose-grpc-server-logging=true",
-		"--duchy-ids=duchy-\(#Duchies[0].name)",
-		"--duchy-ids=duchy-\(#Duchies[1].name)",
-		"--duchy-ids=duchy-\(#Duchies[2].name)",
 		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
 		"--port=8080",
-	]
+	] + #DuchyIdFlags
 	_imagePullPolicy: "Always"
 }
 
