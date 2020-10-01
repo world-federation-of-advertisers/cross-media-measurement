@@ -106,7 +106,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 	},
 ]
 
-#DuchyIdFlags: [ for duchy in #Duchies {"--duchy-ids=duchy-\(#Duchies[0].name)"}]
+#DuchyIdFlags: [ for duchy in #Duchies {"--duchy-ids=duchy-\(duchy.name)"}]
 
 #ComputationControlServiceFlags: [ for duchy_target in #Duchies {"--computation-control-service-target=duchy-\(duchy_target.name)=" +
 	(#Target & {name: "\(duchy_target.name)-forwarding-storage-liquid-legions-server"}).target
