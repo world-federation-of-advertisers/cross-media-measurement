@@ -106,3 +106,11 @@ container_push(
     registry = "gcr.io",
     repository = "ads-open-measurement/setup/push-spanner-schema",
 )
+
+container_push(
+    name = "push_gcs_correctness_test_runner_image",
+    format = "Docker",
+    image = "//src/main/kotlin/org/wfanet/measurement/loadtest:gcs_correctness_runner_image",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/loadtest/correctness-test",
+)

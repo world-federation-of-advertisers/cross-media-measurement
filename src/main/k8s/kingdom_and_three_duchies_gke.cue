@@ -279,3 +279,31 @@ kingdom_job: "kingdom-push-spanner-schema-job": {
 		restartPolicy: "OnFailure"
 	}
 }
+
+setup_job: "gcs-correctness-test-job": {
+	apiVersion: "batch/v1"
+	kind:       "Job"
+	metadata: name: "gcs-correctness-test-job"
+	spec: template: spec: {
+		containers: [{
+			name:            "gcs-correctness-runner-container"
+			image:           "gcr.io/ads-open-measurement/loadtest/correctness-test"
+			imagePullPolicy: "Always"
+			args: [
+				"--data-provider-count=2",
+				"--campaign-count=1",
+				"--generated-set-size=1000",
+				"--universe-size=10000000000",
+				"--run-id=",
+				"--sketch-config-file=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto",
+				"--publisher-data-service-target=" + (#Target & {name: "a-publisher-data-server"}).target,
+				"--spanner-database=kingdom",
+				"--spanner-instance=qa-instance",
+				"--spanner-project=ads-open-measurement",
+				"--google-cloud-storage-bucket=local-measurement-providers",
+				"--google-cloud-storage-project=ads-open-measurement",
+			]
+		}]
+		restartPolicy: "OnFailure"
+	}
+}

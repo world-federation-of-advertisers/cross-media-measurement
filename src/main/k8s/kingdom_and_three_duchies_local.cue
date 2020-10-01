@@ -324,3 +324,38 @@ kingdom_job: "kingdom-push-spanner-schema-job": {
 		restartPolicy: "OnFailure"
 	}
 }
+
+setup_job: "filesystem-storage-correctness-test-job": {
+	apiVersion: "batch/v1"
+	kind:       "Job"
+	metadata: name: "filesystem-storage-correctness-test-job"
+	spec: template: spec: {
+		containers: [{
+			name:  "filesystem-storage-correctness-runner-container"
+			image: "bazel/src/main/kotlin/org/wfanet/measurement/loadtest:filesystem_storage_correctness_runner_image"
+			args: [
+				"--data-provider-count=2",
+				"--campaign-count=1",
+				"--generated-set-size=1000",
+				"--universe-size=10000000000",
+				"--output-directory=correctness",
+				"--run-id=",
+				"--sketch-config-file=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto",
+				"--publisher-data-service-target=" + (#Target & {name: "a-publisher-data-server"}).target,
+				"--spanner-database=kingdom",
+				"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+				"--spanner-instance=emulator-instance",
+				"--spanner-project=ads-open-measurement",
+			]
+			volumeMounts: [{
+				name:      "cache-volume"
+				mountPath: "/cache"
+			}]
+		}]
+		restartPolicy: "OnFailure"
+		volumes: [{
+			name: "cache-volume"
+			emptyDir: {}
+		}]
+	}
+}

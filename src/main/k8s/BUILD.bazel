@@ -39,6 +39,7 @@ BACKEND_FAKE_IMAGES = ["//src/main/kotlin/org/wfanet/measurement/service/testing
 # Setup job images.
 SETUP_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
+    "//src/main/kotlin/org/wfanet/measurement/loadtest:filesystem_storage_correctness_runner_image",
 ]
 
 exports_files(["duchy_public_key_config.textproto"])
