@@ -34,12 +34,13 @@ objects: [ for v in objectSets for x in v {x}]
 objectSets: [
 	fake_service,
 	duchy_service,
-	kingdom_service,
 	fake_pod,
 	duchy_pod,
-	kingdom_pod,
-	kingdom_job,
 	setup_job,
+
+	kingdom.kingdom_service,
+	kingdom.kingdom_pod,
+	kingdom.kingdom_job,
 ]
 
 fake_service: "spanner-emulator": {
@@ -115,9 +116,9 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 for duchy in #Duchies {
 
 	duchy_service: {
-		"\(duchy.name)-forwarded-storage-liquid-legions-server":          #GrpcService
+		"\(duchy.name)-forwarded-storage-liquid-legions-server":           #GrpcService
 		"\(duchy.name)-spanner-liquid-legions-computation-storage-server": #GrpcService
-		"\(duchy.name)-spanner-forwarded-storage-server":                 #GrpcService
+		"\(duchy.name)-spanner-forwarded-storage-server":                  #GrpcService
 		"\(duchy.name)-publisher-data-server":                             #GrpcService
 	}
 
@@ -228,103 +229,6 @@ for duchy in #Duchies {
 	}
 }
 
-kingdom_service: "gcp-kingdom-storage-server": #GrpcService
-kingdom_service: "global-computation-server":  #GrpcService
-kingdom_service: "requisition-server":         #GrpcService
-
-kingdom_pod: "report-maker-daemon-pod": #Pod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image"
-	_args: [
-		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--max-concurrency=32",
-		"--throttler-overload-factor=1.2",
-		"--throttler-poll-delay=1ms",
-		"--throttler-time-horizon=2m",
-		"--combined-public-key-id=combined-public-key-1",
-	]
-}
-
-kingdom_pod: "report-starter-daemon-pod": #Pod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
-	_args: [
-		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--max-concurrency=32",
-		"--throttler-overload-factor=1.2",
-		"--throttler-poll-delay=1ms",
-		"--throttler-time-horizon=2m",
-	]
-}
-
-kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
-	_args: [
-		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--max-concurrency=32",
-		"--throttler-overload-factor=1.2",
-		"--throttler-poll-delay=1ms",
-		"--throttler-time-horizon=2m",
-	]
-}
-
-kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image"
-	_args:  [
-		"--debug-verbose-grpc-server-logging=true",
-		"--port=8080",
-		"--spanner-database=kingdom",
-		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-		"--spanner-instance=emulator-instance",
-		"--spanner-project=ads-open-measurement",
-	] + #DuchyIdFlags
-}
-
-kingdom_pod: "global-computation-server-pod": #ServerPod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image"
-	_args:  [
-		"--debug-verbose-grpc-client-logging=true",
-		"--debug-verbose-grpc-server-logging=true",
-		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--port=8080",
-	] + #DuchyIdFlags
-}
-
-kingdom_pod: "requisition-server-pod": #ServerPod & {
-	_image: "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
-	_args:  [
-		"--debug-verbose-grpc-client-logging=true",
-		"--debug-verbose-grpc-server-logging=true",
-		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--port=8080",
-	] + #DuchyIdFlags
-}
-
-kingdom_job: "kingdom-push-spanner-schema-job": {
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: name: "kingdom-push-spanner-schema-job"
-	spec: template: spec: {
-		containers: [{
-			name:            "push-spanner-schema-container"
-			image:           "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-			imagePullPolicy: "Never"
-			args: [
-				"--create-instance",
-				"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
-				"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-				"--instance-config-id=spanner-emulator",
-				"--instance-display-name=EmulatorInstance",
-				"--instance-name=emulator-instance",
-				"--instance-node-count=1",
-				"--project-name=ads-open-measurement",
-			]
-		}]
-		restartPolicy: "OnFailure"
-	}
-}
-
 setup_job: "filesystem-storage-correctness-test-job": {
 	apiVersion: "batch/v1"
 	kind:       "Job"
@@ -358,4 +262,33 @@ setup_job: "filesystem-storage-correctness-test-job": {
 			emptyDir: {}
 		}]
 	}
+}
+
+kingdom: #Kingdom & {
+	_duchy_ids: [ for d in #Duchies {d.name}]
+	_spanner_schema_push_flags: [
+		"--create-instance",
+		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+		"--instance-config-id=spanner-emulator",
+		"--instance-display-name=EmulatorInstance",
+		"--instance-name=emulator-instance",
+		"--instance-node-count=1",
+		"--project-name=ads-open-measurement",
+	]
+	_spanner_flags: [
+		"--spanner-database=kingdom",
+		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+		"--spanner-instance=emulator-instance",
+		"--spanner-project=ads-open-measurement",
+	]
+	_images: {
+		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
+		"report-maker-daemon":           "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image"
+		"report-starter-daemon":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
+		"requisition-linker-daemon":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
+		"gcp-kingdom-storage-server":    "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image"
+		"global-computation-server":     "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image"
+		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
+	}
+	_kingdom_image_pull_policy: "Never"
 }

@@ -32,14 +32,13 @@ command: dump: task: print: cli.Print & {
 objects: [ for v in objectSets for x in v {x}]
 
 objectSets: [
-	fake_service,
 	duchy_service,
-	kingdom_service,
-	fake_pod,
 	duchy_pod,
-	kingdom_pod,
-	kingdom_job,
 	setup_job,
+
+	kingdom.kingdom_service,
+	kingdom.kingdom_pod,
+	kingdom.kingdom_job,
 ]
 
 #Duchies: [
@@ -182,104 +181,6 @@ for duchy in #Duchies {
 	}
 }
 
-kingdom_service: "gcp-kingdom-storage-server": #GrpcService
-kingdom_service: "global-computation-server":  #GrpcService
-kingdom_service: "requisition-server":         #GrpcService
-
-kingdom_pod: "report-maker-daemon-pod": #Pod & {
-	_image: "gcr.io/ads-open-measurement/kingdom/report-maker"
-	_args: [
-		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--max-concurrency=32",
-		"--throttler-overload-factor=1.2",
-		"--throttler-poll-delay=1ms",
-		"--throttler-time-horizon=2m",
-		"--combined-public-key-id=combined-public-key-1",
-	]
-	_imagePullPolicy: "Always"
-}
-
-kingdom_pod: "report-starter-daemon-pod": #Pod & {
-	_image: "gcr.io/ads-open-measurement/kingdom/report-starter"
-	_args: [
-		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--max-concurrency=32",
-		"--throttler-overload-factor=1.2",
-		"--throttler-poll-delay=1ms",
-		"--throttler-time-horizon=2m",
-	]
-	_imagePullPolicy: "Always"
-}
-
-kingdom_pod: "requisition-linker-daemon-pod": #Pod & {
-	_image: "gcr.io/ads-open-measurement/kingdom/requisition-linker"
-	_args: [
-		"--debug-verbose-grpc-client-logging=true",
-		"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--max-concurrency=32",
-		"--throttler-overload-factor=1.2",
-		"--throttler-poll-delay=1ms",
-		"--throttler-time-horizon=2m",
-	]
-	_imagePullPolicy: "Always"
-}
-
-kingdom_pod: "gcp-kingdom-storage-server-pod": #ServerPod & {
-	_image: "gcr.io/ads-open-measurement/kingdom/storage-server"
-	_args:  [
-		"--debug-verbose-grpc-server-logging=true",
-		"--port=8080",
-		"--spanner-database=kingdom",
-		"--spanner-instance=qa-instance",
-		"--spanner-project=ads-open-measurement",
-	] + #DuchyIdFlags
-	_imagePullPolicy: "Always"
-}
-
-kingdom_pod: "global-computation-server-pod": #ServerPod & {
-	_image: "gcr.io/ads-open-measurement/kingdom/global-computation"
-	_args:  [
-		"--debug-verbose-grpc-client-logging=true",
-		"--debug-verbose-grpc-server-logging=true",
-		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--port=8080",
-	] + #DuchyIdFlags
-	_imagePullPolicy: "Always"
-}
-
-kingdom_pod: "requisition-server-pod": #ServerPod & {
-	_image: "gcr.io/ads-open-measurement/kingdom/requisition"
-	_args:  [
-		"--debug-verbose-grpc-client-logging=true",
-		"--debug-verbose-grpc-server-logging=true",
-		"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
-		"--port=8080",
-	] + #DuchyIdFlags
-	_imagePullPolicy: "Always"
-}
-
-kingdom_job: "kingdom-push-spanner-schema-job": {
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: name: "kingdom-push-spanner-schema-job"
-	spec: template: spec: {
-		containers: [{
-			name:            "push-spanner-schema-container"
-			image:           "gcr.io/ads-open-measurement/setup/push-spanner-schema"
-			imagePullPolicy: "Always"
-			args: [
-				"--ignore-already-existing-databases",
-				"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
-				"--instance-name=qa-instance",
-				"--project-name=ads-open-measurement",
-			]
-		}]
-		restartPolicy: "OnFailure"
-	}
-}
-
 setup_job: "gcs-correctness-test-job": {
 	apiVersion: "batch/v1"
 	kind:       "Job"
@@ -306,4 +207,28 @@ setup_job: "gcs-correctness-test-job": {
 		}]
 		restartPolicy: "OnFailure"
 	}
+}
+
+kingdom: #Kingdom & {
+	_duchy_ids: [ for d in #Duchies {d.name}]
+	_spanner_schema_push_flags: [
+		"--ignore-already-existing-databases",
+		"--instance-name=qa-instance",
+		"--project-name=ads-open-measurement",
+	]
+	_spanner_flags: [
+		"--spanner-database=kingdom",
+		"--spanner-instance=qa-instance",
+		"--spanner-project=ads-open-measurement",
+	]
+	_images: {
+		"push-spanner-schema-container": "gcr.io/ads-open-measurement/setup/push-spanner-schema"
+		"report-maker-daemon":           "gcr.io/ads-open-measurement/kingdom/report-maker"
+		"report-starter-daemon":         "gcr.io/ads-open-measurement/kingdom/report-starter"
+		"requisition-linker-daemon":     "gcr.io/ads-open-measurement/kingdom/requisition-linker"
+		"gcp-kingdom-storage-server":    "gcr.io/ads-open-measurement/kingdom/storage-server"
+		"global-computation-server":     "gcr.io/ads-open-measurement/kingdom/global-computation"
+		"requisition-server":            "gcr.io/ads-open-measurement/kingdom/requisition"
+	}
+	_kingdom_image_pull_policy: "Always"
 }

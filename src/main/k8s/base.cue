@@ -8,10 +8,6 @@ duchy_pod: [Name=_]: #Pod & {
 	_name:   strings.TrimSuffix(Name, "-pod")
 	_system: "duchy"
 }
-kingdom_pod: [Name=_]: #Pod & {
-	_name:   strings.TrimSuffix(Name, "-pod")
-	_system: "kingdom"
-}
 duchy_service: [Name=_]: #GrpcService & {
 	_name:   Name
 	_system: "duchy"
@@ -89,4 +85,9 @@ setup_job: [Name=_]: {}
 
 #ServerPod: #Pod & {
 	_ports: [{containerPort: 8080}]
+}
+
+#Duchy: {
+	name: string
+	key:  string
 }

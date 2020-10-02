@@ -55,6 +55,7 @@ cue_dump(
     name = "kingdom_and_three_duchies_from_cue_local",
     srcs = [
         "base.cue",
+        "kingdom.cue",
         "kingdom_and_three_duchies_local.cue",
         ":duchy_public_key_config.cue",
     ],
@@ -64,6 +65,7 @@ cue_dump(
     name = "kingdom_and_three_duchies_from_cue_gke",
     srcs = [
         "base.cue",
+        "kingdom.cue",
         "kingdom_and_three_duchies_gke.cue",
         ":duchy_public_key_config.cue",
     ],
