@@ -14,6 +14,11 @@ download_pkgs(
     packages = [
         "openjdk-11-jre-headless",
     ],
+    tags = [
+        "manual",
+        "no-remote-exec",
+        "requires-network",
+    ],
 )
 
 install_pkgs(
@@ -21,6 +26,10 @@ install_pkgs(
     image_tar = "@debian_bullseye//image",
     installables_tar = ":packages.tar",
     output_image_name = "packages_image",
+    tags = [
+        "manual",
+        "no-remote-exec",
+    ],
 )
 
 container_image(
@@ -35,6 +44,7 @@ container_image(
         "PATH": JAVA_BIN + ":$$PATH",
     },
     symlinks = {"/usr/bin/java": JAVA_BIN + "/java"},
+    tags = ["manual"],
 )
 
 container_push(
@@ -43,4 +53,5 @@ container_push(
     image = ":java_base",
     registry = "gcr.io",
     repository = "ads-open-measurement/java-base",
+    tags = ["manual"],
 )

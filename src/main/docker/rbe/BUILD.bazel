@@ -12,6 +12,11 @@ download_pkgs(
         "swig",
         "tzdata",
     ],
+    tags = [
+        "manual",
+        "no-remote-exec",
+        "requires-network",
+    ],
 )
 
 install_pkgs(
@@ -19,15 +24,20 @@ install_pkgs(
     image_tar = "@rbe_ubuntu_18_04//image",
     installables_tar = ":packages.tar",
     output_image_name = "packages_image",
+    tags = [
+        "manual",
+        "no-remote-exec",
+    ],
 )
 
 container_image(
     name = "rbe",
     base = ":packages_image.tar",
     symlinks = {
-        # Put gzip where rules_docker expects.
+        # Put gzip in a more common location for rules_docker config.
         "/usr/bin/gzip": "/bin/gzip",
     },
+    tags = ["manual"],
 )
 
 container_push(
@@ -36,4 +46,5 @@ container_push(
     image = ":rbe",
     registry = "gcr.io",
     repository = "ads-open-measurement/rbe",
+    tags = ["manual"],
 )
