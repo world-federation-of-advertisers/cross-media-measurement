@@ -25,11 +25,16 @@ import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.common.getRuntimePath
 
 private const val EMULATOR_HOSTNAME = "localhost"
+private const val INVALID_HOST_MESSAGE =
+  "emulator host must be of the form $EMULATOR_HOSTNAME:<port>"
 
 /**
  * Wrapper for Cloud Spanner Emulator binary.
+ *
+ * @param port TCP port that the emulator should listen on, or 0 to allocate a
+ *     port automatically
  */
-class SpannerEmulator : AutoCloseable {
+class SpannerEmulator(private val port: Int = 0) : AutoCloseable {
   private lateinit var emulator: Process
   private lateinit var emulatorHost: String
 
@@ -39,10 +44,13 @@ class SpannerEmulator : AutoCloseable {
   fun start() {
     check(!this::emulator.isInitialized)
 
-    // There's a potential race condition between finding an unused port and the emulator binding
-    // it, so we don't want to find the port until we're about to start the emulator process.
-    val port = findUnusedPort()
-    emulatorHost = "$EMULATOR_HOSTNAME:$port"
+    // Open a socket on `port`. This should reduce the likelihood that the port
+    // is in use. Additionally, this will allocate a port if `port` is 0.
+    val localPort = ServerSocket(port).use {
+      it.localPort
+    }
+
+    emulatorHost = "$EMULATOR_HOSTNAME:$localPort"
     emulator =
       ProcessBuilder(emulatorPath.toString(), "--host_port=$emulatorHost")
         .redirectError(ProcessBuilder.Redirect.INHERIT)
@@ -62,15 +70,6 @@ class SpannerEmulator : AutoCloseable {
       emulatorReady()
     }
     return emulatorHost
-  }
-
-  /**
-   * Finds an unused port by attempting to bind it.
-   */
-  private fun findUnusedPort(): Int {
-    ServerSocket(0).use { socket ->
-      return socket.localPort
-    }
   }
 
   /**
@@ -99,7 +98,7 @@ class SpannerEmulator : AutoCloseable {
   }
 
   companion object {
-    val emulatorPath: Path
+    private val emulatorPath: Path
     init {
       val runfilesRelativePath = Paths.get("cloud_spanner_emulator", "emulator")
       val runtimePath = getRuntimePath(runfilesRelativePath)
@@ -109,6 +108,16 @@ class SpannerEmulator : AutoCloseable {
       check(Files.isExecutable(runtimePath)) { "$runtimePath is not executable" }
 
       emulatorPath = runtimePath
+    }
+
+    fun withHost(emulatorHost: String): SpannerEmulator {
+      val lazyMessage: () -> String = { INVALID_HOST_MESSAGE }
+
+      val parts = emulatorHost.split(':', limit = 2)
+      require(parts.size == 2 && parts[0] == EMULATOR_HOSTNAME, lazyMessage)
+      val port = requireNotNull(parts[1].toIntOrNull(), lazyMessage)
+
+      return SpannerEmulator(port)
     }
   }
 }

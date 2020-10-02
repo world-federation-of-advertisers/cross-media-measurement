@@ -52,7 +52,7 @@ private fun run(
   @CommandLine.Mixin flags: Flags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
 ) = runBlocking {
-  SpannerEmulator().use { emulator: SpannerEmulator ->
+  spannerFlags.newSpannerEmulator().use { emulator: SpannerEmulator ->
     emulator.start()
     val emulatorHost = emulator.waitUntilReady()
     println("Spanner emulator running on $emulatorHost")
@@ -74,6 +74,10 @@ private fun run(
       Job().join()
     }
   }
+}
+
+private fun SpannerFromFlags.Flags.newSpannerEmulator(): SpannerEmulator {
+  return spannerEmulatorHost?.let { SpannerEmulator.withHost(it) } ?: SpannerEmulator()
 }
 
 /**
