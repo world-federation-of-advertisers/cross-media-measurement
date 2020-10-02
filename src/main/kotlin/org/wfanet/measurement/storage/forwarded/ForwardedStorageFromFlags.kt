@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.storage.forwarding
+package org.wfanet.measurement.storage.forwarded
 
-import io.grpc.ManagedChannelBuilder
-import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
+import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -25,23 +25,18 @@ import picocli.CommandLine
 class ForwardedStorageFromFlags(private val flags: Flags) {
 
   val storageClient: StorageClient by lazy {
-    ForwardingStorageClient(
-      ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineStub(
-        ManagedChannelBuilder
-          .forTarget(flags.forwardingStorageServiceTarget)
-          .usePlaintext()
-          .build()
-      )
+    ForwardedStorageClient(
+      ForwardedStorageCoroutineStub(buildChannel(flags.forwardedStorageServiceTarget))
     )
   }
 
   class Flags {
     @CommandLine.Option(
-      names = ["--forwarding-storage-service-target"],
-      description = ["Address and port of the Forwarding Storage Service."],
+      names = ["--forwarded-storage-service-target"],
+      description = ["gRPC target (authority string or URI) for ForwardedStorage service."],
       required = true
     )
-    lateinit var forwardingStorageServiceTarget: String
+    lateinit var forwardedStorageServiceTarget: String
       private set
   }
 }

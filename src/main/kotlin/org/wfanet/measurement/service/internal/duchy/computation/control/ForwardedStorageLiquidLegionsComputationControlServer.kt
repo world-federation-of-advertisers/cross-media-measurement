@@ -15,21 +15,22 @@
 package org.wfanet.measurement.service.internal.duchy.computation.control
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.forwarding.ForwardedStorageFromFlags
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 /**
  * Implementation of [LiquidLegionsComputationControlServer] using Fake Storage Service.
  */
 @CommandLine.Command(
-  name = "ForwardingStorageLiquidLegionsComputationControlServer",
+  name = "ForwardedStorageLiquidLegionsComputationControlServer",
   description = [
     "Server daemon for ${LiquidLegionsComputationControlServer.SERVICE_NAME} service."
   ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class ForwardingStorageLiquidLegionsComputationControlServer : LiquidLegionsComputationControlServer() {
+class ForwardedStorageLiquidLegionsComputationControlServer :
+  LiquidLegionsComputationControlServer() {
   @CommandLine.Mixin
   private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -39,4 +40,4 @@ class ForwardingStorageLiquidLegionsComputationControlServer : LiquidLegionsComp
 }
 
 fun main(args: Array<String>) =
-  commandLineMain(ForwardingStorageLiquidLegionsComputationControlServer(), args)
+  commandLineMain(ForwardedStorageLiquidLegionsComputationControlServer(), args)

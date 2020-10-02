@@ -15,16 +15,16 @@
 package org.wfanet.measurement.duchy.mill
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.forwarding.ForwardedStorageFromFlags
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "ForwardingStorageLiquidLegionsMillDaemon",
+  name = "ForwardedStorageLiquidLegionsMillDaemon",
   description = ["Mill daemon."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class ForwardingStorageLiquidLegionsMillDaemon : LiquidLegionsMillDaemon() {
+class ForwardedStorageLiquidLegionsMillDaemon : LiquidLegionsMillDaemon() {
   @CommandLine.Mixin
   private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -33,4 +33,4 @@ class ForwardingStorageLiquidLegionsMillDaemon : LiquidLegionsMillDaemon() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(ForwardingStorageLiquidLegionsMillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(ForwardedStorageLiquidLegionsMillDaemon(), args)

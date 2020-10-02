@@ -27,11 +27,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.testing.DeleteBlobRequest
-import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
+import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.storage.forwarding.ForwardingStorageClient
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 
 @RunWith(JUnit4::class)
 class FakeStorageServiceTest {
@@ -40,9 +40,8 @@ class FakeStorageServiceTest {
     addService(FakeStorageService())
   }
 
-  val storageStub =
-    ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineStub(grpcTestServerRule.channel)
-  val storageClient = ForwardingStorageClient(storageStub)
+  val storageStub = ForwardedStorageCoroutineStub(grpcTestServerRule.channel)
+  val storageClient = ForwardedStorageClient(storageStub)
 
   private val letters = listOf("abcde", "fghij", "klmno")
   private val content: List<ByteString> = letters.map {

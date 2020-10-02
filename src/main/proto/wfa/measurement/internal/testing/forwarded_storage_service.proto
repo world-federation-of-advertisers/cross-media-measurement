@@ -19,7 +19,8 @@ package wfa.measurement.internal.testing;
 option java_package = "org.wfanet.measurement.internal.testing";
 option java_multiple_files = true;
 
-service ForwardingStorageService {
+// Blob storage which is forwarded over gRPC.
+service ForwardedStorage {
   rpc CreateBlob(stream CreateBlobRequest) returns (BlobMetadata) {}
   rpc GetBlobMetadata(GetBlobMetadataRequest) returns (BlobMetadata) {}
   rpc ReadBlob(ReadBlobRequest) returns (stream ReadBlobResponse) {}

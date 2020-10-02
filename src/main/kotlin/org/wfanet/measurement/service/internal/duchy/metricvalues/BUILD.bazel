@@ -48,12 +48,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "spanner_forwarding_storage_server",
-    srcs = ["SpannerForwardingStorageMetricValuesServer.kt"],
+    name = "spanner_forwarded_storage_server",
+    srcs = ["SpannerForwardedStorageMetricValuesServer.kt"],
     deps = [
         ":server",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/storage/forwarding",
+        "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )
 
@@ -64,9 +64,9 @@ java_binary(
 )
 
 java_binary(
-    name = "SpannerForwardingStorageMetricValuesServer",
-    main_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.SpannerForwardingStorageMetricValuesServerKt",
-    runtime_deps = [":spanner_forwarding_storage_server"],
+    name = "SpannerForwardedStorageMetricValuesServer",
+    main_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.SpannerForwardedStorageMetricValuesServerKt",
+    runtime_deps = [":spanner_forwarded_storage_server"],
 )
 
 java_image(
@@ -77,8 +77,8 @@ java_image(
 )
 
 java_image(
-    name = "spanner_forwarding_storage_server_image",
-    main_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.SpannerForwardingStorageMetricValuesServerKt",
+    name = "spanner_forwarded_storage_server_image",
+    main_class = "org.wfanet.measurement.service.internal.duchy.metricvalues.SpannerForwardedStorageMetricValuesServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":spanner_forwarding_storage_server"],
+    runtime_deps = [":spanner_forwarded_storage_server"],
 )

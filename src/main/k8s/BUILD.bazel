@@ -16,11 +16,11 @@ GKE_DUCHY_IMAGES = [
     "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image",
 ]
 
-# Duchy images using Forwarding Storage to run locally.
+# Duchy images using Forwarded Storage to run locally.
 LOCAL_DUCHY_IMAGES = [
-    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarding_storage_liquid_legions_mill_daemon_image",
-    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarding_storage_liquid_legions_server_image",
-    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarding_storage_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarded_storage_liquid_legions_mill_daemon_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarded_storage_liquid_legions_server_image",
+    "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image",
 ]
 
 # Kingdom images.

@@ -18,8 +18,7 @@ kt_jvm_library(
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/service/common",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
-        "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_java_proto",
-        "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/testing:forwarded_storage_service_kt_jvm_grpc",
     ],
 )
 

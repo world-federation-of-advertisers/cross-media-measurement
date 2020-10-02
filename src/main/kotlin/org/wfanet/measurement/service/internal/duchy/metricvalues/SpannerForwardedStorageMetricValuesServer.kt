@@ -21,22 +21,20 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.gcp.isReady
-import org.wfanet.measurement.storage.forwarding.ForwardedStorageFromFlags
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 /**
- * Implementation of [MetricValuesServer] using Fake Storage Service.
- *
- * In particular, Google Cloud Spanner for database and Forwarding Storage Service for
- * storage.
+ * Implementation of [MetricValuesServer] using Google Cloud Spanner for
+ * database and ForwardedStorage service for storage.
  */
 @CommandLine.Command(
-  name = "SpannerForwardingStorageMetricValuesServer",
+  name = "SpannerForwardedStorageMetricValuesServer",
   description = ["Run server daemon for ${MetricValuesServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private class SpannerForwardingStorageMetricValuesServer : MetricValuesServer() {
+private class SpannerForwardedStorageMetricValuesServer : MetricValuesServer() {
   @CommandLine.Mixin
   private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
@@ -61,4 +59,4 @@ private class SpannerForwardingStorageMetricValuesServer : MetricValuesServer() 
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(SpannerForwardingStorageMetricValuesServer(), args)
+fun main(args: Array<String>) = commandLineMain(SpannerForwardedStorageMetricValuesServer(), args)

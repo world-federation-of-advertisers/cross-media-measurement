@@ -23,14 +23,17 @@ import org.wfanet.measurement.internal.testing.BlobMetadata
 import org.wfanet.measurement.internal.testing.CreateBlobRequest
 import org.wfanet.measurement.internal.testing.DeleteBlobRequest
 import org.wfanet.measurement.internal.testing.DeleteBlobResponse
-import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
+import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedStorageCoroutineImplBase as ForwardedStorageCoroutineService
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.internal.testing.ReadBlobResponse
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
-class FakeStorageService :
-  ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineImplBase() {
+/**
+ * [ForwardedStorageCoroutineService] implementation that uses
+ * [FileSystemStorageClient].
+ */
+class FakeStorageService : ForwardedStorageCoroutineService() {
   val storageClient: FileSystemStorageClient = FileSystemStorageClient(createTempDir())
 
   override suspend fun createBlob(requests: Flow<CreateBlobRequest>): BlobMetadata {

@@ -10,10 +10,11 @@ package(
 )
 
 kt_jvm_library(
-    name = "forwarding",
+    name = "forwarded",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "//src/main/proto/wfa/measurement/internal/testing:forwarding_storage_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/testing:forwarded_storage_service_kt_jvm_grpc",
     ],
 )

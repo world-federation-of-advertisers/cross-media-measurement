@@ -12,43 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.storage.forwarding
+package org.wfanet.measurement.storage.forwarded
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.internal.testing.CreateBlobRequest
 import org.wfanet.measurement.internal.testing.DeleteBlobRequest
-import org.wfanet.measurement.internal.testing.ForwardingStorageServiceGrpcKt
+import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.storage.StorageClient
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 
-class ForwardingStorageClient(
-  private val storageStub: ForwardingStorageServiceGrpcKt.ForwardingStorageServiceCoroutineStub
+/** [StorageClient] for ForwardedStorage service. */
+class ForwardedStorageClient(
+  private val storageStub: ForwardedStorageCoroutineStub
 ) : StorageClient {
 
   override val defaultBufferSizeBytes: Int
     get() = DEFAULT_BUFFER_SIZE_BYTES
 
+  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
-    val requests: Flow<CreateBlobRequest> = flow {
+    val requests = content.map {
+      CreateBlobRequest.newBuilder().apply { bodyChunkBuilder.content = it }.build()
+    }.onStart {
       emit(CreateBlobRequest.newBuilder().apply { headerBuilder.blobKey = blobKey }.build())
-
-      content.collect {
-        emit(
-          CreateBlobRequest.newBuilder().apply {
-            bodyChunkBuilder.content = it
-          }.build()
-        )
-      }
     }
     val metadata = storageStub.createBlob(requests)
 
@@ -79,7 +75,7 @@ class ForwardingStorageClient(
     override val size: Long
   ) : StorageClient.Blob {
     override val storageClient: StorageClient
-      get() = this@ForwardingStorageClient
+      get() = this@ForwardedStorageClient
 
     override fun read(bufferSizeBytes: Int): Flow<ByteString> =
       storageStub.readBlob(
