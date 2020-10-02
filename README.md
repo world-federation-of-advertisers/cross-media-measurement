@@ -1,8 +1,23 @@
 # WFA Measurement System
 
+**Table of Contents**
+* [Purpose](#purpose)
+* [System Overview](#system-overview)
+* [Repository Structure](#repository-structure)
+  * [Services and Daemons](#services-and-daemons)
+  * [Common Directories](#common-directories)
+* [Developer Guide](#developer-guide)
+   * [Developer Environment](#developer-environment)
+   * [How to Build](#how-to-build)
+   * [How to Deploy](#how-to-deploy)
+* [Documentation](#documentation)
+    * [Dependencies](#dependencies)
+* [Contributing](#contributing)
+
 ## Purpose
 
-## Repository Structure
+Implementation of a privacy centric system for cross publisher, cross media ads
+measurement through secure multiparty computations.
 
 ## System Overview
 
@@ -60,6 +75,87 @@ The system operates as follows. For more detail see the references linked in the
    to decrypt the results. The Primary Duchy sends the final results back to the
    Kingdom.
 
+## Repository Structure
+
+```
+.
+├── build  ## Stuff specific to the build system
+├── imports  ## Build aliases for external dependencies
+│   ├── java
+│   └── kotlin
+├── src  ## All source code
+│   ├── main  ## Source code for production deployments
+│   │   ├── cc  ## Crypto library
+│   │   ├── java  ## JNI for crypto library
+│   │   ├── kotlin  ## Business Logic, Services, Daemons, DB accessors
+│   │   └── proto  ## Service and config definitions
+│   └── test  ## Source code for testing code in //src/main/
+└── tools
+```
+Source code packages are grouped by language under the `//src` directory, where
+`//src/main` is the code for a production deployment and `//src/test` is code
+for unit tests and integration tests of the code under `//src/main`.
+
+The majority of the code is written in Kotlin in the `org.wfanet.measurement`
+package. The largest exception is the code to do cryptographic operations,
+which is written in C++ with a Java JNI wrapper.
+
+The `//imports` directory contains Bazel build aliases for external dependencies.
+No source code, third party or otherwise, is contained in the imports directory.
+The alias for a dependency will be in a directory like its package name. Roughly
+speaking, the directory structure of the import mirrors the directory structure
+of the imported package.
+
+For example, the alias for Java Protobuf
+(`@com_google_protobuf//:protobuf_java`) is in
+`//imports/java/com/google/protobuf/BUILD.bazel` because the Java package is
+`com.google.protobuf`.
+
+The `db`, `docker`, and `k8s` directories contain schemas and configuration.
+
+### Services and Daemons
+
+Services and daemons are both long running jobs deployed to Kubernetes. A key
+difference is whether or not they accept RPC communication from other binaries.
+In short, a service is a gRPC endpoint, where a daemon is not.
+
+* Services are defined in proto3 in the `//src/main/proto` directory.
+* Public APIs are defined in `wfa-measurement-proto`, another GitHub repository.
+  **TODO: Add link to other GitHub repository.**
+* Services are in `//src/main/kotlin/org/wfanet/measurement/service` where
+  internal services (those only called by kingdom or duchy) are in
+  `.../service/internal/[subsystem where it runs]/` and public services (those
+  called by other systems) are in `.../service/v1alpha/`.
+* Daemons are in
+  `//src/main/kotlin/org/wfanet/measurement/[subsystem where it runs]`
+
+```
+//src/main/kotlin/org/wfanet/measurement/
+├── duchy  ## Daemons run in a duchy
+├── kingdom  ## Daemons run in the kingdom
+└── service
+    ├── internal
+    │   ├── duchy  ## Internal services run by a duchy
+    │   └── kingdom  ## Internal services run by the kingdom
+    └── v1alpha  ## Public facing services
+```
+
+### Common Directories
+
+Throughout the code there are directories named `common`. These contain code
+which is common to multiple packages under the same parent directory. As an
+example, `//foo/common` contains code that may be used by other packages under
+`//foo`, so `//foo/bar` and `//foo/baz`. The code is not common to packages
+under a different parent, i.e. `//foo/common` should not be used by `//bar`.
+
+### Testing Directories Under `//src/main`
+
+In this repository packages under `//src/test` do not depend on other packages
+in `//src/test`. As a result test infrastructure code used to test multiple
+packages is in a test-only package in `//src/main`. One benefit of such a
+structure is that the test infrastructure can also be tested the same way as
+production code.
+
 ## Developer Guide
 
 ### Developer Environment
@@ -70,8 +166,18 @@ The system operates as follows. For more detail see the references linked in the
 
 ## Documentation
 
+There is a lot that goes into the design of the system. Too much to cover in
+this README alone. More details are covered in:
+
 * [A System Design for Privacy-Preserving Reach and Frequency Estimation](https://research.google/pubs/pub49526/)
 * [Privacy-Preserving Secure Cardinality and Frequency Estimation](https://research.google/pubs/pub49177/)
+
+### Dependencies
+
+* [Bazel](https://bazel.build/)
+* [Docker](https://www.docker.com/)
+* [gRPC](https://grpc.io/)
+* [Kubernetes (k8s)](https://kubernetes.io/)
 
 ## Contributing
 
