@@ -15,12 +15,11 @@
 package org.wfanet.measurement.service.internal.duchy.metricvalues
 
 import java.time.Clock
-import java.time.Duration
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.gcp.isReady
 import org.wfanet.measurement.storage.gcs.GcsFromFlags
 import org.wfanet.measurement.storage.gcs.GcsStorageClient
 import picocli.CommandLine
@@ -45,23 +44,16 @@ private class GcpMetricValuesServer : MetricValuesServer() {
   @CommandLine.Mixin
   private lateinit var spannerFlags: SpannerFromFlags.Flags
 
-  override fun run() {
+  override fun run() = runBlocking {
     val clock = Clock.systemUTC()
-    var spanner = SpannerFromFlags(spannerFlags)
+    spannerFlags.usingSpanner { spanner ->
 
-    // TODO: push this retry logic into SpannerFromFlags itself.
-    while (!spanner.databaseClient.isReady()) {
-      println("Spanner isn't ready yet, sleeping 1s")
-      Thread.sleep(Duration.ofSeconds(1).toMillis())
-      spanner = SpannerFromFlags(spannerFlags)
+      val googleCloudStorage = GcsFromFlags(gcsFlags)
+      val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGenerator(clock))
+      val storageClient = GcsStorageClient.fromFlags(googleCloudStorage)
+
+      run(metricValueDb, storageClient)
     }
-
-    val googleCloudStorage = GcsFromFlags(gcsFlags)
-
-    val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGenerator(clock))
-    val storageClient = GcsStorageClient.fromFlags(googleCloudStorage)
-
-    run(metricValueDb, storageClient)
   }
 }
 

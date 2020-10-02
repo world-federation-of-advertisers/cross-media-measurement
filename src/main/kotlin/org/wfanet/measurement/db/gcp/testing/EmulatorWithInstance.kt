@@ -22,6 +22,7 @@ import com.google.cloud.spanner.InstanceId
 import com.google.cloud.spanner.InstanceInfo
 import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.SpannerOptions
+import kotlinx.coroutines.runBlocking
 
 /**
  * [AutoCloseable] wrapping a [SpannerEmulator] with a single test [Instance].
@@ -31,7 +32,7 @@ internal class EmulatorWithInstance : AutoCloseable {
 
   private val spanner: Spanner
   init {
-    val emulatorHost = spannerEmulator.blockUntilReady()
+    val emulatorHost = runBlocking { spannerEmulator.waitUntilReady() }
 
     val spannerOptions =
       SpannerOptions.newBuilder().setProjectId(PROJECT_ID).setEmulatorHost(emulatorHost).build()

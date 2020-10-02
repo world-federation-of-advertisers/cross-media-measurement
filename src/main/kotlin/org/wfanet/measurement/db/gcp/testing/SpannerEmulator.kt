@@ -20,7 +20,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.common.getRuntimePath
@@ -51,18 +50,16 @@ class SpannerEmulator : AutoCloseable {
   }
 
   /**
-   * Blocks until the emulator is ready.
+   * Suspends until the emulator is ready.
    *
    * @param timeout Timeout for how long to wait before throwing a
    *     [kotlinx.coroutines.TimeoutCancellationException].
    * @return the emulator host, which can be passed to
    *    [com.google.cloud.spanner.SpannerOptions.Builder.setEmulatorHost].
    */
-  fun blockUntilReady(timeout: Duration = Duration.ofSeconds(10)): String {
-    runBlocking {
-      withTimeout(timeout.toMillis()) {
-        emulatorReady()
-      }
+  suspend fun waitUntilReady(timeout: Duration = Duration.ofSeconds(10)): String {
+    withTimeout(timeout.toMillis()) {
+      emulatorReady()
     }
     return emulatorHost
   }

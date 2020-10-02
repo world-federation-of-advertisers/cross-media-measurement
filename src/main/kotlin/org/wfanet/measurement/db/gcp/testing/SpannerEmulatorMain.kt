@@ -15,12 +15,11 @@
 package org.wfanet.measurement.db.gcp.testing
 
 import java.io.File
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.gcp.buildSpanner
-import org.wfanet.measurement.db.gcp.createInstance
+import org.wfanet.measurement.db.gcp.createDatabase
 import picocli.CommandLine
 
 private class Flags {
@@ -52,34 +51,28 @@ private class Flags {
 private fun run(
   @CommandLine.Mixin flags: Flags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
-) {
+) = runBlocking {
   SpannerEmulator().use { emulator: SpannerEmulator ->
     emulator.start()
-    val emulatorHost = emulator.blockUntilReady()
+    val emulatorHost = emulator.waitUntilReady()
+    println("Spanner emulator running on $emulatorHost")
 
-    val spannerFromFlags = SpannerFromFlags(spannerFlags)
-    val spanner = buildSpanner(spannerFlags.projectName, emulatorHost)
+    SpannerFromFlags(spannerFlags, emulatorHost).use { spanner ->
+      val displayName =
+        if (flags.hasInstanceDisplayName) flags.instanceDisplayName else spannerFlags.instanceName
+      val instance = spanner.createInstance("emulator-config", 1, displayName)
+      println("Instance ${instance.displayName} created")
 
-    val displayName =
-      if (flags.hasInstanceDisplayName) flags.instanceDisplayName else spannerFlags.instanceName
-    val instance = spanner.createInstance(
-      projectName = spannerFlags.projectName,
-      instanceName = spannerFlags.instanceName,
-      displayName = displayName,
-      instanceConfigId = "emulator-config",
-      instanceNodeCount = 1
-    )
-    println("Instance ${instance.displayName} created")
+      val ddl = flags.schemaFile.readText()
+      println("Read in schema file: ${flags.schemaFile.absolutePath}")
 
-    val ddl = flags.schemaFile.readText()
-    println("Read in schema file: ${flags.schemaFile.absolutePath}")
+      createDatabase(instance, ddl, spannerFlags.databaseName)
+      println("Database ${spanner.databaseId} created")
 
-    org.wfanet.measurement.db.gcp.createDatabase(instance, ddl, spannerFlags.databaseName)
-    println("Database ${spannerFromFlags.databaseId} created")
-
-    // Stay alive so the emulator doesn't terminate:
-    println("Idling until killed")
-    runBlocking { Channel<Void>().receive() }
+      // Stay alive so the emulator doesn't terminate.
+      println("Idling until terminated")
+      Job().join()
+    }
   }
 }
 

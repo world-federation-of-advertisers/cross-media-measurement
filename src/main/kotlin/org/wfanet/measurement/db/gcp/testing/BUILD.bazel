@@ -47,6 +47,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "spanner_emulator_main",
     srcs = ["SpannerEmulatorMain.kt"],
+    data = ["@cloud_spanner_emulator//:emulator"],
     runtime_deps = [
         # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
         # See https://github.com/bazelbuild/rules_kotlin/issues/333

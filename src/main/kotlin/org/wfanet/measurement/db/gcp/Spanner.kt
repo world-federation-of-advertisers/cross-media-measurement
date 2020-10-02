@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.db.gcp
 
+import com.google.cloud.spanner.AsyncResultSet
 import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.Instance
 import com.google.cloud.spanner.InstanceConfigId
@@ -24,8 +25,13 @@ import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.SpannerOptions
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.TransactionContext
+import java.time.Duration
+import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.asExecutor
+import kotlinx.coroutines.withTimeout
 
 /**
  * Dispatcher for blocking database operations.
@@ -93,6 +99,36 @@ fun Spanner.createInstance(
   return instanceAdminClient.createInstance(instanceInfo).get()
 }
 
-fun DatabaseClient.isReady(): Boolean {
-  return runCatching { singleUse().executeQuery(Statement.of("SELECT 1")) }.isSuccess
+/**
+ * Suspends until the [DatabaseClient] is ready, throwing a
+ * [kotlinx.coroutines.TimeoutCancellationException] on timeout.
+ */
+suspend fun DatabaseClient.waitUntilReady(timeout: Duration) {
+  // Issue a no-op query and attempt to get the result in order to verify that
+  // the Spanner DB connection is ready.  In testing, it was observed that
+  // attempting to do this would block forever if an emulator host was specified
+  // with nothing listening there. Therefore, we use the async API.
+  val job: CompletableJob = Job()
+  singleUse().executeQueryAsync(Statement.of("SELECT 1")).use { results ->
+    results.setCallback(spannerDispatcher().asExecutor()::execute) { cursor ->
+      try {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (cursor.tryNext()) {
+          AsyncResultSet.CursorState.OK ->
+            job.complete()
+          AsyncResultSet.CursorState.NOT_READY ->
+            return@setCallback AsyncResultSet.CallbackResponse.CONTINUE
+          AsyncResultSet.CursorState.DONE ->
+            job.completeExceptionally(IllegalStateException("No results from Spanner ready query"))
+        }
+      } catch (e: Throwable) {
+        job.completeExceptionally(e)
+      }
+      AsyncResultSet.CallbackResponse.DONE
+    }
+
+    withTimeout(timeout.toMillis()) {
+      job.join()
+    }
+  }
 }

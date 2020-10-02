@@ -89,7 +89,7 @@ MAVEN_ARTIFACTS.update({
     "com.google.api:gax": "1.58.2",
     "com.google.cloud:google-cloud-core": "1.93.5",
     "com.google.cloud:google-cloud-nio": "0.121.0",
-    "com.google.cloud:google-cloud-spanner": "1.55.1",
+    "com.google.cloud:google-cloud-spanner": "2.0.1",
     "com.google.cloud:google-cloud-storage": "1.109.0",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
     "info.picocli:picocli": "4.4.0",

@@ -15,17 +15,19 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
-import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.gcp.isReady
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
+
+private val logger: Logger = Logger.getLogger(::main.javaClass.name)
 
 @CommandLine.Command(
   name = "gcp_kingdom_storage_server",
@@ -40,33 +42,24 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags,
   @CommandLine.Mixin duchyIdFlags: DuchyIdFlags
-) {
+) = runBlocking {
   DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
 
-  var spannerFromFlags = SpannerFromFlags(spannerFlags)
+  spannerFlags.usingSpanner { spanner ->
+    val clock = Clock.systemUTC()
 
-  // TODO: push this retry logic into SpannerFromFlags itself.
-  while (!spannerFromFlags.databaseClient.isReady()) {
-    logger.info("Spanner isn't ready yet, sleeping 1s")
-    Thread.sleep(Duration.ofSeconds(1).toMillis())
-    spannerFromFlags = SpannerFromFlags(spannerFlags)
+    val relationalDatabase = GcpKingdomRelationalDatabase(
+      clock,
+      RandomIdGenerator(clock),
+      spanner.databaseClient
+    )
+
+    val services = buildStorageServices(relationalDatabase).toTypedArray()
+    val server = CommonServer.fromFlags(commonServerFlags, "GcpKingdomStorageServer", *services)
+
+    runInterruptible { server.start().blockUntilShutdown() }
   }
-
-  val clock = Clock.systemUTC()
-
-  val relationalDatabase = GcpKingdomRelationalDatabase(
-    clock,
-    RandomIdGenerator(clock),
-    spannerFromFlags.databaseClient
-  )
-
-  val services = buildStorageServices(relationalDatabase).toTypedArray()
-  val server = CommonServer.fromFlags(commonServerFlags, "GcpKingdomStorageServer", *services)
-
-  server.start().blockUntilShutdown()
 }
-
-private val logger: Logger = Logger.getAnonymousLogger()
 
 /** Runs the internal Kingdom storage services in a single server with a Spanner backend. */
 fun main(args: Array<String>) = commandLineMain(::run, args)

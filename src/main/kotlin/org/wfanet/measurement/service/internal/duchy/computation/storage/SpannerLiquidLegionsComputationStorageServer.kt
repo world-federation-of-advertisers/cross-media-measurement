@@ -14,8 +14,7 @@
 
 package org.wfanet.measurement.service.internal.duchy.computation.storage
 
-import java.time.Duration
-import java.util.logging.Logger
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.crypto.DuchyPublicKeys
 import org.wfanet.measurement.crypto.toDuchyOrder
@@ -24,7 +23,6 @@ import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.gcp.isReady
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
@@ -53,29 +51,19 @@ class SpannerLiquidLegionsComputationStorageServer : ComputationStorageServer() 
   override val stageDetails
     get() = LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(otherDuchyNames)
 
-  override fun run() {
-    var databaseClient = SpannerFromFlags(spannerFlags).databaseClient
-
-    // TODO: push this retry logic into SpannerFromFlags itself.
-    while (!databaseClient.isReady()) {
-      logger.info("Spanner isn't ready yet, sleeping 1s")
-      Thread.sleep(Duration.ofSeconds(1).toMillis())
-      databaseClient = SpannerFromFlags(spannerFlags).databaseClient
-    }
-
-    run(
-      GcpSpannerReadOnlyComputationsRelationalDb(databaseClient, stageEnumHelper),
-      GcpSpannerComputationsDb(
-        databaseClient = databaseClient,
-        duchyName = flags.duchy.duchyName,
-        duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
-        computationMutations = ComputationMutations(stageEnumHelper, stageDetails)
+  override fun run() = runBlocking {
+    spannerFlags.usingSpanner { spanner ->
+      val databaseClient = spanner.databaseClient
+      run(
+        GcpSpannerReadOnlyComputationsRelationalDb(databaseClient, stageEnumHelper),
+        GcpSpannerComputationsDb(
+          databaseClient = databaseClient,
+          duchyName = flags.duchy.duchyName,
+          duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
+          computationMutations = ComputationMutations(stageEnumHelper, stageDetails)
+        )
       )
-    )
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    }
   }
 }
 

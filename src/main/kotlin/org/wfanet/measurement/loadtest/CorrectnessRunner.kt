@@ -25,7 +25,6 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
@@ -52,23 +51,24 @@ abstract class CorrectnessRunner : Runnable {
     }
     val sketchConfig = parseTextProto(flags.sketchConfigFile, SketchConfig.getDefaultInstance())
     val clock = Clock.systemUTC()
-    val spannerFromFlags = SpannerFromFlags(flags.spannerFlags)
-    val relationalDatabase =
-      GcpKingdomRelationalDatabase(clock, RandomIdGenerator(clock), spannerFromFlags.databaseClient)
-
-    val correctness = CorrectnessImpl(
-      dataProviderCount = flags.dataProviderCount,
-      campaignCount = flags.campaignCount,
-      generatedSetSize = flags.generatedSetSize,
-      universeSize = flags.universeSize,
-      runId = runId,
-      sketchConfig = sketchConfig,
-      storageClient = storageClient,
-      publisherDataStub = publisherDataStub
-    )
-
     runBlocking {
-      correctness.process(relationalDatabase)
+      flags.spannerFlags.usingSpanner { spanner ->
+        val relationalDatabase =
+          GcpKingdomRelationalDatabase(clock, RandomIdGenerator(clock), spanner.databaseClient)
+
+        val correctness = CorrectnessImpl(
+          dataProviderCount = flags.dataProviderCount,
+          campaignCount = flags.campaignCount,
+          generatedSetSize = flags.generatedSetSize,
+          universeSize = flags.universeSize,
+          runId = runId,
+          sketchConfig = sketchConfig,
+          storageClient = storageClient,
+          publisherDataStub = publisherDataStub
+        )
+
+        correctness.process(relationalDatabase)
+      }
     }
   }
 }
