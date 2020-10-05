@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Statement
 import java.time.Instant
 import org.junit.Rule
 import org.wfanet.measurement.db.gcp.single
-import org.wfanet.measurement.db.gcp.toInstant
+import org.wfanet.measurement.gcloud.toInstant
 
 /**
  * Base class for JUnit4 tests using Cloud Spanner databases running in a test

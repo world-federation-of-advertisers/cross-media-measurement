@@ -18,10 +18,10 @@ import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportConfigReader
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
 class CreateSchedule(
@@ -59,7 +59,7 @@ private fun ReportConfigSchedule.toMutation(
     .set("ReportConfigId").to(reportConfigReadResult.reportConfigId)
     .set("ScheduleId").to(scheduleId.value)
     .set("ExternalScheduleId").to(externalScheduleId)
-    .set("NextReportStartTime").to(nextReportStartTime.toGcpTimestamp())
+    .set("NextReportStartTime").to(nextReportStartTime.toGcloudTimestamp())
     .set("RepetitionSpec").toProtoBytes(repetitionSpec)
     .set("RepetitionSpecJson").toProtoJson(repetitionSpec)
     .build()

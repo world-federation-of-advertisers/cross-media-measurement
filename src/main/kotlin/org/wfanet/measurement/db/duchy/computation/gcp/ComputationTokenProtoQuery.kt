@@ -17,7 +17,7 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.db.gcp.toMillis
+import org.wfanet.measurement.gcloud.toEpochMilli
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -86,7 +86,7 @@ class ComputationTokenProtoQuery(
       attempt = struct.getLong("NextAttempt").toInt() - 1
       nextDuchy = computationDetails.outgoingNodeId
       primaryDuchy = computationDetails.primaryNodeId
-      version = struct.getTimestamp("UpdateTime").toMillis()
+      version = struct.getTimestamp("UpdateTime").toEpochMilli()
       role = computationDetails.role
       stageSpecificDetails = stageDetails
 

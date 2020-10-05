@@ -24,11 +24,11 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportBySchedule
 import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
@@ -86,7 +86,7 @@ class CreateNextReport(
       .set("AdvertiserId").to(scheduleReadResult.advertiserId)
       .set("ReportConfigId").to(scheduleReadResult.reportConfigId)
       .set("ScheduleId").to(scheduleReadResult.scheduleId)
-      .set("NextReportStartTime").to(nextNextReportStartTime.toGcpTimestamp())
+      .set("NextReportStartTime").to(nextNextReportStartTime.toGcloudTimestamp())
       .build()
       .bufferTo(transactionContext)
 
@@ -99,8 +99,8 @@ class CreateNextReport(
       .set("ExternalReportId").to(newExternalReportId.value)
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
       .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
-      .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
+      .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
+      .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
       .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
       .set("ReportDetails").toProtoBytes(reportDetails)
       .set("ReportDetailsJson").to(reportDetailsJson)

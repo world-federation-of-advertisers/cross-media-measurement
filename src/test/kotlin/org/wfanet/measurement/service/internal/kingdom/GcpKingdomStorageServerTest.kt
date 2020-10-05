@@ -31,10 +31,10 @@ import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.runReadWriteTransaction
 import org.wfanet.measurement.db.gcp.singleOrNull
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
@@ -387,7 +387,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       REPORT_CONFIG_ID,
       SCHEDULE_ID,
       REPORT_ID,
-      result.createTime.toGcpTimestamp()
+      result.createTime.toGcloudTimestamp()
     )
 
     val spannerResult =

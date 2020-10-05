@@ -27,10 +27,10 @@ import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 /**
@@ -109,8 +109,8 @@ class CreateRequisition(
         bind("external_data_provider_id").to(requisition.externalDataProviderId)
         bind("external_campaign_id").to(requisition.externalCampaignId)
         bind("combined_public_key_resource_id").to(requisition.combinedPublicKeyResourceId)
-        bind("window_start_time").to(requisition.windowStartTime.toGcpTimestamp())
-        bind("window_end_time").to(requisition.windowEndTime.toGcpTimestamp())
+        bind("window_start_time").to(requisition.windowStartTime.toGcloudTimestamp())
+        bind("window_end_time").to(requisition.windowEndTime.toGcloudTimestamp())
       }
       .execute(transactionContext)
       .map { it.requisition }
@@ -129,8 +129,8 @@ class CreateRequisition(
       .set("RequisitionId").to(requisitionId.value)
       .set("ExternalRequisitionId").to(externalRequisitionId.value)
       .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
-      .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
-      .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
+      .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
+      .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
       .set("State").toProtoEnum(state)
       .set("RequisitionDetails").toProtoBytes(requisitionDetails)

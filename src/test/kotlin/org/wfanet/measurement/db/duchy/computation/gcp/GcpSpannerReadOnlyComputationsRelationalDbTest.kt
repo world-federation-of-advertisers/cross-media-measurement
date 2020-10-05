@@ -24,8 +24,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -79,7 +79,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val computationRow = computationMutations.insertComputation(
       localId = localId,
-      updateTime = lastUpdated.toGcpTimestamp(),
+      updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
       stage = LiquidLegionsSketchAggregationStage.WAIT_SKETCHES,
       details = DETAILS_WHEN_PRIMARY
@@ -88,8 +88,8 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       stage = LiquidLegionsSketchAggregationStage.WAIT_SKETCHES,
       nextAttempt = 2,
-      creationTime = lastUpdated.minusSeconds(2).toGcpTimestamp(),
-      endTime = lastUpdated.minusMillis(200).toGcpTimestamp(),
+      creationTime = lastUpdated.minusSeconds(2).toGcloudTimestamp(),
+      endTime = lastUpdated.minusMillis(200).toGcloudTimestamp(),
       details = computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_SKETCHES)
     )
     val outputBlob1ForWaitSketchesComputationStageRow =
@@ -144,7 +144,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val computationRow = computationMutations.insertComputation(
       localId = localId,
-      updateTime = lastUpdated.toGcpTimestamp(),
+      updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
       stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
       details = DETAILS_WHEN_SECONDARY
@@ -153,8 +153,8 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE,
       nextAttempt = 45,
-      creationTime = lastUpdated.minusSeconds(2).toGcpTimestamp(),
-      endTime = lastUpdated.minusMillis(200).toGcpTimestamp(),
+      creationTime = lastUpdated.minusSeconds(2).toGcloudTimestamp(),
+      endTime = lastUpdated.minusMillis(200).toGcloudTimestamp(),
       details = computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.TO_ADD_NOISE)
     )
     val outputBlobForToAddNoiseComputationStageRow =
@@ -169,7 +169,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
       nextAttempt = 2,
-      creationTime = lastUpdated.toGcpTimestamp(),
+      creationTime = lastUpdated.toGcloudTimestamp(),
       details =
         computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
     )
@@ -244,7 +244,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val computationRow = computationMutations.insertComputation(
       localId = localId,
-      updateTime = lastUpdated.toGcpTimestamp(),
+      updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
       stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
       details = DETAILS_WHEN_SECONDARY
@@ -253,7 +253,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED,
       nextAttempt = 2,
-      creationTime = lastUpdated.toGcpTimestamp(),
+      creationTime = lastUpdated.toGcloudTimestamp(),
       details =
         computationMutations.detailsFor(LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED)
     )
@@ -284,7 +284,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
 
   @Test
   fun `readGlobalComputationIds by stage`() = runBlocking<Unit> {
-    val lastUpdatedTimeStamp = Instant.ofEpochMilli(12345678910L).toGcpTimestamp()
+    val lastUpdatedTimeStamp = Instant.ofEpochMilli(12345678910L).toGcloudTimestamp()
     val toAddNoiseRow = computationMutations.insertComputation(
       localId = 123,
       updateTime = lastUpdatedTimeStamp,

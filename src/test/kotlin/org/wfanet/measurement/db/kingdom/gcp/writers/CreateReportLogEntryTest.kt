@@ -25,10 +25,10 @@ import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 
@@ -104,7 +104,7 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
     assertThat(createTime).isLessThan(timestampAfter)
 
     assertThat(readReportLogEntries())
-      .containsExactly(reportLogEntryStructWithCreateTime(createTime.toGcpTimestamp()))
+      .containsExactly(reportLogEntryStructWithCreateTime(createTime.toGcloudTimestamp()))
   }
 
   @Test
@@ -114,9 +114,9 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
     val reportLogEntry3 = createReportLogEntry(REPORT_LOG_ENTRY)
     assertThat(readReportLogEntries())
       .containsExactly(
-        reportLogEntryStructWithCreateTime(reportLogEntry1.createTime.toGcpTimestamp()),
-        reportLogEntryStructWithCreateTime(reportLogEntry2.createTime.toGcpTimestamp()),
-        reportLogEntryStructWithCreateTime(reportLogEntry3.createTime.toGcpTimestamp())
+        reportLogEntryStructWithCreateTime(reportLogEntry1.createTime.toGcloudTimestamp()),
+        reportLogEntryStructWithCreateTime(reportLogEntry2.createTime.toGcloudTimestamp()),
+        reportLogEntryStructWithCreateTime(reportLogEntry3.createTime.toGcloudTimestamp())
       )
   }
 

@@ -25,10 +25,10 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 
@@ -78,7 +78,7 @@ class CreateScheduleTest : KingdomDatabaseTestBase() {
       .set("ReportConfigId").to(REPORT_CONFIG_ID)
       .set("ScheduleId").to(scheduleId)
       .set("ExternalScheduleId").to(externalScheduleId)
-      .set("NextReportStartTime").to(SCHEDULE.repetitionSpec.start.toGcpTimestamp())
+      .set("NextReportStartTime").to(SCHEDULE.repetitionSpec.start.toGcloudTimestamp())
       .set("RepetitionSpec").toProtoBytes(SCHEDULE.repetitionSpec)
       .set("RepetitionSpecJson").toProtoJson(SCHEDULE.repetitionSpec)
       .build()

@@ -35,12 +35,12 @@ import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
 import org.wfanet.measurement.db.gcp.asSequence
-import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
-import org.wfanet.measurement.db.gcp.toMillis
+import org.wfanet.measurement.gcloud.gcloudTimestamp
+import org.wfanet.measurement.gcloud.toEpochMilli
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
@@ -84,14 +84,14 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       blobsStoragePrefix = "$blobStorageBucket/$localId"
     }.build()
 
-    val writeTimestamp = clock.gcpTimestamp()
+    val writeTimestamp = clock.gcloudTimestamp()
     val computationRow =
       computationMutations.insertComputation(
         localId,
         updateTime = writeTimestamp,
         globalId = globalId,
         lockOwner = WRITE_NULL_STRING,
-        lockExpirationTime = clock.gcpTimestamp(),
+        lockExpirationTime = clock.gcloudTimestamp(),
         details = details,
         stage = initialStage
       )
@@ -137,7 +137,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       ctx.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
-          updateTime = clock.gcpTimestamp(),
+          updateTime = clock.gcloudTimestamp(),
           // Release any lock on this computation. The owner says who has the current
           // lock on the computation, and the expiration time stages both if and when the
           // computation can be worked on. When LockOwner is null the computation is not being
@@ -147,7 +147,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
           // by a mill, and by using the commit timestamp we pretty much get the behaviour
           // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
           lockOwner = WRITE_NULL_STRING,
-          lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcpTimestamp()
+          lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp()
         )
       )
     }
@@ -166,7 +166,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
           ownerId
         )
       } ?: error("claim for a specific computation ($result) returned a null value")
-    return UnclaimedTasksQuery(computationMutations::longToEnum, clock.gcpTimestamp())
+    return UnclaimedTasksQuery(computationMutations::longToEnum, clock.gcloudTimestamp())
       .execute(databaseClient)
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the
@@ -196,7 +196,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwnerStruct.getTimestamp("UpdateTime") != lastUpdate) return false
 
-    val writeTime = clock.gcpTimestamp()
+    val writeTime = clock.gcloudTimestamp()
     ctx.buffer(setLockMutation(computationId, ownerId))
     // Create a new attempt of the stage for the nextAttempt.
     ctx.buffer(
@@ -249,13 +249,14 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
   private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
     return computationMutations.updateComputation(
       computationId,
-      clock.gcpTimestamp(),
+      clock.gcloudTimestamp(),
       lockOwner = ownerId,
       lockExpirationTime = nextLockExpiration()
     )
   }
 
-  private fun nextLockExpiration(): Timestamp = clock.instant().plus(lockDuration).toGcpTimestamp()
+  private fun nextLockExpiration(): Timestamp =
+    clock.instant().plus(lockDuration).toGcloudTimestamp()
 
   override suspend fun updateComputationStage(
     token: ComputationStorageEditToken<StageT>,
@@ -278,7 +279,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         Outputs not written for blob ids (${unwrittenOutputs.keys})
         """.trimIndent()
       }
-      val writeTime = clock.gcpTimestamp()
+      val writeTime = clock.gcloudTimestamp()
 
       ctx.buffer(
         mutationsToChangeStages(ctx, token, nextStage, writeTime, afterTransition, nextStageDetails)
@@ -304,7 +305,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       "Invalid terminal stage of computation $endingStage"
     }
     runIfTokenFromLastUpdate(token) { ctx ->
-      val writeTime = clock.gcpTimestamp()
+      val writeTime = clock.gcloudTimestamp()
       val details = ctx.readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
         ?.getProtoMessage("ComputationDetails", ComputationDetails.parser())
         ?: error("Computation missing $token")
@@ -538,7 +539,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         listOf(
           computationMutations.updateComputation(
             localId = token.localId,
-            updateTime = clock.gcpTimestamp()
+            updateTime = clock.gcloudTimestamp()
           ),
           computationMutations.updateComputationBlobReference(
             localId = token.localId,
@@ -566,7 +567,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       val current =
         ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
           ?: error("No row for computation (${token.localId})")
-      if (current.getTimestamp("UpdateTime").toMillis() == token.editVersion) {
+      if (current.getTimestamp("UpdateTime").toEpochMilli() == token.editVersion) {
         runBlocking { readWriteTransactionBlock(ctx) }
       } else {
         error("Failed to update, token is from older update time.")

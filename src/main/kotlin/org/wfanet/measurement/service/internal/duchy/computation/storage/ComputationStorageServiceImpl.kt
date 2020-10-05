@@ -24,10 +24,10 @@ import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
-import org.wfanet.measurement.db.gcp.gcpTimestamp
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.gcloud.gcloudTimestamp
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -218,7 +218,7 @@ class ComputationStorageServiceImpl(
           algorithm = computationStage.mpcAlgorithm
           stageNumber = computationStage.number.toLong()
           stageName = computationStage.name
-          start = clock.gcpTimestamp().toProto()
+          start = clock.gcloudTimestamp().toProto()
           attemptNumber = attempt
         }
         updateMessage = "Computation $globalId at stage ${computationStage.name}, " +

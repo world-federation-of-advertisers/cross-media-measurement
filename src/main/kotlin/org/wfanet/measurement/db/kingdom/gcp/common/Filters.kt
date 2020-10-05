@@ -25,10 +25,10 @@ import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.kingdom.StreamReportsClause
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsClause
 import org.wfanet.measurement.db.kingdom.gcp.common.SqlConverter.SqlData
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 
 interface SqlConverter<V> {
   data class SqlData(val fieldName: String, val bindingName: String, val spannerValue: Value)
@@ -108,4 +108,4 @@ private fun externalIdValueArray(ids: Iterable<ExternalId>): Value =
 private fun enumValueArray(enums: Iterable<ProtocolMessageEnum>): Value =
   Value.int64Array(enums.map { it.numberAsLong })
 
-private fun timestampValue(time: Instant): Value = Value.timestamp(time.toGcpTimestamp())
+private fun timestampValue(time: Instant): Value = Value.timestamp(time.toGcloudTimestamp())

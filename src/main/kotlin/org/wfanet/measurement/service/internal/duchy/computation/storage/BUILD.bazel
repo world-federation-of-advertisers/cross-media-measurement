@@ -39,6 +39,7 @@ kt_jvm_library(
         "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
     ],
 )

@@ -22,13 +22,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
-import org.wfanet.measurement.db.gcp.toGcpTimestamp
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
+import org.wfanet.measurement.gcloud.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -100,7 +100,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
         .set("ReportConfigId").to(reportConfigId)
         .set("ScheduleId").to(scheduleId)
         .set("ExternalScheduleId").to(externalScheduleId)
-        .set("NextReportStartTime").to(nextReportStartTime.toGcpTimestamp())
+        .set("NextReportStartTime").to(nextReportStartTime.toGcloudTimestamp())
         .set("RepetitionSpec").toProtoBytes(repetitionSpec)
         .set("RepetitionSpecJson").toProtoJson(repetitionSpec)
         .build()
@@ -143,10 +143,10 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
         .set("ScheduleId").to(scheduleId)
         .set("ReportId").to(reportId)
         .set("ExternalReportId").to(externalReportId)
-        .set("CreateTime").to(createTime?.toGcpTimestamp() ?: Value.COMMIT_TIMESTAMP)
-        .set("UpdateTime").to(updateTime?.toGcpTimestamp() ?: Value.COMMIT_TIMESTAMP)
-        .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
-        .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
+        .set("CreateTime").to(createTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime").to(updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP)
+        .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
+        .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
         .set("State").toProtoEnum(state)
         .set("ReportDetails").toProtoBytes(reportDetails)
         .set("ReportDetailsJson").toProtoJson(reportDetails)
@@ -233,9 +233,9 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
         .set("RequisitionId").to(requisitionId)
         .set("ExternalRequisitionId").to(externalRequisitionId)
         .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
-        .set("CreateTime").to(createTime.toGcpTimestamp())
-        .set("WindowStartTime").to(windowStartTime.toGcpTimestamp())
-        .set("WindowEndTime").to(windowEndTime.toGcpTimestamp())
+        .set("CreateTime").to(createTime.toGcloudTimestamp())
+        .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
+        .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
         .set("State").toProtoEnum(state)
         .set("DuchyId").to(duchyId)
         .set("RequisitionDetails").toProtoBytes(requisitionDetails)
