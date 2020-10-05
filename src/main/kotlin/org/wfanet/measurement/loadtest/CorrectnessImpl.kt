@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest
 
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
 import java.nio.file.Paths
@@ -22,9 +23,11 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -50,12 +53,16 @@ import org.wfanet.measurement.common.ApiId
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
+import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
@@ -100,7 +107,8 @@ class CorrectnessImpl(
 
     // Schedule a report before loading the metric requisitions.
     val campaignIds = generatedCampaigns.map { it.campaignId }
-    relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
+    val reportConfigAndScheduleId =
+      relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
 
     val anySketches = generatedCampaigns.map { it.sketch }
     val combinedAnySketch = SketchProtos.toAnySketch(sketchConfig).apply { mergeAll(anySketches) }
@@ -115,9 +123,43 @@ class CorrectnessImpl(
       encryptAndSend(it, testResult)
     }
 
+    val expectedResult =
+      ReportDetails.Result.newBuilder().setReach(reach).putAllFrequency(frequency).build()
+    logger.info("Expected Result: $expectedResult")
+
+    // Start querying Spanner after 1 min.
+    logger.info("Waiting 1min...")
+    delay(Duration.ofMinutes(1).toMillis())
+    val finishedReport =
+      relationalDatabase.getFinishedReport(
+        reportConfigAndScheduleId.reportConfig,
+        reportConfigAndScheduleId.schedule
+      )
+    val actualResult = finishedReport?.reportDetails?.result
+    logger.info("Actual Result: $actualResult")
+
+    assertThat(actualResult).isEqualTo(expectedResult)
+
     val blobKey = storeTestResult(testResult.build())
     println("Test Result saved with blob key: $blobKey")
-    logger.info("Finished with manifest: $blobKey.")
+    logger.info("Correctness Test passes with manifest: $blobKey.")
+  }
+
+  private suspend fun KingdomRelationalDatabase.getFinishedReport(
+    externalReportConfigId: ExternalId,
+    externalScheduleId: ExternalId
+  ): Report {
+    logger.info("Getting finished report from Kingdom Spanner...")
+    return renewedFlow(10_000, 1_000) {
+      streamReports(
+        streamReportsFilter(
+          externalReportConfigIds = listOf(externalReportConfigId),
+          externalScheduleIds = listOf(externalScheduleId),
+          states = listOf(Report.ReportState.SUCCEEDED)
+        ),
+        limit = 1
+      )
+    }.first()
   }
 
   private suspend fun KingdomRelationalDatabase.createDataProvider(
@@ -152,7 +194,7 @@ class CorrectnessImpl(
   private suspend fun KingdomRelationalDatabase.scheduleReport(
     externalAdvertiserId: ExternalId,
     campaignIds: List<ExternalId>
-  ) {
+  ): ReportConfigAndScheduleId {
     val metricDefinition = MetricDefinition.newBuilder().apply {
       sketchBuilder.apply {
         sketchConfigId = 12345L
@@ -190,6 +232,10 @@ class CorrectnessImpl(
       }.build()
     )
     logger.info("Created a ReportConfigSchedule: $schedule")
+    return ReportConfigAndScheduleId(
+      externalReportConfigId,
+      ExternalId(schedule.externalScheduleId)
+    )
   }
 
   private suspend fun encryptAndSend(
@@ -389,6 +435,8 @@ private data class GeneratedCampaign(
   val campaignId: ExternalId,
   val sketch: AnySketch
 )
+
+private data class ReportConfigAndScheduleId(val reportConfig: ExternalId, val schedule: ExternalId)
 
 private suspend fun PublisherDataCoroutineStub.getCombinedPublicKey(
   resourceKey: CombinedPublicKey.Key
