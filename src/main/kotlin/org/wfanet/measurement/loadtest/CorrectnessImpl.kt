@@ -135,7 +135,7 @@ class CorrectnessImpl(
         reportConfigAndScheduleId.reportConfig,
         reportConfigAndScheduleId.schedule
       )
-    val actualResult = finishedReport?.reportDetails?.result
+    val actualResult = finishedReport.reportDetails.result
     logger.info("Actual Result: $actualResult")
 
     assertThat(actualResult).isEqualTo(expectedResult)
