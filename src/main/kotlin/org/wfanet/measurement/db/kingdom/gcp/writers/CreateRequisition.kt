@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.gcp.asFlow
 import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
@@ -85,7 +84,7 @@ class CreateRequisition(
         .bind("external_campaign_id").to(externalCampaignId)
         .build()
 
-    val row: Struct = transactionContext.executeQuery(statement).asFlow().single()
+    val row: Struct = transactionContext.executeQuery(statement).single()
 
     return ParentKey(
       row.getLong("DataProviderId"),

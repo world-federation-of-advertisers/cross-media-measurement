@@ -17,9 +17,11 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.DuchyIds
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
@@ -52,7 +54,7 @@ class ConfirmDuchyReadiness(
     }
 
     val requisitions = readRequisitionsForReportAndDuchy(reportReadResult.reportId)
-    val expectedIds = requisitions.map(::ExternalId).toSet()
+    val expectedIds = requisitions.map { ExternalId(it) }.toSet()
     validateRequisitions(externalRequisitionIds, expectedIds)
 
     val newReport = reportReadResult.report.toBuilder().apply {
@@ -71,7 +73,9 @@ class ConfirmDuchyReadiness(
     return checkNotNull(transactionResult)
   }
 
-  private fun TransactionScope.readRequisitionsForReportAndDuchy(reportId: Long): List<Long> {
+  private fun TransactionScope.readRequisitionsForReportAndDuchy(
+    reportId: Long
+  ): Flow<Long> {
     val sql =
       """
       SELECT Requisitions.ExternalRequisitionId
@@ -87,9 +91,7 @@ class ConfirmDuchyReadiness(
         .build()
     return transactionContext
       .executeQuery(statement)
-      .asSequence()
       .map { it.getLong("ExternalRequisitionId") }
-      .toList()
   }
 
   private fun validateRequisitions(providedIds: Set<ExternalId>, expectedIds: Set<ExternalId>) {

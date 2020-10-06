@@ -63,7 +63,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
     get() = originalReport.toBuilder()
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
@@ -94,7 +94,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
       .containsExactly(report.build())
   }
 
-  private fun insertFulfilledRequisition(
+  private suspend fun insertFulfilledRequisition(
     requisitionId: Long,
     externalRequisitionId: Long,
     duchyId: String
@@ -109,7 +109,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun linkRequisitionToReport(requisitionId: Long) {
+  private suspend fun linkRequisitionToReport(requisitionId: Long) {
     insertReportRequisition(
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
@@ -135,7 +135,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `single duchy confirmation`() {
+  fun `single duchy confirmation`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
 
@@ -158,7 +158,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `multiple duchy confirmation`() {
+  fun `multiple duchy confirmation`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
 
@@ -176,7 +176,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `no update is applied for duplicate duchy confirmation`() {
+  fun `no update is applied for duplicate duchy confirmation`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
 
@@ -205,7 +205,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `call is missing Requisitions`() {
+  fun `call is missing Requisitions`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
 
@@ -216,7 +216,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `call has extra Requisitions that it owns but not linked`() {
+  fun `call has extra Requisitions that it owns but not linked`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     assertFails {
       confirmDuchyReadiness(DUCHY_ID, EXTERNAL_REQUISITION_ID1)
@@ -225,7 +225,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `call has extra Requisitions that another Duchy owns`() {
+  fun `call has extra Requisitions that another Duchy owns`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, OTHER_DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
     assertFails {
@@ -235,7 +235,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `wrong report state`() {
+  fun `wrong report state`() = runBlocking {
     databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("Reports")

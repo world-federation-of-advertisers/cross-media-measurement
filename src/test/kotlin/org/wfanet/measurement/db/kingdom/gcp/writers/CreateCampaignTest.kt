@@ -21,6 +21,7 @@ import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -29,7 +30,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Campaign
 
@@ -54,21 +54,19 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
       ExternalId(externalDataProviderId),
       ExternalId(externalAdvertiserId),
       PROVIDED_CAMPAIGN_ID
-    )
-      .execute(databaseClient, idGenerator)
+    ).execute(databaseClient, idGenerator)
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
   }
 
-  private fun readCampaignStructs(): List<Struct> =
+  private suspend fun readCampaignStructs(): List<Struct> =
     databaseClient
       .singleUse(TimestampBound.strong())
       .executeQuery(Statement.of("SELECT * FROM Campaigns"))
-      .asSequence()
       .toList()
 
   @Test
@@ -101,7 +99,7 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `invalid data provider id`() = runBlocking<Unit> {
+  fun `invalid data provider id`() = runBlocking {
     assertFails {
       createCampaign(99999L, EXTERNAL_ADVERTISER_ID)
     }
@@ -110,7 +108,7 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `invalid campaign id`() = runBlocking<Unit> {
+  fun `invalid campaign id`() = runBlocking {
     assertFails {
       createCampaign(EXTERNAL_DATA_PROVIDER_ID, 999999L)
     }

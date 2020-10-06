@@ -36,11 +36,15 @@ class SpannerFromFlags(
     emulatorHost
   )
 
-  val databaseId = DatabaseId.of(flags.projectName, flags.instanceName, flags.databaseName)
+  val databaseId: DatabaseId =
+    DatabaseId.of(flags.projectName, flags.instanceName, flags.databaseName)
 
-  val databaseClient: DatabaseClient by lazy {
+  private val internalDatabaseClient: DatabaseClient by lazy {
     spanner.getDatabaseClient(databaseId)
   }
+
+  val databaseClient: AsyncDatabaseClient
+    get() = internalDatabaseClient.asAsync()
 
   fun createInstance(
     configId: String,

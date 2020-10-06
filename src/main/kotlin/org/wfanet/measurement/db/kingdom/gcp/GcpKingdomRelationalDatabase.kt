@@ -14,11 +14,11 @@
 
 package org.wfanet.measurement.db.kingdom.gcp
 
-import com.google.cloud.spanner.DatabaseClient
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
@@ -58,15 +58,8 @@ import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 class GcpKingdomRelationalDatabase(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
-  lazyClient: () -> DatabaseClient
+  private val client: AsyncDatabaseClient
 ) : KingdomRelationalDatabase {
-  private val client: DatabaseClient by lazy { lazyClient() }
-
-  constructor(
-    clock: Clock,
-    idGenerator: IdGenerator,
-    client: DatabaseClient
-  ) : this(clock, idGenerator, { client })
 
   override suspend fun createRequisition(requisition: Requisition): Requisition {
     return CreateRequisition(requisition).execute()

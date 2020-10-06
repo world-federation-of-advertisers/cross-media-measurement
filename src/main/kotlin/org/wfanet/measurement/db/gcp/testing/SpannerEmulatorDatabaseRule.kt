@@ -19,6 +19,8 @@ import com.google.cloud.spanner.DatabaseClient
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.rules.TestRule
 import org.wfanet.measurement.common.testing.CloseableResource
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.db.gcp.asAsync
 
 /**
  * JUnit rule exposing a temporary Google Cloud Spanner database.
@@ -29,15 +31,15 @@ class SpannerEmulatorDatabaseRule(schemaResourcePath: String) :
   DatabaseRule by DatabaseRuleImpl(schemaResourcePath)
 
 private interface DatabaseRule : TestRule {
-  val databaseClient: DatabaseClient
+  val databaseClient: AsyncDatabaseClient
 }
 
 private class DatabaseRuleImpl(schemaResourcePath: String) :
   DatabaseRule,
   CloseableResource<TemporaryDatabase>({ TemporaryDatabase(schemaResourcePath) }) {
 
-  override val databaseClient: DatabaseClient
-    get() = resource.databaseClient
+  override val databaseClient: AsyncDatabaseClient
+    get() = resource.databaseClient.asAsync()
 }
 
 private class TemporaryDatabase(schemaResourcePath: String) : AutoCloseable {

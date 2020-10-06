@@ -54,7 +54,7 @@ class StreamReadySchedulesTest : KingdomDatabaseTestBase() {
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(
       ADVERTISER_ID,
       EXTERNAL_ADVERTISER_ID
@@ -66,7 +66,7 @@ class StreamReadySchedulesTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun insertSchedule1(time: Instant) {
+  private suspend fun insertSchedule1(time: Instant) {
     insertReportConfigSchedule(
       advertiserId = ADVERTISER_ID,
       reportConfigId = REPORT_CONFIG_ID,
@@ -76,7 +76,7 @@ class StreamReadySchedulesTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun insertSchedule2(time: Instant) {
+  private suspend fun insertSchedule2(time: Instant) {
     insertReportConfigSchedule(
       advertiserId = ADVERTISER_ID,
       reportConfigId = REPORT_CONFIG_ID,

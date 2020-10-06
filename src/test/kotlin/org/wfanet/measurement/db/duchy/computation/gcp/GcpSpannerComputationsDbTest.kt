@@ -609,7 +609,9 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
     return@runBlocking token
   }
 
-  private fun assertStageTransitioned(token: ComputationStorageEditToken<FakeProtocolStages>) {
+  private suspend fun assertStageTransitioned(
+    token: ComputationStorageEditToken<FakeProtocolStages>
+  ) {
     assertQueryReturns(
       databaseClient,
       """
@@ -697,7 +699,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationStage and add to queue`() {
+  fun `updateComputationStage and add to queue`() = runBlocking {
     val token = testTransitionOfStageWhere(AfterTransition.ADD_UNCLAIMED_TO_QUEUE)
 
     assertQueryReturns(
@@ -733,7 +735,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/comp
   }
 
   @Test
-  fun `updateComputationStage and do not add to queue`() {
+  fun `updateComputationStage and do not add to queue`() = runBlocking {
     val token = testTransitionOfStageWhere(AfterTransition.DO_NOT_ADD_TO_QUEUE)
 
     assertQueryReturns(

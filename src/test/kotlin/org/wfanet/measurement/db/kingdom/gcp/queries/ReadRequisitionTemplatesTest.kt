@@ -61,7 +61,7 @@ private val REQUISITION_TEMPLATES: List<RequisitionTemplate> = listOf(
 @RunWith(JUnit4::class)
 class ReadRequisitionTemplatesTest : KingdomDatabaseTestBase() {
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(
       ADVERTISER_ID,
       EXTERNAL_ADVERTISER_ID

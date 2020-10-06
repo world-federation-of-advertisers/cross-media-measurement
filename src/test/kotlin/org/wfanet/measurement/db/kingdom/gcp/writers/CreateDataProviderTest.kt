@@ -20,12 +20,12 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FixedIdGenerator
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
@@ -48,7 +48,6 @@ class CreateDataProviderTest : KingdomDatabaseTestBase() {
     val dataProviders = databaseClient
       .singleUse(TimestampBound.strong())
       .executeQuery(Statement.of("SELECT * FROM DataProviders"))
-      .asSequence()
       .toList()
 
     assertThat(dataProviders)

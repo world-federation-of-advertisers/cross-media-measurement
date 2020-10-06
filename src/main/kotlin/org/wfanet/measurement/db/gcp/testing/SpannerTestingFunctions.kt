@@ -14,69 +14,53 @@
 
 package org.wfanet.measurement.db.gcp.testing
 
-import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 
 /**
  * Returns the results of a spanner query as a list of [Struct].
  */
-fun queryForResults(dbClient: DatabaseClient, sqlQuery: String): List<Struct> {
-  val resultSet = dbClient.singleUse().executeQuery(Statement.of(sqlQuery))
-  val result = mutableListOf<Struct>()
-  while (resultSet.next()) {
-    result.add(resultSet.currentRowAsStruct)
+suspend fun queryForResults(dbClient: AsyncDatabaseClient, sqlQuery: String): List<Struct> {
+  return dbClient.singleUse().executeQuery(Statement.of(sqlQuery)).toList()
+}
+
+/** Asserts that a query returns the expected results. */
+suspend fun assertQueryReturns(
+  dbClient: AsyncDatabaseClient,
+  sqlQuery: String,
+  expected: Iterable<Struct>
+) {
+  val expectedColumns = expected.map { it.type.toString() }.toSet()
+  require(expectedColumns.size == 1) {
+    "All 'expected: Struct' object should have the same column headings, but was " +
+      expectedColumns.joinToString("\n")
   }
-  return result
-}
 
-/**
- * Asserts that a query returns the expected results.
- */
-fun assertQueryReturns(dbClient: DatabaseClient, sqlQuery: String, vararg expected: Struct) {
-  val expectedList = expected.toList()
-  val expectedColumns = expectedList.map { it.type.toString() }.toSet()
-  val results = queryForResults(dbClient, sqlQuery)
+  val results: List<Struct> = queryForResults(dbClient, sqlQuery)
   val resultsColumns = results.map { it.type.toString() }.toSet()
-  assertTrue(
-    expectedColumns.size == 1,
-    "All 'expected: Struct' object should have the same column headings, " +
-      "but was ${expectedColumns.joinToString("\n")}"
-  )
-  assertTrue(
-    resultsColumns.size == 1,
-    "All query results to have the same column headings, " +
-      "but was ${resultsColumns.joinToString("\n")}"
-  )
-  assertEquals(expectedColumns, resultsColumns)
-  assertEquals(
-    expected.toList(),
-    results,
+  assertWithMessage("All query results should have the same column headings").that(resultsColumns)
+    .hasSize(1)
+  assertThat(resultsColumns).isEqualTo(expectedColumns)
+  assertWithMessage(
     """
-Query did not return expected results:
-'$sqlQuery'
+    Query did not return expected results:
+    '$sqlQuery'
 
-Columns:
-$expectedColumns
-Expected Values:
-${expectedList.debugString()}
-Actual Values:
-${results.debugString()}
-""".trim()
-  )
+    Columns:
+    $expectedColumns
+    """.trimIndent()
+  ).that(results).containsExactlyElementsIn(expected).inOrder()
 }
 
-fun assertQueryReturnsNothing(dbClient: DatabaseClient, sqlQuery: String) {
-  val results = queryForResults(dbClient, sqlQuery)
-  val resultsColumns = results.map { it.type.toString() }.toSet()
-  assertTrue(
-    results.isEmpty(),
-    "Expected no results, but got $resultsColumns with values ${results.debugString()}"
-  )
-}
-
-private fun List<Struct>.debugString(): String {
-  return this.map(Struct::toString).joinToString("\n", postfix = "\n")
+/** Asserts that a query returns the expected results. */
+suspend fun assertQueryReturns(
+  dbClient: AsyncDatabaseClient,
+  sqlQuery: String,
+  vararg expected: Struct
+) {
+  assertQueryReturns(dbClient, sqlQuery, expected.asIterable())
 }

@@ -19,13 +19,13 @@ import com.google.cloud.spanner.Statement
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -50,17 +50,16 @@ private const val DUCHY_ID = "some-duchy-id"
 
 @RunWith(JUnit4::class)
 class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
-  private fun associateRequisitionAndReport(
+  private suspend fun associateRequisitionAndReport(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
   ) {
-    runBlocking {
-      AssociateRequisitionAndReport(externalRequisitionId, externalReportId).execute(databaseClient)
-    }
+    AssociateRequisitionAndReport(externalRequisitionId, externalReportId)
+      .execute(databaseClient)
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(
       ADVERTISER_ID,
@@ -78,7 +77,9 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 
-  private fun insertTheReport(reportDetails: ReportDetails = ReportDetails.getDefaultInstance()) {
+  private suspend fun insertTheReport(
+    reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
+  ) {
     insertReport(
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
@@ -90,7 +91,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun insertTheRequisition() {
+  private suspend fun insertTheRequisition() {
     insertRequisition(
       DATA_PROVIDER_ID,
       CAMPAIGN_ID,
@@ -113,7 +114,6 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     val reportRequisitions = databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT * FROM ReportRequisitions"))
-      .asSequence()
       .toList()
 
     assertThat(reportRequisitions).hasSize(1)
@@ -148,7 +148,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `missing requisition`() {
+  fun `missing requisition`() = runBlocking<Unit> {
     insertTheReport()
     assertFails {
       associateRequisitionAndReport(
@@ -159,7 +159,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `missing report`() {
+  fun `missing report`() = runBlocking<Unit> {
     insertTheRequisition()
     assertFails {
       associateRequisitionAndReport(
@@ -170,7 +170,7 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `already exists`() {
+  fun `already exists`() = runBlocking {
     insertTheReport(
       ReportDetails.newBuilder().apply {
         addRequisitionsBuilder().apply {
@@ -210,7 +210,6 @@ class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
     val reportRequisitions = databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT * FROM ReportRequisitions"))
-      .asSequence()
       .toList()
 
     assertThat(reportRequisitions).hasSize(1)

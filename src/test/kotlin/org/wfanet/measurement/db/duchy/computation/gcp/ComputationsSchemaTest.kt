@@ -20,6 +20,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -32,7 +33,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
   private val computationId: Long = 85740L
 
   @Test
-  fun insertOne() {
+  fun insertOne() = runBlocking {
     val dbClient = databaseClient
     dbClient.write(listOf(makeInsertMutation()))
     assertQueryReturns(
@@ -46,7 +47,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
   }
 
   @Test
-  fun insertChild() {
+  fun insertChild() = runBlocking {
     val dbClient = databaseClient
     val mutation = makeInsertMutation()
     val childMutation = Mutation.newInsertOrUpdateBuilder("ComputationStages")
@@ -70,20 +71,18 @@ class ComputationsSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/computatio
   }
 
   @Test
-  fun globalIdIsUnique() {
+  fun globalIdIsUnique() = runBlocking<Unit> {
     val dbClient = databaseClient
-    dbClient.write(listOf(makeInsertMutation()))
+    dbClient.write(makeInsertMutation())
     assertFailsWith<SpannerException> {
       dbClient.write(
-        listOf(
-          Mutation.newInsertBuilder("Computations")
-            .set("ComputationId").to(computationId + 6)
-            .set("ComputationStage").to(1)
-            .set("GlobalComputationId").to(1)
-            .set("ComputationDetails").to(ByteArray.copyFrom("123"))
-            .set("ComputationDetailsJSON").to("123")
-            .build()
-        )
+        Mutation.newInsertBuilder("Computations")
+          .set("ComputationId").to(computationId + 6)
+          .set("ComputationStage").to(1)
+          .set("GlobalComputationId").to(1)
+          .set("ComputationDetails").to(ByteArray.copyFrom("123"))
+          .set("ComputationDetailsJSON").to("123")
+          .build()
       )
     }
   }

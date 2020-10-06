@@ -18,6 +18,7 @@ import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
@@ -96,7 +97,7 @@ class ReportReader : SpannerReader<ReportReader.Result>() {
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
 
     fun readReportsWithAssociatedRequisition(
-      readContext: ReadContext,
+      readContext: AsyncDatabaseClient.ReadContext,
       dataProviderId: InternalId,
       campaignId: InternalId,
       requisitionId: InternalId

@@ -18,13 +18,13 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -50,7 +50,7 @@ private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.newBuilder().a
 
 class CreateScheduleTest : KingdomDatabaseTestBase() {
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
   }
@@ -64,11 +64,10 @@ class CreateScheduleTest : KingdomDatabaseTestBase() {
     CreateSchedule(schedule).execute(databaseClient, idGenerator)
   }
 
-  private fun readSchedules(): List<Struct> {
+  private suspend fun readSchedules(): List<Struct> {
     return databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT * FROM ReportConfigSchedules"))
-      .asSequence()
       .toList()
   }
 
@@ -85,7 +84,7 @@ class CreateScheduleTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() {
+  fun success() = runBlocking<Unit> {
     val schedule = createSchedule(SCHEDULE, 10L, 11L)
     assertThat(schedule)
       .isEqualTo(
@@ -99,7 +98,7 @@ class CreateScheduleTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `multiple schedules`() {
+  fun `multiple schedules`() = runBlocking<Unit> {
     createSchedule(SCHEDULE, 10L, 11L)
     createSchedule(SCHEDULE, 12L, 13L)
     createSchedule(SCHEDULE, 14L, 15L)

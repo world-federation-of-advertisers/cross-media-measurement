@@ -20,11 +20,11 @@ import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFails
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -52,7 +52,7 @@ private val REPORT_LOG_ENTRY: ReportLogEntry = ReportLogEntry.newBuilder().apply
 
 class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
@@ -70,11 +70,10 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
     CreateReportLogEntry(reportLogEntry).execute(databaseClient)
   }
 
-  private fun readReportLogEntries(): List<Struct> {
+  private suspend fun readReportLogEntries(): List<Struct> {
     return databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT * FROM ReportLogEntries"))
-      .asSequence()
       .toList()
   }
 
@@ -90,7 +89,7 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
       .build()
 
   @Test
-  fun success() {
+  fun success() = runBlocking<Unit> {
     val timestampBefore = currentSpannerTimestamp
     val reportLogEntry = createReportLogEntry(REPORT_LOG_ENTRY)
     val timestampAfter = currentSpannerTimestamp
@@ -108,7 +107,7 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `multiple ReportLogEntries`() {
+  fun `multiple ReportLogEntries`() = runBlocking<Unit> {
     val reportLogEntry1 = createReportLogEntry(REPORT_LOG_ENTRY)
     val reportLogEntry2 = createReportLogEntry(REPORT_LOG_ENTRY)
     val reportLogEntry3 = createReportLogEntry(REPORT_LOG_ENTRY)

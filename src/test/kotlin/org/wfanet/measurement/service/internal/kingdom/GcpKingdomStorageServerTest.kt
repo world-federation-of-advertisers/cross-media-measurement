@@ -22,6 +22,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
 import kotlin.test.todo
+import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -29,8 +30,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.gcp.runReadWriteTransaction
-import org.wfanet.measurement.db.gcp.singleOrNull
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
@@ -57,7 +56,6 @@ import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
@@ -106,13 +104,15 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     }.build()
   }
 
-  private val relationalDatabase =
-    GcpKingdomRelationalDatabase(Clock.systemUTC(), RandomIdGenerator(Clock.systemUTC())) {
-      databaseClient
-    }
-
   @get:Rule
   val grpcTestServer = GrpcTestServerRule {
+    val relationalDatabase =
+      GcpKingdomRelationalDatabase(
+        Clock.systemUTC(),
+        RandomIdGenerator(Clock.systemUTC()),
+        databaseClient
+      )
+
     buildStorageServices(relationalDatabase).forEach(this::addService)
   }
 
@@ -123,10 +123,9 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
   private val reportStorage by lazy { ReportStorageCoroutineStub(channel) }
   private val reportLogEntryStorage by lazy { ReportLogEntryStorageCoroutineStub(channel) }
-  private val requisitionStorage by lazy { RequisitionStorageCoroutineStub(channel) }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(
       ADVERTISER_ID,
@@ -269,15 +268,15 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `ReportStorage StreamReadyReports`() = runBlocking<Unit> {
-    databaseClient.runReadWriteTransaction {
-      it.executeUpdate(
+    databaseClient.readWriteTransaction().execute<Unit> { txn ->
+      txn.executeUpdate(
         Statement.newBuilder("UPDATE Reports SET State = @state WHERE ExternalReportId = @id")
           .bind("state").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
           .bind("id").to(EXTERNAL_REPORT_ID)
           .build()
       )
 
-      it.executeUpdate(
+      txn.executeUpdate(
         Statement.newBuilder(
           """
           UPDATE Requisitions
@@ -390,10 +389,9 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       result.createTime.toGcloudTimestamp()
     )
 
-    val spannerResult =
-      databaseClient.singleUse()
-        .read("ReportLogEntries", KeySet.singleKey(key), listOf("AdvertiserId"))
-        .singleOrNull()
+    val spannerResult = databaseClient.singleUse()
+      .read("ReportLogEntries", KeySet.singleKey(key), listOf("AdvertiserId"))
+      .singleOrNull()
 
     assertThat(spannerResult).isNotNull()
   }

@@ -47,7 +47,7 @@ private val RESULT: ReportDetails.Result =
 @RunWith(JUnit4::class)
 class FinishReportTest : KingdomDatabaseTestBase() {
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
@@ -61,7 +61,7 @@ class FinishReportTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun directlyUpdateState(state: ReportState) {
+  private suspend fun directlyUpdateState(state: ReportState) {
     databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("Reports")
@@ -75,12 +75,12 @@ class FinishReportTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun finishReport(): Report = runBlocking {
-    FinishReport(ExternalId(EXTERNAL_REPORT_ID), RESULT).execute(databaseClient)
+  private suspend fun finishReport(): Report {
+    return FinishReport(ExternalId(EXTERNAL_REPORT_ID), RESULT).execute(databaseClient)
   }
 
   @Test
-  fun `report is in the wrong state`() {
+  fun `report is in the wrong state`() = runBlocking {
     val states = listOf(
       ReportState.AWAITING_REQUISITION_CREATION,
       ReportState.AWAITING_REQUISITION_FULFILLMENT,
@@ -94,7 +94,7 @@ class FinishReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() {
+  fun success() = runBlocking<Unit> {
     directlyUpdateState(ReportState.IN_PROGRESS)
 
     val expectedReport =

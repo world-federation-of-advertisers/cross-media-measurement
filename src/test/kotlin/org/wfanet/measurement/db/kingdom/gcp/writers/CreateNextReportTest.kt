@@ -61,7 +61,7 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(
       ADVERTISER_ID,
@@ -77,7 +77,7 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() {
+  fun success() = runBlocking<Unit> {
     clock.tickSeconds("nextReportStartTime")
     clock.tickSeconds("now")
 
@@ -137,7 +137,7 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `nextReportStartTime in the future`() {
+  fun `nextReportStartTime in the future`() = runBlocking<Unit> {
     clock.tickSeconds("now")
 
     val startTime = clock.instant() + Period.ofDays(5)

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.integration
 
-import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import java.time.Duration
 import org.junit.runner.Description
@@ -36,6 +35,7 @@ import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.mill.toProtoMessage
@@ -85,7 +85,7 @@ class GcpDuchyDependencyProviderRule(
 
   private fun buildSingleProtocolDb(
     duchyId: String,
-    computationsDatabaseClient: DatabaseClient
+    computationsDatabaseClient: AsyncDatabaseClient
   ): SingleProtocolDatabase {
     val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
     val stageEnumHelper = LiquidLegionsSketchAggregationProtocol.ComputationStages
@@ -115,7 +115,7 @@ class GcpDuchyDependencyProviderRule(
     }
   }
 
-  private fun buildMetricValueDb(databaseClient: DatabaseClient): MetricValueDatabase {
+  private fun buildMetricValueDb(databaseClient: AsyncDatabaseClient): MetricValueDatabase {
     return SpannerMetricValueDatabase(databaseClient, RandomIdGenerator())
   }
 

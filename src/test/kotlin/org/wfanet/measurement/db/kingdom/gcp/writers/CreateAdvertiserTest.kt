@@ -19,12 +19,12 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.testing.FixedIdGenerator
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
@@ -37,7 +37,6 @@ class CreateAdvertiserTest : KingdomDatabaseTestBase() {
     val advertisers = databaseClient
       .singleUse(TimestampBound.strong())
       .executeQuery(Statement.of("SELECT * FROM Advertisers"))
-      .asSequence()
       .toList()
 
     assertThat(advertisers)

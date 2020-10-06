@@ -33,6 +33,7 @@ import com.google.cloud.spanner.TransactionContext
 import java.time.Duration
 import java.util.concurrent.Executor
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.sendBlocking
@@ -43,7 +44,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.gcloud.asDeferred
 
-private val executor: Executor = spannerDispatcher().asExecutor()
+private val executor: Executor = Dispatchers.IO.asExecutor()
 private typealias AsyncWork<T> = suspend (TransactionContext) -> ApiFuture<T>
 typealias TransactionWork<R> = suspend (txn: AsyncDatabaseClient.TransactionContext) -> R
 
@@ -62,6 +63,18 @@ class AsyncDatabaseClient(private val dbClient: DatabaseClient) {
   /** @see [DatabaseClient.readWriteTransaction] */
   fun readWriteTransaction(): TransactionRunner {
     return TransactionRunnerImpl(dbClient.runAsync())
+  }
+
+  /** @see [DatabaseClient.write] */
+  suspend fun write(mutations: Iterable<Mutation>) {
+    readWriteTransaction().execute { txn ->
+      txn.buffer(mutations)
+    }
+  }
+
+  /** @see [DatabaseClient.write] */
+  suspend fun write(vararg mutations: Mutation) {
+    write(mutations.asIterable())
   }
 
   /**

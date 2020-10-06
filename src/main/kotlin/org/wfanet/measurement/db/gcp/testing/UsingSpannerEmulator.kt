@@ -14,19 +14,21 @@
 
 package org.wfanet.measurement.db.gcp.testing
 
-import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.Statement
 import java.time.Instant
+import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
-import org.wfanet.measurement.db.gcp.single
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.toInstant
 
 /**
  * Base class for JUnit4 tests using Cloud Spanner databases running in a test
  * [Instance][com.google.cloud.spanner.Instance] in Cloud Spanner Emulator.
  *
- * One emulator and test instance is created per test class, and one database is created per test
- * case method. The [DatabaseClient] is accessible via the [databaseClient] property.
+ * One emulator and test instance is created per test class, and one database is
+ * created per test case method. The [AsyncDatabaseClient] is accessible via the
+ * [databaseClient] property.
  *
  * Example use:
  * ```
@@ -47,11 +49,17 @@ abstract class UsingSpannerEmulator(schemaResourcePath: String) {
   @JvmField
   val spannerDatabase = SpannerEmulatorDatabaseRule(schemaResourcePath)
 
-  val databaseClient: DatabaseClient
+  val databaseClient: AsyncDatabaseClient
     get() = spannerDatabase.databaseClient
 
   val currentSpannerTimestamp: Instant
-    get() =
-      databaseClient.singleUse().executeQuery(Statement.of("SELECT CURRENT_TIMESTAMP()"))
-        .single().getTimestamp(0).toInstant()
+    get() = runBlocking { getCurrentSpannerTimestamp() }
+
+  suspend fun getCurrentSpannerTimestamp(): Instant {
+    return databaseClient.singleUse()
+      .executeQuery(Statement.of("SELECT CURRENT_TIMESTAMP()"))
+      .single()
+      .getTimestamp(0)
+      .toInstant()
+  }
 }

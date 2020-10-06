@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.db.gcp.asFlow
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 
 /** Base abstraction for reading from Spanner. */
 abstract class BaseSpannerReader<T> {
@@ -30,8 +30,8 @@ abstract class BaseSpannerReader<T> {
   protected abstract suspend fun translate(struct: Struct): T
 
   /** Executes the query. */
-  fun execute(readContext: ReadContext): Flow<T> =
-    readContext.executeQuery(builder.build()).asFlow().map(::translate)
+  fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> =
+    readContext.executeQuery(builder.build()).map(::translate)
 
   companion object {
     fun forStructs(statement: Statement): BaseSpannerReader<Struct> {

@@ -14,11 +14,11 @@
 
 package org.wfanet.measurement.db.duchy.computation.gcp
 
-import com.google.cloud.spanner.DatabaseClient
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toCollection
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.duchy.computation.ReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 
@@ -26,7 +26,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
  * Implementation of [ReadOnlyComputationsRelationalDb] using GCP Spanner Database.
  */
 class GcpSpannerReadOnlyComputationsRelationalDb(
-  private val databaseClient: DatabaseClient,
+  private val databaseClient: AsyncDatabaseClient,
   private val computationStagesHelper: ProtocolStageEnumHelper<ComputationStage>
 ) : ReadOnlyComputationsRelationalDb {
 

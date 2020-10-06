@@ -40,7 +40,7 @@ private const val EXTERNAL_REPORT_ID = 8L
 @RunWith(JUnit4::class)
 class UpdateReportStateTest : KingdomDatabaseTestBase() {
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
@@ -54,7 +54,7 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun directlyUpdateState(state: ReportState) {
+  private suspend fun directlyUpdateState(state: ReportState) {
     databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("Reports")
@@ -96,7 +96,7 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `state update in normal flow`() {
+  fun `state update in normal flow`() = runBlocking {
     directlyUpdateState(ReportState.AWAITING_REQUISITION_CREATION)
     updateReportStateAndAssertSuccess(ReportState.AWAITING_REQUISITION_FULFILLMENT)
     updateReportStateAndAssertSuccess(ReportState.AWAITING_DUCHY_CONFIRMATION)
@@ -104,7 +104,7 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `terminal states do not allow updates`() {
+  fun `terminal states do not allow updates`() = runBlocking {
     val terminalStates = setOf(
       ReportState.REPORT_STATE_UNKNOWN,
       ReportState.FAILED,
@@ -118,7 +118,7 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `noop update`() {
+  fun `noop update`() = runBlocking {
     directlyUpdateState(ReportState.SUCCEEDED)
 
     // Does not fail:

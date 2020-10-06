@@ -78,7 +78,7 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
    * data provider.
    */
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
 
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID1, EXTERNAL_CAMPAIGN_ID1, ADVERTISER_ID)
@@ -89,7 +89,11 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
     insertRequisition(CAMPAIGN_ID2, REQUISITION_ID3, REQUISITION3)
   }
 
-  private fun insertRequisition(campaignId: Long, requisitionId: Long, requisition: Requisition) {
+  private suspend fun insertRequisition(
+    campaignId: Long,
+    requisitionId: Long,
+    requisition: Requisition
+  ) {
     insertRequisition(
       DATA_PROVIDER_ID,
       campaignId,

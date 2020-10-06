@@ -49,7 +49,7 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(
       ADVERTISER_ID,
       EXTERNAL_ADVERTISER_ID
@@ -75,7 +75,7 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 
-  private fun insertReportInState(state: ReportState) {
+  private suspend fun insertReportInState(state: ReportState) {
     insertReport(
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
@@ -86,7 +86,7 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun insertRequisitionInState(state: RequisitionState) {
+  private suspend fun insertRequisitionInState(state: RequisitionState) {
     insertRequisition(
       DATA_PROVIDER_ID,
       CAMPAIGN_ID,
@@ -96,7 +96,7 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun insertReportRequisition() {
+  private suspend fun insertReportRequisition() {
     databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("ReportRequisitions")
@@ -126,21 +126,21 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ignores Reports missing ReportRequisitions`() = runBlocking<Unit> {
+  fun `ignores Reports missing ReportRequisitions`() = runBlocking {
     insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
     insertRequisitionInState(RequisitionState.FULFILLED)
     assertThat(streamReadyReportsToList()).isEmpty()
   }
 
   @Test
-  fun `ignores Reports in other states`() = runBlocking<Unit> {
+  fun `ignores Reports in other states`() = runBlocking {
     insertReportInState(ReportState.AWAITING_DUCHY_CONFIRMATION)
     insertRequisitionInState(RequisitionState.FULFILLED)
     assertThat(streamReadyReportsToList()).isEmpty()
   }
 
   @Test
-  fun `ignores Reports with unfulfilled Requisitions`() = runBlocking<Unit> {
+  fun `ignores Reports with unfulfilled Requisitions`() = runBlocking {
     insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
     insertRequisitionInState(RequisitionState.UNFULFILLED)
     insertReportRequisition()

@@ -70,7 +70,7 @@ private const val DUCHY_ID = "some-duchy-id"
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionTest : KingdomDatabaseTestBase() {
-  private fun updateExistingRequisitionState(state: RequisitionState) {
+  private suspend fun updateExistingRequisitionState(state: RequisitionState) {
     databaseClient.write(
       listOf(
         Mutation
@@ -84,12 +84,13 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun fulfillRequisition(externalRequisitionId: Long): Requisition = runBlocking {
-    FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID).execute(databaseClient)
+  private suspend fun fulfillRequisition(externalRequisitionId: Long): Requisition {
+    return FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID)
+      .execute(databaseClient)
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
     insertRequisition(
@@ -105,7 +106,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() {
+  fun success() = runBlocking<Unit> {
     updateExistingRequisitionState(RequisitionState.UNFULFILLED)
     val requisition = fulfillRequisition(EXTERNAL_REQUISITION_ID)
 
@@ -123,7 +124,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `denormalizes duchy id to associated reports`() {
+  fun `denormalizes duchy id to associated reports`() = runBlocking<Unit> {
     updateExistingRequisitionState(RequisitionState.UNFULFILLED)
 
     val reportDetails = ReportDetails.newBuilder().apply {
@@ -167,7 +168,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `already fulfilled`() {
+  fun `already fulfilled`() = runBlocking<Unit> {
     updateExistingRequisitionState(RequisitionState.FULFILLED)
     val existingRequisitions = readAllRequisitionsInSpanner()
 
@@ -181,7 +182,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `missing requisition`() {
+  fun `missing requisition`() = runBlocking<Unit> {
     val existingRequisitions = readAllRequisitionsInSpanner()
     assertFails {
       fulfillRequisition(EXTERNAL_REQUISITION_ID + 1)

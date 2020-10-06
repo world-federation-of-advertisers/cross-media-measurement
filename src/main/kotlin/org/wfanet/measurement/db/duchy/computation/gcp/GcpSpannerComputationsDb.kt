@@ -15,7 +15,6 @@
 package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.Timestamp
-import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
@@ -26,7 +25,7 @@ import java.time.Duration
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
@@ -34,7 +33,8 @@ import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.EndComputationReason
-import org.wfanet.measurement.db.gcp.asSequence
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.db.gcp.TransactionWork
 import org.wfanet.measurement.db.gcp.getNullableString
 import org.wfanet.measurement.db.gcp.getProtoEnum
 import org.wfanet.measurement.db.gcp.getProtoMessage
@@ -49,7 +49,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
  */
 class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
-  private val databaseClient: DatabaseClient,
+  private val databaseClient: AsyncDatabaseClient,
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
   private val blobStorageBucket: String = "mill-computation-stage-storage",
@@ -123,12 +123,10 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       )
 
     databaseClient.write(
-      listOf(
-        computationRow,
-        computationStageRow,
-        computationStageAttemptRow,
-        blobRefRow
-      )
+      computationRow,
+      computationStageRow,
+      computationStageAttemptRow,
+      blobRefRow
     )
   }
 
@@ -155,8 +153,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
 
   override suspend fun claimTask(ownerId: String): String? {
     /** Claim a specific task represented by the results of running the above sql. */
-    fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
-      databaseClient.readWriteTransaction().run { ctx ->
+    suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
+      databaseClient.readWriteTransaction().execute { ctx ->
         claim(
           ctx,
           result.computationId,
@@ -165,7 +163,7 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
           result.updateTime,
           ownerId
         )
-      } ?: error("claim for a specific computation ($result) returned a null value")
+      }
     return UnclaimedTasksQuery(computationMutations::longToEnum, clock.gcloudTimestamp())
       .execute(databaseClient)
       // First the possible tasks to claim are selected from the computations table, then for each
@@ -181,8 +179,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
    * Tries to claim a specific computation for an owner, returning the result of the attempt.
    * If a lock is acquired a new row is written to the ComputationStageAttempts table.
    */
-  private fun claim(
-    ctx: TransactionContext,
+  private suspend fun claim(
+    ctx: AsyncDatabaseClient.TransactionContext,
     computationId: Long,
     stage: StageT,
     nextAttempt: Long,
@@ -196,6 +194,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     // If it has been updated since that time the lock should not be acquired.
     if (currentLockOwnerStruct.getTimestamp("UpdateTime") != lastUpdate) return false
 
+    // TODO(sanjayvas): Determine whether we can use commit timestamp via
+    // spanner.commit_timestamp() in mutation.
     val writeTime = clock.gcloudTimestamp()
     ctx.buffer(setLockMutation(computationId, ownerId))
     // Create a new attempt of the stage for the nextAttempt.
@@ -363,8 +363,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     }
   }
 
-  private fun mutationsToChangeStages(
-    ctx: TransactionContext,
+  private suspend fun mutationsToChangeStages(
+    ctx: AsyncDatabaseClient.TransactionContext,
     token: ComputationStorageEditToken<StageT>,
     newStage: StageT,
     writeTime: Timestamp,
@@ -495,8 +495,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     return mutations
   }
 
-  private fun outputBlobIdToPathMap(
-    ctx: TransactionContext,
+  private suspend fun outputBlobIdToPathMap(
+    ctx: AsyncDatabaseClient.TransactionContext,
     localId: Long,
     stage: StageT
   ): Map<Long, String?> {
@@ -505,13 +505,12 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       KeySet.prefixRange(Key.of(localId, computationMutations.enumToLong(stage))),
       listOf("BlobId", "PathToBlob", "DependencyType")
     )
-      .asSequence()
       .filter {
         val dep = it.getProtoEnum("DependencyType", ComputationBlobDependency::forNumber)
         dep == ComputationBlobDependency.OUTPUT
       }
-      .map { it.getLong("BlobId") to it.getNullableString("PathToBlob") }
-      .toMap()
+      .toList()
+      .associate { it.getLong("BlobId") to it.getNullableString("PathToBlob") }
   }
 
   override suspend fun writeOutputBlobReference(
@@ -553,22 +552,24 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
   }
 
   /**
-   * Runs the readWriteTransactionFunction if the ComputationToken is from the most recent
-   * update to a computation. This is done atomically with in read/write transaction.
+   * Runs [readWriteTransactionBlock] if the ComputationToken is from the most
+   * recent update to a computation. This is done atomically with in read/write
+   * transaction.
    *
-   * @return [R] which is the result of the readWriteTransactionBlock
-   * @throws IllegalStateException if the token is not for the most recent update.
+   * @return [R] which is the result of the [readWriteTransactionBlock]
+   * @throws IllegalStateException if the token is not for the most recent
+   *     update
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationStorageEditToken<StageT>,
-    readWriteTransactionBlock: suspend (TransactionContext) -> R
-  ): R? {
-    return databaseClient.readWriteTransaction().run { ctx ->
+    readWriteTransactionBlock: TransactionWork<R>
+  ): R {
+    return databaseClient.readWriteTransaction().execute { ctx ->
       val current =
         ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
           ?: error("No row for computation (${token.localId})")
       if (current.getTimestamp("UpdateTime").toEpochMilli() == token.editVersion) {
-        runBlocking { readWriteTransactionBlock(ctx) }
+        readWriteTransactionBlock(ctx)
       } else {
         error("Failed to update, token is from older update time.")
       }

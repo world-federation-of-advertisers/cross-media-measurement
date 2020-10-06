@@ -56,17 +56,17 @@ private val REPORT3: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_R
 
 @RunWith(JUnit4::class)
 class StreamReportsTest : KingdomDatabaseTestBase() {
-  private fun executeToList(filter: StreamReportsFilter, limit: Long): List<Report> = runBlocking {
-    StreamReports(filter, limit).execute(databaseClient.singleUse()).toList()
+  private suspend fun executeToList(filter: StreamReportsFilter, limit: Long): List<Report> {
+    return StreamReports(filter, limit).execute(databaseClient.singleUse()).toList()
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
 
-    fun insertReportWithIds(reportId: Long, externalReportId: Long) =
+    suspend fun insertReportWithIds(reportId: Long, externalReportId: Long) =
       insertReport(
         ADVERTISER_ID,
         REPORT_CONFIG_ID,
@@ -82,7 +82,7 @@ class StreamReportsTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun limits() = runBlocking<Unit> {
+  fun limits() = runBlocking {
     assertThat(executeToList(streamReportsFilter(), 10))
       .comparingExpectedFieldsOnly()
       .containsExactly(REPORT1, REPORT2, REPORT3)
@@ -105,7 +105,7 @@ class StreamReportsTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `create time`() = runBlocking<Unit> {
-    fun executeWithTimeFilter(time: Instant) =
+    suspend fun executeWithTimeFilter(time: Instant) =
       executeToList(streamReportsFilter(updatedAfter = time), 100)
 
     val all = executeWithTimeFilter(Instant.EPOCH)
@@ -121,7 +121,7 @@ class StreamReportsTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `external id filters`() = runBlocking<Unit> {
+  fun `external id filters`() = runBlocking {
     fun wrongIdIf(condition: Boolean, id: Long) = ExternalId(if (condition) UNUSED_ID else id)
 
     repeat(3) {
@@ -136,7 +136,7 @@ class StreamReportsTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `all filters`() {
+  fun `all filters`() = runBlocking {
     val filter = streamReportsFilter(
       externalAdvertiserIds = listOf(ExternalId(EXTERNAL_ADVERTISER_ID)),
       externalReportConfigIds = listOf(ExternalId(EXTERNAL_REPORT_CONFIG_ID)),

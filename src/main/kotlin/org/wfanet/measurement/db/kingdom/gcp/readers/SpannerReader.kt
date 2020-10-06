@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.readers
 
-import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.appendClause
 
 /**
@@ -36,7 +36,10 @@ abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
     return this
   }
 
-  suspend fun readExternalIdOrNull(readContext: ReadContext, externalId: ExternalId): T? {
+  suspend fun readExternalIdOrNull(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalId: ExternalId
+  ): T? {
     return this
       .withBuilder {
         appendClause("WHERE $externalIdColumn = @external_id LIMIT 1")
@@ -46,7 +49,10 @@ abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
       .singleOrNull()
   }
 
-  suspend fun readExternalId(readContext: ReadContext, externalId: ExternalId): T {
+  suspend fun readExternalId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalId: ExternalId
+  ): T {
     return requireNotNull(readExternalIdOrNull(readContext, externalId)) {
       "Not found: $externalId"
     }

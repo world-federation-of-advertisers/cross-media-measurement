@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.queries
 
-import com.google.cloud.spanner.ReadContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.single
-import kotlinx.coroutines.withContext
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 
 /**
@@ -38,14 +36,14 @@ abstract class SpannerQuery<S : Any, T> {
   /**
    * Executes the query.
    */
-  fun execute(readContext: ReadContext): Flow<T> {
+  fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> {
     return reader.execute(readContext).transform()
   }
 
   /**
    * Executes the query to take the unique result, running on the proper Dispatcher.
    */
-  suspend fun executeSingle(readContext: ReadContext): T = withContext(spannerDispatcher()) {
-    execute(readContext).single()
+  suspend fun executeSingle(readContext: AsyncDatabaseClient.ReadContext): T {
+    return execute(readContext).single()
   }
 }

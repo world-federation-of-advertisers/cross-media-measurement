@@ -17,6 +17,7 @@ package org.wfanet.measurement.db.kingdom.gcp
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,7 +28,7 @@ import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
 class KingdomSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
 
   @Test
-  fun `insert single Advertiser`() {
+  fun `insert single Advertiser`() = runBlocking {
     val dbClient = databaseClient
     val mutation = Mutation.newInsertBuilder("Advertisers")
       .set("AdvertiserId").to(3011)

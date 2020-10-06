@@ -35,7 +35,7 @@ private const val EXTERNAL_REPORT_ID = 8L
 
 class GetReportTest : KingdomDatabaseTestBase() {
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID)
     insertReportConfigSchedule(ADVERTISER_ID, REPORT_CONFIG_ID, SCHEDULE_ID, EXTERNAL_SCHEDULE_ID)
@@ -50,8 +50,9 @@ class GetReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `the Report exists`() = runBlocking<Unit> {
-    val report = GetReport(ExternalId(EXTERNAL_REPORT_ID)).executeSingle(databaseClient.singleUse())
+  fun `the Report exists`() = runBlocking {
+    val report =
+      GetReport(ExternalId(EXTERNAL_REPORT_ID)).executeSingle(databaseClient.singleUse())
 
     val expected = Report.newBuilder().apply {
       externalAdvertiserId = EXTERNAL_ADVERTISER_ID
@@ -67,7 +68,7 @@ class GetReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `the Report does not exist`() = runBlocking<Unit> {
+  fun `the Report does not exist`() = runBlocking {
     val reports =
       GetReport(ExternalId(EXTERNAL_SCHEDULE_ID))
         .execute(databaseClient.singleUse())

@@ -18,13 +18,14 @@ import com.google.cloud.spanner.Statement
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertNotNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.InternalId
 import org.wfanet.measurement.common.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.db.gcp.asSequence
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportConfigReader
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.internal.kingdom.ReportConfig
@@ -98,11 +99,10 @@ class CreateReportConfigTest : KingdomDatabaseTestBase() {
       .containsExactly(CAMPAIGN_ID1, CAMPAIGN_ID2)
   }
 
-  private fun readReportConfigCampaigns(): List<Long> {
+  private suspend fun readReportConfigCampaigns(): List<Long> {
     return databaseClient
       .singleUse()
       .executeQuery(Statement.of("SELECT CampaignId FROM ReportConfigCampaigns"))
-      .asSequence()
       .map { it.getLong(0) }
       .toList()
   }

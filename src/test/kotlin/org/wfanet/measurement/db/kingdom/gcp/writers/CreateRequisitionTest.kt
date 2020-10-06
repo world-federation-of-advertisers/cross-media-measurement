@@ -84,12 +84,12 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Before
-  fun populateDatabase() {
+  fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 
-  private fun insertTheRequisition() {
+  private suspend fun insertTheRequisition() {
     insertRequisition(
       dataProviderId = DATA_PROVIDER_ID,
       campaignId = CAMPAIGN_ID,
@@ -129,7 +129,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `requisition already exists`() {
+  fun `requisition already exists`() = runBlocking<Unit> {
     insertTheRequisition()
     val requisition = createRequisition(INPUT_REQUISITION)
 
@@ -142,7 +142,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `start time used in idempotency`() {
+  fun `start time used in idempotency`() = runBlocking<Unit> {
     insertTheRequisition()
 
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {
@@ -163,7 +163,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `end time used in idempotency`() {
+  fun `end time used in idempotency`() = runBlocking<Unit> {
     insertTheRequisition()
 
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {
@@ -184,7 +184,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `details used in idempotency`() {
+  fun `details used in idempotency`() = runBlocking<Unit> {
     insertTheRequisition()
 
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {
@@ -205,7 +205,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `combined public key ID used in idempotency`() {
+  fun `combined public key ID used in idempotency`() = runBlocking<Unit> {
     insertTheRequisition()
 
     val newRequisition = INPUT_REQUISITION.toBuilder().apply {

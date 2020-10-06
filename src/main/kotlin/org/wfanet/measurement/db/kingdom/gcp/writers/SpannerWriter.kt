@@ -15,16 +15,13 @@
 package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.Timestamp
-import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
-import org.wfanet.measurement.db.gcp.spannerDispatcher
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 
 /**
  * Abstracts a common pattern:
@@ -38,7 +35,7 @@ import org.wfanet.measurement.db.gcp.spannerDispatcher
  */
 abstract class SpannerWriter<T, R> {
   data class TransactionScope(
-    val transactionContext: TransactionContext,
+    val transactionContext: AsyncDatabaseClient.TransactionContext,
     val idGenerator: IdGenerator,
     val clock: Clock
   )
@@ -74,19 +71,19 @@ abstract class SpannerWriter<T, R> {
    * @return the output of [buildResult]
    */
   suspend fun execute(
-    databaseClient: DatabaseClient,
+    databaseClient: AsyncDatabaseClient,
     idGenerator: IdGenerator = RandomIdGenerator(),
     clock: Clock = Clock.systemUTC()
   ): R {
     logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
-    val transactionResult: T? = runner.run { transactionContext ->
+    val transactionResult: T? = runner.execute { transactionContext ->
       val scope = TransactionScope(transactionContext, idGenerator, clock)
-      runBlocking(spannerDispatcher()) { scope.runTransaction() }
+      scope.runTransaction()
     }
-    val resultScope = ResultScope(transactionResult, runner.commitTimestamp)
-    return withContext(spannerDispatcher()) { resultScope.buildResult() }
+    val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
+    return resultScope.buildResult()
   }
 
   companion object {

@@ -14,19 +14,17 @@
 
 package org.wfanet.measurement.db.duchy.metricvalue.gcp
 
-import com.google.cloud.spanner.DatabaseClient
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.gcp.singleOrNull
-import org.wfanet.measurement.db.gcp.spannerDispatcher
 import org.wfanet.measurement.internal.duchy.MetricValue
 
 /** Metadata for `MetricValues` table. */
@@ -62,7 +60,7 @@ private object MetricValuesTable {
 
 /** Google Cloud Spanner implementation of [MetricValueDatabase]. */
 class SpannerMetricValueDatabase(
-  private val dbClient: DatabaseClient,
+  private val dbClient: AsyncDatabaseClient,
   private val idGenerator: IdGenerator
 ) : MetricValueDatabase {
 
@@ -86,7 +84,9 @@ class SpannerMetricValueDatabase(
         .build()
     }
 
-    withContext(spannerDispatcher()) { dbClient.write(listOf(insertMutation)) }
+    dbClient.readWriteTransaction().execute { txn ->
+      txn.buffer(insertMutation)
+    }
 
     return metricValue.toBuilder().setExternalId(externalId.value).build()
   }
@@ -102,9 +102,7 @@ class SpannerMetricValueDatabase(
       .bind("externalId").to(externalId.value)
       .build()
 
-    return withContext(spannerDispatcher()) {
-      dbClient.singleUse().executeQuery(query).singleOrNull()?.toMetricValue()
-    }
+    return dbClient.singleUse().executeQuery(query).singleOrNull()?.toMetricValue()
   }
 
   override suspend fun getMetricValue(resourceKey: MetricValue.ResourceKey): MetricValue? {
@@ -125,21 +123,17 @@ class SpannerMetricValueDatabase(
         .build()
     }
 
-    return withContext(spannerDispatcher()) {
-      dbClient.singleUse().executeQuery(query).singleOrNull()?.toMetricValue()
-    }
+    return dbClient.singleUse().executeQuery(query).singleOrNull()?.toMetricValue()
   }
 
   override suspend fun getBlobStorageKey(resourceKey: MetricValue.ResourceKey): String? =
     with(MetricValuesTable) {
-      val indexRow: Struct? = withContext(spannerDispatcher()) {
-        dbClient.singleUse().readRowUsingIndex(
-          TABLE_NAME,
-          indexes.METRIC_VALUES_BY_RESOURCE_KEY,
-          resourceKey.toSpannerKey(),
-          listOf(columns.BLOB_STORAGE_KEY)
-        )
-      }
+      val indexRow: Struct? = dbClient.singleUse().readRowUsingIndex(
+        TABLE_NAME,
+        indexes.METRIC_VALUES_BY_RESOURCE_KEY,
+        resourceKey.toSpannerKey(),
+        columns.BLOB_STORAGE_KEY
+      )
       indexRow?.getString(columns.BLOB_STORAGE_KEY)
     }
 

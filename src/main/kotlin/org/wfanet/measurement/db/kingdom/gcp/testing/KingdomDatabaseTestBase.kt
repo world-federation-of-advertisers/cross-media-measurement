@@ -46,12 +46,10 @@ private val REPORT_DETAILS = ReportDetails.newBuilder().apply {
 }.build()
 
 abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
-  private fun write(mutation: Mutation) {
-    databaseClient.write(listOf(mutation))
-  }
+  private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
 
   // TODO: add AdvertiserDetails proto as input.
-  protected fun insertAdvertiser(
+  protected suspend fun insertAdvertiser(
     advertiserId: Long,
     externalAdvertiserId: Long
   ) {
@@ -65,7 +63,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertReportConfig(
+  protected suspend fun insertReportConfig(
     advertiserId: Long,
     reportConfigId: Long,
     externalReportConfigId: Long,
@@ -86,7 +84,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertReportConfigSchedule(
+  protected suspend fun insertReportConfigSchedule(
     advertiserId: Long,
     reportConfigId: Long,
     scheduleId: Long,
@@ -107,7 +105,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertReportConfigCampaign(
+  protected suspend fun insertReportConfigCampaign(
     advertiserId: Long,
     reportConfigId: Long,
     dataProviderId: Long,
@@ -123,7 +121,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertReport(
+  protected suspend fun insertReport(
     advertiserId: Long,
     reportConfigId: Long,
     scheduleId: Long,
@@ -154,7 +152,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  fun insertReportWithParents(
+  suspend fun insertReportWithParents(
     advertiserId: Long,
     externalAdvertiserId: Long,
     reportConfigId: Long,
@@ -179,7 +177,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertDataProvider(
+  protected suspend fun insertDataProvider(
     dataProviderId: Long,
     externalDataProviderId: Long
   ) {
@@ -193,7 +191,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertCampaign(
+  protected suspend fun insertCampaign(
     dataProviderId: Long,
     campaignId: Long,
     externalCampaignId: Long,
@@ -213,7 +211,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertRequisition(
+  protected suspend fun insertRequisition(
     dataProviderId: Long,
     campaignId: Long,
     requisitionId: Long,
@@ -244,7 +242,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/
     )
   }
 
-  protected fun insertReportRequisition(
+  protected suspend fun insertReportRequisition(
     advertiserId: Long,
     reportConfigId: Long,
     scheduleId: Long,
