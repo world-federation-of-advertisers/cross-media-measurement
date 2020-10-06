@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS = [
-    "com.google.truth.extensions:truth-java8-extension:1.0.1",
-    "com.google.truth.extensions:truth-liteproto-extension:1.0.1",
-    "com.google.truth.extensions:truth-proto-extension:1.0.1",
-    "com.google.truth:truth:1.0.1",
+_ARTIFACT_NAMES = [
+    "com.google.truth.extensions:truth-java8-extension",
+    "com.google.truth.extensions:truth-proto-extension",
+    "com.google.truth:truth",
 ]
+
+def com_google_truth_artifact_dict(version):
+    return {name: version for name in _ARTIFACT_NAMES}

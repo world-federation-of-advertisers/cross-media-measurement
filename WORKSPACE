@@ -18,8 +18,7 @@ http_archive(
 )
 
 # @com_google_truth_truth
-
-load("//build/com_google_truth_truth:repo.bzl", "COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS")
+load("//build/com_google_truth:repo.bzl", "com_google_truth_artifact_dict")
 
 # @io_bazel_rules_kotlin
 
@@ -36,6 +35,9 @@ rules_kotlin_deps(compiler_release = kotlinc_release(
     sha256 = "ccd0db87981f1c0e3f209a1a4acb6778f14e63fe3e561a98948b5317e526cc6c",
     version = "1.3.72",
 ))
+
+# kotlinx.coroutines
+load("//build/kotlinx_coroutines:repo.bzl", "kotlinx_coroutines_artifact_dict")
 
 # @com_github_grpc_grpc_kotlin
 
@@ -75,30 +77,25 @@ http_archive(
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("//build/maven:artifacts.bzl", "artifacts")
 
-KOTLINX_COROUTINES_VERSION = "1.3.6"
-
 MAVEN_ARTIFACTS = artifacts.list_to_dict(
     IO_GRPC_GRPC_JAVA_ARTIFACTS +
-    IO_GRPC_GRPC_KOTLIN_ARTIFACTS +
-    COM_GOOGLE_TRUTH_TRUTH_ARTIFACTS,
+    IO_GRPC_GRPC_KOTLIN_ARTIFACTS,
 )
 
+MAVEN_ARTIFACTS.update(com_google_truth_artifact_dict(version = "1.0.1"))
+
+MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.3.6"))
+
+# Add Maven artifacts or override versions (e.g. those pulled in by gRPC Kotlin
+# or default dependency versions).
 MAVEN_ARTIFACTS.update({
     "com.google.api.grpc:grpc-google-cloud-pubsub-v1": "0.1.24",
-    "com.google.api.grpc:proto-google-cloud-pubsub-v1": "0.1.24",
-    "com.google.api:gax": "1.58.2",
-    "com.google.cloud:google-cloud-core": "1.93.5",
     "com.google.cloud:google-cloud-nio": "0.121.2",
     "com.google.cloud:google-cloud-spanner": "2.0.2",
     "com.google.cloud:google-cloud-storage": "1.113.1",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
     "info.picocli:picocli": "4.4.0",
-    "io.grpc:grpc-kotlin-stub": "0.1.2",
     "junit:junit": "4.13",
-    "org.jetbrains.kotlinx:kotlinx-coroutines-core": KOTLINX_COROUTINES_VERSION,
-    "org.jetbrains.kotlinx:kotlinx-coroutines-debug": KOTLINX_COROUTINES_VERSION,
-    "org.jetbrains.kotlinx:kotlinx-coroutines-test": KOTLINX_COROUTINES_VERSION,
-    "org.mockito:mockito-core": "3.3.3",
 })
 
 maven_install(
