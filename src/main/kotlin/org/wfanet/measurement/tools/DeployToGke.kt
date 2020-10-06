@@ -18,45 +18,17 @@ import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
 import kotlin.system.exitProcess
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.getRuntimePath
 import picocli.CommandLine
 import picocli.CommandLine.Command
 
 @Command(
   name = "deploy_to_kind",
-  description = ["Builds container images from source and deploys them to a local kind cluster."]
+  description = ["Deploys containers on gcr.io to GKE"]
 )
 class DeployToGke() : Callable<Int> {
   private val yamlFile = "kingdom_and_three_duchies_from_cue_gke.yaml"
   private val clusterName = "om-test-cluster"
-  private fun String.runAsProcess(
-    // A lot of tools write things that aren't errors to stderr.
-    redirectErrorStream: Boolean = true,
-    exitOnFail: Boolean = true
-  ) {
-    logger.info("*** RUNNING: $this ***")
-
-    val process = ProcessBuilder(this.split("\\s".toRegex()))
-      .redirectErrorStream(redirectErrorStream)
-      .start()
-
-    runBlocking {
-      joinAll(
-        launch { process.errorStream.bufferedReader().forEachLine(logger::severe) },
-        launch { process.inputStream.bufferedReader().forEachLine(logger::info) }
-      )
-    }
-
-    process.waitFor()
-
-    if (exitOnFail && process.exitValue() != 0) {
-      logger.severe("*** FAILURE: Something went wrong. Aborting. ****")
-      System.exit(process.exitValue())
-    }
-  }
 
   override fun call(): Int {
     val manifestPath =
@@ -73,10 +45,11 @@ class DeployToGke() : Callable<Int> {
       )
     logger.info("*** STARTING ***")
 
-    "gcloud container clusters get-credentials $clusterName".runAsProcess()
+    // Obtain a credential
+    runSubprocess("gcloud container clusters get-credentials $clusterName")
 
     // Create the pods and services.
-    "kubectl apply -f $manifestPath".runAsProcess()
+    runSubprocess("kubectl apply -f $manifestPath")
 
     logger.info("*** DONE: Completed successfully. ***")
 

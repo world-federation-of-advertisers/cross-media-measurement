@@ -18,9 +18,6 @@ import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
 import kotlin.system.exitProcess
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.getRuntimePath
 import picocli.CommandLine
 import picocli.CommandLine.Command
@@ -33,32 +30,6 @@ class DeployToKind() : Callable<Int> {
   private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement"
   private val yamlFile = "kingdom_and_three_duchies_from_cue_local.yaml"
 
-  private fun String.runAsProcess(
-    // A lot of tools write things that aren't errors to stderr.
-    redirectErrorStream: Boolean = true,
-    exitOnFail: Boolean = true
-  ) {
-    logger.info("*** RUNNING: $this ***")
-
-    val process = ProcessBuilder(this.split("\\s".toRegex()))
-      .redirectErrorStream(redirectErrorStream)
-      .start()
-
-    runBlocking {
-      joinAll(
-        launch { process.errorStream.bufferedReader().forEachLine(logger::severe) },
-        launch { process.inputStream.bufferedReader().forEachLine(logger::info) }
-      )
-    }
-
-    process.waitFor()
-
-    if (exitOnFail && process.exitValue() != 0) {
-      logger.severe("*** FAILURE: Something went wrong. Aborting. ****")
-      System.exit(process.exitValue())
-    }
-  }
-
   override fun call(): Int {
     logger.info("*** STARTING ***")
 
@@ -66,7 +37,9 @@ class DeployToKind() : Callable<Int> {
     val duchyRunfiles =
       checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", duchyFilePath))).toFile()
     duchyRunfiles
-      .walk().filter { !it.isDirectory && it.extension == "tar" }
+      .walk()
+      .asSequence()
+      .filter { !it.isDirectory && it.extension == "tar" }
       .forEach { imageFile ->
         logger.info("*** LOADING IMAGE: ${imageFile.absolutePath} ***")
 
@@ -81,13 +54,13 @@ class DeployToKind() : Callable<Int> {
           "*** FYI: If the image doesn't exist the next command fails. " +
             "This is expected and not a big deal. ***"
         )
-        "docker rmi $imageName".runAsProcess(exitOnFail = false)
+        runSubprocess("docker rmi $imageName", exitOnFail = false)
 
         // Load the image into Docker.
-        "docker load -i ${imageFile.absolutePath}".runAsProcess(redirectErrorStream = false)
+        runSubprocess("docker load -i ${imageFile.absolutePath}", redirectErrorStream = false)
 
         // Load the image into Kind.
-        "kind load docker-image $imageName".runAsProcess()
+        runSubprocess("kind load docker-image $imageName")
 
         logger.info("*** DONE LOADING IMAGE: $imageFile.absolutePath ***")
       }
@@ -113,10 +86,10 @@ class DeployToKind() : Callable<Int> {
       "*** FYI: If the pods don't exist the next command fails. " +
         "This is expected and not a big deal. ***"
     )
-    "kubectl delete -f $manifestPath".runAsProcess(exitOnFail = false)
+    runSubprocess("kubectl delete -f $manifestPath", exitOnFail = false)
 
     // Create the pods and services.
-    "kubectl apply -f $manifestPath".runAsProcess()
+    runSubprocess("kubectl apply -f $manifestPath")
 
     logger.info("*** DONE: Completed successfully. ***")
 

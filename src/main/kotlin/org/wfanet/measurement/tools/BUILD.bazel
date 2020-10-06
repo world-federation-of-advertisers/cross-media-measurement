@@ -7,27 +7,31 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "deploy_to_kind_impl",
-    srcs = [
-        "DeployToKind.kt",
+    name = "run_subprocess",
+    srcs = ["RunSubprocess.kt"],
+    deps = [
+        "//imports/kotlin/kotlinx/coroutines:core",
     ],
+)
+
+kt_jvm_library(
+    name = "deploy_to_kind_impl",
+    srcs = ["DeployToKind.kt"],
     data = ["//src/main/k8s:k8s_deployement_config"],
     deps = [
+        ":run_subprocess",
         "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
 kt_jvm_library(
     name = "deploy_to_gke_impl",
-    srcs = [
-        "DeployToGKE.kt",
-    ],
+    srcs = ["DeployToGke.kt"],
     data = ["//src/main/k8s:k8s_deployement_config"],
     deps = [
+        ":run_subprocess",
         "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -40,7 +44,7 @@ java_binary(
 
 java_binary(
     name = "deploy_to_gke",
-    main_class = "org.wfanet.measurement.tools.DeployToGKEKt",
+    main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     runtime_deps = ["deploy_to_gke_impl"],
 )
 
