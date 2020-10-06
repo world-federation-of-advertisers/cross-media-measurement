@@ -90,7 +90,6 @@ kingdom: #Kingdom & {
 		"--project-name=ads-open-measurement",
 	]
 	_spanner_flags: [
-		"--ignore-already-existing-databases",
 		"--spanner-database=kingdom",
 		"--spanner-instance=qa-instance",
 		"--spanner-project=ads-open-measurement",

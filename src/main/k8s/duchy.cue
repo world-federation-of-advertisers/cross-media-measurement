@@ -46,11 +46,11 @@ import ("strings")
 	}
 
 	duchy_pod: [Name=_]: #Pod & {
-		_unprefixed_name:   strings.TrimSuffix(Name, "-pod")
-		_name:              _object_prefix + _unprefixed_name
-		_system:            "duchy"
-		_image:             _images[_unprefixed_name]
-		_image_pull_policy: _duchy_image_pull_policy
+		_unprefixed_name: strings.TrimSuffix(Name, "-pod")
+		_name:            _object_prefix + _unprefixed_name
+		_system:          "duchy"
+		_image:           _images[_unprefixed_name]
+		_imagePullPolicy: _duchy_image_pull_policy
 	}
 
 	duchy_pod: {

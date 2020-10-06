@@ -41,10 +41,10 @@ import ("strings")
 	}
 
 	kingdom_pod: [Name=_]: #Pod & {
-		_name:              strings.TrimSuffix(Name, "-pod")
-		_system:            "kingdom"
-		_image:             _images[_name]
-		_image_pull_policy: _kingdom_image_pull_policy
+		_name:            strings.TrimSuffix(Name, "-pod")
+		_system:          "kingdom"
+		_image:           _images[_name]
+		_imagePullPolicy: _kingdom_image_pull_policy
 	}
 
 	kingdom_pod: {
