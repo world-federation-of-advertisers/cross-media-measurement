@@ -14,9 +14,9 @@
 
 package org.wfanet.measurement.db.kingdom.gcp.readers
 
-import com.google.cloud.spanner.ReadContext
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
@@ -30,8 +30,10 @@ abstract class BaseSpannerReader<T> {
   protected abstract suspend fun translate(struct: Struct): T
 
   /** Executes the query. */
-  fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> =
-    readContext.executeQuery(builder.build()).map(::translate)
+  fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> {
+    logger.fine { "Executing Query: " + builder.build() }
+    return readContext.executeQuery(builder.build()).map(::translate)
+  }
 
   companion object {
     fun forStructs(statement: Statement): BaseSpannerReader<Struct> {
@@ -40,5 +42,7 @@ abstract class BaseSpannerReader<T> {
         override suspend fun translate(struct: Struct): Struct = struct
       }
     }
+
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
