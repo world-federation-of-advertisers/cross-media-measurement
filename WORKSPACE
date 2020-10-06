@@ -88,9 +88,9 @@ MAVEN_ARTIFACTS.update({
     "com.google.api.grpc:proto-google-cloud-pubsub-v1": "0.1.24",
     "com.google.api:gax": "1.58.2",
     "com.google.cloud:google-cloud-core": "1.93.5",
-    "com.google.cloud:google-cloud-nio": "0.121.0",
-    "com.google.cloud:google-cloud-spanner": "2.0.1",
-    "com.google.cloud:google-cloud-storage": "1.109.0",
+    "com.google.cloud:google-cloud-nio": "0.121.2",
+    "com.google.cloud:google-cloud-spanner": "2.0.2",
+    "com.google.cloud:google-cloud-storage": "1.113.1",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
     "info.picocli:picocli": "4.4.0",
     "io.grpc:grpc-kotlin-stub": "0.1.2",
@@ -282,8 +282,8 @@ load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries
 
 cloud_spanner_emulator_binaries(
     name = "cloud_spanner_emulator",
-    sha256 = "6877c40d635628dc294f1a5b03f5ac3b96c2b9a8b86a994b5b011b1b482d0042",
-    version = "1.0.0",
+    sha256 = "86df7eeb4c2c03c8f1254f222360637bb84d43f64ee5464f98a8057104791dad",
+    version = "1.1.0",
 )
 
 # CUE

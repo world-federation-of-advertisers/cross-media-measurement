@@ -9,5 +9,6 @@ java_library(
         # to fix IntelliJ -- it doesn't pick up on these by itself.
         "//imports/java/com/google/api/core",
         "//imports/java/com/google/api/gax",
+        "//imports/java/com/google/cloud/grpc",
     ],
 )
