@@ -33,8 +33,8 @@ struct DataBlock {
 
   unsigned char data[kBlockSize];
   bool operator<(const DataBlock& rhs) const {
-    static_assert(sizeof(*this) == kBlockSize, "Invalid size");
-    static_assert(alignof(*this) == 1, "Invalid alignment");
+    static_assert(sizeof(DataBlock<kBlockSize>) == kBlockSize, "Invalid size");
+    static_assert(alignof(DataBlock<kBlockSize>) == 1, "Invalid alignment");
     return memcmp(data, rhs.data, kBlockSize) < 0;
   }
 };
