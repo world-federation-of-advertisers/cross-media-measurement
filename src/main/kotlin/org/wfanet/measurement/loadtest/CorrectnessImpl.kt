@@ -16,7 +16,6 @@ package org.wfanet.measurement.loadtest
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import io.grpc.StatusException
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
@@ -245,22 +244,26 @@ class CorrectnessImpl(
     val dataProviderId = generatedCampaign.dataProviderId.apiId
     val campaignId = generatedCampaign.campaignId.apiId
 
-    val requisition = getMetricRequisition(dataProviderId, campaignId)
+    val requisition = runCatching {
+      getMetricRequisition(dataProviderId, campaignId)
+    }.getOrThrowWithMessage {
+      "Error getting metric requisition. Data provider: $dataProviderId, campaign: $campaignId"
+    }
     val resourceKey = requisition.combinedPublicKey
     val combinedPublicKey = publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
-      publisherDataStub.getCombinedPublicKey(resourceKey)
+      runCatching {
+        publisherDataStub.getCombinedPublicKey(resourceKey)
+      }.getOrThrowWithMessage{
+        "Error getting combined public key $resourceKey"
+      }
     }
     val encryptedSketch =
       encryptAndStore(generatedCampaign.sketch, combinedPublicKey.encryptionKey, testResult)
 
-    try {
+    runCatching {
       uploadMetricValue(requisition.key, encryptedSketch)
-    } catch (e: StatusException) {
-      logger.warning(
-        "Failed sending the sketch for Campaign: " +
-          "${dataProviderId.value} to the server due to $e."
-      )
-      throw e
+    }.getOrThrowWithMessage{
+      "Error uploading metric value for ${requisition.key}"
     }
   }
 
@@ -446,4 +449,14 @@ private suspend fun PublisherDataCoroutineStub.getCombinedPublicKey(
       key = resourceKey
     }.build()
   )
+}
+
+/**
+ * Returns the value or throws a [RuntimeException] wrapping the cause with the
+ * provided message.
+ */
+private fun <T> Result<T>.getOrThrowWithMessage(provideMessage: () -> String): T {
+  return getOrElse { cause ->
+    throw RuntimeException(provideMessage(), cause)
+  }
 }
