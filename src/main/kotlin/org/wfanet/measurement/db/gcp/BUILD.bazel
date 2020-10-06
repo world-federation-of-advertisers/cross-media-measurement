@@ -13,5 +13,6 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud",
     ],
 )
