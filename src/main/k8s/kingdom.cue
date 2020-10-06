@@ -33,7 +33,6 @@ import ("strings")
 				image:           _images[name]
 				imagePullPolicy: _kingdom_image_pull_policy
 				args:            [
-							"--ignore-already-existing-databases",
 							"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
 				] + _spanner_schema_push_flags
 			}]
