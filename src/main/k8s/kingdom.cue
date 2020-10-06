@@ -35,7 +35,6 @@ import ("strings")
 				args:            [
 							"--ignore-already-existing-databases",
 							"--databases=kingdom=/app/wfa_measurement_system/src/main/db/gcp/kingdom.sdl",
-							"--project-name=ads-open-measurement",
 				] + _spanner_schema_push_flags
 			}]
 			restartPolicy: "OnFailure"
