@@ -4,29 +4,11 @@ import (
 	"strings"
 )
 
-duchy_pod: [Name=_]: #Pod & {
-	_name:   strings.TrimSuffix(Name, "-pod")
-	_system: "duchy"
-}
-duchy_service: [Name=_]: #GrpcService & {
-	_name:   Name
-	_system: "duchy"
-}
-kingdom_service: [Name=_]: #GrpcService & {
-	_name:   Name
-	_system: "kingdom"
-}
-
 #Target: {
 	name:   string
 	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
 	target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
 }
-
-fake_pod: [Name=_]: {}
-fake_service: [Name=_]: {}
-kingdom_job: [Name=_]: {}
-setup_job: [Name=_]: {}
 
 #Port: {
 	name:       string
@@ -85,9 +67,4 @@ setup_job: [Name=_]: {}
 
 #ServerPod: #Pod & {
 	_ports: [{containerPort: 8080}]
-}
-
-#Duchy: {
-	name: string
-	key:  string
 }
