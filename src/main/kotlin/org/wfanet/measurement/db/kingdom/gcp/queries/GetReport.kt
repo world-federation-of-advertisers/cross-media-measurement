@@ -28,6 +28,11 @@ class GetReport(externalReportId: ExternalId) : SpannerQuery<ReportReader.Result
       .withBuilder {
         appendClause("WHERE Reports.ExternalReportId = @external_report_id")
         bind("external_report_id").to(externalReportId.value)
+
+        // The index ReportsByExternalId will enforce that only a single result is returned, but we
+        // explicitly add LIMIT 1 to make it obvious, when looking at debug logs or porting this
+        // code to other databases, that the query should return a single result.
+        appendClause("LIMIT 1")
       }
   }
 

@@ -27,7 +27,7 @@ abstract class BaseSpannerReader<T> {
   abstract val builder: Statement.Builder
 
   /** Transforms the results of the query. */
-  protected abstract suspend fun translate(struct: Struct): T
+  abstract suspend fun translate(struct: Struct): T
 
   /** Executes the query. */
   fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> {

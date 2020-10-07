@@ -24,6 +24,7 @@ import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.db.kingdom.gcp.readers.ReportRequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -51,7 +52,7 @@ class FulfillRequisition(
       .build()
       .bufferTo(transactionContext)
 
-    ReportReader
+    ReportRequisitionReader
       .readReportsWithAssociatedRequisition(
         transactionContext,
         InternalId(readResult.dataProviderId),
