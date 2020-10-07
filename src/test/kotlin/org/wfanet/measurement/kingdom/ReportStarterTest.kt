@@ -21,12 +21,12 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.same
 import com.nhaarman.mockitokotlin2.stub
 import com.nhaarman.mockitokotlin2.verify
-import java.util.concurrent.CountDownLatch
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.CountDownLatch
 import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.launchAndCancelWithLatch
 import org.wfanet.measurement.internal.kingdom.Report
