@@ -1,0 +1,85 @@
+@startuml
+!unquoted function resource($type)
+  class $type << (R, SandyBrown) >>
+!endfunction
+!unquoted function collection($name, $type)
+  $name "1" *-- "many" $type
+  object $name
+!endfunction
+
+skinparam default {
+  fontName "Roboto Mono"
+  fontSize 12
+}
+
+resource(DataProvider) {
+}
+resource(Advertiser) {
+}
+resource(SketchConfig) {
+}
+resource(CombinedPublicKey) {
+  encryption_key
+  Get()
+}
+resource(GlobalComputation) {
+  state
+  metric_requisitions
+  [result]
+  Get()
+  Confirm()
+  Finish()
+}
+
+together {
+  collection(dataProviders, DataProvider) {
+    Create(data_provider)
+  }
+  collection(advertisers, Advertiser) {
+    Create(advertiser)
+  }
+  collection(sketchConfigs, SketchConfig) {
+  }
+  collection(combinedPublicKeys, CombinedPublicKey) {
+  }
+  collection(globalComputations, GlobalComputation) {
+    StreamActive()
+  }
+}
+
+collection(metricRequisitions, MetricRequisition) {
+  Create(metric_requisition)
+  List([states])
+}
+collection(campaigns, Campaign) {
+  Create(campaign)
+}
+
+resource(MetricRequisition) {
+  collection_interval
+  metric_definition
+  state
+  combined_public_key
+  Fulfill()
+}
+resource(Campaign) {
+  advertiser
+}
+resource(MetricValue) {
+  sketch
+  Upload()
+}
+
+DataProvider *-- campaigns
+Campaign "many" ..> "1" Advertiser
+Campaign *-- metricRequisitions
+
+MetricRequisition *-- "0..1" MetricValue
+MetricRequisition "1" ..> "many" SketchConfig
+MetricRequisition ..> CombinedPublicKey
+
+GlobalComputation "1" ..> "many" MetricRequisition
+
+Advertiser -[hidden]> DataProvider
+
+@enduml
