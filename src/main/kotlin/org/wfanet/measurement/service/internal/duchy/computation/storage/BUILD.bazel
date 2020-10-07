@@ -24,7 +24,6 @@ kt_jvm_library(
     name = "protos",
     srcs = ["ComputationStorageServiceProtos.kt"],
     deps = [
-        "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
@@ -36,7 +35,6 @@ kt_jvm_library(
     srcs = ["ComputationStorageServiceImpl.kt"],
     deps = [
         ":protos",
-        "//:grpc_core",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/gcloud",

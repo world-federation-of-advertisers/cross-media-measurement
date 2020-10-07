@@ -6,7 +6,6 @@ kt_jvm_library(
     testonly = True,
     srcs = ["LiquidLegionsComputationControlServiceImplTest.kt"],
     deps = [
-        "//:grpc_core",
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/io/grpc:api",

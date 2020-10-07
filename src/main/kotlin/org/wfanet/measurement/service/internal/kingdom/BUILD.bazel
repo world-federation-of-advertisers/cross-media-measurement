@@ -14,8 +14,9 @@ kt_jvm_library(
         exclude = ["*Main.kt"],
     ),
     deps = [
-        "//:grpc_core",
         "//imports/java/com/google/cloud/spanner",
+        "//imports/java/io/grpc:api",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",

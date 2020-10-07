@@ -1,24 +1,7 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_import")
 
 package(default_visibility = ["//:__subpackages__"])
 
 # This is completely unintuitive. The Bazel rules for Docker require this.
 # https://github.com/bazelbuild/bazel-gazelle/issues/609
 gazelle(name = "gazelle")
-
-java_library(
-    name = "grpc_core",
-    exports = [
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//imports/java/com/google/protobuf",
-        "//imports/java/com/google/protobuf/util",
-
-        # These aren't strictly necessary, but without them, IntelliJ
-        # complains. Until we figure out how to fix IntelliJ's Bazel sync,
-        # we will keep these here.
-        "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:context",
-        "@com_github_grpc_grpc_kotlin//stub/src/main/java/io/grpc/kotlin:stub",
-        "@io_grpc_grpc_java//stub",
-    ],
-)

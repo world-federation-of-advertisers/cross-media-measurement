@@ -12,6 +12,7 @@ kt_jvm_library(
         ["*.kt"],
         exclude = ["*Main.kt"],
     ),
+    runtime_deps = ["//imports/java/io/grpc/netty"],
     deps = [
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
@@ -34,10 +35,6 @@ kt_jvm_library(
     srcs = ["ReportMakerMain.kt"],
     deps = [
         ":kingdom",
-        "//:grpc_core",
-        "//imports/java/io/grpc:api",
-        "//imports/java/io/grpc/netty",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -60,10 +57,6 @@ kt_jvm_library(
     srcs = ["ReportStarterMain.kt"],
     deps = [
         ":kingdom",
-        "//:grpc_core",
-        "//imports/java/io/grpc:api",
-        "//imports/java/io/grpc/netty",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -86,10 +79,6 @@ kt_jvm_library(
     srcs = ["RequisitionLinkerMain.kt"],
     deps = [
         ":kingdom",
-        "//:grpc_core",
-        "//imports/java/io/grpc:api",
-        "//imports/java/io/grpc/netty",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
