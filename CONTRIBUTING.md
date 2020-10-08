@@ -33,7 +33,11 @@ additional_languages:
 
 ## Code Style
 
-See the [code style](docs/code-style.md) page.
+See the [Code Style](docs/code-style.md) page.
+
+## Building
+
+See the [Building](docs/building.md) page.
 
 ## Code Reviews
 
