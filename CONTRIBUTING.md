@@ -33,75 +33,7 @@ additional_languages:
 
 ## Code Style
 
-### Kotlin
-
-We mostly adhere to the
-[Google Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
-The one exception is that we use two spaces instead of four for indentation.
-
-Please keep Kotlin code `ktlint`-formatted. Note that our `.editorconfig` file
-defines just a couple of overrides. This will produce code compliant with the
-style guide.
-
-In addition to the automatic linting and formatting, please observe these
-guidelines:
-
-1.  Write unit tests for all code.
-    1.  Please only mock interfaces and abstract classes in tests.
-    1.  Write test cases per behavior. Bias towards more, smaller test cases.
-1.  Avoid third-party libraries where possible. Due to the privacy requirements
-    of this project, we prefer avoiding unaudited dependencies.
-1.  Avoid weirdness.
-    1.  Don't unnecessarily define infix functions.
-    1.  Avoid reflection.
-    1.  Keep code predictable. If a code reviewer struggles to understand it,
-        please add comments or refactor it to be clearer.
-
-### Bazel BUILD
-
-Follow the Bazel
-[BUILD Style Guide](https://docs.bazel.build/versions/master/skylark/build-style.html).
-
-### Protocol Buffers
-
-Follow the
-[Google Protocol Buffers Style Guide](https://developers.google.com/protocol-buffers/docs/style).
-
-### Markdown
-
-Follow the
-[Google Markdown Style Guide](https://google.github.io/styleguide/docguide/style.html).
-
-Note: We intend to keep our Markdown compatible with both the
-[GitHub Flavored Markdown Spec](https://github.github.com/gfm/) and
-[Gitiles](https://gerrit.googlesource.com/gitiles/+/HEAD/Documentation/markdown.md).
-
-## Formatters
-
-Automated formatters help keep code styling consistent, especially when there
-are ambiguities in the style guide. You should run the appropriate formatters on
-your code prior to submitting.
-
-### Kotlin
-
-Kotlin formatting is done by [`ktlint`](https://ktlint.github.io/).
-
-You can set up `ktlint`-compatible formatting in IntelliJ by following
-[these instructions](https://github.com/pinterest/ktlint/blob/master/README.md#-with-intellij-idea).
-Once this is set up, entire directories can be formatted at once by
-right-clicking on the directory in the Project view and selecting "Reformat
-Code".
-
-### BUILD
-
-Bazel includes a
-[`buildifier`](https://github.com/bazelbuild/buildtools/tree/master/buildifier)
-tool.
-
-### Other languages
-
-[`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) supports
-formatting for multiple languages. Run it with `--style=Google`.
+See the [code style](docs/code-style.md) page.
 
 ## Code Reviews
 
