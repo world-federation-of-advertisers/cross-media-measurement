@@ -83,7 +83,6 @@ class FinishReportTest : KingdomDatabaseTestBase() {
   fun `report is in the wrong state`() = runBlocking {
     val states = listOf(
       ReportState.AWAITING_REQUISITION_CREATION,
-      ReportState.AWAITING_REQUISITION_FULFILLMENT,
       ReportState.SUCCEEDED,
       ReportState.FAILED
     )

@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 /**
- * SpannerQuery for finding [Report]s with no unfulfilled [Requisition]s.
+ * SpannerQuery for finding [Report]s with no unfulfilled Requisitions.
  *
  * Since this is a very specific use case and involves a more complex query than that of
  * [StreamReports], we keep it separate for simplicity.
@@ -42,13 +42,10 @@ class StreamReadyReports(limit: Long) : SpannerQuery<ReportReader.Result, Report
       HAVING COUNT(ReportRequisitions.RequisitionId) = ReportConfigs.NumRequisitions
       """.trimIndent()
 
-    ReportReader()
+    ReportReader(index = ReportReader.Index.STATE)
       .withBuilder {
         appendClause(sql)
         bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
-
-        // TODO: sort out the right state here -- are we representing
-        // AWAITING_REQUISITION_FULFILLMENT explicitly in the DB?
         bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
 
         if (limit > 0) {

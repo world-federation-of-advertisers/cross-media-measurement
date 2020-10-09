@@ -27,25 +27,21 @@ message Report {
   enum ReportState {
     REPORT_STATE_UNKNOWN = 0;
 
-    // For new Reports, before all Requisitions are created and associated.
+    // For new Reports, while Requisitions are being created, associated, and
+    // fulfilled.
     AWAITING_REQUISITION_CREATION = 1;
-
-    // All Requisitions are created and associated, but some are unfulfilled.
-    // TODO: merge with previous state. There is no need to differentiate the
-    // two.
-    AWAITING_REQUISITION_FULFILLMENT = 2;
 
     // All Requisitions are associated and fulfilled. Duchies must confirm that
     // they are ready to start.
-    AWAITING_DUCHY_CONFIRMATION = 3;
+    AWAITING_DUCHY_CONFIRMATION = 2;
 
     // Duchies may proceed with the computation.
-    IN_PROGRESS = 4;
+    IN_PROGRESS = 3;
 
     // Terminal states
-    SUCCEEDED = 5;
-    FAILED = 6;
-    CANCELLED = 7;
+    SUCCEEDED = 4;
+    FAILED = 5;
+    CANCELLED = 6;
   }
 
   fixed64 external_advertiser_id = 1;

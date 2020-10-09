@@ -50,7 +50,8 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
       SCHEDULE_ID,
       REPORT_ID,
       EXTERNAL_REPORT_ID,
-      ReportState.AWAITING_REQUISITION_FULFILLMENT
+      ReportState.AWAITING_REQUISITION_CREATION
+
     )
   }
 
@@ -98,7 +99,6 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
   @Test
   fun `state update in normal flow`() = runBlocking {
     directlyUpdateState(ReportState.AWAITING_REQUISITION_CREATION)
-    updateReportStateAndAssertSuccess(ReportState.AWAITING_REQUISITION_FULFILLMENT)
     updateReportStateAndAssertSuccess(ReportState.AWAITING_DUCHY_CONFIRMATION)
     updateReportStateAndAssertSuccess(ReportState.SUCCEEDED)
   }

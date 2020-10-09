@@ -25,8 +25,6 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
  *
  * At present, this consists of Reports in state AWAITING_REQUISITION_CREATION with the correct
  * number of associated, fulfilled Requisitions.
- *
- * TODO: this should consider state AWAITING_REQUISITION_FULFILLMENT.
  */
 suspend fun Daemon.runReportStarter() {
   streamReadyReports()

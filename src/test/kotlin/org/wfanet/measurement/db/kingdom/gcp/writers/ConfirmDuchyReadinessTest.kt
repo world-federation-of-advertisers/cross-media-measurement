@@ -243,7 +243,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
           .set("ReportConfigId").to(REPORT_CONFIG_ID)
           .set("ScheduleId").to(SCHEDULE_ID)
           .set("ReportId").to(REPORT_ID)
-          .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_FULFILLMENT)
+          .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
           .build()
       )
     )

@@ -205,7 +205,7 @@ class DaemonDatabaseServicesClientImplTest {
     whenever(reportStorage.streamReports(any()))
       .thenReturn(flowOf(report1, report2, report3))
 
-    val state = ReportState.AWAITING_REQUISITION_FULFILLMENT
+    val state = ReportState.AWAITING_REQUISITION_CREATION
     val outputReports = daemonDatabaseServicesClient.streamReportsInState(state)
 
     assertThat(outputReports.toList())

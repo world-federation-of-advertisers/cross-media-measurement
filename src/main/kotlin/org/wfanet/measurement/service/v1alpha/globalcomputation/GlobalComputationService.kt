@@ -168,7 +168,7 @@ class GlobalComputationService(
     val request = StreamReportsRequest.newBuilder().apply {
       filterBuilder.apply {
         updatedAfter = lastUpdateTime.toProtoTime()
-        addAllStates(ReportState.values().filter { getStateType(it) == StateType.NONTERMINAL })
+        addAllStates(ReportState.values().filter { getStateType(it) == StateType.INTERMEDIATE })
       }
     }.build()
 
@@ -210,8 +210,7 @@ private object ContinuationTokenConverter {
 
 private fun translateState(reportState: ReportState): State =
   when (reportState) {
-    ReportState.AWAITING_REQUISITION_CREATION,
-    ReportState.AWAITING_REQUISITION_FULFILLMENT -> State.CREATED
+    ReportState.AWAITING_REQUISITION_CREATION -> State.CREATED
     ReportState.AWAITING_DUCHY_CONFIRMATION -> State.CONFIRMING
     ReportState.IN_PROGRESS -> State.RUNNING
     ReportState.SUCCEEDED -> State.SUCCEEDED
@@ -221,13 +220,12 @@ private fun translateState(reportState: ReportState): State =
     ReportState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
-private enum class StateType { TERMINAL, NONTERMINAL, INVALID }
+private enum class StateType { TERMINAL, INTERMEDIATE, INVALID }
 private fun getStateType(reportState: ReportState): StateType =
   when (reportState) {
     ReportState.AWAITING_REQUISITION_CREATION,
-    ReportState.AWAITING_REQUISITION_FULFILLMENT,
     ReportState.AWAITING_DUCHY_CONFIRMATION,
-    ReportState.IN_PROGRESS -> StateType.NONTERMINAL
+    ReportState.IN_PROGRESS -> StateType.INTERMEDIATE
     ReportState.SUCCEEDED,
     ReportState.FAILED,
     ReportState.CANCELLED -> StateType.TERMINAL

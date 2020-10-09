@@ -130,7 +130,6 @@ class GlobalComputationServiceTest {
 
     val stateMap = mapOf(
       ReportState.AWAITING_REQUISITION_CREATION to State.CREATED,
-      ReportState.AWAITING_REQUISITION_FULFILLMENT to State.CREATED,
       ReportState.AWAITING_DUCHY_CONFIRMATION to State.CONFIRMING,
       ReportState.IN_PROGRESS to State.RUNNING,
       ReportState.SUCCEEDED to State.SUCCEEDED,
@@ -200,7 +199,6 @@ class GlobalComputationServiceTest {
           addAllStates(
             listOf(
               ReportState.AWAITING_REQUISITION_CREATION,
-              ReportState.AWAITING_REQUISITION_FULFILLMENT,
               ReportState.AWAITING_DUCHY_CONFIRMATION,
               ReportState.IN_PROGRESS
             )

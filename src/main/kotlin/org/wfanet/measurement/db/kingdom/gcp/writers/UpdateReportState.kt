@@ -61,7 +61,6 @@ class UpdateReportState(
 private val ReportState.isTerminal: Boolean
   get() = when (this) {
     ReportState.AWAITING_REQUISITION_CREATION,
-    ReportState.AWAITING_REQUISITION_FULFILLMENT,
     ReportState.AWAITING_DUCHY_CONFIRMATION,
     ReportState.IN_PROGRESS -> false
 

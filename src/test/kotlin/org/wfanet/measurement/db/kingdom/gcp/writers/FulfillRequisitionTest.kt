@@ -138,7 +138,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
     insertReportWithParents(
       ADVERTISER_ID, EXTERNAL_ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID,
       SCHEDULE_ID, EXTERNAL_SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
-      state = ReportState.AWAITING_REQUISITION_FULFILLMENT,
+      state = ReportState.AWAITING_REQUISITION_CREATION,
       reportDetails = reportDetails
     )
     insertReportRequisition(

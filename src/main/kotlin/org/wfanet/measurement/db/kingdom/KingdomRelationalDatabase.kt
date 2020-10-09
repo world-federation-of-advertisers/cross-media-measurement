@@ -77,7 +77,7 @@ interface KingdomRelationalDatabase {
   fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report>
 
   /**
-   * Streams [Report]s in state [ReportState.AWAITING_REQUISITION_FULFILLMENT] where all of their
+   * Streams [Report]s in state [ReportState.AWAITING_REQUISITION_CREATION] where all of their
    * [Requisition]s have state [RequisitionState.FULFILLED].
    */
   fun streamReadyReports(limit: Long): Flow<Report>
