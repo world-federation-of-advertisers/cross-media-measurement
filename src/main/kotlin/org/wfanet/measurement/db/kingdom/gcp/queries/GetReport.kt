@@ -24,7 +24,7 @@ import org.wfanet.measurement.internal.kingdom.Report
 
 class GetReport(externalReportId: ExternalId) : SpannerQuery<ReportReader.Result, Report>() {
   override val reader: SpannerReader<ReportReader.Result> by lazy {
-    ReportReader()
+    ReportReader(index = ReportReader.Index.EXTERNAL_ID)
       .withBuilder {
         appendClause("WHERE Reports.ExternalReportId = @external_report_id")
         bind("external_report_id").to(externalReportId.value)

@@ -24,19 +24,26 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 /**
  * Reads [Report] protos from Spanner.
  */
-class ReportReader : SpannerReader<ReportReader.Result>() {
+class ReportReader(index: Index = Index.NONE) : SpannerReader<ReportReader.Result>() {
   data class Result(
     val report: Report,
     val advertiserId: Long,
     val reportConfigId: Long,
     val scheduleId: Long,
-    val reportId: Long
+    val reportId: Long,
+    val numRequisitions: Long
   )
+
+  enum class Index(internal val sql: String) {
+    NONE(""),
+    STATE("@{FORCE_INDEX=ReportsByState}"),
+    EXTERNAL_ID("@{FORCE_INDEX=ReportsByExternalId}")
+  }
 
   override val baseSql: String =
     """
     SELECT $SELECT_COLUMNS_SQL
-    FROM Reports
+    FROM Reports${index.sql}
     JOIN Advertisers USING (AdvertiserId)
     JOIN ReportConfigs USING (AdvertiserId, ReportConfigId)
     JOIN ReportConfigSchedules USING (AdvertiserId, ReportConfigId, ScheduleId)
@@ -44,14 +51,16 @@ class ReportReader : SpannerReader<ReportReader.Result>() {
 
   override val externalIdColumn: String = "Reports.ExternalReportId"
 
-  override suspend fun translate(struct: Struct): Result =
-    Result(
-      buildReport(struct),
-      struct.getLong("AdvertiserId"),
-      struct.getLong("ReportConfigId"),
-      struct.getLong("ScheduleId"),
-      struct.getLong("ReportId")
+  override suspend fun translate(struct: Struct): Result {
+    return Result(
+      report = buildReport(struct),
+      advertiserId = struct.getLong("AdvertiserId"),
+      reportConfigId = struct.getLong("ReportConfigId"),
+      scheduleId = struct.getLong("ScheduleId"),
+      reportId = struct.getLong("ReportId"),
+      numRequisitions = struct.getLong("NumRequisitions")
     )
+  }
 
   private fun buildReport(struct: Struct): Report = Report.newBuilder().apply {
     externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
@@ -86,6 +95,7 @@ class ReportReader : SpannerReader<ReportReader.Result>() {
       "Reports.ReportDetailsJson",
       "Advertisers.ExternalAdvertiserId",
       "ReportConfigs.ExternalReportConfigId",
+      "ReportConfigs.NumRequisitions",
       "ReportConfigSchedules.ExternalScheduleId"
     )
 

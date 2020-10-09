@@ -42,8 +42,10 @@ abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
   ): T? {
     return this
       .withBuilder {
-        appendClause("WHERE $externalIdColumn = @external_id LIMIT 1")
+        appendClause("WHERE $externalIdColumn = @external_id")
         bind("external_id").to(externalId.value)
+
+        appendClause("LIMIT 1")
       }
       .execute(readContext)
       .singleOrNull()

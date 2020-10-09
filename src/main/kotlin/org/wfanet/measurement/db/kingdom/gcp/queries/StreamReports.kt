@@ -22,6 +22,7 @@ import org.wfanet.measurement.db.kingdom.gcp.common.StreamReportsFilterSqlConver
 import org.wfanet.measurement.db.kingdom.gcp.common.toSql
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.db.kingdom.hasStateFilter
 import org.wfanet.measurement.internal.kingdom.Report
 
 /**
@@ -35,7 +36,7 @@ class StreamReports(
   limit: Long
 ) : SpannerQuery<ReportReader.Result, Report>() {
   override val reader: BaseSpannerReader<ReportReader.Result> by lazy {
-    ReportReader().withBuilder {
+    ReportReader(forcedIndex).withBuilder {
       if (!filter.empty) {
         appendClause("WHERE ")
         filter.toSql(this, StreamReportsFilterSqlConverter)
@@ -48,6 +49,10 @@ class StreamReports(
         bind("limit").to(limit)
       }
     }
+  }
+
+  private val forcedIndex: ReportReader.Index by lazy {
+    if (filter.hasStateFilter()) ReportReader.Index.STATE else ReportReader.Index.NONE
   }
 
   override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }

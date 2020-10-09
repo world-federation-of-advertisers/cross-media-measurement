@@ -77,7 +77,7 @@ fun streamRequisitionsFilter(
  * @param externalReportConfigIds a list of Report Configs
  * @param externalScheduleIds a list of ReportConfigSchedules
  * @param states a list of [ReportState]s
- * @param createdAfter a time after which results must be created
+ * @param updatedAfter a time after which results must be created
  */
 fun streamReportsFilter(
   externalAdvertiserIds: List<ExternalId>? = null,
@@ -138,6 +138,11 @@ sealed class StreamReportsClause : TerminalClause {
   /** Matching Reports must have been updated after [value]. */
   data class UpdatedAfter internal constructor(val value: Instant) :
     StreamReportsClause(), GreaterThanClause
+}
+
+/** Returns whether the filter acts on a Report's state. This is useful for forcing indexes. */
+fun StreamReportsFilter.hasStateFilter(): Boolean {
+  return clauses.any { it is StreamReportsClause.State }
 }
 
 private fun <T, V> List<T>?.ifNotNullOrEmpty(block: (List<T>) -> V): V? =
