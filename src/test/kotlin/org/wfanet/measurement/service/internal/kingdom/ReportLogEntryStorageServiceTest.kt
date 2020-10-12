@@ -34,7 +34,7 @@ class ReportLogEntryStorageServiceTest {
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock()
 
-  private val service = ReportLogEntryStorageService(kingdomRelationalDatabase)
+  private val service = ReportLogEntriesService(kingdomRelationalDatabase)
 
   @Test
   fun success() = runBlocking<Unit> {

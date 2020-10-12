@@ -56,7 +56,7 @@ private val REPORT: Report = Report.newBuilder().apply {
 @RunWith(JUnit4::class)
 class ReportStorageServiceTest {
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock()
-  private val service = ReportStorageService(kingdomRelationalDatabase)
+  private val service = ReportsService(kingdomRelationalDatabase)
 
   @Test
   fun getReport() = runBlocking<Unit> {

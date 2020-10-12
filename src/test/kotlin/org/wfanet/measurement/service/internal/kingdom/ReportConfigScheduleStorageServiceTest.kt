@@ -38,7 +38,7 @@ class ReportConfigScheduleStorageServiceTest {
       .thenReturn(flowOf(SCHEDULE1, SCHEDULE2))
   }
 
-  private val service = ReportConfigScheduleStorageService(kingdomRelationalDatabase)
+  private val service = ReportConfigSchedulesService(kingdomRelationalDatabase)
 
   @Test
   fun streamReadySchedules() = runBlocking<Unit> {

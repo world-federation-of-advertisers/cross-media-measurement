@@ -56,7 +56,7 @@ class RequisitionStorageServiceTest {
     on { streamRequisitions(any(), any()) }.thenReturn(flowOf(REQUISITION, REQUISITION))
   }
 
-  private val service = RequisitionStorageService(kingdomRelationalDatabase)
+  private val service = RequisitionsService(kingdomRelationalDatabase)
 
   @Test
   fun `createRequisition fails with id`() = runBlocking<Unit> {

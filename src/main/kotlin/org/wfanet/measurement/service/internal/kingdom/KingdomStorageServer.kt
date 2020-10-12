@@ -20,9 +20,9 @@ import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 /** Builds a list of all the Kingdom's internal storage services. */
 fun buildStorageServices(relationalDatabase: KingdomRelationalDatabase): List<BindableService> =
   listOf(
-    ReportConfigScheduleStorageService(relationalDatabase),
-    ReportConfigStorageService(relationalDatabase),
-    ReportStorageService(relationalDatabase),
-    ReportLogEntryStorageService(relationalDatabase),
-    RequisitionStorageService(relationalDatabase)
+    ReportConfigSchedulesService(relationalDatabase),
+    ReportConfigsService(relationalDatabase),
+    ReportsService(relationalDatabase),
+    ReportLogEntriesService(relationalDatabase),
+    RequisitionsService(relationalDatabase)
   )

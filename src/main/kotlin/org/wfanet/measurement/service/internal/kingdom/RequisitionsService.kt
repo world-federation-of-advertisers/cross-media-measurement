@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
-class RequisitionStorageService(
+class RequisitionsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
 ) : RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase() {
   override suspend fun createRequisition(request: Requisition): Requisition {

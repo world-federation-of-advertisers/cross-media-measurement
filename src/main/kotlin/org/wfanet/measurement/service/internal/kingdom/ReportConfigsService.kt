@@ -21,7 +21,7 @@ import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineImplBase
 
-class ReportConfigStorageService(
+class ReportConfigsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
 ) : ReportConfigStorageCoroutineImplBase() {
 

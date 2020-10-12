@@ -51,7 +51,7 @@ class ReportConfigStorageServiceTest {
       .thenReturn(flowOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
   }
 
-  private val service = ReportConfigStorageService(kingdomRelationalDatabase)
+  private val service = ReportConfigsService(kingdomRelationalDatabase)
 
   @Test
   fun listRequisitionTemplates() = runBlocking<Unit> {

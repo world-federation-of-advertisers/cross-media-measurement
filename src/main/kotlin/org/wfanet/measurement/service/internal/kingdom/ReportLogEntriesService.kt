@@ -14,18 +14,14 @@
 
 package org.wfanet.measurement.service.internal.kingdom
 
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineImplBase
 
-class ReportConfigScheduleStorageService(
+class ReportLogEntriesService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-) : ReportConfigScheduleStorageCoroutineImplBase() {
-
-  override fun streamReadyReportConfigSchedules(
-    request: StreamReadyReportConfigSchedulesRequest
-  ): Flow<ReportConfigSchedule> =
-    kingdomRelationalDatabase.streamReadySchedules(request.limit)
+) : ReportLogEntryStorageCoroutineImplBase() {
+  override suspend fun createReportLogEntry(request: ReportLogEntry): ReportLogEntry {
+    return kingdomRelationalDatabase.addReportLogEntry(request)
+  }
 }

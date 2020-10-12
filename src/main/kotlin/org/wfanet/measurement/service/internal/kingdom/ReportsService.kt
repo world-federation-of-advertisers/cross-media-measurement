@@ -31,7 +31,7 @@ import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 
-class ReportStorageService(
+class ReportsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
 ) : ReportStorageGrpcKt.ReportStorageCoroutineImplBase() {
   override suspend fun getReport(request: GetReportRequest): Report =
