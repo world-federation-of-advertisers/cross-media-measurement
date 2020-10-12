@@ -19,11 +19,11 @@ import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineImplBase
 
 class ReportConfigsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-) : ReportConfigStorageCoroutineImplBase() {
+) : ReportConfigsCoroutineImplBase() {
 
   override suspend fun listRequisitionTemplates(
     request: ListRequisitionTemplatesRequest

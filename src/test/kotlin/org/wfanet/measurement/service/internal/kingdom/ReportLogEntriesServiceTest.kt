@@ -30,7 +30,7 @@ private const val EXTERNAL_REPORT_ID = 123L
 private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()
 
 @RunWith(JUnit4::class)
-class ReportLogEntryStorageServiceTest {
+class ReportLogEntriesServiceTest {
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock()
 

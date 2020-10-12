@@ -45,8 +45,8 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -87,7 +87,7 @@ class RequisitionServiceTest {
   @get:Rule
   val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
-  private val requisitionStorage: RequisitionStorageCoroutineImplBase =
+  private val requisitionStorage: RequisitionsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
@@ -96,7 +96,7 @@ class RequisitionServiceTest {
   private val channel = grpcTestServerRule.channel
   private val service =
     RequisitionService(
-      RequisitionStorageCoroutineStub(channel),
+      RequisitionsCoroutineStub(channel),
       DUCHY_AUTH_PROVIDER
     )
 
@@ -124,7 +124,7 @@ class RequisitionServiceTest {
 
     assertThat(result).isEqualTo(expected)
 
-    verifyProtoArgument(requisitionStorage, RequisitionStorageCoroutineImplBase::fulfillRequisition)
+    verifyProtoArgument(requisitionStorage, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(
         FulfillRequisitionRequest.newBuilder()
           .setExternalRequisitionId(REQUISITION.externalRequisitionId)

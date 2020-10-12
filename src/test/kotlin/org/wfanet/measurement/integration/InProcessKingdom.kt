@@ -42,11 +42,11 @@ import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.kingdom.Daemon
 import org.wfanet.measurement.kingdom.DaemonDatabaseServicesClientImpl
@@ -79,9 +79,9 @@ class InProcessKingdom(
 
   private val kingdomApiServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     logger.info("Building Kingdom's public API services")
-    val reportStorage = ReportStorageCoroutineStub(databaseServices.channel)
-    val reportLogEntryStorage = ReportLogEntryStorageCoroutineStub(databaseServices.channel)
-    val requisitionStorage = RequisitionStorageCoroutineStub(databaseServices.channel)
+    val reportStorage = ReportsCoroutineStub(databaseServices.channel)
+    val reportLogEntryStorage = ReportLogEntriesCoroutineStub(databaseServices.channel)
+    val requisitionStorage = RequisitionsCoroutineStub(databaseServices.channel)
 
     addService(
       GlobalComputationService(reportStorage, reportLogEntryStorage)
@@ -107,11 +107,11 @@ class InProcessKingdom(
         }
       }
       supervisorScope {
-        val reportConfigStorage = ReportConfigStorageCoroutineStub(databaseServices.channel)
+        val reportConfigStorage = ReportConfigsCoroutineStub(databaseServices.channel)
         val reportConfigScheduleStorage =
-          ReportConfigScheduleStorageCoroutineStub(databaseServices.channel)
-        val reportStorage = ReportStorageCoroutineStub(databaseServices.channel)
-        val requisitionStorage = RequisitionStorageCoroutineStub(databaseServices.channel)
+          ReportConfigSchedulesCoroutineStub(databaseServices.channel)
+        val reportStorage = ReportsCoroutineStub(databaseServices.channel)
+        val requisitionStorage = RequisitionsCoroutineStub(databaseServices.channel)
         val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(200))
         val daemonDatabaseServicesClient = DaemonDatabaseServicesClientImpl(
           reportConfigStorage,

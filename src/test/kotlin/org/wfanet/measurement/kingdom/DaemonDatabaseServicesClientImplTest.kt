@@ -38,17 +38,17 @@ import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
@@ -56,13 +56,13 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 @RunWith(JUnit4::class)
 class DaemonDatabaseServicesClientImplTest {
 
-  private val reportConfigStorage: ReportConfigStorageCoroutineImplBase =
+  private val reportConfigStorage: ReportConfigsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val reportConfigScheduleStorage: ReportConfigScheduleStorageCoroutineImplBase =
+  private val reportConfigScheduleStorage: ReportConfigSchedulesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val reportStorage: ReportStorageCoroutineImplBase =
+  private val reportStorage: ReportsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val requisitionStorage: RequisitionStorageCoroutineImplBase =
+  private val requisitionStorage: RequisitionsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
@@ -76,10 +76,10 @@ class DaemonDatabaseServicesClientImplTest {
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient by lazy {
     val channel = grpcTestServerRule.channel
     DaemonDatabaseServicesClientImpl(
-      ReportConfigStorageCoroutineStub(channel),
-      ReportConfigScheduleStorageCoroutineStub(channel),
-      ReportStorageCoroutineStub(channel),
-      RequisitionStorageCoroutineStub(channel)
+      ReportConfigsCoroutineStub(channel),
+      ReportConfigSchedulesCoroutineStub(channel),
+      ReportsCoroutineStub(channel),
+      RequisitionsCoroutineStub(channel)
     )
   }
 
@@ -98,7 +98,7 @@ class DaemonDatabaseServicesClientImplTest {
       this.externalScheduleId = externalScheduleId
       this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
     }.build()
-    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::createNextReport)
+    verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::createNextReport)
       .isEqualTo(expectedRequest)
   }
 
@@ -140,7 +140,7 @@ class DaemonDatabaseServicesClientImplTest {
 
     verifyProtoArgument(
       reportConfigStorage,
-      ReportConfigStorageCoroutineImplBase::listRequisitionTemplates
+      ReportConfigsCoroutineImplBase::listRequisitionTemplates
     )
       .isEqualTo(expectedRequest)
   }
@@ -156,7 +156,7 @@ class DaemonDatabaseServicesClientImplTest {
     assertThat(daemonDatabaseServicesClient.createRequisition(inputRequisition))
       .isEqualTo(outputRequisition)
 
-    verifyProtoArgument(requisitionStorage, RequisitionStorageCoroutineImplBase::createRequisition)
+    verifyProtoArgument(requisitionStorage, RequisitionsCoroutineImplBase::createRequisition)
       .isEqualTo(inputRequisition)
   }
 
@@ -172,7 +172,7 @@ class DaemonDatabaseServicesClientImplTest {
       externalReportId = 2
     }.build()
 
-    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::associateRequisition)
+    verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::associateRequisition)
       .isEqualTo(expectedRequest)
   }
 
@@ -192,7 +192,7 @@ class DaemonDatabaseServicesClientImplTest {
         .setState(newState)
         .build()
 
-    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::updateReportState)
+    verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::updateReportState)
       .isEqualTo(expectedRequest)
   }
 

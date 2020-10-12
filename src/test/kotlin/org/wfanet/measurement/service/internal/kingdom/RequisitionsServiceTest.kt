@@ -38,7 +38,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
 @RunWith(JUnit4::class)
-class RequisitionStorageServiceTest {
+class RequisitionsServiceTest {
 
   companion object {
     val REQUISITION: Requisition = Requisition.newBuilder().apply {

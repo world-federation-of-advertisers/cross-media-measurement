@@ -49,19 +49,19 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
@@ -126,13 +126,11 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
   private val channel by lazy { grpcTestServer.channel }
-  private val reportConfigStorage by lazy { ReportConfigStorageCoroutineStub(channel) }
-  private val reportConfigScheduleStorage by lazy {
-    ReportConfigScheduleStorageCoroutineStub(channel)
-  }
-  private val reportStorage by lazy { ReportStorageCoroutineStub(channel) }
-  private val reportLogEntryStorage by lazy { ReportLogEntryStorageCoroutineStub(channel) }
-  private val requisitionStorage by lazy { RequisitionStorageCoroutineStub(channel) }
+  private val reportConfigsStub by lazy { ReportConfigsCoroutineStub(channel) }
+  private val reportConfigSchedulesStub by lazy { ReportConfigSchedulesCoroutineStub(channel) }
+  private val reportsStub by lazy { ReportsCoroutineStub(channel) }
+  private val reportLogEntriesStub by lazy { ReportLogEntriesCoroutineStub(channel) }
+  private val requisitionsStub by lazy { RequisitionsCoroutineStub(channel) }
 
   @Before
   fun populateDatabase() = runBlocking {
@@ -171,11 +169,11 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   @Test
   fun coverage() {
     val serviceDescriptors = listOf(
-      ReportConfigStorageGrpcKt.serviceDescriptor,
-      ReportConfigScheduleStorageGrpcKt.serviceDescriptor,
-      ReportStorageGrpcKt.serviceDescriptor,
-      ReportLogEntryStorageGrpcKt.serviceDescriptor,
-      RequisitionStorageGrpcKt.serviceDescriptor
+      ReportConfigsGrpcKt.serviceDescriptor,
+      ReportConfigSchedulesGrpcKt.serviceDescriptor,
+      ReportsGrpcKt.serviceDescriptor,
+      ReportLogEntriesGrpcKt.serviceDescriptor,
+      RequisitionsGrpcKt.serviceDescriptor
     )
 
     val expectedTests =
@@ -195,7 +193,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ReportConfigStorage ListRequisitionTemplates`() = runBlocking<Unit> {
+  fun `ReportConfigs ListRequisitionTemplates`() = runBlocking<Unit> {
     val request = ListRequisitionTemplatesRequest.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
     }.build()
@@ -208,12 +206,12 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       }
     }.build()
 
-    val result = reportConfigStorage.listRequisitionTemplates(request)
+    val result = reportConfigsStub.listRequisitionTemplates(request)
     assertThat(result).isEqualTo(expected)
   }
 
   @Test
-  fun `ReportConfigScheduleStorage StreamReadyReportConfigSchedules`() = runBlocking<Unit> {
+  fun `ReportConfigSchedules StreamReadyReportConfigSchedules`() = runBlocking<Unit> {
     val request = StreamReadyReportConfigSchedulesRequest.getDefaultInstance()
 
     val expected = ReportConfigSchedule.newBuilder().apply {
@@ -222,14 +220,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
     }.build()
 
-    val result = reportConfigScheduleStorage.streamReadyReportConfigSchedules(request)
+    val result = reportConfigSchedulesStub.streamReadyReportConfigSchedules(request)
     assertThat(result.toList())
       .comparingExpectedFieldsOnly()
       .containsExactly(expected)
   }
 
   @Test
-  fun `ReportStorage ConfirmDuchyReadiness`() = runBlocking<Unit> {
+  fun `Reports ConfirmDuchyReadiness`() = runBlocking<Unit> {
     databaseClient.write(
       Mutation.newUpdateBuilder("Reports")
         .set("AdvertiserId").to(ADVERTISER_ID)
@@ -270,7 +268,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       state = ReportState.IN_PROGRESS
     }.build()
 
-    val result = reportStorage.confirmDuchyReadiness(request)
+    val result = reportsStub.confirmDuchyReadiness(request)
     assertThat(result)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expected)
@@ -281,7 +279,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ReportStorage GetReport`() = runBlocking<Unit> {
+  fun `Reports GetReport`() = runBlocking<Unit> {
     val request = GetReportRequest.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
     val expected = Report.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
@@ -289,14 +287,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalReportId = EXTERNAL_REPORT_ID
     }.build()
 
-    val result = reportStorage.getReport(request)
+    val result = reportsStub.getReport(request)
     assertThat(result)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expected)
   }
 
   @Test
-  fun `ReportStorage CreateNextReport`() = runBlocking<Unit> {
+  fun `Reports CreateNextReport`() = runBlocking<Unit> {
     val request = CreateNextReportRequest.newBuilder().apply {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
     }.build()
@@ -306,14 +304,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
     }.build()
 
-    val result = reportStorage.createNextReport(request)
+    val result = reportsStub.createNextReport(request)
     assertThat(result)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expected)
   }
 
   @Test
-  fun `ReportStorage FinishReport`() = runBlocking<Unit> {
+  fun `Reports FinishReport`() = runBlocking<Unit> {
     val request = FinishReportRequest.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       resultBuilder.apply {
@@ -335,7 +333,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       }
     }.build()
 
-    val result = reportStorage.finishReport(request)
+    val result = reportsStub.finishReport(request)
     assertThat(result)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expected)
@@ -346,7 +344,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ReportStorage StreamReports`() = runBlocking<Unit> {
+  fun `Reports StreamReports`() = runBlocking<Unit> {
     val request = StreamReportsRequest.getDefaultInstance()
 
     val expected = Report.newBuilder().apply {
@@ -355,14 +353,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalReportId = EXTERNAL_REPORT_ID
     }.build()
 
-    val result = reportStorage.streamReports(request)
+    val result = reportsStub.streamReports(request)
     assertThat(result.toList())
       .comparingExpectedFieldsOnly()
       .containsExactly(expected)
   }
 
   @Test
-  fun `ReportStorage StreamReadyReports`() = runBlocking<Unit> {
+  fun `Reports StreamReadyReports`() = runBlocking<Unit> {
     databaseClient.write(
       Mutation.newUpdateBuilder("Reports")
         .set("AdvertiserId").to(ADVERTISER_ID)
@@ -398,14 +396,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalReportId = EXTERNAL_REPORT_ID
     }.build()
 
-    val result = reportStorage.streamReadyReports(request)
+    val result = reportsStub.streamReadyReports(request)
     assertThat(result.toList())
       .comparingExpectedFieldsOnly()
       .containsExactly(expected)
   }
 
   @Test
-  fun `ReportStorage UpdateReportState`() = runBlocking<Unit> {
+  fun `Reports UpdateReportState`() = runBlocking<Unit> {
     val request = UpdateReportStateRequest.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       state = ReportState.FAILED
@@ -417,14 +415,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalReportId = EXTERNAL_REPORT_ID
     }.build()
 
-    val result = reportStorage.updateReportState(request)
+    val result = reportsStub.updateReportState(request)
     assertThat(result)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expected)
   }
 
   @Test
-  fun `ReportStorage AssociateRequisition`() = runBlocking<Unit> {
+  fun `Reports AssociateRequisition`() = runBlocking<Unit> {
     val request = AssociateRequisitionRequest.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       externalRequisitionId = EXTERNAL_REQUISITION_ID
@@ -432,7 +430,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
 
     val expected = AssociateRequisitionResponse.getDefaultInstance()
 
-    val result = reportStorage.associateRequisition(request)
+    val result = reportsStub.associateRequisition(request)
     assertThat(result).isEqualTo(expected)
 
     val key = Key.of(
@@ -457,14 +455,14 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ReportLogEntryStorage CreateReportLogEntry`() = runBlocking<Unit> {
+  fun `ReportLogEntries CreateReportLogEntry`() = runBlocking<Unit> {
     val request = ReportLogEntry.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       sourceBuilder.duchyBuilder.duchyId = "some-duchy"
     }.build()
 
     val timeBefore = currentSpannerTimestamp
-    val result = reportLogEntryStorage.createReportLogEntry(request)
+    val result = reportLogEntriesStub.createReportLogEntry(request)
     val timeAfter = currentSpannerTimestamp
 
     assertThat(result)
@@ -490,7 +488,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `RequisitionStorage CreateRequisition`() = runBlocking<Unit> {
+  fun `Requisitions CreateRequisition`() = runBlocking<Unit> {
     val request = Requisition.newBuilder().apply {
       externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
       externalCampaignId = EXTERNAL_CAMPAIGN_ID
@@ -501,7 +499,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
     }.build()
 
     val timeBefore = currentSpannerTimestamp
-    val result = requisitionStorage.createRequisition(request)
+    val result = requisitionsStub.createRequisition(request)
     val timeAfter = currentSpannerTimestamp
 
     assertThat(result)
@@ -516,7 +514,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `RequisitionStorage FulfillRequisition`() = runBlocking<Unit> {
+  fun `Requisitions FulfillRequisition`() = runBlocking<Unit> {
     val request = FulfillRequisitionRequest.newBuilder().apply {
       externalRequisitionId = EXTERNAL_REQUISITION_ID
       duchyId = DUCHY_ID
@@ -528,7 +526,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       duchyId = DUCHY_ID
     }.build()
 
-    val result = requisitionStorage.fulfillRequisition(request)
+    val result = requisitionsStub.fulfillRequisition(request)
 
     assertThat(result)
       .comparingExpectedFieldsOnly()
@@ -540,7 +538,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `RequisitionStorage StreamRequisitions`() = runBlocking<Unit> {
+  fun `Requisitions StreamRequisitions`() = runBlocking<Unit> {
     databaseClient.write(
       Mutation.newUpdateBuilder("Requisitions")
         .set("DataProviderId").to(DATA_PROVIDER_ID)
@@ -560,7 +558,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
       externalRequisitionId = EXTERNAL_REQUISITION_ID
     }.build()
 
-    val result = requisitionStorage.streamRequisitions(request).toList()
+    val result = requisitionsStub.streamRequisitions(request).toList()
     assertThat(result)
       .comparingExpectedFieldsOnly()
       .containsExactly(expected)

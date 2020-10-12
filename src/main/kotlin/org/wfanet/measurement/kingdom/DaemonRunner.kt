@@ -21,10 +21,10 @@ import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.AdaptiveThrottler
 import org.wfanet.measurement.common.buildChannel
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.service.common.withVerboseLogging
 import picocli.CommandLine
 
@@ -93,10 +93,10 @@ fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlockin
   )
 
   val databaseClient = DaemonDatabaseServicesClientImpl(
-    ReportConfigStorageCoroutineStub(channel),
-    ReportConfigScheduleStorageCoroutineStub(channel),
-    ReportStorageCoroutineStub(channel),
-    RequisitionStorageCoroutineStub(channel)
+    ReportConfigsCoroutineStub(channel),
+    ReportConfigSchedulesCoroutineStub(channel),
+    ReportsCoroutineStub(channel),
+    RequisitionsCoroutineStub(channel)
   )
 
   Daemon(throttler, flags.maxConcurrency, databaseClient, flags.retryPollDelay).block()

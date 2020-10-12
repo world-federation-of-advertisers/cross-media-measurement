@@ -26,25 +26,27 @@ import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.FinishReportRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 
 class ReportsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-) : ReportStorageGrpcKt.ReportStorageCoroutineImplBase() {
-  override suspend fun getReport(request: GetReportRequest): Report =
-    kingdomRelationalDatabase.getReport(ExternalId(request.externalReportId))
+) : ReportsCoroutineImplBase() {
+  override suspend fun getReport(request: GetReportRequest): Report {
+    return kingdomRelationalDatabase.getReport(ExternalId(request.externalReportId))
+  }
 
-  override suspend fun createNextReport(request: CreateNextReportRequest): Report =
-    kingdomRelationalDatabase.createNextReport(
+  override suspend fun createNextReport(request: CreateNextReportRequest): Report {
+    return kingdomRelationalDatabase.createNextReport(
       ExternalId(request.externalScheduleId),
       request.combinedPublicKeyResourceId
     )
+  }
 
-  override fun streamReports(request: StreamReportsRequest): Flow<Report> =
-    kingdomRelationalDatabase.streamReports(
+  override fun streamReports(request: StreamReportsRequest): Flow<Report> {
+    return kingdomRelationalDatabase.streamReports(
       streamReportsFilter(
         externalAdvertiserIds = request.filter.externalAdvertiserIdsList.map(::ExternalId),
         externalReportConfigIds = request.filter.externalReportConfigIdsList.map(::ExternalId),
@@ -54,12 +56,18 @@ class ReportsService(
       ),
       request.limit
     )
+  }
 
-  override fun streamReadyReports(request: StreamReadyReportsRequest): Flow<Report> =
-    kingdomRelationalDatabase.streamReadyReports(request.limit)
+  override fun streamReadyReports(request: StreamReadyReportsRequest): Flow<Report> {
+    return kingdomRelationalDatabase.streamReadyReports(request.limit)
+  }
 
-  override suspend fun updateReportState(request: UpdateReportStateRequest): Report =
-    kingdomRelationalDatabase.updateReportState(ExternalId(request.externalReportId), request.state)
+  override suspend fun updateReportState(request: UpdateReportStateRequest): Report {
+    return kingdomRelationalDatabase.updateReportState(
+      ExternalId(request.externalReportId),
+      request.state
+    )
+  }
 
   override suspend fun associateRequisition(
     request: AssociateRequisitionRequest

@@ -20,7 +20,7 @@ import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt
+import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase
 import org.wfanet.measurement.common.ApiId
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -28,16 +28,16 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
 import org.wfanet.measurement.service.v1alpha.common.toV1Api
 
 class RequisitionService(
-  private val internalRequisitionStub: RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub,
+  private val internalRequisitionStub: RequisitionsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
-) : RequisitionGrpcKt.RequisitionCoroutineImplBase() {
+) : RequisitionCoroutineImplBase() {
 
   override suspend fun fulfillMetricRequisition(
     request: FulfillMetricRequisitionRequest

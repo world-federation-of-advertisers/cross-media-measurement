@@ -21,23 +21,23 @@ import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigScheduleStorageGrpcKt.ReportConfigScheduleStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigStorageGrpcKt.ReportConfigStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt.RequisitionStorageCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 
 class DaemonDatabaseServicesClientImpl(
-  private val reportConfigStorage: ReportConfigStorageCoroutineStub,
-  private val reportConfigScheduleStorage: ReportConfigScheduleStorageCoroutineStub,
-  private val reportStorage: ReportStorageCoroutineStub,
-  private val requisitionStorage: RequisitionStorageCoroutineStub
+  private val reportConfigStorage: ReportConfigsCoroutineStub,
+  private val reportConfigScheduleStorage: ReportConfigSchedulesCoroutineStub,
+  private val reportStorage: ReportsCoroutineStub,
+  private val requisitionStorage: RequisitionsCoroutineStub
 ) : DaemonDatabaseServicesClient {
   override suspend fun createNextReport(
     reportConfigSchedule: ReportConfigSchedule,

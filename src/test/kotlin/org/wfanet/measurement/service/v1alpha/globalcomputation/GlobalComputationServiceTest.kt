@@ -53,11 +53,11 @@ import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportLogDetails
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
@@ -101,9 +101,9 @@ class GlobalComputationServiceTest {
   @get:Rule
   val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
-  private val reportStorage: ReportStorageCoroutineImplBase =
+  private val reportStorage: ReportsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val reportLogEntryStorage: ReportLogEntryStorageCoroutineImplBase =
+  private val reportLogEntryStorage: ReportLogEntriesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
@@ -116,8 +116,8 @@ class GlobalComputationServiceTest {
 
   private val service =
     GlobalComputationService(
-      ReportStorageCoroutineStub(channel),
-      ReportLogEntryStorageCoroutineStub(channel),
+      ReportsCoroutineStub(channel),
+      ReportLogEntriesCoroutineStub(channel),
       DUCHY_AUTH_PROVIDER
     )
 
@@ -147,7 +147,7 @@ class GlobalComputationServiceTest {
         .comparingExpectedFieldsOnly()
         .isEqualTo(expectedComputation)
 
-      verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::getReport)
+      verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           GetReportRequest.newBuilder()
             .setExternalReportId(REPORT.externalReportId)
@@ -285,7 +285,7 @@ class GlobalComputationServiceTest {
 
     verifyProtoArgument(
       reportLogEntryStorage,
-      ReportLogEntryStorageCoroutineImplBase::createReportLogEntry
+      ReportLogEntriesCoroutineImplBase::createReportLogEntry
     )
       .isEqualTo(expectedReportLogEntry)
   }
@@ -318,7 +318,7 @@ class GlobalComputationServiceTest {
       addAllExternalRequisitionIds(listOf(ExternalId(4444).value, ExternalId(7777).value))
     }.build()
 
-    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::confirmDuchyReadiness)
+    verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::confirmDuchyReadiness)
       .isEqualTo(expectedConfirmDuchyReadinessRequest)
   }
 
@@ -366,7 +366,7 @@ class GlobalComputationServiceTest {
       }
     }.build()
 
-    verifyProtoArgument(reportStorage, ReportStorageCoroutineImplBase::finishReport)
+    verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::finishReport)
       .isEqualTo(expectedFinishReportRequest)
   }
 }

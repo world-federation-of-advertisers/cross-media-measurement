@@ -44,7 +44,7 @@ private val REQUISITION_TEMPLATE2: RequisitionTemplate = RequisitionTemplate.new
 }.build()
 
 @RunWith(JUnit4::class)
-class ReportConfigStorageServiceTest {
+class ReportConfigsServiceTest {
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
     on { listRequisitionTemplates(any()) }

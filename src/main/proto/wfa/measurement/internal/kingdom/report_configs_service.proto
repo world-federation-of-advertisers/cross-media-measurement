@@ -22,7 +22,7 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Internal service for ReportConfigs.
-service ReportConfigStorage {
+service ReportConfigs {
   // Gets the idealized Requisitions for a ReportConfig.
   rpc ListRequisitionTemplates(ListRequisitionTemplatesRequest)
       returns (ListRequisitionTemplatesResponse);

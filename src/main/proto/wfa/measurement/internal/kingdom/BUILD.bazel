@@ -48,8 +48,8 @@ proto_and_java_proto_library(
 )
 
 proto_library(
-    name = "report_config_storage_service_proto",
-    srcs = ["report_config_storage_service.proto"],
+    name = "report_configs_service_proto",
+    srcs = ["report_configs_service.proto"],
     deps = [
         ":requisition_template_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -57,8 +57,8 @@ proto_library(
 )
 
 kt_jvm_grpc_and_java_proto_library(
-    name = "report_config_storage_service_kt_jvm_grpc",
-    srcs = [":report_config_storage_service_proto"],
+    name = "report_configs_service_kt_jvm_grpc",
+    srcs = [":report_configs_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -74,21 +74,21 @@ proto_and_java_proto_library(
 )
 
 proto_library(
-    name = "report_log_entry_storage_service_proto",
-    srcs = ["report_log_entry_storage_service.proto"],
+    name = "report_log_entries_service_proto",
+    srcs = ["report_log_entries_service.proto"],
     deps = [
         ":report_log_entry_proto",
     ],
 )
 
 kt_jvm_grpc_and_java_proto_library(
-    name = "report_log_entry_storage_service_kt_jvm_grpc",
-    srcs = [":report_log_entry_storage_service_proto"],
+    name = "report_log_entries_service_kt_jvm_grpc",
+    srcs = [":report_log_entries_service_proto"],
 )
 
 proto_library(
-    name = "report_storage_service_proto",
-    srcs = ["report_storage_service.proto"],
+    name = "reports_service_proto",
+    srcs = ["reports_service.proto"],
     deps = [
         ":report_details_proto",
         ":report_proto",
@@ -97,8 +97,8 @@ proto_library(
 )
 
 kt_jvm_grpc_and_java_proto_library(
-    name = "report_storage_service_kt_jvm_grpc",
-    srcs = [":report_storage_service_proto"],
+    name = "reports_service_kt_jvm_grpc",
+    srcs = [":reports_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -110,14 +110,14 @@ proto_and_java_proto_library(
 )
 
 proto_library(
-    name = "report_config_schedule_storage_service_proto",
-    srcs = ["report_config_schedule_storage_service.proto"],
+    name = "report_config_schedules_service_proto",
+    srcs = ["report_config_schedules_service.proto"],
     deps = [":report_config_schedule_proto"],
 )
 
 kt_jvm_grpc_and_java_proto_library(
-    name = "report_config_schedule_storage_service_kt_jvm_grpc",
-    srcs = [":report_config_schedule_storage_service_proto"],
+    name = "report_config_schedules_service_kt_jvm_grpc",
+    srcs = [":report_config_schedules_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -137,7 +137,7 @@ proto_and_java_proto_library(
 
 proto_library(
     name = "requisition_service_proto",
-    srcs = ["requisition_storage_service.proto"],
+    srcs = ["requisitions_service.proto"],
     deps = [
         ":requisition_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -145,7 +145,7 @@ proto_library(
 )
 
 kt_jvm_grpc_and_java_proto_library(
-    name = "requisition_storage_service_kt_jvm_grpc",
+    name = "requisitions_service_kt_jvm_grpc",
     srcs = [":requisition_service_proto"],
 )
 

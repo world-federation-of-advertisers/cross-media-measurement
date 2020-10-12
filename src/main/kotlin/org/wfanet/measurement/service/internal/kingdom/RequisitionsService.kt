@@ -22,12 +22,12 @@ import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.internal.kingdom.RequisitionStorageGrpcKt
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
 class RequisitionsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-) : RequisitionStorageGrpcKt.RequisitionStorageCoroutineImplBase() {
+) : RequisitionsCoroutineImplBase() {
   override suspend fun createRequisition(request: Requisition): Requisition {
     require(request.externalRequisitionId == 0L) {
       "Cannot create a Requisition with a set externalRequisitionId: $request"

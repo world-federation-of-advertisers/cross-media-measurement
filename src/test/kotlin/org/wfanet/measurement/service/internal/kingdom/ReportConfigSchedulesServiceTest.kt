@@ -32,7 +32,7 @@ private val SCHEDULE1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(
 private val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
 
 @RunWith(JUnit4::class)
-class ReportConfigScheduleStorageServiceTest {
+class ReportConfigSchedulesServiceTest {
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
     on { streamReadySchedules(any()) }
       .thenReturn(flowOf(SCHEDULE1, SCHEDULE2))

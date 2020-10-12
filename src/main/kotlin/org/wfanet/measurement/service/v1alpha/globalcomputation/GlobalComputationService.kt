@@ -50,14 +50,14 @@ import org.wfanet.measurement.internal.kingdom.GetReportRequest
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportLogDetails.ErrorDetails.ErrorType
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
-import org.wfanet.measurement.internal.kingdom.ReportLogEntryStorageGrpcKt.ReportLogEntryStorageCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportStorageGrpcKt.ReportStorageCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 
 class GlobalComputationService(
-  private val reportStorageStub: ReportStorageCoroutineStub,
-  private val reportLogEntryStorageStub: ReportLogEntryStorageCoroutineStub,
+  private val reportsStub: ReportsCoroutineStub,
+  private val reportLogEntriesStub: ReportLogEntriesCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : GlobalComputationsCoroutineImplBase() {
   override suspend fun getGlobalComputation(
@@ -118,7 +118,7 @@ class GlobalComputationService(
         }
       }
     }.build()
-    val createdReportLogEntry = reportLogEntryStorageStub.createReportLogEntry(reportLogEntry)
+    val createdReportLogEntry = reportLogEntriesStub.createReportLogEntry(reportLogEntry)
     return request.statusUpdate.toBuilder().setCreateTime(createdReportLogEntry.createTime).build()
   }
 
@@ -132,7 +132,7 @@ class GlobalComputationService(
         request.readyRequisitionsList.map { ApiId(it.metricRequisitionId).externalId.value }
       )
     }.build()
-    val report = reportStorageStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
+    val report = reportsStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
     return report.toGlobalComputation()
   }
 
@@ -147,7 +147,7 @@ class GlobalComputationService(
       }
     }.build()
 
-    val report = reportStorageStub.finishReport(finishReportRequest)
+    val report = reportsStub.finishReport(finishReportRequest)
     return report.toGlobalComputation()
   }
 
@@ -157,7 +157,7 @@ class GlobalComputationService(
         .setExternalReportId(externalReportId.value)
         .build()
 
-    return reportStorageStub.getReport(request)
+    return reportsStub.getReport(request)
   }
 
   private fun getExternalReportId(globalComputationId: String): ExternalId {
@@ -172,7 +172,7 @@ class GlobalComputationService(
       }
     }.build()
 
-    return reportStorageStub.streamReports(request)
+    return reportsStub.streamReports(request)
   }
 
   private fun Report.toGlobalComputation(): GlobalComputation {

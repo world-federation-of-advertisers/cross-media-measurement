@@ -24,7 +24,7 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Internal service for Reports.
-service ReportStorage {
+service Reports {
   // Gets a specific Report.
   rpc GetReport(GetReportRequest) returns (Report);
 
