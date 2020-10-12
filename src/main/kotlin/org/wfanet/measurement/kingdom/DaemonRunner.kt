@@ -64,6 +64,13 @@ class DaemonFlags {
   lateinit var pollDelay: Duration
     private set
 
+  @CommandLine.Option(
+    names = ["--retry-poll-delay"],
+    defaultValue = "10s"
+  )
+  lateinit var retryPollDelay: Duration
+    private set
+
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
@@ -92,5 +99,5 @@ fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlockin
     RequisitionStorageCoroutineStub(channel)
   )
 
-  Daemon(throttler, flags.maxConcurrency, databaseClient).block()
+  Daemon(throttler, flags.maxConcurrency, databaseClient, flags.retryPollDelay).block()
 }

@@ -30,26 +30,30 @@ import org.wfanet.measurement.common.renewedFlow
  * Class representing daemons in the Kingdom. Daemons themselves are implemented as extension
  * functions on Daemon for easy access to the properties.
  *
- * @property[throttler] a throttler to rate-limit gRPCs
- * @property[maxConcurrency] the maximum number of simultaneous RPCs to use per public API method
- * @property[daemonDatabaseServicesClient] a wrapper around stubs for internal services
+ * @property throttler a throttler to rate-limit gRPCs
+ * @property maxConcurrency the maximum number of simultaneous RPCs to use per public API method
+ * @property daemonDatabaseServicesClient a wrapper around stubs for internal services
+ * @property retryPollDelay how long to wait before retrying in [retryLoop]
  */
 class Daemon(
   val throttler: Throttler,
   val maxConcurrency: Int,
-  val daemonDatabaseServicesClient: DaemonDatabaseServicesClient
+  val daemonDatabaseServicesClient: DaemonDatabaseServicesClient,
+  private val retryPollDelay: Duration = Duration.ofSeconds(1)
 ) : CoroutineScope {
   val logger: Logger = Daemon.logger
 
   override val coroutineContext: CoroutineContext = Dispatchers.IO
 
-  fun <T> retryLoop(block: suspend () -> Flow<T>): Flow<T> =
-    renewedFlow(Duration.ofMinutes(10), Duration.ofSeconds(1)) {
+  fun <T> retryLoop(block: suspend () -> Flow<T>): Flow<T> {
+    return renewedFlow(Duration.ofMinutes(10), retryPollDelay) {
       throttleAndLog(block) ?: emptyFlow()
     }
+  }
 
-  suspend fun <T> throttleAndLog(block: suspend () -> T): T? =
-    logAndSuppressExceptionSuspend { throttler.onReadyGrpc(block) }
+  suspend fun <T> throttleAndLog(block: suspend () -> T): T? {
+    return logAndSuppressExceptionSuspend { throttler.onReadyGrpc(block) }
+  }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
