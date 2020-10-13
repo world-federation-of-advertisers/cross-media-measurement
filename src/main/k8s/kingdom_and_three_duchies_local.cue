@@ -159,7 +159,7 @@ kingdom: #Kingdom & {
 		"report-maker-daemon":           "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image"
 		"report-starter-daemon":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
 		"requisition-linker-daemon":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
-		"gcp-kingdom-storage-server":    "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image"
+		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_data_server_image"
 		"global-computation-server":     "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image"
 		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
 	}

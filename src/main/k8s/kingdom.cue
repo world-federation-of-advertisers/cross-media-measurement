@@ -32,7 +32,7 @@ import ("strings")
 	}
 
 	kingdom_service: {
-		"gcp-kingdom-storage-server": {}
+		"gcp-kingdom-data-server": {}
 		"global-computation-server": {}
 		"requisition-server": {}
 	}
@@ -65,7 +65,7 @@ import ("strings")
 		"report-maker-daemon-pod": #Pod & {
 			_args: [
 				"--debug-verbose-grpc-client-logging=true",
-				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
+				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--max-concurrency=32",
 				"--throttler-overload-factor=1.2",
 				"--throttler-poll-delay=1ms",
@@ -73,10 +73,11 @@ import ("strings")
 				"--combined-public-key-id=combined-public-key-1",
 			]
 		}
+
 		"report-starter-daemon-pod": #Pod & {
 			_args: [
 				"--debug-verbose-grpc-client-logging=true",
-				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
+				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--max-concurrency=32",
 				"--throttler-overload-factor=1.2",
 				"--throttler-poll-delay=1ms",
@@ -87,7 +88,7 @@ import ("strings")
 		"requisition-linker-daemon-pod": #Pod & {
 			_args: [
 				"--debug-verbose-grpc-client-logging=true",
-				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
+				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--max-concurrency=32",
 				"--throttler-overload-factor=1.2",
 				"--throttler-poll-delay=1ms",
@@ -95,7 +96,7 @@ import ("strings")
 			]
 		}
 
-		"gcp-kingdom-storage-server-pod": #ServerPod & {
+		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
 				"--debug-verbose-grpc-server-logging=true",
 				"--port=8080",
@@ -106,7 +107,7 @@ import ("strings")
 			_args: [
 				"--debug-verbose-grpc-client-logging=true",
 				"--debug-verbose-grpc-server-logging=true",
-				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
+				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags
 		}
@@ -115,7 +116,7 @@ import ("strings")
 			_args: [
 				"--debug-verbose-grpc-client-logging=true",
 				"--debug-verbose-grpc-server-logging=true",
-				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-storage-server"}).target,
+				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags
 		}

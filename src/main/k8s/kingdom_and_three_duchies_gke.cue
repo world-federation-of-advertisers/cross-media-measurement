@@ -99,7 +99,7 @@ kingdom: #Kingdom & {
 		"report-maker-daemon":           "gcr.io/ads-open-measurement/kingdom/report-maker"
 		"report-starter-daemon":         "gcr.io/ads-open-measurement/kingdom/report-starter"
 		"requisition-linker-daemon":     "gcr.io/ads-open-measurement/kingdom/requisition-linker"
-		"gcp-kingdom-storage-server":    "gcr.io/ads-open-measurement/kingdom/storage-server"
+		"gcp-kingdom-data-server":       "gcr.io/ads-open-measurement/kingdom/data-server"
 		"global-computation-server":     "gcr.io/ads-open-measurement/kingdom/global-computation"
 		"requisition-server":            "gcr.io/ads-open-measurement/kingdom/requisition"
 	}

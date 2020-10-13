@@ -15,7 +15,6 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import java.time.Clock
-import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.RandomIdGenerator
@@ -27,12 +26,10 @@ import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
-private val logger: Logger = Logger.getLogger(::main.javaClass.name)
-
 @CommandLine.Command(
-  name = "gcp_kingdom_storage_server",
+  name = "gcp_kingdom_data_server",
   description = [
-    "Start the internal Kingdom storage services in a single blocking server.",
+    "Start the internal Kingdom data-layer services in a single blocking server.",
     "This brings up its own Cloud Spanner Emulator."
   ],
   mixinStandardHelpOptions = true,
@@ -54,12 +51,12 @@ private fun run(
       spanner.databaseClient
     )
 
-    val services = buildStorageServices(relationalDatabase).toTypedArray()
-    val server = CommonServer.fromFlags(commonServerFlags, "GcpKingdomStorageServer", *services)
+    val services = buildDataServices(relationalDatabase).toTypedArray()
+    val server = CommonServer.fromFlags(commonServerFlags, "GcpKingdomDataServer", *services)
 
     runInterruptible { server.start().blockUntilShutdown() }
   }
 }
 
-/** Runs the internal Kingdom storage services in a single server with a Spanner backend. */
+/** Runs the internal Kingdom data-layer services in a single server with a Spanner backend. */
 fun main(args: Array<String>) = commandLineMain(::run, args)

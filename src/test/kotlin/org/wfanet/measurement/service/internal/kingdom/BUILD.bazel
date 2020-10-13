@@ -99,12 +99,10 @@ kt_jvm_test(
 )
 
 spanner_emulator_test(
-    name = "GcpKingdomStorageServerTest",
-    srcs = ["GcpKingdomStorageServerTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomStorageServerTest",
+    name = "GcpKingdomDataServerTest",
+    srcs = ["GcpKingdomDataServerTest.kt"],
+    resources = ["//src/main/db/gcp:kingdom_schema"],
+    test_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomDataServerTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/common/truth",

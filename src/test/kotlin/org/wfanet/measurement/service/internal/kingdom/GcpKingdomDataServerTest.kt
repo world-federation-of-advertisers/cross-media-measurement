@@ -109,7 +109,7 @@ private val REPETITION_SPEC: RepetitionSpec = RepetitionSpec.newBuilder().apply 
  * services. This focuses on ensuring that [GcpKingdomRelationalDatabase] integrates with the
  * gRPC services.
  */
-class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
+class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   @get:Rule
   val grpcTestServer = GrpcTestServerRule(logAllRequests = true) {
     val relationalDatabase =
@@ -119,7 +119,7 @@ class GcpKingdomStorageServerTest : KingdomDatabaseTestBase() {
         databaseClient
       )
 
-    buildStorageServices(relationalDatabase).forEach(this::addService)
+    buildDataServices(relationalDatabase).forEach(this::addService)
   }
 
   @get:Rule

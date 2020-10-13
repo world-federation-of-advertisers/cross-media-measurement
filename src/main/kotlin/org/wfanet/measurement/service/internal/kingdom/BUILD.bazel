@@ -37,8 +37,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "gcp_kingdom_storage_server",
-    srcs = ["GcpKingdomStorageServerMain.kt"],
+    name = "gcp_kingdom_data_server",
+    srcs = ["GcpKingdomDataServerMain.kt"],
     visibility = ["//visibility:public"],
     deps = [
         ":kingdom",
@@ -49,14 +49,14 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "GcpKingdomStorageServer",
-    main_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomStorageServerMainKt",
-    runtime_deps = [":gcp_kingdom_storage_server"],
+    name = "GcpKingdomDataServer",
+    main_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomDataServerMainKt",
+    runtime_deps = [":gcp_kingdom_data_server"],
 )
 
 java_image(
-    name = "gcp_kingdom_storage_server_image",
-    main_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomStorageServerMainKt",
+    name = "gcp_kingdom_data_server_image",
+    main_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomDataServerMainKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":gcp_kingdom_storage_server"],
+    runtime_deps = [":gcp_kingdom_data_server"],
 )

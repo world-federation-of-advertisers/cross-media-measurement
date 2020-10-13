@@ -17,12 +17,13 @@ package org.wfanet.measurement.service.internal.kingdom
 import io.grpc.BindableService
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 
-/** Builds a list of all the Kingdom's internal storage services. */
-fun buildStorageServices(relationalDatabase: KingdomRelationalDatabase): List<BindableService> =
-  listOf(
+/** Builds a list of all the Kingdom's internal data-layer services. */
+fun buildDataServices(relationalDatabase: KingdomRelationalDatabase): List<BindableService> {
+  return listOf(
     ReportConfigSchedulesService(relationalDatabase),
     ReportConfigsService(relationalDatabase),
     ReportsService(relationalDatabase),
     ReportLogEntriesService(relationalDatabase),
     RequisitionsService(relationalDatabase)
   )
+}

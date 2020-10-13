@@ -54,7 +54,7 @@ import org.wfanet.measurement.kingdom.runReportMaker
 import org.wfanet.measurement.kingdom.runReportStarter
 import org.wfanet.measurement.kingdom.runRequisitionLinker
 import org.wfanet.measurement.service.common.withVerboseLogging
-import org.wfanet.measurement.service.internal.kingdom.buildStorageServices
+import org.wfanet.measurement.service.internal.kingdom.buildDataServices
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationService
 import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
@@ -72,7 +72,7 @@ class InProcessKingdom(
 
   private val databaseServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     logger.info("Building Kingdom's internal services")
-    for (service in buildStorageServices(kingdomRelationalDatabase)) {
+    for (service in buildDataServices(kingdomRelationalDatabase)) {
       addService(service.withVerboseLogging(verboseGrpcLogging))
     }
   }

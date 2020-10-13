@@ -92,11 +92,11 @@ container_push(
 )
 
 container_push(
-    name = "push_kingdom_storage_server_image",
+    name = "push_kingdom_data_server_image",
     format = "Docker",
-    image = "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_storage_server_image",
+    image = "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_data_server_image",
     registry = "gcr.io",
-    repository = "ads-open-measurement/kingdom/storage-server",
+    repository = "ads-open-measurement/kingdom/data-server",
 )
 
 container_push(
