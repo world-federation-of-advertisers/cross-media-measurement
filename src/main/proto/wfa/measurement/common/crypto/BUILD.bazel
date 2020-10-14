@@ -1,0 +1,20 @@
+package(default_visibility = [
+    "//visibility:public",
+])
+
+proto_library(
+    name = "protocol_encryption_methods_proto",
+    srcs = ["protocol_encryption_methods.proto"],
+    strip_import_prefix = "/src/main/proto",
+    visibility = ["//visibility:private"],
+)
+
+cc_proto_library(
+    name = "protocol_encryption_methods_cc_proto",
+    deps = [":protocol_encryption_methods_proto"],
+)
+
+java_proto_library(
+    name = "protocol_encryption_methods_java_proto",
+    deps = [":protocol_encryption_methods_proto"],
+)

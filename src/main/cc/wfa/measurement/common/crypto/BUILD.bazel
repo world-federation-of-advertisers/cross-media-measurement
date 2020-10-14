@@ -20,7 +20,7 @@ cc_library(
     deps = [
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_cc_proto",
         "@absl//absl/algorithm:container",
         "@absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
@@ -40,7 +40,7 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":protocol_encryption_utility",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status",
     ],
 )

@@ -14,11 +14,11 @@
 
 package org.wfanet.measurement.duchy.mill
 
+import org.wfanet.measurement.common.crypto.ElGamalKeys
+import org.wfanet.measurement.common.crypto.ElGamalPublicKeys
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.crypto.ElGamalKeyPair
 import org.wfanet.measurement.crypto.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.ElGamalKeys
-import org.wfanet.measurement.internal.duchy.ElGamalPublicKeys
 
 /**
  * All crypto keys necessary for the computations in the mill.

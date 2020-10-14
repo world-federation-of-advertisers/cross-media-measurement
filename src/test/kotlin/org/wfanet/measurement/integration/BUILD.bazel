@@ -66,7 +66,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
     ],
 )
 

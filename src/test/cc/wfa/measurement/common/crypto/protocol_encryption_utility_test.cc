@@ -23,7 +23,7 @@
 #include "gtest/gtest.h"
 #include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
-#include "wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h"
+#include "wfa/measurement/common/crypto/protocol_encryption_methods.pb.h"
 
 namespace wfa::measurement::common::crypto {
 namespace {
@@ -38,10 +38,7 @@ using ::private_join_and_compute::StatusCode;
 using ::testing::SizeIs;
 using ::wfa::measurement::api::v1alpha::Sketch;
 using ::wfa::measurement::api::v1alpha::SketchConfig;
-using ::wfa::measurement::internal::duchy::ElGamalKeys;
-using ::wfa::measurement::internal::duchy::ElGamalPublicKeys;
-using FlagCount = ::wfa::measurement::internal::duchy::
-    DecryptLastLayerFlagAndCountResponse::FlagCount;
+using FlagCount = DecryptLastLayerFlagAndCountResponse::FlagCount;
 
 constexpr int kMaxFrequency = 10;
 constexpr int kTestCurveId = NID_X9_62_prime256v1;

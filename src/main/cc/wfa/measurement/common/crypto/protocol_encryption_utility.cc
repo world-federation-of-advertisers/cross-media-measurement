@@ -40,11 +40,8 @@ using ::private_join_and_compute::ECPoint;
 using ::private_join_and_compute::InternalError;
 using ::private_join_and_compute::InvalidArgumentError;
 using ::private_join_and_compute::Status;
-using ::wfa::measurement::internal::duchy::ElGamalKeys;
-using ::wfa::measurement::internal::duchy::ElGamalPublicKeys;
 using ElGamalCiphertext = std::pair<std::string, std::string>;
-using FlagCount = ::wfa::measurement::internal::duchy::
-    DecryptLastLayerFlagAndCountResponse::FlagCount;
+using FlagCount = DecryptLastLayerFlagAndCountResponse::FlagCount;
 
 constexpr int kBytesPerEcPoint = 33;
 // A ciphertext contains 2 EcPoints.

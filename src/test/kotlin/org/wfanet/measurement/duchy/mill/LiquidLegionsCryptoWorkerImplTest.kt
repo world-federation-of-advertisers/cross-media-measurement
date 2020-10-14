@@ -17,7 +17,7 @@ package org.wfanet.measurement.duchy.mill
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
 
 class LiquidLegionsCryptoWorkerImplTest {
 

@@ -39,6 +39,16 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDet
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersResponse
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexResponse
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.protoTimestamp
@@ -50,12 +60,6 @@ import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
@@ -64,11 +68,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputatio
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest

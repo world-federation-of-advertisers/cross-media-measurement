@@ -15,7 +15,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/crypto",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
     ],
 )
 
@@ -37,10 +37,10 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_control_requests",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
         "//src/main/swig/common/crypto:protocol_encryption_utility",
         "@any_sketch//src/main/java/org/wfanet/estimation:estimators",
     ],

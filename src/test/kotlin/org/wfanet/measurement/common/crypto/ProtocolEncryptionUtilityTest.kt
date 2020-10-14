@@ -26,20 +26,8 @@ import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse.FlagCount
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexResponse
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse.FlagCount
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
-import org.wfanet.measurement.internal.duchy.ElGamalKeys
-import org.wfanet.measurement.internal.duchy.ElGamalPublicKeys
 
 private const val CURVE_ID = 415L // NID_X9_62_prime256v1
 private const val MAX_COUNTER_VALUE = 10

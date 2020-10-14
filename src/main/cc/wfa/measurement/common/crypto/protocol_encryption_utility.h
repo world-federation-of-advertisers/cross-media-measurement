@@ -16,7 +16,7 @@
 #define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
 
 #include "util/statusor.h"
-#include "wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h"
+#include "wfa/measurement/common/crypto/protocol_encryption_methods.pb.h"
 
 namespace wfa {
 namespace measurement {
@@ -24,18 +24,6 @@ namespace common {
 namespace crypto {
 
 using ::private_join_and_compute::StatusOr;
-using ::wfa::measurement::internal::duchy::AddNoiseToSketchRequest;
-using ::wfa::measurement::internal::duchy::AddNoiseToSketchResponse;
-using ::wfa::measurement::internal::duchy::
-    BlindLastLayerIndexThenJoinRegistersRequest;
-using ::wfa::measurement::internal::duchy::
-    BlindLastLayerIndexThenJoinRegistersResponse;
-using ::wfa::measurement::internal::duchy::BlindOneLayerRegisterIndexRequest;
-using ::wfa::measurement::internal::duchy::BlindOneLayerRegisterIndexResponse;
-using ::wfa::measurement::internal::duchy::DecryptLastLayerFlagAndCountRequest;
-using ::wfa::measurement::internal::duchy::DecryptLastLayerFlagAndCountResponse;
-using ::wfa::measurement::internal::duchy::DecryptOneLayerFlagAndCountRequest;
-using ::wfa::measurement::internal::duchy::DecryptOneLayerFlagAndCountResponse;
 
 // Add noise registers to the input sketch.
 StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(

@@ -16,7 +16,7 @@
 
 #include "util/canonical_errors.h"
 #include "util/status_macros.h"
-#include "wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h"
+#include "wfa/measurement/common/crypto/protocol_encryption_methods.pb.h"
 
 namespace wfa {
 namespace measurement {

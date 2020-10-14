@@ -14,16 +14,16 @@
 
 package org.wfanet.measurement.duchy.mill
 
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
-import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
-import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersResponse
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexRequest
-import org.wfanet.measurement.internal.duchy.BlindOneLayerRegisterIndexResponse
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountRequest
-import org.wfanet.measurement.internal.duchy.DecryptLastLayerFlagAndCountResponse
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountRequest
-import org.wfanet.measurement.internal.duchy.DecryptOneLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersResponse
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexResponse
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
 
 /**
  * A list of methods performing the crypto operations in the MPC.
