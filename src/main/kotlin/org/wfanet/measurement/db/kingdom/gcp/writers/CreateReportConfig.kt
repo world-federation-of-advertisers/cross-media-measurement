@@ -18,7 +18,7 @@ import com.google.cloud.spanner.Mutation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.bufferTo

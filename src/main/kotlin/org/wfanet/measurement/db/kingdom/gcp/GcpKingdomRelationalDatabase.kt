@@ -16,8 +16,8 @@ package org.wfanet.measurement.db.kingdom.gcp
 
 import java.time.Clock
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.StreamReportsFilter

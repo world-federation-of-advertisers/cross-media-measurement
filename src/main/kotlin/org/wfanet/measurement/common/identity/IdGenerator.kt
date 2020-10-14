@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.testing
+package org.wfanet.measurement.common.identity
 
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.InternalId
+/**
+ * Interface for ID generation.
+ */
+interface IdGenerator {
+  /**
+   * Generates a random internal id.
+   */
+  fun generateInternalId(): InternalId
 
-/** A [IdGenerator] that outputs fixed, settable IDs. */
-class FixedIdGenerator(
-  var internalId: InternalId = InternalId(123456789),
-  var externalId: ExternalId = ExternalId(987654321)
-) : IdGenerator {
-  override fun generateInternalId() = internalId
-  override fun generateExternalId() = externalId
+  /**
+   * Generates a random external id.
+   */
+  fun generateExternalId(): ExternalId
 }

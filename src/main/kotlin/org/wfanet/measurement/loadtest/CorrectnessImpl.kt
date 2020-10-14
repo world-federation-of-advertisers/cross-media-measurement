@@ -48,8 +48,8 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
-import org.wfanet.measurement.common.ApiId
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ApiId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler

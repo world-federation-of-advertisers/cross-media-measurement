@@ -16,7 +16,7 @@ package org.wfanet.measurement.db.kingdom.gcp.readers
 
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.internal.kingdom.Report

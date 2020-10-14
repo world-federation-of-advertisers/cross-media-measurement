@@ -23,9 +23,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.InternalId
-import org.wfanet.measurement.common.testing.FixedIdGenerator
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime

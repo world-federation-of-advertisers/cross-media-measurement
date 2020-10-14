@@ -17,8 +17,8 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.collect
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum

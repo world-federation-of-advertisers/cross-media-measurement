@@ -18,7 +18,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.testing.FixedIdGenerator
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.testing.AbstractMetricValueDatabaseTest
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule

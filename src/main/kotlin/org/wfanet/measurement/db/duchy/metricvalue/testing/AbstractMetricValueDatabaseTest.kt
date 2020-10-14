@@ -18,8 +18,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.testing.FixedIdGenerator
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.MetricValue
 

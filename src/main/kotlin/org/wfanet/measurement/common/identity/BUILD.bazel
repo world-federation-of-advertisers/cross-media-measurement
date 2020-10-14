@@ -12,5 +12,6 @@ kt_jvm_library(
         "//imports/java/io/grpc:api",
         "//imports/java/io/grpc/stub",
         "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

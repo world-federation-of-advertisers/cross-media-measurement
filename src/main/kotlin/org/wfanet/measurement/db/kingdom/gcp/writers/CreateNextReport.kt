@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Value
 import java.time.Duration
 import java.time.Period
 import java.time.temporal.TemporalAmount
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime

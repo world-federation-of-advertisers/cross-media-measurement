@@ -29,7 +29,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest

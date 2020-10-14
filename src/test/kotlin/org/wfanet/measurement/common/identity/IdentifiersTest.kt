@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.common.identity
 
-import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,8 +31,8 @@ class IdentifiersTest {
       val externalId2 = ApiId(apiId1.value).externalId
       val apiId2 = externalId2.apiId
 
-      assertThat(apiId1.value).isEqualTo(apiId2.value)
-      assertThat(externalId1.value).isEqualTo(externalId2.value)
+      Truth.assertThat(apiId1.value).isEqualTo(apiId2.value)
+      Truth.assertThat(externalId1.value).isEqualTo(externalId2.value)
     }
   }
 

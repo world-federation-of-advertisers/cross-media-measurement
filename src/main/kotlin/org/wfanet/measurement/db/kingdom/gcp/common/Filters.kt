@@ -20,9 +20,9 @@ import com.google.protobuf.ProtocolMessageEnum
 import java.time.Instant
 import org.wfanet.measurement.common.AllOfClause
 import org.wfanet.measurement.common.AnyOfClause
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.StreamReportsClause

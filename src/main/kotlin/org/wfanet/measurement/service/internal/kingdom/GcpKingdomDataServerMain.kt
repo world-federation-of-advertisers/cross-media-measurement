@@ -17,10 +17,10 @@ package org.wfanet.measurement.service.internal.kingdom
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
-import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.service.common.CommonServer

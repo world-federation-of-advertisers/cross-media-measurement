@@ -17,10 +17,10 @@ package org.wfanet.measurement.db.kingdom
 import java.time.Instant
 import org.wfanet.measurement.common.AllOfClause
 import org.wfanet.measurement.common.AnyOfClause
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.allOf
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 

@@ -23,7 +23,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.SketchConfig
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.storage.StorageClient

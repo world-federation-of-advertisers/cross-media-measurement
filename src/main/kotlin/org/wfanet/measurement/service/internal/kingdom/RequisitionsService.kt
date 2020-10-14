@@ -15,7 +15,7 @@
 package org.wfanet.measurement.service.internal.kingdom
 
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter

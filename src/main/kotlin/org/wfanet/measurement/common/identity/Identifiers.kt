@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.common.identity
 
 import java.math.BigInteger
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 
 /**
  * Typesafe wrapper around Long to represent the integer format used below the service layer for the

@@ -19,9 +19,9 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.SpannerFromFlags

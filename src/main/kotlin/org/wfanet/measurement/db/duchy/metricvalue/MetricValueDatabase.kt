@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.db.duchy.metricvalue
 
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.duchy.MetricValue
 
 /** Database interface for `MetricValue` resources. */

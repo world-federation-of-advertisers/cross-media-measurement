@@ -34,11 +34,11 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgor
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
-import org.wfanet.measurement.common.ApiId
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.common.toInstant

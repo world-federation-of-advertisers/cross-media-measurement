@@ -22,8 +22,8 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.InternalId
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes

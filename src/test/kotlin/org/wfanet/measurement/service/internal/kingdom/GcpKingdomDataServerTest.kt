@@ -28,7 +28,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.db.gcp.toProtoEnum

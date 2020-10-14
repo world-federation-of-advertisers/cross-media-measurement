@@ -20,7 +20,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.single
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes

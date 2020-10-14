@@ -38,7 +38,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.BYTES_PER_MIB
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest

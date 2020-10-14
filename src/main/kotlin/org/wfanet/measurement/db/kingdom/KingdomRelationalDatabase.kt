@@ -15,7 +15,7 @@
 package org.wfanet.measurement.db.kingdom
 
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.DataProvider

@@ -20,8 +20,8 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toSet
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.gcp.toProtoBytes
 import org.wfanet.measurement.db.gcp.toProtoEnum

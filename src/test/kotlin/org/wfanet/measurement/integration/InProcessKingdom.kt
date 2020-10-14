@@ -29,7 +29,7 @@ import kotlinx.coroutines.supervisorScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.common.ExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially

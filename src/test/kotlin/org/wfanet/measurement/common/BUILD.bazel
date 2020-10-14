@@ -32,18 +32,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "IdentifiersTest",
-    srcs = ["IdentifiersTest.kt"],
-    test_class = "org.wfanet.measurement.common.IdentifiersTest",
-    deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_test(
     name = "DuchyOrderTest",
     srcs = ["DuchyOrderTest.kt"],
     test_class = "org.wfanet.measurement.common.DuchyOrderTest",

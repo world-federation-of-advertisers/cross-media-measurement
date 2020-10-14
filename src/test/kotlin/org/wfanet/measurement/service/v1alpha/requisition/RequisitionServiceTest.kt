@@ -33,9 +33,9 @@ import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument

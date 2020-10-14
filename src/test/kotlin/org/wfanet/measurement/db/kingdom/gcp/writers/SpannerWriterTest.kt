@@ -26,8 +26,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.InternalId
-import org.wfanet.measurement.common.testing.FixedIdGenerator
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)

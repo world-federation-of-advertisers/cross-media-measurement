@@ -41,8 +41,8 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
-import org.wfanet.measurement.common.ExternalId
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime

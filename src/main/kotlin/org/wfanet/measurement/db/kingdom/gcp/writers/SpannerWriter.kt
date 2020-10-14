@@ -19,8 +19,8 @@ import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
-import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 
 /**
