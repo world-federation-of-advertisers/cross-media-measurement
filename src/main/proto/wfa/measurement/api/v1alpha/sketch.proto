@@ -61,7 +61,7 @@ message ConstantDistribution {
 
 // Dirac Mixture distribution.
 // TODO(evgenys): Add .md documentation.
-// See go/grp-whitepaper-2019.
+// See https://research.google/pubs/pub48387/
 message DiracMixtureDistribution {
   // DiracDelta corresponds to a pool of num_values * alpha indexes.
   // Probability of allocation into the pool is equal to alpha * activity.
@@ -85,7 +85,7 @@ message VerbatimDistribution {
 }
 
 // Represents a value coming from the user. E.g. frequency, demo.
-// Design: go/oracle-distribution
+// TODO(evgenys): Add link to public design doc for oracle distribution.
 message OracleDistribution {
   // Key used to extract the value from context.
   string key = 1;
@@ -139,7 +139,7 @@ message SketchConfig {
       // replaced with -1.
       // Probability of a random value treated as valid is 2^-32 ~ 1/1B.
       // TODO(evgenys): Move design to .md file.
-      // Design: go/same-key-aggregator
+      // See Section 6.1 in https://research.google/pubs/pub49177/
       UNIQUE = 2;
     }
     // Name of the value.
