@@ -14,3 +14,8 @@ filegroup(
     name = "metric_values_schema",
     srcs = ["metric_values.sdl"],
 )
+
+filegroup(
+    name = "computation_stats_schema",
+    srcs = ["computation_stats.sdl"],
+)
