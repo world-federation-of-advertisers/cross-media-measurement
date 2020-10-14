@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "protocol_encryption_utility_wrapper.h"
+#include "wfa/measurement/common/crypto/protocol_encryption_utility_wrapper.h"
 
 #include "util/canonical_errors.h"
 #include "util/status_macros.h"
 #include "wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h"
 
-namespace wfa::measurement::crypto {
+namespace wfa {
+namespace measurement {
+namespace common {
+namespace crypto {
 
 private_join_and_compute::StatusOr<std::string> AddNoiseToSketch(
     const std::string& serialized_request) {
@@ -81,4 +84,7 @@ private_join_and_compute::StatusOr<std::string> DecryptLastLayerFlagAndCount(
   return result.SerializeAsString();
 };
 
-}  // namespace wfa::measurement::crypto
+}  // namespace crypto
+}  // namespace common
+}  // namespace measurement
+}  // namespace wfa

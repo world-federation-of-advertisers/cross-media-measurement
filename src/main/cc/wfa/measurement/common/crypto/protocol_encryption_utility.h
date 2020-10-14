@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_MEASUREMENT_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
-#define SRC_MAIN_CC_MEASUREMENT_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
+#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
+#define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
 
 #include "util/statusor.h"
 #include "wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h"
 
-namespace wfa::measurement::crypto {
+namespace wfa {
+namespace measurement {
+namespace common {
+namespace crypto {
 
 using ::private_join_and_compute::StatusOr;
 using ::wfa::measurement::internal::duchy::AddNoiseToSketchRequest;
@@ -58,6 +61,9 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
 StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request);
 
-}  // namespace wfa::measurement::crypto
+}  // namespace crypto
+}  // namespace common
+}  // namespace measurement
+}  // namespace wfa
 
-#endif  // SRC_MAIN_CC_MEASUREMENT_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
+#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_

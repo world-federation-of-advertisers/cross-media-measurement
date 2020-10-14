@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "protocol_encryption_utility.h"
+#include "wfa/measurement/common/crypto/protocol_encryption_utility.h"
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
@@ -22,11 +22,13 @@
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "util/canonical_errors.h"
-#include "util/macros.h"
-#include "util/string_block_sorter.h"
+#include "wfa/measurement/common/macros.h"
+#include "wfa/measurement/common/string_block_sorter.h"
 
-namespace wfa::measurement::crypto {
-
+namespace wfa {
+namespace measurement {
+namespace common {
+namespace crypto {
 namespace {
 
 using ::private_join_and_compute::BigNum;
@@ -499,8 +501,7 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
         current_block.substr(kBytesPerCipherText * 2, kBytesPerCipherText),
         *response_sketch));
   }
-  RETURN_IF_ERROR(
-      util::SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
 
   absl::Duration elaspedDuration =
       getCurrentThreadCpuDuration() - startCpuDuration;
@@ -542,8 +543,7 @@ BlindLastLayerIndexThenJoinRegisters(
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       request.curve_id(), request.composite_el_gamal_keys(), request.sketch(),
       blinded_register_indexes, permutation, *response_data));
-  RETURN_IF_ERROR(
-      util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
   absl::Duration elaspedDuration =
       getCurrentThreadCpuDuration() - startCpuDuration;
@@ -590,8 +590,7 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     response_data->append(decrypted_el_gamal);
   }
 
-  RETURN_IF_ERROR(
-      util::SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
   absl::Duration elaspedDuration =
       getCurrentThreadCpuDuration() - startCpuDuration;
@@ -680,8 +679,8 @@ StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
   *response.mutable_sketch() = request.sketch();
   // TODO: actually add noise to the sketch.
   //  For the POC, we only shuffle the registers.
-  RETURN_IF_ERROR(util::SortStringByBlock<kBytesPerCipherRegister>(
-      *response.mutable_sketch()));
+  RETURN_IF_ERROR(
+      SortStringByBlock<kBytesPerCipherRegister>(*response.mutable_sketch()));
 
   absl::Duration elaspedDuration =
       getCurrentThreadCpuDuration() - startCpuDuration;
@@ -690,4 +689,7 @@ StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
   return response;
 }
 
-}  // namespace wfa::measurement::crypto
+}  // namespace crypto
+}  // namespace common
+}  // namespace measurement
+}  // namespace wfa

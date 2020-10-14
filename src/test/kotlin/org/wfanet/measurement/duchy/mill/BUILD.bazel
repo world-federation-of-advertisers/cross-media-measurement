@@ -31,7 +31,6 @@ kt_jvm_test(
     deps = [
         "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//imports/kotlin/kotlin/test",
-        "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
@@ -42,5 +41,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/storage:computation_store",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+        "//src/main/swig/common/crypto:protocol_encryption_utility",
     ],
 )

@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_MEASUREMENT_CRYPTO_UTIL_STRING_BLOCK_SORTER_H_
-#define SRC_MAIN_CC_MEASUREMENT_CRYPTO_UTIL_STRING_BLOCK_SORTER_H_
+#ifndef WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
+#define WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
 
 #include <algorithm>
 #include <cstring>
 
 #include "util/canonical_errors.h"
 
-namespace wfa::measurement::crypto::util {
+namespace wfa {
+namespace measurement {
+namespace common {
 
 namespace internal {
 
@@ -58,6 +60,8 @@ template <>
 private_join_and_compute::Status SortStringByBlock<0>(std::string& data) =
     delete;
 
-}  // namespace wfa::measurement::crypto::util
+}  // namespace common
+}  // namespace measurement
+}  // namespace wfa
 
-#endif  // SRC_MAIN_CC_MEASUREMENT_CRYPTO_UTIL_STRING_BLOCK_SORTER_H_
+#endif  // WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_

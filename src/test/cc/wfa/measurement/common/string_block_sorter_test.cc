@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "string_block_sorter.h"
+#include "wfa/measurement/common/string_block_sorter.h"
 
 #include "absl/strings/str_cat.h"
 #include "gtest/gtest.h"
 
-namespace wfa::measurement::crypto::util {
+namespace wfa::measurement::common {
 namespace {
 
 TEST(SortStringByBlock, SortByCharShouldWork) {
@@ -55,4 +55,4 @@ TEST(SortStringByBlock, IncompatibleSizeShouldThrow) {
 }
 
 }  // namespace
-}  // namespace wfa::measurement::crypto::util
+}  // namespace wfa::measurement::common

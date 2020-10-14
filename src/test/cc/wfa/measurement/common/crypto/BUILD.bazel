@@ -1,0 +1,15 @@
+cc_test(
+    name = "protocol_encryption_utility_test",
+    size = "small",
+    srcs = [
+        "protocol_encryption_utility_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/common/crypto:protocol_encryption_utility",
+        "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_cc_proto",
+    ],
+)

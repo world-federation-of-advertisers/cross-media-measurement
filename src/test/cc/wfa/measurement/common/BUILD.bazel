@@ -1,0 +1,12 @@
+cc_test(
+    name = "string_block_sorter_test",
+    size = "small",
+    srcs = [
+        "string_block_sorter_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/common:string_block_sorter",
+        "@absl//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)

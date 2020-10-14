@@ -15,8 +15,8 @@
 package org.wfanet.measurement.duchy.mill
 
 import java.nio.file.Paths
+import org.wfanet.measurement.common.crypto.ProtocolEncryptionUtility
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.crypto.ProtocolEncryptionUtility
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchRequest
 import org.wfanet.measurement.internal.duchy.AddNoiseToSketchResponse
 import org.wfanet.measurement.internal.duchy.BlindLastLayerIndexThenJoinRegistersRequest
@@ -36,7 +36,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
 
   override fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
     return AddNoiseToSketchResponse.parseFrom(
-      ProtocolEncryptionUtility.AddNoiseToSketch(request.toByteArray())
+      ProtocolEncryptionUtility.addNoiseToSketch(request.toByteArray())
     )
   }
 
@@ -44,7 +44,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     request: BlindOneLayerRegisterIndexRequest
   ): BlindOneLayerRegisterIndexResponse {
     return BlindOneLayerRegisterIndexResponse.parseFrom(
-      ProtocolEncryptionUtility.BlindOneLayerRegisterIndex(request.toByteArray())
+      ProtocolEncryptionUtility.blindOneLayerRegisterIndex(request.toByteArray())
     )
   }
 
@@ -52,7 +52,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     request: BlindLastLayerIndexThenJoinRegistersRequest
   ): BlindLastLayerIndexThenJoinRegistersResponse {
     return BlindLastLayerIndexThenJoinRegistersResponse.parseFrom(
-      ProtocolEncryptionUtility.BlindLastLayerIndexThenJoinRegisters(request.toByteArray())
+      ProtocolEncryptionUtility.blindLastLayerIndexThenJoinRegisters(request.toByteArray())
     )
   }
 
@@ -60,7 +60,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse {
     return DecryptLastLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.DecryptLastLayerFlagAndCount(request.toByteArray())
+      ProtocolEncryptionUtility.decryptLastLayerFlagAndCount(request.toByteArray())
     )
   }
 
@@ -68,7 +68,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     request: DecryptOneLayerFlagAndCountRequest
   ): DecryptOneLayerFlagAndCountResponse {
     return DecryptOneLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.DecryptOneLayerFlagAndCount(request.toByteArray())
+      ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(request.toByteArray())
     )
   }
 
@@ -76,8 +76,7 @@ class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
     init {
       loadLibrary(
         name = "protocol_encryption_utility",
-        directoryPath =
-          Paths.get("wfa_measurement_system/src/main/java/org/wfanet/measurement/crypto")
+        directoryPath = Paths.get("wfa_measurement_system/src/main/swig/common/crypto")
       )
     }
   }

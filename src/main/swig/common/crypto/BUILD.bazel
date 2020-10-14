@@ -1,4 +1,3 @@
-load("@rules_java//java:defs.bzl", "java_library")
 load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
 
 package(default_visibility = ["//src:jvm"])
@@ -7,8 +6,8 @@ java_wrap_cc(
     name = "protocol_encryption_utility",
     src = "protocol_encryption_utility.swig",
     module = "ProtocolEncryptionUtility",
-    package = "org.wfanet.measurement.crypto",
+    package = "org.wfanet.measurement.common.crypto",
     deps = [
-        "//src/main/cc/measurement/crypto:protocol_encryption_utility_wrapper",
+        "//src/main/cc/wfa/measurement/common/crypto:protocol_encryption_utility_wrapper",
     ],
 )

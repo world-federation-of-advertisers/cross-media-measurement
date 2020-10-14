@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "protocol_encryption_utility.h"
+#include "wfa/measurement/common/crypto/protocol_encryption_utility.h"
 
 #include <openssl/obj_mac.h>
-#include <wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h>
 
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
@@ -24,8 +23,9 @@
 #include "gtest/gtest.h"
 #include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
+#include "wfa/measurement/internal/duchy/protocol_encryption_methods.pb.h"
 
-namespace wfa::measurement::crypto {
+namespace wfa::measurement::common::crypto {
 namespace {
 
 using ::private_join_and_compute::CommutativeElGamal;
@@ -516,4 +516,4 @@ TEST(EndToEnd, CombinedCases) {
 }
 
 }  // namespace
-}  // namespace wfa::measurement::crypto
+}  // namespace wfa::measurement::common::crypto

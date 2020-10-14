@@ -301,7 +301,7 @@ cue_register_toolchains()
 # Rules for swig wrapping.
 git_repository(
     name = "wfa_rules_swig",
-    commit = "4799cbfa2d0e335208d790729ed4b49d34968245",
+    commit = "79de3429e6a985e0145e23393b1f15d5fa255c7e",
     remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
     shallow_since = "1595012448 -0700",
 )

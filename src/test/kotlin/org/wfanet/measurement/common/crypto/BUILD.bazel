@@ -1,16 +1,19 @@
-java_test(
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
     name = "ProtocolEncryptionUtilityTest",
-    srcs = [
-        "ProtocolEncryptionUtilityTest.java",
-    ],
+    srcs = ["ProtocolEncryptionUtilityTest.kt"],
+    test_class = "org.wfanet.measurement.common.crypto.ProtocolEncryptionUtilityTest",
     deps = [
         "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/protobuf",
         "//imports/java/org/junit",
-        "//src/main/java/org/wfanet/measurement/crypto:protocol_encryption_utility",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_java_proto",
+        "//src/main/swig/common/crypto:protocol_encryption_utility",
         "@any_sketch//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",
-        "@com_google_protobuf//:protobuf_java",
     ],
 )

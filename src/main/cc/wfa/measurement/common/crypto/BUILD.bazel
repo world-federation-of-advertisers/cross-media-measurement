@@ -1,6 +1,12 @@
+load("//build:defs.bzl", "test_target")
+
 package(default_visibility = [
-    "//src/main/java/org/wfanet/measurement/crypto:__subpackages__",
+    ":__pkg__",
+    test_target(":__pkg__"),
+    "//src/main/swig/common/crypto:__subpackages__",
 ])
+
+_INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
     name = "protocol_encryption_utility",
@@ -10,31 +16,16 @@ cc_library(
     hdrs = [
         "protocol_encryption_utility.h",
     ],
+    strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "//src/main/cc/measurement/crypto/util:macros",
-        "//src/main/cc/measurement/crypto/util:string_block_sorter",
+        "//src/main/cc/wfa/measurement/common:macros",
+        "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
         "@absl//absl/algorithm:container",
         "@absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//util:status",
-    ],
-)
-
-cc_test(
-    name = "protocol_encryption_utility_test",
-    size = "small",
-    srcs = [
-        "protocol_encryption_utility_test.cc",
-    ],
-    deps = [
-        ":protocol_encryption_utility",
-        "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
-        "@com_google_protobuf//:protobuf",
-        "@googletest//:gtest",
-        "@googletest//:gtest_main",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_cc_proto",
     ],
 )
 
@@ -46,14 +37,10 @@ cc_library(
     hdrs = [
         "protocol_encryption_utility_wrapper.h",
     ],
+    strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":protocol_encryption_utility",
         "//src/main/proto/wfa/measurement/internal/duchy:protocol_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status",
     ],
-)
-
-exports_files(
-    ["protocol_encryption_utility_wrapper.h"],
-    visibility = ["//src/main/java/org/wfanet/measurement/crypto:__pkg__"],
 )
