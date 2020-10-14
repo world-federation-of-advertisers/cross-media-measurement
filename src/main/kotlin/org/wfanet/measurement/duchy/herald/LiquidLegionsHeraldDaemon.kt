@@ -23,7 +23,7 @@ import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import picocli.CommandLine

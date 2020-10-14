@@ -18,7 +18,7 @@ import java.time.Duration
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageDetails
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper

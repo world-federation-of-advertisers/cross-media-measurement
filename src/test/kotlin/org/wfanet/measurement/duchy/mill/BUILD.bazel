@@ -13,18 +13,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "LiquidLegionsCryptoWorkerImplTest",
-    srcs = ["LiquidLegionsCryptoWorkerImplTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.mill.LiquidLegionsCryptoWorkerImplTest",
-    deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:liquid_legions_mill",
-        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
-    ],
-)
-
-kt_jvm_test(
     name = "LiquidLegionsMillTest",
     srcs = ["LiquidLegionsMillTest.kt"],
     test_class = "org.wfanet.measurement.duchy.mill.LiquidLegionsMillTest",

@@ -26,7 +26,7 @@ kt_jvm_library(
         test_target(":__subpackages__"),
         ":integration_tests",
         ":load_test",
-        "//src:internal_services",
+        "//src:duchy_services",
     ],
     deps = [
         "//imports/java/com/google/protobuf",

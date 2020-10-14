@@ -14,7 +14,7 @@ kt_jvm_library(
     srcs = ["CryptoKeySet.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
     ],
 )
@@ -22,8 +22,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "liquid_legions_mill",
     srcs = [
-        "LiquidLegionsCryptoWorker.kt",
-        "LiquidLegionsCryptoWorkerImpl.kt",
         "LiquidLegionsMill.kt",
     ],
     deps = [
@@ -32,10 +30,10 @@ kt_jvm_library(
         "//imports/java/io/grpc:api",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_control_requests",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
@@ -60,9 +58,10 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/crypto",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",

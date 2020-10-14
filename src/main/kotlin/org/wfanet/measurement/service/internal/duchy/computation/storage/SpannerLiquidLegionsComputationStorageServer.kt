@@ -16,8 +16,8 @@ package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.crypto.DuchyPublicKeys
-import org.wfanet.measurement.crypto.toDuchyOrder
+import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb

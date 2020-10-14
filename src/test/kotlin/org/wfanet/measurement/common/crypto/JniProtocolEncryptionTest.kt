@@ -12,18 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.crypto
+package org.wfanet.measurement.common.crypto
 
-import com.google.protobuf.ByteString
-import org.wfanet.measurement.common.size
+import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
+import org.junit.Test
 
-data class ElGamalKeyPair(val publicKey: ElGamalPublicKey, val secretKey: ByteString) {
-  init {
-    require(secretKey.size == SECRET_KEY_SIZE)
-  }
+class JniProtocolEncryptionTest {
 
-  companion object {
-    /** The size of a [secretKey]. */
-    const val SECRET_KEY_SIZE = 32
+  @Test
+  fun `check JNI lib is loaded successfully`() {
+    // Send an invalid request and check if we can get the error thrown inside JNI.
+    val e = assertFailsWith(RuntimeException::class) {
+      JniProtocolEncryption().blindOneLayerRegisterIndex(
+        BlindOneLayerRegisterIndexRequest.getDefaultInstance()
+      )
+    }
+    assertThat(e.message).contains("Input data is empty")
   }
 }

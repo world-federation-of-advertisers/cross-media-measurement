@@ -28,8 +28,8 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueResponse
-import org.wfanet.measurement.crypto.DuchyPublicKeys
-import org.wfanet.measurement.crypto.ElGamalPublicKey
+import org.wfanet.measurement.common.crypto.ElGamalPublicKey
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKeyOrBuilder
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub

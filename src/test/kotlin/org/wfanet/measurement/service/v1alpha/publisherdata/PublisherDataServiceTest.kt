@@ -45,7 +45,7 @@ import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase as RequisitionCoroutineService
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
-import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
+import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.duchy.MetricValue as InternalMetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase as MetricValuesCoroutineService
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub

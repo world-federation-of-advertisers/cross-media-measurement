@@ -49,6 +49,7 @@ import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
 import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.ProtocolEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.protoTimestamp
@@ -103,7 +104,7 @@ class LiquidLegionsMill(
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val workerStubs: Map<String, ComputationControlServiceCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
-  private val cryptoWorker: LiquidLegionsCryptoWorker,
+  private val cryptoWorker: ProtocolEncryption,
   private val throttler: MinimumIntervalThrottler,
   chunkSize: Int = 1024 * 32, // 32 KiB
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 10_000_000L, 10),

@@ -18,10 +18,12 @@ package_group(
 )
 
 package_group(
-    name = "internal_services",
+    name = "duchy_services",
     packages = [
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/...",
-        "//src/test/kotlin/org/wfanet/measurement/service/internal/...",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/...",
+        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata/...",
     ],
 )
 

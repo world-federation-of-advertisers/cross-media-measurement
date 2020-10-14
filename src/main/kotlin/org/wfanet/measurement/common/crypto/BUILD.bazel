@@ -7,8 +7,8 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/com/google/protobuf",
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
+        "//src/main/swig/common/crypto:protocol_encryption_utility",
     ],
 )

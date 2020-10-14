@@ -36,7 +36,7 @@ import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
+import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.common.toApiMessage

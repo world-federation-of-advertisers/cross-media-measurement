@@ -20,11 +20,11 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.crypto.ElGamalKeyPair
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.crypto.ElGamalKeyPair
-import org.wfanet.measurement.crypto.testing.DUCHY_PUBLIC_KEYS
-import org.wfanet.measurement.crypto.testing.DUCHY_SECRET_KEYS
+import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
+import org.wfanet.measurement.duchy.testing.DUCHY_SECRET_KEYS
 import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
@@ -38,7 +38,7 @@ import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabas
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.mill.toProtoMessage
+import org.wfanet.measurement.common.crypto.toProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum

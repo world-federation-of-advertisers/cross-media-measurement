@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub

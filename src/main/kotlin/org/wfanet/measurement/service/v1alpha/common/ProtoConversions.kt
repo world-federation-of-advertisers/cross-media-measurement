@@ -17,7 +17,7 @@ package org.wfanet.measurement.service.v1alpha.common
 import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.crypto.ElGamalPublicKey as CryptoElGamalPublicKey
+import org.wfanet.measurement.common.crypto.ElGamalPublicKey as CryptoElGamalPublicKey
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 

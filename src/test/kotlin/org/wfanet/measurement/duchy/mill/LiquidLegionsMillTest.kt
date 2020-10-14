@@ -69,6 +69,7 @@ import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse.FlagCount
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.ProtocolEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -119,7 +120,7 @@ class LiquidLegionsMillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val mockCryptoWorker: LiquidLegionsCryptoWorker =
+  private val mockCryptoWorker: ProtocolEncryption =
     mock(useConstructor = UseConstructor.parameterless())
   private val fakeComputationDb = FakeLiquidLegionsComputationDb()
 

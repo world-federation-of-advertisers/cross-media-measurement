@@ -26,10 +26,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.byteStringOf
+import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
-import org.wfanet.measurement.crypto.DuchyPublicKeyMap
-import org.wfanet.measurement.crypto.ElGamalPublicKey
+import org.wfanet.measurement.duchy.DuchyPublicKeyMap
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage

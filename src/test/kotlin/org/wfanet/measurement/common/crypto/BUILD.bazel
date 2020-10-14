@@ -17,3 +17,15 @@ kt_jvm_test(
         "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",
     ],
 )
+
+kt_jvm_test(
+    name = "JniProtocolEncryptionTest",
+    srcs = ["JniProtocolEncryptionTest.kt"],
+    test_class = "org.wfanet.measurement.common.crypto.JniProtocolEncryptionTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
+    ],
+)

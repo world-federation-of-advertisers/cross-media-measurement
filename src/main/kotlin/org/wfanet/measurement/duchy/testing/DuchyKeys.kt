@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.crypto.testing
+package org.wfanet.measurement.duchy.testing
 
 import com.google.protobuf.ByteString
 import java.nio.file.Files
@@ -21,7 +21,7 @@ import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
-import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 
 val DUCHY_PUBLIC_KEY_CONFIG = loadDuchyPublicKeyConfig()
 val DUCHY_PUBLIC_KEYS = DuchyPublicKeys(DUCHY_PUBLIC_KEY_CONFIG)

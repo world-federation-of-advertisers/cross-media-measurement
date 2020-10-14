@@ -20,10 +20,12 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.crypto.ElGamalKeyPair
+import org.wfanet.measurement.common.crypto.JniProtocolEncryption
+import org.wfanet.measurement.common.crypto.toProtoMessage
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.crypto.DuchyPublicKeys
-import org.wfanet.measurement.crypto.ElGamalKeyPair
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
@@ -76,7 +78,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       globalComputationsClient = globalComputationsClient,
       workerStubs = computationControlClientMap,
       cryptoKeySet = newCryptoKeySet(),
-      cryptoWorker = LiquidLegionsCryptoWorkerImpl(),
+      cryptoWorker = JniProtocolEncryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       chunkSize = flags.chunkSize,
       liquidLegionsConfig = LiquidLegionsMill.LiquidLegionsConfig(

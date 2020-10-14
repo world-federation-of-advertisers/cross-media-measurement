@@ -16,7 +16,7 @@ package org.wfanet.measurement.duchy.mill
 
 import java.time.Duration
 import kotlin.properties.Delegates
-import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import picocli.CommandLine
 

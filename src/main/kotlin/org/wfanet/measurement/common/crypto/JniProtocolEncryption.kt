@@ -12,27 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill
+package org.wfanet.measurement.common.crypto
 
 import java.nio.file.Paths
-import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
-import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
-import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
-import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersResponse
-import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
-import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexResponse
-import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
-import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
-import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
-import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
-import org.wfanet.measurement.common.crypto.ProtocolEncryptionUtility
 import org.wfanet.measurement.common.loadLibrary
 
 /**
- * An implementation of the LiquidLegionsCryptoWorker using the JNI c++ protocol_encryption_utility
- * library.
+ * A [ProtocolEncryption] implementation using the JNI
+ * [ProtocolEncryptionUtility].
  */
-class LiquidLegionsCryptoWorkerImpl : LiquidLegionsCryptoWorker {
+class JniProtocolEncryption : ProtocolEncryption {
 
   override fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
     return AddNoiseToSketchResponse.parseFrom(

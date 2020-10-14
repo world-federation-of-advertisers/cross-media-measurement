@@ -28,18 +28,18 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.MinimumIntervalThrottler
+import org.wfanet.measurement.common.crypto.JniProtocolEncryption
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
-import org.wfanet.measurement.crypto.DuchyPublicKeys
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.mill.LiquidLegionsCryptoWorkerImpl
 import org.wfanet.measurement.duchy.mill.LiquidLegionsMill
 import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
@@ -160,7 +160,7 @@ class InProcessDuchy(
         globalComputationsClient = kingdomGlobalComputationsStub,
         workerStubs = workerStubs,
         cryptoKeySet = duchyDependencies.cryptoKeySet,
-        cryptoWorker = LiquidLegionsCryptoWorkerImpl(),
+        cryptoWorker = JniProtocolEncryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         chunkSize = 2_000_000
       )

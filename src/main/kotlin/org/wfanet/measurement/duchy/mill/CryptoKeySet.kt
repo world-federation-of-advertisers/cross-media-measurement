@@ -17,8 +17,6 @@ package org.wfanet.measurement.duchy.mill
 import org.wfanet.measurement.common.crypto.ElGamalKeys
 import org.wfanet.measurement.common.crypto.ElGamalPublicKeys
 import org.wfanet.measurement.common.hexAsByteString
-import org.wfanet.measurement.crypto.ElGamalKeyPair
-import org.wfanet.measurement.crypto.ElGamalPublicKey
 
 /**
  * All crypto keys necessary for the computations in the mill.
@@ -66,16 +64,3 @@ fun String.toElGamalPublicKeys(): ElGamalPublicKeys {
     .build()
 }
 
-fun ElGamalPublicKey.toProtoMessage(): ElGamalPublicKeys {
-  return ElGamalPublicKeys.newBuilder().apply {
-    elGamalG = generator
-    elGamalY = element
-  }.build()
-}
-
-fun ElGamalKeyPair.toProtoMessage(): ElGamalKeys {
-  return ElGamalKeys.newBuilder().apply {
-    elGamalPk = publicKey.toProtoMessage()
-    elGamalSk = secretKey
-  }.build()
-}

@@ -23,7 +23,7 @@ kt_jvm_test(
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/org/junit",
-        "//src/main/kotlin/org/wfanet/measurement/crypto/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:correctness",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",

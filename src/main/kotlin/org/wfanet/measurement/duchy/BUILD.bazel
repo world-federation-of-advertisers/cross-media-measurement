@@ -1,14 +1,18 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
+DEFAULT_VISIBILITY = [
+    ":__subpackages__",
+    test_target(":__subpackages__"),
+    "//src:duchy_services",
+    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+]
+
+package(default_visibility = DEFAULT_VISIBILITY)
+
 kt_jvm_library(
     name = "flags",
     srcs = glob(["*Flags.kt"]),
-    visibility = [
-        ":__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:__subpackages__",
-    ],
     deps = [
         "//imports/java/picocli",
     ],
@@ -17,14 +21,10 @@ kt_jvm_library(
 kt_jvm_library(
     name = "computation_stage",
     srcs = ["ComputationStage.kt"],
-    visibility = [
-        ":__subpackages__",
-        test_target(":__subpackages__"),
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
+    visibility = DEFAULT_VISIBILITY + [
         "//src/main/kotlin/org/wfanet/measurement/storage:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/db/duchy:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/db/duchy/computation:__subpackages__",
     ],
     deps = [
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",
@@ -36,16 +36,25 @@ kt_jvm_library(
 kt_jvm_library(
     name = "computation_control_requests",
     srcs = ["ComputationControlRequests.kt"],
-    visibility = [
-        ":__subpackages__",
-        test_target(":__subpackages__"),
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy:__subpackages__",
-    ],
     deps = [
         "//imports/java/com/google/protobuf",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_java_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "duchy_public_keys",
+    srcs = ["DuchyPublicKeys.kt"],
+    visibility = DEFAULT_VISIBILITY + [
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/db/duchy/computation:__subpackages__",
+    ],
+    deps = [
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
     ],
 )
