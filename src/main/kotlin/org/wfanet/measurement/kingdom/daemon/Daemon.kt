@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.kingdom.daemon
 
 import java.time.Duration
 import java.util.logging.Logger
@@ -41,7 +41,7 @@ class Daemon(
   val daemonDatabaseServicesClient: DaemonDatabaseServicesClient,
   private val retryPollDelay: Duration = Duration.ofSeconds(1)
 ) : CoroutineScope {
-  val logger: Logger = Daemon.logger
+  val logger: Logger = Companion.logger
 
   override val coroutineContext: CoroutineContext = Dispatchers.IO
 

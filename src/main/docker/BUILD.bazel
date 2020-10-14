@@ -62,7 +62,7 @@ container_push(
 container_push(
     name = "push_kingdom_report_maker_daemon_image",
     format = "Docker",
-    image = "//src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image",
+    image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/kingdom/report-maker",
 )
@@ -70,7 +70,7 @@ container_push(
 container_push(
     name = "push_kingdom_report_starter_daemon_image",
     format = "Docker",
-    image = "//src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image",
+    image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/kingdom/report-starter",
 )
@@ -78,7 +78,7 @@ container_push(
 container_push(
     name = "push_kingdom_requisition_linker_daemon_image",
     format = "Docker",
-    image = "//src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image",
+    image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/kingdom/requisition-linker",
 )

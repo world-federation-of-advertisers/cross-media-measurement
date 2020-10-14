@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.kingdom.deploy.common.daemon
 
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.kingdom.daemon.runReportMaker
 import picocli.CommandLine
 
 @CommandLine.Command(

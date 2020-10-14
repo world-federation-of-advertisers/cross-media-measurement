@@ -48,11 +48,11 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogE
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.kingdom.Daemon
-import org.wfanet.measurement.kingdom.DaemonDatabaseServicesClientImpl
-import org.wfanet.measurement.kingdom.runReportMaker
-import org.wfanet.measurement.kingdom.runReportStarter
-import org.wfanet.measurement.kingdom.runRequisitionLinker
+import org.wfanet.measurement.kingdom.daemon.Daemon
+import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
+import org.wfanet.measurement.kingdom.daemon.runReportMaker
+import org.wfanet.measurement.kingdom.daemon.runReportStarter
+import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
 import org.wfanet.measurement.service.common.withVerboseLogging
 import org.wfanet.measurement.service.internal.kingdom.buildDataServices
 import org.wfanet.measurement.service.testing.GrpcTestServerRule

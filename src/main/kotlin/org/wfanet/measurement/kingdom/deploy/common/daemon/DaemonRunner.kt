@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.kingdom.deploy.common.daemon
 
 import io.grpc.Channel
 import java.time.Clock
@@ -25,6 +25,8 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.Repor
 import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.kingdom.daemon.Daemon
+import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
 import org.wfanet.measurement.service.common.withVerboseLogging
 import picocli.CommandLine
 

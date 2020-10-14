@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.kingdom.daemon
 
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.atLeast
@@ -38,7 +38,8 @@ private val REQUISITION2: Requisition = Requisition.newBuilder().setExternalRequ
 @RunWith(JUnit4::class)
 class RequisitionLinkerTest {
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient = mock()
-  private val daemon = Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
+  private val daemon =
+    Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
   fun createRequisitions() = runBlocking<Unit> {

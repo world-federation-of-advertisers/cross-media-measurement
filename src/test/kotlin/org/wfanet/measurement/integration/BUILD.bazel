@@ -26,7 +26,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:liquid_legions_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/daemon",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:liquid_legions_service",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:protos",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.kingdom.daemon
 
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.atLeast
@@ -21,7 +21,7 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.same
 import com.nhaarman.mockitokotlin2.stub
 import com.nhaarman.mockitokotlin2.verify
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,34 +29,33 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.CountDownLatch
 import org.wfanet.measurement.common.testing.launchAndCancelWithLatch
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
+import org.wfanet.measurement.internal.kingdom.Report
 
-private const val COMBINED_PUBLIC_KEY_ID = "combined-public-key"
-private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.getDefaultInstance()
+private val REPORT: Report = Report.getDefaultInstance()
 
 @RunWith(JUnit4::class)
-class ReportMakerTest {
+class ReportStarterTest {
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient = mock()
-  private val daemon = Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
+  private val daemon =
+    Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
-  fun createReports() = runBlocking<Unit> {
+  fun startReports() = runBlocking<Unit> {
     val latch = CountDownLatch(15)
-
     daemonDatabaseServicesClient.stub {
-      on { streamReadySchedules() }
-        .thenReturn((1..10).map { SCHEDULE }.asFlow())
+      on { streamReadyReports() }
+        .thenReturn(flowOf(REPORT, REPORT, REPORT))
 
-      onBlocking { createNextReport(any(), any()) }
+      onBlocking { updateReportState(any(), any()) }
         .then { latch.countDown() }
     }
 
-    launchAndCancelWithLatch(latch) { daemon.runReportMaker(COMBINED_PUBLIC_KEY_ID) }
+    launchAndCancelWithLatch(latch) { daemon.runReportStarter() }
 
-    verify(daemonDatabaseServicesClient, atLeast(2))
-      .streamReadySchedules()
+    verify(daemonDatabaseServicesClient, atLeast(5))
+      .streamReadyReports()
 
     verify(daemonDatabaseServicesClient, atLeast(15))
-      .createNextReport(same(SCHEDULE), eq(COMBINED_PUBLIC_KEY_ID))
+      .updateReportState(same(REPORT), eq(Report.ReportState.AWAITING_DUCHY_CONFIRMATION))
   }
 }

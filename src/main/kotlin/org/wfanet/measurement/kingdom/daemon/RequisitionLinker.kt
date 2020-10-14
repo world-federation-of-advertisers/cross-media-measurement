@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom
+package org.wfanet.measurement.kingdom.daemon
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
