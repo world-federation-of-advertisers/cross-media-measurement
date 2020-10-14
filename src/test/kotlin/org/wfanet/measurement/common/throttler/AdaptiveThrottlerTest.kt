@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.common.throttler
 
 import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertThat
@@ -44,6 +44,7 @@ class AdaptiveThrottlerTest {
     )
 
     val events = mutableListOf<Int>()
+
     class TestException(message: String) : Exception(message)
 
     // Accept at most 100qps and ensure that the throttler converges on that.

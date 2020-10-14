@@ -1,0 +1,29 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "AdaptiveThrottlerTest",
+    srcs = ["AdaptiveThrottlerTest.kt"],
+    test_class = "org.wfanet.measurement.common.throttler.AdaptiveThrottlerTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+kt_jvm_test(
+    name = "MinimumIntervalThrottlerTest",
+    srcs = ["MinimumIntervalThrottlerTest.kt"],
+    test_class = "org.wfanet.measurement.common.throttler.MinimumIntervalThrottlerTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)

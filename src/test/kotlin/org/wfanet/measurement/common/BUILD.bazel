@@ -70,36 +70,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "AdaptiveThrottlerTest",
-    srcs = ["AdaptiveThrottlerTest.kt"],
-    test_class = "org.wfanet.measurement.common.AdaptiveThrottlerTest",
-    deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//imports/kotlin/kotlinx/coroutines/test",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ],
-)
-
-kt_jvm_test(
-    name = "MinimumIntervalThrottlerTest",
-    srcs = ["MinimumIntervalThrottlerTest.kt"],
-    test_class = "org.wfanet.measurement.common.MinimumIntervalThrottlerTest",
-    deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//imports/kotlin/kotlinx/coroutines/test",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ],
-)
-
-kt_jvm_test(
     name = "RenewedFlowTest",
     srcs = ["RenewedFlowTest.kt"],
     test_class = "org.wfanet.measurement.common.RenewedFlowTest",

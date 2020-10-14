@@ -50,9 +50,9 @@ import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.common.ApiId
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.renewedFlow
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.streamReportsFilter
@@ -253,7 +253,7 @@ class CorrectnessImpl(
     val combinedPublicKey = publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
       runCatching {
         publisherDataStub.getCombinedPublicKey(resourceKey)
-      }.getOrThrowWithMessage{
+      }.getOrThrowWithMessage {
         "Error getting combined public key $resourceKey"
       }
     }
@@ -262,7 +262,7 @@ class CorrectnessImpl(
 
     runCatching {
       uploadMetricValue(requisition.key, encryptedSketch)
-    }.getOrThrowWithMessage{
+    }.getOrThrowWithMessage {
       "Error uploading metric value for ${requisition.key}"
     }
   }

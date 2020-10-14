@@ -21,10 +21,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import org.wfanet.measurement.common.Throttler
+import org.wfanet.measurement.common.grpc.onReadyGrpc
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
-import org.wfanet.measurement.common.onReadyGrpc
 import org.wfanet.measurement.common.renewedFlow
+import org.wfanet.measurement.common.throttler.Throttler
 
 /**
  * Class representing daemons in the Kingdom. Daemons themselves are implemented as extension

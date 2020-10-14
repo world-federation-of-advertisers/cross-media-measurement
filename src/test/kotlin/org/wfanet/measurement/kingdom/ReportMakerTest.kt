@@ -27,8 +27,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.CountDownLatch
-import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.launchAndCancelWithLatch
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
 private const val COMBINED_PUBLIC_KEY_ID = "combined-public-key"

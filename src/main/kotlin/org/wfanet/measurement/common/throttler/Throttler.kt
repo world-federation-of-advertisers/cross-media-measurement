@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.testing
+package org.wfanet.measurement.common.throttler
 
-import kotlinx.coroutines.delay
-import org.wfanet.measurement.common.Throttler
+interface Throttler {
+  /**
+   * Helper for performing an operation after waiting to be unthrottled.
+   *
+   * Blocks until ready, then calls [block]. If [block] raises a [ThrottledException], it calls
+   * [reportThrottled] and re-throws the exception's cause.
+   *
+   * @param block what to do when not throttled
+   */
+  suspend fun <T> onReady(block: suspend () -> T): T
 
-class FakeThrottler : Throttler {
-  var canAttempt = true
-
-  override suspend fun <T> onReady(block: suspend () -> T): T {
-    while (!canAttempt) {
-      delay(200)
-    }
-    return block()
+  suspend fun loopOnReady(block: suspend () -> Unit) {
+    while (true) { onReady(block) }
   }
 }

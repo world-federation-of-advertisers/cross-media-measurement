@@ -58,7 +58,6 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgor
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
 import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
@@ -74,6 +73,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.name

@@ -19,8 +19,8 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.AdaptiveThrottler
 import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.throttler.AdaptiveThrottler
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub

@@ -32,8 +32,8 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputa
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
-import org.wfanet.measurement.common.testing.FakeThrottler
 import org.wfanet.measurement.common.testing.pollFor
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE

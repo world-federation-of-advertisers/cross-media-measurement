@@ -41,10 +41,10 @@ import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.common.ExternalId
-import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 
 /**
  * JUnit rule for spawning fake DataProvider jobs that attempt to fulfill all their requisitions.

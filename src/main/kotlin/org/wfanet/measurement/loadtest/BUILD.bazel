@@ -16,6 +16,7 @@ kt_jvm_library(
     ],
     deps = [
         "//imports/java/com/google/common/truth/extensions/proto",
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_java_proto",

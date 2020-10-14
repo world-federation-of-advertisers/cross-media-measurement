@@ -18,13 +18,13 @@ import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.common.MinimumIntervalThrottler
 import org.wfanet.measurement.common.addChannelShutdownHooks
 import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.CommonDuchyFlags
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import picocli.CommandLine
 

@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.common.grpc
 
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.common.throttler.ThrottledException
+import org.wfanet.measurement.common.throttler.Throttler
 
 /**
  * Variant of [Throttler.onReady] that converts gRPC [StatusRuntimeException]s to

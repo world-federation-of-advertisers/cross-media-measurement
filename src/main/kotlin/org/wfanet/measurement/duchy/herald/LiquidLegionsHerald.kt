@@ -27,8 +27,8 @@ import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
-import org.wfanet.measurement.common.Throttler
-import org.wfanet.measurement.common.grpcStatusCode
+import org.wfanet.measurement.common.grpc.grpcStatusCode
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.advanceLiquidLegionsComputationStage

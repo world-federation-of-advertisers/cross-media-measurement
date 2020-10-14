@@ -13,6 +13,7 @@ kt_jvm_library(
     runtime_deps = ["//imports/java/io/grpc/netty"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_kt_jvm_grpc",

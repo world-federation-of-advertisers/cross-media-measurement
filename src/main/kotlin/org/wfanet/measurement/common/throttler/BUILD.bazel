@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "throttler",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
