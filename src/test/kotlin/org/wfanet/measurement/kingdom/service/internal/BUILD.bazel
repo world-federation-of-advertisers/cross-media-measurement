@@ -1,10 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
-load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_test(
     name = "RequisitionsServiceTest",
     srcs = ["RequisitionsServiceTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.RequisitionsServiceTest",
+    test_class = "org.wfanet.measurement.kingdom.service.internal.RequisitionsServiceTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -12,7 +11,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlin/test",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_template_java_proto",
@@ -23,7 +22,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "ReportConfigSchedulesServiceTest",
     srcs = ["ReportConfigSchedulesServiceTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.ReportConfigSchedulesServiceTest",
+    test_class = "org.wfanet.measurement.kingdom.service.internal.ReportConfigSchedulesServiceTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -33,7 +32,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedule_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedules_service_kt_jvm_grpc",
@@ -43,7 +42,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "ReportConfigsServiceTest",
     srcs = ["ReportConfigsServiceTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.ReportConfigsServiceTest",
+    test_class = "org.wfanet.measurement.kingdom.service.internal.ReportConfigsServiceTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -52,7 +51,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_configs_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
@@ -62,7 +61,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "ReportsServiceTest",
     srcs = ["ReportsServiceTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.ReportsServiceTest",
+    test_class = "org.wfanet.measurement.kingdom.service.internal.ReportsServiceTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -71,7 +70,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:reports_service_kt_jvm_grpc",
@@ -81,7 +80,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "ReportLogEntriesServiceTest",
     srcs = ["ReportLogEntriesServiceTest.kt"],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.ReportLogEntriesServiceTest",
+    test_class = "org.wfanet.measurement.kingdom.service.internal.ReportLogEntriesServiceTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -91,34 +90,9 @@ kt_jvm_test(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/testing",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entries_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
-    ],
-)
-
-spanner_emulator_test(
-    name = "GcpKingdomDataServerTest",
-    srcs = ["GcpKingdomDataServerTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
-    test_class = "org.wfanet.measurement.service.internal.kingdom.GcpKingdomDataServerTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom",
-        "//src/main/kotlin/org/wfanet/measurement/service/testing",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedules_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_configs_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/kingdom:reports_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc",
     ],
 )

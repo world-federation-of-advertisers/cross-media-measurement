@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.kingdom
+package org.wfanet.measurement.kingdom.deploy.gcloud.server
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
@@ -119,7 +119,8 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
         databaseClient
       )
 
-    buildDataServices(relationalDatabase).forEach(this::addService)
+    org.wfanet.measurement.kingdom.service.internal.buildDataServices(relationalDatabase)
+      .forEach(this::addService)
   }
 
   @get:Rule

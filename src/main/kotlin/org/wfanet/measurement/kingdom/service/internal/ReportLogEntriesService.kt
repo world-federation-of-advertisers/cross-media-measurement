@@ -12,20 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.kingdom
+package org.wfanet.measurement.kingdom.service.internal
 
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
+import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 
-class ReportConfigSchedulesService(
+class ReportLogEntriesService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-) : ReportConfigSchedulesCoroutineImplBase() {
-
-  override fun streamReadyReportConfigSchedules(
-    request: StreamReadyReportConfigSchedulesRequest
-  ): Flow<ReportConfigSchedule> =
-    kingdomRelationalDatabase.streamReadySchedules(request.limit)
+) : ReportLogEntriesCoroutineImplBase() {
+  override suspend fun createReportLogEntry(request: ReportLogEntry): ReportLogEntry {
+    return kingdomRelationalDatabase.addReportLogEntry(request)
+  }
 }

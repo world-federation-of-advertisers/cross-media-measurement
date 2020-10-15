@@ -23,8 +23,8 @@ import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.service.common.CommonServer
-import org.wfanet.measurement.service.internal.kingdom.buildDataServices
 import picocli.CommandLine
 
 @CommandLine.Command(

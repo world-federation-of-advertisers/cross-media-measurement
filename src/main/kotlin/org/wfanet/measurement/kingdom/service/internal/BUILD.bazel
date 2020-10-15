@@ -6,7 +6,7 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "kingdom",
+    name = "internal",
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/com/google/cloud/spanner",

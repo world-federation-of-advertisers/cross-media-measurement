@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.kingdom
+package org.wfanet.measurement.kingdom.service.internal
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.nhaarman.mockitokotlin2.any

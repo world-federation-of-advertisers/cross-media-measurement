@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.kingdom
+package org.wfanet.measurement.kingdom.service.internal
 
+import io.grpc.BindableService
 import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 
-class ReportLogEntriesService(
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
-) : ReportLogEntriesCoroutineImplBase() {
-  override suspend fun createReportLogEntry(request: ReportLogEntry): ReportLogEntry {
-    return kingdomRelationalDatabase.addReportLogEntry(request)
-  }
+/** Builds a list of all the Kingdom's internal data-layer services. */
+fun buildDataServices(relationalDatabase: KingdomRelationalDatabase): List<BindableService> {
+  return listOf(
+    ReportConfigSchedulesService(relationalDatabase),
+    ReportConfigsService(relationalDatabase),
+    ReportsService(relationalDatabase),
+    ReportLogEntriesService(relationalDatabase),
+    RequisitionsService(relationalDatabase)
+  )
 }
