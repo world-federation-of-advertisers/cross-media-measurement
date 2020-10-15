@@ -27,16 +27,16 @@ import picocli.CommandLine.Command
   description = ["Builds container images from source and deploys them to a local kind cluster."]
 )
 class DeployToKind() : Callable<Int> {
-  private val duchyFilePath = "src/main/kotlin/org/wfanet/measurement"
+  private val kotlinRelativePath = "src/main/kotlin"
   private val yamlFile = "kingdom_and_three_duchies_from_cue_local.yaml"
 
   override fun call(): Int {
     logger.info("*** STARTING ***")
 
-    // Load Duchy images.
-    val duchyRunfiles =
-      checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", duchyFilePath))).toFile()
-    duchyRunfiles
+    // Load images.
+    val runfiles =
+      checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", kotlinRelativePath))).toFile()
+    runfiles
       .walk()
       .asSequence()
       .filter { !it.isDirectory && it.extension == "tar" }
@@ -44,7 +44,7 @@ class DeployToKind() : Callable<Int> {
         logger.info("*** LOADING IMAGE: ${imageFile.absolutePath} ***")
 
         // Figure out what the image name is.
-        val repository = "bazel/$duchyFilePath/${imageFile.parentFile.relativeTo(duchyRunfiles)}"
+        val repository = "bazel/$kotlinRelativePath/${imageFile.parentFile.relativeTo(runfiles)}"
         val tag = imageFile.nameWithoutExtension
         val imageName = "$repository:$tag"
 
