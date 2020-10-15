@@ -21,6 +21,7 @@ kt_jvm_library(
     deps = [
         ":run_subprocess",
         "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

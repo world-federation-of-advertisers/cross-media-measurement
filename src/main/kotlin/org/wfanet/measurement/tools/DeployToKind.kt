@@ -18,7 +18,13 @@ import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
 import kotlin.system.exitProcess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.mapConcurrently
 import picocli.CommandLine
 import picocli.CommandLine.Command
 
@@ -36,34 +42,39 @@ class DeployToKind() : Callable<Int> {
     // Load images.
     val runfiles =
       checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", kotlinRelativePath))).toFile()
-    runfiles
-      .walk()
-      .asSequence()
-      .filter { !it.isDirectory && it.extension == "tar" }
-      .forEach { imageFile ->
-        logger.info("*** LOADING IMAGE: ${imageFile.absolutePath} ***")
 
-        // Figure out what the image name is.
-        val repository = "bazel/$kotlinRelativePath/${imageFile.parentFile.relativeTo(runfiles)}"
-        val tag = imageFile.nameWithoutExtension
-        val imageName = "$repository:$tag"
+    runBlocking {
+      runfiles
+        .walk()
+        .asFlow()
+        .filter { !it.isDirectory && it.extension == "tar" }
+        .mapConcurrently(CoroutineScope(coroutineContext), 8) { imageFile ->
+          val absolutePath = imageFile.absolutePath
 
-        // Remove images from Docker if they already exist.
-        // This is not strictly necessary but Docker keeps the old image in memory otherwise.
-        logger.info(
-          "*** FYI: If the image doesn't exist the next command fails. " +
-            "This is expected and not a big deal. ***"
-        )
-        runSubprocess("docker rmi $imageName", exitOnFail = false)
+          logger.info("*** LOADING IMAGE: $absolutePath ***")
 
-        // Load the image into Docker.
-        runSubprocess("docker load -i ${imageFile.absolutePath}", redirectErrorStream = false)
+          // Figure out what the image name is.
+          val repository = "bazel/$kotlinRelativePath/${imageFile.parentFile.relativeTo(runfiles)}"
+          val tag = imageFile.nameWithoutExtension
+          val imageName = "$repository:$tag"
 
-        // Load the image into Kind.
-        runSubprocess("kind load docker-image $imageName")
+          // Remove images from Docker if they already exist.
+          // This is not strictly necessary but Docker keeps the old image in memory otherwise.
+          val deleteWarning =
+            "*** FYI: If the image doesn't exist the next command fails. " +
+              "This is expected and not a big deal. ***"
+          runSubprocess("echo \"$deleteWarning\" && docker rmi $imageName", exitOnFail = false)
 
-        logger.info("*** DONE LOADING IMAGE: $imageFile.absolutePath ***")
-      }
+          // Load the image into Docker.
+          runSubprocess("docker load -i $absolutePath", redirectErrorStream = false)
+
+          // Load the image into Kind.
+          runSubprocess("kind load docker-image $imageName")
+
+          logger.info("*** DONE LOADING IMAGE: $absolutePath ***")
+        }
+        .collect()
+    }
 
     logger.info("*** DONE LOADING ALL IMAGES ***")
 
