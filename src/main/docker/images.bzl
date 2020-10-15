@@ -1,0 +1,99 @@
+# List of specs for all Docker containers to push to a container registry.
+# These are common to both local execution (e.g. in Kind) as well as on GKE.
+COMMON_IMAGES = [
+    struct(
+        name = "push_duchy_liquid_legions_herald_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image",
+        repository = "ads-open-measurement/duchy/liquid-legions-v1-herald",
+    ),
+    struct(
+        name = "push_duchy_liquid_legions_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/mill:gcs_liquid_legions_mill_daemon_image",
+        repository = "ads-open-measurement/duchy/liquid-legions-v1-mill",
+    ),
+    struct(
+        name = "push_duchy_publisher_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image",
+        repository = "ads-open-measurement/duchy/publisher-data",
+    ),
+    struct(
+        name = "push_duchy_spanner_liquid_legions_computation_storage_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image",
+        repository = "ads-open-measurement/duchy/liquid-legions-v1-spanner-computation-storage",
+    ),
+    struct(
+        name = "push_kingdom_global_computation_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/globalcomputation:global_computation_server_image",
+        repository = "ads-open-measurement/kingdom/global-computation",
+    ),
+    struct(
+        name = "push_kingdom_report_maker_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image",
+        repository = "ads-open-measurement/kingdom/report-maker",
+    ),
+    struct(
+        name = "push_kingdom_report_starter_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image",
+        repository = "ads-open-measurement/kingdom/report-starter",
+    ),
+    struct(
+        name = "push_kingdom_requisition_linker_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image",
+        repository = "ads-open-measurement/kingdom/requisition-linker",
+    ),
+    struct(
+        name = "push_kingdom_requisition_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image",
+        repository = "ads-open-measurement/kingdom/requisition",
+    ),
+    struct(
+        name = "push_kingdom_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_data_server_image",
+        repository = "ads-open-measurement/kingdom/data-server",
+    ),
+    struct(
+        name = "push_setup_push_spanner_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
+        repository = "ads-open-measurement/setup/push-spanner-schema",
+    ),
+]
+
+# List of specs for all Docker containers to push to a container registry.
+# These are only used on GKE.
+GKE_IMAGES = [
+    struct(
+        name = "push_duchy_liquid_legions_computation_control_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image",
+        repository = "ads-open-measurement/duchy/liquid-legions-v1-computation-control",
+    ),
+    struct(
+        name = "push_gcs_correctness_test_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest:gcs_correctness_runner_image",
+        repository = "ads-open-measurement/loadtest/correctness-test",
+    ),
+    struct(
+        name = "push_duchy_metric_values_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image",
+        repository = "ads-open-measurement/duchy/metric-values",
+    ),
+]
+
+# List of image build rules that are only used locally (e.g. in Kind).
+LOCAL_IMAGES = [
+    struct(
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarded_storage_liquid_legions_mill_daemon_image",
+    ),
+    struct(
+        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarded_storage_liquid_legions_server_image",
+    ),
+    struct(
+        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image",
+    ),
+    struct(
+        image = "//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image",
+    ),
+]
+
+ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES
+
+ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES
