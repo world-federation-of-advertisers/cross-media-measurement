@@ -48,7 +48,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "push_kingdom_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/kingdom:gcp_kingdom_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image",
         repository = "ads-open-measurement/kingdom/data-server",
     ),
     struct(

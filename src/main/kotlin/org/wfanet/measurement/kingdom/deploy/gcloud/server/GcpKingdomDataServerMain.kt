@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.kingdom
+package org.wfanet.measurement.kingdom.deploy.gcloud.server
 
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.service.common.CommonServer
+import org.wfanet.measurement.service.internal.kingdom.buildDataServices
 import picocli.CommandLine
 
 @CommandLine.Command(
