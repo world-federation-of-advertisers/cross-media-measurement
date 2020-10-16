@@ -3,26 +3,25 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 
 kt_jvm_library(
-    name = "gcp_kingdom_data_server",
-    srcs = ["GcpKingdomDataServerMain.kt"],
-    visibility = ["//visibility:public"],
+    name = "spanner_kingdom_data_server",
+    srcs = ["SpannerKingdomDataServer.kt"],
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:kingdom_data_server",
     ],
 )
 
 java_binary(
-    name = "GcpKingdomDataServer",
-    main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.GcpKingdomDataServerMainKt",
-    runtime_deps = [":gcp_kingdom_data_server"],
+    name = "SpannerKingdomDataServer",
+    main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.SpannerKingdomDataServerKt",
+    runtime_deps = [":spanner_kingdom_data_server"],
 )
 
 java_image(
     name = "gcp_kingdom_data_server_image",
-    main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.GcpKingdomDataServerMainKt",
+    main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.SpannerKingdomDataServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":gcp_kingdom_data_server"],
+    runtime_deps = [":spanner_kingdom_data_server"],
 )

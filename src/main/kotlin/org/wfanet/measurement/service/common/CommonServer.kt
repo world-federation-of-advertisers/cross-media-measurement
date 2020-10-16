@@ -24,10 +24,10 @@ import java.util.logging.Logger
 import kotlin.properties.Delegates
 import picocli.CommandLine
 
-class CommonServer(
+class CommonServer private constructor(
   private val nameForLogging: String,
   private val port: Int,
-  services: List<ServerServiceDefinition>
+  services: Iterable<ServerServiceDefinition>
 ) {
   private var server: Server
 
@@ -38,9 +38,6 @@ class CommonServer(
     }
     server = builder.build()
   }
-
-  constructor(nameForLogging: String, port: Int, vararg services: BindableService) :
-    this(nameForLogging, port, services.map { it.bindService() })
 
   @Throws(IOException::class)
   fun start(): CommonServer {
@@ -93,23 +90,40 @@ class CommonServer(
     private val logger = Logger.getLogger(this::class.java.name)
 
     /** Constructs a [CommonServer] from command-line flags. */
+    @JvmName("fromFlagsServiceDefinition")
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
-      vararg services: BindableService
+      services: Iterable<ServerServiceDefinition>
     ): CommonServer {
-      return fromFlags(flags, nameForLogging, *services.map { it.bindService() }.toTypedArray())
+      return CommonServer(
+        nameForLogging,
+        flags.port,
+        services.run {
+          if (flags.debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this
+        }
+      )
     }
 
+    /** Constructs a [CommonServer] from command-line flags. */
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
       vararg services: ServerServiceDefinition
-    ): CommonServer {
-      if (flags.debugVerboseGrpcLogging) {
-        return CommonServer(nameForLogging, flags.port, services.map { it.withVerboseLogging() })
-      }
-      return CommonServer(nameForLogging, flags.port, services.toList())
-    }
+    ): CommonServer = fromFlags(flags, nameForLogging, services.asIterable())
+
+    /** Constructs a [CommonServer] from command-line flags. */
+    fun fromFlags(
+      flags: Flags,
+      nameForLogging: String,
+      services: Iterable<BindableService>
+    ): CommonServer = fromFlags(flags, nameForLogging, services.map { it.bindService() })
+
+    /** Constructs a [CommonServer] from command-line flags. */
+    fun fromFlags(
+      flags: Flags,
+      nameForLogging: String,
+      vararg services: BindableService
+    ): CommonServer = fromFlags(flags, nameForLogging, services.map { it.bindService() })
   }
 }
