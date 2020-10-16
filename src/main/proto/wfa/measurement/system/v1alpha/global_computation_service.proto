@@ -1,0 +1,112 @@
+// Copyright 2020 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.system.v1alpha;
+
+import "wfa/measurement/system/v1alpha/global_computation.proto";
+import "wfa/measurement/system/v1alpha/global_computation_status_update.proto";
+import "wfa/measurement/system/v1alpha/public_resource.proto";
+
+option java_package = "org.wfanet.measurement.system.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "GlobalComputationServiceProto";
+
+// Kingdom service for Duchies to use to access GlobalComputations.
+service GlobalComputations {
+  // Point lookup for GlobalComputation resources.
+  rpc GetGlobalComputation(GetGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Streams GlobalComputations in ascending update-time order. Computations may
+  // appear multiple times in the stream if they are updated during the life of
+  // the RPC.
+  //
+  // The stream excludes GlobalComputations in a terminal state (as per
+  // documentation on the GlobalComputation.State message definition).
+  // GlobalComputations in terminal states are still accessible via
+  // `GetGlobalComputation` for point lookup.
+  //
+  // Since these events are relatively infrequent but also can come in bursts,
+  // we use a streaming RPC to avoid frequent polling for rare events, yet
+  // still have a prompt reaction when they do occur.
+  rpc StreamActiveGlobalComputations(StreamActiveGlobalComputationsRequest)
+      returns (stream StreamActiveGlobalComputationsResponse);
+
+  // Stores a status update on a GlobalComputation.
+  rpc CreateGlobalComputationStatusUpdate(
+      CreateGlobalComputationStatusUpdateRequest)
+      returns (GlobalComputationStatusUpdate);
+
+  // Confirms that a Duchy is ready to begin a Computation. This implies that
+  // all data necessary for the computation is accessible.
+  rpc ConfirmGlobalComputation(ConfirmGlobalComputationRequest)
+      returns (GlobalComputation);
+
+  // Notes that a GlobalComputation is finished and submits results for it.
+  rpc FinishGlobalComputation(FinishGlobalComputationRequest)
+      returns (GlobalComputation);
+}
+
+// Request message for GetGlobalComputation method.
+message GetGlobalComputationRequest {
+  GlobalComputation.Key key = 1;
+}
+
+// Request message for StreamActiveGlobalComputations method.
+message StreamActiveGlobalComputationsRequest {
+  // If empty, streams from the least recently updated GlobalComputation.
+  string continuation_token = 1;
+}
+
+// Response message for StreamActiveGlobalComputations method.
+message StreamActiveGlobalComputationsResponse {
+  // The MetricRequisition.Keys in global_computation.metric_requisitions are
+  // filtered for the Duchy that sent the RPC. In other words, a requisition
+  // will only appear if it has already been fulfilled by sender of the
+  // StreamActiveGlobalComputationRequest.
+  GlobalComputation global_computation = 1;
+
+  string continuation_token = 2;
+}
+
+// Request message for CreateGlobalComputationStatusUpdate.
+message CreateGlobalComputationStatusUpdateRequest {
+  // The GlobalComputation that owns this status update.
+  GlobalComputation.Key parent = 1;
+
+  // The status update. These fields will be ignored: `status_update.key` and
+  // `status_update.create_time`.
+  GlobalComputationStatusUpdate status_update = 2;
+}
+
+message ConfirmGlobalComputationRequest {
+  GlobalComputation.Key key = 1;
+
+  // A list of the MetricRequisitions that the Duchy is providing for the
+  // computation. By including a MetricRequisition in this list, the Duchy is
+  // affirming that all data for the MetricRequisition is accessible and ready
+  // to use in the MPC.
+  //
+  // If a Duchy omits a MetricRequisition that the Kingdom believes it should
+  // have, the GlobalComputation will revert to state CREATED and the missing
+  // MetricRequisitions will be marked as unfulfilled.
+  repeated MetricRequisitionKey ready_requisitions = 2;
+}
+
+message FinishGlobalComputationRequest {
+  GlobalComputation.Key key = 1;
+  GlobalComputation.Result result = 2;
+}
