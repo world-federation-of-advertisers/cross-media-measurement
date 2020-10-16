@@ -45,13 +45,13 @@ kt_jvm_library(
 
 java_binary(
     name = "ReportMakerDaemon",
-    main_class = "org.wfanet.measurement.kingdom.ReportMakerMainKt",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.daemon.ReportMakerMainKt",
     runtime_deps = [":report_maker_daemon"],
 )
 
 java_image(
     name = "report_maker_daemon_image",
-    main_class = "org.wfanet.measurement.kingdom.ReportMakerMainKt",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.daemon.ReportMakerMainKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":report_maker_daemon"],
 )
