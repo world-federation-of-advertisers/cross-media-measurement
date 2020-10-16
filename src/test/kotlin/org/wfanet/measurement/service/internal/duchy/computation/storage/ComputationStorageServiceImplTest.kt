@@ -23,10 +23,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
@@ -41,6 +37,10 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi

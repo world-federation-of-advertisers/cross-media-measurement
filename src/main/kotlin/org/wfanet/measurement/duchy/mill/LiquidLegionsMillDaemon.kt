@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.mill
 import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
 import org.wfanet.measurement.common.crypto.JniProtocolEncryption
@@ -31,6 +30,7 @@ import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.Com
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
 abstract class LiquidLegionsMillDaemon : Runnable {

@@ -1,4 +1,6 @@
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
     name = "kingdom_data_server",
@@ -11,4 +13,30 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/common",
     ],
+)
+
+kt_jvm_library(
+    name = "global_computation_server",
+    srcs = ["GlobalComputationServer.kt"],
+    runtime_deps = ["//imports/java/io/grpc/netty"],
+    deps = [
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:global_computation_service",
+        "//src/main/kotlin/org/wfanet/measurement/service/common",
+    ],
+)
+
+java_binary(
+    name = "GlobalComputationServer",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.GlobalComputationServerKt",
+    runtime_deps = [":global_computation_server"],
+)
+
+java_image(
+    name = "global_computation_server_image",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.GlobalComputationServerKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":global_computation_server"],
 )

@@ -17,8 +17,6 @@ package org.wfanet.measurement.service.internal.duchy.computation.storage
 import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.db.duchy.computation.AfterTransition
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
@@ -49,6 +47,8 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
+import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
 /** Implementation of the Computation Storage Service. */
 class ComputationStorageServiceImpl(

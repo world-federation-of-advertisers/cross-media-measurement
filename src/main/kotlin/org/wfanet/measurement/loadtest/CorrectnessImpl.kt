@@ -41,7 +41,6 @@ import org.wfanet.estimation.ValueHistogram
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
@@ -66,6 +65,7 @@ import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 private const val MAX_COUNTER_VALUE = 10
 private const val DECAY_RATE = 23.0

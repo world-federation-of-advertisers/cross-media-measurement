@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.v1alpha.globalcomputation
+package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.nhaarman.mockitokotlin2.UseConstructor
@@ -32,15 +32,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.Mockito
-import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
-import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
@@ -60,6 +51,15 @@ import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineImp
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GetGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
+import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
 
 private const val DUCHY_ID = "some-duchy-id"
 private const val OTHER_DUCHY_ID = "other-duchy-id"

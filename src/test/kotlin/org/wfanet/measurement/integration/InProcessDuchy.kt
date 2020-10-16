@@ -24,7 +24,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.crypto.JniProtocolEncryption
@@ -51,6 +50,7 @@ import org.wfanet.measurement.service.internal.duchy.metricvalues.MetricValuesSe
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataService
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.

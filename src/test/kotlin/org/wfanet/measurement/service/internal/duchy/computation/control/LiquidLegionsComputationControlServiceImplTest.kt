@@ -31,7 +31,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
@@ -63,6 +62,7 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTo
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"

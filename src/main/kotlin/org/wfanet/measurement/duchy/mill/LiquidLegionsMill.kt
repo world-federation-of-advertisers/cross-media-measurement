@@ -32,12 +32,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.wfanet.estimation.Estimators
-import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
 import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
@@ -78,6 +72,12 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
+import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -524,8 +524,8 @@ class LiquidLegionsMill(
     }.build()
   }
 
-  private fun RequisitionKey.toMetricRequisitionKey(): MetricRequisition.Key {
-    return MetricRequisition.Key.newBuilder()
+  private fun RequisitionKey.toMetricRequisitionKey(): MetricRequisitionKey {
+    return MetricRequisitionKey.newBuilder()
       .setCampaignId(campaignId)
       .setDataProviderId(dataProviderId)
       .setMetricRequisitionId(metricRequisitionId)
@@ -586,7 +586,7 @@ class LiquidLegionsMill(
     )
   }
 
-  inline fun <T> measureTimeMillisAndReturnResult(block: () -> T): Pair<Long, T> {
+  private inline fun <T> measureTimeMillisAndReturnResult(block: () -> T): Pair<Long, T> {
     val start = System.currentTimeMillis()
     val res = block()
     return Pair(System.currentTimeMillis() - start, res)

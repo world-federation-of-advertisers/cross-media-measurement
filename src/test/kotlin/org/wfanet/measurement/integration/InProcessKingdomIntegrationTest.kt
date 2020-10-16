@@ -24,16 +24,10 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
-import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
-import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -43,6 +37,13 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GetGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
 
 /**
  * Test that everything is wired up properly.
@@ -100,7 +101,7 @@ abstract class InProcessKingdomIntegrationTest {
   }
 
   @Test
-  fun `entire computation`() = runBlocking<Unit> {
+  fun `entire computation`() = runBlocking {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
     val (externalDataProviderId1, externalDataProviderId2) = dataProviders
     val (externalCampaignId1, externalCampaignId2, externalCampaignId3) = campaigns
@@ -174,7 +175,7 @@ abstract class InProcessKingdomIntegrationTest {
     globalComputationsStub.confirmGlobalComputation(
       ConfirmGlobalComputationRequest.newBuilder().apply {
         key = computation.key
-        addAllReadyRequisitions(requisitions.map { it.key })
+        addAllReadyRequisitions(requisitions.map { it.key.toSystemKey() })
       }.build()
     )
 
@@ -250,4 +251,12 @@ abstract class InProcessKingdomIntegrationTest {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
+}
+
+private fun MetricRequisition.Key.toSystemKey(): MetricRequisitionKey {
+  return MetricRequisitionKey.newBuilder().also {
+    it.dataProviderId = dataProviderId
+    it.campaignId = campaignId
+    it.metricRequisitionId = metricRequisitionId
+  }.build()
 }

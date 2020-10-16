@@ -23,10 +23,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
@@ -52,6 +48,10 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
 
 /**
  * The Herald looks to the kingdom for status of computations.

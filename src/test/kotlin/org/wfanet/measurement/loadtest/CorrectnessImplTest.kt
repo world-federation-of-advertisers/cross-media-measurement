@@ -29,7 +29,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.SketchProtos
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineImplBase as PublisherDataCoroutineService
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.Sketch
@@ -43,6 +42,7 @@ import org.wfanet.measurement.service.v1alpha.common.toApiMessage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 private const val RUN_ID = "TEST"
 private val COMBINED_PUBLIC_KEY = DUCHY_PUBLIC_KEYS.latest.combinedPublicKey.toApiMessage()

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.v1alpha.globalcomputation
+package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.protobuf.Timestamp
 import io.grpc.Status
@@ -22,18 +22,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GetGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
-import org.wfanet.measurement.api.v1alpha.GlobalComputation.State
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType as ApiErrorType
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm as ApiMpcAlgorithm
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsRequest
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.identity.ApiId
@@ -54,6 +42,18 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogE
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
+import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GetGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
+import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType as ApiErrorType
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm as ApiMpcAlgorithm
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
 
 class GlobalComputationService(
   private val reportsStub: ReportsCoroutineStub,

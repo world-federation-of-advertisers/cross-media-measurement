@@ -34,3 +34,12 @@ package_group(
         "//src/main/k8s/...",
     ],
 )
+
+package_group(
+    name = "integration_testing",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/...",
+        "//src/test/kotlin/org/wfanet/measurement/integration/...",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/...",
+    ],
+)

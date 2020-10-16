@@ -14,9 +14,9 @@
 
 package org.wfanet.measurement.duchy
 
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 
 val ComputationStage.name: String
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.

@@ -24,13 +24,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
-import org.wfanet.measurement.duchy.DuchyPublicKeyMap
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.DuchyPublicKeyMap
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
@@ -62,6 +61,7 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmpt
 import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
 private const val ELLIPTIC_CURVE_ID = 415 // prime256v1
 private val EL_GAMAL_GENERATOR = byteStringOf(
@@ -107,7 +107,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
   }
 
   @Test
-  fun runProtocolAtNonPrimaryWorker() = runBlocking<Unit> {
+  fun runProtocolAtNonPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
       LiquidLegionsSketchAggregationComputationStorageClients(
@@ -145,7 +145,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
   }
 
   @Test
-  fun runProtocolAtPrimaryWorker() = runBlocking<Unit> {
+  fun runProtocolAtPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
       LiquidLegionsSketchAggregationComputationStorageClients(

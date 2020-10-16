@@ -19,11 +19,6 @@ java_proto_library(
 )
 
 java_proto_library(
-    name = "global_computation_java_proto",
-    deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:global_computation_proto"],
-)
-
-java_proto_library(
     name = "metric_java_proto",
     deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:metric_proto"],
 )
@@ -36,16 +31,6 @@ java_proto_library(
 java_proto_library(
     name = "sketch_java_proto",
     deps = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_proto"],
-)
-
-alias(
-    name = "global_computation_service_proto",
-    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:global_computation_service_proto",
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "global_computation_service_kt_jvm_grpc",
-    srcs = [":global_computation_service_proto"],
 )
 
 alias(

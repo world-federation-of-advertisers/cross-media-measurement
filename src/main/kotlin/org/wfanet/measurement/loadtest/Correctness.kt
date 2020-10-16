@@ -18,13 +18,13 @@ import com.google.protobuf.ByteString
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 /** Interface for E2E Correctness Test */
 interface Correctness {

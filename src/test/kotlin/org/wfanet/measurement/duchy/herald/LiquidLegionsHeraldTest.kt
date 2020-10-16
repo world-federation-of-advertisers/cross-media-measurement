@@ -27,11 +27,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.api.v1alpha.MetricRequisition
-import org.wfanet.measurement.api.v1alpha.StreamActiveGlobalComputationsResponse
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
@@ -47,6 +42,11 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.Computa
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
+import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
 
 @RunWith(JUnit4::class)
 internal class LiquidLegionsHeraldTest {
@@ -91,7 +91,7 @@ internal class LiquidLegionsHeraldTest {
   }
 
   @Test
-  fun `syncStatuses creates new computations`() = runBlocking<Unit> {
+  fun `syncStatuses creates new computations`() = runBlocking {
     val confirmingKnown = ComputationAtKingdom("454647484950", GlobalComputation.State.CONFIRMING)
     val newComputationsRequisitions = listOf(
       "alice/a/1234",
@@ -170,7 +170,7 @@ internal class LiquidLegionsHeraldTest {
   }
 
   @Test
-  fun `syncStatuses starts computations with retries`() = runBlocking<Unit> {
+  fun `syncStatuses starts computations with retries`() = runBlocking {
     val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
     mockStreamActiveComputationsToReturn(computation)
 
@@ -254,9 +254,9 @@ data class ComputationAtKingdom(
   val stateAtKingdom: GlobalComputation.State,
   val requisitionResourceKeys: List<String> = listOf()
 ) {
-  private fun parseResourceKey(stringKey: String): MetricRequisition.Key {
+  private fun parseResourceKey(stringKey: String): MetricRequisitionKey {
     val (provider, campaign, requisition) = stringKey.split("/")
-    return MetricRequisition.Key.newBuilder().apply {
+    return MetricRequisitionKey.newBuilder().apply {
       dataProviderId = provider
       campaignId = campaign
       metricRequisitionId = requisition

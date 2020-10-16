@@ -48,16 +48,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import org.wfanet.measurement.api.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.api.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.api.v1alpha.GlobalComputation
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
-import org.wfanet.measurement.api.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
-import org.wfanet.measurement.api.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
 import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
@@ -112,6 +102,16 @@ import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
+import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
+import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 
 class LiquidLegionsMillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlServiceCoroutineImplBase =
@@ -200,7 +200,7 @@ class LiquidLegionsMillTest {
     .setMetricRequisitionId("requisitionId_$this")
     .build()
 
-  private fun String.toMetricRequisitionKey() = MetricRequisition.Key.newBuilder()
+  private fun String.toMetricRequisitionKey() = MetricRequisitionKey.newBuilder()
     .setCampaignId("campaignId_$this")
     .setDataProviderId("dataProvideId_$this")
     .setMetricRequisitionId("requisitionId_$this")

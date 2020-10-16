@@ -54,9 +54,9 @@ import org.wfanet.measurement.kingdom.daemon.runReportStarter
 import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
+import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
 import org.wfanet.measurement.service.common.withVerboseLogging
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.service.v1alpha.globalcomputation.GlobalComputationService
 import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
 
 /**
