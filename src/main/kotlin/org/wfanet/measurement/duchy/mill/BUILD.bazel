@@ -6,7 +6,7 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 package(default_visibility = [
     test_target(":__pkg__"),
     "//src/main/kotlin/org/wfanet/measurement/duchy/testing:__pkg__",
-    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
 ])
 
 kt_jvm_library(

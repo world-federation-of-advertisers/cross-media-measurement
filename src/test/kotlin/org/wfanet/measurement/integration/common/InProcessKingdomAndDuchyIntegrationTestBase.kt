@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.math.BigInteger
@@ -30,7 +30,7 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.duchy.toDuchyOrder
-import org.wfanet.measurement.integration.InProcessDuchy.DuchyDependencies
+import org.wfanet.measurement.integration.common.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
@@ -49,7 +49,7 @@ val DUCHY_ORDER = DUCHY_PUBLIC_KEYS.latest.toDuchyOrder()
  * This is abstract so that different implementations of dependencies can all run the same tests
  * easily.
  */
-abstract class InProcessKingdomAndDuchyIntegrationTest {
+abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   /** Provides a [KingdomRelationalDatabase] to the test. */
   abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
 

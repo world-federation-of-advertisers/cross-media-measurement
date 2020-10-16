@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.util.logging.Logger
@@ -51,7 +51,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsReque
  * This is abstract so that different implementations of KingdomRelationalDatabase can all run the
  * same tests easily.
  */
-abstract class InProcessKingdomIntegrationTest {
+abstract class InProcessKingdomIntegrationTestBase {
   /** Provides a [KingdomRelationalDatabase] to the test. */
   abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
 

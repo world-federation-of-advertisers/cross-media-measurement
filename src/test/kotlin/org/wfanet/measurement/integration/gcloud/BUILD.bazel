@@ -1,0 +1,60 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+
+kt_jvm_library(
+    name = "gcloud",
+    testonly = True,
+    srcs = [
+        "DuchyDependencyProviderRule.kt",
+        "KingdomRelationalDatabaseProviderRule.kt",
+    ],
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/cloud/storage",
+        "//imports/java/com/google/cloud/storage/contrib/nio",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/storage/testing",
+        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common",
+    ],
+)
+
+spanner_emulator_test(
+    name = "InProcessKingdomIntegrationTest",
+    size = "large",
+    srcs = ["InProcessKingdomIntegrationTest.kt"],
+    resources = [
+        "//src/main/db/gcp:kingdom_schema",
+    ],
+    test_class = "org.wfanet.measurement.integration.gcloud.InProcessKingdomIntegrationTest",
+    deps = [
+        ":gcloud",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common",
+    ],
+)
+
+spanner_emulator_test(
+    name = "InProcessKingdomAndDuchyIntegrationTest",
+    size = "large",
+    srcs = ["InProcessKingdomAndDuchyIntegrationTest.kt"],
+    resources = [
+        "//src/main/db/gcp:computations_schema",
+        "//src/main/db/gcp:kingdom_schema",
+        "//src/main/db/gcp:metric_values_schema",
+    ],
+    shard_count = 2,
+    test_class = "org.wfanet.measurement.integration.gcloud.InProcessKingdomAndDuchyIntegrationTest",
+    deps = [
+        ":gcloud",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common",
+    ],
+)

@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.integration.gcloud
+
+import org.wfanet.measurement.integration.common.DUCHY_IDS
+import org.wfanet.measurement.integration.common.InProcessKingdomAndDuchyIntegrationTestBase
 
 /**
- * Implementation of [InProcessKingdomAndDuchyIntegrationTest] for GCP backends (Spanner, GCS).
+ * Implementation of [InProcessKingdomAndDuchyIntegrationTestBase] for GCP backends (Spanner, GCS).
  */
-class GcpInProcessKingdomAndDuchyIntegrationTest : InProcessKingdomAndDuchyIntegrationTest() {
-  override val kingdomRelationalDatabaseRule by lazy { GcpKingdomRelationalDatabaseProviderRule() }
-  override val duchyDependenciesRule by lazy { GcpDuchyDependencyProviderRule(DUCHY_IDS) }
+class InProcessKingdomAndDuchyIntegrationTest : InProcessKingdomAndDuchyIntegrationTestBase() {
+  override val kingdomRelationalDatabaseRule by lazy { KingdomRelationalDatabaseProviderRule() }
+  override val duchyDependenciesRule by lazy { DuchyDependencyProviderRule(DUCHY_IDS) }
 }

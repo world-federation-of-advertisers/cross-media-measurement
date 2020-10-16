@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.integration.gcloud
 
 import java.time.Clock
 import org.junit.runner.Description
@@ -25,7 +25,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelati
 
 private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/kingdom.sdl"
 
-class GcpKingdomRelationalDatabaseProviderRule : ProviderRule<KingdomRelationalDatabase> {
+class KingdomRelationalDatabaseProviderRule : ProviderRule<KingdomRelationalDatabase> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(SCHEMA_RESOURCE_PATH)
 
   override val value: KingdomRelationalDatabase by lazy {

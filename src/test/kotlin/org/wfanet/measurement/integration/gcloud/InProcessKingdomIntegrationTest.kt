@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.integration.gcloud
+
+import org.wfanet.measurement.integration.common.InProcessKingdomIntegrationTestBase
 
 /**
- * Implementation of [InProcessKingdomIntegrationTest] for GCP backends (Spanner, GCS).
+ * Implementation of [InProcessKingdomIntegrationTestBase] for GCP backends (Spanner, GCS).
  */
-class GcpInProcessKingdomIntegrationTest : InProcessKingdomIntegrationTest() {
-  override val kingdomRelationalDatabaseRule by lazy { GcpKingdomRelationalDatabaseProviderRule() }
+class InProcessKingdomIntegrationTest : InProcessKingdomIntegrationTestBase() {
+  override val kingdomRelationalDatabaseRule by lazy { KingdomRelationalDatabaseProviderRule() }
 }

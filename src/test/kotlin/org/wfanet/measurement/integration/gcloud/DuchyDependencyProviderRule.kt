@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration
+package org.wfanet.measurement.integration.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import java.time.Duration
@@ -40,6 +40,9 @@ import org.wfanet.measurement.duchy.testing.DUCHY_SECRET_KEYS
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.integration.common.DUCHY_IDS
+import org.wfanet.measurement.integration.common.DUCHY_ORDER
+import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
@@ -48,7 +51,7 @@ import org.wfanet.measurement.storage.StorageClient
 private const val METRIC_VALUE_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
 private const val COMPUTATIONS_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/computations.sdl"
 
-class GcpDuchyDependencyProviderRule(
+class DuchyDependencyProviderRule(
   duchyIds: Iterable<String>
 ) : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
   override val value: (Duchy) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies

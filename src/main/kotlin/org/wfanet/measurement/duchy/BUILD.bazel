@@ -5,7 +5,7 @@ DEFAULT_VISIBILITY = [
     ":__subpackages__",
     test_target(":__subpackages__"),
     "//src:duchy_services",
-    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
 ]
 
 package(default_visibility = DEFAULT_VISIBILITY)

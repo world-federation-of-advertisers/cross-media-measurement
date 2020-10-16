@@ -5,7 +5,7 @@ filegroup(
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/integration:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__pkg__",
     ],
 )
