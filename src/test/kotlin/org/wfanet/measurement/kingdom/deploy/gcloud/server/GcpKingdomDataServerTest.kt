@@ -31,8 +31,6 @@ import org.junit.Test
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
-import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
@@ -68,6 +66,8 @@ import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 
 private const val ADVERTISER_ID = 1L
@@ -106,14 +106,14 @@ private val REPETITION_SPEC: RepetitionSpec = RepetitionSpec.newBuilder().apply 
  * Integration test for Kingdom internal services + Spanner.
  *
  * This minimally tests each RPC method. Edge cases are tested in individual unit tests for the
- * services. This focuses on ensuring that [GcpKingdomRelationalDatabase] integrates with the
+ * services. This focuses on ensuring that [SpannerKingdomRelationalDatabase] integrates with the
  * gRPC services.
  */
 class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   @get:Rule
   val grpcTestServer = GrpcTestServerRule(logAllRequests = true) {
     val relationalDatabase =
-      GcpKingdomRelationalDatabase(
+      SpannerKingdomRelationalDatabase(
         Clock.systemUTC(),
         RandomIdGenerator(Clock.systemUTC()),
         databaseClient

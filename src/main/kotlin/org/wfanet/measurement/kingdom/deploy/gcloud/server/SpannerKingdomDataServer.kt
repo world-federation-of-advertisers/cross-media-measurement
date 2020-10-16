@@ -18,9 +18,9 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 import picocli.CommandLine
 
 /** Implementation of [KingdomDataServer] using Google Cloud Spanner. */
@@ -38,7 +38,7 @@ class SpannerKingdomDataServer : KingdomDataServer() {
     spannerFlags.usingSpanner { spanner ->
       val clock = Clock.systemUTC()
 
-      val database = GcpKingdomRelationalDatabase(
+      val database = SpannerKingdomRelationalDatabase(
         clock,
         RandomIdGenerator(clock),
         spanner.databaseClient

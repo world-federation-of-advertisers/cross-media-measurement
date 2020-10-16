@@ -10,8 +10,8 @@ package_group(
     packages = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp/...",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp/...",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/...",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/...",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues",
         "//src/test/kotlin/org/wfanet/measurement/db/kingdom/gcp/...",

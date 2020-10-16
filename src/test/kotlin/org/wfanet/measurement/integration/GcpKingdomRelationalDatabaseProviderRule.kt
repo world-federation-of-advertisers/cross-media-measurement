@@ -19,9 +19,9 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 
 private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/kingdom.sdl"
 
@@ -29,7 +29,7 @@ class GcpKingdomRelationalDatabaseProviderRule : ProviderRule<KingdomRelationalD
   private val spannerDatabase = SpannerEmulatorDatabaseRule(SCHEMA_RESOURCE_PATH)
 
   override val value: KingdomRelationalDatabase by lazy {
-    GcpKingdomRelationalDatabase(
+    SpannerKingdomRelationalDatabase(
       Clock.systemUTC(),
       RandomIdGenerator(Clock.systemUTC()),
       spannerDatabase.databaseClient
