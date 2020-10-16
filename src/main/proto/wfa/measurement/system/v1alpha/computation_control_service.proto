@@ -32,8 +32,8 @@ service ComputationControl {
   // Sketches can exceed the maximum message size so the client should
   // stream requests containing sequential chunks of the sketch,
   // but the entire sketch should be uploaded in a single stream.
-  rpc HandleNoisedSketch(stream HandleNoisedSketchRequest)
-    returns (HandleNoisedSketchResponse) {}
+  rpc ProcessNoisedSketch(stream ProcessNoisedSketchRequest)
+      returns (ProcessNoisedSketchResponse) {}
 
   // Stores the concatenated, noisy sparse encrypted sketch for the entire
   // computation at a duchy. The duchy will then decrypt the positional
@@ -45,42 +45,45 @@ service ComputationControl {
   // Sketches can exceed the maximum message size so the client should
   // stream requests containing sequential chunks of the sketch,
   // but the entire sketch should be uploaded in a single stream.
-  rpc HandleConcatenatedSketch(stream HandleConcatenatedSketchRequest)
-    returns (HandleConcatenatedSketchResponse) {}
+  rpc ProcessConcatenatedSketch(stream ProcessConcatenatedSketchRequest)
+      returns (ProcessConcatenatedSketchResponse) {}
 
   // Stores the encrypted flag and count value tuples at the duchy. The duchy
   // will then decrypt the flag and count values inside the sketch. Successful
   // calls to this function signifies that the sketch was stored, not that the
   // cryptographic options were successful.
-  rpc HandleEncryptedFlagsAndCounts(stream HandleEncryptedFlagsAndCountsRequest)
-    returns (HandleEncryptedFlagsAndCountsResponse) {}
+  rpc ProcessEncryptedFlagsAndCounts(
+      stream ProcessEncryptedFlagsAndCountsRequest)
+      returns (ProcessEncryptedFlagsAndCountsResponse) {}
+}
+
+// Header message for Process method requests on GlobalComputation resources.
+message ComputationProcessRequestHeader {
+  // Resource key.
+  GlobalComputation.Key key = 1;
+}
+
+// Body chunk message for GlobalComputation methods which upload sketches.
+message ProcessSketchRequestBodyChunk {
+  // Partial EncryptedSketch.register_data. A partial sketch might begin or end
+  // within or between registers.
+  bytes partial_sketch = 1;
 }
 
 // Transmit sketches for a computation from a secondary duchy to the primary
 // worker. The primary expects a sketch from all secondary duchies. This request
 // is essentially storing a mapping of (computation_id, sender) -> sketch.
-message HandleNoisedSketchRequest {
-  message Header {
-    // Resource key.
-    GlobalComputation.Key key = 1;
-  }
-
-  message BodyChunk {
-    // The sketch contains a list of registers each is a three tuple of
-    // position, key, and count.
-    bytes partial_sketch = 1;
-  }
-
+message ProcessNoisedSketchRequest {
   oneof payload {
     // Payload of first request message.
-    Header header = 1;
+    ComputationProcessRequestHeader header = 1;
 
     // Payload of subsequent request messages.
-    BodyChunk body_chunk = 2;
+    ProcessSketchRequestBodyChunk body_chunk = 2;
   }
 }
 
-message HandleNoisedSketchResponse {
+message ProcessNoisedSketchResponse {
   // Deliberately empty
 }
 
@@ -88,28 +91,17 @@ message HandleNoisedSketchResponse {
 // A duchy expects to see this message once per computation and only from
 // its predecessor in ring for the computation.
 // This request is essentially storing a mapping of (computation_id) -> sketch.
-message HandleConcatenatedSketchRequest {
-  message Header {
-    // Resource key.
-    GlobalComputation.Key key = 1;
-  }
-
-  message BodyChunk {
-    // The sketch contains a list of registers each is a three tuple of
-    // position, key, and count.
-    bytes partial_sketch = 1;
-  }
-
+message ProcessConcatenatedSketchRequest {
   oneof payload {
     // Payload of first request message.
-    Header header = 1;
+    ComputationProcessRequestHeader header = 1;
 
     // Payload of subsequent request messages.
-    BodyChunk body_chunk = 2;
+    ProcessSketchRequestBodyChunk body_chunk = 2;
   }
 }
 
-message HandleConcatenatedSketchResponse {
+message ProcessConcatenatedSketchResponse {
   // Deliberately empty
 }
 
@@ -117,26 +109,23 @@ message HandleConcatenatedSketchResponse {
 // another duchy. A duchy expects to see this message once per computation and
 // only from its predecessor in ring for the computation. This request is
 // essentially storing a mapping of (computation_id) -> pairs.
-message HandleEncryptedFlagsAndCountsRequest {
-  message Header {
-    // Resource key.
-    GlobalComputation.Key key = 1;
-  }
-
+message ProcessEncryptedFlagsAndCountsRequest {
   message BodyChunk {
-    // The data is a list of flag count pairs.
-    bytes partial_data = 1;
+    // Partial concatenation of (flag, count) pairs in bytes, where each flag or
+    // count is a 66-byte ElGamal ciphertext. The partial data may begin or end
+    // within or between ciphertexts.
+    bytes partial_flags_and_counts = 1;
   }
 
   oneof payload {
     // Payload of first request message.
-    Header header = 1;
+    ComputationProcessRequestHeader header = 1;
 
     // Payload of subsequent request messages.
     BodyChunk body_chunk = 2;
   }
 }
 
-message HandleEncryptedFlagsAndCountsResponse {
+message ProcessEncryptedFlagsAndCountsResponse {
   // Deliberately empty
 }
