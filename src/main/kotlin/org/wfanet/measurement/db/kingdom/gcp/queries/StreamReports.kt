@@ -17,13 +17,13 @@ package org.wfanet.measurement.db.kingdom.gcp.queries
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.gcp.common.StreamReportsFilterSqlConverter
 import org.wfanet.measurement.db.kingdom.gcp.common.toSql
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
-import org.wfanet.measurement.db.kingdom.hasStateFilter
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.kingdom.db.StreamReportsFilter
+import org.wfanet.measurement.kingdom.db.hasStateFilter
 
 /**
  * Streams [Report]s matching [filter] from Spanner ordered by ascending updateTime.

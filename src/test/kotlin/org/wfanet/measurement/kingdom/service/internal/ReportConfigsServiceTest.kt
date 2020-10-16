@@ -24,10 +24,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 private const val EXTERNAL_REPORT_CONFIG_ID = 1L
 

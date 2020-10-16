@@ -19,9 +19,6 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.db.kingdom.StreamReportsFilter
-import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.queries.GetReport
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplates
 import org.wfanet.measurement.db.kingdom.gcp.queries.SpannerQuery
@@ -54,6 +51,9 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.StreamReportsFilter
+import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 
 class GcpKingdomRelationalDatabase(
   private val clock: Clock,

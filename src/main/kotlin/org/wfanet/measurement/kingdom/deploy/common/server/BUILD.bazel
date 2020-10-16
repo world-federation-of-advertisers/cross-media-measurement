@@ -7,7 +7,7 @@ kt_jvm_library(
     deps = [
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/service/common",
     ],

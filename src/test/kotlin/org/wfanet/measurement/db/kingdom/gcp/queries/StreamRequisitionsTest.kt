@@ -26,12 +26,12 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.db.kingdom.gcp.testing.buildRequisitionDetails
-import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
+import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
+import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
 
 private const val DATA_PROVIDER_ID = 1L
 private const val EXTERNAL_DATA_PROVIDER_ID = 2L

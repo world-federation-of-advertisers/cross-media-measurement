@@ -17,12 +17,12 @@ package org.wfanet.measurement.db.kingdom.gcp.queries
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.kingdom.StreamRequisitionsFilter
 import org.wfanet.measurement.db.kingdom.gcp.common.StreamRequisitionsFilterSqlConverter
 import org.wfanet.measurement.db.kingdom.gcp.common.toSql
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 
 /**
  * Streams [Requisition]s matching [filter] from Spanner ordered by ascending CreateTime.

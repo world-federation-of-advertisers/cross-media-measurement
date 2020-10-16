@@ -16,10 +16,10 @@ package org.wfanet.measurement.kingdom.service.internal
 
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineImplBase
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 class ReportConfigsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase

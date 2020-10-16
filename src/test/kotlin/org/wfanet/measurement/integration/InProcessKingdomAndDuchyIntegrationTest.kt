@@ -30,10 +30,10 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.duchy.toDuchyOrder
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.integration.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
 val DUCHY_IDS = DUCHY_IDS
 

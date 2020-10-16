@@ -14,9 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.internal
 
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 class ReportLogEntriesService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase

@@ -15,10 +15,10 @@
 package org.wfanet.measurement.kingdom.service.internal
 
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 class ReportConfigSchedulesService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase

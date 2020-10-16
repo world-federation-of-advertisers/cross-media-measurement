@@ -23,8 +23,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 private const val EXTERNAL_REPORT_ID = 123L
 private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()

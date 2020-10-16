@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.internal
 
 import io.grpc.BindableService
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 /** Builds a list of all the Kingdom's internal data-layer services. */
 fun buildDataServices(relationalDatabase: KingdomRelationalDatabase): List<BindableService> {

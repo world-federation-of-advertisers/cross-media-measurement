@@ -1,12 +1,14 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_binary", "kt_jvm_library")
 
+# TODO(b/169968333): restrict visibility to kingdom subpackages only. This is
+# done in the following CL: tg/877113.
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
 ])
 
 kt_jvm_library(
-    name = "kingdom",
+    name = "db",
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",

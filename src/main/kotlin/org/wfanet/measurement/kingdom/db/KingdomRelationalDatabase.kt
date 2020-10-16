@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.kingdom
+package org.wfanet.measurement.kingdom.db
 
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId

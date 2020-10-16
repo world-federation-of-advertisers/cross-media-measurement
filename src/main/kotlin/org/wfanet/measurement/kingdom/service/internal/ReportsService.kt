@@ -17,8 +17,6 @@ package org.wfanet.measurement.kingdom.service.internal
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest
@@ -30,6 +28,8 @@ import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineImp
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
 class ReportsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase

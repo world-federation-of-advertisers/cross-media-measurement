@@ -17,13 +17,13 @@ package org.wfanet.measurement.kingdom.service.internal
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
-import org.wfanet.measurement.db.kingdom.streamRequisitionsFilter
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
 
 class RequisitionsService(
   private val kingdomRelationalDatabase: KingdomRelationalDatabase

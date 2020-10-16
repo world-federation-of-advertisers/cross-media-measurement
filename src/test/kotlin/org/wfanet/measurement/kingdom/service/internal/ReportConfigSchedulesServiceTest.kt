@@ -24,9 +24,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.kingdom.KingdomRelationalDatabase
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
+import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 private val SCHEDULE1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
 private val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()

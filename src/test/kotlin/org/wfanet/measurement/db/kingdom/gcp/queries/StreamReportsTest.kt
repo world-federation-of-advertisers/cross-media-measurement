@@ -24,11 +24,11 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.kingdom.StreamReportsFilter
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
-import org.wfanet.measurement.db.kingdom.streamReportsFilter
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
+import org.wfanet.measurement.kingdom.db.StreamReportsFilter
+import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
 private const val UNUSED_ID = 999999L
 private const val ADVERTISER_ID = 1L

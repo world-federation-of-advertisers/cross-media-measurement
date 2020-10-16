@@ -13,7 +13,7 @@ kt_jvm_library(
         "//imports/java/com/google/protobuf",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/kingdom",
         "//src/main/kotlin/org/wfanet/measurement/gcloud",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
     ],
 )
