@@ -50,14 +50,13 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.db.duchy.computation.BlobRef
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
-import org.wfanet.measurement.duchy.ComputationControlRequests
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -72,6 +71,7 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.service.internal.duchy.computation.storage.outputPathList
+import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
@@ -102,7 +102,7 @@ class LiquidLegionsMill(
   private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
   private val metricValuesClient: MetricValuesCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
-  private val workerStubs: Map<String, ComputationControlServiceCoroutineStub>,
+  private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: ProtocolEncryption,
   private val throttler: MinimumIntervalThrottler,
@@ -299,13 +299,13 @@ class LiquidLegionsMill(
   /** Send the merged sketch to the next duchy to start MPC round 1. */
   private suspend fun sendConcatenatedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
     val requests = controlRequests.buildConcatenatedSketchRequests(token.globalComputationId, bytes)
-    nextDuchyStub(token).handleConcatenatedSketch(requests)
+    nextDuchyStub(token).processConcatenatedSketch(requests)
   }
 
   /** Send the noised sketch to the primary duchy. */
   private suspend fun sendNoisedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
     val requests = controlRequests.buildNoisedSketchRequests(token.globalComputationId, bytes)
-    primaryDuchyStub(token).handleNoisedSketch(requests)
+    primaryDuchyStub(token).processNoisedSketch(requests)
   }
 
   /** Sends the encrypted flags and counts to the next Duchy. */
@@ -315,7 +315,7 @@ class LiquidLegionsMill(
   ) {
     val requests =
       controlRequests.buildEncryptedFlagsAndCountsRequests(token.globalComputationId, bytes)
-    nextDuchyStub(token).handleEncryptedFlagsAndCounts(requests)
+    nextDuchyStub(token).processEncryptedFlagsAndCounts(requests)
   }
 
   /** Process computation in the TO_BLIND_POSITIONS stage */
@@ -559,7 +559,7 @@ class LiquidLegionsMill(
     }.build()
   }
 
-  private fun nextDuchyStub(token: ComputationToken): ComputationControlServiceCoroutineStub {
+  private fun nextDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
     val nextDuchy = token.nextDuchy
     return workerStubs[nextDuchy]
       ?: throw PermanentComputationError(
@@ -567,7 +567,7 @@ class LiquidLegionsMill(
       )
   }
 
-  private fun primaryDuchyStub(token: ComputationToken): ComputationControlServiceCoroutineStub {
+  private fun primaryDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
     val primaryDuchy = token.primaryDuchy
     return workerStubs[primaryDuchy]
       ?: throw PermanentComputationError(

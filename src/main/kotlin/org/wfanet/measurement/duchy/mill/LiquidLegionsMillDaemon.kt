@@ -26,10 +26,10 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
@@ -61,7 +61,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       .filterKeys { it != duchyName }
       .mapValues {
         val otherDuchyChannel = buildChannel(it.value)
-        ComputationControlServiceCoroutineStub(otherDuchyChannel).withDuchyId(duchyName)
+        ComputationControlCoroutineStub(otherDuchyChannel).withDuchyId(duchyName)
       }
 
     val globalComputationsClient =

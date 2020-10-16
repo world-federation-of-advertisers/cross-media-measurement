@@ -3,31 +3,10 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-package_group(
-    name = "load_test",
-    packages = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/...",
-        "//src/test/kotlin/org/wfanet/measurement/loadtest/...",
-    ],
-)
-
-package_group(
-    name = "integration_tests",
-    packages = [
-        "//src/test/kotlin/org/wfanet/measurement/integration/...",
-    ],
-)
-
 kt_jvm_library(
     name = "client",
     srcs = ["StorageClient.kt"],
-    visibility = [
-        ":__subpackages__",
-        test_target(":__subpackages__"),
-        ":integration_tests",
-        ":load_test",
-        "//src:duchy_services",
-    ],
+    visibility = ["//visibility:public"],
     deps = [
         "//imports/java/com/google/protobuf",
         "//imports/kotlin/kotlinx/coroutines:core",
@@ -50,6 +29,7 @@ kt_jvm_library(
         test_target(":__pkg__"),
         ":metric_values_service",
     ],
+    exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
         ":client",
         "//imports/kotlin/kotlinx/coroutines:core",
@@ -60,9 +40,9 @@ package_group(
     name = "duchy_computations",
     packages = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/...",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/...",
         "//src/test/kotlin/org/wfanet/measurement/duchy/mill/...",
-        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service/...",
     ],
 )
 
@@ -81,8 +61,9 @@ kt_jvm_library(
     visibility = [
         ":computation_db",
         ":duchy_computations",
-        ":integration_tests",
+        "//src:integration_testing",
     ],
+    exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
         ":client",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",

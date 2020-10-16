@@ -12,32 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computation.control
+package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
+import org.wfanet.measurement.duchy.deploy.common.server.LiquidLegionsComputationControlServer
+import org.wfanet.measurement.storage.gcs.GcsFromFlags
+import org.wfanet.measurement.storage.gcs.GcsStorageClient
 import picocli.CommandLine
 
 /**
- * Implementation of [LiquidLegionsComputationControlServer] using Fake Storage Service.
+ * Implementation of [LiquidLegionsComputationControlServer] using Google Cloud
+ * Storage (GCS).
  */
 @CommandLine.Command(
-  name = "ForwardedStorageLiquidLegionsComputationControlServer",
+  name = "GcsLiquidLegionsComputationControlServer",
   description = [
     "Server daemon for ${LiquidLegionsComputationControlServer.SERVICE_NAME} service."
   ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class ForwardedStorageLiquidLegionsComputationControlServer :
-  LiquidLegionsComputationControlServer() {
+class GcsLiquidLegionsComputationControlServer : LiquidLegionsComputationControlServer() {
   @CommandLine.Mixin
-  private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+  private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
-    run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
+    val gcs = GcsFromFlags(gcsFlags)
+    run(GcsStorageClient.fromFlags(gcs))
   }
 }
 
 fun main(args: Array<String>) =
-  commandLineMain(ForwardedStorageLiquidLegionsComputationControlServer(), args)
+  commandLineMain(GcsLiquidLegionsComputationControlServer(), args)

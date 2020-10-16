@@ -21,13 +21,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ProcessSketchRequestBodyChunk
 
 @RunWith(JUnit4::class)
 class ProtoUtilsTest {
   @Test
   fun `truncateByteFields truncates if longer than threshold`() {
-    val message = HandleConcatenatedSketchRequest.BodyChunk.newBuilder().apply {
+    val message = ProcessSketchRequestBodyChunk.newBuilder().apply {
       partialSketch = ByteString.copyFromUtf8("1234567890")
     }.build()
 
@@ -38,7 +39,7 @@ class ProtoUtilsTest {
 
   @Test
   fun `truncateByteFields does not truncate if not longer than threshold`() {
-    val message = HandleConcatenatedSketchRequest.BodyChunk.newBuilder().apply {
+    val message = ProcessSketchRequestBodyChunk.newBuilder().apply {
       partialSketch = ByteString.copyFromUtf8("123456")
     }.build()
 
@@ -49,7 +50,7 @@ class ProtoUtilsTest {
 
   @Test
   fun `truncateByteFields truncates in embedded proto field`() {
-    val message = HandleConcatenatedSketchRequest.newBuilder().apply {
+    val message = ProcessConcatenatedSketchRequest.newBuilder().apply {
       bodyChunkBuilder.partialSketch = ByteString.copyFromUtf8("1234567890")
     }.build()
 

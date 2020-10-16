@@ -34,17 +34,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "computation_control_requests",
-    srcs = ["ComputationControlRequests.kt"],
-    deps = [
-        "//imports/java/com/google/protobuf",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_java_proto",
-    ],
-)
-
-kt_jvm_library(
     name = "duchy_public_keys",
     srcs = ["DuchyPublicKeys.kt"],
     visibility = DEFAULT_VISIBILITY + [

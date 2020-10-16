@@ -124,7 +124,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 	]
 	_images: {
-		"liquid-legions-computation-control-server":         "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarded_storage_liquid_legions_server_image"
+		"liquid-legions-computation-control-server":         "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_liquid_legions_computation_control_server_image"
 		"liquid-legions-herald-daemon":                      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald_daemon_image"
 		"liquid-legions-mill-daemon":                        "bazel/src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarded_storage_liquid_legions_mill_daemon_image"
 		"metric-values-storage-server":                      "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image"

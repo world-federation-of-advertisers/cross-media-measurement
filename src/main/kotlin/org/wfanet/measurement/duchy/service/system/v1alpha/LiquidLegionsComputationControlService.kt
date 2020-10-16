@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computation.control
+package org.wfanet.measurement.duchy.service.system.v1alpha
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
@@ -28,35 +28,36 @@ import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.db.duchy.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.db.duchy.computation.toNoisedSketchBlobMetadataFor
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchResponse
-import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
-import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsResponse
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchResponse
 import org.wfanet.measurement.service.v1alpha.common.failGrpc
 import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.grpcRequireNotNull
+import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase as ComputationControlCoroutineService
+import org.wfanet.measurement.system.v1alpha.ComputationProcessRequestHeader
+import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchResponse
+import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsRequest
+import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsResponse
+import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchResponse
 
 private val COMPUTATION_TYPE = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 
-class LiquidLegionsComputationControlServiceImpl(
+class LiquidLegionsComputationControlService(
   private val clients: LiquidLegionsSketchAggregationComputationStorageClients,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
-) : ComputationControlServiceCoroutineImplBase() {
+) : ComputationControlCoroutineService() {
 
-  override suspend fun handleConcatenatedSketch(
-    requests: Flow<HandleConcatenatedSketchRequest>
-  ): HandleConcatenatedSketchResponse {
+  override suspend fun processConcatenatedSketch(
+    requests: Flow<ProcessConcatenatedSketchRequest>
+  ): ProcessConcatenatedSketchResponse {
     val tokenAfterWrite = consumeRequestsAndWriteBlob(
       requests,
-      { header.computationId },
+      { header },
       { bodyChunk.partialSketch }
     ) { token, content ->
 
@@ -79,7 +80,7 @@ class LiquidLegionsComputationControlServiceImpl(
       } else {
         null
       }
-    } ?: return HandleConcatenatedSketchResponse.getDefaultInstance()
+    } ?: return ProcessConcatenatedSketchResponse.getDefaultInstance()
 
     val id = tokenAfterWrite.globalComputationId
 
@@ -102,16 +103,16 @@ class LiquidLegionsComputationControlServiceImpl(
     )
 
     logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
-    return HandleConcatenatedSketchResponse.getDefaultInstance() // Ack the request
+    return ProcessConcatenatedSketchResponse.getDefaultInstance() // Ack the request
   }
 
-  override suspend fun handleEncryptedFlagsAndCounts(
-    requests: Flow<HandleEncryptedFlagsAndCountsRequest>
-  ): HandleEncryptedFlagsAndCountsResponse {
+  override suspend fun processEncryptedFlagsAndCounts(
+    requests: Flow<ProcessEncryptedFlagsAndCountsRequest>
+  ): ProcessEncryptedFlagsAndCountsResponse {
     val tokenAfterWrite = consumeRequestsAndWriteBlob(
       requests,
-      { header.computationId },
-      { bodyChunk.partialData }
+      { header },
+      { bodyChunk.partialFlagsAndCounts }
     ) { token, content ->
 
       val id = token.globalComputationId
@@ -133,7 +134,7 @@ class LiquidLegionsComputationControlServiceImpl(
       } else {
         null
       }
-    } ?: return HandleEncryptedFlagsAndCountsResponse.getDefaultInstance()
+    } ?: return ProcessEncryptedFlagsAndCountsResponse.getDefaultInstance()
 
     val id = tokenAfterWrite.globalComputationId
 
@@ -153,15 +154,15 @@ class LiquidLegionsComputationControlServiceImpl(
     )
 
     logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
-    return HandleEncryptedFlagsAndCountsResponse.getDefaultInstance() // Ack the request
+    return ProcessEncryptedFlagsAndCountsResponse.getDefaultInstance() // Ack the request
   }
 
-  override suspend fun handleNoisedSketch(
-    requests: Flow<HandleNoisedSketchRequest>
-  ): HandleNoisedSketchResponse {
+  override suspend fun processNoisedSketch(
+    requests: Flow<ProcessNoisedSketchRequest>
+  ): ProcessNoisedSketchResponse {
     val tokenAfterWrite = consumeRequestsAndWriteBlob(
       requests,
-      { header.computationId },
+      { header },
       { bodyChunk.partialSketch }
     ) { token, content ->
 
@@ -184,10 +185,10 @@ class LiquidLegionsComputationControlServiceImpl(
       } else {
         null
       }
-    } ?: return HandleNoisedSketchResponse.getDefaultInstance()
+    } ?: return ProcessNoisedSketchResponse.getDefaultInstance()
 
     enqueueAppendSketchesOperationIfReceivedAllSketches(tokenAfterWrite)
-    return HandleNoisedSketchResponse.getDefaultInstance() // Ack the request
+    return ProcessNoisedSketchResponse.getDefaultInstance() // Ack the request
   }
 
   private suspend fun enqueueAppendSketchesOperationIfReceivedAllSketches(
@@ -214,10 +215,10 @@ class LiquidLegionsComputationControlServiceImpl(
    * Consumes the given [requests] and writes the body chunk content using
    * [writeBlob].
    *
-   * @param getComputationId function which returns the global computation ID
-   *     for a header request message receiver
-   * @param getChunkContent function which returns the [ByteString] content for
-   *     a body chunk request message receiver
+   * @param getHeader function which returns the header message from a request
+   *     message
+   * @param getChunkContent function which returns the [ByteString] content from
+   *     a request message
    * @param writeBlob function which writes a computation blob with the given
    *     contents for the given [ComputationToken], returning the resulting
    *     token or `null` if write was skipped due to stage
@@ -225,13 +226,13 @@ class LiquidLegionsComputationControlServiceImpl(
    */
   private suspend fun <T> consumeRequestsAndWriteBlob(
     requests: Flow<T>,
-    getComputationId: T.() -> String,
+    getHeader: T.() -> ComputationProcessRequestHeader,
     getChunkContent: T.() -> ByteString,
     writeBlob: suspend (ComputationToken, Flow<ByteString>) -> ComputationToken?
   ): ComputationToken? {
     return grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }
       .use { consumed: ConsumedFlowItem<T> ->
-        val id = consumed.item.getComputationId()
+        val id = consumed.item.getHeader().key.globalComputationId
         grpcRequire(id.isNotEmpty()) { "Missing computation ID" }
         grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
 

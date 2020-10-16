@@ -17,9 +17,7 @@ kt_jvm_library(
     data = ["//src/main/k8s:duchy_public_key_config.textproto"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_control_requests",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_control_service_java_proto",
     ],
 )

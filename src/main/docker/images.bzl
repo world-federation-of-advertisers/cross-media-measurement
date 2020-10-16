@@ -77,7 +77,7 @@ COMMON_IMAGES = [
 GKE_IMAGES = [
     struct(
         name = "push_duchy_liquid_legions_computation_control_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:gcs_liquid_legions_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_liquid_legions_computation_control_server_image",
         repository = "ads-open-measurement/duchy/liquid-legions-v1-computation-control",
     ),
     struct(
@@ -98,7 +98,7 @@ LOCAL_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/mill:forwarded_storage_liquid_legions_mill_daemon_image",
     ),
     struct(
-        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control:forwarded_storage_liquid_legions_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_liquid_legions_computation_control_server_image",
     ),
     struct(
         image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image",

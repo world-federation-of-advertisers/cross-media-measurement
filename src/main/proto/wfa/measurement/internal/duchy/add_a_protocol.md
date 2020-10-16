@@ -1,8 +1,10 @@
 # How to Add a Prootcol
 
-Definitions * **Prootocol**: A Protocol is the end to end unit of work spread
-across all the MPC workers. Think of this as the algorithm described in a
-white-paper * **Computation**: A computation is a single run of the protocol.
+Definitions
+
+*   **Protocol**: A Protocol is the end to end unit of work spread across all
+    the MPC workers. Think of this as the algorithm described in a white-paper
+*   **Computation**: A computation is a single run of the protocol.
 
 ## Overview
 
@@ -21,8 +23,9 @@ two types of stages WAIT_FOR_SOMETHING and DO_SOMETHING; where the local duchy
 is either waiting on input from another duchy or executing a portiong of the
 computation.
 
-Source: *
-//src/main/proto/wfa/measurement/internal/sketch_aggregation_stage.proto
+Source:
+
+*   `src/main/proto/wfa/measurement/internal/sketch_aggregation_stage.proto`
 
 ### Computation Control gRPC Service
 
@@ -34,10 +37,10 @@ When adding a new protocol, any messages needed to encode rounds of
 communication need to be added to the proto3 service definition, and then need
 to be implemented in Kotlin.
 
-Source: *
-//src/main/proto/wfa/measurement/internal/duchy/computation_control_service.proto
-*
-//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/ComputationControlServiceImpl.kt
+Source:
+
+*   `src/main/proto/wfa/measurement/system/v1alpha/computation_control_service.proto`
+*   `src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha/LiquidLegionsComputationControlService.kt`
 
 ### Computation Storage gRPC Service
 
@@ -47,25 +50,32 @@ adding the stages (as defined earlier) into ProtocolStage and defining the name
 of the new Protocol in ProtocolType. The Kotlin implementation would need to
 handle request of the given type.
 
-Source: *
-//src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto
-```protobuf // Stage of one of the supported protocols. message ProtocolStage {
-oneof stage { // Stage of a sketch aggregation multi party computation.
-SketchAggregationStage sketch_aggregation = 1;
+Source:
 
+*   `src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto`
+
+```protobuf
+// Stage of one of the supported protocols.
+message ProtocolStage {
+  oneof stage { // Stage of a sketch aggregation multi party computation.
+    SketchAggregationStage sketch_aggregation = 1;
+
+    // ...Add your new stages...
+    NewProtocolStage new_protocol = 2;
+  }
+}
+
+// The type of a protocol.
+enum ProtocolType {
+  // Not set intentionally.
+  UNSPECIFIED = 0;
+  SKETCH_AGGREGATION = 1;
+  // ...Add your new protocol... NEW_PROTOCOL_NAME = 2;
+}
 ```
-// ...Add your new stages...
-NewProtocolStage new_protocol = 2;
-```
 
-} }
-
-// The type of a protocol. enum ProtocolType { // Not set intentionally.
-UNSPECIFIED = 0; SKETCH_AGGREGATION = 1;
-
-// ...Add your new protocol... NEW_PROTOCOL_NAME = 2; } ``` *
-//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/ComputationStorageServiceImpl.kt
-* Should not require changing
+*   `src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/ComputationStorageServiceImpl.kt`
+    *   Should not require changing
 
 ### Mills
 
@@ -75,8 +85,9 @@ typed on protocol so only work items for the given protocol will be returned.
 
 When adding a new protocol, a new Mill will need to be created.
 
-Example: *
-//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/mill/Mill.kt
+Example:
+
+*   `src/main/kotlin/org/wfanet/measurement/duchy/mill/LiquidLegionsMill.kt`
 
 ### Database Layers
 
@@ -85,7 +96,7 @@ account. That is to say the computations backend database can support multiple
 protocols. To use the backend class you will need to implement both
 
 *   `interface ProtocolStageEnumHelper<StageT>`
-*   `interfae ProtocolStageDetails<StageT, StageDetailsT>`
+*   `interface ProtocolStageDetails<StageT, StageDetailsT>`
 
 for the new protocol. `StageT` is the stages enum defined earlier.
 `StageDetailsT` is an object which encapsulates and details specific to a single
@@ -93,6 +104,7 @@ stage type. Both of these interfaces are pretty simple. Through these the valid
 start and ending stages of the computation; which transitions are allowed; and
 how to convert `StageT` to/from ByteArrays.
 
-Example: *
-//src/main/kotlin/org/wfanet/measurement/db/duchy/SketchAggregationStages.kt *
-//src/main/kotlin/org/wfanet/measurement/db/duchy/SketchAggregationStageDetails.kt
+Example:
+
+*   `src/main/kotlin/org/wfanet/measurement/db/duchy/SketchAggregationStages.kt`
+*   `src/main/kotlin/org/wfanet/measurement/db/duchy/SketchAggregationStageDetails.kt`

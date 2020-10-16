@@ -40,16 +40,16 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.mill.LiquidLegionsMill
-import org.wfanet.measurement.internal.duchy.ComputationControlServiceGrpcKt.ComputationControlServiceCoroutineStub
+import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.service.common.withVerboseLogging
-import org.wfanet.measurement.service.internal.duchy.computation.control.LiquidLegionsComputationControlServiceImpl
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.metricvalues.MetricValuesService
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataService
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
 /**
@@ -129,7 +129,7 @@ class InProcessDuchy(
       logAllRequests = verboseGrpcLogging
     ) {
       addService(
-        LiquidLegionsComputationControlServiceImpl(computationStorageClients).withDuchyIdentities()
+        LiquidLegionsComputationControlService(computationStorageClients).withDuchyIdentities()
       )
     }
 
@@ -149,7 +149,7 @@ class InProcessDuchy(
     GlobalScope.launchAsAutoCloseable {
       val workerStubs = otherDuchyIds.map { otherDuchyId ->
         val channel = computationControlChannel(otherDuchyId)
-        val stub = ComputationControlServiceCoroutineStub(channel).withDuchyId(duchyId)
+        val stub = ComputationControlCoroutineStub(channel).withDuchyId(duchyId)
         otherDuchyId to stub
       }.toMap()
 

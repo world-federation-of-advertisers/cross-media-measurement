@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.testing
+package org.wfanet.measurement.duchy.service.system.v1alpha.testing
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import org.wfanet.measurement.duchy.ComputationControlRequests
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
-import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
+import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
+import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsRequest
+import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchRequest
 
 fun buildNoisedSketchRequests(
   globalComputationId: String,
   vararg chunkContents: String
-): Sequence<HandleNoisedSketchRequest> {
+): Sequence<ProcessNoisedSketchRequest> {
   return ComputationControlRequests.noisedSketchFiller.mapSendRequests(
     globalComputationId,
     chunkContents.asSequence()
@@ -34,7 +34,7 @@ fun buildNoisedSketchRequests(
 fun buildConcatenatedSketchRequests(
   globalComputationId: String,
   vararg chunkContents: String
-): Sequence<HandleConcatenatedSketchRequest> {
+): Sequence<ProcessConcatenatedSketchRequest> {
   return ComputationControlRequests.concatenatedSketchFiller.mapSendRequests(
     globalComputationId,
     chunkContents.asSequence()
@@ -44,7 +44,7 @@ fun buildConcatenatedSketchRequests(
 fun buildEncryptedFlagsAndCountsRequests(
   globalComputationId: String,
   vararg chunkContents: String
-): Sequence<HandleEncryptedFlagsAndCountsRequest> {
+): Sequence<ProcessEncryptedFlagsAndCountsRequest> {
   return ComputationControlRequests.encryptedFlagsAndCountsFiller.mapSendRequests(
     globalComputationId,
     chunkContents.asSequence()

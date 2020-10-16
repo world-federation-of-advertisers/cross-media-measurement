@@ -311,7 +311,7 @@ git_repository(
     name = "wfa_measurement_proto",
     commit = "5eb82b5732f588a899e64153973bfcd38f2376ad",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
-    shallow_since = "1600720718 +0000",
+    shallow_since = "1601429634 -0700",
 )
 
 # AnySketch.

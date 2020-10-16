@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy
+package org.wfanet.measurement.duchy.service.system.v1alpha
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
@@ -21,37 +21,42 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.internal.duchy.HandleConcatenatedSketchRequest
-import org.wfanet.measurement.internal.duchy.HandleEncryptedFlagsAndCountsRequest
-import org.wfanet.measurement.internal.duchy.HandleNoisedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ComputationProcessRequestHeader
+import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
+import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsRequest
+import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchRequest
 
 class ComputationControlRequests(
   private val requestChunkSizeBytes: Int = 1024 * 32 // 32 KiB
 ) {
   data class Filler<B : Message.Builder>(
     val newBuilder: () -> B,
-    val fillHeader: B.(String) -> Unit,
+    private val headerBuilder: B.() -> ComputationProcessRequestHeader.Builder,
     val fillBodyChunk: B.(ByteString) -> Unit
-  )
+  ) {
+    fun B.fillHeader(globalComputationId: String) {
+      headerBuilder().keyBuilder.globalComputationId = globalComputationId
+    }
+  }
 
   fun buildNoisedSketchRequests(
     globalComputationId: String,
     content: Flow<ByteString>
-  ): Flow<HandleNoisedSketchRequest> {
+  ): Flow<ProcessNoisedSketchRequest> {
     return noisedSketchFiller.mapSendRequests(globalComputationId, content).map { it.build() }
   }
 
   fun buildConcatenatedSketchRequests(
     globalComputationId: String,
     content: Flow<ByteString>
-  ): Flow<HandleConcatenatedSketchRequest> {
+  ): Flow<ProcessConcatenatedSketchRequest> {
     return concatenatedSketchFiller.mapSendRequests(globalComputationId, content).map { it.build() }
   }
 
   fun buildEncryptedFlagsAndCountsRequests(
     globalComputationId: String,
     content: Flow<ByteString>
-  ): Flow<HandleEncryptedFlagsAndCountsRequest> {
+  ): Flow<ProcessEncryptedFlagsAndCountsRequest> {
     return encryptedFlagsAndCountsFiller.mapSendRequests(globalComputationId, content)
       .map { it.build() }
   }
@@ -78,21 +83,21 @@ class ComputationControlRequests(
 
   companion object {
     val noisedSketchFiller = Filler(
-      HandleNoisedSketchRequest::newBuilder,
-      { headerBuilder.computationId = it },
+      ProcessNoisedSketchRequest::newBuilder,
+      { headerBuilder },
       { bodyChunkBuilder.partialSketch = it }
     )
 
     val concatenatedSketchFiller = Filler(
-      HandleConcatenatedSketchRequest::newBuilder,
-      { headerBuilder.computationId = it },
+      ProcessConcatenatedSketchRequest::newBuilder,
+      { headerBuilder },
       { bodyChunkBuilder.partialSketch = it }
     )
 
     val encryptedFlagsAndCountsFiller = Filler(
-      HandleEncryptedFlagsAndCountsRequest::newBuilder,
-      { headerBuilder.computationId = it },
-      { bodyChunkBuilder.partialData = it }
+      ProcessEncryptedFlagsAndCountsRequest::newBuilder,
+      { headerBuilder },
+      { bodyChunkBuilder.partialFlagsAndCounts = it }
     )
   }
 }

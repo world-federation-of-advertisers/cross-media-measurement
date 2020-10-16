@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computation.control
+package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.buildChannel
@@ -20,9 +20,10 @@ import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.CommonDuchyFlags
+import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.service.common.CommonServer
 import org.wfanet.measurement.storage.StorageClient
@@ -52,7 +53,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
-      LiquidLegionsComputationControlServiceImpl(
+      LiquidLegionsComputationControlService(
         LiquidLegionsSketchAggregationComputationStorageClients(
           ComputationStorageServiceCoroutineStub(channel).withDuchyId(duchyName),
           storageClient,
