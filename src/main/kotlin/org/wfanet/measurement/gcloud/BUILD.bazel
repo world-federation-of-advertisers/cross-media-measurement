@@ -3,7 +3,9 @@ package_group(
     packages = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/...",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/...",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/...",
         "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/...",
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud/...",
         "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/...",
     ],
 )
