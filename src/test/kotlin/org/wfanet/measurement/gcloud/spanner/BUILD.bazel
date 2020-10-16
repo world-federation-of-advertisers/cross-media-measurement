@@ -3,11 +3,11 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "SpannerStructsTest",
     srcs = ["SpannerStructsTest.kt"],
-    test_class = "org.wfanet.measurement.db.gcp.SpannerStructsTest",
+    test_class = "org.wfanet.measurement.gcloud.spanner.SpannerStructsTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )

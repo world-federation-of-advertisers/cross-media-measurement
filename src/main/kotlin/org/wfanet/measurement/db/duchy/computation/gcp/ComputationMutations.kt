@@ -19,9 +19,9 @@ import com.google.cloud.spanner.Mutation
 import com.google.protobuf.Message
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageDetails
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoEnum
-import org.wfanet.measurement.db.gcp.toProtoJson
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails

@@ -31,10 +31,10 @@ import org.junit.Test
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
 import org.wfanet.measurement.db.kingdom.gcp.testing.KingdomDatabaseTestBase
-import org.wfanet.measurement.gcloud.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.AssociateRequisitionResponse
 import org.wfanet.measurement.internal.kingdom.ConfirmDuchyReadinessRequest

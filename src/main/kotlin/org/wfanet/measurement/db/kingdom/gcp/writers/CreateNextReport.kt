@@ -23,12 +23,12 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadLatestReportBySchedule
 import org.wfanet.measurement.db.kingdom.gcp.readers.ScheduleReader
-import org.wfanet.measurement.gcloud.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule

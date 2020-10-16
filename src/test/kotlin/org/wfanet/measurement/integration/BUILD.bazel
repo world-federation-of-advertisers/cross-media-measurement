@@ -1,5 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library", "kt_jvm_test")
-load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_library(
     name = "integration",
@@ -64,7 +64,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
     ],

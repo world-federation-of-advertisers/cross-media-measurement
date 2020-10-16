@@ -34,16 +34,16 @@ import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
-import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.duchy.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.duchy.testing.DUCHY_SECRET_KEYS
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.gcs.GcsStorageClient
 
 private const val METRIC_VALUE_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
 private const val COMPUTATIONS_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/computations.sdl"

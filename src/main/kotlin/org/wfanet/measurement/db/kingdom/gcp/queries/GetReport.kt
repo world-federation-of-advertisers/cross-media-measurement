@@ -17,9 +17,9 @@ package org.wfanet.measurement.db.kingdom.gcp.queries
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.SpannerReader
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.Report
 
 class GetReport(externalReportId: ExternalId) : SpannerQuery<ReportReader.Result, Report>() {

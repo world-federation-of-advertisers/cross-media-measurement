@@ -24,9 +24,9 @@ import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.numberAsLong
-import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.gcp.common.SqlConverter.SqlData
-import org.wfanet.measurement.gcloud.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.kingdom.db.StreamReportsClause
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsClause
 

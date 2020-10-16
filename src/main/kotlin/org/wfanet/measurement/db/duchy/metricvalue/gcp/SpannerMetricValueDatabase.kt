@@ -23,8 +23,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.internal.duchy.MetricValue
 
 /** Metadata for `MetricValues` table. */

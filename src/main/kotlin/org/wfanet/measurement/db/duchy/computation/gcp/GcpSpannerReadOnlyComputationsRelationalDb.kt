@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toCollection
 import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.db.duchy.computation.ReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 

@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.gcp.getProtoMessage
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails

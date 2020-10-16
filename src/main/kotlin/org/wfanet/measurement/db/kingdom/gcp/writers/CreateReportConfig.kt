@@ -20,13 +20,13 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toJson
-import org.wfanet.measurement.db.gcp.appendClause
-import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoEnum
-import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.AdvertiserReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.CampaignReader
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 
 /**

@@ -35,8 +35,7 @@ kt_jvm_library(
     deps = [
         ":protos",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
     ],
@@ -66,7 +65,7 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 

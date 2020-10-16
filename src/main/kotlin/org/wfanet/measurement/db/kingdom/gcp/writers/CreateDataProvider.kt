@@ -16,7 +16,7 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.gcp.bufferTo
+import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
 class CreateDataProvider : SpannerWriter<ExternalId, DataProvider>() {

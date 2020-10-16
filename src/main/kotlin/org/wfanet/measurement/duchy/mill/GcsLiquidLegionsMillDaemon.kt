@@ -15,8 +15,8 @@
 package org.wfanet.measurement.duchy.mill
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.gcs.GcsFromFlags
-import org.wfanet.measurement.storage.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(

@@ -18,7 +18,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
  * Wrapper around an SQL based query to the Spanner database that abstracts away spanner

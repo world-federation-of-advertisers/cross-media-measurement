@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp.testing
+package org.wfanet.measurement.gcloud.spanner.testing
 
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
-import org.wfanet.measurement.db.gcp.createDatabase
+import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.createDatabase
 import picocli.CommandLine
 
 private class Flags {

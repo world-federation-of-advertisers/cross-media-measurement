@@ -19,8 +19,8 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
-import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/kingdom.sdl"

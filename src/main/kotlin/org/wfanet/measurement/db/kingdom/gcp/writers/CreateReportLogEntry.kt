@@ -17,10 +17,10 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 
 class CreateReportLogEntry(

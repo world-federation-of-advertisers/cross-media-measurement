@@ -12,23 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.storage.gcs
+package org.wfanet.measurement.gcloud.common
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
-import org.junit.Before
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
+import com.google.cloud.ByteArray as GcloudByteArray
+import com.google.protobuf.Message
+import com.google.protobuf.Parser
 
-@RunWith(JUnit4::class)
-class GcsStorageClientTest : AbstractStorageClientTest<GcsStorageClient>() {
-  @Before
-  fun initClient() {
-    val storage = LocalStorageHelper.getOptions().service
-    storageClient = GcsStorageClient(storage, BUCKET)
-  }
+fun ByteArray.toGcloudByteArray(): GcloudByteArray = GcloudByteArray.copyFrom(this)
 
-  companion object {
-    private const val BUCKET = "test-bucket"
-  }
+fun Message.toGcloudByteArray(): GcloudByteArray = toByteArray().toGcloudByteArray()
+
+fun <T : Message> Parser<T>.parseFrom(gcloudByteArray: GcloudByteArray): T {
+  return parseFrom(gcloudByteArray.toByteArray())
 }

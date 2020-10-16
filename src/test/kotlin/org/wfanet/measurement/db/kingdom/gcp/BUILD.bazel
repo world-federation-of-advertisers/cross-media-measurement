@@ -1,4 +1,4 @@
-load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 spanner_emulator_test(
     name = "KingdomSchemaTest",
@@ -10,6 +10,6 @@ spanner_emulator_test(
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/org/junit",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )

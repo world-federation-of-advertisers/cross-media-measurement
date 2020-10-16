@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.gcloud.spanner
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Struct
@@ -23,6 +23,8 @@ import com.google.protobuf.Parser
 import com.google.protobuf.ProtocolMessageEnum
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.gcloud.common.parseFrom
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 
 private fun <T> Struct.nullOrValue(
   column: String,
@@ -57,14 +59,14 @@ fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toB
 
 /** Parses a protobuf [Message] from a bytes column. */
 fun <T : Message> Struct.getProtoMessage(column: String, parser: Parser<T>): T =
-  getBytes(column).toProtoMessage(parser)
+  parser.parseFrom(getBytes(column))
 
 /** Parses an enum from an INT64 Spanner column. */
 fun <T : Enum<T>> Struct.getProtoEnum(column: String, parser: (Int) -> T): T =
   parser(getLong(column).toInt())
 
 /** Bind a protobuf [Message] as a Spanner ByteArray. */
-fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toGcpByteArray())
+fun <T> ValueBinder<T>.toProtoBytes(message: Message?): T = to(message?.toGcloudByteArray())
 
 /** Bind a protobuf [Message] as a JSON string representation. */
 fun <T> ValueBinder<T>.toProtoJson(message: Message?): T = to(message?.toJson())

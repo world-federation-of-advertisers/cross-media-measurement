@@ -21,8 +21,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.db.gcp.testing.UsingSpannerEmulator
-import org.wfanet.measurement.db.gcp.testing.assertQueryReturns
+import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
+import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
 
 @RunWith(JUnit4::class)
 class KingdomSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {

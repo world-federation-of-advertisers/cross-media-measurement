@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp.testing
+package org.wfanet.measurement.gcloud.spanner.testing
 
 import com.google.cloud.spanner.Database
 import com.google.cloud.spanner.DatabaseClient
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.rules.TestRule
 import org.wfanet.measurement.common.testing.CloseableResource
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
-import org.wfanet.measurement.db.gcp.asAsync
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.asAsync
+import org.wfanet.measurement.gcloud.spanner.createDatabase
 
 /**
  * JUnit rule exposing a temporary Google Cloud Spanner database.
@@ -48,7 +49,7 @@ private class TemporaryDatabase(schemaResourcePath: String) : AutoCloseable {
   init {
     val databaseName = "test-db-${instanceCounter.incrementAndGet()}"
     val ddl = javaClass.getResource(schemaResourcePath).readText()
-    database = org.wfanet.measurement.db.gcp.createDatabase(emulator.instance, ddl, databaseName)
+    database = createDatabase(emulator.instance, ddl, databaseName)
   }
 
   val databaseClient: DatabaseClient by lazy {

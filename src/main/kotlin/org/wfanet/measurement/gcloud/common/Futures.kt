@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.gcloud
+package org.wfanet.measurement.gcloud.common
 
 import com.google.api.core.ApiFuture
 import com.google.api.core.ApiFutureCallback

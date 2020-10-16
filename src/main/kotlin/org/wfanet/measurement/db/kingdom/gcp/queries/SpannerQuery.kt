@@ -16,8 +16,8 @@ package org.wfanet.measurement.db.kingdom.gcp.queries
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.single
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
  * Abstraction around a common pattern for Spanner read-only queries.

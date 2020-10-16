@@ -16,11 +16,11 @@ package org.wfanet.measurement.db.kingdom.gcp.queries
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.db.gcp.appendClause
 import org.wfanet.measurement.db.kingdom.gcp.common.StreamRequisitionsFilterSqlConverter
 import org.wfanet.measurement.db.kingdom.gcp.common.toSql
 import org.wfanet.measurement.db.kingdom.gcp.readers.BaseSpannerReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 

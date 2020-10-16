@@ -25,7 +25,7 @@ import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
-import org.wfanet.measurement.gcloud.gcloudTimestamp
+import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest

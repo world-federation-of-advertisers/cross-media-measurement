@@ -1,5 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
-load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 proto_library(
     name = "fake_protocol_stage_details_proto",
@@ -34,7 +34,7 @@ spanner_emulator_test(
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
 
@@ -53,7 +53,7 @@ spanner_emulator_test(
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
 
@@ -70,7 +70,7 @@ spanner_emulator_test(
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )

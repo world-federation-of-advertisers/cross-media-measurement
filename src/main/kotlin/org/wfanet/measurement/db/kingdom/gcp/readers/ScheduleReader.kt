@@ -15,7 +15,7 @@
 package org.wfanet.measurement.db.kingdom.gcp.readers
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule

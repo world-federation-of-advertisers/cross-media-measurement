@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp.testing
+package org.wfanet.measurement.gcloud.spanner.testing
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
  * Returns the results of a spanner query as a list of [Struct].

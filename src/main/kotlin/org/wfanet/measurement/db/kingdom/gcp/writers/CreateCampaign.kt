@@ -19,9 +19,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.db.gcp.bufferTo
 import org.wfanet.measurement.db.kingdom.gcp.readers.AdvertiserReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.DataProviderReader
+import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.internal.kingdom.Campaign
 
 class CreateCampaign(

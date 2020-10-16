@@ -20,8 +20,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.db.duchy.metricvalue.testing.AbstractMetricValueDatabaseTest
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
-import org.wfanet.measurement.db.gcp.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 
 private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
 

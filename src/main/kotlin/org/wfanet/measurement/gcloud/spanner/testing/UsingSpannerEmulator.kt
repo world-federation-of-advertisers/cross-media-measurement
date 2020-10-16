@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp.testing
+package org.wfanet.measurement.gcloud.spanner.testing
 
 import com.google.cloud.spanner.Statement
 import java.time.Instant
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.toInstant
+import org.wfanet.measurement.gcloud.common.toInstant
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
  * Base class for JUnit4 tests using Cloud Spanner databases running in a test

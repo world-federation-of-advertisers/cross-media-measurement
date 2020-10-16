@@ -16,8 +16,8 @@ package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.server.LiquidLegionsComputationControlServer
-import org.wfanet.measurement.storage.gcs.GcsFromFlags
-import org.wfanet.measurement.storage.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 /**

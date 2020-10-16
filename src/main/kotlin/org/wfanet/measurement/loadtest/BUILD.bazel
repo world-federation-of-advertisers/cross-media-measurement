@@ -44,8 +44,8 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
     ],
@@ -65,7 +65,7 @@ kt_jvm_library(
     srcs = ["GcsCorrectnessRunner.kt"],
     deps = [
         ":correctness_runner",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 

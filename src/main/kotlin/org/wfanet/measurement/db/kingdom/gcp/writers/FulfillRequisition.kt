@@ -19,13 +19,13 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toProtoBytes
-import org.wfanet.measurement.db.gcp.toProtoEnum
-import org.wfanet.measurement.db.gcp.toProtoJson
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportRequisitionReader
 import org.wfanet.measurement.db.kingdom.gcp.readers.RequisitionReader
+import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 

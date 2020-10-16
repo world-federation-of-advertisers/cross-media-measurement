@@ -42,8 +42,8 @@ kt_jvm_library(
     deps = [
         ":server",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 

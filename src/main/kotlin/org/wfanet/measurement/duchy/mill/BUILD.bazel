@@ -32,9 +32,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
-        "//src/main/kotlin/org/wfanet/measurement/db/gcp",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_requests",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
@@ -80,7 +80,7 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/storage/gcs",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 

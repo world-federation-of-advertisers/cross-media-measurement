@@ -19,7 +19,7 @@ import com.google.cloud.spanner.Struct
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /** Base abstraction for reading from Spanner. */
 abstract class BaseSpannerReader<T> {

@@ -3,6 +3,8 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
+# TODO(b/169968333): Limit visibility to integration testing and gcloud
+# deployment once all dependent packages have moved there.
 package(default_visibility = [
     test_target(":__pkg__"),
     "//src:integration_testing",

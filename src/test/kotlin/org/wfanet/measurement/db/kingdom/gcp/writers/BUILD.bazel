@@ -1,4 +1,4 @@
-load("//src/main/kotlin/org/wfanet/measurement/db/gcp/testing:macros.bzl", "spanner_emulator_test")
+load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 _TEST_DEPS = [
     "//imports/java/com/google/cloud/spanner",
@@ -9,7 +9,7 @@ _TEST_DEPS = [
     "//src/main/kotlin/org/wfanet/measurement/common/identity",
     "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
     "//src/main/kotlin/org/wfanet/measurement/common/testing",
-    "//src/main/kotlin/org/wfanet/measurement/db/gcp/testing",
+    "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp",
     "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/testing",
     "//src/main/kotlin/org/wfanet/measurement/db/kingdom/gcp/writers",

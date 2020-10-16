@@ -18,7 +18,6 @@ import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
 import org.wfanet.measurement.db.kingdom.gcp.queries.GetReport
 import org.wfanet.measurement.db.kingdom.gcp.queries.ReadRequisitionTemplates
 import org.wfanet.measurement.db.kingdom.gcp.queries.SpannerQuery
@@ -40,6 +39,7 @@ import org.wfanet.measurement.db.kingdom.gcp.writers.FinishReport
 import org.wfanet.measurement.db.kingdom.gcp.writers.FulfillRequisition
 import org.wfanet.measurement.db.kingdom.gcp.writers.SpannerWriter
 import org.wfanet.measurement.db.kingdom.gcp.writers.UpdateReportState
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Advertiser
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.internal.kingdom.DataProvider

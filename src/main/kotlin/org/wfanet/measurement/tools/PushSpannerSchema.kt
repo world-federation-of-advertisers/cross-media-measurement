@@ -21,9 +21,9 @@ import java.util.concurrent.ExecutionException
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.db.gcp.buildSpanner
-import org.wfanet.measurement.db.gcp.createDatabase
-import org.wfanet.measurement.db.gcp.createInstance
+import org.wfanet.measurement.gcloud.spanner.buildSpanner
+import org.wfanet.measurement.gcloud.spanner.createDatabase
+import org.wfanet.measurement.gcloud.spanner.createInstance
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option

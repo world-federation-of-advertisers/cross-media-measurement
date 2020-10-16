@@ -15,8 +15,8 @@
 package org.wfanet.measurement.db.kingdom.gcp.readers
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getProtoEnum
-import org.wfanet.measurement.db.gcp.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails

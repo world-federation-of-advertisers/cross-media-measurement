@@ -12,18 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.gcloud.gcs
 
-import com.google.cloud.ByteArray
-import com.google.protobuf.Message
-import com.google.protobuf.Parser
+import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import org.junit.Before
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
 
-/** Converts a protobuf [Message] to a spanner [ByteArray]. */
-fun Message.toGcpByteArray(): ByteArray {
-  return ByteArray.copyFrom(this.toByteArray())
-}
+@RunWith(JUnit4::class)
+class GcsStorageClientTest : AbstractStorageClientTest<GcsStorageClient>() {
+  @Before
+  fun initClient() {
+    val storage = LocalStorageHelper.getOptions().service
+    storageClient = GcsStorageClient(storage, BUCKET)
+  }
 
-/** Parse a spanner [ByteArray] into a protobuf [Message]. */
-fun <T : Message> ByteArray.toProtoMessage(parser: Parser<T>): T {
-  return parser.parseFrom(this.toByteArray())
+  companion object {
+    private const val BUCKET = "test-bucket"
+  }
 }

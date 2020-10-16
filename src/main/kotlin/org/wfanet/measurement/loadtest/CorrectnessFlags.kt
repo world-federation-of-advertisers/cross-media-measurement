@@ -16,7 +16,7 @@ package org.wfanet.measurement.loadtest
 
 import java.io.File
 import kotlin.properties.Delegates
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import picocli.CommandLine
 
 class CorrectnessFlags {

@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.db.gcp.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
  * Abstracts a common pattern:

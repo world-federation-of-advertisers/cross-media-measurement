@@ -16,7 +16,7 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /** Queries for the attempts of stages for a computation that do not have an end time. */

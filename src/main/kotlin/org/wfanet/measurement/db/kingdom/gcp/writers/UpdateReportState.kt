@@ -17,9 +17,9 @@ package org.wfanet.measurement.db.kingdom.gcp.writers
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.db.gcp.bufferTo
-import org.wfanet.measurement.db.gcp.toProtoEnum
 import org.wfanet.measurement.db.kingdom.gcp.readers.ReportReader
+import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 

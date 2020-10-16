@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.gcp
+package org.wfanet.measurement.gcloud.spanner
 
 import com.google.api.core.ApiFuture
 import com.google.api.core.ApiFutures
@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.wfanet.measurement.gcloud.asDeferred
+import org.wfanet.measurement.gcloud.common.asDeferred
 
 private val executor: Executor = Dispatchers.IO.asExecutor()
 private typealias AsyncWork<T> = suspend (TransactionContext) -> ApiFuture<T>

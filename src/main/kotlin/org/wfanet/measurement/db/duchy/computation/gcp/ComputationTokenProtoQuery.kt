@@ -16,8 +16,8 @@ package org.wfanet.measurement.db.duchy.computation.gcp
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.db.gcp.getProtoMessage
-import org.wfanet.measurement.gcloud.toEpochMilli
+import org.wfanet.measurement.gcloud.common.toEpochMilli
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage

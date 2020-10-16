@@ -18,8 +18,8 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
 import org.wfanet.measurement.db.kingdom.gcp.GcpKingdomRelationalDatabase
+import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
 import picocli.CommandLine
 

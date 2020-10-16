@@ -16,13 +16,13 @@ package org.wfanet.measurement.service.internal.duchy.computation.storage
 
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.db.gcp.SpannerFromFlags
+import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.toDuchyOrder
+import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
