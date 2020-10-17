@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.v1alpha.common
+package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.BindableService
 import io.grpc.Channel

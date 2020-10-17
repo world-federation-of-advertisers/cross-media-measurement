@@ -16,16 +16,27 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "kingdom_api_server",
+    srcs = ["KingdomApiServer.kt"],
+    deps = [
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
     name = "global_computation_server",
     srcs = ["GlobalComputationServer.kt"],
     runtime_deps = ["//imports/java/io/grpc/netty"],
     deps = [
+        ":kingdom_api_server",
         "//imports/java/io/grpc:api",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:global_computation_service",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
     ],
 )
 
@@ -47,6 +58,7 @@ kt_jvm_library(
     srcs = ["RequisitionServer.kt"],
     runtime_deps = ["//imports/java/io/grpc/netty"],
     deps = [
+        ":kingdom_api_server",
         "//imports/java/io/grpc:api",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",

@@ -20,8 +20,6 @@ import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
-import org.wfanet.measurement.service.v1alpha.common.KingdomApiServerFlags
-import org.wfanet.measurement.service.v1alpha.common.runKingdomApiServer
 import picocli.CommandLine
 
 @CommandLine.Command(

@@ -19,8 +19,6 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
-import org.wfanet.measurement.service.v1alpha.common.KingdomApiServerFlags
-import org.wfanet.measurement.service.v1alpha.common.runKingdomApiServer
 import picocli.CommandLine
 
 @CommandLine.Command(

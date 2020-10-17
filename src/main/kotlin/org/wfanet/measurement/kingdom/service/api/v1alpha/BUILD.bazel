@@ -15,6 +15,8 @@ kt_jvm_library(
     deps = [
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_kt_jvm_grpc",
