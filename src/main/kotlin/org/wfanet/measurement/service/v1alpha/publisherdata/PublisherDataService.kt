@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.CreateCampaignRequest
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
+import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
@@ -28,14 +29,12 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueResponse
-import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKeyOrBuilder
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
-import org.wfanet.measurement.service.v1alpha.common.toApiMessage
 
 /**
  * Implementation of `wfa.measurement.api.v1alpha.PublisherData` service.
@@ -108,11 +107,10 @@ class PublisherDataService(
   private fun getCombinedPublicKey(combinedPublicKeyId: String): CombinedPublicKey? {
     val entry = duchyPublicKeys.get(combinedPublicKeyId) ?: return null
 
-    val combinedPublicKey: ElGamalPublicKey = entry.combinedPublicKey
     return CombinedPublicKey.newBuilder().apply {
       keyBuilder.combinedPublicKeyId = combinedPublicKeyId
       version = entry.combinedPublicKeyVersion
-      encryptionKey = combinedPublicKey.toApiMessage()
+      encryptionKey = entry.combinedPublicKey.toApiMessage()
     }.build()
   }
 }
@@ -130,5 +128,13 @@ fun MetricRequisition.KeyOrBuilder.toResourceKey(): ResourceKey {
     dataProviderResourceId = dataProviderId
     campaignResourceId = campaignId
     metricRequisitionResourceId = metricRequisitionId
+  }.build()
+}
+
+private fun org.wfanet.measurement.common.crypto.ElGamalPublicKey.toApiMessage(): ElGamalPublicKey {
+  return ElGamalPublicKey.newBuilder().also {
+    it.ellipticCurveId = ellipticCurveId
+    it.generator = generator
+    it.element = element
   }.build()
 }

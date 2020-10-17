@@ -26,13 +26,13 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
-import org.wfanet.measurement.service.v1alpha.common.toRequisitionState
-import org.wfanet.measurement.service.v1alpha.common.toV1Api
 
 class RequisitionService(
   private val internalRequisitionStub: RequisitionsCoroutineStub,
@@ -89,3 +89,38 @@ class RequisitionService(
       .build()
   }
 }
+
+/**
+ * Converts internal [Requisition] into a V1 API proto.
+ */
+private fun Requisition.toV1Api(): MetricRequisition =
+  MetricRequisition.newBuilder().apply {
+    keyBuilder.apply {
+      dataProviderId = ExternalId(externalDataProviderId).apiId.value
+      campaignId = ExternalId(externalCampaignId).apiId.value
+      metricRequisitionId = ExternalId(externalRequisitionId).apiId.value
+    }
+    campaignReferenceId = providedCampaignId
+    combinedPublicKeyBuilder.combinedPublicKeyId = combinedPublicKeyResourceId
+    state = this@toV1Api.state.toV1Api()
+  }.build()
+
+/**
+ * Converts internal [RequisitionState] into a V1 API proto.
+ */
+private fun RequisitionState.toV1Api(): MetricRequisition.State =
+  when (this) {
+    RequisitionState.UNFULFILLED -> MetricRequisition.State.UNFULFILLED
+    RequisitionState.FULFILLED -> MetricRequisition.State.FULFILLED
+    else -> MetricRequisition.State.STATE_UNSPECIFIED
+  }
+
+/**
+ * Converts V1 API proto enum [MetricRequisition.State] into an internal, API-agnostic enum.
+ */
+private fun MetricRequisition.State.toRequisitionState(): RequisitionState =
+  when (this) {
+    MetricRequisition.State.UNFULFILLED -> RequisitionState.UNFULFILLED
+    MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
+    else -> error("Invalid state: $this")
+  }

@@ -15,7 +15,6 @@ kt_jvm_library(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:data_provider_registration_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v1alpha:metric_java_proto",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
