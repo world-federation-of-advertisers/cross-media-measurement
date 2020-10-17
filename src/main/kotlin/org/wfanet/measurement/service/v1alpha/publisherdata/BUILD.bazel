@@ -32,10 +32,10 @@ kt_jvm_library(
         "//imports/java/io/grpc:api",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
-        "//src/main/kotlin/org/wfanet/measurement/service/common",
     ],
 )
 

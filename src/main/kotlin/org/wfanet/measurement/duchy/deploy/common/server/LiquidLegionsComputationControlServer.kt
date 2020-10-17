@@ -15,7 +15,8 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
-import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -25,7 +26,6 @@ import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
-import org.wfanet.measurement.service.common.CommonServer
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 

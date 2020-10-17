@@ -34,9 +34,10 @@ kt_jvm_library(
     srcs = ["ComputationStorageServiceImpl.kt"],
     deps = [
         ":protos",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/common",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/common",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
     ],
 )
@@ -51,9 +52,9 @@ kt_jvm_library(
         ":service",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
-        "//src/main/kotlin/org/wfanet/measurement/service/common",
     ],
 )
 

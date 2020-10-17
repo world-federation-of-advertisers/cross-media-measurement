@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.common.grpc
 
 import com.google.common.truth.Truth.assertThat
 import io.grpc.ConnectivityState
@@ -35,6 +35,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
+import org.wfanet.measurement.common.FakeRequest
+import org.wfanet.measurement.common.FakeResponse
+import org.wfanet.measurement.common.FakeServiceGrpcKt
 
 @RunWith(JUnit4::class)
 class ChannelShutdownHookTest {
@@ -89,7 +92,11 @@ class ChannelShutdownHookTest {
     Mockito.doNothing().`when`(runtime).addShutdownHook(shutdownHookCaptor.capture())
 
     // Add channel shutdown hooks to the mock Runtime.
-    addChannelShutdownHooks(runtime, Duration.ofMillis(500), *channels.toTypedArray())
+    addChannelShutdownHooks(
+      runtime,
+      Duration.ofMillis(500),
+      *channels.toTypedArray()
+    )
 
     // Run captured shutdown hooks in parallel to simulate JVM shutdown.
     val hookJobs = shutdownHookCaptor.allValues.map {

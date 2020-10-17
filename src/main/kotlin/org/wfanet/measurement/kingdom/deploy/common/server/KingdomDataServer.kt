@@ -15,11 +15,11 @@
 package org.wfanet.measurement.kingdom.deploy.common.server
 
 import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
-import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {

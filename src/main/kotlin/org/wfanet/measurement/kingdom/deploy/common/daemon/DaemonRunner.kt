@@ -19,7 +19,8 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.throttler.AdaptiveThrottler
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
@@ -27,7 +28,6 @@ import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStu
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.daemon.Daemon
 import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
-import org.wfanet.measurement.service.common.withVerboseLogging
 import picocli.CommandLine
 
 class DaemonFlags {

@@ -17,10 +17,10 @@ package org.wfanet.measurement.duchy.mill
 import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
 import org.wfanet.measurement.common.crypto.JniProtocolEncryption
 import org.wfanet.measurement.common.crypto.toProtoMessage
+import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler

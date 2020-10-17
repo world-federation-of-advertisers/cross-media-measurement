@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
 import org.wfanet.measurement.common.consumeFirst
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients
@@ -33,9 +36,6 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
-import org.wfanet.measurement.service.v1alpha.common.failGrpc
-import org.wfanet.measurement.service.v1alpha.common.grpcRequire
-import org.wfanet.measurement.service.v1alpha.common.grpcRequireNotNull
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase as ComputationControlCoroutineService
 import org.wfanet.measurement.system.v1alpha.ComputationProcessRequestHeader
 import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest

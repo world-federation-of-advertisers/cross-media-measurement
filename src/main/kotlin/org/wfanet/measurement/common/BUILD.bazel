@@ -16,7 +16,6 @@ kt_jvm_library(
         "//imports/java/com/google/devtools/build/runfiles",
         "//imports/java/com/google/protobuf",
         "//imports/java/com/google/protobuf/util",
-        "//imports/java/io/grpc:api",
         "//imports/java/picocli",
         "//imports/kotlin/kotlinx/coroutines:core",
     ],

@@ -1,0 +1,19 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ChannelShutdownHookTest",
+    srcs = ["ChannelShutdownHookTest.kt"],
+    test_class = "org.wfanet.measurement.common.grpc.ChannelShutdownHookTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/java/org/mockito",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//imports/kotlin/kotlinx/coroutines/test",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/test/proto/wfa/measurement/common:fake_service_kt_jvm_grpc",
+        "@io_grpc_grpc_java//core",
+        "@io_grpc_grpc_java//testing",
+    ],
+)

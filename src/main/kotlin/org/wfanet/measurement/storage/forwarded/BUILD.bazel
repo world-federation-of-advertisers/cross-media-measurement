@@ -13,7 +13,7 @@ kt_jvm_library(
     name = "forwarded",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "//src/main/proto/wfa/measurement/internal/testing:forwarded_storage_service_kt_jvm_grpc",
     ],

@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.storage.forwarded
 
-import org.wfanet.measurement.common.buildChannel
+import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine

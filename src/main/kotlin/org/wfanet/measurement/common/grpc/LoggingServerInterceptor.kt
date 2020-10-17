@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.common
+package org.wfanet.measurement.common.grpc
 
 import com.google.protobuf.Message
 import io.grpc.BindableService

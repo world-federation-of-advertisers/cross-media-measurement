@@ -17,9 +17,9 @@ package org.wfanet.measurement.duchy.herald
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.addChannelShutdownHooks
-import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.grpc.addChannelShutdownHooks
+import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.CommonDuchyFlags

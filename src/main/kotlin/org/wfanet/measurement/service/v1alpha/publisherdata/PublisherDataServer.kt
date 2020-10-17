@@ -16,13 +16,13 @@ package org.wfanet.measurement.service.v1alpha.publisherdata
 
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
-import org.wfanet.measurement.common.buildChannel
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.CommonDuchyFlags
+import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
-import org.wfanet.measurement.service.common.CommonServer
 import picocli.CommandLine
 
 private const val SERVICE_NAME = "PublisherData"

@@ -29,12 +29,12 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutine
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueResponse
 import org.wfanet.measurement.common.crypto.ElGamalPublicKey
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKeyOrBuilder
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
-import org.wfanet.measurement.service.v1alpha.common.grpcRequire
 import org.wfanet.measurement.service.v1alpha.common.toApiMessage
 
 /**

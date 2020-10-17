@@ -60,6 +60,7 @@ kt_jvm_library(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",

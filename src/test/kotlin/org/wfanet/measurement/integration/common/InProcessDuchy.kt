@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataPro
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.crypto.JniProtocolEncryption
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
@@ -43,7 +44,6 @@ import org.wfanet.measurement.duchy.mill.LiquidLegionsMill
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
-import org.wfanet.measurement.service.common.withVerboseLogging
 import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.internal.duchy.metricvalues.MetricValuesService
 import org.wfanet.measurement.service.testing.GrpcTestServerRule

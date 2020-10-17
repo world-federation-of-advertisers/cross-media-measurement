@@ -15,7 +15,7 @@
 package org.wfanet.measurement.service.testing.storage
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.service.common.CommonServer
+import org.wfanet.measurement.common.grpc.CommonServer
 import picocli.CommandLine
 
 @CommandLine.Command(

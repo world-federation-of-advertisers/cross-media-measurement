@@ -23,7 +23,7 @@ import io.grpc.testing.GrpcCleanupRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.service.common.LoggingServerInterceptor
+import org.wfanet.measurement.common.grpc.LoggingServerInterceptor
 
 class GrpcTestServerRule(
   customServerName: String? = null,
