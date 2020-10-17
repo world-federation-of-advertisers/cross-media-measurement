@@ -57,7 +57,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "push_kingdom_requisition_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image",
         repository = "ads-open-measurement/kingdom/requisition",
     ),
     struct(

@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.v1alpha.requisition
+package org.wfanet.measurement.kingdom.deploy.common.server
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.service.v1alpha.common.KingdomApiServerFlags
 import org.wfanet.measurement.service.v1alpha.common.runKingdomApiServer
 import picocli.CommandLine

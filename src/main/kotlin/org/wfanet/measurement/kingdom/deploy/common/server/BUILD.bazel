@@ -41,3 +41,29 @@ java_image(
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":global_computation_server"],
 )
+
+kt_jvm_library(
+    name = "requisition_server",
+    srcs = ["RequisitionServer.kt"],
+    runtime_deps = ["//imports/java/io/grpc/netty"],
+    deps = [
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v1alpha:requisition_service",
+    ],
+)
+
+java_binary(
+    name = "RequisitionServer",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.RequisitionServerKt",
+    runtime_deps = [":requisition_server"],
+)
+
+java_image(
+    name = "requisition_server_image",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.RequisitionServerKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":requisition_server"],
+)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.v1alpha.requisition
+package org.wfanet.measurement.kingdom.service.api.v1alpha
 
 import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList

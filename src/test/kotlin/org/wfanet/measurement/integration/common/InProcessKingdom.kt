@@ -57,7 +57,7 @@ import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
 import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.service.v1alpha.requisition.RequisitionService
+import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 
 /**
  * TestRule that starts and stops all Kingdom gRPC services and daemons.

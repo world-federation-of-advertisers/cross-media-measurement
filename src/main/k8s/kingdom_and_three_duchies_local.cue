@@ -161,7 +161,7 @@ kingdom: #Kingdom & {
 		"requisition-linker-daemon":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
 		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
 		"global-computation-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:global_computation_server_image"
-		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:requisition_server_image"
+		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image"
 	}
 	_kingdom_image_pull_policy: "Never"
 }
