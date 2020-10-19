@@ -29,6 +29,7 @@ import kotlinx.coroutines.supervisorScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
@@ -54,10 +55,9 @@ import org.wfanet.measurement.kingdom.daemon.runReportMaker
 import org.wfanet.measurement.kingdom.daemon.runReportStarter
 import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
-import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 
 /**
  * TestRule that starts and stops all Kingdom gRPC services and daemons.

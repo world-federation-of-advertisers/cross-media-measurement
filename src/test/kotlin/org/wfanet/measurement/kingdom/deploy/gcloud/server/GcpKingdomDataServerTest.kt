@@ -28,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.toInstant
@@ -68,7 +69,7 @@ import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
+import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 
 private const val ADVERTISER_ID = 1L
 private const val EXTERNAL_ADVERTISER_ID = 2L
@@ -119,7 +120,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
         databaseClient
       )
 
-    org.wfanet.measurement.kingdom.service.internal.buildDataServices(relationalDatabase)
+    buildDataServices(relationalDatabase)
       .forEach(this::addService)
   }
 

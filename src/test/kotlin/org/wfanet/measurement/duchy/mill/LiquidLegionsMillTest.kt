@@ -60,6 +60,7 @@ import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.ProtocolEncryption
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -90,7 +91,6 @@ import org.wfanet.measurement.service.internal.duchy.computation.storage.Computa
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
 import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
-import org.wfanet.measurement.service.testing.GrpcTestServerRule
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
