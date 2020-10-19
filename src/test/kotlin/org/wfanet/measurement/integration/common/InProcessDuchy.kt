@@ -39,9 +39,9 @@ import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
 import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub

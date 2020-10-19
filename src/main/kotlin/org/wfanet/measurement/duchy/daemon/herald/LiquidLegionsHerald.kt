@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.herald
+package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
 import java.util.logging.Level
@@ -154,7 +154,8 @@ class LiquidLegionsHerald(
     try {
       computationStorageClient.createComputation(
         CreateComputationRequest.newBuilder().apply {
-          computationType = COMPUTATION_TYPE
+          computationType =
+            COMPUTATION_TYPE
           globalComputationId = globalId
           stageDetailsBuilder
             .toConfirmRequisitionsStageDetailsBuilder

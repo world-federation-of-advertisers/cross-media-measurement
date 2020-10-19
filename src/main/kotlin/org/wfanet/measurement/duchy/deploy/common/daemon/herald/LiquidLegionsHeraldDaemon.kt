@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.herald
+package org.wfanet.measurement.duchy.deploy.common.daemon.herald
 
 import java.time.Clock
 import java.time.Duration
@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine

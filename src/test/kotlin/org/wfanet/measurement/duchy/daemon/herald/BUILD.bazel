@@ -3,7 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "LiquidLegionsHeraldTest",
     srcs = ["LiquidLegionsHeraldTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.herald.LiquidLegionsHeraldTest",
+    test_class = "org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHeraldTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/org/junit",
@@ -15,7 +15,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/herald:liquid_legions_herald",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald:liquid_legions_herald",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
     ],
 )
