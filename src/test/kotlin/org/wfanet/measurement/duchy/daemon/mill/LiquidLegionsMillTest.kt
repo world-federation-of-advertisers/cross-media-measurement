@@ -23,7 +23,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill
+package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -1160,15 +1160,16 @@ class LiquidLegionsMillTest {
         "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
     private const val CURVE_ID = 415; // NID_X9_62_prime256v1
 
-    private val cryptoKeySet = CryptoKeySet(
-      ownPublicAndPrivateKeys = OWN_EL_GAMAL_KEY.toElGamalKeys(),
-      otherDuchyPublicKeys = mapOf(
-        DUCHY_ONE_NAME to DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKeys(),
-        DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKeys()
-      ),
-      clientPublicKey = CLIENT_PUBLIC_KEY.toElGamalPublicKeys(),
-      curveId = CURVE_ID
-    )
+    private val cryptoKeySet =
+      CryptoKeySet(
+        ownPublicAndPrivateKeys = OWN_EL_GAMAL_KEY.toElGamalKeys(),
+        otherDuchyPublicKeys = mapOf(
+          DUCHY_ONE_NAME to DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKeys(),
+          DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKeys()
+        ),
+        clientPublicKey = CLIENT_PUBLIC_KEY.toElGamalPublicKeys(),
+        curveId = CURVE_ID
+      )
   }
 }
 

@@ -13,7 +13,7 @@ kt_jvm_library(
     srcs = ["ComputationControlRequests.kt"],
     visibility = [
         ":__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:__pkg__",
     ],
     deps = [
         "//imports/kotlin/kotlinx/coroutines:core",

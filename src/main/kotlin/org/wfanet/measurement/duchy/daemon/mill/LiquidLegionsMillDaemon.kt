@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill
+package org.wfanet.measurement.duchy.daemon.mill
 
 import io.grpc.ManagedChannel
 import java.time.Clock

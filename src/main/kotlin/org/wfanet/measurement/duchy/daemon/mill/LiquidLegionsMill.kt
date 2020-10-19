@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.mill
+package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
@@ -107,7 +107,11 @@ class LiquidLegionsMill(
   private val cryptoWorker: ProtocolEncryption,
   private val throttler: MinimumIntervalThrottler,
   chunkSize: Int = 1024 * 32, // 32 KiB
-  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 10_000_000L, 10),
+  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
+    12.0,
+    10_000_000L,
+    10
+  ),
   private val clock: Clock = Clock.systemUTC()
 ) {
   private val controlRequests = ComputationControlRequests(chunkSize)
@@ -381,7 +385,8 @@ class LiquidLegionsMill(
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageElapsedTime(token,
+        CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.flagCounts
     }
 

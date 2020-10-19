@@ -39,8 +39,10 @@ kt_jvm_library(
 package_group(
     name = "duchy_computations",
     packages = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/...",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/...",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/...",
+        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/control/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/daemon/mill/...",
         "//src/test/kotlin/org/wfanet/measurement/duchy/mill/...",
         "//src/test/kotlin/org/wfanet/measurement/duchy/service/...",
     ],

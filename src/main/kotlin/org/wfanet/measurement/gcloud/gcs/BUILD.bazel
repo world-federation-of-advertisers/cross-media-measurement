@@ -7,10 +7,14 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 # deployment once all dependent packages have moved there.
 package(default_visibility = [
     test_target(":__pkg__"),
+    "//src:duchy_services",
     "//src:integration_testing",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/daemon:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud:__subpackages__",
-    "//src/main/kotlin/org/wfanet/measurement/duchy/mill:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
 ])
 
 kt_jvm_library(
