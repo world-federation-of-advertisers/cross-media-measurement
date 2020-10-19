@@ -81,7 +81,7 @@ fake_pod: "spanner-emulator-pod": {
 
 fake_pod: "fake-storage-server-pod": #ServerPod & {
 	_name:   "fake-storage-server"
-	_image:  "bazel/src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image"
+	_image:  "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
 	_system: "testing"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",

@@ -5,7 +5,7 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/service/testing/storage:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/storage/filesystem:__subpackages__",
     ],
 )
 

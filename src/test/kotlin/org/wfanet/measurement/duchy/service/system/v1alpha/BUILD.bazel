@@ -18,6 +18,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:liquid_legions_computation_control_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
-        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
+        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )

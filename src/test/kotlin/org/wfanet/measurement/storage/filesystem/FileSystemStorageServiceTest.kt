@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.testing.storage
+package org.wfanet.measurement.storage.filesystem
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -34,10 +34,10 @@ import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 
 @RunWith(JUnit4::class)
-class FakeStorageServiceTest {
+class FileSystemStorageServiceTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    addService(FakeStorageService())
+    addService(FileSystemStorageService())
   }
 
   val storageStub = ForwardedStorageCoroutineStub(grpcTestServerRule.channel)

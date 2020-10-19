@@ -1,15 +1,66 @@
+load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+package_group(
+    name = "duchy_tests",
+    packages = [
+        "//src/test/kotlin/org/wfanet/measurement/duchy/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/...",
+        "//src/test/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata/...",
+    ],
+)
+
+package(default_visibility = [
+    test_target(":__pkg__"),
+    ":duchy_tests",
+    "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+])
 
 kt_jvm_library(
-    name = "filesystem",
+    name = "client",
     srcs = ["FileSystemStorageClient.kt"],
-    visibility = [
-        "//src:jvm_test",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/service/testing:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
-    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
+)
+
+kt_jvm_library(
+    name = "service",
+    srcs = ["FileSystemStorageService.kt"],
+    deps = [
+        ":client",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/internal/testing:forwarded_storage_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "server",
+    srcs = ["FileSystemStorageServer.kt"],
+    visibility = ["//visibility:private"],
+    runtime_deps = ["//imports/java/io/grpc/netty"],
+    deps = [
+        ":service",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "FileSystemStorageServer",
+    main_class = "org.wfanet.measurement.storage.filesystem.FileSystemStorageServerKt",
+    visibility = ["//visibility:private"],
+    runtime_deps = [":server"],
+)
+
+java_image(
+    name = "server_image",
+    main_class = "org.wfanet.measurement.storage.filesystem.FileSystemStorageServerKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":server"],
 )

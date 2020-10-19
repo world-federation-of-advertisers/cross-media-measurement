@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.testing.storage
+package org.wfanet.measurement.storage.filesystem
 
 import io.grpc.Status
 import io.grpc.StatusException
@@ -27,13 +27,12 @@ import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedS
 import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.internal.testing.ReadBlobResponse
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /**
  * [ForwardedStorageCoroutineService] implementation that uses
  * [FileSystemStorageClient].
  */
-class FakeStorageService : ForwardedStorageCoroutineService() {
+class FileSystemStorageService : ForwardedStorageCoroutineService() {
   val storageClient: FileSystemStorageClient = FileSystemStorageClient(createTempDir())
 
   override suspend fun createBlob(requests: Flow<CreateBlobRequest>): BlobMetadata {

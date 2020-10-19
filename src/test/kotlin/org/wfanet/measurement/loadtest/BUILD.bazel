@@ -25,7 +25,7 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:correctness",
-        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem",
+        "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
     ],
 )

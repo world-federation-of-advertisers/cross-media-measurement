@@ -104,7 +104,7 @@ LOCAL_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image",
     ),
     struct(
-        image = "//src/main/kotlin/org/wfanet/measurement/service/testing/storage:fake_storage_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
     ),
 ]
 

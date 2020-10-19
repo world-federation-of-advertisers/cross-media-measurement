@@ -12,22 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.testing.storage
+package org.wfanet.measurement.storage.filesystem
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import picocli.CommandLine
 
+private const val SERVER_NAME = "FileSystemStorageServer"
+
 @CommandLine.Command(
-  name = "fake_storage_server",
+  name = SERVER_NAME,
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin commonServerFlags: CommonServer.Flags) {
   CommonServer.fromFlags(
     commonServerFlags,
-    "FakeStorageService",
-    FakeStorageService()
+    SERVER_NAME,
+    FileSystemStorageService()
   ).start().blockUntilShutdown()
 }
 
