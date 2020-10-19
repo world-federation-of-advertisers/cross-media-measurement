@@ -34,13 +34,13 @@ kt_jvm_library(
 
 java_binary(
     name = "ForwardedStorageLiquidLegionsComputationControlServer",
-    main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.ForwardedStorageLiquidLegionsComputationControlServerKt",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageLiquidLegionsComputationControlServerKt",
     runtime_deps = [":forwarded_storage_liquid_legions_computation_control_server"],
 )
 
 java_image(
     name = "forwarded_storage_liquid_legions_computation_control_server_image",
-    main_class = "org.wfanet.measurement.service.internal.duchy.computation.control.ForwardedStorageLiquidLegionsComputationControlServerKt",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageLiquidLegionsComputationControlServerKt",
     visibility = [
         "//src:docker_image_deployment",
     ],
