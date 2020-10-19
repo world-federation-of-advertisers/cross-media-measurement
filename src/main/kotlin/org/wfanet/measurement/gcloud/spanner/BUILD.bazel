@@ -9,6 +9,7 @@ package_group(
     name = "legacy_db_gcp",
     packages = [
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/gcp/...",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computationstat/...",
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp/...",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/...",

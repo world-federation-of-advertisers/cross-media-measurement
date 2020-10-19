@@ -1,0 +1,19 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "SpannerComputationStatDatabaseTest",
+    srcs = ["SpannerComputationStatDatabaseTest.kt"],
+    resources = [
+        "//src/main/db/gcp:computation_stats_schema",
+    ],
+    test_class = "org.wfanet.measurement.db.duchy.computationstat.SpannerComputationStatDatabaseTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computationstat",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
