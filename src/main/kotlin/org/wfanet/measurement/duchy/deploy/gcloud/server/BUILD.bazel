@@ -16,13 +16,13 @@ kt_jvm_library(
 
 java_binary(
     name = "GcsLiquidLegionsComputationControlServer",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.server.GcsLiquidLegionsComputationControlServerKt",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsLiquidLegionsComputationControlServerKt",
     runtime_deps = [":gcs_liquid_legions_computation_control_server"],
 )
 
 java_image(
     name = "gcs_liquid_legions_computation_control_server_image",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.server.GcsLiquidLegionsComputationControlServerKt",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsLiquidLegionsComputationControlServerKt",
     visibility = [
         "//src:docker_image_deployment",
     ],
