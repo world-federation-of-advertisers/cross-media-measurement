@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computation.storage
+package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
@@ -21,6 +21,7 @@ import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
 import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServer
 import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType

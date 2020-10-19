@@ -28,8 +28,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 
 private const val NEXT_WORKER = "NEXT_WORKER"
 private const val PRIMARY_WORKER = "PRIMARY_WORKER"
@@ -68,7 +68,11 @@ class FakeLiquidLegionsComputationDb private constructor(
       stage = initialStage,
       role = role,
       stageDetails = stageDetails,
-      blobs = listOf(newEmptyOutputBlobMetadata(id = 0L))
+      blobs = listOf(
+        newEmptyOutputBlobMetadata(
+          id = 0L
+        )
+      )
     )
   }
 
@@ -171,13 +175,18 @@ class FakeLiquidLegionsComputationDb private constructor(
         // Add input blob metadata to token.
         addAllBlobs(
           inputBlobPaths.mapIndexed { idx, objectKey ->
-            newInputBlobMetadata(id = idx.toLong(), key = objectKey)
+            newInputBlobMetadata(
+              id = idx.toLong(),
+              key = objectKey
+            )
           }
         )
         // Add output blob metadata to token.
         addAllBlobs(
           (0 until outputBlobs).map { idx ->
-            newEmptyOutputBlobMetadata(idx.toLong() + inputBlobPaths.size)
+            newEmptyOutputBlobMetadata(
+              idx.toLong() + inputBlobPaths.size
+            )
           }
         )
         // Set attempt number and presence in the queue.
@@ -216,7 +225,10 @@ class FakeLiquidLegionsComputationDb private constructor(
     blobRef: BlobRef
   ) {
     updateToken(token) { existing ->
-      val existingBlobInToken = newEmptyOutputBlobMetadata(blobRef.idInRelationalDatabase)
+      val existingBlobInToken =
+        newEmptyOutputBlobMetadata(
+          blobRef.idInRelationalDatabase
+        )
       val blobs: MutableSet<ComputationStageBlobMetadata> =
         getNonNull(existing.localComputationId).blobsList.toMutableSet()
       // Replace the blob metadata in the token.

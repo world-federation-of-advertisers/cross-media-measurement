@@ -40,7 +40,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:service",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:service",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

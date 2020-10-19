@@ -32,7 +32,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "duchy_spanner_liquid_legions_computation_storage_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_liquid_legions_computation_storage_server_image",
         repository = "ads-open-measurement/duchy/liquid-legions-v1-spanner-computation-storage",
     ),
     struct(

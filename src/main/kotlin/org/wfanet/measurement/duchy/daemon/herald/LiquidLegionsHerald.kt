@@ -47,7 +47,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.Com
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
-import org.wfanet.measurement.service.internal.duchy.computation.storage.toGetTokenRequest
+import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest

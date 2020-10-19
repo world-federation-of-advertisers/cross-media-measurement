@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.computation.storage
+package org.wfanet.measurement.duchy.service.internal.computation
 
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse

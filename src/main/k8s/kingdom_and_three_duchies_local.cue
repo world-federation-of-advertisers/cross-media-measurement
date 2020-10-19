@@ -130,7 +130,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"metric-values-storage-server":                      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image"
 		"publisher-data-server":                             "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image"
 		"push-spanner-schema-container":                     "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-		"spanner-liquid-legions-computation-storage-server": "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image"
+		"spanner-liquid-legions-computation-storage-server": "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_liquid_legions_computation_storage_server_image"
 	}
 	_duchy_image_pull_policy: "Never"
 }

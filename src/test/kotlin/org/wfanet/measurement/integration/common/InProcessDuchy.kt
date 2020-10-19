@@ -46,7 +46,7 @@ import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesSe
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
-import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
 import org.wfanet.measurement.service.v1alpha.publisherdata.PublisherDataService
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub

@@ -31,9 +31,9 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
 
 @RunWith(JUnit4::class)
 class GcpSpannerReadOnlyComputationsRelationalDbTest :

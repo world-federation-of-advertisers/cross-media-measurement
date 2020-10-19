@@ -87,10 +87,10 @@ import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
-import org.wfanet.measurement.service.internal.duchy.computation.storage.ComputationStorageServiceImpl
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newInputBlobMetadata
-import org.wfanet.measurement.service.internal.duchy.computation.storage.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
 import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
