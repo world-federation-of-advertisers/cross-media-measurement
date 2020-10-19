@@ -14,22 +14,44 @@
 
 package org.wfanet.measurement.storage.filesystem
 
+import java.io.File
+import java.util.logging.Logger
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import picocli.CommandLine
 
 private const val SERVER_NAME = "FileSystemStorageServer"
+private val QUALIFIED_CLASS_NAME: String = ::main.javaClass.enclosingClass.name
+private val logger = Logger.getLogger(QUALIFIED_CLASS_NAME)
+
+private class Flags {
+  @CommandLine.Option(
+    names = ["--blob-storage-directory"],
+    description = [
+      "Directory to store blobs on the file system.",
+      "If not specified, a new temporary directory will be created and used."
+    ]
+  )
+  var directory: File? = null
+    private set
+}
 
 @CommandLine.Command(
   name = SERVER_NAME,
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(@CommandLine.Mixin commonServerFlags: CommonServer.Flags) {
+private fun run(
+  @CommandLine.Mixin serverFlags: CommonServer.Flags,
+  @CommandLine.Mixin flags: Flags
+) {
+  val directory = flags.directory ?: createTempDir()
+  logger.info("Storing blobs in $directory")
+
   CommonServer.fromFlags(
-    commonServerFlags,
+    serverFlags,
     SERVER_NAME,
-    FileSystemStorageService()
+    FileSystemStorageService(directory)
   ).start().blockUntilShutdown()
 }
 
