@@ -68,6 +68,7 @@ java_binary(
 java_image(
     name = "push_spanner_schema_image",
     data = [
+        "//src/main/db/gcp:computation_stats_schema",
         "//src/main/db/gcp:computations_schema",
         "//src/main/db/gcp:kingdom_schema",
         "//src/main/db/gcp:metric_values_schema",
