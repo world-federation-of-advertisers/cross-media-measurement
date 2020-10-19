@@ -10,11 +10,11 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
         "//src/main/swig/common/crypto:protocol_encryption_utility",
-        "@any_sketch//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
-        "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
-        "@any_sketch//src/main/proto/wfa/any_sketch/crypto:sketch_java_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
     ],
 )
 

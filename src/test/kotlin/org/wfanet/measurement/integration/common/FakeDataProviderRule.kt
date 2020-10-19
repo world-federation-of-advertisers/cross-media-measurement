@@ -168,7 +168,7 @@ class FakeDataProviderRule : TestRule {
     init {
       loadLibrary(
         name = "sketch_encrypter_adapter",
-        directoryPath = Paths.get("any_sketch/src/main/java/org/wfanet/anysketch/crypto")
+        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
 

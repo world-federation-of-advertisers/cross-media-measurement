@@ -43,7 +43,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/swig/common/crypto:protocol_encryption_utility",
-        "@any_sketch//src/main/java/org/wfanet/estimation:estimators",
+        "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
     ],
 )
 

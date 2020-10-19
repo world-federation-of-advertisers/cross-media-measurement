@@ -423,11 +423,11 @@ class CorrectnessImpl(
     init {
       loadLibrary(
         name = "estimators",
-        directoryPath = Paths.get("any_sketch/src/main/java/org/wfanet/estimation")
+        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation")
       )
       loadLibrary(
         name = "sketch_encrypter_adapter",
-        directoryPath = Paths.get("any_sketch/src/main/java/org/wfanet/anysketch/crypto")
+        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
   }

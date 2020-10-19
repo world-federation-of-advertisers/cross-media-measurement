@@ -301,9 +301,9 @@ cue_register_toolchains()
 # Rules for swig wrapping.
 git_repository(
     name = "wfa_rules_swig",
-    commit = "79de3429e6a985e0145e23393b1f15d5fa255c7e",
+    commit = "ad4f1bcf5747cb26b480b45c582069fb1488f8c1",
     remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
-    shallow_since = "1595012448 -0700",
+    shallow_since = "1603231045 -0700",
 )
 
 # Public APIs for measurement system.
@@ -317,7 +317,14 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    commit = "03eff94956947f6e5b8bab996c9c6f8ca3ee50c1",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
-    shallow_since = "1598644541 -0400",
+    commit = "523107ea635c4aabb39496d1bd776bd439dc65c9",
+    shallow_since = "1603139261 +0000",
+)
+
+git_repository(
+    name = "any_sketch_java",
+    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
+    commit = "e34e68460cba98a593903f6d2d8b84fdea729c52",
+    shallow_since = "1603231855 -0700",
 )

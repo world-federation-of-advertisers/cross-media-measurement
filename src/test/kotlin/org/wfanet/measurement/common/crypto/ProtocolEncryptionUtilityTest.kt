@@ -259,7 +259,7 @@ class ProtocolEncryptionUtilityTest {
       )
       loadLibrary(
         "sketch_encrypter_adapter",
-        Paths.get("any_sketch/src/main/java/org/wfanet/anysketch/crypto")
+        Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
   }
