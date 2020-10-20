@@ -1,0 +1,46 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "LiquidLegionsSketchAggregationProtocolStageHelperTest",
+    srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocolEnumStagesTest",
+    deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "LiquidLegionsSketchAggregationStageDetailsTest",
+    srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "LiquidLegionsSketchAggregationComputationStorageClientsTest",
+    srcs = ["LiquidLegionsSketchAggregationComputationStorageClientsTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClientsTest",
+    deps = [
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:service",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)

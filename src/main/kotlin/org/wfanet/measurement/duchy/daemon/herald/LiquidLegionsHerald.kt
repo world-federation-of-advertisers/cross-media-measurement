@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
-import org.wfanet.measurement.db.duchy.computation.advanceLiquidLegionsComputationStage
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.duchy.db.computation.advanceLiquidLegionsComputationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE

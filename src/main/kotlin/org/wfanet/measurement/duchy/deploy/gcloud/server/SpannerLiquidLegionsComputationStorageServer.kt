@@ -16,10 +16,10 @@ package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationProtocol
-import org.wfanet.measurement.db.duchy.computation.gcp.ComputationMutations
-import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerComputationsDb
-import org.wfanet.measurement.db.duchy.computation.gcp.GcpSpannerReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServer
 import org.wfanet.measurement.duchy.toDuchyOrder

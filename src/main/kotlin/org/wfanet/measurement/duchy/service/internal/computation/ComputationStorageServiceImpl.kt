@@ -18,11 +18,11 @@ import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.db.duchy.computation.AfterTransition
-import org.wfanet.measurement.db.duchy.computation.BlobRef
-import org.wfanet.measurement.db.duchy.computation.ComputationStorageEditToken
-import org.wfanet.measurement.db.duchy.computation.EndComputationReason
-import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
+import org.wfanet.measurement.duchy.db.computation.AfterTransition
+import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number

@@ -18,11 +18,11 @@ import java.time.Duration
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.db.duchy.computation.ComputationsRelationalDb
-import org.wfanet.measurement.db.duchy.computation.ProtocolStageDetails
-import org.wfanet.measurement.db.duchy.computation.ProtocolStageEnumHelper
-import org.wfanet.measurement.db.duchy.computation.ReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.db.duchy.computation.SingleProtocolDatabase
+import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
+import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.CommonDuchyFlags
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.internal.duchy.ComputationStage

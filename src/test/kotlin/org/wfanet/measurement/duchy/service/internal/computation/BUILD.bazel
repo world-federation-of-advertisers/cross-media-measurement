@@ -10,7 +10,7 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:service",
     ],
 )

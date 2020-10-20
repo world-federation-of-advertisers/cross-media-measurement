@@ -52,8 +52,8 @@ package_group(
 package_group(
     name = "computation_db",
     packages = [
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation/...",
-        "//src/test/kotlin/org/wfanet/measurement/db/duchy/computation/...",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/db/computation/...",
     ],
 )
 

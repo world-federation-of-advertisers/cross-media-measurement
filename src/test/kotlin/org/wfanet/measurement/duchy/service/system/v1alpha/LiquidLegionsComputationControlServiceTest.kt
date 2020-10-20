@@ -37,9 +37,9 @@ import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.db.duchy.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
-import org.wfanet.measurement.db.duchy.computation.testing.FakeLiquidLegionsComputationDb
-import org.wfanet.measurement.db.duchy.computation.toBlobRef
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients as LiquidLegionsClients
+import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.db.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildConcatenatedSketchRequests
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncryptedFlagsAndCountsRequests

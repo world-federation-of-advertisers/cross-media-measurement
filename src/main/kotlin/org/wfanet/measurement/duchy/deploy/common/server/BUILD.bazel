@@ -12,7 +12,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:liquid_legions_computation_control_service",
