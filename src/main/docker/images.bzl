@@ -87,7 +87,7 @@ GKE_IMAGES = [
     ),
     struct(
         name = "duchy_metric_values_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:gcp_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcp_server_image",
         repository = "ads-open-measurement/duchy/metric-values",
     ),
 ]
@@ -104,7 +104,7 @@ LOCAL_IMAGES = [
     ),
     struct(
         name = "spanner_forwarded_storage_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image",
     ),
     struct(
         name = "filesystem_storage_correctness_runner_image",

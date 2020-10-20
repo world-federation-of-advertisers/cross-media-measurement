@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.metricvalues
+package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabase
+import org.wfanet.measurement.duchy.deploy.common.server.MetricValuesServer
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags

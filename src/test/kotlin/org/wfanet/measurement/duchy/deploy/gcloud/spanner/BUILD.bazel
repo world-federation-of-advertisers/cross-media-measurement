@@ -7,12 +7,12 @@ spanner_emulator_test(
     resources = [
         "//src/main/db/gcp:metric_values_schema",
     ],
-    test_class = "org.wfanet.measurement.db.duchy.metricvalue.gcp.SpannerMetricValueDatabaseTest",
+    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabaseTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/org/junit",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/gcp",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/metricvalue/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.duchy.metricvalue.testing
+package org.wfanet.measurement.duchy.db.metricvalue.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -20,7 +20,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.MetricValue
 
 /** Abstract base class for [MetricValueDatabase] tests. */

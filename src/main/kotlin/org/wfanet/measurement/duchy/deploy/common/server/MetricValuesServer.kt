@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.metricvalues
+package org.wfanet.measurement.duchy.deploy.common.server
 
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 

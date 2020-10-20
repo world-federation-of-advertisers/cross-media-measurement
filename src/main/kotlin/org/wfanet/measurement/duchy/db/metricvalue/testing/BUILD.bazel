@@ -14,7 +14,7 @@ kt_jvm_library(
         "//imports/java/com/google/common/truth/extensions/proto",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
-        "//src/main/kotlin/org/wfanet/measurement/db/duchy/metricvalue",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/metricvalue",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
     ],
 )

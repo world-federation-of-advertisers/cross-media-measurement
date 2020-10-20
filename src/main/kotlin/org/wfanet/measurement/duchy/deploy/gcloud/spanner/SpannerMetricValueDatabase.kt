@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.duchy.metricvalue.gcp
+package org.wfanet.measurement.duchy.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.internal.duchy.MetricValue

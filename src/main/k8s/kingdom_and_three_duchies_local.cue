@@ -127,7 +127,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"liquid-legions-computation-control-server":         "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_liquid_legions_computation_control_server_image"
 		"liquid-legions-herald-daemon":                      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:liquid_legions_herald_daemon_image"
 		"liquid-legions-mill-daemon":                        "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/testing/daemon/mill:forwarded_storage_liquid_legions_mill_daemon_image"
-		"metric-values-storage-server":                      "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues:spanner_forwarded_storage_server_image"
+		"metric-values-storage-server":                      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image"
 		"publisher-data-server":                             "bazel/src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata:publisher_data_server_image"
 		"push-spanner-schema-container":                     "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
 		"spanner-liquid-legions-computation-storage-server": "bazel/src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage:spanner_liquid_legions_computation_storage_server_image"

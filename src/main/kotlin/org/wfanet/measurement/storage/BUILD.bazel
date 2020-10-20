@@ -17,8 +17,8 @@ kt_jvm_library(
 package_group(
     name = "metric_values_service",
     packages = [
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues/...",
-        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/metricvalues/...",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/metricvalues/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service/internal/metricvalues/...",
     ],
 )
 

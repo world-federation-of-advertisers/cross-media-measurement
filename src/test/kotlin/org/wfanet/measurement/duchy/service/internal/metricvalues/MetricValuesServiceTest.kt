@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.internal.duchy.metricvalues
+package org.wfanet.measurement.duchy.service.internal.metricvalues
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -40,7 +40,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.size
-import org.wfanet.measurement.db.duchy.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest

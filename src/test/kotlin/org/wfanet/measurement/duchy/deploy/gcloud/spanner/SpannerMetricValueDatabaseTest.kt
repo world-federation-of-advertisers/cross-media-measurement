@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.duchy.metricvalue.gcp
+package org.wfanet.measurement.duchy.deploy.gcloud.spanner
 
 import org.junit.Before
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.db.duchy.metricvalue.testing.AbstractMetricValueDatabaseTest
+import org.wfanet.measurement.duchy.db.metricvalue.testing.AbstractMetricValueDatabaseTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 
