@@ -282,22 +282,6 @@ cloud_spanner_emulator_binaries(
     version = "1.1.0",
 )
 
-# CUE
-
-git_repository(
-    name = "com_github_tnarg_rules_cue",
-    commit = "540ca8c02f438f7ef3e53d64d4e4e859d578cc15",
-    remote = "https://github.com/tnarg/rules_cue",
-    shallow_since = "1590098645 -0700",
-)
-
-load("@com_github_tnarg_rules_cue//cue:deps.bzl", "cue_register_toolchains")
-load("@com_github_tnarg_rules_cue//:go.bzl", "go_modules")
-
-go_modules()
-
-cue_register_toolchains()
-
 # Rules for swig wrapping.
 git_repository(
     name = "wfa_rules_swig",
@@ -317,14 +301,14 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     commit = "523107ea635c4aabb39496d1bd776bd439dc65c9",
+    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     shallow_since = "1603139261 +0000",
 )
 
 git_repository(
     name = "any_sketch_java",
-    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
     commit = "e34e68460cba98a593903f6d2d8b84fdea729c52",
+    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
     shallow_since = "1603231855 -0700",
 )
