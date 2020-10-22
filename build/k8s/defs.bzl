@@ -37,7 +37,7 @@ def _k8s_import_impl(ctx):
             archive_path = image_archive.short_path,
         )
     elif k8s_env == "usernetes-containerd":
-        usernetes_run = ctx.attr._usernetes_run.files.to_list()[0]
+        usernetes_run = ctx.executable._usernetes_run
         runfiles.append(usernetes_run)
 
         command = "{usernetes_run} ctr images import {archive_path}".format(
@@ -86,31 +86,6 @@ k8s_import = rule(
     provides = [DefaultInfo, ImageImportInfo],
 )
 
-def k8s_imports(image_archives = [], k8s_environment = None):
-    """Returns a list of k8s_import targets.
-
-    Args:
-        image_archives: container image archives
-        k8s_environment: Kubernetes environment
-    """
-    import_targets = []
-    for image_archive in image_archives:
-        label = to_label(image_archive)
-        import_name = "{label_name}_{k8s_env}_{index}".format(
-            label_name = label.name,
-            k8s_env = k8s_environment,
-            index = len(import_targets),
-        )
-        import_targets.append(import_name)
-
-        k8s_import(
-            name = import_name,
-            image_archive = image_archive,
-            k8s_environment = k8s_environment,
-        )
-
-    return import_targets
-
 def _k8s_apply_impl(ctx):
     if len(ctx.attr.imports) == 0:
         fail("No imports specified")
@@ -135,7 +110,7 @@ def _k8s_apply_impl(ctx):
 
     return DefaultInfo(executable = output, runfiles = runfiles)
 
-_k8s_apply = rule(
+k8s_apply = rule(
     doc = "Executable that applies a Kubernetes manifest using kubectl.",
     implementation = _k8s_apply_impl,
     attrs = {
@@ -152,22 +127,3 @@ _k8s_apply = rule(
     },
     executable = True,
 )
-
-def k8s_apply(name, src, imports = [], image_archives = [], k8s_environment = None, **kwargs):
-    """Executable that applies a Kubernetes manifest using kubectl.
-
-    Args:
-        src: A single Kubernetes manifest.
-        imports: k8s_import targets of images to import.
-        image_archives: Container image archives.
-        k8s_environment: Which Kubernetes environment to use when importing
-            image archives.
-    """
-    additional_imports = k8s_imports(image_archives, k8s_environment)
-
-    _k8s_apply(
-        name = name,
-        src = src,
-        imports = imports + additional_imports,
-        **kwargs
-    )

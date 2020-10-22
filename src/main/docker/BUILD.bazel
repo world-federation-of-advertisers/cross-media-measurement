@@ -5,7 +5,7 @@ load(":images.bzl", "ALL_GKE_IMAGES")
 # 'bazel build' builds the tarball, 'bazel run' will actually push it.
 [
     container_push(
-        name = image_spec.name,
+        name = "push_" + image_spec.name,
         format = "Docker",
         image = image_spec.image,
         registry = "gcr.io",

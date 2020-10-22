@@ -1,4 +1,4 @@
-load("//build/k8s:defs.bzl", "k8s_apply")
+load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
 load("//build/cue:defs.bzl", "cue_string_field")
 load(":macros.bzl", "cue_dump")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
@@ -57,16 +57,26 @@ package_group(
     packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
 )
 
+[k8s_import(
+    name = "import_" + image.name + "_kind",
+    image_archive = image.image + ".tar",
+    k8s_environment = "kind",
+) for image in ALL_LOCAL_IMAGES]
+
+[k8s_import(
+    name = "import_" + image.name + "_u7s",
+    image_archive = image.image + ".tar",
+    k8s_environment = "usernetes-containerd",
+) for image in ALL_LOCAL_IMAGES]
+
 k8s_apply(
     name = "kingdom_and_three_duchies_kind",
     src = ":kingdom_and_three_duchies_from_cue_local.yaml",
-    image_archives = ALL_LOCAL_IMAGE_ARCHIVES,
-    k8s_environment = "kind",
+    imports = [":import_" + image.name + "_kind" for image in ALL_LOCAL_IMAGES],
 )
 
 k8s_apply(
     name = "kingdom_and_three_duchies_u7s",
     src = ":kingdom_and_three_duchies_from_cue_local.yaml",
-    image_archives = ALL_LOCAL_IMAGE_ARCHIVES,
-    k8s_environment = "usernetes-containerd",
+    imports = [":import_" + image.name + "_u7s" for image in ALL_LOCAL_IMAGES],
 )
