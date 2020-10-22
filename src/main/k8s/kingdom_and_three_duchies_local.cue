@@ -156,9 +156,9 @@ kingdom: #Kingdom & {
 	]
 	_images: {
 		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-		"report-maker-daemon":           "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_maker_daemon_image"
-		"report-starter-daemon":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:report_starter_daemon_image"
-		"requisition-linker-daemon":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom:requisition_linker_daemon_image"
+		"report-maker-daemon":           "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image"
+		"report-starter-daemon":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image"
+		"requisition-linker-daemon":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image"
 		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
 		"global-computation-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:global_computation_server_image"
 		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image"
