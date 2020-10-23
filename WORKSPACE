@@ -1,7 +1,22 @@
 workspace(name = "wfa_measurement_system")
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+# @bazel_skylib
+
+http_archive(
+    name = "bazel_skylib",
+    sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
+    urls = [
+        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+    ],
+)
+
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+
+bazel_skylib_workspace()
 
 http_archive(
     name = "googletest",
@@ -126,12 +141,18 @@ protobuf_deps()
 
 # @io_bazel_rules_docker
 
+http_archive(
+    name = "rules_python",
+    sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz",
+)
+
 load("//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
 rules_docker_repo(
     name = "io_bazel_rules_docker",
-    sha256 = "4521794f0fba2e20f3bf15846ab5e01d5332e587e9ce81629c7f96c793bb7036",
-    version = "0.14.4",
+    commit = "cc45596d140b3b8651eb7b51b561f1bf72d1eea9",
+    sha256 = "4975b23f8eff1f0763b5654fbdf325c0089631dacd4b37f9903c404401a93f05",
 )
 
 load(
@@ -145,9 +166,9 @@ load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
 
 container_deps()
 
-load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
+load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "io_bazel_rules_docker_pip_deps")
 
-pip_deps()
+io_bazel_rules_docker_pip_deps()
 
 load("//build/io_bazel_rules_docker:base_images.bzl", "base_java_images")
 
@@ -175,6 +196,22 @@ container_pull(
     digest = "sha256:d92a89b71e6adc50535710f53c78bb5bc84f80549e48342856bb2cc6c87e4f2a",
     registry = "docker.io",
     repository = "debian",
+)
+
+# docker.io/library/ubuntu:18.04
+container_pull(
+    name = "ubuntu_18_04",
+    digest = "sha256:d1bf40f712c466317f5e06d38b3e7e4c98fef1229872bf6e2a8d1e01836c7ec4",
+    registry = "docker.io",
+    repository = "library/ubuntu",
+)
+
+# gcr.io/ads-open-measurement/bazel:clean
+container_pull(
+    name = "bazel_image",
+    digest = "sha256:bd25ad0d1ecd84a0b3cd62533c7b0c97c4699ca1b8b9fd7cf6ec1ed18d1dc9fb",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/bazel",
 )
 
 # See //src/main/docker/base:push_java_base
@@ -280,6 +317,12 @@ cloud_spanner_emulator_binaries(
     name = "cloud_spanner_emulator",
     sha256 = "86df7eeb4c2c03c8f1254f222360637bb84d43f64ee5464f98a8057104791dad",
     version = "1.1.0",
+)
+
+http_file(
+    name = "golang",
+    sha256 = "010a88df924a81ec21b293b5da8f9b11c176d27c0ee3962dc1738d2352d3c02d",
+    urls = ["https://golang.org/dl/go1.15.3.linux-amd64.tar.gz"],
 )
 
 # Rules for swig wrapping.

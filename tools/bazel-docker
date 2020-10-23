@@ -1,0 +1,42 @@
+#!/bin/bash
+readonly IMAGE='gcr.io/ads-open-measurement/bazel'
+#readonly IMAGE='bazel/src/main/docker/bazel:bazel_image'
+readonly OUTPUT_USER_ROOT="/tmp/bazel-docker-${USER}"
+readonly REPO_CACHE='/bazel-repo-cache'
+
+is_rootless() {
+  docker info 2>/dev/null | grep --quiet rootless
+}
+
+main() {
+  mkdir -p "${OUTPUT_USER_ROOT}"
+
+  local -a docker_options=(
+    --entrypoint='/usr/bin/bazel'
+    -v "${PWD}:${PWD}"
+    -v "${OUTPUT_USER_ROOT}:${OUTPUT_USER_ROOT}"
+    -v "${HOME}/.cache/bazel/_bazel_${USER}/cache/repos/v1:${REPO_CACHE}"
+    -w "${PWD}"
+    --network host
+  )
+
+  if ! is_rootless; then
+    docker_options+=(
+      --user "$EUID"
+      --env USER="$USER"
+    )
+  fi
+
+  command="$1"
+  shift 1
+
+  exec docker run "${docker_options[@]}" \
+    "${IMAGE}" \
+    --output_user_root="${OUTPUT_USER_ROOT}" \
+    "${command}" \
+    --repository_cache="${REPO_CACHE}" \
+    "$@"
+}
+
+main "$@"
+
