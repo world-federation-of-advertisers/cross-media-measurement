@@ -4,7 +4,7 @@
 * [Purpose](#purpose)
 * [System Overview](#system-overview)
 * [Repository Structure](#repository-structure)
-  * [Services and Daemons](#services-and-daemons)
+  * [Services and Daemons](#servers-and-daemons)
   * [Common Directories](#common-directories)
 * [Developer Guide](#developer-guide)
    * [Developer Environment](#developer-environment)
@@ -86,7 +86,6 @@ The system operates as follows. For more detail see the references linked in the
 ├── src  ## All source code
 │   ├── main  ## Source code for production deployments
 │   │   ├── cc  ## Crypto library
-│   │   ├── java  ## JNI for crypto library
 │   │   ├── kotlin  ## Business Logic, Services, Daemons, DB accessors
 │   │   └── proto  ## Service and config definitions
 │   └── test  ## Source code for testing code in //src/main/
@@ -111,33 +110,37 @@ For example, the alias for Java Protobuf
 `//imports/java/com/google/protobuf/BUILD.bazel` because the Java package is
 `com.google.protobuf`.
 
-The `db`, `docker`, and `k8s` directories contain schemas and configuration.
+The `docker` and `k8s` directories contain schemas and configuration.
 
-### Services and Daemons
+### Servers and Daemons
 
-Services and daemons are both long running jobs deployed to Kubernetes. A key
+Servers and daemons are both long running jobs deployed to Kubernetes. A key
 difference is whether or not they accept RPC communication from other binaries.
-In short, a service is a gRPC endpoint, where a daemon is not.
+In short, a server is a gRPC endpoint, where a daemon is not.
 
 * Services are defined in proto3 in the `//src/main/proto` directory.
 * Public APIs are defined in `wfa-measurement-proto`, another GitHub repository.
   **TODO: Add link to other GitHub repository.**
-* Services are in `//src/main/kotlin/org/wfanet/measurement/service` where
-  internal services (those only called by kingdom or duchy) are in
-  `.../service/internal/[subsystem where it runs]/` and public services (those
-  called by other systems) are in `.../service/v1alpha/`.
-* Daemons are in
-  `//src/main/kotlin/org/wfanet/measurement/[subsystem where it runs]`
 
 ```
 //src/main/kotlin/org/wfanet/measurement/
-├── duchy  ## Daemons run in a duchy
-├── kingdom  ## Daemons run in the kingdom
-└── service
-    ├── internal
-    │   ├── duchy  ## Internal services run by a duchy
-    │   └── kingdom  ## Internal services run by the kingdom
-    └── v1alpha  ## Public facing services
+├── duchy  ## Duchy specific code
+│   ├── daemon  ## Base implementations of daemons run in a Duchy
+│   ├── service  ## Base implementations of services run by a Duchy
+│   │   └── system  ## Services used within the measurement system
+│   └── deploy  ## Deployable artifacts
+│       ├── common  ## Servers and daemons that deploy on any cloud
+│       ├── gcloud  ## Artifacts specific to Google Cloud deployment
+│       └── testing  ## Servers and daemons for testing
+└── kingdom  ## Kingdom specific code
+    ├── daemon  ## Base implementations of daemons run by the Kingdom
+    ├── service  ## Base implementations of services run by the Kingdom
+    │   ├── api  ## Public facing services
+    │   ├── internal  ## Services used within the Kingdom
+    │   └── system  ## Services used within the measurement system
+    └── deploy  ## Deployable artifacts
+        ├── common  ## Servers and daemons that deploy on any cloud
+        └── gcloud  ## Artifacts specific to Google Cloud deployment
 ```
 
 ### Common Directories
