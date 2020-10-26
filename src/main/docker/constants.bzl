@@ -23,3 +23,18 @@ DEBIAN_JAVA_11 = struct(
         "PATH": _DEBIAN_JAVA_11_BIN + ":$$PATH",
     },
 )
+
+APT_CLEANUP_COMMANDS = [
+    "apt-get clean",
+    "rm /var/log/dpkg.log",
+    "rm /var/log/alternatives.log",
+]
+
+APT_UPGRADE_COMMANDS = [
+    "apt-get update",
+    "apt-get dist-upgrade -y --no-install-recommends",
+]
+
+GO_CLEANUP_COMMANDS = [
+    "go clean -cache -testcache -modcache",
+]

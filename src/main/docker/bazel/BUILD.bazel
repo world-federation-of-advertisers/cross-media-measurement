@@ -1,15 +1,35 @@
-# Bazel sandbox image.
+# Bazel build environment image.
 
 load("//src/main/docker:constants.bzl", "DEBIAN_JAVA_11")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_push")
-load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit_layer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load(
+    "//src/main/docker:defs.bzl",
+    "container_commit_install_apt_packages",
+    "container_commit_install_go_packages",
+    "container_commit_upgrade_apt_packages",
+)
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_layer",
+    "container_push",
+)
 
 JAVA = DEBIAN_JAVA_11
 
 BASE_IMAGE = "@ubuntu_18_04//image"
 
 BAZEL_IMAGE = "@bazel_image//image"
+
+container_commit_install_apt_packages(
+    name = "install_go_deps",
+    image = BASE_IMAGE,
+    packages = [
+        "ca-certificates",
+        "git",
+    ],
+    tags = ["manual"],
+)
 
 copy_file(
     name = "copy_golang_tar",
@@ -19,41 +39,42 @@ copy_file(
     tags = ["manual"],
 )
 
-container_image(
-    name = "go_image",
-    base = BASE_IMAGE,
+container_layer(
+    name = "install_go",
     directory = "/usr/local",
     env = {"PATH": "$$PATH:/usr/local/go/bin"},
     tags = ["manual"],
     tars = [":golang.tar.gz"],
 )
 
-PACKAGES = [
-    "git",
-    "openjdk-11-jdk-headless",
-    "python",
-    "python3",
-    "swig",
-]
+container_image(
+    name = "go_image",
+    base = BASE_IMAGE,
+    layers = [
+        ":install_go_deps",
+        ":install_go",
+    ],
+    tags = ["manual"],
+)
 
-container_run_and_commit_layer(
+container_commit_install_go_packages(
+    name = "install_cue",
+    image = ":go_image.tar",
+    packages = ["cuelang.org/go/cmd/cue"],
+    tags = ["manual"],
+)
+
+container_commit_install_apt_packages(
     name = "install_packages",
-    commands = [
-        "apt-get update",
-        "apt-get upgrade -y",
-        "apt-get install -y --no-install-recommends " + " ".join(PACKAGES),
-        "apt-get clean",
-
-        # Install CUE.
-        "go get -d -u cuelang.org/go/cmd/cue",
-        "GOBIN=/usr/local/go/bin go install cuelang.org/go/cmd/cue",
+    image = BASE_IMAGE,
+    packages = [
+        "git",
+        "openjdk-11-jdk-headless",
+        "python",
+        "python3",
+        "swig",
     ],
-    image = "go_image.tar",
-    tags = [
-        "manual",
-        "no-remote-exec",
-        "requires-network",
-    ],
+    tags = ["manual"],
 )
 
 container_layer(
@@ -72,7 +93,7 @@ container_layer(
 
 container_image(
     name = "bazel_apt_image",
-    base = ":go_image",
+    base = BASE_IMAGE,
     layers = [
         ":install_packages",
         ":bazel_release_key",
@@ -81,19 +102,11 @@ container_image(
     tags = ["manual"],
 )
 
-container_run_and_commit_layer(
+container_commit_install_apt_packages(
     name = "install_bazel",
-    commands = [
-        "apt-get update",
-        "apt-get install -y --no-install-recommends bazel",
-        "apt-get clean",
-    ],
     image = ":bazel_apt_image.tar",
-    tags = [
-        "manual",
-        "no-remote-exec",
-        "requires-network",
-    ],
+    packages = ["bazel"],
+    tags = ["manual"],
 )
 
 # Clean install based on BASE_IMAGE.
@@ -101,7 +114,11 @@ container_image(
     name = "bazel_clean_image",
     base = ":bazel_apt_image",
     env = JAVA.env,
-    layers = [":install_bazel"],
+    layers = [
+        ":install_bazel",
+        "//src/main/docker:install_go",
+        ":install_cue",
+    ],
     tags = ["manual"],
 )
 
@@ -118,26 +135,20 @@ container_push(
     ],
 )
 
-container_run_and_commit_layer(
-    name = "update_bazel",
-    commands = [
-        "apt-get update",
-        "apt-get upgrade -y",
-        "apt-get clean",
-    ],
+container_commit_upgrade_apt_packages(
+    name = "upgrade_packages",
     image = BAZEL_IMAGE,
-    tags = [
-        "manual",
-        "no-remote-exec",
-        "requires-network",
-    ],
+    tags = ["manual"],
 )
 
 # Updated image based on BAZEL_IMAGE.
 container_image(
     name = "bazel_image",
     base = BAZEL_IMAGE,
-    layers = [":update_bazel"],
+    layers = [
+        ":upgrade_packages",
+        ":install_cue",
+    ],
     tags = ["manual"],
 )
 
