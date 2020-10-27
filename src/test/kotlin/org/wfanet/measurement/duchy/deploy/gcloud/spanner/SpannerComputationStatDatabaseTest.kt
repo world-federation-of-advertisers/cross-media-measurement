@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.db.duchy.computationstat
+package org.wfanet.measurement.duchy.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.runBlocking
