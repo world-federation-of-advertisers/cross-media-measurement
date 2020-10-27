@@ -286,7 +286,7 @@ bazel_toolchains(
     version = "3.5.0",
 )
 
-RBE_BASE_DIGEST = "sha256:7e09344798abaf239a283b508b17f16827bef619579d38f97e9d028f700f5226"
+RBE_BASE_DIGEST = "sha256:9c844370b42dcdc01284f8e99c7b6872201c4bca0f536b1020b7a5791b678b4d"
 
 container_pull(
     name = "rbe_ubuntu_18_04",
@@ -302,7 +302,7 @@ load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
 rbe_autoconfig(
     name = "rbe_default",
     base_container_digest = RBE_BASE_DIGEST,
-    digest = "sha256:ce08021cc0a64bcfd9c2abb3261c1304459a8bacbcac9489bb1544d6bca731b8",
+    digest = "sha256:40fb30072499595002524b45d4c6c6fd0170d8b35c3af4c7aceca1c3c646268e",
     java_home = "/usr/lib/jvm/java-11-openjdk-amd64",
     registry = "gcr.io",
     repository = "ads-open-measurement/rbe",
@@ -328,9 +328,9 @@ http_file(
 # Rules for swig wrapping.
 git_repository(
     name = "wfa_rules_swig",
-    commit = "ad4f1bcf5747cb26b480b45c582069fb1488f8c1",
+    commit = "c207f4e6517bc9491df17d407b561a3916739c1c",
     remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
-    shallow_since = "1603231045 -0700",
+    shallow_since = "1603481983 -0700",
 )
 
 # Public APIs for measurement system.

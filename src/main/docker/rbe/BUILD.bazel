@@ -1,41 +1,50 @@
 # Remote Build Execution (RBE) images.
 
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
-load("@io_bazel_rules_docker//docker/package_managers:download_pkgs.bzl", "download_pkgs")
-load("@io_bazel_rules_docker//docker/package_managers:install_pkgs.bzl", "install_pkgs")
+load(
+    "//src/main/docker:defs.bzl",
+    "container_commit_install_apt_packages",
+    "container_commit_install_go_packages",
+)
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_push",
+)
 
-download_pkgs(
-    name = "packages",
-    image_tar = "@rbe_ubuntu_18_04//image",
+BASE_IMAGE = "@rbe_ubuntu_18_04//image"
+
+container_commit_install_apt_packages(
+    name = "install_packages",
+    image = BASE_IMAGE,
     packages = [
         "openjdk-11-jdk-headless",
         "swig",
         "tzdata",
     ],
-    tags = [
-        "manual",
-        "no-remote-exec",
-        "requires-network",
-    ],
+    tags = ["manual"],
 )
 
-install_pkgs(
-    name = "packages_image",
-    image_tar = "@rbe_ubuntu_18_04//image",
-    installables_tar = ":packages.tar",
-    output_image_name = "packages_image",
-    tags = [
-        "manual",
-        "no-remote-exec",
-    ],
+container_commit_install_go_packages(
+    name = "install_cue",
+    image = BASE_IMAGE,
+    packages = ["cuelang.org/go/cmd/cue"],
+    tags = ["manual"],
 )
 
 container_image(
     name = "rbe",
-    base = ":packages_image.tar",
+    base = BASE_IMAGE,
+    layers = [
+        ":install_packages",
+        ":install_cue",
+    ],
+    stamp = True,
     symlinks = {
         # Put gzip in a more common location for rules_docker config.
         "/usr/bin/gzip": "/bin/gzip",
+        # Put cue in Bazel's default static PATH.
+        # See https://docs.bazel.build/versions/3.7.0/command-line-reference.html#flag--incompatible_strict_action_env
+        "/usr/local/bin/cue": "/usr/local/go/bin/cue",
     },
     tags = ["manual"],
 )
