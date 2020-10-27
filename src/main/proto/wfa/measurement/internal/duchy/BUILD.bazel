@@ -88,3 +88,14 @@ kt_jvm_grpc_and_java_proto_library(
     name = "metric_values_service_kt_jvm_grpc",
     srcs = [":metric_values_service_proto"],
 )
+
+proto_library(
+    name = "computation_stats_service_proto",
+    srcs = ["computation_stats_service.proto"],
+    deps = [":computation_details_proto"],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "computation_stats_service_kt_jvm_grpc",
+    srcs = [":computation_stats_service_proto"],
+)
