@@ -5,7 +5,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load(
     "//src/main/docker:defs.bzl",
     "container_commit_install_apt_packages",
-    "container_commit_install_go_packages",
     "container_commit_upgrade_apt_packages",
 )
 load(
@@ -20,49 +19,6 @@ JAVA = DEBIAN_JAVA_11
 BASE_IMAGE = "@ubuntu_18_04//image"
 
 BAZEL_IMAGE = "@bazel_image//image"
-
-container_commit_install_apt_packages(
-    name = "install_go_deps",
-    image = BASE_IMAGE,
-    packages = [
-        "ca-certificates",
-        "git",
-    ],
-    tags = ["manual"],
-)
-
-copy_file(
-    name = "copy_golang_tar",
-    src = "@golang//file",
-    out = "golang.tar.gz",
-    allow_symlink = True,
-    tags = ["manual"],
-)
-
-container_layer(
-    name = "install_go",
-    directory = "/usr/local",
-    env = {"PATH": "$$PATH:/usr/local/go/bin"},
-    tags = ["manual"],
-    tars = [":golang.tar.gz"],
-)
-
-container_image(
-    name = "go_image",
-    base = BASE_IMAGE,
-    layers = [
-        ":install_go_deps",
-        ":install_go",
-    ],
-    tags = ["manual"],
-)
-
-container_commit_install_go_packages(
-    name = "install_cue",
-    image = ":go_image.tar",
-    packages = ["cuelang.org/go/cmd/cue"],
-    tags = ["manual"],
-)
 
 container_commit_install_apt_packages(
     name = "install_packages",
@@ -116,9 +72,8 @@ container_image(
     env = JAVA.env,
     layers = [
         ":install_bazel",
-        "//src/main/docker:install_go",
-        ":install_cue",
     ],
+    stamp = True,
     tags = ["manual"],
 )
 
@@ -147,8 +102,8 @@ container_image(
     base = BAZEL_IMAGE,
     layers = [
         ":upgrade_packages",
-        ":install_cue",
     ],
+    stamp = True,
     tags = ["manual"],
 )
 

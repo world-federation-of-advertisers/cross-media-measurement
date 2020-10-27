@@ -34,7 +34,3 @@ APT_UPGRADE_COMMANDS = [
     "apt-get update",
     "apt-get dist-upgrade -y --no-install-recommends",
 ]
-
-GO_CLEANUP_COMMANDS = [
-    "go clean -cache -testcache -modcache",
-]

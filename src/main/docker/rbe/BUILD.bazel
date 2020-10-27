@@ -1,10 +1,6 @@
 # Remote Build Execution (RBE) images.
 
-load(
-    "//src/main/docker:defs.bzl",
-    "container_commit_install_apt_packages",
-    "container_commit_install_go_packages",
-)
+load("//src/main/docker:defs.bzl", "container_commit_install_apt_packages")
 load(
     "@io_bazel_rules_docker//container:container.bzl",
     "container_image",
@@ -24,35 +20,24 @@ container_commit_install_apt_packages(
     tags = ["manual"],
 )
 
-container_commit_install_go_packages(
-    name = "install_cue",
-    image = BASE_IMAGE,
-    packages = ["cuelang.org/go/cmd/cue"],
-    tags = ["manual"],
-)
-
 container_image(
-    name = "rbe",
+    name = "rbe_image",
     base = BASE_IMAGE,
     layers = [
         ":install_packages",
-        ":install_cue",
     ],
     stamp = True,
     symlinks = {
         # Put gzip in a more common location for rules_docker config.
         "/usr/bin/gzip": "/bin/gzip",
-        # Put cue in Bazel's default static PATH.
-        # See https://docs.bazel.build/versions/3.7.0/command-line-reference.html#flag--incompatible_strict_action_env
-        "/usr/local/bin/cue": "/usr/local/go/bin/cue",
     },
     tags = ["manual"],
 )
 
 container_push(
-    name = "push_rbe",
+    name = "push_rbe_image",
     format = "Docker",
-    image = ":rbe",
+    image = ":rbe_image",
     registry = "gcr.io",
     repository = "ads-open-measurement/rbe",
     tags = ["manual"],

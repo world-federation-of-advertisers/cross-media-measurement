@@ -209,7 +209,7 @@ container_pull(
 # gcr.io/ads-open-measurement/bazel:clean
 container_pull(
     name = "bazel_image",
-    digest = "sha256:bd25ad0d1ecd84a0b3cd62533c7b0c97c4699ca1b8b9fd7cf6ec1ed18d1dc9fb",
+    digest = "sha256:2cea36cc20da04ab0ca4bcadeaeac819b12895bd2795c475f4462df4e68cd69b",
     registry = "gcr.io",
     repository = "ads-open-measurement/bazel",
 )
@@ -298,11 +298,11 @@ container_pull(
 load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
 
 # Configuration for RBE (Foundry).
-# See //src/main/docker/rbe:push_rbe for container.
+# See //src/main/docker/rbe:rbe_image.
 rbe_autoconfig(
     name = "rbe_default",
     base_container_digest = RBE_BASE_DIGEST,
-    digest = "sha256:40fb30072499595002524b45d4c6c6fd0170d8b35c3af4c7aceca1c3c646268e",
+    digest = "sha256:1fdad048b3a8fffb924852488401056ca6efb18467578fe85f7e2b8034fdb5aa",
     java_home = "/usr/lib/jvm/java-11-openjdk-amd64",
     registry = "gcr.io",
     repository = "ads-open-measurement/rbe",
@@ -327,12 +327,6 @@ cue_binaries(
     name = "cue_binaries",
     sha256 = "ba54e55d91ffc430fdb83116b2bf4b0e284083396e5ca63af3fad742c2920da5",
     version = "0.3.0-alpha4",
-)
-
-http_file(
-    name = "golang",
-    sha256 = "010a88df924a81ec21b293b5da8f9b11c176d27c0ee3962dc1738d2352d3c02d",
-    urls = ["https://golang.org/dl/go1.15.3.linux-amd64.tar.gz"],
 )
 
 # Rules for swig wrapping.
