@@ -92,6 +92,7 @@ def _cue_cmd_impl(ctx):
         executable = "cue",
         mnemonic = "CueCmd",
         arguments = [args],
+        use_default_shell_env = True,
     )
 
 cue_cmd = rule(
