@@ -319,6 +319,16 @@ cloud_spanner_emulator_binaries(
     version = "1.1.0",
 )
 
+# CUE binaries.
+
+load("//build/cue:repo.bzl", "cue_binaries")
+
+cue_binaries(
+    name = "cue_binaries",
+    sha256 = "ba54e55d91ffc430fdb83116b2bf4b0e284083396e5ca63af3fad742c2920da5",
+    version = "0.3.0-alpha4",
+)
+
 http_file(
     name = "golang",
     sha256 = "010a88df924a81ec21b293b5da8f9b11c176d27c0ee3962dc1738d2352d3c02d",

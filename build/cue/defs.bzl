@@ -89,10 +89,9 @@ def _cue_cmd_impl(ctx):
     ctx.actions.run(
         outputs = outs,
         inputs = ctx.files.srcs,
-        executable = "cue",
+        executable = ctx.executable._cue_cli,
         mnemonic = "CueCmd",
         arguments = [args],
-        use_default_shell_env = True,
     )
 
 cue_cmd = rule(
@@ -113,6 +112,11 @@ cue_cmd = rule(
         ),
         "tagged_field_values": attr.string_dict(
             doc = "Dict of tagged field to value for injection.",
+        ),
+        "_cue_cli": attr.label(
+            default = "@cue_binaries//:cue_cli",
+            executable = True,
+            cfg = "exec",
         ),
     },
 )

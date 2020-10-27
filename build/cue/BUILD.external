@@ -1,0 +1,15 @@
+package(default_visibility = ["//visibility:public"])
+
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+
+RESTRICTIONS = [
+    "@bazel_tools//platforms:x86_64",
+    "@bazel_tools//platforms:linux",
+]
+
+native_binary(
+    name = "cue_cli",
+    src = "cue",
+    out = "cue",
+    exec_compatible_with = RESTRICTIONS,
+)
