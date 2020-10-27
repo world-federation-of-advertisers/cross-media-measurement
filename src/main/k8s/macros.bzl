@@ -14,5 +14,14 @@
 
 """Build rules for generating Kubernetes yaml from CUE files."""
 
+load("//build/cue:defs.bzl", "cue_cmd")
+
 def cue_dump(name, srcs):
-    native.genrule(name = name, srcs = srcs, outs = [name + ".yaml"], tools = [], cmd = "cue cmd dump $(SRCS) > $@")
+    out = name + ".yaml"
+    cue_cmd(
+        name = name,
+        srcs = srcs,
+        command = "dumpFile",
+        tagged_field_values = {"filename": out},
+        outs = [out],
+    )
