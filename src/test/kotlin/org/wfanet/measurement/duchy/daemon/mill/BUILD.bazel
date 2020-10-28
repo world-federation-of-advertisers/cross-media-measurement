@@ -24,7 +24,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:liquid_legions_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:service",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",

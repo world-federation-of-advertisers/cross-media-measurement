@@ -74,7 +74,7 @@ enum ProtocolType {
 }
 ```
 
-*   `src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/ComputationStorageServiceImpl.kt`
+*   `src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/ComputationsService.kt`
     *   Should not require changing
 
 ### Mills

@@ -44,7 +44,7 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
-class ComputationStorageServiceImplTest {
+class ComputationsServiceTest {
   private val fakeDatabase = FakeLiquidLegionsComputationDb()
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -54,11 +54,11 @@ class ComputationStorageServiceImplTest {
     addService(mockGlobalComputations)
   }
 
-  private val fakeService: ComputationStorageServiceImpl
+  private val fakeService: ComputationsService
 
   init {
     val channel = grpcTestServerRule.channel
-    fakeService = ComputationStorageServiceImpl(
+    fakeService = ComputationsService(
       fakeDatabase,
       GlobalComputationsCoroutineStub(channel),
       "duchy 1"

@@ -31,6 +31,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
@@ -39,9 +42,6 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputatio
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -61,7 +61,7 @@ internal class LiquidLegionsHeraldTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(globalComputations)
     addService(
-      ComputationStorageServiceImpl(
+      ComputationsService(
         fakeComputationStorage,
         globalComputationsStub,
         duchyName

@@ -5,24 +5,19 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     test_target(":__pkg__"),
-    ":computation_db",
     "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
 
-# TODO(fryej): Remove this. db package should not depend on service package.
-package_group(
-    name = "computation_db",
-    packages = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/...",
-        "//src/test/kotlin/org/wfanet/measurement/duchy/db/computation/...",
-    ],
-)
-
 kt_jvm_library(
     name = "protos",
     srcs = ["ComputationStorageServiceProtos.kt"],
+    visibility = [
+        # TODO(fryej): Remove this. db package should not depend on service package.
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/db/computation:__pkg__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
@@ -30,8 +25,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "service",
-    srcs = ["ComputationStorageServiceImpl.kt"],
+    name = "computation",
+    srcs = glob(["*.kt"]),
     deps = [
         ":protos",
         "//src/main/kotlin/org/wfanet/measurement/common",

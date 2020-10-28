@@ -25,15 +25,15 @@ import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
-/** gRPC server for ComputationStorage service. */
-abstract class ComputationStorageServer : Runnable {
+/** gRPC server for Computations service. */
+abstract class ComputationsServer : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: Flags
     private set
@@ -58,7 +58,7 @@ abstract class ComputationStorageServer : Runnable {
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
-      ComputationStorageServiceImpl(
+      ComputationsService(
         computationsDatabase = newSingleProtocolDb(readOnlyComputationDb, computationDb),
         globalComputationsClient = globalComputationsServiceClient,
         duchyName = flags.duchy.duchyName
@@ -75,7 +75,7 @@ abstract class ComputationStorageServer : Runnable {
       ReadOnlyComputationsRelationalDb by readOnlyComputationDb,
       ComputationsRelationalDb<ComputationStage, ComputationStageDetails> by computationDb,
       ProtocolStageEnumHelper<ComputationStage> by stageEnumHelper {
-      override val computationType = this@ComputationStorageServer.computationType
+      override val computationType = this@ComputationsServer.computationType
     }
   }
 

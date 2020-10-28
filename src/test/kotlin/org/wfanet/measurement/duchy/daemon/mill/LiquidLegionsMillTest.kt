@@ -68,7 +68,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
@@ -152,7 +152,7 @@ class LiquidLegionsMillTest {
     addService(mockMetricValues)
     addService(mockGlobalComputations)
     addService(
-      ComputationStorageServiceImpl(
+      ComputationsService(
         fakeComputationDb,
         globalComputationStub,
         DUCHY_NAME

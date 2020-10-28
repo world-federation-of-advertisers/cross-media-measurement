@@ -50,8 +50,8 @@ import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
-/** Implementation of the Computation Storage Service. */
-class ComputationStorageServiceImpl(
+/** Implementation of the Computations service. */
+class ComputationsService(
   private val computationsDatabase: SingleProtocolDatabase,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val duchyName: String,

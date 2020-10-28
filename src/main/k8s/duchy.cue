@@ -41,7 +41,7 @@ import ("strings")
 		},
 	]
 
-	_computation_storage_service_target_flag: "--computation-storage-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computation-storage-server"}).target
+	_computation_storage_service_target_flag: "--computation-storage-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computations-server"}).target
 	_duchy_name_flag:                         "--duchy-name=duchy-\(_name)"
 	_duchy_public_keys_config_flag:           "--duchy-public-keys-config=" + #DuchyPublicKeysConfig
 	_global_computations_service_target_flag: "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
@@ -54,7 +54,7 @@ import ("strings")
 	}
 	duchy_service: {
 		"liquid-legions-computation-control-server": {}
-		"spanner-liquid-legions-computation-storage-server": {}
+		"spanner-liquid-legions-computations-server": {}
 		"metric-values-storage-server": {}
 		"publisher-data-server": {}
 	}
@@ -74,7 +74,7 @@ import ("strings")
 				_duchy_public_keys_config_flag,
 				_global_computations_service_target_flag,
 				"--channel-shutdown-timeout=3s",
-				"--computation-storage-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computation-storage-server"}).target,
+				"--computation-storage-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computations-server"}).target,
 				"--polling-interval=1m",
 			]
 		}
@@ -103,7 +103,7 @@ import ("strings")
 				"--port=8080",
 			] + _duchy_id_flags + _blob_storage_flags
 		}
-		"spanner-liquid-legions-computation-storage-server-pod": #ServerPod & {
+		"spanner-liquid-legions-computations-server-pod": #ServerPod & {
 			_args: [
 				_duchy_name_flag,
 				_duchy_public_keys_config_flag,

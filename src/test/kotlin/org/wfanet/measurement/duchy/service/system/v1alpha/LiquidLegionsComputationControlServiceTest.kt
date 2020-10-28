@@ -41,7 +41,7 @@ import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.db.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
@@ -76,7 +76,7 @@ class LiquidLegionsComputationControlServiceTest {
   private val tempDirectory = TemporaryFolder()
   private val grpcTestServer = GrpcTestServerRule {
     addService(
-      ComputationStorageServiceImpl(
+      ComputationsService(
         fakeComputationDb,
         globalComputationsClient,
         RUNNING_DUCHY_NAME

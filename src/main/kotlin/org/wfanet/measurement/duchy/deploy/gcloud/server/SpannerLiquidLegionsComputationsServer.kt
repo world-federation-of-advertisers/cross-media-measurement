@@ -18,7 +18,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
-import org.wfanet.measurement.duchy.deploy.common.server.ComputationStorageServer
+import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
@@ -28,17 +28,17 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
 /**
- * Implementation of [ComputationStorageServer] using Google Cloud Spanner and the
+ * Implementation of [ComputationsServer] using Google Cloud Spanner and the
  * [Liquid Legions sketch aggregation][ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1]
  * protocol.
  */
 @CommandLine.Command(
   name = "SpannerLiquidLegionsComputationsServer",
-  description = ["Server daemon for ${ComputationStorageServer.SERVICE_NAME} service."],
+  description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class SpannerLiquidLegionsComputationStorageServer : ComputationStorageServer() {
+class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
   @CommandLine.Mixin
   private lateinit var spannerFlags: SpannerFromFlags.Flags
 
@@ -69,4 +69,4 @@ class SpannerLiquidLegionsComputationStorageServer : ComputationStorageServer() 
 }
 
 fun main(args: Array<String>) =
-  commandLineMain(SpannerLiquidLegionsComputationStorageServer(), args)
+  commandLineMain(SpannerLiquidLegionsComputationsServer(), args)

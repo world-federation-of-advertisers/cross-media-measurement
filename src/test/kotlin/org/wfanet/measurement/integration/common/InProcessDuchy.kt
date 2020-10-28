@@ -43,7 +43,7 @@ import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
@@ -84,7 +84,7 @@ class InProcessDuchy(
 
   private val storageServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     addService(
-      ComputationStorageServiceImpl(
+      ComputationsService(
         duchyDependencies.singleProtocolDatabase,
         kingdomGlobalComputationsStub,
         duchyId

@@ -29,8 +29,11 @@ import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
-import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.DuchyPublicKeyMap
+import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
@@ -57,9 +60,6 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -83,7 +83,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     globalComputationClient = GlobalComputationsCoroutineStub(channel)
-    addService(ComputationStorageServiceImpl(fakeDatabase, globalComputationClient, "DUCHY 1"))
+    addService(ComputationsService(fakeDatabase, globalComputationClient, "DUCHY 1"))
   }
 
   private lateinit var globalComputationClient: GlobalComputationsCoroutineStub

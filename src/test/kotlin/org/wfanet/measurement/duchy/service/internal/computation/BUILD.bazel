@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "ComputationStorageServiceImplTest",
-    srcs = ["ComputationStorageServiceImplTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImplTest",
+    name = "ComputationsServiceTest",
+    srcs = ["ComputationsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.service.internal.computation.ComputationsServiceTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -11,6 +11,6 @@ kt_jvm_test(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:service",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
     ],
 )
