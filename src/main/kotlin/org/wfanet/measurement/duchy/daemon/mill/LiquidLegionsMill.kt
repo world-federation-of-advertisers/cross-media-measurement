@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
@@ -56,6 +58,7 @@ import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -73,7 +76,6 @@ import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
-import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
@@ -279,7 +281,7 @@ class LiquidLegionsMill(
     }
   }
 
-  /** Process computation in the TO_ADD_NOISE stage */
+  /** Processes computation in the TO_ADD_NOISE stage */
   private suspend fun addNoise(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
       val inputCount = when (token.role) {
@@ -312,15 +314,35 @@ class LiquidLegionsMill(
     )
   }
 
-  /** Send the merged sketch to the next duchy to start MPC round 1. */
+  /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
+  private fun addLoggingHook(
+    token: ComputationToken,
+    bytes: Flow<ByteString>
+  ): Flow<ByteString> {
+    var numOfBytes = 0
+    return bytes.onEach { numOfBytes += it.size() }
+      .onCompletion {
+        logger.info(
+          "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}, " +
+            "send out rpc message with $numOfBytes bytes data."
+        )
+      }
+  }
+
+  /** Sends the merged sketch to the next duchy to start MPC round 1. */
   private suspend fun sendConcatenatedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
-    val requests = controlRequests.buildConcatenatedSketchRequests(token.globalComputationId, bytes)
+    val requests =
+      controlRequests.buildConcatenatedSketchRequests(
+        token.globalComputationId, addLoggingHook(token, bytes)
+      )
     nextDuchyStub(token).processConcatenatedSketch(requests)
   }
 
-  /** Send the noised sketch to the primary duchy. */
+  /** Sends the noised sketch to the primary duchy. */
   private suspend fun sendNoisedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
-    val requests = controlRequests.buildNoisedSketchRequests(token.globalComputationId, bytes)
+    val requests = controlRequests.buildNoisedSketchRequests(
+      token.globalComputationId, addLoggingHook(token, bytes)
+    )
     primaryDuchyStub(token).processNoisedSketch(requests)
   }
 
@@ -330,11 +352,13 @@ class LiquidLegionsMill(
     bytes: Flow<ByteString>
   ) {
     val requests =
-      controlRequests.buildEncryptedFlagsAndCountsRequests(token.globalComputationId, bytes)
+      controlRequests.buildEncryptedFlagsAndCountsRequests(
+        token.globalComputationId, addLoggingHook(token, bytes)
+      )
     nextDuchyStub(token).processEncryptedFlagsAndCounts(requests)
   }
 
-  /** Process computation in the TO_BLIND_POSITIONS stage */
+  /** Processes computation in the TO_BLIND_POSITIONS stage */
   private suspend fun blindPositions(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
       val cryptoResult: BlindOneLayerRegisterIndexResponse =
@@ -350,7 +374,7 @@ class LiquidLegionsMill(
       cryptoResult.sketch
     }
 
-    // Pass the computation to the next duchy.
+    // Passes the computation to the next duchy.
     sendConcatenatedSketch(nextToken, bytes)
 
     return storageClients.transitionComputationToStage(
@@ -360,7 +384,7 @@ class LiquidLegionsMill(
     )
   }
 
-  /** Process computation in the TO_BLIND_POSITIONS_AND_JOIN_REGISTERS stage */
+  /** Processes computation in the TO_BLIND_POSITIONS_AND_JOIN_REGISTERS stage */
   private suspend fun blindPositionsAndJoinRegisters(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
       val cryptoResult: BlindLastLayerIndexThenJoinRegistersResponse =
@@ -376,7 +400,7 @@ class LiquidLegionsMill(
       cryptoResult.flagCounts
     }
 
-    // Pass the computation to the next duchy.
+    // Passes the computation to the next duchy.
     sendEncryptedFlagsAndCounts(nextToken, bytes)
 
     return storageClients.transitionComputationToStage(
@@ -386,7 +410,7 @@ class LiquidLegionsMill(
     )
   }
 
-  /** Process computation in the TO_DECRYPT_FLAG_COUNTS stage */
+  /** Processes computation in the TO_DECRYPT_FLAG_COUNTS stage */
   private suspend fun decryptFlagCounts(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
       val cryptoResult: DecryptOneLayerFlagAndCountResponse =
@@ -404,14 +428,14 @@ class LiquidLegionsMill(
       cryptoResult.flagCounts
     }
 
-    // Pass the computation to the next duchy.
+    // Passes the computation to the next duchy.
     sendEncryptedFlagsAndCounts(nextToken, bytes)
 
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
-  /** Process computation in the TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS stage */
+  /** Processes computation in the TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS stage */
   private suspend fun decryptFlagCountsAndComputeMetrics(
     token: ComputationToken
   ): ComputationToken {
