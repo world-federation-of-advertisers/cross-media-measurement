@@ -15,9 +15,9 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill
 
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.duchy.deploy.common.daemon.mill.LiquidLegionsMillDaemon
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMillDaemon
 import picocli.CommandLine
 
 @CommandLine.Command(

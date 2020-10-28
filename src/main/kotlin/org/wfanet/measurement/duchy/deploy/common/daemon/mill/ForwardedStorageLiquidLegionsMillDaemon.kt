@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.testing.daemon.mill
+package org.wfanet.measurement.duchy.deploy.common.daemon.mill
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMillDaemon
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 

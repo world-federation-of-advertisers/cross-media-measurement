@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.service.v1alpha.publisherdata
+package org.wfanet.measurement.duchy.service.api.v1alpha
 
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow

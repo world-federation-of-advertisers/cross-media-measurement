@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.mill
+package org.wfanet.measurement.duchy.deploy.common.daemon.mill
 
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import picocli.CommandLine
 
 class MillFlags {

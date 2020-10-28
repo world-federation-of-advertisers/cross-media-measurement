@@ -41,12 +41,12 @@ import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.size
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
-import org.wfanet.measurement.storage.MetricValueStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 

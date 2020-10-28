@@ -15,8 +15,8 @@ kt_jvm_library(
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill:liquid_legions_mill_daemon",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:liquid_legions_mill_daemon",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )

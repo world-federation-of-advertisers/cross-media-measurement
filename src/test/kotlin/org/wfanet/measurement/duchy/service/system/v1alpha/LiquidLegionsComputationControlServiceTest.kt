@@ -41,9 +41,14 @@ import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.db.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
+import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildConcatenatedSketchRequests
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncryptedFlagsAndCountsRequests
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSketchRequests
+import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
@@ -56,11 +61,6 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputatio
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationStorageServiceImpl
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
-import org.wfanet.measurement.storage.ComputationStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 

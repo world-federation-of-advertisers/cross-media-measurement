@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.storage
+package org.wfanet.measurement.duchy.storage
 
 import com.google.protobuf.ByteString
 import java.util.UUID
@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.storage.StorageClient
 
 private const val BLOB_KEY_PREFIX = "computations"
 

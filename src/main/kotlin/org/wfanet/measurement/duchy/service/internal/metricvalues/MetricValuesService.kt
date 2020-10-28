@@ -22,13 +22,13 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.consumeFirstOr
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase as MetricValuesCoroutineService
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
-import org.wfanet.measurement.storage.MetricValueStore
 import org.wfanet.measurement.storage.StorageClient
 
 /**

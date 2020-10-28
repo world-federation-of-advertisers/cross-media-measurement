@@ -1,0 +1,56 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "metric_value_store",
+    srcs = ["MetricValueStore.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/metricvalues:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service/internal/metricvalues:__subpackages__",
+    ],
+    exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
+    deps = [
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+package_group(
+    name = "computation_control",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service/internal/computation/...",
+    ],
+)
+
+package_group(
+    name = "mill",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/daemon/mill/...",
+    ],
+)
+
+# TODO(b/164480460): Remove once db package is no longer referencing storage package.
+package_group(
+    name = "computation_db",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/db/computation/...",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_store",
+    srcs = ["ComputationStore.kt"],
+    visibility = [
+        ":computation_control",
+        ":computation_db",
+        ":mill",
+    ],
+    exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
+    ],
+)

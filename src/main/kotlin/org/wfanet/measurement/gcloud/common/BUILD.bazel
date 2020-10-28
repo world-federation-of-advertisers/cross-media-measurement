@@ -2,7 +2,11 @@
 
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-package(default_visibility = ["//visibility:public"])
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/gcloud:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
+    "//src/test/kotlin/org/wfanet/measurement/gcloud:__subpackages__",
+])
 
 kt_jvm_library(
     name = "common",

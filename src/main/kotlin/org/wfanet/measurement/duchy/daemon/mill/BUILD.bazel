@@ -34,8 +34,8 @@ kt_jvm_library(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_requests",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
@@ -44,33 +44,5 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/swig/common/crypto:protocol_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
-    ],
-)
-
-kt_jvm_library(
-    name = "liquid_legions_mill_daemon",
-    srcs = [
-        "LiquidLegionsMillDaemon.kt",
-        "MillFlags.kt",
-    ],
-    deps = [
-        ":liquid_legions_mill",
-        "//imports/java/com/google/common:guava",
-        "//imports/java/com/google/protobuf",
-        "//imports/java/io/grpc:api",
-        "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:flags",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_storage_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
     ],
 )

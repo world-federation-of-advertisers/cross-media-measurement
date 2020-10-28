@@ -11,14 +11,6 @@ DEFAULT_VISIBILITY = [
 package(default_visibility = DEFAULT_VISIBILITY)
 
 kt_jvm_library(
-    name = "flags",
-    srcs = glob(["*Flags.kt"]),
-    deps = [
-        "//imports/java/picocli",
-    ],
-)
-
-kt_jvm_library(
     name = "computation_stage",
     srcs = ["ComputationStage.kt"],
     visibility = DEFAULT_VISIBILITY + [
