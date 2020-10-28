@@ -14,14 +14,14 @@
 
 """Build rules for generating Kubernetes yaml from CUE files."""
 
-load("//build/cue:defs.bzl", "cue_cmd")
+load("//build/cue:defs.bzl", "cue_export")
 
 def cue_dump(name, srcs):
-    out = name + ".yaml"
-    cue_cmd(
+    outfile = name + ".yaml"
+    cue_export(
         name = name,
         srcs = srcs,
-        command = "dumpFile",
-        tagged_field_values = {"filename": out},
-        outs = [out],
+        outfile = outfile,
+        filetype = "yaml",
+        expression = "listObject",
     )

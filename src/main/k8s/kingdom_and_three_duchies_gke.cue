@@ -17,8 +17,6 @@
 
 package k8s
 
-objects: [ for v in objectSets for x in v {x}]
-
 objectSets: [
 		setup_job,
 		kingdom.kingdom_service,

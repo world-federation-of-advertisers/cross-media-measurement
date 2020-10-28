@@ -325,8 +325,8 @@ load("//build/cue:repo.bzl", "cue_binaries")
 
 cue_binaries(
     name = "cue_binaries",
-    sha256 = "ba54e55d91ffc430fdb83116b2bf4b0e284083396e5ca63af3fad742c2920da5",
-    version = "0.3.0-alpha4",
+    sha256 = "810851e0e7d38192a6d0e09a6fa89ab5ff526ce29c9741f697995601edccb134",
+    version = "0.2.2",
 )
 
 # Rules for swig wrapping.
