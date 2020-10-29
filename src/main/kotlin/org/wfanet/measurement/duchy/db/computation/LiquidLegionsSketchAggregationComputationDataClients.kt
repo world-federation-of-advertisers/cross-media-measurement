@@ -32,8 +32,8 @@ import org.wfanet.measurement.storage.read
  * Frequency Estimation protocol using sparse representation of
  * Liquid Legions Cardinality Estimator sketches.
  */
-class LiquidLegionsSketchAggregationComputationStorageClients private constructor(
-  val computationStorageClient: ComputationsCoroutineStub,
+class LiquidLegionsSketchAggregationComputationDataClients private constructor(
+  val computationsClient: ComputationsCoroutineStub,
   private val computationStore: ComputationStore,
   otherDuchies: List<String>
 ) {
@@ -59,7 +59,7 @@ class LiquidLegionsSketchAggregationComputationStorageClients private constructo
     inputsToNextStage: List<String>,
     stage: LiquidLegionsSketchAggregationStage
   ): ComputationToken =
-    computationStorageClient
+    computationsClient
       .advanceLiquidLegionsComputationStage(
         computationToken,
         inputsToNextStage,
@@ -131,7 +131,7 @@ class LiquidLegionsSketchAggregationComputationStorageClients private constructo
     }
 
     val blob = writeContent(computationToken)
-    val response = computationStorageClient.recordOutputBlobPath(
+    val response = computationsClient.recordOutputBlobPath(
       RecordOutputBlobPathRequest.newBuilder().apply {
         token = computationToken
         outputBlobId = metadata.blobId
@@ -177,8 +177,8 @@ class LiquidLegionsSketchAggregationComputationStorageClients private constructo
       computationStorageClient: ComputationsCoroutineStub,
       computationStore: ComputationStore,
       otherDuchies: List<String>
-    ): LiquidLegionsSketchAggregationComputationStorageClients {
-      return LiquidLegionsSketchAggregationComputationStorageClients(
+    ): LiquidLegionsSketchAggregationComputationDataClients {
+      return LiquidLegionsSketchAggregationComputationDataClients(
         computationStorageClient,
         computationStore,
         otherDuchies

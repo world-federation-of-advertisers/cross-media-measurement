@@ -22,7 +22,7 @@ import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -54,7 +54,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
       flags.server,
       javaClass.name,
       LiquidLegionsComputationControlService(
-        LiquidLegionsSketchAggregationComputationStorageClients(
+        LiquidLegionsSketchAggregationComputationDataClients(
           ComputationsCoroutineStub(channel).withDuchyId(duchyName),
           storageClient,
           otherDuchyNames

@@ -65,7 +65,7 @@ import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
@@ -124,8 +124,8 @@ class LiquidLegionsMillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val fakeComputationDb = FakeLiquidLegionsComputationDb()
 
-  private lateinit var computationStorageClients:
-    LiquidLegionsSketchAggregationComputationStorageClients
+  private lateinit var computationDataClients:
+    LiquidLegionsSketchAggregationComputationDataClients
   private lateinit var computationStore: ComputationStore
 
   private val tempDirectory = TemporaryFolder()
@@ -143,7 +143,7 @@ class LiquidLegionsMillTest {
   private val grpcTestServerRule = GrpcTestServerRule {
     computationStore =
       ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
-    computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients.forTesting(
+    computationDataClients = LiquidLegionsSketchAggregationComputationDataClients.forTesting(
       ComputationsCoroutineStub(channel),
       computationStore,
       otherDuchyNames
@@ -216,7 +216,7 @@ class LiquidLegionsMillTest {
     mill =
       LiquidLegionsMill(
         millId = MILL_ID,
-        storageClients = computationStorageClients,
+        dataClients = computationDataClients,
         metricValuesClient = metricValuesStub,
         globalComputationsClient = globalComputationStub,
         workerStubs = workerStubs,

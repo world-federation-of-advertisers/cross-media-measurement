@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
@@ -52,7 +52,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     }
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
-    val storageClients = LiquidLegionsSketchAggregationComputationStorageClients(
+    val dataClients = LiquidLegionsSketchAggregationComputationDataClients(
       ComputationsCoroutineStub(buildChannel(flags.computationsServiceTarget))
         .withDuchyId(duchyName),
       storageClient,
@@ -75,7 +75,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
 
     val mill = LiquidLegionsMill(
       millId = flags.millId,
-      storageClients = storageClients,
+      dataClients = dataClients,
       metricValuesClient = metricValuesClient,
       globalComputationsClient = globalComputationsClient,
       workerStubs = computationControlClientMap,

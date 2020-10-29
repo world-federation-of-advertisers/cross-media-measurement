@@ -39,7 +39,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
@@ -115,8 +115,8 @@ class InProcessDuchy(
     }
   }
 
-  private val computationStorageClients by lazy {
-    LiquidLegionsSketchAggregationComputationStorageClients(
+  private val computationDataClients by lazy {
+    LiquidLegionsSketchAggregationComputationDataClients(
       ComputationsCoroutineStub(storageServer.channel),
       duchyDependencies.storageClient,
       otherDuchyIds
@@ -129,7 +129,7 @@ class InProcessDuchy(
       logAllRequests = verboseGrpcLogging
     ) {
       addService(
-        LiquidLegionsComputationControlService(computationStorageClients).withDuchyIdentities()
+        LiquidLegionsComputationControlService(computationDataClients).withDuchyIdentities()
       )
     }
 
@@ -155,7 +155,7 @@ class InProcessDuchy(
 
       val mill = LiquidLegionsMill(
         millId = "$duchyId mill",
-        storageClients = computationStorageClients,
+        dataClients = computationDataClients,
         metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
         globalComputationsClient = kingdomGlobalComputationsStub,
         workerStubs = workerStubs,

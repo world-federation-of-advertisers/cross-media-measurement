@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.db.computation.toNoisedSketchBlobMetadataFor
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
@@ -48,7 +48,7 @@ import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchResponse
 private val COMPUTATION_TYPE = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 
 class LiquidLegionsComputationControlService(
-  private val clients: LiquidLegionsSketchAggregationComputationStorageClients,
+  private val clients: LiquidLegionsSketchAggregationComputationDataClients,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : ComputationControlCoroutineService() {
 
@@ -250,7 +250,7 @@ class LiquidLegionsComputationControlService(
     }.build()
 
     val response: GetComputationTokenResponse = try {
-      clients.computationStorageClient.getComputationToken(request)
+      clients.computationsClient.getComputationToken(request)
     } catch (e: StatusException) {
       val status = e.status.withCause(e).apply {
         if (code != Status.Code.NOT_FOUND) {

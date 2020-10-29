@@ -77,7 +77,7 @@ private const val CARINTHIA = "Carinthia"
 private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
-class LiquidLegionsSketchAggregationComputationStorageClientsTest {
+class LiquidLegionsSketchAggregationComputationDataClientsTest {
   private val fakeDatabase = FakeLiquidLegionsComputationDb()
 
   @get:Rule
@@ -110,7 +110,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
   fun runProtocolAtNonPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
-      LiquidLegionsSketchAggregationComputationStorageClients(
+      LiquidLegionsSketchAggregationComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
         ),
@@ -148,7 +148,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
   fun runProtocolAtPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
-      LiquidLegionsSketchAggregationComputationStorageClients(
+      LiquidLegionsSketchAggregationComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
         ),
@@ -215,13 +215,13 @@ data class ComputationStep(
  * operation.
  */
 class SingleLiquidLegionsComputation(
-  private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
+  private val dataClients: LiquidLegionsSketchAggregationComputationDataClients,
   globalId: String,
   private val testClock: TestClockWithNamedInstants
 ) {
 
   private var token: org.wfanet.measurement.internal.duchy.ComputationToken = runBlocking {
-    storageClients.computationStorageClient.createComputation(
+    dataClients.computationsClient.createComputation(
       CreateComputationRequest.newBuilder().apply {
         globalComputationId = globalId
         computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
@@ -238,7 +238,7 @@ class SingleLiquidLegionsComputation(
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
       .forEach {
         token =
-          storageClients.computationStorageClient.recordOutputBlobPath(
+          dataClients.computationsClient.recordOutputBlobPath(
             RecordOutputBlobPathRequest.newBuilder()
               .setToken(token)
               .setOutputBlobId(it.blobId)
@@ -267,10 +267,10 @@ class SingleLiquidLegionsComputation(
   /** Add computation to work queue and verify that it has no owner. */
   suspend fun enqueue() {
     assertTokenChangesTo(token.toBuilder().setAttempt(0).build()) {
-      storageClients.computationStorageClient.enqueueComputation(
+      dataClients.computationsClient.enqueueComputation(
         EnqueueComputationRequest.newBuilder().setToken(token).build()
       )
-      storageClients.computationStorageClient
+      dataClients.computationsClient
         .getComputationToken(token.globalComputationId.toGetTokenRequest())
         .token
     }
@@ -279,7 +279,7 @@ class SingleLiquidLegionsComputation(
   /** Get computation from work queue and verify it is owned by the [workerId]. */
   suspend fun claimWorkFor(workerId: String) {
     assertTokenChangesTo(token.toBuilder().setAttempt(1).build()) {
-      val claimed = storageClients.computationStorageClient.claimWork(
+      val claimed = dataClients.computationsClient.claimWork(
         ClaimWorkRequest.newBuilder()
           .setOwner(workerId)
           .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
@@ -300,7 +300,7 @@ class SingleLiquidLegionsComputation(
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
       val path = "unused_${sender}_$blobId"
-      token = storageClients.computationStorageClient.recordOutputBlobPath(
+      token = dataClients.computationsClient.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder()
           .setToken(token)
           .setOutputBlobId(blobId)
@@ -322,7 +322,7 @@ class SingleLiquidLegionsComputation(
               TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
             ).setAttempt(0).build()
         ) {
-          storageClients.transitionComputationToStage(
+          dataClients.transitionComputationToStage(
             it.token,
             it.inputs.paths() + it.outputs.paths(),
             TO_APPEND_SKETCHES_AND_ADD_NOISE
@@ -344,7 +344,7 @@ class SingleLiquidLegionsComputation(
           .setAttempt(0)
           .build()
       ) {
-        storageClients.transitionComputationToStage(
+        dataClients.transitionComputationToStage(
           it.token,
           it.outputs.paths(),
           stage
@@ -364,7 +364,7 @@ class SingleLiquidLegionsComputation(
           .addEmptyOutputs(1)
           .setComputationStage(stage.toProtocolStage()).setAttempt(0).build()
       ) {
-        storageClients.transitionComputationToStage(
+        dataClients.transitionComputationToStage(
           it.token,
           it.outputs.paths(),
           stage
@@ -384,7 +384,7 @@ class SingleLiquidLegionsComputation(
         .setStageSpecificDetails(details)
         .build()
     ) {
-      storageClients.transitionComputationToStage(it.token, it.outputs.paths(), WAIT_SKETCHES)
+      dataClients.transitionComputationToStage(it.token, it.outputs.paths(), WAIT_SKETCHES)
     }
   }
 
@@ -397,7 +397,7 @@ class SingleLiquidLegionsComputation(
         .setAttempt(0)
         .build()
     ) {
-      storageClients.transitionComputationToStage(it.token, it.inputs.paths(), TO_ADD_NOISE)
+      dataClients.transitionComputationToStage(it.token, it.inputs.paths(), TO_ADD_NOISE)
     }
   }
 
@@ -410,12 +410,12 @@ class SingleLiquidLegionsComputation(
         .setComputationStage(stage.toProtocolStage()).setAttempt(1)
         .build()
     ) {
-      storageClients.transitionComputationToStage(it.token, it.outputs.paths(), stage)
+      dataClients.transitionComputationToStage(it.token, it.outputs.paths(), stage)
     }
   }
 
   suspend fun end(reason: CompletedReason) {
-    token = storageClients.computationStorageClient.finishComputation(
+    token = dataClients.computationsClient.finishComputation(
       FinishComputationRequest.newBuilder()
         .setToken(token)
         .setEndingComputationStage(COMPLETED.toProtocolStage())

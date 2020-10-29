@@ -53,7 +53,7 @@ import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.BlobRef
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
@@ -88,7 +88,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
  *
  * @param millId The identifier of this mill, used to claim a work.
- * @param storageClients clients that have access to local computation storage, i.e., spanner
+ * @param dataClients clients that have access to local computation storage, i.e., spanner
  *    table and blob store.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param globalComputationsClient client of the kingdom's GlobalComputations.
@@ -104,7 +104,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  */
 class LiquidLegionsMill(
   private val millId: String,
-  private val storageClients: LiquidLegionsSketchAggregationComputationStorageClients,
+  private val dataClients: LiquidLegionsSketchAggregationComputationDataClients,
   private val metricValuesClient: MetricValuesCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
@@ -137,7 +137,7 @@ class LiquidLegionsMill(
       .setOwner(millId)
       .build()
     val claimWorkResponse: ClaimWorkResponse =
-      storageClients.computationStorageClient.claimWork(claimWorkRequest)
+      dataClients.computationsClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
       val cpuTimeElapsedMillis = measureKotlinCpuTimeMillis {
         val wallTimeElapsedMills = measureTimeMillis {
@@ -235,8 +235,8 @@ class LiquidLegionsMill(
 
     // cache the combined local requisitions to blob store.
     val concatenatedContents = streamMetricValueContents(availableRequisitions).flattenConcat()
-    val nextToken = storageClients.writeSingleOutputBlob(token, concatenatedContents)
-    return storageClients.transitionComputationToStage(
+    val nextToken = dataClients.writeSingleOutputBlob(token, concatenatedContents)
+    return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
       stage = when (checkNotNull(nextToken.role)) {
@@ -307,7 +307,7 @@ class LiquidLegionsMill(
       else -> error("Unknown role: ${token.role}")
     }
 
-    return storageClients.transitionComputationToStage(
+    return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
       stage = LiquidLegionsStage.WAIT_CONCATENATED
@@ -377,7 +377,7 @@ class LiquidLegionsMill(
     // Passes the computation to the next duchy.
     sendConcatenatedSketch(nextToken, bytes)
 
-    return storageClients.transitionComputationToStage(
+    return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
       stage = LiquidLegionsStage.WAIT_FLAG_COUNTS
@@ -403,7 +403,7 @@ class LiquidLegionsMill(
     // Passes the computation to the next duchy.
     sendEncryptedFlagsAndCounts(nextToken, bytes)
 
-    return storageClients.transitionComputationToStage(
+    return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
       stage = LiquidLegionsStage.WAIT_FLAG_COUNTS
@@ -484,7 +484,7 @@ class LiquidLegionsMill(
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
       return CachedResult(
-        checkNotNull(storageClients.readSingleOutputBlob(token)),
+        checkNotNull(dataClients.readSingleOutputBlob(token)),
         token
       )
     }
@@ -499,11 +499,11 @@ class LiquidLegionsMill(
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
       }
-    return CachedResult(flowOf(newResult), storageClients.writeSingleOutputBlob(token, newResult))
+    return CachedResult(flowOf(newResult), dataClients.writeSingleOutputBlob(token, newResult))
   }
 
   private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
-    val blobMap: Map<BlobRef, ByteString> = storageClients.readInputBlobs(token)
+    val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
     if (blobMap.size != count) {
       throw PermanentComputationError(
         Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
@@ -516,7 +516,7 @@ class LiquidLegionsMill(
     token: ComputationToken,
     reason: CompletedReason
   ): ComputationToken {
-    val response = storageClients.computationStorageClient.finishComputation(
+    val response = dataClients.computationsClient.finishComputation(
       FinishComputationRequest.newBuilder()
         .setToken(token)
         .setEndingComputationStage(
@@ -530,7 +530,7 @@ class LiquidLegionsMill(
   }
 
   private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
-    return storageClients.computationStorageClient.getComputationToken(
+    return dataClients.computationsClient.getComputationToken(
       GetComputationTokenRequest.newBuilder().apply {
         computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
         globalComputationId = globalId
@@ -541,7 +541,7 @@ class LiquidLegionsMill(
   private suspend fun enqueueComputation(
     token: ComputationToken
   ) {
-    storageClients.computationStorageClient.enqueueComputation(
+    dataClients.computationsClient.enqueueComputation(
       EnqueueComputationRequest.newBuilder()
         .setToken(token)
         .setDelaySecond(minOf(60, token.attempt * 5))
