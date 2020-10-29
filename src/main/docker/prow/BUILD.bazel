@@ -1,0 +1,77 @@
+load(
+    "//src/main/docker:defs.bzl",
+    "container_commit_install_apt_packages",
+    "container_commit_upgrade_apt_packages",
+)
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_layer",
+    "container_push",
+)
+load("@io_bazel_rules_docker//docker/package_managers:apt_key.bzl", "add_apt_key")
+
+BASE_IMAGE = "//src/main/docker/bazel:bazel_image"
+
+container_layer(
+    name = "google_cloud_apt_list",
+    directory = "/etc/apt/sources.list.d",
+    files = ["google_cloud.list"],
+)
+
+add_apt_key(
+    name = "google_cloud_key",
+    image = BASE_IMAGE + ".tar",
+    keys = ["@google_cloud_key//file"],
+)
+
+container_image(
+    name = "apt_image",
+    base = ":google_cloud_key",
+    layers = [
+        ":google_cloud_apt_list",
+    ],
+)
+
+container_commit_install_apt_packages(
+    name = "install_packages",
+    image = ":apt_image.tar",
+    packages = [
+        "clang-format-10",
+        "docker.io",
+        "google-cloud-sdk",
+        "google-cloud-sdk-kind",
+    ],
+    tags = [
+        "manual",
+        "requires-network",
+    ],
+)
+
+container_image(
+    name = "prow_job_image",
+    base = BASE_IMAGE,
+    directory = "/usr/bin",
+    files = [
+        "@buildifier//file",
+        "@ktlint//file",
+    ],
+    layers = [":install_packages"],
+    stamp = True,
+    symlinks = {
+        "/usr/bin/clang-format": "/usr/bin/clang-format-10",
+    },
+    tags = ["manual"],
+)
+
+container_push(
+    name = "push_prow_job_image",
+    format = "Docker",
+    image = ":prow_job_image",
+    registry = "gcr.io",
+    repository = "ads-open-measurement/prowjob_cluster",
+    tags = [
+        "manual",
+        "requires-network",
+    ],
+)

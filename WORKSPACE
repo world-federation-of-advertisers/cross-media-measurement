@@ -231,6 +231,13 @@ http_file(
     urls = ["https://bazel.build/bazel-release.pub.gpg"],
 )
 
+# APT key for Google cloud.
+http_file(
+    name = "google_cloud_key",
+    sha256 = "6682f917a79375352c27aaf637f1abd2b5cabb1f014a2c7251bbf6e0580064c7",
+    urls = ["https://packages.cloud.google.com/apt/doc/apt-key.gpg"],
+)
+
 # @com_google_private_join_and_compute
 
 load("//build/com_google_private_join_and_compute:repo.bzl", "private_join_and_compute_repo")
@@ -336,6 +343,24 @@ cue_binaries(
     name = "cue_binaries",
     sha256 = "810851e0e7d38192a6d0e09a6fa89ab5ff526ce29c9741f697995601edccb134",
     version = "0.2.2",
+)
+
+# ktlint
+http_file(
+    name = "ktlint",
+    downloaded_file_path = "ktlint",
+    executable = True,
+    sha256 = "cf1c1a2efca79d07957a4de815af6e74287e46730d02393593edfa304e237153",
+    urls = ["https://github.com/pinterest/ktlint/releases/download/0.39.0/ktlint"],
+)
+
+# buildifier
+http_file(
+    name = "buildifier",
+    downloaded_file_path = "buildifier",
+    executable = True,
+    sha256 = "f9a9c082b8190b9260fce2986aeba02a25d41c00178855a1425e1ce6f1169843",
+    urls = ["https://github.com/bazelbuild/buildtools/releases/download/3.5.0/buildifier"],
 )
 
 # Rules for swig wrapping.

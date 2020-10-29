@@ -132,6 +132,7 @@ container_image(
     ],
     stamp = True,
     tags = ["manual"],
+    visibility = ["//visibility:public"],
 )
 
 container_push(
