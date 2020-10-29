@@ -28,7 +28,7 @@ option java_multiple_files = true;
 // *****************************************************************************
 
 // Service for interacting with a computation relational database.
-service ComputationStorageService {
+service Computations {
   // Creates a computation.
   rpc CreateComputation(CreateComputationRequest)
       returns (CreateComputationResponse);

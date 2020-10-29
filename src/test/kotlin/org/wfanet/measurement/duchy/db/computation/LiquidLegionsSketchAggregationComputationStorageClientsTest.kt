@@ -54,8 +54,8 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
@@ -111,7 +111,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
       LiquidLegionsSketchAggregationComputationStorageClients(
-        ComputationStorageServiceCoroutineStub(
+        ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
         ),
         storageClient = dummyStorageClient,
@@ -149,7 +149,7 @@ class LiquidLegionsSketchAggregationComputationStorageClientsTest {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
       LiquidLegionsSketchAggregationComputationStorageClients(
-        ComputationStorageServiceCoroutineStub(
+        ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
         ),
         storageClient = dummyStorageClient,

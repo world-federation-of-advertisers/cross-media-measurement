@@ -25,7 +25,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
@@ -61,7 +61,7 @@ private class Flags {
     description = ["Address and port of the Global Computation Service"],
     required = true
   )
-  lateinit var globalComputationsService: String
+  lateinit var globalComputationsServiceTarget: String
     private set
 
   @CommandLine.Option(
@@ -86,10 +86,10 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   }
   val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
 
-  val channel = buildChannel(flags.globalComputationsService)
+  val channel = buildChannel(flags.globalComputationsServiceTarget)
   addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, channel)
 
-  val globalComputationsServiceClient =
+  val globalComputationsClient =
     GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
@@ -97,8 +97,8 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val herald = LiquidLegionsHerald(
     otherDuchiesInComputation = otherDuchyNames,
-    computationStorageClient = ComputationStorageServiceCoroutineStub(storageChannel),
-    globalComputationsClient = globalComputationsServiceClient
+    computationStorageClient = ComputationsCoroutineStub(storageChannel),
+    globalComputationsClient = globalComputationsClient
   )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }

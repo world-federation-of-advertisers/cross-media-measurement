@@ -25,7 +25,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -55,7 +55,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
       javaClass.name,
       LiquidLegionsComputationControlService(
         LiquidLegionsSketchAggregationComputationStorageClients(
-          ComputationStorageServiceCoroutineStub(channel).withDuchyId(duchyName),
+          ComputationsCoroutineStub(channel).withDuchyId(duchyName),
           storageClient,
           otherDuchyNames
         )

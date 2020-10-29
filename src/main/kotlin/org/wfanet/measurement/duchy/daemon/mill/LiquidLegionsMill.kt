@@ -91,7 +91,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param storageClients clients that have access to local computation storage, i.e., spanner
  *    table and blob store.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
- * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
+ * @param globalComputationsClient client of the kingdom's GlobalComputations.
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.

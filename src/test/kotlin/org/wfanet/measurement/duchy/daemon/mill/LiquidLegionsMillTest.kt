@@ -82,8 +82,8 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -144,7 +144,7 @@ class LiquidLegionsMillTest {
     computationStore =
       ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
     computationStorageClients = LiquidLegionsSketchAggregationComputationStorageClients.forTesting(
-      ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub(channel),
+      ComputationsCoroutineStub(channel),
       computationStore,
       otherDuchyNames
     )

@@ -54,13 +54,10 @@ class ComputationsServiceTest {
     addService(mockGlobalComputations)
   }
 
-  private val fakeService: ComputationsService
-
-  init {
-    val channel = grpcTestServerRule.channel
-    fakeService = ComputationsService(
+  private val fakeService: ComputationsService by lazy {
+    ComputationsService(
       fakeDatabase,
-      GlobalComputationsCoroutineStub(channel),
+      GlobalComputationsCoroutineStub(grpcTestServerRule.channel),
       "duchy 1"
     )
   }

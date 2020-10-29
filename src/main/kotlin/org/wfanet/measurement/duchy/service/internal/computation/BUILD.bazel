@@ -12,7 +12,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "protos",
-    srcs = ["ComputationStorageServiceProtos.kt"],
+    srcs = ["Protos.kt"],
     visibility = [
         # TODO(fryej): Remove this. db package should not depend on service package.
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation:__pkg__",
@@ -26,7 +26,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "computation",
-    srcs = glob(["*.kt"]),
+    srcs = glob(
+        ["*.kt"],
+        exclude = ["Protos.kt"],
+    ),
     deps = [
         ":protos",
         "//src/main/kotlin/org/wfanet/measurement/common",

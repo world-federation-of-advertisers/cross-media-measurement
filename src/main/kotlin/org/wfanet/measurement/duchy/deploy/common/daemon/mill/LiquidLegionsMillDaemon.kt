@@ -28,7 +28,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationStorageClients
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -53,7 +53,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
     val storageClients = LiquidLegionsSketchAggregationComputationStorageClients(
-      ComputationStorageServiceCoroutineStub(buildChannel(flags.computationsServiceTarget))
+      ComputationsCoroutineStub(buildChannel(flags.computationsServiceTarget))
         .withDuchyId(duchyName),
       storageClient,
       otherDuchyNames

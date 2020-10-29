@@ -50,9 +50,9 @@ abstract class ComputationsServer : Runnable {
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
     computationDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails>
   ) {
-    val channel = buildChannel(flags.globalComputationsService, flags.channelShutdownTimeout)
+    val channel = buildChannel(flags.globalComputationsServiceTarget, flags.channelShutdownTimeout)
 
-    val globalComputationsServiceClient = GlobalComputationsCoroutineStub(channel)
+    val globalComputationsClient = GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
     CommonServer.fromFlags(
@@ -60,7 +60,7 @@ abstract class ComputationsServer : Runnable {
       javaClass.name,
       ComputationsService(
         computationsDatabase = newSingleProtocolDb(readOnlyComputationDb, computationDb),
-        globalComputationsClient = globalComputationsServiceClient,
+        globalComputationsClient = globalComputationsClient,
         duchyName = flags.duchy.duchyName
       )
     ).start().blockUntilShutdown()
@@ -106,11 +106,11 @@ abstract class ComputationsServer : Runnable {
       description = ["Address and port of the Global Computation Service"],
       required = true
     )
-    lateinit var globalComputationsService: String
+    lateinit var globalComputationsServiceTarget: String
       private set
   }
 
   companion object {
-    const val SERVICE_NAME = "ComputationStorage"
+    const val SERVICE_NAME = "Computations"
   }
 }

@@ -33,8 +33,8 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 
 /**
  * Calls AdvanceComputationStage to move to a new [LiquidLegionsSketchAggregationStage] in a
@@ -44,7 +44,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
  * computation, which will have knowledge of all the data needed as input to the next stage.
  * Most of the time [inputsToNextStage] is the list of outputs of the currently running stage.
  */
-suspend fun ComputationStorageServiceCoroutineStub.advanceLiquidLegionsComputationStage(
+suspend fun ComputationsCoroutineStub.advanceLiquidLegionsComputationStage(
   computationToken: ComputationToken,
   inputsToNextStage: List<String>,
   stage: LiquidLegionsSketchAggregationStage,

@@ -40,7 +40,7 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CO
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
@@ -69,8 +69,8 @@ internal class LiquidLegionsHeraldTest {
     )
   }
 
-  private val storageServiceStub: ComputationStorageServiceCoroutineStub by lazy {
-    ComputationStorageServiceCoroutineStub(grpcTestServerRule.channel)
+  private val storageServiceStub: ComputationsCoroutineStub by lazy {
+    ComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val globalComputationsStub: GlobalComputationsCoroutineStub by lazy {

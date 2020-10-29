@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.duchy.db.computation.advanceLiquidLegionsComputationStage
+import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
@@ -43,11 +44,10 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
-import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
@@ -65,7 +65,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRespo
  */
 class LiquidLegionsHerald(
   otherDuchiesInComputation: List<String>,
-  private val computationStorageClient: ComputationStorageServiceCoroutineStub,
+  private val computationStorageClient: ComputationsCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val maxStartAttempts: Int = 10
 ) {

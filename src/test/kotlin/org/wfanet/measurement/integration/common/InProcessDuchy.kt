@@ -46,7 +46,7 @@ import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -99,7 +99,7 @@ class InProcessDuchy(
   }
 
   private val computationStorageServiceStub by lazy {
-    ComputationStorageServiceCoroutineStub(storageServer.channel)
+    ComputationsCoroutineStub(storageServer.channel)
   }
 
   private val heraldRule = CloseableResource {
@@ -117,7 +117,7 @@ class InProcessDuchy(
 
   private val computationStorageClients by lazy {
     LiquidLegionsSketchAggregationComputationStorageClients(
-      ComputationStorageServiceCoroutineStub(storageServer.channel),
+      ComputationsCoroutineStub(storageServer.channel),
       duchyDependencies.storageClient,
       otherDuchyIds
     )

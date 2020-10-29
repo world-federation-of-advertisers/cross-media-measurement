@@ -33,8 +33,8 @@ import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
@@ -56,7 +56,7 @@ class ComputationsService(
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC()
-) : ComputationStorageServiceCoroutineImplBase() {
+) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
     grpcRequire(computationsDatabase.computationType == request.computationType) {

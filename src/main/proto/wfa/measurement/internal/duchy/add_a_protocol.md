@@ -74,14 +74,14 @@ enum ProtocolType {
 }
 ```
 
-*   `src/main/kotlin/org/wfanet/measurement/service/internal/duchy/computation/storage/ComputationsService.kt`
+*   `src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation/ComputationsService.kt`
     *   Should not require changing
 
 ### Mills
 
 Mills are responsible for the CPU intensive part of a protocol. These read from
-a local work queue via a ComputationStorageService.ClaimWork RPC. This RPC is
-typed on protocol so only work items for the given protocol will be returned.
+a local work queue via a Computations.ClaimWork RPC. This RPC is typed on
+protocol so only work items for the given protocol will be returned.
 
 When adding a new protocol, a new Mill will need to be created.
 

@@ -59,8 +59,8 @@ import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DE
 import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
-import org.wfanet.measurement.internal.duchy.ComputationStorageServiceGrpcKt.ComputationStorageServiceCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -86,7 +86,7 @@ class LiquidLegionsComputationControlServiceTest {
     computationStore =
       ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
     computationStorageClients = LiquidLegionsClients.forTesting(
-      ComputationStorageServiceCoroutineStub(channel),
+      ComputationsCoroutineStub(channel),
       computationStore,
       OTHER_DUCHY_NAMES
     )
@@ -98,7 +98,7 @@ class LiquidLegionsComputationControlServiceTest {
   private val globalComputationsClient: GlobalComputationsCoroutineStub =
     GlobalComputationsCoroutineStub(grpcTestServer.channel)
   private val computationStorageClient =
-    ComputationStorageServiceCoroutineStub(grpcTestServer.channel)
+    ComputationsCoroutineStub(grpcTestServer.channel)
       .withDuchyId(RUNNING_DUCHY_NAME)
   private lateinit var computationStorageClients: LiquidLegionsClients
   private lateinit var computationStore: ComputationStore
