@@ -1,23 +1,15 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-DEFAULT_VISIBILITY = [
+package(default_visibility = [
     ":__subpackages__",
     test_target(":__subpackages__"),
-    "//src:duchy_services",
-    "//src/test/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
-]
-
-package(default_visibility = DEFAULT_VISIBILITY)
+    "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
+])
 
 kt_jvm_library(
     name = "computation_stage",
     srcs = ["ComputationStage.kt"],
-    visibility = DEFAULT_VISIBILITY + [
-        "//src/main/kotlin/org/wfanet/measurement/storage:__pkg__",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/duchy/db/computation:__subpackages__",
-    ],
     deps = [
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_java_proto",
@@ -28,10 +20,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "duchy_public_keys",
     srcs = ["DuchyPublicKeys.kt"],
-    visibility = DEFAULT_VISIBILITY + [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/duchy/db/computation:__subpackages__",
-    ],
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",

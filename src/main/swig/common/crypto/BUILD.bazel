@@ -1,6 +1,9 @@
 load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
 
-package(default_visibility = ["//src:jvm"])
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
 
 java_wrap_cc(
     name = "protocol_encryption_utility",

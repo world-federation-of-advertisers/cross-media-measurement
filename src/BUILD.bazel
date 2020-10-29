@@ -1,45 +1,7 @@
-package(default_visibility = [":__subpackages__"])
-
-package_group(
-    name = "jvm_test",
-    packages = [
-        "//src/test/java/...",
-        "//src/test/kotlin/...",
-    ],
-)
-
-package_group(
-    name = "jvm",
-    includes = [":jvm_test"],
-    packages = [
-        "//src/main/java/...",
-        "//src/main/kotlin/...",
-    ],
-)
-
-package_group(
-    name = "duchy_services",
-    packages = [
-        "//src/main/kotlin/org/wfanet/measurement/service/internal/duchy/...",
-        "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata/...",
-        "//src/test/kotlin/org/wfanet/measurement/service/internal/duchy/...",
-        "//src/test/kotlin/org/wfanet/measurement/service/v1alpha/publisherdata/...",
-    ],
-)
-
 package_group(
     name = "docker_image_deployment",
     packages = [
         "//src/main/docker/...",
         "//src/main/k8s/...",
-    ],
-)
-
-package_group(
-    name = "integration_testing",
-    packages = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/...",
-        "//src/test/kotlin/org/wfanet/measurement/integration/...",
-        "//src/test/kotlin/org/wfanet/measurement/loadtest/...",
     ],
 )

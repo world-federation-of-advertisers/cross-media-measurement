@@ -3,10 +3,8 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target("__pkg__"),
-    "//src:integration_testing",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
-    # TODO(b/169968333): Remove once server has been moved to deploy package.
-    "//src/main/kotlin/org/wfanet/measurement/service/v1alpha/requisition:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
 
 kt_jvm_library(
