@@ -22,6 +22,8 @@
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "util/canonical_errors.h"
+#include "wfa/measurement/common/crypto/ec_point_util.h"
+#include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/common/string_block_sorter.h"
 
@@ -58,12 +60,6 @@ struct CompositeCipher {
   std::unique_ptr<ECCommutativeCipher> p_h_cipher;
 };
 
-// A struture containing the two ECPoints of an ElGamal encryption.
-struct ElGamalEcPointPair {
-  ECPoint u;  // g^r
-  ECPoint e;  // m*y^r
-};
-
 // crypto primitives used in SameKeyAggregation;
 struct SameKeyAggregator {
   // The ElGamal cipher using the same keys used by date providers.
@@ -85,41 +81,6 @@ ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKeys& public_keys) {
   return std::make_pair(public_keys.el_gamal_g(), public_keys.el_gamal_y());
 }
 
-StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
-    const ElGamalCiphertext& cipher_text, const ECGroup& ec_group) {
-  ASSIGN_OR_RETURN(ECPoint ec_point_u,
-                   ec_group.CreateECPoint(cipher_text.first));
-  ASSIGN_OR_RETURN(ECPoint ec_point_e,
-                   ec_group.CreateECPoint(cipher_text.second));
-  ElGamalEcPointPair result = {
-      .u = std::move(ec_point_u),
-      .e = std::move(ec_point_e),
-  };
-  return result;
-}
-
-StatusOr<ElGamalEcPointPair> GetEcPointPairInverse(
-    const ElGamalEcPointPair& ec_point_pair) {
-  ASSIGN_OR_RETURN(ECPoint inverse_u, ec_point_pair.u.Inverse());
-  ASSIGN_OR_RETURN(ECPoint inverse_e, ec_point_pair.e.Inverse());
-  ElGamalEcPointPair result = {
-      .u = std::move(inverse_u),
-      .e = std::move(inverse_e),
-  };
-  return result;
-}
-
-StatusOr<ElGamalEcPointPair> MultiplyEcPointPairByScalar(
-    const ElGamalEcPointPair& ec_point_pair, const BigNum& n) {
-  ASSIGN_OR_RETURN(ECPoint result_u, ec_point_pair.u.Mul(n));
-  ASSIGN_OR_RETURN(ECPoint result_e, ec_point_pair.e.Mul(n));
-  ElGamalEcPointPair result = {
-      .u = std::move(result_u),
-      .e = std::move(result_e),
-  };
-  return result;
-}
-
 Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
                                  std::string& result) {
   std::string temp;
@@ -128,17 +89,6 @@ Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
   result.append(temp);
   return Status::OK;
-}
-
-StatusOr<ElGamalEcPointPair> AddEcPointPairs(const ElGamalEcPointPair& a,
-                                             const ElGamalEcPointPair& b) {
-  ASSIGN_OR_RETURN(ECPoint result_u, a.u.Add(b.u));
-  ASSIGN_OR_RETURN(ECPoint result_e, a.e.Add(b.e));
-  ElGamalEcPointPair result = {
-      .u = std::move(result_u),
-      .e = std::move(result_e),
-  };
-  return result;
 }
 
 StatusOr<CompositeCipher> CreateCompositeCipher(
@@ -224,22 +174,6 @@ StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
                    ExtractElGamalCiphertextFromString(
                        str.substr(kBytesPerCipherText, kBytesPerCipherText)));
   return result;
-}
-
-Status ReRandomizeCiphertextAndAppendToString(
-    const ECGroup& ec_group, const CommutativeElGamal& client_e_g_cipher,
-    absl::string_view ciphertext_string, std::string& result) {
-  ASSIGN_OR_RETURN(ElGamalCiphertext zero,
-                   client_e_g_cipher.EncryptIdentityElement());
-  ASSIGN_OR_RETURN(ElGamalEcPointPair zero_ec,
-                   GetElGamalEcPoints(zero, ec_group));
-  ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                   ExtractElGamalCiphertextFromString(ciphertext_string));
-  ASSIGN_OR_RETURN(ElGamalEcPointPair ciphertext_ec,
-                   GetElGamalEcPoints(ciphertext, ec_group));
-  ASSIGN_OR_RETURN(ElGamalEcPointPair temp,
-                   AddEcPointPairs(zero_ec, ciphertext_ec));
-  return AppendEcPointPairToString(temp, result);
 }
 
 Status ValidateByteSize(absl::string_view data, const int bytes_per_row) {
@@ -355,7 +289,7 @@ Status MergeCountsUsingSameKeyAggregation(
         ElGamalEcPointPair key_0,
         GetElGamalEcPoints(key_count_0.key, *same_key_aggregator.ec_group));
     ASSIGN_OR_RETURN(ElGamalEcPointPair key_0_inverse,
-                     GetEcPointPairInverse(key_0));
+                     InvertEcPointPair(key_0));
     // Merge all addition points to the result
     for (size_t i = 1; i < sub_permutation.size(); ++i) {
       size_t data_offset =
@@ -448,24 +382,20 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
 
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
   // Composite cipher used to blind the positions.
-  ASSIGN_OR_RETURN(
-      CompositeCipher composite_cipher,
-      CreateCompositeCipher(request.curve_id(), request.local_el_gamal_keys(),
-                            request.local_pohlig_hellman_sk()));
-  // ElGamal cipher used to re-randomize the keys and counts.
   ASSIGN_OR_RETURN_ERROR(
-      std::unique_ptr<CommutativeElGamal> client_e_g_cipher,
-      CommutativeElGamal::CreateFromPublicKey(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
           request.curve_id(),
-          GetPublicKeyStringPair(request.composite_el_gamal_keys())),
-      "Failed to create the client ElGamal cipher, invalid curveId or keys.");
-  // Set the ECGroup and Conext.
-  auto ctx = absl::make_unique<Context>();
-  ASSIGN_OR_RETURN(ECGroup ec_group,
-                   ECGroup::Create(request.curve_id(), ctx.get()));
+          std::make_pair(
+              request.local_el_gamal_keys().el_gamal_pk().el_gamal_g(),
+              request.local_el_gamal_keys().el_gamal_pk().el_gamal_y()),
+          request.local_el_gamal_keys().el_gamal_sk(),
+          request.local_pohlig_hellman_sk(),
+          std::make_pair(request.composite_el_gamal_keys().el_gamal_g(),
+                         request.composite_el_gamal_keys().el_gamal_y())),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
+
   BlindOneLayerRegisterIndexResponse response;
-  *response.mutable_local_pohlig_hellman_sk() =
-      composite_cipher.p_h_cipher->GetPrivateKeyBytes();
   std::string* response_sketch = response.mutable_sketch();
   // The output sketch is the same size with the input sketch.
   response_sketch->reserve(request.sketch().size());
@@ -476,28 +406,31 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     absl::string_view current_block =
         absl::string_view(request.sketch())
             .substr(offset, kBytesPerCipherRegister);
-    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+    ASSIGN_OR_RETURN(ElGamalCiphertext index,
                      ExtractElGamalCiphertextFromString(
                          current_block.substr(0, kBytesPerCipherText)));
-    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     composite_cipher.e_g_cipher->Decrypt(ciphertext));
-    ASSIGN_OR_RETURN(ElGamalCiphertext re_encrypted_p_h,
-                     composite_cipher.p_h_cipher->ReEncryptElGamalCiphertext(
-                         std::make_pair(ciphertext.first, decrypted_el_gamal)));
+    ASSIGN_OR_RETURN(ElGamalCiphertext key,
+                     ExtractElGamalCiphertextFromString(current_block.substr(
+                         kBytesPerCipherText, kBytesPerCipherText)));
+    ASSIGN_OR_RETURN(ElGamalCiphertext count,
+                     ExtractElGamalCiphertextFromString(current_block.substr(
+                         kBytesPerCipherText * 2, kBytesPerCipherText)));
+
+    ASSIGN_OR_RETURN(ElGamalCiphertext blinded_index,
+                     protocol_cryptor->Blind(index));
+    ASSIGN_OR_RETURN(ElGamalCiphertext re_randomized_key,
+                     protocol_cryptor->ReRandomize(key));
+    ASSIGN_OR_RETURN(ElGamalCiphertext re_randomized_count,
+                     protocol_cryptor->ReRandomize(count));
     // Append the result to the response.
-    // 1. append the blinded register index value.
-    response_sketch->append(re_encrypted_p_h.first);
-    response_sketch->append(re_encrypted_p_h.second);
-    // 2. re-randomize the key and count values and append to the response.
-    RETURN_IF_ERROR(ReRandomizeCiphertextAndAppendToString(
-        ec_group, *client_e_g_cipher.get(),
-        current_block.substr(kBytesPerCipherText, kBytesPerCipherText),
-        *response_sketch));
-    RETURN_IF_ERROR(ReRandomizeCiphertextAndAppendToString(
-        ec_group, *client_e_g_cipher.get(),
-        current_block.substr(kBytesPerCipherText * 2, kBytesPerCipherText),
-        *response_sketch));
+    response_sketch->append(blinded_index.first);
+    response_sketch->append(blinded_index.second);
+    response_sketch->append(re_randomized_key.first);
+    response_sketch->append(re_randomized_key.second);
+    response_sketch->append(re_randomized_count.first);
+    response_sketch->append(re_randomized_count.second);
   }
+
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
 
   absl::Duration elaspedDuration =

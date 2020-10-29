@@ -9,6 +9,41 @@ package(default_visibility = [
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
+    name = "ec_point_util",
+    srcs = [
+        "ec_point_util.cc",
+    ],
+    hdrs = [
+        "ec_point_util.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_private_join_and_compute//crypto:ec_util",
+        "@com_google_private_join_and_compute//util:status",
+    ],
+)
+
+cc_library(
+    name = "protocol_cryptor",
+    srcs = [
+        "protocol_cryptor.cc",
+    ],
+    hdrs = [
+        "protocol_cryptor.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":ec_point_util",
+        "//src/main/cc/wfa/measurement/common:macros",
+        "@absl//absl/algorithm:container",
+        "@absl//absl/container:flat_hash_map",
+        "@com_google_private_join_and_compute//crypto:commutative_elgamal",
+        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
+        "@com_google_private_join_and_compute//util:status",
+    ],
+)
+
+cc_library(
     name = "protocol_encryption_utility",
     srcs = [
         "protocol_encryption_utility.cc",
@@ -18,6 +53,7 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":protocol_cryptor",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_cc_proto",
