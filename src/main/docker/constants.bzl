@@ -26,8 +26,8 @@ DEBIAN_JAVA_11 = struct(
 
 APT_CLEANUP_COMMANDS = [
     "apt-get clean",
-    "rm /var/log/dpkg.log",
-    "rm /var/log/alternatives.log",
+    "rm -f /var/log/dpkg.log",
+    "rm -f /var/log/alternatives.log",
 ]
 
 APT_UPGRADE_COMMANDS = [

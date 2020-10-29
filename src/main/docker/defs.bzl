@@ -49,3 +49,26 @@ def container_commit_upgrade_apt_packages(name, image, tags = [], **kwargs):
         ],
         **kwargs
     )
+
+def container_commit_add_apt_key(
+        name,
+        image,
+        keyring_path,
+        key_path,
+        tags = [],
+        **kwargs):
+    """Commits a new layer with the GPG key added to an APT keyring."""
+    command = "apt-key --keyring {keyring} add {key}".format(
+        keyring = keyring_path,
+        key = key_path,
+    )
+    container_run_and_commit_layer(
+        name = name,
+        image = image,
+        commands = [command],
+        tags = tags + [
+            "no-remote-exec",
+            "requires-network",
+        ],
+        **kwargs
+    )

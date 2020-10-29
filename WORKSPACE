@@ -209,7 +209,7 @@ container_pull(
 # gcr.io/ads-open-measurement/bazel:clean
 container_pull(
     name = "bazel_image",
-    digest = "sha256:def6d2f00b898ae38cc245a9b0c9756ac723b3156a762900ac00be25d7cd78e6",
+    digest = "sha256:a1437a53ce0f06028d7a4527dc403b8acf00bb5674e15e4f1b993e29b02a0d82",
     registry = "gcr.io",
     repository = "ads-open-measurement/bazel",
 )
@@ -220,6 +220,14 @@ container_pull(
     digest = "sha256:e2d6a9216a49e4c909690a1f98d4670aa503d6a3fe5d6f1f9a171eadb45e23e5",
     registry = "gcr.io",
     repository = "ads-open-measurement/java-base",
+)
+
+# See https://docs.bazel.build/versions/3.7.0/install-ubuntu.html
+http_file(
+    name = "bazel_apt_key",
+    downloaded_file_path = "bazel-release.pub.gpg",
+    sha256 = "547ec71b61f94b07909969649d52ee069db9b0c55763d3add366ca7a30fb3f6d",
+    urls = ["https://bazel.build/bazel-release.pub.gpg"],
 )
 
 # @com_google_private_join_and_compute
