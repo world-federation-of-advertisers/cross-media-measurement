@@ -48,7 +48,7 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
     require(latestDuchyPublicKeys.keys.toSet() == DuchyIds.ALL)
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
-    val channel: ManagedChannel = buildChannel(flags.computationStorageServiceTarget)
+    val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
 
     CommonServer.fromFlags(
       flags.server,
@@ -77,11 +77,11 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--computation-storage-service-target"],
-      description = ["Address and port of the Computation Storage Service"],
+      names = ["--computations-service-target"],
+      description = ["Address and port of the Computations service"],
       required = true
     )
-    lateinit var computationStorageServiceTarget: String
+    lateinit var computationsServiceTarget: String
       private set
   }
 

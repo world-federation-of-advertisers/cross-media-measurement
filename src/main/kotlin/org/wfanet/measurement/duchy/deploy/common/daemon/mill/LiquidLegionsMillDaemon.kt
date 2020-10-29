@@ -53,7 +53,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
     val storageClients = LiquidLegionsSketchAggregationComputationStorageClients(
-      ComputationStorageServiceCoroutineStub(buildChannel(flags.computationStorageServiceTarget))
+      ComputationStorageServiceCoroutineStub(buildChannel(flags.computationsServiceTarget))
         .withDuchyId(duchyName),
       storageClient,
       otherDuchyNames

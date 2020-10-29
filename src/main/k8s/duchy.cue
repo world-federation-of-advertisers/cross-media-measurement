@@ -41,7 +41,7 @@ import ("strings")
 		},
 	]
 
-	_computation_storage_service_target_flag: "--computation-storage-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computations-server"}).target
+	_computations_service_target_flag:        "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computations-server"}).target
 	_duchy_name_flag:                         "--duchy-name=duchy-\(_name)"
 	_duchy_public_keys_config_flag:           "--duchy-public-keys-config=" + #DuchyPublicKeysConfig
 	_global_computations_service_target_flag: "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
@@ -70,17 +70,17 @@ import ("strings")
 	duchy_pod: {
 		"liquid-legions-herald-daemon-pod": #Pod & {
 			_args: [
+				_computations_service_target_flag,
 				_duchy_name_flag,
 				_duchy_public_keys_config_flag,
 				_global_computations_service_target_flag,
 				"--channel-shutdown-timeout=3s",
-				"--computation-storage-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computations-server"}).target,
 				"--polling-interval=1m",
 			]
 		}
 		"liquid-legions-mill-daemon-pod": #Pod & {
 			_args: [
-				_computation_storage_service_target_flag,
+				_computations_service_target_flag,
 				_duchy_name_flag,
 				_duchy_public_keys_config_flag,
 				_global_computations_service_target_flag,
@@ -96,7 +96,7 @@ import ("strings")
 		}
 		"liquid-legions-computation-control-server-pod": #ServerPod & {
 			_args: [
-				_computation_storage_service_target_flag,
+				_computations_service_target_flag,
 				_duchy_name_flag,
 				_duchy_public_keys_config_flag,
 				"--debug-verbose-grpc-server-logging=true",

@@ -65,11 +65,11 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--computation-storage-service-target"],
-    description = ["Address and port of the Computation Storage Service"],
+    names = ["--computations-service-target"],
+    description = ["Address and port of the Computations service"],
     required = true
   )
-  lateinit var computationStorageServiceTarget: String
+  lateinit var computationsServiceTarget: String
     private set
 }
 
@@ -93,7 +93,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
-  val storageChannel = buildChannel(flags.computationStorageServiceTarget)
+  val storageChannel = buildChannel(flags.computationsServiceTarget)
 
   val herald = LiquidLegionsHerald(
     otherDuchiesInComputation = otherDuchyNames,

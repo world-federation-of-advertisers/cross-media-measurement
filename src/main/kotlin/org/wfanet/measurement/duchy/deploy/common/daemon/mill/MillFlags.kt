@@ -67,11 +67,11 @@ class MillFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--computation-storage-service-target"],
-    description = ["Address and port of the Computation Storage Service"],
+    names = ["--computations-service-target"],
+    description = ["Address and port of the internal Computations service"],
     required = true
   )
-  lateinit var computationStorageServiceTarget: String
+  lateinit var computationsServiceTarget: String
     private set
 
   @CommandLine.Option(
