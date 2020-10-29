@@ -209,7 +209,7 @@ container_pull(
 # gcr.io/ads-open-measurement/bazel:clean
 container_pull(
     name = "bazel_image",
-    digest = "sha256:2cea36cc20da04ab0ca4bcadeaeac819b12895bd2795c475f4462df4e68cd69b",
+    digest = "sha256:def6d2f00b898ae38cc245a9b0c9756ac723b3156a762900ac00be25d7cd78e6",
     registry = "gcr.io",
     repository = "ads-open-measurement/bazel",
 )

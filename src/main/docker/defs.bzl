@@ -28,7 +28,7 @@ def container_commit_install_apt_packages(name, image, packages, tags = [], **kw
         name = name,
         image = image,
         commands = APT_UPGRADE_COMMANDS + [
-            "apt-get install -y --no-install-recommends " + " ".join(packages),
+            "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends " + " ".join(packages),
         ] + APT_CLEANUP_COMMANDS,
         tags = tags + [
             "no-remote-exec",

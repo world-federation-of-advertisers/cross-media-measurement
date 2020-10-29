@@ -29,6 +29,7 @@ container_commit_install_apt_packages(
         "python",
         "python3",
         "swig",
+        "tzdata",
     ],
     tags = ["manual"],
 )

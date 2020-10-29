@@ -17,8 +17,8 @@ In particular:
 1.  JDK 11
 1.  Python
 1.  Git
+1.  Timezone database (`tzdata`)
 1.  [SWIG](http://swig.org/)
-1.  [CUE](https://cuelang.org/)
 
 ## Building in Container
 
