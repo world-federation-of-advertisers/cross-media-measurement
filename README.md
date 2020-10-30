@@ -1,18 +1,19 @@
 # WFA Measurement System
 
 **Table of Contents**
-* [Purpose](#purpose)
-* [System Overview](#system-overview)
-* [Repository Structure](#repository-structure)
-  * [Services and Daemons](#servers-and-daemons)
-  * [Common Directories](#common-directories)
-* [Developer Guide](#developer-guide)
-   * [Developer Environment](#developer-environment)
-   * [How to Build](#how-to-build)
-   * [How to Deploy](#how-to-deploy)
-* [Documentation](#documentation)
-    * [Dependencies](#dependencies)
-* [Contributing](#contributing)
+
+*   [Purpose](#purpose)
+*   [System Overview](#system-overview)
+*   [Repository Structure](#repository-structure)
+    *   [Services and Daemons](#servers-and-daemons)
+    *   [Common Directories](#common-directories)
+*   [Developer Guide](#developer-guide)
+    *   [Developer Environment](#developer-environment)
+    *   [How to Build](#how-to-build)
+    *   [How to Deploy](#how-to-deploy)
+*   [Documentation](#documentation)
+    *   [Dependencies](#dependencies)
+*   [Contributing](#contributing)
 
 ## Purpose
 
@@ -21,10 +22,10 @@ measurement through secure multiparty computations.
 
 ## System Overview
 
-At a high level the system requires at least three independent deployments,
-one controller and two secure multiparty computation nodes, each operating its
-own microservices and storage instances. In order to make precise statements
-about the system architecture we introduce the following terms.
+At a high level the system requires at least three independent deployments, one
+controller and two secure multiparty computation nodes, each operating its own
+microservices and storage instances. In order to make precise statements about
+the system architecture we introduce the following terms.
 
 The *Kingdom* is a single deployment that allows advertisers to configure
 reports, requests the data and computations required to generate those reports,
@@ -41,39 +42,39 @@ a different cloud provider than the others.
 The system operates as follows. For more detail see the references linked in the
 [Documentation](#documentation) section.
 
-1. Advertisers configure reports that may span a variety of campaigns,
-   publishers, and forms of media.
-1. The Kingdom determines which data are required to generate these reports and
-   compiles a list of requisitions for the various publishers. The Kingdom
-   tracks which of the requisitions are open and which are fulfilled.
-1. Publishers invoke an API on the Duchy to obtain a list of open requisitions.
-   The Duchy proxies to the Kingdom to retrieve the list. The requisitions
-   specify which data are required from the publisher in order to generate the
-   reports.
-1. To fulfill the requisitions publishers compute *sketches* similar to those
-   used in the HyperLogLog algorithm for cardinality and frequency estimation.
-   In practice we do not use HyperLogLog itself due to issues preserving user
-   privacy that are beyond the scope of this discussion. Publishers encrypt
-   these sketches using the combined public key of all the Duchies. Publishers
-   send the encrypted sketches to a Duchy which stores them and informs the
-   Kingdom that the requisition for that data is fulfilled. The encrypted
-   sketches required for a particular report may be distributed across multiple
-   Duchies.
-1. The Kingdom determines which pending computations have all necessary
-   requisitions fulfilled and are therefore ready to run. The Duchies poll the
-   Kingdom at regular intervals to claim this work. Each computation has a
-   Primary Duchy assigned and a deterministic order of computation.
-1. For each computation all Duchies fetch the required encrypted sketches,
-   interleave noise into them, and send them to the Primary Duchy. The Primary
-   Duchy writes these sketches to its storage instance as they arrive.
-1. Once the Primary Duchy receives all required encrypted noised sketches it
-   combines them. Computation then follows the predetermined order making two
-   rounds through the Duchies. Each round ends with the Primary Duchy.
-1. During the first round each Duchy shuffles the sketches to destroy
-   information that could be reconstructed from knowing the register indices.
-1. During the second round the Duchies each use their piece of the private key
-   to decrypt the results. The Primary Duchy sends the final results back to the
-   Kingdom.
+1.  Advertisers configure reports that may span a variety of campaigns,
+    publishers, and forms of media.
+1.  The Kingdom determines which data are required to generate these reports and
+    compiles a list of requisitions for the various publishers. The Kingdom
+    tracks which of the requisitions are open and which are fulfilled.
+1.  Publishers invoke an API on the Duchy to obtain a list of open requisitions.
+    The Duchy proxies to the Kingdom to retrieve the list. The requisitions
+    specify which data are required from the publisher in order to generate the
+    reports.
+1.  To fulfill the requisitions publishers compute *sketches* similar to those
+    used in the HyperLogLog algorithm for cardinality and frequency estimation.
+    In practice we do not use HyperLogLog itself due to issues preserving user
+    privacy that are beyond the scope of this discussion. Publishers encrypt
+    these sketches using the combined public key of all the Duchies. Publishers
+    send the encrypted sketches to a Duchy which stores them and informs the
+    Kingdom that the requisition for that data is fulfilled. The encrypted
+    sketches required for a particular report may be distributed across multiple
+    Duchies.
+1.  The Kingdom determines which pending computations have all necessary
+    requisitions fulfilled and are therefore ready to run. The Duchies poll the
+    Kingdom at regular intervals to claim this work. Each computation has a
+    Primary Duchy assigned and a deterministic order of computation.
+1.  For each computation all Duchies fetch the required encrypted sketches,
+    interleave noise into them, and send them to the Primary Duchy. The Primary
+    Duchy writes these sketches to its storage instance as they arrive.
+1.  Once the Primary Duchy receives all required encrypted noised sketches it
+    combines them. Computation then follows the predetermined order making two
+    rounds through the Duchies. Each round ends with the Primary Duchy.
+1.  During the first round each Duchy shuffles the sketches to destroy
+    information that could be reconstructed from knowing the register indices.
+1.  During the second round the Duchies each use their piece of the private key
+    to decrypt the results. The Primary Duchy sends the final results back to
+    the Kingdom.
 
 ## Repository Structure
 
@@ -91,19 +92,20 @@ The system operates as follows. For more detail see the references linked in the
 │   └── test  ## Source code for testing code in //src/main/
 └── tools
 ```
+
 Source code packages are grouped by language under the `//src` directory, where
 `//src/main` is the code for a production deployment and `//src/test` is code
 for unit tests and integration tests of the code under `//src/main`.
 
 The majority of the code is written in Kotlin in the `org.wfanet.measurement`
-package. The largest exception is the code to do cryptographic operations,
-which is written in C++ with a Java JNI wrapper.
+package. The largest exception is the code to do cryptographic operations, which
+is written in C++ with a Java JNI wrapper.
 
-The `//imports` directory contains Bazel build aliases for external dependencies.
-No source code, third party or otherwise, is contained in the imports directory.
-The alias for a dependency will be in a directory like its package name. Roughly
-speaking, the directory structure of the import mirrors the directory structure
-of the imported package.
+The `//imports` directory contains Bazel build aliases for external
+dependencies. No source code, third party or otherwise, is contained in the
+imports directory. The alias for a dependency will be in a directory like its
+package name. Roughly speaking, the directory structure of the import mirrors
+the directory structure of the imported package.
 
 For example, the alias for Java Protobuf
 (`@com_google_protobuf//:protobuf_java`) is in
@@ -118,9 +120,9 @@ Servers and daemons are both long running jobs deployed to Kubernetes. A key
 difference is whether or not they accept RPC communication from other binaries.
 In short, a server is a gRPC endpoint, where a daemon is not.
 
-* Services are defined in proto3 in the `//src/main/proto` directory.
-* Public APIs are defined in `wfa-measurement-proto`, another GitHub repository.
-  **TODO: Add link to other GitHub repository.**
+*   Services are defined in proto3 in the `//src/main/proto` directory.
+*   Public APIs are defined in `wfa-measurement-proto`, another GitHub
+    repository. **TODO: Add link to other GitHub repository.**
 
 ```
 //src/main/kotlin/org/wfanet/measurement/
@@ -172,15 +174,15 @@ production code.
 There is a lot that goes into the design of the system. Too much to cover in
 this README alone. More details are covered in:
 
-* [A System Design for Privacy-Preserving Reach and Frequency Estimation](https://research.google/pubs/pub49526/)
-* [Privacy-Preserving Secure Cardinality and Frequency Estimation](https://research.google/pubs/pub49177/)
+*   [A System Design for Privacy-Preserving Reach and Frequency Estimation](https://research.google/pubs/pub49526/)
+*   [Privacy-Preserving Secure Cardinality and Frequency Estimation](https://research.google/pubs/pub49177/)
 
 ### Dependencies
 
-* [Bazel](https://bazel.build/)
-* [Docker](https://www.docker.com/)
-* [gRPC](https://grpc.io/)
-* [Kubernetes (k8s)](https://kubernetes.io/)
+*   [Bazel](https://bazel.build/)
+*   [Docker](https://www.docker.com/)
+*   [gRPC](https://grpc.io/)
+*   [Kubernetes (k8s)](https://kubernetes.io/)
 
 ## Contributing
 

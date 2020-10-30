@@ -24,7 +24,8 @@ option java_multiple_files = true;
 // Service for persisting computation related measurements.
 service ComputationStats {
   // Persists a ComputationStat.
-  rpc CreateComputationStat(CreateComputationStatRequest) returns (CreateComputationStatResponse) {}
+  rpc CreateComputationStat(CreateComputationStatRequest)
+      returns (CreateComputationStatResponse) {}
 }
 
 // Request to create a new computation stat.

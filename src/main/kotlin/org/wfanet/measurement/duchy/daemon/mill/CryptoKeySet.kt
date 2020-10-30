@@ -63,4 +63,3 @@ fun String.toElGamalPublicKeys(): ElGamalPublicKeys {
     .setElGamalY(substring(BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
     .build()
 }
-

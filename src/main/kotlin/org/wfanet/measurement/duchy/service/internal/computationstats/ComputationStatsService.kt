@@ -16,20 +16,24 @@ package org.wfanet.measurement.duchy.service.internal.computationstats
 
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
+import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase as ComputationStatsCoroutineService
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
-import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase as ComputationStatsCoroutineService
 
 /** Implementation of `wfa.measurement.internal.duchy.ComputationStats` gRPC service. */
 class ComputationStatsService(
   private val computationStatDb: ComputationStatDatabase
 ) : ComputationStatsCoroutineService() {
 
-  override suspend fun createComputationStat(request: CreateComputationStatRequest): CreateComputationStatResponse {
+  override suspend fun createComputationStat(
+    request: CreateComputationStatRequest
+  ): CreateComputationStatResponse {
     val globalComputationId = request.globalComputationId
     val localComputationId = request.localComputationId
     val metricName = request.metricName
-    grpcRequire(globalComputationId.isNotEmpty() && localComputationId != 0L) { "Missing computation ID" }
+    grpcRequire(globalComputationId.isNotEmpty() && localComputationId != 0L) {
+      "Missing computation ID"
+    }
     grpcRequire(metricName.isNotEmpty()) { "Missing Metric name" }
     computationStatDb.insertComputationStat(
       localId = localComputationId,
