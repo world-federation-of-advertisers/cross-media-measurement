@@ -47,6 +47,7 @@ container_image(
         ":apt_key_packages",
         ":bazel_key_file",
     ],
+    tags = ["manual"],
 )
 
 container_commit_add_apt_key(
@@ -54,6 +55,7 @@ container_commit_add_apt_key(
     image = ":apt_key_install_image.tar",
     key_path = "/root/bazel-release.pub.gpg",
     keyring_path = "/usr/share/keyrings/bazel.gpg",
+    tags = ["manual"],
 )
 
 container_layer(
