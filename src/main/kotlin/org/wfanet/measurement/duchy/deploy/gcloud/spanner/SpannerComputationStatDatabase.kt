@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 
@@ -38,12 +39,11 @@ private object ComputationStatsTable {
 }
 
 /** Google Cloud Spanner implementation of [ComputationStatDatabase]. */
-class SpannerComputationStatDatabase(private val dbClient: AsyncDatabaseClient) {
+class SpannerComputationStatDatabase(
+  private val dbClient: AsyncDatabaseClient
+) : ComputationStatDatabase {
 
-  /**
-   * Inserts the specified [ComputationStat] into the database.
-   */
-  suspend fun insertComputationStat(
+  override suspend fun insertComputationStat(
     localId: Long,
     stage: Long,
     attempt: Long,

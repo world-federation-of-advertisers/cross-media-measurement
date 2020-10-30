@@ -1,0 +1,17 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ComputationStatsServiceTest",
+    srcs = ["ComputationStatsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsServiceTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computationstat",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
+    ],
+)

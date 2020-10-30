@@ -13,6 +13,7 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/cloud/storage",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computationstat",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/metricvalue",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
