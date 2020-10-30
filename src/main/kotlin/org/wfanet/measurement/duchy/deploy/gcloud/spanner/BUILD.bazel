@@ -17,3 +17,12 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
+
+filegroup(
+    name = "schema_definitions",
+    srcs = glob(["*.sdl"]),
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
+    ],
+)

@@ -63,10 +63,12 @@ private fun run(
       val instance = spanner.createInstance("emulator-config", 1, displayName)
       println("Instance ${instance.displayName} created")
 
-      val ddl = flags.schemaFile.readText()
+      val schema = SpannerSchema(flags.schemaFile)
       println("Read in schema file: ${flags.schemaFile.absolutePath}")
 
-      createDatabase(instance, ddl, spannerFlags.databaseName)
+      schema.definitionReader().useLines { lines ->
+        createDatabase(instance, lines, spannerFlags.databaseName)
+      }
       println("Database ${spanner.databaseId} created")
 
       // Stay alive so the emulator doesn't terminate.

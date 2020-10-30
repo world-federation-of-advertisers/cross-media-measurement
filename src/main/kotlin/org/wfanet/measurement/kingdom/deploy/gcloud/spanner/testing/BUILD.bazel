@@ -4,6 +4,7 @@ kt_jvm_library(
     name = "testing",
     testonly = True,
     srcs = glob(["*.kt"]),
+    data = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
     ],

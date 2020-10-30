@@ -23,9 +23,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
 @RunWith(JUnit4::class)
-class KingdomSchemaTest : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
+class KingdomSchemaTest : UsingSpannerEmulator(KINGDOM_SCHEMA) {
 
   @Test
   fun `insert single Advertiser`() = runBlocking {

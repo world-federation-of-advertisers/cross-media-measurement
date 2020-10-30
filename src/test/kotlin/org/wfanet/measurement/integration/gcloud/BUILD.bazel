@@ -15,9 +15,10 @@ kt_jvm_library(
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
@@ -32,9 +33,6 @@ spanner_emulator_test(
     name = "InProcessKingdomIntegrationTest",
     size = "large",
     srcs = ["InProcessKingdomIntegrationTest.kt"],
-    resources = [
-        "//src/main/db/gcp:kingdom_schema",
-    ],
     test_class = "org.wfanet.measurement.integration.gcloud.InProcessKingdomIntegrationTest",
     deps = [
         ":gcloud",
@@ -46,11 +44,6 @@ spanner_emulator_test(
     name = "InProcessKingdomAndDuchyIntegrationTest",
     size = "large",
     srcs = ["InProcessKingdomAndDuchyIntegrationTest.kt"],
-    resources = [
-        "//src/main/db/gcp:computations_schema",
-        "//src/main/db/gcp:kingdom_schema",
-        "//src/main/db/gcp:metric_values_schema",
-    ],
     shard_count = 2,
     test_class = "org.wfanet.measurement.integration.gcloud.InProcessKingdomAndDuchyIntegrationTest",
     deps = [

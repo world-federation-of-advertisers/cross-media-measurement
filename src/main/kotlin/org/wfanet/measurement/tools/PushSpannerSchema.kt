@@ -144,15 +144,17 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     } catch (e: ExecutionException) {
       logger.info("Database $databaseName doesn't exist but tried to drop")
     }
+
     logger.info("Creating database $databaseName from DDL file $ddlFilePath")
-    val ddl = File(ddlFilePath).readText()
-    try {
-      createDatabase(instance, ddl, databaseName)
-    } catch (e: ExecutionException) {
-      if (flags.ignoreAlreadyExistingDatabases && e.isAlreadyExistsException) {
-        logger.info("Database $databaseName already exists")
-      } else {
-        throw e
+    File(ddlFilePath).useLines { schemaDefinitionLines ->
+      try {
+        createDatabase(instance, schemaDefinitionLines, databaseName)
+      } catch (e: ExecutionException) {
+        if (flags.ignoreAlreadyExistingDatabases && e.isAlreadyExistsException) {
+          logger.info("Database $databaseName already exists")
+        } else {
+          throw e
+        }
       }
     }
   }

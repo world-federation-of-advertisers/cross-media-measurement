@@ -18,7 +18,6 @@ _TEST_DEPS = [
 spanner_emulator_test(
     name = "SpannerWriterTest",
     srcs = ["SpannerWriterTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriterTest",
     deps = _TEST_DEPS,
 )
@@ -26,7 +25,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "AssociateRequisitionAndReportTest",
     srcs = ["AssociateRequisitionAndReportTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.AssociateRequisitionAndReportTest",
     deps = _TEST_DEPS,
 )
@@ -34,7 +32,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "ConfirmDuchyReadinessTest",
     srcs = ["ConfirmDuchyReadinessTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmDuchyReadinessTest",
     deps = _TEST_DEPS,
 )
@@ -42,7 +39,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateAdvertiserTest",
     srcs = ["CreateAdvertiserTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAdvertiserTest",
     deps = _TEST_DEPS,
 )
@@ -50,7 +46,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateCampaignTest",
     srcs = ["CreateCampaignTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCampaignTest",
     deps = _TEST_DEPS,
 )
@@ -58,7 +53,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateDataProviderTest",
     srcs = ["CreateDataProviderTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProviderTest",
     deps = _TEST_DEPS,
 )
@@ -66,7 +60,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateNextReportTest",
     srcs = ["CreateNextReportTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReportTest",
     deps = _TEST_DEPS,
 )
@@ -74,7 +67,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateReportConfigTest",
     srcs = ["CreateReportConfigTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportConfigTest",
     deps = _TEST_DEPS,
 )
@@ -82,7 +74,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateReportLogEntryTest",
     srcs = ["CreateReportLogEntryTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportLogEntryTest",
     deps = _TEST_DEPS,
 )
@@ -90,7 +81,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateRequisitionTest",
     srcs = ["CreateRequisitionTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRequisitionTest",
     deps = _TEST_DEPS,
 )
@@ -98,7 +88,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "CreateScheduleTest",
     srcs = ["CreateScheduleTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateScheduleTest",
     deps = _TEST_DEPS,
 )
@@ -106,7 +95,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "FulfillRequisitionTest",
     srcs = ["FulfillRequisitionTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FulfillRequisitionTest",
     deps = _TEST_DEPS,
 )
@@ -114,7 +102,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "FinishReportTest",
     srcs = ["FinishReportTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishReportTest",
     deps = _TEST_DEPS,
 )
@@ -122,7 +109,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "UpdateReportStateTest",
     srcs = ["UpdateReportStateTest.kt"],
-    resources = ["//src/main/db/gcp:kingdom_schema"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateReportStateTest",
     deps = _TEST_DEPS,
 )

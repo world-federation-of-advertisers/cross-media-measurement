@@ -45,7 +45,7 @@ private val REPORT_DETAILS = ReportDetails.newBuilder().apply {
   combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
 }.build()
 
-abstract class KingdomDatabaseTestBase : UsingSpannerEmulator("/src/main/db/gcp/kingdom.sdl") {
+abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
 
   // TODO: add AdvertiserDetails proto as input.

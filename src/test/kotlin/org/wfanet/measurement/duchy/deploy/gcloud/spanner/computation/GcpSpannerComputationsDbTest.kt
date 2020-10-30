@@ -40,6 +40,7 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtoc
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.C
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.D
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.E
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
@@ -100,7 +101,7 @@ class StageDetailsHelper : ProtocolStageDetails<FakeProtocolStages, FakeProtocol
 }
 
 @RunWith(JUnit4::class)
-class GcpSpannerComputationsDbTest : UsingSpannerEmulator("/src/main/db/gcp/computations.sdl") {
+class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   companion object {
     val COMPUTATION_DETAILS: ComputationDetails = ComputationDetails.newBuilder().apply {

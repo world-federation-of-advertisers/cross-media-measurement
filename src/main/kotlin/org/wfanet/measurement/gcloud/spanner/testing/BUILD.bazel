@@ -2,16 +2,22 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
-package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
-])
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_schema",
+    srcs = ["SpannerSchema.kt"],
+)
 
 kt_jvm_library(
     name = "spanner_emulator",
-    srcs = [
-        "SpannerEmulator.kt",
-    ],
+    srcs = ["SpannerEmulator.kt"],
     visibility = ["//visibility:private"],
     deps = [
         "//imports/java/com/google/cloud/spanner",
@@ -22,17 +28,18 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "testing",
-    testonly = True,
     srcs = glob(
         ["*.kt"],
         exclude = [
             "SpannerEmulator.kt",
             "SpannerEmulatorMain.kt",
+            "SpannerSchema.kt",
         ],
     ),
     exports = [":spanner_emulator"],
     deps = [
         ":spanner_emulator",
+        ":spanner_schema",
         "//imports/java/com/google/api/core",
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/common/truth",
@@ -56,6 +63,7 @@ kt_jvm_library(
     ],
     deps = [
         ":spanner_emulator",
+        ":spanner_schema",
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",

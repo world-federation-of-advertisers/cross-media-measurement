@@ -28,28 +28,29 @@ import org.wfanet.measurement.gcloud.spanner.createDatabase
  *
  * All instances share a single [SpannerEmulator].
  */
-class SpannerEmulatorDatabaseRule(schemaResourcePath: String) :
-  DatabaseRule by DatabaseRuleImpl(schemaResourcePath)
+class SpannerEmulatorDatabaseRule(schema: SpannerSchema) :
+  DatabaseRule by DatabaseRuleImpl(schema)
 
 private interface DatabaseRule : TestRule {
   val databaseClient: AsyncDatabaseClient
 }
 
-private class DatabaseRuleImpl(schemaResourcePath: String) :
+private class DatabaseRuleImpl(schema: SpannerSchema) :
   DatabaseRule,
-  CloseableResource<TemporaryDatabase>({ TemporaryDatabase(schemaResourcePath) }) {
+  CloseableResource<TemporaryDatabase>({ TemporaryDatabase(schema) }) {
 
   override val databaseClient: AsyncDatabaseClient
     get() = resource.databaseClient.asAsync()
 }
 
-private class TemporaryDatabase(schemaResourcePath: String) : AutoCloseable {
+private class TemporaryDatabase(schema: SpannerSchema) : AutoCloseable {
 
   private val database: Database
   init {
     val databaseName = "test-db-${instanceCounter.incrementAndGet()}"
-    val ddl = javaClass.getResource(schemaResourcePath).readText()
-    database = createDatabase(emulator.instance, ddl, databaseName)
+    database = schema.definitionReader().useLines { lines ->
+      createDatabase(emulator.instance, lines, databaseName)
+    }
   }
 
   val databaseClient: DatabaseClient by lazy {

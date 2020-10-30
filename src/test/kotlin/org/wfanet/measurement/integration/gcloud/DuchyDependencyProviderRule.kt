@@ -24,17 +24,19 @@ import org.wfanet.measurement.common.crypto.toProtoMessage
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
+import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.METRIC_VALUES_SCHEMA
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.duchy.testing.DUCHY_SECRET_KEYS
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -48,9 +50,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.storage.StorageClient
 
-private const val METRIC_VALUE_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
-private const val COMPUTATIONS_SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/computations.sdl"
-
 class DuchyDependencyProviderRule(
   duchyIds: Iterable<String>
 ) : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
@@ -58,12 +57,12 @@ class DuchyDependencyProviderRule(
 
   private val metricValueDatabaseRules =
     duchyIds
-      .map { it to SpannerEmulatorDatabaseRule(METRIC_VALUE_SCHEMA_RESOURCE_PATH) }
+      .map { it to SpannerEmulatorDatabaseRule(METRIC_VALUES_SCHEMA) }
       .toMap()
 
   private val computationsDatabaseRules =
     duchyIds
-      .map { it to SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA_RESOURCE_PATH) }
+      .map { it to SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA) }
       .toMap()
 
   override fun apply(base: Statement, description: Description): Statement {

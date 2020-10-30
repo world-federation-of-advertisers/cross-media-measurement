@@ -143,9 +143,9 @@ import ("strings")
 				image:           _images[name]
 				imagePullPolicy: _duchy_image_pull_policy
 				args:            [
-							"--databases=\(_name)_duchy_computations=/app/wfa_measurement_system/src/main/db/gcp/computations.sdl",
-							"--databases=\(_name)_duchy_metric_values=/app/wfa_measurement_system/src/main/db/gcp/metric_values.sdl",
-							"--databases=\(_name)_duchy_computation_stats=/app/wfa_measurement_system/src/main/db/gcp/computation_stats.sdl",
+							"--databases=\(_name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
+							"--databases=\(_name)_duchy_metric_values=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/metric_values.sdl",
+							"--databases=\(_name)_duchy_computation_stats=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation_stats.sdl",
 				] + _spanner_schema_push_flags
 			}]
 			restartPolicy: "OnFailure"

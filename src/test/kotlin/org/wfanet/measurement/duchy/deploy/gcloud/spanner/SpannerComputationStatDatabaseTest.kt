@@ -19,12 +19,13 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATION_STATS_SCHEMA
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
 
 @RunWith(JUnit4::class)
 class SpannerComputationStatDatabaseTest :
-  UsingSpannerEmulator("/src/main/db/gcp/computation_stats.sdl") {
+  UsingSpannerEmulator(COMPUTATION_STATS_SCHEMA) {
 
   private val computationStatDb by lazy { SpannerComputationStatDatabase(databaseClient) }
 

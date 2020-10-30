@@ -22,11 +22,10 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
-
-private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/kingdom.sdl"
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
 class KingdomRelationalDatabaseProviderRule : ProviderRule<KingdomRelationalDatabase> {
-  private val spannerDatabase = SpannerEmulatorDatabaseRule(SCHEMA_RESOURCE_PATH)
+  private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
   override val value: KingdomRelationalDatabase by lazy {
     SpannerKingdomRelationalDatabase(

@@ -44,10 +44,9 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  * }
  * ```
  */
-abstract class UsingSpannerEmulator(schemaResourcePath: String) {
-  @Rule
-  @JvmField
-  val spannerDatabase = SpannerEmulatorDatabaseRule(schemaResourcePath)
+abstract class UsingSpannerEmulator(schema: SpannerSchema) {
+  @get:Rule
+  val spannerDatabase = SpannerEmulatorDatabaseRule(schema)
 
   val databaseClient: AsyncDatabaseClient
     get() = spannerDatabase.databaseClient

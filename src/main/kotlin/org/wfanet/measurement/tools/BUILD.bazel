@@ -68,10 +68,8 @@ java_binary(
 java_image(
     name = "push_spanner_schema_image",
     data = [
-        "//src/main/db/gcp:computation_stats_schema",
-        "//src/main/db/gcp:computations_schema",
-        "//src/main/db/gcp:kingdom_schema",
-        "//src/main/db/gcp:metric_values_schema",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner:schema_definitions",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl",
     ],
     main_class = "org.wfanet.measurement.tools.PushSpannerSchemaKt",
     visibility = ["//src:docker_image_deployment"],

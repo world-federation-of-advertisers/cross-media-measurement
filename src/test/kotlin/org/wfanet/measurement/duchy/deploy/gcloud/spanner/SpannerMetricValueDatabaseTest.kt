@@ -20,10 +20,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.duchy.db.metricvalue.testing.AbstractMetricValueDatabaseTest
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.METRIC_VALUES_SCHEMA
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-
-private const val SCHEMA_RESOURCE_PATH = "/src/main/db/gcp/metric_values.sdl"
 
 /** [SpannerMetricValueDatabase] test. */
 @RunWith(JUnit4::class)
@@ -32,7 +31,7 @@ class SpannerMetricValueDatabaseTest :
 
   @Rule
   @JvmField
-  val spannerDatabase = SpannerEmulatorDatabaseRule(SCHEMA_RESOURCE_PATH)
+  val spannerDatabase = SpannerEmulatorDatabaseRule(METRIC_VALUES_SCHEMA)
 
   val databaseClient: AsyncDatabaseClient
     get() = spannerDatabase.databaseClient

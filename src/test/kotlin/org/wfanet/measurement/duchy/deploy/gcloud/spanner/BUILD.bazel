@@ -4,15 +4,13 @@ load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl
 spanner_emulator_test(
     name = "SpannerMetricValueDatabaseTest",
     srcs = ["SpannerMetricValueDatabaseTest.kt"],
-    resources = [
-        "//src/main/db/gcp:metric_values_schema",
-    ],
     test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabaseTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/metricvalue/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
@@ -20,9 +18,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "SpannerComputationStatDatabaseTest",
     srcs = ["SpannerComputationStatDatabaseTest.kt"],
-    resources = [
-        "//src/main/db/gcp:computation_stats_schema",
-    ],
     test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerComputationStatDatabaseTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
@@ -30,6 +25,7 @@ spanner_emulator_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )

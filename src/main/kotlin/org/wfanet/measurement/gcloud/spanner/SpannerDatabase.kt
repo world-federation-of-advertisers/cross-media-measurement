@@ -18,19 +18,21 @@ import com.google.cloud.spanner.Database
 import com.google.cloud.spanner.Instance
 
 /**
- * Creates a [Database] with name [databaseName] in [spannerInstance] using the schema [ddl].
+ * Creates a [Database] with name [databaseName] in [spannerInstance] using the
+ * [schemaDefinitionLines].
  *
- * This sanitizes [ddl] for the Spanner emulator by removing comments and constraints.
+ * This sanitizes [schemaDefinitionLines] for the Spanner emulator by removing
+ * comments and constraints.
  */
 fun createDatabase(
   spannerInstance: Instance,
-  ddl: String,
+  schemaDefinitionLines: Sequence<String>,
   databaseName: String
 ): Database =
-  spannerInstance.createDatabase(databaseName, sanitizeSdl(ddl)).get()
+  spannerInstance.createDatabase(databaseName, sanitizeSdl(schemaDefinitionLines)).get()
 
-private fun sanitizeSdl(sdl: String): List<String> =
-  sdl.split('\n')
+private fun sanitizeSdl(sdl: Sequence<String>): List<String> {
+  return sdl
     // Replace comments and references to foreign keys from schema file.
     .map { it.replace("""(--|CONSTRAINT|FOREIGN|REFERENCES).*$""".toRegex(), "") }
     // Delete blank lines
@@ -41,3 +43,4 @@ private fun sanitizeSdl(sdl: String): List<String> =
     .split(';')
     // Removing any blank operations
     .filter { it.isNotBlank() }
+}
