@@ -46,23 +46,32 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
 
   StatusOr<ElGamalCiphertext> Blind(
       const ElGamalCiphertext& ciphertext) override;
-  StatusOr<std::string> Decrypt(const ElGamalCiphertext& ciphertext) override;
+  StatusOr<std::string> DecryptLocalElGamal(
+      const ElGamalCiphertext& ciphertext) override;
+  StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
+      absl::string_view plain_ec_point) override;
   StatusOr<ElGamalCiphertext> ReRandomize(
       const ElGamalCiphertext& ciphertext) override;
+  StatusOr<ElGamalEcPointPair> CalculateDestructor(
+      const ElGamalEcPointPair& base, const ElGamalEcPointPair& key) override;
+  StatusOr<std::string> MapToCurve(absl::string_view str) override;
+  StatusOr<ElGamalEcPointPair> ToElGamalEcPoints(
+      const ElGamalCiphertext& cipher_text) override;
+  std::string GetLocalPohligHellmanKey() override;
 
  private:
   // A CommutativeElGamal cipher created using local ElGamal Keys, used for
   // encrypting/decrypting local layer of ElGamal encryption.
-  std::unique_ptr<CommutativeElGamal> local_el_gamal_cipher_;
+  const std::unique_ptr<CommutativeElGamal> local_el_gamal_cipher_;
   // A CommutativeElGamal cipher created using the combined public key, used
   // for re-randomizing ciphertext and sameKeyAggregation, etc.
-  std::unique_ptr<CommutativeElGamal> composite_el_gamal_cipher_;
+  const std::unique_ptr<CommutativeElGamal> composite_el_gamal_cipher_;
   // An ECCommutativeCipher used for blinding a ciphertext.
-  std::unique_ptr<ECCommutativeCipher> local_pohlig_hellman_cipher_;
+  const std::unique_ptr<ECCommutativeCipher> local_pohlig_hellman_cipher_;
 
   // Context used for storing temporary values to be reused across openssl
   // function calls for better performance.
-  std::unique_ptr<Context> ctx_;
+  const std::unique_ptr<Context> ctx_;
   // The EC Group representing the curve definition.
   const ECGroup ec_group_;
 
@@ -93,10 +102,16 @@ StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::Blind(
   return {std::move(re_encrypted_p_h)};
 }
 
-StatusOr<std::string> ProtocolCryptorImpl::Decrypt(
+StatusOr<std::string> ProtocolCryptorImpl::DecryptLocalElGamal(
     const ElGamalCiphertext& ciphertext) {
   absl::WriterMutexLock l(&mutex_);
   return local_el_gamal_cipher_->Decrypt(ciphertext);
+}
+
+StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
+    absl::string_view plain_ec_point) {
+  absl::WriterMutexLock l(&mutex_);
+  return composite_el_gamal_cipher_->Encrypt(std::string(plain_ec_point));
 }
 
 StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
@@ -115,6 +130,33 @@ StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
   ASSIGN_OR_RETURN(result_ciphertext.first, result_ec.u.ToBytesCompressed());
   ASSIGN_OR_RETURN(result_ciphertext.second, result_ec.e.ToBytesCompressed());
   return {std::move(result_ciphertext)};
+}
+
+StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::CalculateDestructor(
+    const ElGamalEcPointPair& base_inverse, const ElGamalEcPointPair& key) {
+  absl::WriterMutexLock l(&mutex_);
+  BigNum r = ec_group_.GeneratePrivateKey();
+  ASSIGN_OR_RETURN(ElGamalEcPointPair key_delta,
+                   AddEcPointPairs(key, base_inverse));
+  return {std::move(MultiplyEcPointPairByScalar(key_delta, r))};
+}
+
+StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(absl::string_view str) {
+  absl::WriterMutexLock l(&mutex_);
+  ASSIGN_OR_RETURN(ECPoint temp_ec_point,
+                   ec_group_.GetPointByHashingToCurveSha256(std::string(str)));
+  return temp_ec_point.ToBytesCompressed();
+}
+
+StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::ToElGamalEcPoints(
+    const ElGamalCiphertext& cipher_text) {
+  absl::WriterMutexLock l(&mutex_);
+  return GetElGamalEcPoints(cipher_text, ec_group_);
+}
+
+std::string ProtocolCryptorImpl::GetLocalPohligHellmanKey() {
+  absl::WriterMutexLock l(&mutex_);
+  return local_pohlig_hellman_cipher_->GetPrivateKeyBytes();
 }
 
 }  // namespace

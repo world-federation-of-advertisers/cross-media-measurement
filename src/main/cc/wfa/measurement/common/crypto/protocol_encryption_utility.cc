@@ -17,7 +17,6 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/memory/memory.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
@@ -60,18 +59,6 @@ struct CompositeCipher {
   std::unique_ptr<ECCommutativeCipher> p_h_cipher;
 };
 
-// crypto primitives used in SameKeyAggregation;
-struct SameKeyAggregator {
-  // The ElGamal cipher using the same keys used by date providers.
-  std::unique_ptr<CommutativeElGamal> client_e_g_cipher;
-  // The ECGroup working on.
-  std::unique_ptr<ECGroup> ec_group;
-  // The Context of the ECGroup.
-  std::unique_ptr<Context> ctx;
-  // The byte representation of the ECPoint mapped from kIsNotDestroyed,
-  std::string is_not_destroyed_ec_string;
-};
-
 struct KeyCountPairCipherText {
   ElGamalCiphertext key;
   ElGamalCiphertext count;
@@ -89,64 +76,6 @@ Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
   result.append(temp);
   return Status::OK;
-}
-
-StatusOr<CompositeCipher> CreateCompositeCipher(
-    const int curve_id, const ElGamalKeys& el_gamal_keys,
-    const std::string& pohlig_hellman_sk) {
-  CompositeCipher result;
-  // Create the ElGamal cipher using the provided keys.
-  ASSIGN_OR_RETURN_ERROR(
-      result.e_g_cipher,
-      CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-          curve_id, GetPublicKeyStringPair(el_gamal_keys.el_gamal_pk()),
-          el_gamal_keys.el_gamal_sk()),
-      "Failed to create the local ElGamal cipher, invalid curveId or keys.");
-  // Create the Pohlig Hellman cipher using the provided key or a random key if
-  // no key is provided.
-  ASSIGN_OR_RETURN_ERROR(
-      result.p_h_cipher,
-      pohlig_hellman_sk.empty()
-          ? ECCommutativeCipher::CreateWithNewKey(
-                curve_id, ECCommutativeCipher::HashType::SHA256)
-          : ECCommutativeCipher::CreateFromKey(
-                curve_id, pohlig_hellman_sk,
-                ECCommutativeCipher::HashType::SHA256),
-      "Failed to create the local Pohlig Hellman cipher, invalid curveId or "
-      "key.");
-  return result;
-}
-
-// Hashing a string to the elliptical curve and return the string representation
-// of the obtained ECPoint.
-StatusOr<std::string> MapToCurve(const ECGroup& ec_group,
-                                 const std::string& str) {
-  ASSIGN_OR_RETURN(ECPoint temp_ec_point,
-                   ec_group.GetPointByHashingToCurveSha256(str));
-  ASSIGN_OR_RETURN(std::string result, temp_ec_point.ToBytesCompressed());
-  return result;
-}
-
-StatusOr<SameKeyAggregator> CreateSameKeyAggregator(
-    const int curve_id, const ElGamalPublicKeys& client_el_gamal_keys) {
-  SameKeyAggregator result;
-  // Create the client ElGamal cipher using the provided keys.
-  ASSIGN_OR_RETURN_ERROR(
-      result.client_e_g_cipher,
-      CommutativeElGamal::CreateFromPublicKey(
-          curve_id, GetPublicKeyStringPair(client_el_gamal_keys)),
-      "Failed to create the client ElGamal cipher, invalid curveId or public "
-      "keys.");
-  // Set the ECGroup and Conext.
-  result.ctx = absl::make_unique<Context>();
-  ASSIGN_OR_RETURN(auto temp_ec_group,
-                   ECGroup::Create(curve_id, result.ctx.get()));
-  result.ec_group = absl::make_unique<ECGroup>(std::move(temp_ec_group));
-  // Calculate the is_not_destroyed ECPoint, so it could be reused in future
-  // computation.
-  ASSIGN_OR_RETURN(result.is_not_destroyed_ec_string,
-                   MapToCurve(*result.ec_group.get(), kIsNotDestroyed));
-  return result;
 }
 
 // Extract an ElGamalCiphertext from a string_view.
@@ -191,7 +120,7 @@ Status ValidateByteSize(absl::string_view data, const int bytes_per_row) {
 // Blind the last layer of ElGamal Encryption of registers, and return the
 // deterministically encrypted results.
 StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
-    absl::string_view sketch, const CompositeCipher& composite_cipher) {
+    absl::string_view sketch, ProtocolCryptor& protocol_cryptor) {
   RETURN_IF_ERROR(ValidateByteSize(sketch, kBytesPerCipherRegister));
   const int num_registers = sketch.size() / kBytesPerCipherRegister;
   std::vector<std::string> blinded_register_indexes;
@@ -205,11 +134,8 @@ StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
     ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
                      ExtractElGamalCiphertextFromString(current_block));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     composite_cipher.e_g_cipher->Decrypt(ciphertext));
-    ASSIGN_OR_RETURN(
-        std::string re_encryption,
-        composite_cipher.p_h_cipher->ReEncrypt(decrypted_el_gamal));
-    blinded_register_indexes.emplace_back(std::move(re_encryption));
+                     protocol_cryptor.DecryptLocalElGamal(ciphertext));
+    blinded_register_indexes.emplace_back(std::move(decrypted_el_gamal));
   }
   return blinded_register_indexes;
 }
@@ -244,12 +170,14 @@ StatusOr<absl::flat_hash_map<std::string, int>> CreateCountLookUpTable(
   return count_lookup_table;
 }
 
+// TODO: delete this method after DecryptLastLayerFlagAndCount() uses the
+// ProtocolCryptor.
 StatusOr<std::string> GetIsNotDestroyedFlag(const int curve_id) {
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(auto ec_group, ECGroup::Create(curve_id, ctx.get()));
-  ASSIGN_OR_RETURN(std::string is_not_destroyed,
-                   MapToCurve(ec_group, kIsNotDestroyed));
-  return is_not_destroyed;
+  ASSIGN_OR_RETURN(ECPoint temp_ec_point,
+                   ec_group.GetPointByHashingToCurveSha256(kIsNotDestroyed));
+  return temp_ec_point.ToBytesCompressed();
 }
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
@@ -258,14 +186,15 @@ StatusOr<std::string> GetIsNotDestroyedFlag(const int curve_id) {
 // group, i.e., having the same blinded register index.
 Status MergeCountsUsingSameKeyAggregation(
     absl::Span<const size_t> sub_permutation, absl::string_view sketch,
-    const SameKeyAggregator& same_key_aggregator, std::string& response) {
+    ProtocolCryptor& protocol_cryptor, std::string& response) {
   if (sub_permutation.empty()) {
     return InternalError("Empty sub permutation.");
   }
   // Create a new ElGamal Encryption of the is_not_destroyed flag.
+  ASSIGN_OR_RETURN(std::string is_not_destroyed,
+                   protocol_cryptor.MapToCurve(std::string(kIsNotDestroyed)));
   ASSIGN_OR_RETURN(ElGamalCiphertext is_not_destroyed_ciphertext,
-                   same_key_aggregator.client_e_g_cipher->Encrypt(
-                       same_key_aggregator.is_not_destroyed_ec_string));
+                   protocol_cryptor.EncryptCompositeElGamal(is_not_destroyed));
   size_t offset =
       sub_permutation[0] * kBytesPerCipherRegister + kBytesPerCipherText;
   if (offset > sketch.size()) {
@@ -275,19 +204,17 @@ Status MergeCountsUsingSameKeyAggregation(
                    ExtractKeyCountPairFromSubstring(
                        sketch.substr(offset, kBytesPerCipherText * 2)));
   // Initialize the flag and count.
-  ASSIGN_OR_RETURN(ElGamalEcPointPair final_flag,
-                   GetElGamalEcPoints(is_not_destroyed_ciphertext,
-                                      *same_key_aggregator.ec_group));
   ASSIGN_OR_RETURN(
-      ElGamalEcPointPair final_count,
-      GetElGamalEcPoints(key_count_0.count, *same_key_aggregator.ec_group));
+      ElGamalEcPointPair final_flag,
+      protocol_cryptor.ToElGamalEcPoints(is_not_destroyed_ciphertext));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair final_count,
+                   protocol_cryptor.ToElGamalEcPoints(key_count_0.count));
 
   // Aggregate other (key, count) pairs if any.
   if (sub_permutation.size() > 1) {
     // calculate the inverse of key_0. i.e., -K0
-    ASSIGN_OR_RETURN(
-        ElGamalEcPointPair key_0,
-        GetElGamalEcPoints(key_count_0.key, *same_key_aggregator.ec_group));
+    ASSIGN_OR_RETURN(ElGamalEcPointPair key_0,
+                     protocol_cryptor.ToElGamalEcPoints(key_count_0.key));
     ASSIGN_OR_RETURN(ElGamalEcPointPair key_0_inverse,
                      InvertEcPointPair(key_0));
     // Merge all addition points to the result
@@ -301,18 +228,14 @@ Status MergeCountsUsingSameKeyAggregation(
                        ExtractKeyCountPairFromSubstring(sketch.substr(
                            data_offset, kBytesPerCipherText * 2)));
       // Get the ECPoints of this (Key, count) pair, 2 for key, and 2 for count.
-      ASSIGN_OR_RETURN(ElGamalEcPointPair count_i,
-                       GetElGamalEcPoints(next_key_count.count,
-                                          *same_key_aggregator.ec_group));
+      ASSIGN_OR_RETURN(
+          ElGamalEcPointPair count_i,
+          protocol_cryptor.ToElGamalEcPoints(next_key_count.count));
       ASSIGN_OR_RETURN(ElGamalEcPointPair key_i,
-                       GetElGamalEcPoints(next_key_count.key,
-                                          *same_key_aggregator.ec_group));
-      // Calculate the destructor.
-      BigNum r = same_key_aggregator.ec_group->GeneratePrivateKey();
-      ASSIGN_OR_RETURN(ElGamalEcPointPair key_delta,
-                       AddEcPointPairs(key_i, key_0_inverse));
-      ASSIGN_OR_RETURN(ElGamalEcPointPair destructor,
-                       MultiplyEcPointPairByScalar(key_delta, r));
+                       protocol_cryptor.ToElGamalEcPoints(next_key_count.key));
+      ASSIGN_OR_RETURN(
+          ElGamalEcPointPair destructor,
+          protocol_cryptor.CalculateDestructor(key_0_inverse, key_i));
       // Update the (flag, count) using the destructor.
       ASSIGN_OR_RETURN(final_flag, AddEcPointPairs(final_flag, destructor));
       ASSIGN_OR_RETURN(final_count, AddEcPointPairs(final_count, count_i));
@@ -330,15 +253,9 @@ Status MergeCountsUsingSameKeyAggregation(
 // the counts in each group using the SameKeyAggregation algorithm. Then, append
 // the (flag, count) result of each group to the response.
 Status JoinRegistersByIndexAndMergeCounts(
-    const int curve_id, const ElGamalPublicKeys& public_keys,
-    absl::string_view sketch,
+    ProtocolCryptor& protocol_cryptor, absl::string_view sketch,
     const std::vector<std::string>& blinded_register_indexes,
     absl::Span<const size_t> permutation, std::string& response) {
-  // Create an ElGamal cipher using the same combined public key used by the
-  // data providers. The cipher is used to calculate destructor in the
-  // SameKeyAggregation.
-  ASSIGN_OR_RETURN(SameKeyAggregator same_key_aggregator,
-                   CreateSameKeyAggregator(curve_id, public_keys));
   const size_t num_registers = sketch.size() / kBytesPerCipherRegister;
   int start = 0;
   for (size_t i = 0; i < num_registers; ++i) {
@@ -350,7 +267,7 @@ Status JoinRegistersByIndexAndMergeCounts(
       // This register belongs to a new group. Process the previous group and
       // append the result to the response.
       RETURN_IF_ERROR(MergeCountsUsingSameKeyAggregation(
-          permutation.subspan(start, i - start), sketch, same_key_aggregator,
+          permutation.subspan(start, i - start), sketch, protocol_cryptor,
           response));
       // Reset the starting point.
       start = i;
@@ -359,7 +276,7 @@ Status JoinRegistersByIndexAndMergeCounts(
   // Process the last group and append the result to the response.
   RETURN_IF_ERROR(MergeCountsUsingSameKeyAggregation(
       permutation.subspan(start, num_registers - start), sketch,
-      same_key_aggregator, response));
+      protocol_cryptor, response));
   return Status::OK;
 }
 
@@ -381,7 +298,6 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
-  // Composite cipher used to blind the positions.
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -396,6 +312,8 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   BlindOneLayerRegisterIndexResponse response;
+  *response.mutable_local_pohlig_hellman_sk() =
+      protocol_cryptor->GetLocalPohligHellmanKey();
   std::string* response_sketch = response.mutable_sketch();
   // The output sketch is the same size with the input sketch.
   response_sketch->reserve(request.sketch().size());
@@ -446,14 +364,22 @@ BlindLastLayerIndexThenJoinRegisters(
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
   RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
-  // Create a CompositeCipher to blind the register index;
-  ASSIGN_OR_RETURN(
-      CompositeCipher composite_cipher,
-      CreateCompositeCipher(request.curve_id(), request.local_el_gamal_keys(),
-                            request.local_pohlig_hellman_sk()));
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
+          request.curve_id(),
+          std::make_pair(
+              request.local_el_gamal_keys().el_gamal_pk().el_gamal_g(),
+              request.local_el_gamal_keys().el_gamal_pk().el_gamal_y()),
+          request.local_el_gamal_keys().el_gamal_sk(),
+          request.local_pohlig_hellman_sk(),
+          std::make_pair(request.composite_el_gamal_keys().el_gamal_g(),
+                         request.composite_el_gamal_keys().el_gamal_y())),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
+
   ASSIGN_OR_RETURN(
       std::vector<std::string> blinded_register_indexes,
-      GetBlindedRegisterIndexes(request.sketch(), composite_cipher));
+      GetBlindedRegisterIndexes(request.sketch(), *protocol_cryptor));
   const size_t num_registers =
       request.sketch().size() / kBytesPerCipherRegister;
 
@@ -469,10 +395,10 @@ BlindLastLayerIndexThenJoinRegisters(
   BlindLastLayerIndexThenJoinRegistersResponse response;
   std::string* response_data = response.mutable_flag_counts();
   *response.mutable_local_pohlig_hellman_sk() =
-      composite_cipher.p_h_cipher->GetPrivateKeyBytes();
+      protocol_cryptor->GetLocalPohligHellmanKey();
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
-      request.curve_id(), request.composite_el_gamal_keys(), request.sketch(),
-      blinded_register_indexes, permutation, *response_data));
+      *protocol_cryptor, request.sketch(), blinded_register_indexes,
+      permutation, *response_data));
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
   absl::Duration elaspedDuration =

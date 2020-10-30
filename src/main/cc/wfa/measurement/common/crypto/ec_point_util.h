@@ -26,7 +26,10 @@ namespace wfa::measurement::common::crypto {
 using ::private_join_and_compute::BigNum;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
+// TODO: use absl::StatusOr.
 using ::private_join_and_compute::StatusOr;
+
+// Each ElGamalCiphertext is a two tuple (u, e), where u=g^r and e=m*y^r.
 using ElGamalCiphertext = std::pair<std::string, std::string>;
 
 // A struture containing the two ECPoints of an ElGamal encryption.
