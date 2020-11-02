@@ -25,6 +25,10 @@ option java_outer_classname = "ComputationControlServiceProto";
 // Service for controlling inter-Duchy operations on GlobalComputation
 // resources.
 service ComputationControl {
+  // Advance the computation locally according to the request.
+  rpc AdvanceComputation(stream AdvanceComputationRequest)
+      returns (AdvanceComputationResponse) {}
+
   // Stores the concatenated, noisy sparse encrypted sketch from a secondary
   // duchy at the primary duchy. Once the primary has sketches from all
   // secondary duchies it can start executing the computation.
@@ -127,5 +131,70 @@ message ProcessEncryptedFlagsAndCountsRequest {
 }
 
 message ProcessEncryptedFlagsAndCountsResponse {
+  // Deliberately empty
+}
+
+// Request to advance the computation at the receiver.
+message AdvanceComputationRequest {
+  message Header {
+    // Resource key.
+    GlobalComputation.Key key = 1;
+    // The protocol of the computation.
+    oneof protocol {
+      // The LiquidLegionsV1 (two-round) protocol.
+      LiquidLegionsV1 liquid_legions_v1 = 2;
+      // The LiquidLegionsV2 (three-round) protocol.
+      LiquidLegionsV2 liquid_legions_v2 = 3;
+    }
+  }
+
+  message BodyChunk {
+    // A chunk of the data bytes.
+    bytes partial_data = 1;
+  }
+
+  oneof payload {
+    // Payload of first request message.
+    Header header = 1;
+    // Payload of subsequent request messages.
+    BodyChunk body_chunk = 2;
+  }
+}
+
+message LiquidLegionsV1 {
+  // The description of the data in the payload.
+  enum Description {
+    // The data type is unknown. This is never set intentionally.
+    DESCRIPTION_UNSPECIFIED = 0;
+    // NoisedSketch from secondary duchies to the primary.
+    NOISED_SKETCH = 1;
+    // Concatenated sketch processed at MPC round one.
+    CONCATENATED_SKETCH = 2;
+    // (Flag, count) pairs processed at MPC round two.
+    ENCRYPTED_FLAGS_AND_COUNTS = 3;
+  }
+  // Payload data description
+  Description description = 1;
+}
+
+message LiquidLegionsV2 {
+  // The description of the data in the payload.
+  enum Description {
+    // The data type is unknown. This is never set intentionally.
+    DESCRIPTION_UNSPECIFIED = 0;
+    // The input for the setup phase.
+    SETUP_PHASE_INPUT = 1;
+    // The input for the reach estimation phase.
+    REACH_ESTIMATION_PHASE_INPUT = 2;
+    // The input for the filtering phase.
+    FILTERING_PHASE_INPUT = 3;
+    // The input for the frequency estimation phase.
+    FREQUENCY_ESTIMATION_PHASE_INPUT = 4;
+  }
+  // Payload data description
+  Description description = 1;
+}
+
+message AdvanceComputationResponse {
   // Deliberately empty
 }
