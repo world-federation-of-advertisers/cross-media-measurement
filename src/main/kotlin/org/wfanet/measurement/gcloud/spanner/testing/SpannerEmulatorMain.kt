@@ -18,7 +18,8 @@ import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.createDatabase
 import picocli.CommandLine
 
@@ -50,14 +51,20 @@ private class Flags {
 )
 private fun run(
   @CommandLine.Mixin flags: Flags,
-  @CommandLine.Mixin spannerFlags: SpannerFromFlags.Flags
+  @CommandLine.Mixin spannerFlags: SpannerFlags
 ) = runBlocking {
   spannerFlags.newSpannerEmulator().use { emulator: SpannerEmulator ->
     emulator.start()
     val emulatorHost = emulator.waitUntilReady()
     println("Spanner emulator running on $emulatorHost")
 
-    SpannerFromFlags(spannerFlags, emulatorHost).use { spanner ->
+    SpannerDatabaseConnector(
+      spannerFlags.instanceName,
+      spannerFlags.projectName,
+      spannerFlags.readyTimeout,
+      spannerFlags.databaseName,
+      emulatorHost
+    ).use { spanner ->
       val displayName =
         if (flags.hasInstanceDisplayName) flags.instanceDisplayName else spannerFlags.instanceName
       val instance = spanner.createInstance("emulator-config", 1, displayName)
@@ -78,7 +85,7 @@ private fun run(
   }
 }
 
-private fun SpannerFromFlags.Flags.newSpannerEmulator(): SpannerEmulator {
+private fun SpannerFlags.newSpannerEmulator(): SpannerEmulator {
   return spannerEmulatorHost?.let { SpannerEmulator.withHost(it) } ?: SpannerEmulator()
 }
 

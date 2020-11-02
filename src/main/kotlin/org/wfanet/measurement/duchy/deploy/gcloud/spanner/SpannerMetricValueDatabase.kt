@@ -21,10 +21,8 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 import org.wfanet.measurement.internal.duchy.MetricValue
 
 /** Metadata for `MetricValues` table. */
@@ -136,12 +134,6 @@ class SpannerMetricValueDatabase(
       )
       indexRow?.getString(columns.BLOB_STORAGE_KEY)
     }
-
-  companion object {
-    /** Constructs a [SpannerMetricValueDatabase] from command-line flags. */
-    fun fromFlags(spanner: SpannerFromFlags, idGenerator: RandomIdGenerator) =
-      SpannerMetricValueDatabase(spanner.databaseClient, idGenerator)
-  }
 }
 
 private fun Struct.toMetricValue(): MetricValue = with(MetricValuesTable.Columns) {

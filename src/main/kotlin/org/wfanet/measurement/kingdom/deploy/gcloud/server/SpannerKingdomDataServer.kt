@@ -18,7 +18,7 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 import picocli.CommandLine
@@ -32,7 +32,7 @@ import picocli.CommandLine
 )
 class SpannerKingdomDataServer : KingdomDataServer() {
   @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFromFlags.Flags
+  private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->

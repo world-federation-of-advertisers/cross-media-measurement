@@ -18,7 +18,6 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
 
 /** Metadata for `ComputationStats` table. */
 private object ComputationStatsTable {
@@ -67,11 +66,5 @@ class SpannerComputationStatDatabase(
         .build()
     }
     dbClient.write(insertMutation)
-  }
-
-  companion object {
-    /** Constructs a [SpannerComputationStatDatabase] from command-line flags. */
-    fun fromFlags(spanner: SpannerFromFlags) =
-      SpannerComputationStatDatabase(spanner.databaseClient)
   }
 }

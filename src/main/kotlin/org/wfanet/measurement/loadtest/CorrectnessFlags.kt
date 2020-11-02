@@ -16,13 +16,13 @@ package org.wfanet.measurement.loadtest
 
 import java.io.File
 import kotlin.properties.Delegates
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
 class CorrectnessFlags {
 
   @CommandLine.Mixin
-  lateinit var spannerFlags: SpannerFromFlags.Flags
+  lateinit var spannerFlags: SpannerFlags
     private set
 
   @set:CommandLine.Option(

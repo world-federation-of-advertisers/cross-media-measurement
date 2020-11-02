@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.duchy.deploy.common.server.MetricValuesServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
@@ -39,12 +39,13 @@ private class SpannerForwardedStorageMetricValuesServer : MetricValuesServer() {
   private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFromFlags.Flags
+  private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     spannerFlags.usingSpanner { spanner ->
-      val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGenerator(clock))
+      val metricValueDb =
+        SpannerMetricValueDatabase(spanner.databaseClient, RandomIdGenerator(clock))
       val storageClient = ForwardedStorageFromFlags(forwardedStorageFlags).storageClient
 
       run(metricValueDb, storageClient)

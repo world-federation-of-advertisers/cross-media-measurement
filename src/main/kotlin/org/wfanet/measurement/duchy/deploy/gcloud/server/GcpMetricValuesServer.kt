@@ -22,7 +22,7 @@ import org.wfanet.measurement.duchy.deploy.common.server.MetricValuesServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
 /**
@@ -43,14 +43,15 @@ private class GcpMetricValuesServer : MetricValuesServer() {
   private lateinit var gcsFlags: GcsFromFlags.Flags
 
   @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFromFlags.Flags
+  private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     spannerFlags.usingSpanner { spanner ->
 
       val googleCloudStorage = GcsFromFlags(gcsFlags)
-      val metricValueDb = SpannerMetricValueDatabase.fromFlags(spanner, RandomIdGenerator(clock))
+      val metricValueDb =
+        SpannerMetricValueDatabase(spanner.databaseClient, RandomIdGenerator(clock))
       val storageClient = GcsStorageClient.fromFlags(googleCloudStorage)
 
       run(metricValueDb, storageClient)

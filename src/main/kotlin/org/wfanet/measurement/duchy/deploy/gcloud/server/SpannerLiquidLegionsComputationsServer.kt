@@ -23,7 +23,7 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.Computatio
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.toDuchyOrder
-import org.wfanet.measurement.gcloud.spanner.SpannerFromFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
@@ -40,7 +40,7 @@ import picocli.CommandLine
 )
 class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
   @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFromFlags.Flags
+  private lateinit var spannerFlags: SpannerFlags
 
   private val latestDuchyPublicKeys: DuchyPublicKeys.Entry
     get() = duchyPublicKeys.latest
