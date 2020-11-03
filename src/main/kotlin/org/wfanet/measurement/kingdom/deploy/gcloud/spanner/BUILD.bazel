@@ -5,6 +5,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
+        "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
     deps = [
         "//imports/java/com/google/cloud/spanner",

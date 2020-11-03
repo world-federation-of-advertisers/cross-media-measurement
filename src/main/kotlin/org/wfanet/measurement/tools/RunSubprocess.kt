@@ -15,7 +15,6 @@
 package org.wfanet.measurement.tools
 
 import java.util.logging.Logger
-import kotlin.system.exitProcess
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -43,8 +42,7 @@ fun runSubprocess(
   process.waitFor()
 
   if (exitOnFail && process.exitValue() != 0) {
-    logger.severe("*** FAILURE: Something went wrong. Aborting. ****")
-    exitProcess(process.exitValue())
+    throw Exception("Command terminated with non-zero exit value: $command")
   }
 }
 

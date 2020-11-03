@@ -5,6 +5,7 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 package(default_visibility = [
     ":__subpackages__",
     test_target(":__subpackages__"),
+    "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
 ])
 
 kt_jvm_library(

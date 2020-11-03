@@ -32,7 +32,7 @@ fake_service: "spanner-emulator": {
 	metadata: name: "spanner-emulator"
 	spec: {
 		selector: app: "spanner-emulator-app"
-		type: "ClusterIP"
+		type: "NodePort"
 		ports: [{
 			name:       "grpc"
 			port:       9010

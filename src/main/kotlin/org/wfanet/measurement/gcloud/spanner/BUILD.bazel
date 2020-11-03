@@ -8,6 +8,7 @@ package(default_visibility = [
     test_target(":__subpackages__"),
     "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
     "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
 ])
 
 kt_jvm_library(

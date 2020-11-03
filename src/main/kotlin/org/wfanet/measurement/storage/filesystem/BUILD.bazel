@@ -16,6 +16,7 @@ package(default_visibility = [
     test_target(":__pkg__"),
     ":duchy_tests",
     "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
 ])
 

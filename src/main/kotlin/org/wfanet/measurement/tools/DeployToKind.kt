@@ -17,7 +17,6 @@ package org.wfanet.measurement.tools
 import java.nio.file.Paths
 import java.util.concurrent.Callable
 import java.util.logging.Logger
-import kotlin.system.exitProcess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
@@ -33,51 +32,36 @@ import picocli.CommandLine.Command
   description = ["Builds container images from source and deploys them to a local kind cluster."]
 )
 class DeployToKind() : Callable<Int> {
-  private val kotlinRelativePath = "src/main/kotlin"
-  private val yamlFile = "kingdom_and_three_duchies_from_cue_local.yaml"
+  private val defaultClusterName = "kind"
 
   override fun call(): Int {
     logger.info("*** STARTING ***")
 
-    // Load images.
-    val runfiles =
-      checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", kotlinRelativePath))).toFile()
+    loadImages(defaultClusterName)
 
-    runBlocking {
-      runfiles
-        .walk()
-        .asFlow()
-        .filter { !it.isDirectory && it.extension == "tar" }
-        .mapConcurrently(CoroutineScope(coroutineContext), 8) { imageFile ->
-          val absolutePath = imageFile.absolutePath
+    // kubectl apply does not necessarily overwrite previous configuration.
+    // Delete existing pods/services to be safe.
+    logger.info(
+      "*** FYI: If the pods don't exist the next command fails. " +
+        "This is expected and not a big deal. ***"
+    )
+    runSubprocess(
+      "kubectl delete -f $manifestPath --context kind-$defaultClusterName",
+      exitOnFail = false
+    )
 
-          logger.info("*** LOADING IMAGE: $absolutePath ***")
+    // Create the pods and services.
+    runSubprocess("kubectl apply -f $manifestPath --context kind-$defaultClusterName")
 
-          // Figure out what the image name is.
-          val repository = "bazel/$kotlinRelativePath/${imageFile.parentFile.relativeTo(runfiles)}"
-          val tag = imageFile.nameWithoutExtension
-          val imageName = "$repository:$tag"
+    logger.info("*** DONE: Completed successfully. ***")
 
-          // Remove images from Docker if they already exist.
-          // This is not strictly necessary but Docker keeps the old image in memory otherwise.
-          val deleteWarning =
-            "*** FYI: If the image doesn't exist the next command fails. " +
-              "This is expected and not a big deal. ***"
-          runSubprocess("echo \"$deleteWarning\" && docker rmi $imageName", exitOnFail = false)
+    return 0
+  }
 
-          // Load the image into Docker.
-          runSubprocess("docker load -i $absolutePath", redirectErrorStream = false)
-
-          // Load the image into Kind.
-          runSubprocess("kind load docker-image $imageName")
-
-          logger.info("*** DONE LOADING IMAGE: $absolutePath ***")
-        }
-        .collect()
-    }
-
-    logger.info("*** DONE LOADING ALL IMAGES ***")
-
+  companion object {
+    private val logger = Logger.getLogger(this::class.java.name)
+    private const val kotlinRelativePath = "src/main/kotlin"
+    private const val yamlFile = "kingdom_and_three_duchies_from_cue_local.yaml"
     val manifestPath =
       checkNotNull(
         getRuntimePath(
@@ -91,27 +75,60 @@ class DeployToKind() : Callable<Int> {
         )
       )
 
-    // kubectl apply does not necessarily overwrite previous configuration.
-    // Delete existing pods/services to be safe.
-    logger.info(
-      "*** FYI: If the pods don't exist the next command fails. " +
-        "This is expected and not a big deal. ***"
-    )
-    runSubprocess("kubectl delete -f $manifestPath", exitOnFail = false)
+    fun loadImages(clusterName: String) {
+      logger.info("*** DONE LOADING ALL IMAGES ***")
 
-    // Create the pods and services.
-    runSubprocess("kubectl apply -f $manifestPath")
+      val runfiles =
+        checkNotNull(
+          getRuntimePath(
+            Paths.get(
+              "wfa_measurement_system",
+              kotlinRelativePath
+            )
+          )
+        ).toFile()
 
-    logger.info("*** DONE: Completed successfully. ***")
+      runBlocking {
+        runfiles
+          .walk()
+          .asFlow()
+          .filter { !it.isDirectory && it.extension == "tar" }
+          .mapConcurrently(CoroutineScope(coroutineContext), 8) { imageFile ->
+            val absolutePath = imageFile.absolutePath
 
-    return 0
-  }
+            logger.info("*** LOADING IMAGE: $absolutePath ***")
 
-  companion object {
-    private val logger = Logger.getLogger(this::class.java.name)
+            // Figure out what the image name is.
+            val repository =
+              "bazel/$kotlinRelativePath/${imageFile.parentFile.relativeTo(runfiles)}"
+            val tag = imageFile.nameWithoutExtension
+            val imageName = "$repository:$tag"
+
+            // Remove images from Docker if they already exist.
+            // This is not strictly necessary but Docker keeps the old image in memory otherwise.
+            val deleteWarning =
+              "*** FYI: If the image doesn't exist the next command fails. " +
+                "This is expected and not a big deal. ***"
+            runSubprocess(
+              "echo \"$deleteWarning\" && docker rmi $imageName", exitOnFail = false
+            )
+
+            // Load the image into Docker.
+            runSubprocess("docker load -i $absolutePath", redirectErrorStream = false)
+
+            // Load the image into Kind.
+            runSubprocess("kind load docker-image $imageName --name $clusterName")
+
+            logger.info("*** DONE LOADING IMAGE: $absolutePath ***")
+          }
+          .collect()
+      }
+
+      logger.info("*** DONE LOADING ALL IMAGES ***")
+    }
   }
 }
 
 fun main(args: Array<String>) {
-  exitProcess(CommandLine(DeployToKind()).execute(*args))
+  CommandLine(DeployToKind()).execute(*args)
 }

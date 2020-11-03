@@ -41,7 +41,7 @@ filegroup(
 )
 
 filegroup(
-    name = "k8s_deployement_config",
+    name = "k8s_deployment_config",
     srcs = [
         ":kingdom_and_three_duchies_from_cue_gke.yaml",
         ":kingdom_and_three_duchies_from_cue_local.yaml",
@@ -54,7 +54,10 @@ filegroup(
 
 package_group(
     name = "k8s_deployer",
-    packages = ["//src/main/kotlin/org/wfanet/measurement/tools/..."],
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/tools/...",
+        "//src/test/kotlin/org/wfanet/measurement/e2e/...",
+    ],
 )
 
 [k8s_import(

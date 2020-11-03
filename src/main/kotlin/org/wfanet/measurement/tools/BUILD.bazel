@@ -3,6 +3,7 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/tools:__subpackages__",
 ])
 
@@ -15,9 +16,18 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "cluster_state",
+    srcs = ["ClusterState.kt"],
+    deps = [
+        "//imports/java/com/google/code/gson",
+        "//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "deploy_to_kind_impl",
     srcs = ["DeployToKind.kt"],
-    data = ["//src/main/k8s:k8s_deployement_config"],
+    data = ["//src/main/k8s:k8s_deployment_config"],
     deps = [
         ":run_subprocess",
         "//imports/java/picocli",
@@ -29,7 +39,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "deploy_to_gke_impl",
     srcs = ["DeployToGke.kt"],
-    data = ["//src/main/k8s:k8s_deployement_config"],
+    data = ["//src/main/k8s:k8s_deployment_config"],
     deps = [
         ":run_subprocess",
         "//imports/java/picocli",

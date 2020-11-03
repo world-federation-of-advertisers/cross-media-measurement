@@ -42,6 +42,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcService: {
 	_name:      string
 	_system:    string
+	_type:      *"ClusterIP" | "NodePort"
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
@@ -50,7 +51,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	spec: {
 		selector: app: _name + "-app"
-		type: "ClusterIP"
+		type: _type
 		ports: [{
 			name:       "port"
 			port:       8080

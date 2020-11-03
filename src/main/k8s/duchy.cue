@@ -56,7 +56,9 @@ import ("strings")
 		"liquid-legions-computation-control-server": {}
 		"spanner-liquid-legions-computations-server": {}
 		"metric-values-storage-server": {}
-		"publisher-data-server": {}
+		"publisher-data-server": {
+			_type:     "NodePort"
+		}
 	}
 
 	duchy_pod: [Name=_]: #Pod & {
