@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerComputationStatDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
@@ -62,7 +63,8 @@ class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
           duchyName = flags.duchy.duchyName,
           duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
           computationMutations = ComputationMutations(stageEnumHelper, stageDetails)
-        )
+        ),
+        SpannerComputationStatDatabase(databaseClient)
       )
     }
   }

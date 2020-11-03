@@ -82,6 +82,8 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValue
@@ -120,6 +122,8 @@ class LiquidLegionsMillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
+  private val mockComputationStats: ComputationStatsCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
   private val mockCryptoWorker: ProtocolEncryption =
     mock(useConstructor = UseConstructor.parameterless())
   private val fakeComputationDb = FakeLiquidLegionsComputationDb()
@@ -151,6 +155,7 @@ class LiquidLegionsMillTest {
     addService(mockLiquidLegionsComputationControl)
     addService(mockMetricValues)
     addService(mockGlobalComputations)
+    addService(mockComputationStats)
     addService(
       ComputationsService(
         fakeComputationDb,
@@ -169,6 +174,10 @@ class LiquidLegionsMillTest {
 
   private val globalComputationStub: GlobalComputationsCoroutineStub by lazy {
     GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val computationStatsStub: ComputationStatsCoroutineStub by lazy {
+    ComputationStatsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val metricValuesStub: MetricValuesCoroutineStub by lazy {
@@ -219,6 +228,7 @@ class LiquidLegionsMillTest {
         dataClients = computationDataClients,
         metricValuesClient = metricValuesStub,
         globalComputationsClient = globalComputationStub,
+        computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = cryptoKeySet,
         cryptoWorker = mockCryptoWorker,

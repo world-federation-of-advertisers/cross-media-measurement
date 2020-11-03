@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
 
 /** Implementation of `wfa.measurement.internal.duchy.ComputationStats` gRPC service. */
 class ComputationStatsService(
-  private val computationStatDb: ComputationStatDatabase
+  private val computationStatDatabase: ComputationStatDatabase
 ) : ComputationStatsCoroutineService() {
 
   override suspend fun createComputationStat(
@@ -35,7 +35,7 @@ class ComputationStatsService(
       "Missing computation ID"
     }
     grpcRequire(metricName.isNotEmpty()) { "Missing Metric name" }
-    computationStatDb.insertComputationStat(
+    computationStatDatabase.insertComputationStat(
       localId = localComputationId,
       stage = request.computationStage.toLong(),
       attempt = request.attempt.toLong(),

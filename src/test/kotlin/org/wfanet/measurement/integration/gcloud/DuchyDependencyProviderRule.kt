@@ -30,12 +30,15 @@ import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregatio
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
+import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerComputationStatDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATION_STATS_SCHEMA
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.METRIC_VALUES_SCHEMA
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.duchy.testing.DUCHY_SECRET_KEYS
@@ -65,8 +68,14 @@ class DuchyDependencyProviderRule(
       .map { it to SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA) }
       .toMap()
 
+  private val computationStatsDatabaseRules =
+    duchyIds
+      .map { it to SpannerEmulatorDatabaseRule(COMPUTATION_STATS_SCHEMA) }
+      .toMap()
+
   override fun apply(base: Statement, description: Description): Statement {
-    val rules = metricValueDatabaseRules.values + computationsDatabaseRules.values
+    val rules =
+      metricValueDatabaseRules.values + computationsDatabaseRules.values + computationStatsDatabaseRules.values
     return chainRulesSequentially(rules).apply(base, description)
   }
 
@@ -75,10 +84,13 @@ class DuchyDependencyProviderRule(
       ?: error("Missing MetricValue Spanner database for duchy $duchy")
     val computationsDatabase = computationsDatabaseRules[duchy.name]
       ?: error("Missing Computations Spanner database for duchy $duchy")
+    val computationStatsDatabase = computationStatsDatabaseRules[duchy.name]
+      ?: error("Missing Computations Spanner database for duchy $duchy")
 
     return InProcessDuchy.DuchyDependencies(
       buildSingleProtocolDb(duchy.name, computationsDatabase.databaseClient),
       buildMetricValueDb(metricValueDatabase.databaseClient),
+      buildComputationStatDb(computationStatsDatabase.databaseClient),
       buildStorageClient(duchy.name),
       DUCHY_PUBLIC_KEYS,
       buildCryptoKeySet(duchy.name)
@@ -119,6 +131,10 @@ class DuchyDependencyProviderRule(
 
   private fun buildMetricValueDb(databaseClient: AsyncDatabaseClient): MetricValueDatabase {
     return SpannerMetricValueDatabase(databaseClient, RandomIdGenerator())
+  }
+
+  private fun buildComputationStatDb(databaseClient: AsyncDatabaseClient): ComputationStatDatabase {
+    return SpannerComputationStatDatabase(databaseClient)
   }
 
   private fun buildStorageClient(duchyId: String): StorageClient {

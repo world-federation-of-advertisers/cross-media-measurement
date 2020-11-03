@@ -39,7 +39,7 @@ private object ComputationStatsTable {
 
 /** Google Cloud Spanner implementation of [ComputationStatDatabase]. */
 class SpannerComputationStatDatabase(
-  private val dbClient: AsyncDatabaseClient
+  private val databaseClient: AsyncDatabaseClient
 ) : ComputationStatDatabase {
 
   override suspend fun insertComputationStat(
@@ -65,6 +65,6 @@ class SpannerComputationStatDatabase(
         .set(columns.VALUE).to(value)
         .build()
     }
-    dbClient.write(insertMutation)
+    databaseClient.write(insertMutation)
   }
 }

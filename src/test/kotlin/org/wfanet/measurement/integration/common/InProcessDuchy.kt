@@ -41,11 +41,14 @@ import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
+import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
+import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
@@ -71,6 +74,7 @@ class InProcessDuchy(
   data class DuchyDependencies(
     val singleProtocolDatabase: SingleProtocolDatabase,
     val metricValueDatabase: MetricValueDatabase,
+    val computationStatDatabase: ComputationStatDatabase,
     val storageClient: StorageClient,
     val duchyPublicKeys: DuchyPublicKeys,
     val cryptoKeySet: CryptoKeySet
@@ -80,6 +84,10 @@ class InProcessDuchy(
 
   private val kingdomGlobalComputationsStub by lazy {
     GlobalComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+  }
+
+  private val computationStatsStub by lazy {
+    ComputationStatsCoroutineStub(computationControlChannel(duchyId))
   }
 
   private val storageServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -131,6 +139,9 @@ class InProcessDuchy(
       addService(
         LiquidLegionsComputationControlService(computationDataClients).withDuchyIdentities()
       )
+      addService(
+        ComputationStatsService(duchyDependencies.computationStatDatabase)
+      )
     }
 
   private val channelCloserRule = GrpcCleanupRule()
@@ -158,6 +169,7 @@ class InProcessDuchy(
         dataClients = computationDataClients,
         metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
         globalComputationsClient = kingdomGlobalComputationsStub,
+        computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = duchyDependencies.cryptoKeySet,
         cryptoWorker = JniProtocolEncryption(),

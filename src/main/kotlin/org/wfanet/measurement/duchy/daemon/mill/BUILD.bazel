@@ -39,6 +39,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_requests",
         "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
         "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",

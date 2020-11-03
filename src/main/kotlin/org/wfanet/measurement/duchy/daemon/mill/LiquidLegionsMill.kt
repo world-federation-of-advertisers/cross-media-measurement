@@ -50,6 +50,7 @@ import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.ProtocolEncryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.BlobRef
@@ -66,8 +67,10 @@ import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
@@ -107,6 +110,7 @@ class LiquidLegionsMill(
   private val dataClients: LiquidLegionsSketchAggregationComputationDataClients,
   private val metricValuesClient: MetricValuesCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
+  private val computationStatsClient: ComputationStatsCoroutineStub,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: ProtocolEncryption,
@@ -618,7 +622,7 @@ class LiquidLegionsMill(
       )
   }
 
-  private fun logStageElapsedTime(
+  private suspend fun logStageElapsedTime(
     token: ComputationToken,
     description: String,
     elapsedMillis: Long
@@ -627,6 +631,19 @@ class LiquidLegionsMill(
       "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$description:" +
         " ${elapsedMillis.toHumanFriendlyTime()}"
     )
+    logAndSuppressExceptionSuspend {
+      computationStatsClient.createComputationStat(
+        CreateComputationStatRequest.newBuilder()
+          .setLocalComputationId(token.localComputationId)
+          .setGlobalComputationId(token.globalComputationId)
+          .setAttempt(token.attempt)
+          .setComputationStage(token.computationStage.number)
+          .setRole(token.role)
+          .setMetricName(description)
+          .setMetricValue(elapsedMillis)
+          .build()
+      )
+    }
   }
 
   private inline fun <T> measureKotlinCpuTimeMillis(block: () -> T): Long {

@@ -28,6 +28,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
+import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
@@ -52,8 +53,9 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     }
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
+    val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
     val dataClients = LiquidLegionsSketchAggregationComputationDataClients(
-      ComputationsCoroutineStub(buildChannel(flags.computationsServiceTarget))
+      ComputationsCoroutineStub(computationsServiceChannel)
         .withDuchyId(duchyName),
       storageClient,
       otherDuchyNames
@@ -69,6 +71,8 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     val globalComputationsClient =
       GlobalComputationsCoroutineStub(buildChannel(flags.globalComputationsServiceTarget))
         .withDuchyId(duchyName)
+    val computationStatsClient =
+      ComputationStatsCoroutineStub(computationsServiceChannel)
     val metricValuesClient =
       MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
         .withDuchyId(duchyName)
@@ -78,6 +82,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       dataClients = dataClients,
       metricValuesClient = metricValuesClient,
       globalComputationsClient = globalComputationsClient,
+      computationStatsClient = computationStatsClient,
       workerStubs = computationControlClientMap,
       cryptoKeySet = newCryptoKeySet(),
       cryptoWorker = JniProtocolEncryption(),
