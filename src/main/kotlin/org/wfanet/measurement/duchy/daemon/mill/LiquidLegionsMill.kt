@@ -147,9 +147,9 @@ class LiquidLegionsMill(
         val wallTimeElapsedMills = measureTimeMillis {
           processNextComputation(claimWorkResponse.token)
         }
-        logStageElapsedTime(claimWorkResponse.token, STAGE_WALL_CLOCK_TIME, wallTimeElapsedMills)
+        logStageMetric(claimWorkResponse.token, STAGE_WALL_CLOCK_TIME, wallTimeElapsedMills)
       }
-      logStageElapsedTime(claimWorkResponse.token, STAGE_CPU_TIME, cpuTimeElapsedMillis)
+      logStageMetric(claimWorkResponse.token, STAGE_CPU_TIME, cpuTimeElapsedMillis)
     } else {
       logger.info("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -301,7 +301,7 @@ class LiquidLegionsMill(
             .setSketch(readAndCombineAllInputBlobs(token, inputCount))
             .build()
         )
-      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.sketch
     }
 
@@ -323,13 +323,10 @@ class LiquidLegionsMill(
     token: ComputationToken,
     bytes: Flow<ByteString>
   ): Flow<ByteString> {
-    var numOfBytes = 0
+    var numOfBytes = 0L
     return bytes.onEach { numOfBytes += it.size() }
       .onCompletion {
-        logger.info(
-          "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}, " +
-            "send out rpc message with $numOfBytes bytes data."
-        )
+        logStageMetric(token, BYTES_OF_DATA_IN_RPC, numOfBytes)
       }
   }
 
@@ -374,7 +371,7 @@ class LiquidLegionsMill(
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.sketch
     }
 
@@ -400,7 +397,7 @@ class LiquidLegionsMill(
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.flagCounts
     }
 
@@ -425,7 +422,7 @@ class LiquidLegionsMill(
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageElapsedTime(
+      logStageMetric(
         token,
         CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis
       )
@@ -453,7 +450,7 @@ class LiquidLegionsMill(
             .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
             .build()
         )
-      logStageElapsedTime(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.toByteString()
     }
 
@@ -497,7 +494,7 @@ class LiquidLegionsMill(
         val (timeElapsedMills, result) = measureTimeMillisAndReturnResult {
           block()
         }
-        logStageElapsedTime(token, JNI_WALL_CLOCK_TIME, timeElapsedMills)
+        logStageMetric(token, JNI_WALL_CLOCK_TIME, timeElapsedMills)
         result
       } catch (error: Throwable) {
         // All errors from block() are permanent and would cause the computation to FAIL
@@ -622,14 +619,14 @@ class LiquidLegionsMill(
       )
   }
 
-  private suspend fun logStageElapsedTime(
+  private suspend fun logStageMetric(
     token: ComputationToken,
-    description: String,
-    elapsedMillis: Long
+    metricName: String,
+    metricValue: Long
   ) {
     logger.info(
-      "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$description:" +
-        " ${elapsedMillis.toHumanFriendlyTime()}"
+      "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
+        " ${metricValue.toHumanFriendlyTime()}"
     )
     logAndSuppressExceptionSuspend {
       computationStatsClient.createComputationStat(
@@ -639,8 +636,8 @@ class LiquidLegionsMill(
           .setAttempt(token.attempt)
           .setComputationStage(token.computationStage.number)
           .setRole(token.role)
-          .setMetricName(description)
-          .setMetricValue(elapsedMillis)
+          .setMetricName(metricName)
+          .setMetricValue(metricValue)
           .build()
       )
     }
@@ -683,6 +680,7 @@ class LiquidLegionsMill(
     private const val JNI_WALL_CLOCK_TIME = "jni_wall_clock_time"
     private const val STAGE_CPU_TIME = "stage_cpu_time"
     private const val STAGE_WALL_CLOCK_TIME = "stage_wall_clock_time"
+    private const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
     private val threadBean: ThreadMXBean = ManagementFactory.getThreadMXBean()
 
     init {
