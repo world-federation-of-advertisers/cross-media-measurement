@@ -35,7 +35,10 @@ CREATE TABLE MetricValues (
   MetricRequisitionResourceId STRING(MAX) NOT NULL,
 
   -- Key in blob/object storage system.
-  BlobStorageKey STRING(MAX) NOT NULL
+  BlobStorageKey STRING(MAX) NOT NULL,
+
+  -- SHA-256 of the blob
+  BlobFingerprint BYTES(32) NOT NULL
 ) PRIMARY KEY (MetricValueId);
 
 -- Index for row lookups by external ID.

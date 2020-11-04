@@ -21,8 +21,11 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toHexString
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.internal.duchy.MetricValue
 
 /** Metadata for `MetricValues` table. */
@@ -38,6 +41,7 @@ private object MetricValuesTable {
     const val CAMPAIGN_RESOURCE_ID = "CampaignResourceId"
     const val METRIC_REQUISITION_RESOURCE_ID = "MetricRequisitionResourceId"
     const val BLOB_STORAGE_KEY = "BlobStorageKey"
+    const val BLOB_FINGERPRINT = "BlobFingerprint"
 
     val all =
       listOf(
@@ -46,7 +50,8 @@ private object MetricValuesTable {
         DATA_PROVIDER_RESOURCE_ID,
         CAMPAIGN_RESOURCE_ID,
         METRIC_REQUISITION_RESOURCE_ID,
-        BLOB_STORAGE_KEY
+        BLOB_STORAGE_KEY,
+        BLOB_FINGERPRINT
       )
   }
 
@@ -68,6 +73,11 @@ class SpannerMetricValueDatabase(
     require(resourceKey.campaignResourceId.isNotEmpty())
     require(resourceKey.metricRequisitionResourceId.isNotEmpty())
     require(metricValue.blobStorageKey.isNotEmpty())
+    require(metricValue.blobFingerprint.size() == 32) {
+      val fingerprint = metricValue.blobFingerprint
+      val hexFingerprint = fingerprint.toByteArray().toHexString()
+      "blobFingerprint size ${fingerprint.size()} is not 32: $hexFingerprint"
+    }
 
     val id = idGenerator.generateInternalId()
     val externalId = idGenerator.generateExternalId()
@@ -79,6 +89,7 @@ class SpannerMetricValueDatabase(
         .set(columns.CAMPAIGN_RESOURCE_ID).to(resourceKey.campaignResourceId)
         .set(columns.METRIC_REQUISITION_RESOURCE_ID).to(resourceKey.metricRequisitionResourceId)
         .set(columns.BLOB_STORAGE_KEY).to(metricValue.blobStorageKey)
+        .set(columns.BLOB_FINGERPRINT).to(metricValue.blobFingerprint.toGcloudByteArray())
         .build()
     }
 
@@ -145,6 +156,7 @@ private fun Struct.toMetricValue(): MetricValue = with(MetricValuesTable.Columns
       metricRequisitionResourceId = getString(METRIC_REQUISITION_RESOURCE_ID)
     }
     blobStorageKey = getString(BLOB_STORAGE_KEY)
+    blobFingerprint = getBytesAsByteString(BLOB_FINGERPRINT)
   }.build()
 }
 

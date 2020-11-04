@@ -18,6 +18,7 @@ kt_jvm_library(
         "//imports/java/com/google/protobuf",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/metricvalue",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:metric_value_store",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",

@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.argumentCaptor
@@ -46,6 +45,7 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutine
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.duchy.MetricValue as InternalMetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase as MetricValuesCoroutineService
@@ -203,6 +203,6 @@ class PublisherDataServiceTest {
 
   companion object {
     private val random = Random.Default
-    private val testMetricValueData = ByteString.copyFrom(random.nextBytes(1024 * 1024 * 2))
+    private val testMetricValueData = random.nextBytes(1024 * 1024 * 2).toByteString()
   }
 }

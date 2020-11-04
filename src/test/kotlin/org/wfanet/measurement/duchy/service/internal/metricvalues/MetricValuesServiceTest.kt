@@ -25,6 +25,7 @@ import com.nhaarman.mockitokotlin2.times
 import com.nhaarman.mockitokotlin2.verifyBlocking
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.security.MessageDigest
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -40,6 +41,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.size
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
@@ -179,6 +181,31 @@ class MetricValuesServiceTest {
     assertThat(output).isEqualTo(testMetricValueData)
   }
 
+  @Test fun `streamMetricValue throws when fingerprint is wrong`() = runBlocking {
+    nextBlobKey = testMetricValue.blobStorageKey
+    metricValueStore.write(flowOf(testMetricValueData))
+
+    metricValueDbMock.stub {
+      onBlocking {
+        getMetricValue(testMetricValue.resourceKey)
+      }.thenReturn(
+        testMetricValue.toBuilder()
+          .setBlobFingerprint(random.nextBytes(32).toByteString())
+          .build()
+      )
+    }
+
+    val e = assertFailsWith(StatusRuntimeException::class) {
+      service.streamMetricValue(
+        StreamMetricValueRequest.newBuilder().apply {
+          resourceKey = testMetricValue.resourceKey
+        }.build()
+      ).collect()
+    }
+
+    assertThat(e.status.code).isEqualTo(Status.Code.DATA_LOSS)
+  }
+
   @Test fun `streamMetricValue throws INVALID_ARGUMENT when key not set`() = runBlocking {
     val e = assertFailsWith(StatusRuntimeException::class) {
       service.streamMetricValue(StreamMetricValueRequest.getDefaultInstance()).collect()
@@ -217,6 +244,16 @@ class MetricValuesServiceTest {
   }
 
   companion object {
+    private val random = Random.Default
+    private val testMetricValueData: ByteString =
+      random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4)).toByteString()
+
+    private val testMetricValueDataFingerprint: ByteString =
+      MessageDigest
+        .getInstance("SHA-256")
+        .digest(testMetricValueData.toByteArray())
+        .toByteString()
+
     private val testMetricValue: MetricValue = MetricValue.newBuilder().apply {
       externalId = 987654321L
       resourceKeyBuilder.apply {
@@ -225,10 +262,7 @@ class MetricValuesServiceTest {
         metricRequisitionResourceId = "requisition-id"
       }
       blobStorageKey = "blob-key"
+      blobFingerprint = testMetricValueDataFingerprint
     }.build()
-
-    private val random = Random.Default
-    private val testMetricValueData: ByteString =
-      ByteString.copyFrom(random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4)))
   }
 }

@@ -13,7 +13,6 @@
 // limitations under the License.
 package org.wfanet.measurement.common.crypto
 
-import com.google.common.io.BaseEncoding
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
@@ -27,6 +26,7 @@ import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse.FlagCount
+import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.loadLibrary
 
 private const val CURVE_ID = 415L // NID_X9_62_prime256v1
@@ -55,33 +55,33 @@ private const val CLIENT_PK_Y =
   "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
 private val DUCHY_1_EL_GAMAL_KEYS = ElGamalKeys.newBuilder().apply {
   elGamalPkBuilder.apply {
-    elGamalG = hexToByteString(DUCHY_1_PK_G)
-    elGamalY = hexToByteString(DUCHY_1_PK_Y)
+    elGamalG = DUCHY_1_PK_G.hexAsByteString()
+    elGamalY = DUCHY_1_PK_Y.hexAsByteString()
   }
-  elGamalSk = hexToByteString(DUCHY_1_SK)
+  elGamalSk = DUCHY_1_SK.hexAsByteString()
 }.build()
 private val DUCHY_2_EL_GAMAL_KEYS = ElGamalKeys.newBuilder().apply {
   elGamalPkBuilder.apply {
-    elGamalG = hexToByteString(DUCHY_2_PK_G)
-    elGamalY = hexToByteString(DUCHY_2_PK_Y)
+    elGamalG = DUCHY_2_PK_G.hexAsByteString()
+    elGamalY = DUCHY_2_PK_Y.hexAsByteString()
   }
-  elGamalSk = hexToByteString(DUCHY_2_SK)
+  elGamalSk = DUCHY_2_SK.hexAsByteString()
 }.build()
 private val DUCHY_3_EL_GAMAL_KEYS = ElGamalKeys.newBuilder().apply {
   elGamalPkBuilder.apply {
-    elGamalG = hexToByteString(DUCHY_3_PK_G)
-    elGamalY = hexToByteString(DUCHY_3_PK_Y)
+    elGamalG = DUCHY_3_PK_G.hexAsByteString()
+    elGamalY = DUCHY_3_PK_Y.hexAsByteString()
   }
-  elGamalSk = hexToByteString(DUCHY_3_SK)
+  elGamalSk = DUCHY_3_SK.hexAsByteString()
 }.build()
 private val CLIENT_EL_GAMAL_KEYS = ElGamalPublicKeys.newBuilder().apply {
-  elGamalG = hexToByteString(CLIENT_PK_G)
-  elGamalY = hexToByteString(CLIENT_PK_Y)
+  elGamalG = CLIENT_PK_G.hexAsByteString()
+  elGamalY = CLIENT_PK_Y.hexAsByteString()
 }.build()
 private val SKETCH_ENCRYPTER_KEY =
   org.wfanet.anysketch.crypto.ElGamalPublicKeys.newBuilder().apply {
-    elGamalG = hexToByteString(CLIENT_PK_G)
-    elGamalY = hexToByteString(CLIENT_PK_Y)
+    elGamalG = CLIENT_PK_G.hexAsByteString()
+    elGamalY = CLIENT_PK_Y.hexAsByteString()
   }.build()
 
 @RunWith(JUnit4::class)
@@ -263,10 +263,6 @@ class ProtocolEncryptionUtilityTest {
       )
     }
   }
-}
-
-private fun hexToByteString(hexString: String): ByteString {
-  return ByteString.copyFrom(BaseEncoding.base16().decode(hexString.toUpperCase()))
 }
 
 private fun createEmptyClceSketch(): Sketch.Builder {

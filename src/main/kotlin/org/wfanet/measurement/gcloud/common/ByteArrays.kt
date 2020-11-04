@@ -15,10 +15,14 @@
 package org.wfanet.measurement.gcloud.common
 
 import com.google.cloud.ByteArray as GcloudByteArray
+import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
 
 fun ByteArray.toGcloudByteArray(): GcloudByteArray = GcloudByteArray.copyFrom(this)
+
+fun ByteString.toGcloudByteArray(): GcloudByteArray =
+  GcloudByteArray.copyFrom(asReadOnlyByteBuffer())
 
 fun Message.toGcloudByteArray(): GcloudByteArray = toByteArray().toGcloudByteArray()
 

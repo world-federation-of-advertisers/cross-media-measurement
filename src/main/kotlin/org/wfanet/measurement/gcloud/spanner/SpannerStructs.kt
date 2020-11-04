@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
 import com.google.cloud.spanner.ValueBinder
+import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.Parser
 import com.google.protobuf.ProtocolMessageEnum
@@ -56,6 +57,12 @@ fun Struct.getNullableLong(column: String): Long? =
  * Returns a bytes column as a Kotlin native ByteArray. This is useful for deserializing protos.
  */
 fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toByteArray()
+
+/**
+ * Returns a bytes column as a protobuf ByteString.
+ */
+fun Struct.getBytesAsByteString(column: String): ByteString =
+  ByteString.copyFrom(getBytes(column).asReadOnlyByteBuffer())
 
 /** Parses a protobuf [Message] from a bytes column. */
 fun <T : Message> Struct.getProtoMessage(column: String, parser: Parser<T>): T =

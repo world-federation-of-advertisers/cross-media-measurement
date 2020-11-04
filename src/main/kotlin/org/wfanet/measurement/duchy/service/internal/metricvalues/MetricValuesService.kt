@@ -14,13 +14,19 @@
 
 package org.wfanet.measurement.duchy.service.internal.metricvalues
 
+import com.google.protobuf.ByteString
 import io.grpc.Status
+import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.common.consumeFirstOr
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.toHexString
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
@@ -71,11 +77,20 @@ class MetricValuesService private constructor(
             .asRuntimeException()
         }
 
-        val blob = metricValueStore.write(consumed.remaining.map { it.chunk.data })
+        val digest = makeFingerprinter()
+
+        val blobChunks: Flow<ByteString> =
+          consumed
+            .remaining
+            .map { it.chunk.data }
+            .onEach { digest.update(it.asReadOnlyByteBuffer()) }
+
+        val blob = metricValueStore.write(blobChunks)
 
         MetricValue.newBuilder().apply {
           this.resourceKey = resourceKey
           blobStorageKey = blob.blobKey
+          blobFingerprint = digest.digest().toByteString()
         }.build()
       }
 
@@ -91,11 +106,11 @@ class MetricValuesService private constructor(
         StreamMetricValueRequest.KeyCase.RESOURCE_KEY ->
           metricValueDb.getMetricValue(request.resourceKey)
         StreamMetricValueRequest.KeyCase.KEY_NOT_SET ->
-          throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
-      } ?: throw Status.NOT_FOUND.asRuntimeException()
+          failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
+      } ?: failGrpc(Status.NOT_FOUND) { "MetricValue not found: $request" }
 
       val content = metricValueStore.get(metricValue.blobStorageKey)
-        ?: throw Status.DATA_LOSS.withDescription("Missing metric value data").asRuntimeException()
+        ?: failGrpc(Status.DATA_LOSS) { "Missing metric value data" }
 
       // Emit header.
       emit(
@@ -105,13 +120,25 @@ class MetricValuesService private constructor(
         }.build()
       )
 
+      val digest = makeFingerprinter()
+
       // Emit chunks.
       content.read(STREAM_BYTE_BUFFER_SIZE).collect { bytes ->
+        digest.update(bytes.asReadOnlyByteBuffer())
         emit(
           StreamMetricValueResponse.newBuilder().apply {
             chunkBuilder.data = bytes
           }.build()
         )
+      }
+
+      val fingerprint: ByteArray = digest.digest()
+      if (!fingerprint.contentEquals(metricValue.blobFingerprint.toByteArray())) {
+        failGrpc(Status.DATA_LOSS) {
+          val expected = metricValue.blobFingerprint.toByteArray().toHexString()
+          val actual = fingerprint.toHexString()
+          "Blob fingerprint mismatch, expected '$expected', got '$actual'"
+        }
       }
     }
 
@@ -127,3 +154,5 @@ val MetricValue.ResourceKey.valid: Boolean
       campaignResourceId.isNotEmpty() &&
       metricRequisitionResourceId.isNotEmpty()
   }
+
+private fun makeFingerprinter(): MessageDigest = MessageDigest.getInstance("SHA-256")

@@ -35,4 +35,7 @@ message MetricValue {
 
   // Key in the blob storage system for the underlying metric value data.
   string blob_storage_key = 3;
+
+  // SHA-256 fingerprint of the blob's bytes.
+  bytes blob_fingerprint = 4;
 }

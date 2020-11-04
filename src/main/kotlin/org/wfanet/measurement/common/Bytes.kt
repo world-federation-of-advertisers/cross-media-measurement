@@ -32,6 +32,8 @@ import kotlinx.coroutines.withContext
 
 const val BYTES_PER_MIB = 1024 * 1024
 
+fun ByteArray.toByteString(): ByteString = ByteString.copyFrom(this)
+
 fun Iterable<ByteArray>.toByteString(): ByteString {
   val totalSize = sumBy { it.size }
 
@@ -208,5 +210,12 @@ fun ReadableByteChannel.asFlow(bufferSize: Int): Flow<ByteString> = flow {
  * Converts a hex string to its equivalent [ByteString].
  */
 fun String.hexAsByteString(): ByteString {
-  return ByteString.copyFrom(BaseEncoding.base16().decode(this.toUpperCase()))
+  return BaseEncoding.base16().decode(this.toUpperCase()).toByteString()
+}
+
+/**
+ * Converts a [ByteArray] into an upperbase hex string.
+ */
+fun ByteArray.toHexString(): String {
+  return BaseEncoding.base16().upperCase().encode(this)
 }

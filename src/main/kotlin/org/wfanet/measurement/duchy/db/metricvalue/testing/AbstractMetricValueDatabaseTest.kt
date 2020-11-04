@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.db.metricvalue.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.identity.ExternalId
@@ -71,12 +72,12 @@ abstract class AbstractMetricValueDatabaseTest<T : MetricValueDatabase> {
   @Test fun `getBlobStorageKey returns blob storage key`() = runBlocking {
     insertTestMetricValue()
 
-    val blobKey = metricValueDb.getBlobStorageKey(testMetricValue.getResourceKey())
+    val blobKey = metricValueDb.getBlobStorageKey(testMetricValue.resourceKey)
 
     assertThat(blobKey).isEqualTo(testMetricValue.blobStorageKey)
   }
 
-  protected suspend fun insertTestMetricValue(): MetricValue {
+  private suspend fun insertTestMetricValue(): MetricValue {
     fixedIdGenerator.externalId = ExternalId(testMetricValue.externalId)
     return metricValueDb.insertMetricValue(testMetricValue.toBuilder().clearExternalId().build())
   }
@@ -90,6 +91,7 @@ abstract class AbstractMetricValueDatabaseTest<T : MetricValueDatabase> {
         metricRequisitionResourceId = "requisition-id"
       }
       blobStorageKey = "blob-key"
+      blobFingerprint = ByteString.copyFrom(ByteArray(32))
     }.build()
   }
 }

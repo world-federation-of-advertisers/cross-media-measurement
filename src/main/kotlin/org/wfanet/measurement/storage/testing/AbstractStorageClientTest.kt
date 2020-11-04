@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.size
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
@@ -75,6 +76,6 @@ abstract class AbstractStorageClientTest<T : StorageClient> {
   companion object {
     private val random = Random.Default
     private val testBlobContent: ByteString =
-      ByteString.copyFrom(random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4)))
+      random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4)).toByteString()
   }
 }
