@@ -318,8 +318,8 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
       externalReportId = EXTERNAL_REPORT_ID
       resultBuilder.apply {
         reach = 12345
-        putFrequency(1, 2)
-        putFrequency(3, 4)
+        putFrequency(1, 0.2)
+        putFrequency(3, 0.8)
       }
     }.build()
 
@@ -330,8 +330,8 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
       state = ReportState.SUCCEEDED
       reportDetailsBuilder.resultBuilder.apply {
         reach = 12345
-        putFrequency(1, 2)
-        putFrequency(3, 4)
+        putFrequency(1, 0.2)
+        putFrequency(3, 0.8)
       }
     }.build()
 

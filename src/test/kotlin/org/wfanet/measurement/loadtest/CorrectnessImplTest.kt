@@ -309,7 +309,7 @@ class CorrectnessImplTest {
           mergeAll(listOf(anySketch1, anySketch2, anySketch3, anySketch4))
         }
       )
-    assertThat(actualFrequency).isEqualTo(mapOf((2L to 2L), (1L to 1L)))
+    assertThat(actualFrequency).isEqualTo(mapOf((2L to 2.0 / 3), (1L to 1.0 / 3)))
   }
 
   @Test
@@ -321,7 +321,7 @@ class CorrectnessImplTest {
       universeSize = 1
     )
     val reach = 34512L
-    val frequency = mapOf((1L to 4L), (2L to 3L))
+    val frequency = mapOf((1L to 0.4), (2L to 0.6))
     val blobKey = correctness.storeEstimationResults(reach, frequency)
     val expectedComputation = GlobalComputation.newBuilder().apply {
       keyBuilder.globalComputationId = "1"
@@ -345,7 +345,7 @@ class CorrectnessImplTest {
       universeSize = 1
     )
     val reach = 34512L
-    val frequency = mapOf((1L to 4L), (2L to 3L))
+    val frequency = mapOf((1L to 0.4), (2L to 0.6))
     val computationBlobKey = correctness.storeEstimationResults(reach, frequency)
     val expectedComputation = GlobalComputation.newBuilder().apply {
       keyBuilder.globalComputationId = "1"

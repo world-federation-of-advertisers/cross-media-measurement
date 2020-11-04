@@ -28,9 +28,9 @@ message ReportDetails {
   message Result {
     int64 reach = 1;
 
-    // Histogram: maps frequencies to counts. For example, a map entry
-    // {key: 4 value: 7} means that 7 users were exposed 4 times.
-    map<int64, int64> frequency = 2;
+    // Histogram: maps frequencies to ratios. For example, a map entry
+    // {key: 4 value: 0.333} means that 33.3% of all users were exposed 4 times.
+    map<int64, double> frequency = 2;
   }
   Result result = 2;
 

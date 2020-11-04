@@ -48,6 +48,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
 import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
@@ -115,6 +117,7 @@ import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsRespo
 import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchRequest
 import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchResponse
 
+@RunWith(JUnit4::class)
 class LiquidLegionsMillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -969,9 +972,9 @@ class LiquidLegionsMillTest {
           .setResult(
             GlobalComputation.Result.newBuilder()
               .setReach(9)
-              .putFrequency(1, 1)
-              .putFrequency(2, 2)
-              .putFrequency(3, 3)
+              .putFrequency(1, 1.0 / 6)
+              .putFrequency(2, 2.0 / 6)
+              .putFrequency(3, 3.0 / 6)
           )
           .build()
       )

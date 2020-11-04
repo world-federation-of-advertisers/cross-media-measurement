@@ -310,7 +310,7 @@ class CorrectnessImpl(
     )
   }
 
-  override fun estimateFrequency(anySketch: AnySketch): Map<Long, Long> {
+  override fun estimateFrequency(anySketch: AnySketch): Map<Long, Double> {
     val valueIndex = anySketch.getValueIndex("SamplingIndicator").asInt
     return ValueHistogram.calculateHistogram(anySketch, "Frequency") {
       it.values[valueIndex] != -1L
@@ -341,7 +341,7 @@ class CorrectnessImpl(
 
   override suspend fun storeEstimationResults(
     reach: Long,
-    frequency: Map<Long, Long>
+    frequency: Map<Long, Double>
   ): String {
     val computation = GlobalComputation.newBuilder().apply {
       keyBuilder.globalComputationId = GLOBAL_COMPUTATION_ID

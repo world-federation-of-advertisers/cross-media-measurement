@@ -85,9 +85,9 @@ interface Correctness {
    * Runs Frequency Estimation on the given [AnySketch].
    *
    * @param anySketch AnySketch object.
-   * @return Map<Long, Long> Value Histogram for Estimated Frequency
+   * @return Map<Long, Double> Value Histogram for Estimated Frequency
    */
-  fun estimateFrequency(anySketch: AnySketch): Map<Long, Long>
+  fun estimateFrequency(anySketch: AnySketch): Map<Long, Double>
 
   /**
    * Stores a binary-serialized [Sketch] message into a blob.
@@ -109,12 +109,12 @@ interface Correctness {
    * Stores a binary-serialized [GlobalComputation] message with reach and frequency estimation results into a blob.
    *
    * @param reach Long value of Estimated Cardinality
-   * @param frequency Map<Long, Long> value of Estimated Frequency
+   * @param frequency Map<Long, Double> value of Estimated Frequency
    * @return blob key of the stored [GlobalComputation]
    */
   suspend fun storeEstimationResults(
     reach: Long,
-    frequency: Map<Long, Long>
+    frequency: Map<Long, Double>
   ): String
 
   /**

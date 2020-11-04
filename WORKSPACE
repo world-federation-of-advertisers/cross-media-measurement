@@ -364,7 +364,7 @@ git_repository(
 
 git_repository(
     name = "any_sketch_java",
-    commit = "e34e68460cba98a593903f6d2d8b84fdea729c52",
+    commit = "54089b0f800fd6707d00c099a63d4963c40bb652",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
     shallow_since = "1603231855 -0700",
 )

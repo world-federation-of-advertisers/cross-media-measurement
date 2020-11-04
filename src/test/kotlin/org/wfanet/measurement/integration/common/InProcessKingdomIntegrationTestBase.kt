@@ -195,8 +195,8 @@ abstract class InProcessKingdomIntegrationTestBase {
         key = computation.key
         resultBuilder.apply {
           reach = 12345L
-          putFrequency(6L, 7L)
-          putFrequency(8L, 9L)
+          putFrequency(6L, 0.4)
+          putFrequency(8L, 0.6)
         }
       }.build()
     )
@@ -211,8 +211,8 @@ abstract class InProcessKingdomIntegrationTestBase {
           state = GlobalComputation.State.SUCCEEDED
           resultBuilder.apply {
             reach = 12345L
-            putFrequency(6L, 7L)
-            putFrequency(8L, 9L)
+            putFrequency(6L, 0.4)
+            putFrequency(8L, 0.6)
           }
         }.build()
       )

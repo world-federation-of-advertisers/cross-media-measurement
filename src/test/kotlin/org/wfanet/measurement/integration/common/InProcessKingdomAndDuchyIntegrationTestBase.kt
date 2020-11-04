@@ -133,7 +133,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
             addAllConfirmedDuchies(DUCHY_IDS)
             reportDetailsBuilder.resultBuilder.apply {
               reach = 11L
-              putFrequency(3L, 10L)
+              putFrequency(3L, 1.0)
             }
           }
         }.build()
@@ -186,7 +186,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
             addAllConfirmedDuchies(DUCHY_IDS)
             reportDetailsBuilder.resultBuilder.apply {
               reach = 11L
-              putFrequency(3L, 10L)
+              putFrequency(3L, 1.0)
             }
           }
         }.build()

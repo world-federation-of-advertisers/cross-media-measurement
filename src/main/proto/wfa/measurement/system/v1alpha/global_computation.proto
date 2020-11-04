@@ -71,8 +71,8 @@ message GlobalComputation {
   message Result {
     int64 reach = 1;
 
-    // Histogram: maps frequencies to counts. For example, a map entry
-    // {key: 4 value: 7} means that 7 users were exposed 4 times.
-    map<int64, int64> frequency = 2;
+    // Histogram: maps frequencies to ratios. For example, a map entry
+    // {key: 4 value: 0.2} means that 20% of all users were exposed 4 times.
+    map<int64, double> frequency = 2;
   }
 }

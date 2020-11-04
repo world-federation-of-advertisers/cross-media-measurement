@@ -40,8 +40,8 @@ private const val EXTERNAL_REPORT_ID = 8L
 private val RESULT: ReportDetails.Result =
   ReportDetails.Result.newBuilder().apply {
     reach = 123
-    putFrequency(1, 2)
-    putFrequency(3, 4)
+    putFrequency(1, 0.4)
+    putFrequency(3, 0.6)
   }.build()
 
 @RunWith(JUnit4::class)

@@ -26,6 +26,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.dropWhile
@@ -319,6 +320,7 @@ class LiquidLegionsMill(
   }
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
   private fun addLoggingHook(
     token: ComputationToken,
     bytes: Flow<ByteString>
@@ -455,11 +457,15 @@ class LiquidLegionsMill(
     }
 
     val flagCounts = DecryptLastLayerFlagAndCountResponse.parseFrom(bytes.flatten()).flagCountsList
-    val frequencyHistogram: Map<Long, Long> = flagCounts
+    val frequencyDistribution: Map<Int, Int> = flagCounts
       .filter { it.isNotDestroyed }
-      .groupBy { it.frequency }
-      .entries
-      .associate { it.key.toLong() to it.value.size.toLong() }
+      .groupingBy { it.frequency }
+      .eachCount()
+    val totalAppearance = frequencyDistribution.values.sum()
+    val relativeFrequencyDistribution: Map<Long, Double> = frequencyDistribution
+      .mapKeys { it.key.toLong() }
+      .mapValues { it.value.toDouble() / totalAppearance }
+
     val cardinality: Long = Estimators.EstimateCardinalityLiquidLegions(
       liquidLegionsConfig.decayRate,
       liquidLegionsConfig.size,
@@ -470,7 +476,7 @@ class LiquidLegionsMill(
         keyBuilder.globalComputationId = token.globalComputationId.toString()
         resultBuilder.apply {
           reach = cardinality
-          putAllFrequency(frequencyHistogram)
+          putAllFrequency(relativeFrequencyDistribution)
         }
       }.build()
     )

@@ -328,8 +328,8 @@ class GlobalComputationServiceTest {
       keyBuilder.globalComputationId = ExternalId(123).apiId.value
       resultBuilder.apply {
         reach = 456
-        putFrequency(1, 2)
-        putFrequency(3, 4)
+        putFrequency(1, 0.2)
+        putFrequency(3, 0.8)
       }
     }.build()
 
@@ -339,8 +339,8 @@ class GlobalComputationServiceTest {
           state = ReportState.SUCCEEDED
           reportDetailsBuilder.resultBuilder.apply {
             reach = 456
-            putFrequency(1, 2)
-            putFrequency(3, 4)
+            putFrequency(1, 0.2)
+            putFrequency(3, 0.8)
           }
         }.build()
       )
@@ -351,8 +351,8 @@ class GlobalComputationServiceTest {
           state = State.SUCCEEDED
           resultBuilder.apply {
             reach = 456
-            putFrequency(1, 2)
-            putFrequency(3, 4)
+            putFrequency(1, 0.2)
+            putFrequency(3, 0.8)
           }
         }.build()
       )
@@ -361,8 +361,8 @@ class GlobalComputationServiceTest {
       externalReportId = 123
       resultBuilder.apply {
         reach = 456
-        putFrequency(1, 2)
-        putFrequency(3, 4)
+        putFrequency(1, 0.2)
+        putFrequency(3, 0.8)
       }
     }.build()
 
