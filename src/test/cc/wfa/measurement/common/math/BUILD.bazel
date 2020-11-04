@@ -1,0 +1,12 @@
+cc_test(
+    name = "polya_distribution_test",
+    size = "small",
+    srcs = [
+        "polya_distribution_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/common/math:polya_distribution",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

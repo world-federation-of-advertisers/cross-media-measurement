@@ -1,0 +1,23 @@
+load("//build:defs.bzl", "test_target")
+
+package(default_visibility = [
+    ":__pkg__",
+    test_target(":__pkg__"),
+    "//src/main/swig/common:__subpackages__",
+])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "polya_distribution",
+    srcs = [
+        "polya_distribution.cc",
+    ],
+    hdrs = [
+        "polya_distribution.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@absl//absl/random:distributions",
+    ],
+)
