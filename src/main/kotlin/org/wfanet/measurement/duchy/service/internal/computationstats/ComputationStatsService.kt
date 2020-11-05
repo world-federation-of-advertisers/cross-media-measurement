@@ -37,7 +37,7 @@ class ComputationStatsService(
     grpcRequire(metricName.isNotEmpty()) { "Missing Metric name" }
     computationsDatabase.insertComputationStat(
       localId = localComputationId,
-      stage = request.computationStage.toLong(),
+      stage = request.computationStage,
       attempt = request.attempt.toLong(),
       metric = ComputationStatMetric(metricName, request.metricValue)
     )

@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
 
@@ -40,7 +41,7 @@ class ComputationStatsServiceTest {
   fun `createComputationStat throws INVALID_ARGUMENT when metric name not set`() = runBlocking {
     val request = CreateComputationStatRequest.newBuilder()
       .setLocalComputationId(1)
-      .setComputationStage(1)
+      .setComputationStage(ComputationStage.newBuilder().setLiquidLegionsSketchAggregationValue(1))
       .setAttempt(1)
       .setMetricValue(1234)
       .build()
@@ -54,7 +55,7 @@ class ComputationStatsServiceTest {
   fun `createComputationStat succeeds`() = runBlocking {
     val request = CreateComputationStatRequest.newBuilder()
       .setLocalComputationId(1)
-      .setComputationStage(1)
+      .setComputationStage(ComputationStage.newBuilder().setLiquidLegionsSketchAggregationValue(1))
       .setAttempt(1)
       .setMetricName("crypto_cpu_time_millis")
       .setMetricValue(1234)

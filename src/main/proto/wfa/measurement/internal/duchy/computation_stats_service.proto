@@ -19,6 +19,8 @@ package wfa.measurement.internal.duchy;
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
+import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
+
 // Service for persisting computation related measurements.
 service ComputationStats {
   // Persists a ComputationStat.
@@ -31,13 +33,13 @@ message CreateComputationStatRequest {
   // Identifier for the computation used locally.
   int64 local_computation_id = 1;
   // The stage of the computation.
-  int32 computation_stage = 3;
+  ComputationStage computation_stage = 2;
   // The number of the current attempt of the stage.
-  int32 attempt = 4;
+  int32 attempt = 3;
   // Name of the metric that is being measured e.g. crypto_cpu_time_millis.
-  string metric_name = 7;
+  string metric_name = 4;
   // Numerical value of the measurement.
-  int64 metric_value = 8;
+  int64 metric_value = 5;
 }
 
 message CreateComputationStatResponse {

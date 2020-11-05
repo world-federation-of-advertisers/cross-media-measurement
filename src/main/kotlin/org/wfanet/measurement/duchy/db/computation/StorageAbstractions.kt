@@ -160,10 +160,10 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
   /** Writes the reference to a BLOB needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(token: ComputationStorageEditToken<StageT>, blobRef: BlobRef)
 
-  /** Inserts the specified [ComputationStat] into the database. */
+  /** Inserts the specified [ComputationStatMetric] into the database. */
   suspend fun insertComputationStat(
     localId: Long,
-    stage: Long,
+    stage: StageT,
     attempt: Long,
     metric: ComputationStatMetric
   )

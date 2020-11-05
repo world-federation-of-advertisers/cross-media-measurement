@@ -282,7 +282,7 @@ class FakeLiquidLegionsComputationDb private constructor(
   /** For testing purposes, doesn't do anything useful. */
   override suspend fun insertComputationStat(
     localId: Long,
-    stage: Long,
+    stage: ComputationStage,
     attempt: Long,
     metric: ComputationStatMetric
   ) {

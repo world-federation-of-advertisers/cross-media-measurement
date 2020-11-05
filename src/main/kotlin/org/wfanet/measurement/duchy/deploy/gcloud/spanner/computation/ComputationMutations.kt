@@ -347,14 +347,14 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
   fun computationStat(
     newBuilderFunction: MutationBuilderFunction,
     localId: Long,
-    stage: Long,
+    stage: StageT,
     attempt: Long,
     metricName: String,
     metricValue: Long
   ): Mutation {
     return newBuilderFunction("ComputationStats")
       .set("ComputationId").to(localId)
-      .set("ComputationStage").to(stage)
+      .set("ComputationStage").to(enumToLong(stage))
       .set("Attempt").to(attempt)
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
       .set("MetricName").to(metricName)
@@ -370,7 +370,7 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
    */
   fun insertComputationStat(
     localId: Long,
-    stage: Long,
+    stage: StageT,
     attempt: Long,
     metricName: String,
     metricValue: Long

@@ -551,12 +551,9 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     }
   }
 
-  /**
-   * Inserts the specified [ComputationStat] into the database.
-   */
   override suspend fun insertComputationStat(
     localId: Long,
-    stage: Long,
+    stage: StageT,
     attempt: Long,
     metric: ComputationStatMetric
   ) {

@@ -1055,7 +1055,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     databaseClient.write(listOf(computation, stage, attempt))
     database.insertComputationStat(
       localId = localId,
-      stage = C.ordinal.toLong(),
+      stage = C,
       attempt = 2,
       metric = ComputationStatMetric("crypto_cpu_time_millis", 3125)
     )

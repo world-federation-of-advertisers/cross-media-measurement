@@ -639,7 +639,7 @@ class LiquidLegionsMill(
         CreateComputationStatRequest.newBuilder()
           .setLocalComputationId(token.localComputationId)
           .setAttempt(token.attempt)
-          .setComputationStage(token.computationStage.number)
+          .setComputationStage(token.computationStage)
           .setMetricName(metricName)
           .setMetricValue(metricValue)
           .build()
