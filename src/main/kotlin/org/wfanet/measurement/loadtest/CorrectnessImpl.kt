@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
 import org.wfanet.anysketch.AnySketch
@@ -47,6 +48,7 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.loadLibrary
@@ -71,6 +73,7 @@ private const val MAX_COUNTER_VALUE = 10
 private const val DECAY_RATE = 23.0
 private const val INDEX_SIZE = 330_000L
 private const val GLOBAL_COMPUTATION_ID = "1"
+private const val STREAM_BYTE_BUFFER_SIZE = 1024 * 32 // 32 KiB
 
 class CorrectnessImpl(
   override val dataProviderCount: Int,
@@ -395,15 +398,21 @@ class CorrectnessImpl(
     metricValueKey: MetricRequisition.Key,
     encryptedSketch: ByteString
   ) {
-    val requests = flowOf(
+    val header = flowOf(
       UploadMetricValueRequest.newBuilder().apply {
         headerBuilder.key = metricValueKey
-      }.build(),
-      UploadMetricValueRequest.newBuilder().apply {
-        chunkBuilder.data = encryptedSketch
       }.build()
     )
-    publisherDataStub.uploadMetricValue(requests)
+    val bodyContent =
+      encryptedSketch.asBufferedFlow(STREAM_BYTE_BUFFER_SIZE)
+    .map{
+      UploadMetricValueRequest.newBuilder().apply {
+        chunkBuilder.data = it
+      }.build()
+    }
+    val request = merge(header, bodyContent)
+
+    publisherDataStub.uploadMetricValue(request)
     logger.info("Encrypted Sketch successfully sent to the Publisher Data Service.")
   }
 
