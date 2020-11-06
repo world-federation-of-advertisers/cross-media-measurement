@@ -24,7 +24,6 @@ import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
-import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
@@ -50,23 +49,23 @@ abstract class ComputationsServer : Runnable {
 
   protected fun run(
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
-    computationDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails>,
-    computationStatDb: ComputationStatDatabase
+    computationDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails>
   ) {
     val channel = buildChannel(flags.globalComputationsServiceTarget, flags.channelShutdownTimeout)
 
     val globalComputationsClient = GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
+    val singleProtocolDb = newSingleProtocolDb(readOnlyComputationDb, computationDb)
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
       ComputationsService(
-        computationsDatabase = newSingleProtocolDb(readOnlyComputationDb, computationDb),
+        computationsDatabase = singleProtocolDb,
         globalComputationsClient = globalComputationsClient,
         duchyName = flags.duchy.duchyName
       ),
-      ComputationStatsService(computationStatDb)
+      ComputationStatsService(singleProtocolDb)
     ).start().blockUntilShutdown()
   }
 

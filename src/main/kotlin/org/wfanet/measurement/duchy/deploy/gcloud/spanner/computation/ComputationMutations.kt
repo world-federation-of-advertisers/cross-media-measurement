@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Value
 import com.google.protobuf.Message
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
@@ -339,6 +340,48 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
       blobId,
       pathToBlob,
       dependencyType
+    )
+  }
+
+  /** Creates a write a mutation for the ComputationStats spanner table. */
+  fun computationStat(
+    newBuilderFunction: MutationBuilderFunction,
+    localId: Long,
+    stage: Long,
+    attempt: Long,
+    metricName: String,
+    metricValue: Long
+  ): Mutation {
+    return newBuilderFunction("ComputationStats")
+      .set("ComputationId").to(localId)
+      .set("ComputationStage").to(stage)
+      .set("Attempt").to(attempt)
+      .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+      .set("MetricName").to(metricName)
+      .set("MetricValue").to(metricValue)
+      .build()
+  }
+
+  /**
+   * Creates an insertion to the ComputationStats table.
+   *
+   * Fields required for the write are non-nullable. Any param set to null will be excluded from the
+   * update mutation. Writing null values to the column is not supported
+   */
+  fun insertComputationStat(
+    localId: Long,
+    stage: Long,
+    attempt: Long,
+    metricName: String,
+    metricValue: Long
+  ): Mutation {
+    return computationStat(
+      Mutation::newInsertBuilder,
+      localId,
+      stage,
+      attempt,
+      metricName,
+      metricValue
     )
   }
 }

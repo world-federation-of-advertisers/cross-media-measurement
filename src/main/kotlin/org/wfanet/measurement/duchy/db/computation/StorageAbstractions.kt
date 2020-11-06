@@ -159,6 +159,14 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
 
   /** Writes the reference to a BLOB needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(token: ComputationStorageEditToken<StageT>, blobRef: BlobRef)
+
+  /** Inserts the specified [ComputationStat] into the database. */
+  suspend fun insertComputationStat(
+    localId: Long,
+    stage: Long,
+    attempt: Long,
+    metric: ComputationStatMetric
+  )
 }
 
 /**
@@ -180,5 +188,13 @@ interface SingleProtocolDatabase :
  * @param key object key of the the blob which can be used to retrieve it from the BLOB storage.
  */
 data class BlobRef(val idInRelationalDatabase: Long, val key: String)
+
+/**
+ * Reference to a ComputationStat metric that is captured in the Mill.
+ *
+ * @param name identifier of the metric.
+ * @param value numerical value of the metric.
+ */
+data class ComputationStatMetric(val name: String, val value: Long)
 
 fun ComputationStageBlobMetadata.toBlobRef() = BlobRef(blobId, path)

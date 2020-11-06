@@ -16,27 +16,24 @@ package org.wfanet.measurement.duchy.service.internal.computationstats
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.nhaarman.mockitokotlin2.mock
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
-import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 class ComputationStatsServiceTest {
-
-  private val computationStatDbMock: ComputationStatDatabase = mock()
+  private val fakeDatabase = FakeLiquidLegionsComputationDb()
   private val service: ComputationStatsService
 
   init {
-    service = ComputationStatsService(computationStatDbMock)
+    service = ComputationStatsService(fakeDatabase)
   }
 
   @Test
@@ -45,8 +42,6 @@ class ComputationStatsServiceTest {
       .setLocalComputationId(1)
       .setComputationStage(1)
       .setAttempt(1)
-      .setGlobalComputationId("1")
-      .setRole(ComputationDetails.RoleInComputation.PRIMARY)
       .setMetricValue(1234)
       .build()
     val e = assertFailsWith(StatusRuntimeException::class) {
@@ -62,8 +57,6 @@ class ComputationStatsServiceTest {
       .setComputationStage(1)
       .setAttempt(1)
       .setMetricName("crypto_cpu_time_millis")
-      .setGlobalComputationId("1")
-      .setRole(ComputationDetails.RoleInComputation.PRIMARY)
       .setMetricValue(1234)
       .build()
     val response = service.createComputationStat(request)

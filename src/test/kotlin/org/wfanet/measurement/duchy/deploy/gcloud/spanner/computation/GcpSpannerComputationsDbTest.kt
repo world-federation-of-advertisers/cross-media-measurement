@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
@@ -1021,5 +1022,57 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
       database.endComputation(token, B, EndComputationReason.CANCELED)
     }
+  }
+
+  @Test
+  fun `insert computation stat succeeds`() = runBlocking<Unit> {
+    val globalId = "474747"
+    val localId = 4315L
+    val computation = computationMutations.insertComputation(
+      localId = localId,
+      updateTime = testClock.last().toGcloudTimestamp(),
+      stage = C,
+      globalId = globalId,
+      lockOwner = "lock-owner",
+      lockExpirationTime = testClock.last().toGcloudTimestamp(),
+      details = COMPUTATION_DETAILS
+    )
+    val stage = computationMutations.insertComputationStage(
+      localId = localId,
+      stage = C,
+      nextAttempt = 3,
+      creationTime = testClock.last().toGcloudTimestamp(),
+      details = computationMutations.detailsFor(C)
+    )
+    val attempt = computationMutations.insertComputationStageAttempt(
+      localId = localId,
+      stage = C,
+      attempt = 2,
+      beginTime = testClock.last().toGcloudTimestamp(),
+      details = ComputationStageAttemptDetails.getDefaultInstance()
+    )
+    testClock.tickSeconds("time-failed")
+    databaseClient.write(listOf(computation, stage, attempt))
+    database.insertComputationStat(
+      localId = localId,
+      stage = C.ordinal.toLong(),
+      attempt = 2,
+      metric = ComputationStatMetric("crypto_cpu_time_millis", 3125)
+    )
+
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT ComputationId, ComputationStage, Attempt, MetricName, MetricValue
+      FROM ComputationStats
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(localId)
+        .set("ComputationStage").to(C.ordinal.toLong())
+        .set("Attempt").to(2)
+        .set("MetricName").to("crypto_cpu_time_millis")
+        .set("MetricValue").to(3125)
+        .build()
+    )
   }
 }

@@ -92,7 +92,6 @@ kt_jvm_grpc_and_java_proto_library(
 proto_library(
     name = "computation_stats_service_proto",
     srcs = ["computation_stats_service.proto"],
-    deps = [":computation_details_proto"],
 )
 
 kt_jvm_grpc_and_java_proto_library(

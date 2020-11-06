@@ -20,6 +20,7 @@
 --      └── ComputationStages
 --          ├── ComputationBlobReferences
 --          └── ComputationStageAttempts
+--              └── ComputationStats
 --
 -- A Computation is the 'C' in MPC so it represents the full end-to-end unit of
 -- work done by the across all the worker nodes in the system. There are
@@ -238,3 +239,40 @@ CREATE TABLE ComputationStageAttempts (
 ) PRIMARY KEY (ComputationId, ComputationStage, Attempt),
   INTERLEAVE IN PARENT ComputationStages ON DELETE CASCADE;
 
+
+-- ComputationStats
+--   At a high level this table is for a string MetricName, int64 Value pair
+--   for metrics at various attempts of the stages of a computation at the duchy.
+--   The table is meant to allow for non-structured metrics (e.g. crypto_cpu_time_millis,
+--   computation_elapsed_time_millis, etc.) to be collected across all the stages.
+--   The structure in this table is for queriability  across stages of the computation.
+--   But depending on the question being asked, the consumer of this table may need
+--   to know particular names of metrics for a stage as they are not baked into the schema.
+--   These names will be consistent across stages but could differ slightly
+--   (e.g. there may be crypto_cpu_time_millis for all crypto stages, but not all
+--   of the stages have crypto operations).
+--
+--   Job crashes, transient network connectivity issues, or other factors could lead to
+--   some missing entries in this table.
+CREATE TABLE ComputationStats (
+  -- The local identifier of the computation.
+  ComputationId INT64 NOT NULL,
+
+  -- The stage the computation was in.
+  ComputationStage INT64 NOT NULL,
+
+  -- The attempt number for this stage for this computation.
+  -- Ideally this number would always be one.
+  Attempt INT64 NOT NULL,
+
+  -- Name of the metric that is being measured e.g. crypto_cpu_time_millis.
+  MetricName STRING(MAX) NOT NULL,
+
+  -- Time when the row was inserted.
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  -- Numerical value of the measurement.
+  MetricValue INT64 NOT NULL,
+
+) PRIMARY KEY (ComputationId, ComputationStage, Attempt, MetricName),
+  INTERLEAVE IN PARENT ComputationStageAttempts ON DELETE CASCADE;

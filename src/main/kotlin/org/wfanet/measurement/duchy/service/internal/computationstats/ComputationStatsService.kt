@@ -15,36 +15,31 @@
 package org.wfanet.measurement.duchy.service.internal.computationstats
 
 import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
+import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
+import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase as ComputationStatsCoroutineService
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
 
 /** Implementation of `wfa.measurement.internal.duchy.ComputationStats` gRPC service. */
 class ComputationStatsService(
-  private val computationStatDatabase: ComputationStatDatabase
+  private val computationsDatabase: SingleProtocolDatabase
 ) : ComputationStatsCoroutineService() {
 
   override suspend fun createComputationStat(
     request: CreateComputationStatRequest
   ): CreateComputationStatResponse {
-    val globalComputationId = request.globalComputationId
     val localComputationId = request.localComputationId
     val metricName = request.metricName
-    grpcRequire(globalComputationId.isNotEmpty() && localComputationId != 0L) {
+    grpcRequire(localComputationId != 0L) {
       "Missing computation ID"
     }
     grpcRequire(metricName.isNotEmpty()) { "Missing Metric name" }
-    computationStatDatabase.insertComputationStat(
+    computationsDatabase.insertComputationStat(
       localId = localComputationId,
       stage = request.computationStage.toLong(),
       attempt = request.attempt.toLong(),
-      metricName = metricName,
-      globalId = globalComputationId,
-      role = request.role.name,
-      // TODO(yunyeng): Determine how to collect is_successful_attempt in Mill.
-      isSuccessfulAttempt = true,
-      value = request.metricValue
+      metric = ComputationStatMetric(metricName, request.metricValue)
     )
     return CreateComputationStatResponse.getDefaultInstance()
   }

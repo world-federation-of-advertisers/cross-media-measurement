@@ -14,18 +14,3 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
-
-spanner_emulator_test(
-    name = "SpannerComputationStatDatabaseTest",
-    srcs = ["SpannerComputationStatDatabaseTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerComputationStatDatabaseTest",
-    deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-    ],
-)

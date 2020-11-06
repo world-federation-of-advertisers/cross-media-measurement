@@ -41,7 +41,6 @@ import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
-import org.wfanet.measurement.duchy.db.computationstat.ComputationStatDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
@@ -74,7 +73,6 @@ class InProcessDuchy(
   data class DuchyDependencies(
     val singleProtocolDatabase: SingleProtocolDatabase,
     val metricValueDatabase: MetricValueDatabase,
-    val computationStatDatabase: ComputationStatDatabase,
     val storageClient: StorageClient,
     val duchyPublicKeys: DuchyPublicKeys,
     val cryptoKeySet: CryptoKeySet
@@ -140,7 +138,7 @@ class InProcessDuchy(
         LiquidLegionsComputationControlService(computationDataClients).withDuchyIdentities()
       )
       addService(
-        ComputationStatsService(duchyDependencies.computationStatDatabase)
+        ComputationStatsService(duchyDependencies.singleProtocolDatabase)
       )
     }
 

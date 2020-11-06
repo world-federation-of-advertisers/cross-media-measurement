@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.db.computation.testing
 import io.grpc.Status
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol.ComputationStages as LiquidLegionsComputationStages
@@ -277,6 +278,16 @@ class FakeLiquidLegionsComputationDb private constructor(
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
     tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
+
+  /** For testing purposes, doesn't do anything useful. */
+  override suspend fun insertComputationStat(
+    localId: Long,
+    stage: Long,
+    attempt: Long,
+    metric: ComputationStatMetric
+  ) {
+    require(metric.name.isNotEmpty())
+  }
 
   companion object {
     fun newPartialToken(

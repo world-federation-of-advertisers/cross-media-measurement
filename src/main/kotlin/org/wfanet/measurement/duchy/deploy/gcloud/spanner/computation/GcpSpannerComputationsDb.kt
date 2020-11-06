@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
@@ -548,6 +549,26 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         )
       )
     }
+  }
+
+  /**
+   * Inserts the specified [ComputationStat] into the database.
+   */
+  override suspend fun insertComputationStat(
+    localId: Long,
+    stage: Long,
+    attempt: Long,
+    metric: ComputationStatMetric
+  ) {
+    databaseClient.write(
+      computationMutations.insertComputationStat(
+        localId = localId,
+        stage = stage,
+        attempt = attempt,
+        metricName = metric.name,
+        metricValue = metric.value
+      )
+    )
   }
 
   /**
