@@ -27,7 +27,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -37,6 +36,7 @@ import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
@@ -67,14 +67,14 @@ class ComputationsServiceTest {
     val id = "1234"
     fakeDatabase.addComputation(
       id,
-      LiquidLegionsSketchAggregationStage.WAIT_SKETCHES.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES.toProtocolStage(),
       RoleInComputation.PRIMARY,
       listOf()
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val request = FinishComputationRequest.newBuilder().apply {
       token = tokenAtStart
-      endingComputationStage = LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage()
+      endingComputationStage = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.toProtocolStage()
       reason = ComputationDetails.CompletedReason.FAILED
     }.build()
 
@@ -82,7 +82,7 @@ class ComputationsServiceTest {
       .isEqualTo(
         tokenAtStart.toBuilder().clearStageSpecificDetails().apply {
           version = 1
-          computationStage = LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage()
+          computationStage = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.toProtocolStage()
         }.build().toFinishComputationResponse()
       )
 
@@ -97,8 +97,8 @@ class ComputationsServiceTest {
             selfReportedIdentifier = "duchy 1"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
-              stageNumber = LiquidLegionsSketchAggregationStage.COMPLETED.number.toLong()
-              stageName = LiquidLegionsSketchAggregationStage.COMPLETED.name
+              stageNumber = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.number.toLong()
+              stageName = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.name
               attemptNumber = 0
             }
             updateMessage = "Computation $id at stage COMPLETED, attempt 0"
@@ -113,7 +113,7 @@ class ComputationsServiceTest {
     val id = "67890"
     fakeDatabase.addComputation(
       id,
-      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf(
         newInputBlobMetadata(id = 0L, key = "an_input_blob"),
@@ -133,7 +133,8 @@ class ComputationsServiceTest {
 
     val request = AdvanceComputationStageRequest.newBuilder().apply {
       token = tokenAfterRecordingBlob
-      nextComputationStage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
+      nextComputationStage =
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.toProtocolStage()
       addAllInputBlobs(listOf("inputs_to_new_stage"))
       outputBlobs = 1
       afterTransition = AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE
@@ -144,7 +145,8 @@ class ComputationsServiceTest {
         tokenAtStart.toBuilder().clearBlobs().clearStageSpecificDetails().apply {
           version = 2
           attempt = 1
-          computationStage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage()
+          computationStage =
+            LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.toProtocolStage()
           addBlobs(newInputBlobMetadata(id = 0L, key = "inputs_to_new_stage"))
           addBlobs(newEmptyOutputBlobMetadata(id = 1L))
         }.build().toAdvanceComputationStageResponse()
@@ -161,8 +163,8 @@ class ComputationsServiceTest {
             selfReportedIdentifier = "duchy 1"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
-              stageNumber = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.number.toLong()
-              stageName = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.name
+              stageNumber = LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.number.toLong()
+              stageName = LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.name
               attemptNumber = 0
             }
             updateMessage = "Computation $id at stage WAIT_FLAG_COUNTS, attempt 0"
@@ -179,27 +181,27 @@ class ComputationsServiceTest {
     val decryptId = "4342242"
     fakeDatabase.addComputation(
       blindId,
-      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
     fakeDatabase.addComputation(
       completedId,
-      LiquidLegionsSketchAggregationStage.COMPLETED.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.COMPLETED.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
     fakeDatabase.addComputation(
       decryptId,
-      LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
     val getIdsInMillStagesRequest = GetComputationIdsRequest.newBuilder().apply {
       addAllStages(
         setOf(
-          LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
-          LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage()
+          LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
+          LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage()
         )
       )
     }.build()
@@ -217,7 +219,7 @@ class ComputationsServiceTest {
     val claimed = "23456789"
     fakeDatabase.addComputation(
       unclaimed,
-      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
@@ -225,7 +227,7 @@ class ComputationsServiceTest {
       fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
       claimed,
-      LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
       RoleInComputation.SECONDARY,
       listOf()
     )
@@ -257,8 +259,9 @@ class ComputationsServiceTest {
             selfReportedIdentifier = "duchy 1"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
-              stageNumber = LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.number.toLong()
-              stageName = LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS.name
+              stageNumber =
+                LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.number.toLong()
+              stageName = LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.name
               attemptNumber = 1
             }
             updateMessage = "Computation $unclaimed at stage TO_BLIND_POSITIONS, attempt 1"

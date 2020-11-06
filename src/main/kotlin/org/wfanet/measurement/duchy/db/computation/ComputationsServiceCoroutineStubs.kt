@@ -15,26 +15,26 @@
 package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.UNRECOGNIZED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
 
 /**
  * Calls AdvanceComputationStage to move to a new [LiquidLegionsSketchAggregationStage] in a
@@ -47,7 +47,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 suspend fun ComputationsCoroutineStub.advanceLiquidLegionsComputationStage(
   computationToken: ComputationToken,
   inputsToNextStage: List<String>,
-  stage: LiquidLegionsSketchAggregationStage,
+  stage: LiquidLegionsSketchAggregationV1.Stage,
   liquidLegionsStageDetails: LiquidLegionsSketchAggregationProtocol.EnumStages.Details
 ): ComputationToken {
   require(computationToken.computationStage.stageCase == LIQUID_LEGIONS_SKETCH_AGGREGATION) {
@@ -83,7 +83,7 @@ suspend fun ComputationsCoroutineStub.advanceLiquidLegionsComputationStage(
         // Mill have nothing to do for this stage.
         COMPLETED -> error("Computation should be ended with call to endComputation(...)")
         // Stages that we can't transition to ever.
-        UNRECOGNIZED, SKETCH_AGGREGATION_STAGE_UNKNOWN, TO_CONFIRM_REQUISITIONS ->
+        UNRECOGNIZED, STAGE_UNKNOWN, TO_CONFIRM_REQUISITIONS ->
           error("Cannot make transition function to stage $stage")
       }
     }.build()
@@ -91,7 +91,7 @@ suspend fun ComputationsCoroutineStub.advanceLiquidLegionsComputationStage(
 }
 
 private fun afterTransitionForStage(
-  stage: LiquidLegionsSketchAggregationStage
+  stage: LiquidLegionsSketchAggregationV1.Stage
 ): AdvanceComputationStageRequest.AfterTransition =
   when (stage) {
     // Stages of computation mapping some number of inputs to single output.
@@ -109,12 +109,12 @@ private fun afterTransitionForStage(
       AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE
     COMPLETED -> error("Computation should be ended with call to endComputation(...)")
     // Stages that we can't transition to ever.
-    UNRECOGNIZED, SKETCH_AGGREGATION_STAGE_UNKNOWN, TO_CONFIRM_REQUISITIONS ->
+    UNRECOGNIZED, STAGE_UNKNOWN, TO_CONFIRM_REQUISITIONS ->
       error("Cannot make transition function to stage $stage")
   }
 
 private fun requireValidRoleForStage(
-  stage: LiquidLegionsSketchAggregationStage,
+  stage: LiquidLegionsSketchAggregationV1.Stage,
   role: RoleInComputation
 ) {
   when (stage) {

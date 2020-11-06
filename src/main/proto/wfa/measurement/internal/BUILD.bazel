@@ -9,26 +9,6 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_library(
-    name = "sketch_aggregation_stage_proto",
-    srcs = ["liquid_legions_sketch_aggregation_stage.proto"],
-)
-
-java_proto_library(
-    name = "sketch_aggregation_stage_java_proto",
-    deps = [":sketch_aggregation_stage_proto"],
-)
-
-proto_library(
-    name = "liquid_legions_v2_stage_proto",
-    srcs = ["liquid_legions_sketch_aggregation_v2_stage.proto"],
-)
-
-java_proto_library(
-    name = "liquid_legions_v2_stage_java_proto",
-    deps = [":liquid_legions_v2_stage_proto"],
-)
-
-proto_library(
     name = "metric_definition_proto",
     srcs = ["metric_definition.proto"],
     deps = [],

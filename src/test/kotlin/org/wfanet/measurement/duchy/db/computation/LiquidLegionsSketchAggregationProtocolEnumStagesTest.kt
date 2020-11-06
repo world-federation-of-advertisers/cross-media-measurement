@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 
 @RunWith(JUnit4::class)
 class LiquidLegionsSketchAggregationProtocolEnumStagesTest {
@@ -29,20 +29,20 @@ class LiquidLegionsSketchAggregationProtocolEnumStagesTest {
   fun `verify initial stage`() {
     assertTrue {
       LiquidLegionsSketchAggregationProtocol.EnumStages.validInitialStage(
-        LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
+        LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
       )
     }
     assertFalse {
       LiquidLegionsSketchAggregationProtocol.EnumStages.validInitialStage(
-        LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
       )
     }
   }
 
   @Test
   fun `enumToLong then longToEnum results in same enum value`() {
-    for (stage in LiquidLegionsSketchAggregationStage.values()) {
-      if (stage == LiquidLegionsSketchAggregationStage.UNRECOGNIZED) {
+    for (stage in LiquidLegionsSketchAggregationV1.Stage.values()) {
+      if (stage == LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED) {
         assertFails { LiquidLegionsSketchAggregationProtocol.EnumStages.enumToLong(stage) }
       } else {
         assertEquals(
@@ -59,11 +59,11 @@ class LiquidLegionsSketchAggregationProtocolEnumStagesTest {
   @Test
   fun `longToEnum with invalid numbers`() {
     assertEquals(
-      LiquidLegionsSketchAggregationStage.UNRECOGNIZED,
+      LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED,
       LiquidLegionsSketchAggregationProtocol.EnumStages.longToEnum(-1)
     )
     assertEquals(
-      LiquidLegionsSketchAggregationStage.UNRECOGNIZED,
+      LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED,
       LiquidLegionsSketchAggregationProtocol.EnumStages.longToEnum(1000)
     )
   }
@@ -72,29 +72,29 @@ class LiquidLegionsSketchAggregationProtocolEnumStagesTest {
   fun `verify transistions`() {
     assertTrue {
       LiquidLegionsSketchAggregationProtocol.EnumStages.validTransition(
-        LiquidLegionsSketchAggregationStage.WAIT_TO_START,
-        LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START,
+        LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationProtocol.EnumStages.validTransition(
-        LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS,
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+        LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS,
+        LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationProtocol.EnumStages.validTransition(
-        LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN,
-        LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
+        LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN,
+        LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationProtocol.EnumStages.validTransition(
-        LiquidLegionsSketchAggregationStage.UNRECOGNIZED,
-        LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
+        LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED,
+        LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
       )
     }
   }

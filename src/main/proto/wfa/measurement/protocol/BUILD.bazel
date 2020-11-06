@@ -1,0 +1,23 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+package(default_visibility = ["//:__subpackages__"])
+
+proto_library(
+    name = "liquid_legions_v1_proto",
+    srcs = ["liquid_legions_sketch_aggregation_v1.proto"],
+)
+
+java_proto_library(
+    name = "liquid_legions_v1_java_proto",
+    deps = [":liquid_legions_v1_proto"],
+)
+
+proto_library(
+    name = "liquid_legions_v2_proto",
+    srcs = ["liquid_legions_sketch_aggregation_v2.proto"],
+)
+
+java_proto_library(
+    name = "liquid_legions_v2_java_proto",
+    deps = [":liquid_legions_v2_proto"],
+)

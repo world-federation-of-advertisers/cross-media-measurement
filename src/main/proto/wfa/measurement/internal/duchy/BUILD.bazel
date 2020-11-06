@@ -18,7 +18,7 @@ proto_library(
     name = "computation_protocols_proto",
     srcs = ["computation_protocols.proto"],
     deps = [
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_proto",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_proto",
     ],
 )
 

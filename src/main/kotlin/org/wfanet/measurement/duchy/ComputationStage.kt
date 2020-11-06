@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.duchy
 
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 
 val ComputationStage.name: String
@@ -42,5 +42,5 @@ val ComputationStage.number: Int
     ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
   }
 
-fun LiquidLegionsSketchAggregationStage.toProtocolStage(): ComputationStage =
+fun LiquidLegionsSketchAggregationV1.Stage.toProtocolStage(): ComputationStage =
   ComputationStage.newBuilder().setLiquidLegionsSketchAggregation(this).build()

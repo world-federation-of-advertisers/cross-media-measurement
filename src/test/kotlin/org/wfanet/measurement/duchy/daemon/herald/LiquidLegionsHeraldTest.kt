@@ -35,13 +35,13 @@ import org.wfanet.measurement.duchy.service.internal.computation.ComputationsSer
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub

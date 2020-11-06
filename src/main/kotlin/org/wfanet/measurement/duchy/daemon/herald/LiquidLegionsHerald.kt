@@ -29,25 +29,25 @@ import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
 import org.wfanet.measurement.duchy.db.computation.advanceLiquidLegionsComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.SKETCH_AGGREGATION_STAGE_UNKNOWN
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.UNRECOGNIZED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
@@ -241,7 +241,7 @@ class LiquidLegionsHerald(
 
       // For weird stages, we throw.
       UNRECOGNIZED,
-      SKETCH_AGGREGATION_STAGE_UNKNOWN,
+      STAGE_UNKNOWN,
       null -> {
         error("[id=$globalId]: Unrecognized stage '$stage'")
       }

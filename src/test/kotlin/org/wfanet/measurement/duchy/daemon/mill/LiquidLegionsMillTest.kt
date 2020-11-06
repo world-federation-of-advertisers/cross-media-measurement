@@ -79,7 +79,6 @@ import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncrypte
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage as LiquidLegionsStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -96,6 +95,7 @@ import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage as LiquidLegionsStage
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase

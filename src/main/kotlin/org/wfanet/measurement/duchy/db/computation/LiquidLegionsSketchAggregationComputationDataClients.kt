@@ -18,12 +18,12 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.duchy.storage.ComputationStore
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.read
 
@@ -57,7 +57,7 @@ class LiquidLegionsSketchAggregationComputationDataClients private constructor(
   suspend fun transitionComputationToStage(
     computationToken: ComputationToken,
     inputsToNextStage: List<String>,
-    stage: LiquidLegionsSketchAggregationStage
+    stage: LiquidLegionsSketchAggregationV1.Stage
   ): ComputationToken =
     computationsClient
       .advanceLiquidLegionsComputationStage(

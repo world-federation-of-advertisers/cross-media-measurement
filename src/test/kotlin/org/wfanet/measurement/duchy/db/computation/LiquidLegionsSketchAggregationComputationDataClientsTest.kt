@@ -35,19 +35,6 @@ import org.wfanet.measurement.duchy.service.internal.computation.ComputationsSer
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
@@ -60,6 +47,19 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -230,7 +230,7 @@ class SingleLiquidLegionsComputation(
   }
   val localId by lazy { token.localComputationId }
 
-  suspend fun writeOutputs(stage: LiquidLegionsSketchAggregationStage) {
+  suspend fun writeOutputs(stage: LiquidLegionsSketchAggregationV1.Stage) {
     assertEquals(stage.toProtocolStage(), token.computationStage)
     testClock.tickSeconds(
       "${token.computationStage.liquidLegionsSketchAggregation}_$token.attempt_outputs"
@@ -402,7 +402,7 @@ class SingleLiquidLegionsComputation(
   }
 
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
-  suspend fun runWaitStage(stage: LiquidLegionsSketchAggregationStage, numOfOutput: Int = 1) {
+  suspend fun runWaitStage(stage: LiquidLegionsSketchAggregationV1.Stage, numOfOutput: Int = 1) {
     assertTokenChangesTo(
       token
         .outputBlobsToInputBlobs()

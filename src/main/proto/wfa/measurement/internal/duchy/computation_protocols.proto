@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
-import "src/main/proto/wfa/measurement/internal/liquid_legions_sketch_aggregation_stage.proto";
+import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v1.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -29,7 +29,8 @@ option java_multiple_files = true;
 message ComputationStage {
   oneof stage {
     // Stage of a Liquid Legions sketch aggregation multi party computation.
-    LiquidLegionsSketchAggregationStage liquid_legions_sketch_aggregation = 1;
+    protocol.LiquidLegionsSketchAggregationV1.Stage
+        liquid_legions_sketch_aggregation = 1;
   }
 }
 

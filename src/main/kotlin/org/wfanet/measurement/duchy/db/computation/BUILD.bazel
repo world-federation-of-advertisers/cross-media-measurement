@@ -13,9 +13,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:protos",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_java_proto",
     ],
 )

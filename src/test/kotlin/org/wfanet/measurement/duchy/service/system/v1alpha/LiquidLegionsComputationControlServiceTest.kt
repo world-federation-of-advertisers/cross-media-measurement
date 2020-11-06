@@ -50,17 +50,20 @@ import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncrypte
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -215,7 +218,7 @@ class LiquidLegionsComputationControlServiceTest {
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationDb.addComputation(
       globalId = id,
-      stage = LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.PRIMARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
@@ -240,7 +243,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb
       .addComputation(
         globalId = id,
-        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
+        stage = WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
@@ -277,7 +280,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb
       .addComputation(
         globalId = id,
-        stage = LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED.toProtocolStage(),
+        stage = WAIT_CONCATENATED.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
@@ -318,7 +321,7 @@ class LiquidLegionsComputationControlServiceTest {
     assertThat(notFound.status.code).isEqualTo(Status.Code.NOT_FOUND)
     fakeComputationDb.addComputation(
       globalId = id,
-      stage = LiquidLegionsSketchAggregationStage.TO_ADD_NOISE.toProtocolStage(),
+      stage = TO_ADD_NOISE.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
@@ -334,7 +337,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb
       .addComputation(
         globalId = id,
-        stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
+        stage = WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.PRIMARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
@@ -372,7 +375,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb
       .addComputation(
         globalId = id,
-        stage = LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS.toProtocolStage(),
+        stage = WAIT_FLAG_COUNTS.toProtocolStage(),
         role = RoleInComputation.SECONDARY,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )

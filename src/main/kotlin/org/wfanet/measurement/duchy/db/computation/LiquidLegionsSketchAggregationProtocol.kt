@@ -16,44 +16,44 @@ package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.COMPLETED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.UNRECOGNIZED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_SKETCHES
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
 
 /**
  * Helper classes for working with stages of the Liquid Legions Sketch Aggregation MPC defined in
- * [LiquidLegionsSketchAggregationStage].
+ * [LiquidLegionsSketchAggregationV1.Stage].
  *
- * The [LiquidLegionsSketchAggregationStage] is one of the computation protocols defined in the
+ * The [LiquidLegionsSketchAggregationV1.Stage] is one of the computation protocols defined in the
  * [ComputationStage] proto used in the storage layer API. There are helper objects for both the raw
  * enum values and those enum value wrapped in the proto message. Typically the right helper to use
  * is [ComputationStages] as it is the API level abstraction. [EnumStages] is visible in case it is
  * needed.
  *
  * [EnumStages.Details] is a helper to create [ComputationStageDetails] from
- * [LiquidLegionsSketchAggregationStage] enum values.
+ * [LiquidLegionsSketchAggregationV1.Stage] enum values.
  * [ComputationStages.Details] is a helper to create [ComputationStageDetails] from
- * [ComputationStage] protos wrapping a [LiquidLegionsSketchAggregationStage] enum values.
+ * [ComputationStage] protos wrapping a [LiquidLegionsSketchAggregationV1.Stage] enum values.
  */
 object LiquidLegionsSketchAggregationProtocol {
   /**
-   * Implementation of [ProtocolStageEnumHelper] for [LiquidLegionsSketchAggregationStage].
+   * Implementation of [ProtocolStageEnumHelper] for [LiquidLegionsSketchAggregationV1.Stage].
    */
-  object EnumStages : ProtocolStageEnumHelper<LiquidLegionsSketchAggregationStage> {
+  object EnumStages : ProtocolStageEnumHelper<LiquidLegionsSketchAggregationV1.Stage> {
     override val validInitialStages = setOf(TO_CONFIRM_REQUISITIONS)
     override val validTerminalStages = setOf(COMPLETED)
 
@@ -78,35 +78,36 @@ object LiquidLegionsSketchAggregationProtocol {
         TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS to setOf()
       ).withDefault { setOf() }
 
-    override fun enumToLong(value: LiquidLegionsSketchAggregationStage): Long {
+    override fun enumToLong(value: LiquidLegionsSketchAggregationV1.Stage): Long {
       return value.numberAsLong
     }
 
-    override fun longToEnum(value: Long): LiquidLegionsSketchAggregationStage {
+    override fun longToEnum(value: Long): LiquidLegionsSketchAggregationV1.Stage {
       // forNumber() returns null for unrecognized enum values for the proto.
-      return LiquidLegionsSketchAggregationStage.forNumber(value.toInt()) ?: UNRECOGNIZED
+      return LiquidLegionsSketchAggregationV1.Stage.forNumber(value.toInt()) ?: UNRECOGNIZED
     }
 
-    /** Translates [LiquidLegionsSketchAggregationStage]s into [ComputationStageDetails]. */
+    /** Translates [LiquidLegionsSketchAggregationV1.Stage]s into [ComputationStageDetails]. */
     class Details(val otherDuchies: List<String>) :
-      ProtocolStageDetails<LiquidLegionsSketchAggregationStage, ComputationStageDetails> {
-      override fun detailsFor(stage: LiquidLegionsSketchAggregationStage): ComputationStageDetails {
-        return when (stage) {
-          WAIT_SKETCHES ->
-            ComputationStageDetails.newBuilder()
-              .setWaitSketchStageDetails(
-                WaitSketchesStageDetails.newBuilder()
-                  // The WAIT_SKETCHES stage has exactly one input which is the noised sketches from
-                  // the primary duchy running the wait operation. It is not an output of the stage
-                  // because it is a result of a locally running stage.
-                  .putAllExternalDuchyLocalBlobId(
-                    otherDuchies.mapIndexed { idx, duchy -> duchy to (idx + 1).toLong() }.toMap()
-                  )
-              )
-              .build()
-          else -> ComputationStageDetails.getDefaultInstance()
+      ProtocolStageDetails<LiquidLegionsSketchAggregationV1.Stage, ComputationStageDetails> {
+      override fun detailsFor(stage: LiquidLegionsSketchAggregationV1.Stage):
+        ComputationStageDetails {
+          return when (stage) {
+            WAIT_SKETCHES ->
+              ComputationStageDetails.newBuilder()
+                .setWaitSketchStageDetails(
+                  WaitSketchesStageDetails.newBuilder()
+                    // The WAIT_SKETCHES stage has exactly one input which is the noised sketches from
+                    // the primary duchy running the wait operation. It is not an output of the stage
+                    // because it is a result of a locally running stage.
+                    .putAllExternalDuchyLocalBlobId(
+                      otherDuchies.mapIndexed { idx, duchy -> duchy to (idx + 1).toLong() }.toMap()
+                    )
+                )
+                .build()
+            else -> ComputationStageDetails.getDefaultInstance()
+          }
         }
-      }
 
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =
         ComputationStageDetails.parseFrom(bytes)
@@ -114,8 +115,8 @@ object LiquidLegionsSketchAggregationProtocol {
   }
 
   /**
-   * Implementation of [ProtocolStageEnumHelper] for [LiquidLegionsSketchAggregationStage] wrapped
-   * in a [ComputationStage].
+   * Implementation of [ProtocolStageEnumHelper] for [LiquidLegionsSketchAggregationV1.Stage]
+   * wrapped in a [ComputationStage].
    */
   object ComputationStages : ProtocolStageEnumHelper<ComputationStage> {
     override val validInitialStages =
@@ -134,7 +135,7 @@ object LiquidLegionsSketchAggregationProtocol {
       EnumStages.longToEnum(value).toProtocolStage()
 
     /**
-     *  Translates [LiquidLegionsSketchAggregationStage]s wrapped in a [ComputationStage] into
+     *  Translates [LiquidLegionsSketchAggregationV1.Stage]s wrapped in a [ComputationStage] into
      * [ComputationStageDetails].
      */
     class Details(otherDuchies: List<String>) :
@@ -151,5 +152,5 @@ object LiquidLegionsSketchAggregationProtocol {
   }
 }
 
-private fun Set<LiquidLegionsSketchAggregationStage>.toSetOfComputationStages() =
+private fun Set<LiquidLegionsSketchAggregationV1.Stage>.toSetOfComputationStages() =
   this.map { it.toProtocolStage() }.toSet()

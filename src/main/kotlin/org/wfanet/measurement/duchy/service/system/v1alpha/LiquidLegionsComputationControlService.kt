@@ -30,12 +30,12 @@ import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.db.computation.toNoisedSketchBlobMetadataFor
-import org.wfanet.measurement.internal.LiquidLegionsSketchAggregationStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase as ComputationControlCoroutineService
 import org.wfanet.measurement.system.v1alpha.ComputationProcessRequestHeader
 import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
@@ -65,12 +65,12 @@ class LiquidLegionsComputationControlService(
       logger.info("[id=$globalComputationId]: Received blind position sketch.")
       val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregation) {
         // Check to see if it was already written.
-        LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED ->
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED ->
           token.singleOutputBlobMetadata().path.isEmpty()
         // Ack message early if in a stage that is downstream of WAIT_CONCATENATED
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS,
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
-        LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS -> false
+        LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS,
+        LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS -> false
         else -> failGrpc { "Did not expect to get concatenated sketch for $token" }
       }
 
@@ -88,9 +88,9 @@ class LiquidLegionsComputationControlService(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum accessors never return null.
     val nextStage = when (val role = tokenAfterWrite.role) {
       RoleInComputation.PRIMARY ->
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+        LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
       RoleInComputation.SECONDARY ->
-        LiquidLegionsSketchAggregationStage.TO_BLIND_POSITIONS
+        LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
       RoleInComputation.UNKNOWN, RoleInComputation.UNRECOGNIZED ->
         failGrpc { "Unknown role in computation $role" }
     }
@@ -119,12 +119,12 @@ class LiquidLegionsComputationControlService(
       logger.info("[id=${token.globalComputationId}]: Received decrypt flags and counts request.")
       val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregation) {
         // Check to see if it was already written.
-        LiquidLegionsSketchAggregationStage.WAIT_FLAG_COUNTS ->
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS ->
           token.singleOutputBlobMetadata().path.isEmpty()
         // Ack message early if in a stage that is downstream of WAIT_FLAG_COUNTS
-        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS,
-        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
-        LiquidLegionsSketchAggregationStage.COMPLETED -> false
+        LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS,
+        LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
+        LiquidLegionsSketchAggregationV1.Stage.COMPLETED -> false
         else -> failGrpc { "Did not expect to get flag counts for $token" }
       }
 
@@ -141,9 +141,9 @@ class LiquidLegionsComputationControlService(
     // The next stage to be worked depends upon the duchy's role in the computation.
     val nextStage = when (val role = tokenAfterWrite.role) {
       RoleInComputation.PRIMARY ->
-        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+        LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
       RoleInComputation.SECONDARY ->
-        LiquidLegionsSketchAggregationStage.TO_DECRYPT_FLAG_COUNTS
+        LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
       else -> failGrpc { "Unknown role in computation $role" }
     }
     logger.info("[id=$id]: transitioning to $nextStage")
@@ -171,11 +171,11 @@ class LiquidLegionsComputationControlService(
       logger.info("[id=$id]: Received noised sketch request from $sender.")
       val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregation) {
         // Check to see if it was already written.
-        LiquidLegionsSketchAggregationStage.WAIT_SKETCHES ->
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES ->
           token.toNoisedSketchBlobMetadataFor(sender).path.isEmpty()
         // Ack message early if in a stage that is downstream of WAIT_SKETCHES
-        LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
-        LiquidLegionsSketchAggregationStage.WAIT_CONCATENATED -> false
+        LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED -> false
         else -> failGrpc { "Did not expect to get noised sketch for $token." }
       }
 
@@ -198,7 +198,7 @@ class LiquidLegionsComputationControlService(
     val sketchesNotYetReceived = token.blobsList.count { it.path.isEmpty() }
 
     if (sketchesNotYetReceived == 0) {
-      val nextStage = LiquidLegionsSketchAggregationStage.TO_APPEND_SKETCHES_AND_ADD_NOISE
+      val nextStage = LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
       logger.info("[id=$id]: transitioning to $nextStage")
       clients.transitionComputationToStage(
         computationToken = token,

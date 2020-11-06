@@ -15,6 +15,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/metricvalue",
-        "//src/main/proto/wfa/measurement/internal:sketch_aggregation_stage_java_proto",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_java_proto",
     ],
 )
