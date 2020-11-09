@@ -138,7 +138,7 @@ StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::CalculateDestructor(
   BigNum r = ec_group_.GeneratePrivateKey();
   ASSIGN_OR_RETURN(ElGamalEcPointPair key_delta,
                    AddEcPointPairs(key, base_inverse));
-  return {std::move(MultiplyEcPointPairByScalar(key_delta, r))};
+  return MultiplyEcPointPairByScalar(key_delta, r);
 }
 
 StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(absl::string_view str) {
