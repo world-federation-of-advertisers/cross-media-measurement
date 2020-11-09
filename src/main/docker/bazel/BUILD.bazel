@@ -5,7 +5,6 @@ load(
     "//src/main/docker:defs.bzl",
     "container_commit_add_apt_key",
     "container_commit_install_apt_packages",
-    "container_commit_upgrade_apt_packages",
 )
 load(
     "@io_bazel_rules_docker//container:container.bzl",
@@ -90,45 +89,15 @@ container_commit_install_apt_packages(
         "tzdata",
     ],
     tags = ["manual"],
+    upgrade = True,
 )
 
-# Clean install based on BASE_IMAGE.
 container_image(
-    name = "bazel_clean_image",
+    name = "bazel_image",
     base = ":package_install_image",
     env = JAVA.env,
     layers = [
         ":apt_packages",
-    ],
-    stamp = True,
-    tags = ["manual"],
-)
-
-container_push(
-    name = "push_bazel_clean_image",
-    format = "Docker",
-    image = ":bazel_clean_image",
-    registry = "gcr.io",
-    repository = "ads-open-measurement/bazel",
-    tag = "clean",
-    tags = [
-        "manual",
-        "requires-network",
-    ],
-)
-
-container_commit_upgrade_apt_packages(
-    name = "upgraded_packages",
-    image = BAZEL_IMAGE,
-    tags = ["manual"],
-)
-
-# Updated image based on BAZEL_IMAGE.
-container_image(
-    name = "bazel_image",
-    base = BAZEL_IMAGE,
-    layers = [
-        ":upgraded_packages",
     ],
     stamp = True,
     tags = ["manual"],

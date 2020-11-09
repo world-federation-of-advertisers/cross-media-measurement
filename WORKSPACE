@@ -207,7 +207,7 @@ container_pull(
     repository = "library/ubuntu",
 )
 
-# gcr.io/ads-open-measurement/bazel:clean
+# gcr.io/ads-open-measurement/bazel
 container_pull(
     name = "bazel_image",
     digest = "sha256:a1437a53ce0f06028d7a4527dc403b8acf00bb5674e15e4f1b993e29b02a0d82",

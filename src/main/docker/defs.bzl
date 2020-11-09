@@ -13,36 +13,51 @@
 # limitations under the License.
 
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit_layer")
-load(
-    "//src/main/docker:constants.bzl",
-    "APT_CLEANUP_COMMANDS",
-    "APT_UPGRADE_COMMANDS",
-)
 
-def container_commit_install_apt_packages(name, image, packages, tags = [], **kwargs):
+_APT_GET_ENV = {
+    "DEBIAN_FRONTEND": "noninteractive",
+}
+
+_APT_GET_OPTIONS = [
+    "-y",
+    "--no-install-recommends",
+]
+
+def _apt_get_command(command, args = []):
+    env_assignments = [
+        "=".join([name, value])
+        for name, value in _APT_GET_ENV.items()
+    ]
+    parts = env_assignments + ["apt-get", command] + _APT_GET_OPTIONS + args
+    return " ".join(parts)
+
+_APT_CLEANUP_COMMANDS = [
+    _apt_get_command("clean"),
+    "rm -f /var/log/dpkg.log",
+    "rm -f /var/log/alternatives.log",
+]
+
+def container_commit_install_apt_packages(
+        name,
+        image,
+        packages,
+        tags = [],
+        upgrade = False,
+        **kwargs):
     """Commits a new layer with the APT packages installed."""
     if len(packages) == 0:
         fail("Must specify at least one package")
 
-    container_run_and_commit_layer(
-        name = name,
-        image = image,
-        commands = APT_UPGRADE_COMMANDS + [
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends " + " ".join(packages),
-        ] + APT_CLEANUP_COMMANDS,
-        tags = tags + [
-            "no-remote-exec",
-            "requires-network",
-        ],
-        **kwargs
-    )
+    commands = [_apt_get_command("update")]
+    if upgrade:
+        commands.append(_apt_get_command("dist-upgrade"))
+    commands.append(_apt_get_command("install", packages))
+    commands.extend(_APT_CLEANUP_COMMANDS)
 
-def container_commit_upgrade_apt_packages(name, image, tags = [], **kwargs):
-    """Commits a new layer with the APT packages upgraded."""
     container_run_and_commit_layer(
         name = name,
         image = image,
-        commands = APT_UPGRADE_COMMANDS + APT_CLEANUP_COMMANDS,
+        commands = commands,
         tags = tags + [
             "no-remote-exec",
             "requires-network",

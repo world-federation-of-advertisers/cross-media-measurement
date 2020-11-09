@@ -1,7 +1,6 @@
 load(
     "//src/main/docker:defs.bzl",
     "container_commit_install_apt_packages",
-    "container_commit_upgrade_apt_packages",
 )
 load(
     "@io_bazel_rules_docker//container:container.bzl",
