@@ -1,5 +1,6 @@
 load(
     "//src/main/docker:defs.bzl",
+    "container_commit_add_apt_key",
     "container_commit_install_apt_packages",
 )
 load(
@@ -8,54 +9,81 @@ load(
     "container_layer",
     "container_push",
 )
-load("@io_bazel_rules_docker//docker/package_managers:apt_key.bzl", "add_apt_key")
 
-BASE_IMAGE = "//src/main/docker/bazel:bazel_image"
+BASE_IMAGE = "@bazel_image//image"
 
 container_layer(
-    name = "google_cloud_apt_list",
-    directory = "/etc/apt/sources.list.d",
-    files = ["google_cloud.list"],
-)
-
-add_apt_key(
-    name = "google_cloud_key",
-    image = BASE_IMAGE + ".tar",
-    keys = ["@google_cloud_key//file"],
+    name = "gcloud_key_file",
+    directory = "/root",
+    files = ["@gcloud_apt_key//file"],
+    mode = "0o644",
+    tags = ["manual"],
 )
 
 container_image(
-    name = "apt_image",
-    base = ":google_cloud_key",
+    name = "apt_key_install_image",
+    base = BASE_IMAGE,
     layers = [
-        ":google_cloud_apt_list",
+        ":gcloud_key_file",
     ],
+    tags = ["manual"],
+)
+
+container_commit_add_apt_key(
+    name = "apt_keyring",
+    image = ":apt_key_install_image.tar",
+    key_path = "/root/cloud.google.gpg",
+    keyring_path = "/usr/share/keyrings/cloud.google.gpg",
+    tags = ["manual"],
+)
+
+container_layer(
+    name = "gcloud_sdk_apt_list",
+    directory = "/etc/apt/sources.list.d",
+    files = ["google-cloud-sdk.list"],
+    tags = ["manual"],
+)
+
+container_image(
+    name = "package_install_image",
+    base = BASE_IMAGE,
+    layers = [
+        ":apt_keyring",
+        ":gcloud_sdk_apt_list",
+    ],
+    tags = ["manual"],
 )
 
 container_commit_install_apt_packages(
-    name = "install_packages",
-    image = ":apt_image.tar",
+    name = "apt_packages",
+    image = ":package_install_image.tar",
     packages = [
         "clang-format-10",
         "docker.io",
         "google-cloud-sdk",
         "google-cloud-sdk-kind",
     ],
-    tags = [
-        "manual",
-        "requires-network",
-    ],
+    tags = ["manual"],
 )
 
-container_image(
-    name = "prow_job_image",
-    base = BASE_IMAGE,
+container_layer(
+    name = "binaries",
     directory = "/usr/bin",
     files = [
         "@buildifier//file",
         "@ktlint//file",
     ],
-    layers = [":install_packages"],
+    mode = "0o755",
+    tags = ["manual"],
+)
+
+container_image(
+    name = "prow_job_image",
+    base = ":package_install_image",
+    layers = [
+        ":apt_packages",
+        ":binaries",
+    ],
     stamp = True,
     symlinks = {
         "/usr/bin/clang-format": "/usr/bin/clang-format-10",
