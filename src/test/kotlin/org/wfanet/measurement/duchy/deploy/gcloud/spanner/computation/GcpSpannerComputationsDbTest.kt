@@ -205,7 +205,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .set("ComputationId").to(localId1)
         .set("ComputationStage").to(A.ordinal.toLong())
         .set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("NextAttempt").to(2L)
+        .set("NextAttempt").to(1L)
         .set("EndTime").to(null as Timestamp?)
         .set("Details").toProtoBytes(computationMutations.detailsFor(A))
         .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(A))
@@ -214,7 +214,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .set("ComputationId").to(localId2)
         .set("ComputationStage").to(A.ordinal.toLong())
         .set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("NextAttempt").to(2L)
+        .set("NextAttempt").to(1L)
         .set("EndTime").to(null as Timestamp?)
         .set("Details").toProtoBytes(computationMutations.detailsFor(A))
         .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(A))
@@ -236,31 +236,6 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       Struct.newBuilder()
         .set("ComputationId").to(localId2)
         .set("N").to(1)
-        .build()
-    )
-
-    assertQueryReturns(
-      databaseClient,
-      """
-      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
-      FROM ComputationStageAttempts
-      ORDER BY ComputationId DESC
-      """.trimIndent(),
-      Struct.newBuilder()
-        .set("ComputationId").to(localId1)
-        .set("ComputationStage").to(A.ordinal.toLong())
-        .set("Attempt").to(1)
-        .set("BeginTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
-        .build(),
-      Struct.newBuilder()
-        .set("ComputationId").to(localId2)
-        .set("ComputationStage").to(A.ordinal.toLong())
-        .set("Attempt").to(1)
-        .set("BeginTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
   }

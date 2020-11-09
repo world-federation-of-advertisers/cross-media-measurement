@@ -102,17 +102,8 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         localId = localId,
         stage = initialStage,
         creationTime = writeTimestamp,
-        nextAttempt = 2,
+        nextAttempt = 1,
         details = stageDetails
-      )
-
-    val computationStageAttemptRow =
-      computationMutations.insertComputationStageAttempt(
-        localId = localId,
-        stage = initialStage,
-        attempt = 1,
-        beginTime = writeTimestamp,
-        details = ComputationStageAttemptDetails.getDefaultInstance()
       )
 
     val blobRefRow =
@@ -126,7 +117,6 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
     databaseClient.write(
       computationRow,
       computationStageRow,
-      computationStageAttemptRow,
       blobRefRow
     )
   }
