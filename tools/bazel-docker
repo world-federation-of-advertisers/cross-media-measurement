@@ -1,18 +1,30 @@
 #!/bin/bash
-readonly IMAGE='gcr.io/ads-open-measurement/bazel'
-#readonly IMAGE='bazel/src/main/docker/bazel:bazel_image'
+
+set -eEu -o pipefail
+
+readonly IMAGE='gcr.io/ads-open-measurement/bazel:latest'
+#readonly IMAGE='bazel/src/main/docker/bazel:bazel_clean_image'
 readonly OUTPUT_USER_ROOT="/tmp/bazel-docker-${USER}"
 readonly REPO_CACHE='/bazel-repo-cache'
+readonly DOCKER="${DOCKER:-docker}"
+
+is_podman() {
+  $DOCKER -v | grep --quiet podman
+}
 
 is_rootless() {
-  docker info 2>/dev/null | grep --quiet rootless
+  if is_podman; then
+    [[ "$($DOCKER info --format '{{.Host.Rootless}}')" == 'true' ]]
+  else
+    $DOCKER info --format '{{.SecurityOptions}}' | grep --quiet rootless
+  fi
 }
 
 main() {
   mkdir -p "${OUTPUT_USER_ROOT}"
 
   local -a docker_options=(
-    --entrypoint='/usr/bin/bazel'
+    --entrypoint /usr/bin/bazel
     -v "${PWD}:${PWD}"
     -v "${OUTPUT_USER_ROOT}:${OUTPUT_USER_ROOT}"
     -v "${HOME}/.cache/bazel/_bazel_${USER}/cache/repos/v1:${REPO_CACHE}"
@@ -23,20 +35,27 @@ main() {
   if ! is_rootless; then
     docker_options+=(
       --user "$EUID"
-      --env USER="$USER"
+      --env "USER=$USER"
     )
   fi
 
-  command="$1"
+  local -a startup_options=(
+    --output_user_root "${OUTPUT_USER_ROOT}"
+  )
+  while [[ "$1" =~ [[:space:]]*-.* ]]; do
+    startup_options+=("$1")
+    shift 1
+  done
+
+  local command="$1"
   shift 1
 
-  exec docker run "${docker_options[@]}" \
+  exec "${DOCKER}" run "${docker_options[@]}" \
     "${IMAGE}" \
-    --output_user_root="${OUTPUT_USER_ROOT}" \
+    "${startup_options[@]}" \
     "${command}" \
-    --repository_cache="${REPO_CACHE}" \
+    --repository_cache "${REPO_CACHE}" \
     "$@"
 }
 
 main "$@"
-
