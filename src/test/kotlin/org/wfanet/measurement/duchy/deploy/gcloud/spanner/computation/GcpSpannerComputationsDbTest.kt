@@ -861,7 +861,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val token = ComputationStorageEditToken(
       localId = 4315,
       stage = C,
-      attempt = 1,
+      attempt = 2,
       editVersion = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
@@ -880,8 +880,22 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       creationTime = testClock.last().toGcloudTimestamp(),
       details = computationMutations.detailsFor(C)
     )
+    val unfinishedPreviousAttempt = computationMutations.insertComputationStageAttempt(
+      localId = token.localId,
+      stage = token.stage,
+      attempt = token.attempt.toLong() - 1,
+      beginTime = testClock.last().toGcloudTimestamp(),
+      details = ComputationStageAttemptDetails.getDefaultInstance()
+    )
+    val attempt = computationMutations.insertComputationStageAttempt(
+      localId = token.localId,
+      stage = token.stage,
+      attempt = token.attempt.toLong(),
+      beginTime = testClock.last().toGcloudTimestamp(),
+      details = ComputationStageAttemptDetails.getDefaultInstance()
+    )
     testClock.tickSeconds("time-ended")
-    databaseClient.write(listOf(computation, stage))
+    databaseClient.write(listOf(computation, stage, unfinishedPreviousAttempt, attempt))
     val expectedDetails =
       COMPUTATION_DETAILS.toBuilder().setEndingState(ComputationDetails.CompletedReason.SUCCEEDED)
         .build()
@@ -903,6 +917,39 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .set("LockExpirationTime").to(null as Timestamp?)
         .set("ComputationDetails").toProtoBytes(expectedDetails)
         .set("ComputationDetailsJSON").toProtoJson(expectedDetails)
+        .build()
+    )
+
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
+      FROM ComputationStageAttempts
+      ORDER BY ComputationStage, Attempt
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolStages.enumToLong(C))
+        .set("Attempt").to(1)
+        .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
+        .set("EndTime").to(testClock.last().toGcloudTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.CANCELLED
+          }.build()
+        )
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").to(ProtocolStages.enumToLong(C))
+        .set("Attempt").to(2)
+        .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
+        .set("EndTime").to(testClock.last().toGcloudTimestamp())
+        .set("Details").toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder().apply {
+            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
+          }.build()
+        )
         .build()
     )
   }
@@ -935,7 +982,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val attempt = computationMutations.insertComputationStageAttempt(
       localId = token.localId,
       stage = C,
-      attempt = 2,
+      attempt = 1,
       beginTime = testClock.last().toGcloudTimestamp(),
       details = ComputationStageAttemptDetails.getDefaultInstance()
     )
@@ -974,12 +1021,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
         .set("ComputationStage").to(ProtocolStages.enumToLong(C))
-        .set("Attempt").to(2)
+        .set("Attempt").to(1)
         .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
         .set("Details").toProtoBytes(
           ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.CANCELLED
+            reasonEnded = ComputationStageAttemptDetails.EndReason.ERROR
           }.build()
         )
         .build()

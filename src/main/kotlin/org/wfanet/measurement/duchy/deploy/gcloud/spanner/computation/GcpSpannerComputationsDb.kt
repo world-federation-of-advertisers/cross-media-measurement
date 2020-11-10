@@ -22,6 +22,7 @@ import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
@@ -339,15 +340,32 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       UnfinishedAttemptQuery(computationMutations::longToEnum, token.localId)
         .execute(ctx)
         .collect { unfinished ->
+          // Determine the reason the unfinished computation stage attempt is ending.
+          val reason =
+            if (unfinished.stage == token.stage && unfinished.attempt == token.attempt.toLong()) {
+              // The unfinished attempt is the current attempt of the of the current stage.
+              // Set its ending reason based on the ending status of the computation as a whole. { {
+              when (endComputationReason) {
+                EndComputationReason.SUCCEEDED -> ComputationStageAttemptDetails.EndReason.SUCCEEDED
+                EndComputationReason.FAILED -> ComputationStageAttemptDetails.EndReason.ERROR
+                EndComputationReason.CANCELED -> ComputationStageAttemptDetails.EndReason.CANCELLED
+              }
+            } else {
+              logger.warning(
+                "Stage attempt with primary key " +
+                  "(${unfinished.computationId}, ${unfinished.stage}, ${unfinished.attempt}) " +
+                  "did not have an ending reason set when ending computation, " +
+                  "setting it to 'CANCELLED'."
+              )
+              ComputationStageAttemptDetails.EndReason.CANCELLED
+            }
           ctx.buffer(
             computationMutations.updateComputationStageAttempt(
               localId = unfinished.computationId,
               stage = unfinished.stage,
               attempt = unfinished.attempt,
               endTime = writeTime,
-              details = unfinished.details.toBuilder()
-                .setReasonEnded(ComputationStageAttemptDetails.EndReason.CANCELLED)
-                .build()
+              details = unfinished.details.toBuilder().setReasonEnded(reason).build()
             )
           )
         }
@@ -593,5 +611,9 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
         }
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
