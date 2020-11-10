@@ -136,24 +136,14 @@ grpc_kt_repositories()
 
 grpc_java_repositories()  # For gRPC Kotlin.
 
-load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")  # From gRPC.
-
-protobuf_deps()
-
 # @io_bazel_rules_docker
-
-http_archive(
-    name = "rules_python",
-    sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
-    url = "https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz",
-)
 
 load("//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
 rules_docker_repo(
     name = "io_bazel_rules_docker",
-    commit = "cc45596d140b3b8651eb7b51b561f1bf72d1eea9",
-    sha256 = "4975b23f8eff1f0763b5654fbdf325c0089631dacd4b37f9903c404401a93f05",
+    sha256 = "1698624e878b0607052ae6131aa216d45ebb63871ec497f26c67455b34119c80",
+    version = "0.15.0",
 )
 
 load(
@@ -392,5 +382,5 @@ git_repository(
     name = "any_sketch_java",
     commit = "54089b0f800fd6707d00c099a63d4963c40bb652",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
-    shallow_since = "1603231855 -0700",
+    shallow_since = "1604438026 -0500",
 )
