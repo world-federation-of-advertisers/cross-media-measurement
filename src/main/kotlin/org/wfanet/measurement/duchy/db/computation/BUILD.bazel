@@ -17,5 +17,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_java_proto",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_java_proto",
     ],
 )

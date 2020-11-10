@@ -20,7 +20,7 @@ import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol.ComputationStages as LiquidLegionsComputationStages
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol.ComputationStages as LiquidLegionsComputationStages
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata

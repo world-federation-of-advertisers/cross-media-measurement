@@ -18,7 +18,6 @@ import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
@@ -49,7 +48,7 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WA
  * [ComputationStages.Details] is a helper to create [ComputationStageDetails] from
  * [ComputationStage] protos wrapping a [LiquidLegionsSketchAggregationV1.Stage] enum values.
  */
-object LiquidLegionsSketchAggregationProtocol {
+object LiquidLegionsSketchAggregationV1Protocol {
   /**
    * Implementation of [ProtocolStageEnumHelper] for [LiquidLegionsSketchAggregationV1.Stage].
    */
@@ -68,7 +67,7 @@ object LiquidLegionsSketchAggregationProtocol {
           TO_BLIND_POSITIONS,
           TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
         ),
-        TO_BLIND_POSITIONS to setOf(WAIT_FLAG_COUNTS, COMPLETED),
+        TO_BLIND_POSITIONS to setOf(WAIT_FLAG_COUNTS),
         TO_BLIND_POSITIONS_AND_JOIN_REGISTERS to setOf(WAIT_FLAG_COUNTS),
         WAIT_FLAG_COUNTS to setOf(
           TO_DECRYPT_FLAG_COUNTS,
@@ -94,17 +93,16 @@ object LiquidLegionsSketchAggregationProtocol {
         ComputationStageDetails {
           return when (stage) {
             WAIT_SKETCHES ->
-              ComputationStageDetails.newBuilder()
-                .setWaitSketchStageDetails(
-                  WaitSketchesStageDetails.newBuilder()
-                    // The WAIT_SKETCHES stage has exactly one input which is the noised sketches from
-                    // the primary duchy running the wait operation. It is not an output of the stage
-                    // because it is a result of a locally running stage.
-                    .putAllExternalDuchyLocalBlobId(
-                      otherDuchies.mapIndexed { idx, duchy -> duchy to (idx + 1).toLong() }.toMap()
-                    )
-                )
-                .build()
+              ComputationStageDetails.newBuilder().apply {
+                liquidLegionsV1Builder.waitSketchStageDetailsBuilder.apply {
+                  // The WAIT_SKETCHES stage has exactly one input which is the noised sketches from
+                  // the primary duchy running the wait operation. It is not an output of the stage
+                  // because it is a result of a locally running stage.
+                  putAllExternalDuchyLocalBlobId(
+                    otherDuchies.mapIndexed { idx, duchy -> duchy to (idx + 1).toLong() }.toMap()
+                  )
+                }
+              }.build()
             else -> ComputationStageDetails.getDefaultInstance()
           }
         }
@@ -129,7 +127,7 @@ object LiquidLegionsSketchAggregationProtocol {
         .map { it.key.toProtocolStage() to it.value.toSetOfComputationStages() }.toMap()
 
     override fun enumToLong(value: ComputationStage): Long =
-      EnumStages.enumToLong(value.liquidLegionsSketchAggregation)
+      EnumStages.enumToLong(value.liquidLegionsSketchAggregationV1)
 
     override fun longToEnum(value: Long): ComputationStage =
       EnumStages.longToEnum(value).toProtocolStage()
@@ -144,7 +142,7 @@ object LiquidLegionsSketchAggregationProtocol {
       private val enumBasedDetails = EnumStages.Details(otherDuchies)
 
       override fun detailsFor(stage: ComputationStage): ComputationStageDetails =
-        enumBasedDetails.detailsFor(stage.liquidLegionsSketchAggregation)
+        enumBasedDetails.detailsFor(stage.liquidLegionsSketchAggregationV1)
 
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =
         enumBasedDetails.parseDetails(bytes)

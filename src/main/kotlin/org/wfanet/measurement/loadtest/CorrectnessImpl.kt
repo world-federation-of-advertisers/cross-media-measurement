@@ -22,6 +22,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -73,6 +74,7 @@ private const val MAX_COUNTER_VALUE = 10
 private const val DECAY_RATE = 23.0
 private const val INDEX_SIZE = 330_000L
 private const val GLOBAL_COMPUTATION_ID = "1"
+
 private const val STREAM_BYTE_BUFFER_SIZE = 1024 * 32 // 32 KiB
 
 class CorrectnessImpl(
@@ -394,6 +396,7 @@ class CorrectnessImpl(
     return response.metricRequisitionsList.firstOrNull()
   }
 
+  @OptIn(ExperimentalCoroutinesApi::class) // For `merge`.
   override suspend fun uploadMetricValue(
     metricValueKey: MetricRequisition.Key,
     encryptedSketch: ByteString
@@ -405,11 +408,11 @@ class CorrectnessImpl(
     )
     val bodyContent =
       encryptedSketch.asBufferedFlow(STREAM_BYTE_BUFFER_SIZE)
-    .map{
-      UploadMetricValueRequest.newBuilder().apply {
-        chunkBuilder.data = it
-      }.build()
-    }
+        .map {
+          UploadMetricValueRequest.newBuilder().apply {
+            chunkBuilder.data = it
+          }.build()
+        }
     val request = merge(header, bodyContent)
 
     publisherDataStub.uploadMetricValue(request)

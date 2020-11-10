@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy;
 
 import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v1.proto";
+import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v2.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -30,7 +31,10 @@ message ComputationStage {
   oneof stage {
     // Stage of a Liquid Legions sketch aggregation multi party computation.
     protocol.LiquidLegionsSketchAggregationV1.Stage
-        liquid_legions_sketch_aggregation = 1;
+        liquid_legions_sketch_aggregation_v1 = 1;
+    // Stage of a Liquid Legions sketch aggregation multi party computation.
+    protocol.LiquidLegionsSketchAggregationV2.Stage
+        liquid_legions_sketch_aggregation_v2 = 2;
   }
 }
 
@@ -44,7 +48,10 @@ message ComputationTypeEnum {
     // Not set intentionally.
     UNSPECIFIED = 0;
 
-    // Aggregation of Liquid Legion sketches.
+    // Aggregation of Liquid Legion sketches V1.
     LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 = 1;
+
+    // Aggregation of Liquid Legion sketches V2.
+    LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 = 2;
   }
 }

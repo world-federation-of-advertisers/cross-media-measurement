@@ -92,9 +92,7 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
-import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
-import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage as LiquidLegionsStage
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
@@ -273,12 +271,12 @@ class LiquidLegionsMillTest {
             )
           )
           .setStageSpecificDetails(
-            ComputationStageDetails.newBuilder()
-              .setWaitSketchStageDetails(
-                WaitSketchesStageDetails.newBuilder()
-                  .putExternalDuchyLocalBlobId("NEXT_WORKER", 1L)
-                  .putExternalDuchyLocalBlobId("PRIMARY_WORKER", 2L)
-              )
+            ComputationStageDetails.newBuilder().apply {
+              liquidLegionsV1Builder.waitSketchStageDetailsBuilder.apply {
+                putExternalDuchyLocalBlobId("NEXT_WORKER", 1L)
+                putExternalDuchyLocalBlobId("PRIMARY_WORKER", 2L)
+              }
+            }
           )
           .setNextDuchy("NEXT_WORKER")
           .setPrimaryDuchy("PRIMARY_WORKER")
@@ -310,13 +308,12 @@ class LiquidLegionsMillTest {
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(0L)),
-      stageDetails = ComputationStageDetails.newBuilder()
-        .setToConfirmRequisitionsStageDetails(
-          ToConfirmRequisitionsStageDetails.newBuilder()
-            .addKeys("1".toRequisitionKey())
-            .addKeys("2".toRequisitionKey())
-        )
-        .build()
+      stageDetails = ComputationStageDetails.newBuilder().apply {
+        liquidLegionsV1Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
+          addKeys("1".toRequisitionKey())
+          addKeys("2".toRequisitionKey())
+        }
+      }.build()
     )
 
     lateinit var metricValuesRequest1: StreamMetricValueRequest
@@ -399,12 +396,12 @@ class LiquidLegionsMillTest {
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
       role = RoleInComputation.SECONDARY,
       blobs = listOf(newEmptyOutputBlobMetadata(0L)),
-      stageDetails = ComputationStageDetails.newBuilder()
-        .setToConfirmRequisitionsStageDetails(
-          ToConfirmRequisitionsStageDetails.newBuilder()
-            .addKeys(requisition1.toRequisitionKey())
-            .addKeys(requisition2.toRequisitionKey())
-        )
+      stageDetails = ComputationStageDetails.newBuilder().apply {
+        liquidLegionsV1Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
+          addKeys(requisition1.toRequisitionKey())
+          addKeys(requisition2.toRequisitionKey())
+        }
+      }
         .build()
     )
 
@@ -478,7 +475,7 @@ class LiquidLegionsMillTest {
             statusUpdateBuilder.apply {
               selfReportedIdentifier = MILL_ID
               stageDetailsBuilder.apply {
-                algorithm = MpcAlgorithm.LIQUID_LEGIONS
+                algorithm = MpcAlgorithm.LIQUID_LEGIONS_V1
                 stageNumber = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.number.toLong()
                 stageName = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.name
                 attemptNumber = 1
@@ -1034,7 +1031,7 @@ class LiquidLegionsMillTest {
             statusUpdateBuilder.apply {
               selfReportedIdentifier = MILL_ID
               stageDetailsBuilder.apply {
-                algorithm = MpcAlgorithm.LIQUID_LEGIONS
+                algorithm = MpcAlgorithm.LIQUID_LEGIONS_V1
                 stageNumber = LiquidLegionsStage.TO_BLIND_POSITIONS.number.toLong()
                 stageName = LiquidLegionsStage.TO_BLIND_POSITIONS.name
                 attemptNumber = 1
@@ -1130,7 +1127,7 @@ class LiquidLegionsMillTest {
             statusUpdateBuilder.apply {
               selfReportedIdentifier = MILL_ID
               stageDetailsBuilder.apply {
-                algorithm = MpcAlgorithm.LIQUID_LEGIONS
+                algorithm = MpcAlgorithm.LIQUID_LEGIONS_V1
                 stageNumber = LiquidLegionsStage.TO_BLIND_POSITIONS.number.toLong()
                 stageName = LiquidLegionsStage.TO_BLIND_POSITIONS.name
                 attemptNumber = 1

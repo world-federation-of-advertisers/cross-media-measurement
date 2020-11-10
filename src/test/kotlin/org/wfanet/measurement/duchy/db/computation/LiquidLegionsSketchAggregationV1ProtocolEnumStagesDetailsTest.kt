@@ -19,27 +19,25 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.WaitSketchesStageDetails
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 
 @RunWith(JUnit4::class)
-class LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest {
+class LiquidLegionsSketchAggregationV1ProtocolEnumStagesDetailsTest {
 
   @Test
   fun `stage defaults and conversions`() {
-    val d = LiquidLegionsSketchAggregationProtocol.EnumStages.Details(listOf("A", "B", "C"))
+    val d = LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(listOf("A", "B", "C"))
     for (stage in LiquidLegionsSketchAggregationV1.Stage.values()) {
       val expected =
         when (stage) {
           LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES ->
-            ComputationStageDetails.newBuilder()
-              .setWaitSketchStageDetails(
-                WaitSketchesStageDetails.newBuilder()
-                  .putExternalDuchyLocalBlobId("A", 1L)
-                  .putExternalDuchyLocalBlobId("B", 2L)
-                  .putExternalDuchyLocalBlobId("C", 3L)
-              )
-              .build()
+            ComputationStageDetails.newBuilder().apply {
+              liquidLegionsV1Builder.waitSketchStageDetailsBuilder.apply {
+                putExternalDuchyLocalBlobId("A", 1L)
+                putExternalDuchyLocalBlobId("B", 2L)
+                putExternalDuchyLocalBlobId("C", 3L)
+              }
+            }.build()
           else -> ComputationStageDetails.getDefaultInstance()
         }
       val stageProto = d.detailsFor(stage)

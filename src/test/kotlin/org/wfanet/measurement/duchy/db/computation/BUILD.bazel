@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "LiquidLegionsSketchAggregationProtocolStageHelperTest",
-    srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocolEnumStagesTest",
+    name = "LiquidLegionsSketchAggregationV1ProtocolStageHelperTest",
+    srcs = ["LiquidLegionsSketchAggregationV1ProtocolEnumStagesTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1ProtocolEnumStagesTest",
     deps = [
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
@@ -13,9 +13,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "LiquidLegionsSketchAggregationStageDetailsTest",
-    srcs = ["LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocolEnumStagesDetailsTest",
+    name = "LiquidLegionsSketchAggregationV1StageDetailsTest",
+    srcs = ["LiquidLegionsSketchAggregationV1ProtocolEnumStagesDetailsTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1ProtocolEnumStagesDetailsTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
@@ -27,9 +27,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "LiquidLegionsSketchAggregationComputationDataClientsTest",
-    srcs = ["LiquidLegionsSketchAggregationComputationDataClientsTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClientsTest",
+    name = "LiquidLegionsSketchAggregationV1ComputationDataClientsTest",
+    srcs = ["LiquidLegionsSketchAggregationV1ComputationDataClientsTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1ComputationDataClientsTest",
     deps = [
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/org/junit",

@@ -96,7 +96,7 @@ class ComputationsServiceTest {
           statusUpdateBuilder.apply {
             selfReportedIdentifier = "duchy 1"
             stageDetailsBuilder.apply {
-              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
               stageNumber = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.number.toLong()
               stageName = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.name
               attemptNumber = 0
@@ -162,7 +162,7 @@ class ComputationsServiceTest {
           statusUpdateBuilder.apply {
             selfReportedIdentifier = "duchy 1"
             stageDetailsBuilder.apply {
-              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
               stageNumber = LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.number.toLong()
               stageName = LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.name
               attemptNumber = 0
@@ -258,7 +258,7 @@ class ComputationsServiceTest {
           statusUpdateBuilder.apply {
             selfReportedIdentifier = "duchy 1"
             stageDetailsBuilder.apply {
-              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
               stageNumber =
                 LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.number.toLong()
               stageName = LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.name

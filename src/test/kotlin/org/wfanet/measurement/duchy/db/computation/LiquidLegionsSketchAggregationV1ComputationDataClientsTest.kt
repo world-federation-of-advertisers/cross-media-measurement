@@ -77,7 +77,7 @@ private const val CARINTHIA = "Carinthia"
 private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
-class LiquidLegionsSketchAggregationComputationDataClientsTest {
+class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
   private val fakeDatabase = FakeLiquidLegionsComputationDb()
 
   @get:Rule
@@ -164,7 +164,7 @@ class LiquidLegionsSketchAggregationComputationDataClientsTest {
     computation.claimWorkFor("mill-1")
     computation.writeOutputs(TO_CONFIRM_REQUISITIONS)
     computation.waitForSketches(
-      LiquidLegionsSketchAggregationProtocol.EnumStages.Details(DUCHIES.subList(1, 3)).detailsFor(
+      LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(DUCHIES.subList(1, 3)).detailsFor(
         WAIT_SKETCHES
       )
     )
@@ -233,7 +233,7 @@ class SingleLiquidLegionsComputation(
   suspend fun writeOutputs(stage: LiquidLegionsSketchAggregationV1.Stage) {
     assertEquals(stage.toProtocolStage(), token.computationStage)
     testClock.tickSeconds(
-      "${token.computationStage.liquidLegionsSketchAggregation}_$token.attempt_outputs"
+      "${token.computationStage.liquidLegionsSketchAggregationV1}_$token.attempt_outputs"
     )
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
       .forEach {
@@ -296,7 +296,7 @@ class SingleLiquidLegionsComputation(
      * set stage to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
     suspend fun receiveSketch(sender: String) {
-      val stageDetails = token.stageSpecificDetails.waitSketchStageDetails
+      val stageDetails = token.stageSpecificDetails.liquidLegionsV1.waitSketchStageDetails
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
       val path = "unused_${sender}_$blobId"

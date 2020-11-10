@@ -17,7 +17,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.server
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
@@ -48,9 +48,9 @@ class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
     get() = latestDuchyPublicKeys.keys.filter { it != flags.duchy.duchyName }
 
   override val computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-  override val stageEnumHelper = LiquidLegionsSketchAggregationProtocol.ComputationStages
+  override val stageEnumHelper = LiquidLegionsSketchAggregationV1Protocol.ComputationStages
   override val stageDetails
-    get() = LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(otherDuchyNames)
+    get() = LiquidLegionsSketchAggregationV1Protocol.ComputationStages.Details(otherDuchyNames)
 
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->

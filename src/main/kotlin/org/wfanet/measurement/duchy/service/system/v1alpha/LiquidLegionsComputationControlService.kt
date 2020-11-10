@@ -63,7 +63,7 @@ class LiquidLegionsComputationControlService(
 
       val globalComputationId = token.globalComputationId
       logger.info("[id=$globalComputationId]: Received blind position sketch.")
-      val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregation) {
+      val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregationV1) {
         // Check to see if it was already written.
         LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED ->
           token.singleOutputBlobMetadata().path.isEmpty()
@@ -117,7 +117,7 @@ class LiquidLegionsComputationControlService(
 
       val id = token.globalComputationId
       logger.info("[id=${token.globalComputationId}]: Received decrypt flags and counts request.")
-      val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregation) {
+      val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregationV1) {
         // Check to see if it was already written.
         LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS ->
           token.singleOutputBlobMetadata().path.isEmpty()
@@ -169,7 +169,7 @@ class LiquidLegionsComputationControlService(
       val id = token.globalComputationId
       val sender = duchyIdentityProvider().id
       logger.info("[id=$id]: Received noised sketch request from $sender.")
-      val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregation) {
+      val shouldWriteBlob = when (token.computationStage.liquidLegionsSketchAggregationV1) {
         // Check to see if it was already written.
         LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES ->
           token.toNoisedSketchBlobMetadataFor(sender).path.isEmpty()

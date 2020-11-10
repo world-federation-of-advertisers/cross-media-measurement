@@ -78,12 +78,47 @@ message ComputationStageAttemptDetails {
 // Details about a particular attempt of running a stage for a computation
 // within a duchy.
 message ComputationStageDetails {
-  oneof stage_specific {
+  oneof detail {
+    // Details specific to the liquidLegionV1 protocol.
+    LiquidLegionsV1StageDetails liquid_legions_v1 = 1;
+    // Details specific to the liquidLegionV2 protocol.
+    LiquidLegionsV2StageDetails liquid_legions_v2 = 2;
+  }
+}
+
+// Details about a particular attempt of running a stage of the LiquidLegionV1
+// Protocol.
+message LiquidLegionsV1StageDetails {
+  oneof detail {
     // Details specific to the WAIT_SKETCHES stage.
     WaitSketchesStageDetails wait_sketch_stage_details = 1;
     // Details specific to the TO_CONFIRM_REQUISITIONS stage.
     ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details = 2;
   }
+}
+
+// Details about a particular attempt of running a stage of the LiquidLegionV2
+// Protocol.
+message LiquidLegionsV2StageDetails {
+  oneof detail {
+    // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
+    WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
+    // Details specific to the TO_CONFIRM_REQUISITIONS stage.
+    ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details = 2;
+  }
+}
+
+// The WAIT_SETUP_PHASE_INPUTS stage has a bootstrapping step where it requires
+// input from all other duchies before it can move forward. The bookkeeping
+// of which duchy has provided is stored in this message.
+message WaitSetupPhaseInputsDetails {
+  // A mapping of the name of a duchy to the BlobId corresponding to the
+  // ComputationBlobDependency.OUTPUT BLOB where it will be written.
+  //
+  // Upon receiving a sketch from a duchy the OUTPUT reference with the id
+  // found in this map is updated with the local copy of the blob. When all
+  // the output references have a path the worker can move onto the next stage.
+  map<string, int64> external_duchy_local_blob_id = 1;
 }
 
 // The WAIT_SKETCHES stage has a bootstrapping step where it requires

@@ -26,7 +26,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
@@ -90,9 +90,9 @@ class DuchyDependencyProviderRule(
     computationsDatabaseClient: AsyncDatabaseClient
   ): SingleProtocolDatabase {
     val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
-    val stageEnumHelper = LiquidLegionsSketchAggregationProtocol.ComputationStages
+    val stageEnumHelper = LiquidLegionsSketchAggregationV1Protocol.ComputationStages
     val stageDetails =
-      LiquidLegionsSketchAggregationProtocol.ComputationStages.Details(otherDuchyNames)
+      LiquidLegionsSketchAggregationV1Protocol.ComputationStages.Details(otherDuchyNames)
     val readOnlyDb = GcpSpannerReadOnlyComputationsRelationalDb(
       computationsDatabaseClient,
       stageEnumHelper

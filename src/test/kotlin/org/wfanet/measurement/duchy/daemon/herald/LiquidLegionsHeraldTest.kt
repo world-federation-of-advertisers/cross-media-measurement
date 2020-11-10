@@ -123,7 +123,7 @@ internal class LiquidLegionsHeraldTest {
     assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
       .isEqualTo(
         ComputationStageDetails.newBuilder().apply {
-          toConfirmRequisitionsStageDetailsBuilder.apply {
+          liquidLegionsV1Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
             addKeys(requisitionKey("alice", "a", "1234"))
             addKeys(requisitionKey("bob", "bb", "abc"))
             addKeys(requisitionKey("caroline", "ccc", "234567"))

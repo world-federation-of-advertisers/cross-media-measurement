@@ -44,8 +44,8 @@ class LiquidLegionsSketchAggregationComputationDataClients private constructor(
     otherDuchies: List<String>
   ) : this(computationStorageClient, ComputationStore(storageClient), otherDuchies)
 
-  val liquidLegionsStageDetails: LiquidLegionsSketchAggregationProtocol.EnumStages.Details =
-    LiquidLegionsSketchAggregationProtocol.EnumStages.Details(otherDuchies)
+  val liquidLegionsStageDetails: LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details =
+    LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(otherDuchies)
 
   /**
    * Calls AdvanceComputationStage to move to a new stage in a consistent way.
@@ -208,7 +208,7 @@ fun ComputationToken.toNoisedSketchBlobMetadataFor(
   sender: String
 ): ComputationStageBlobMetadata {
   // Get the blob id by looking up the sender in the stage specific details.
-  val stageDetails = stageSpecificDetails.waitSketchStageDetails
+  val stageDetails = stageSpecificDetails.liquidLegionsV1.waitSketchStageDetails
   val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
   return blobsList.single {
     it.dependencyType == ComputationBlobDependency.OUTPUT &&

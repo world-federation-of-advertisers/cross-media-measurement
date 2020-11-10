@@ -17,7 +17,7 @@ package org.wfanet.measurement.duchy.db.computation
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
-import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION
+import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
@@ -48,9 +48,9 @@ suspend fun ComputationsCoroutineStub.advanceLiquidLegionsComputationStage(
   computationToken: ComputationToken,
   inputsToNextStage: List<String>,
   stage: LiquidLegionsSketchAggregationV1.Stage,
-  liquidLegionsStageDetails: LiquidLegionsSketchAggregationProtocol.EnumStages.Details
+  liquidLegionsStageDetails: LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details
 ): ComputationToken {
-  require(computationToken.computationStage.stageCase == LIQUID_LEGIONS_SKETCH_AGGREGATION) {
+  require(computationToken.computationStage.stageCase == LIQUID_LEGIONS_SKETCH_AGGREGATION_V1) {
     "Must be a token for a LIQUID_LEGIONS_SKETCH_AGGREGATION computation was $computationToken."
   }
   requireValidRoleForStage(stage, computationToken.role)

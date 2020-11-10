@@ -79,7 +79,7 @@ import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage as LiquidLegionsStage
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
@@ -167,24 +167,24 @@ class LiquidLegionsMill(
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_MAXIMUM, Runtime.getRuntime().maxMemory())
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_TOTAL, Runtime.getRuntime().totalMemory())
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_FREE, Runtime.getRuntime().freeMemory())
-    val stage = token.computationStage.liquidLegionsSketchAggregation
+    val stage = token.computationStage.liquidLegionsSketchAggregationV1
     val globalId = token.globalComputationId
     logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
 
     try {
-      when (token.computationStage.liquidLegionsSketchAggregation) {
-        LiquidLegionsStage.TO_CONFIRM_REQUISITIONS ->
+      when (token.computationStage.liquidLegionsSketchAggregationV1) {
+        Stage.TO_CONFIRM_REQUISITIONS ->
           confirmRequisitions(token)
-        LiquidLegionsStage.TO_ADD_NOISE,
-        LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
+        Stage.TO_ADD_NOISE,
+        Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
           addNoise(token)
-        LiquidLegionsStage.TO_BLIND_POSITIONS ->
+        Stage.TO_BLIND_POSITIONS ->
           blindPositions(token)
-        LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
+        Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
           blindPositionsAndJoinRegisters(token)
-        LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+        Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
           decryptFlagCountsAndComputeMetrics(token)
-        LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS ->
+        Stage.TO_DECRYPT_FLAG_COUNTS ->
           decryptFlagCounts(token)
         else -> error("Unexpected stage: $stage")
       }
@@ -219,7 +219,7 @@ class LiquidLegionsMill(
   @OptIn(FlowPreview::class) // For `flattenConcat`.
   private suspend fun confirmRequisitions(token: ComputationToken): ComputationToken {
     val requisitionsToConfirm =
-      token.stageSpecificDetails.toConfirmRequisitionsStageDetails.keysList
+      token.stageSpecificDetails.liquidLegionsV1.toConfirmRequisitionsStageDetails.keysList
     val availableRequisitions = requisitionsToConfirm.filter { metricValueExists(it) }
 
     globalComputationsClient.confirmGlobalComputation(
@@ -249,8 +249,8 @@ class LiquidLegionsMill(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
       stage = when (checkNotNull(nextToken.role)) {
-        RoleInComputation.PRIMARY -> LiquidLegionsStage.WAIT_SKETCHES
-        RoleInComputation.SECONDARY -> LiquidLegionsStage.WAIT_TO_START
+        RoleInComputation.PRIMARY -> Stage.WAIT_SKETCHES
+        RoleInComputation.SECONDARY -> Stage.WAIT_TO_START
         RoleInComputation.UNKNOWN,
         RoleInComputation.UNRECOGNIZED -> error("Unknown role: ${nextToken.role}")
       }
@@ -319,7 +319,7 @@ class LiquidLegionsMill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = LiquidLegionsStage.WAIT_CONCATENATED
+      stage = Stage.WAIT_CONCATENATED
     )
   }
 
@@ -387,7 +387,7 @@ class LiquidLegionsMill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = LiquidLegionsStage.WAIT_FLAG_COUNTS
+      stage = Stage.WAIT_FLAG_COUNTS
     )
   }
 
@@ -413,7 +413,7 @@ class LiquidLegionsMill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = LiquidLegionsStage.WAIT_FLAG_COUNTS
+      stage = Stage.WAIT_FLAG_COUNTS
     )
   }
 
@@ -532,7 +532,7 @@ class LiquidLegionsMill(
         .setToken(token)
         .setEndingComputationStage(
           ComputationStage.newBuilder()
-            .setLiquidLegionsSketchAggregation(LiquidLegionsStage.COMPLETED)
+            .setLiquidLegionsSketchAggregationV1(Stage.COMPLETED)
         )
         .setReason(reason)
         .build()

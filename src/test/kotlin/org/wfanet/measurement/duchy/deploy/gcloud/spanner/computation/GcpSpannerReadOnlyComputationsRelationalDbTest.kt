@@ -22,7 +22,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -55,8 +55,8 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
 
   private val computationMutations =
     ComputationMutations(
-      LiquidLegionsSketchAggregationProtocol.EnumStages,
-      LiquidLegionsSketchAggregationProtocol.EnumStages.Details(
+      LiquidLegionsSketchAggregationV1Protocol.EnumStages,
+      LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(
         listOf(NEXT_DUCHY_IN_RING, THIRD_DUCHY_IN_RING)
       )
     )
@@ -69,7 +69,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     liquidLegionsSketchAggregationSpannerReader =
       GcpSpannerReadOnlyComputationsRelationalDb(
         databaseClient,
-        LiquidLegionsSketchAggregationProtocol.ComputationStages
+        LiquidLegionsSketchAggregationV1Protocol.ComputationStages
       )
   }
 
@@ -124,7 +124,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
         globalComputationId = globalId
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregation(LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES)
+          .setLiquidLegionsSketchAggregationV1(LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES)
           .build()
         role = DETAILS_WHEN_PRIMARY.role
         nextDuchy = DETAILS_WHEN_PRIMARY.outgoingNodeId
@@ -206,7 +206,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
         globalComputationId = globalId
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregation(
+          .setLiquidLegionsSketchAggregationV1(
             LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
           )
           .build()
@@ -273,7 +273,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
         globalComputationId = globalId
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregation(
+          .setLiquidLegionsSketchAggregationV1(
             LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
           )
           .build()

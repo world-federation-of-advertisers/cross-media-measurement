@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationProtocol
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.db.computation.advanceLiquidLegionsComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
@@ -70,7 +70,7 @@ class LiquidLegionsHerald(
   private val maxStartAttempts: Int = 10
 ) {
   private val liquidLegionsStageDetails =
-    LiquidLegionsSketchAggregationProtocol.EnumStages.Details(otherDuchiesInComputation)
+    LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(otherDuchiesInComputation)
 
   // If one of the GlobalScope coroutines launched by `start` fails, it populates this.
   private lateinit var startException: Throwable
@@ -130,6 +130,7 @@ class LiquidLegionsHerald(
   private suspend fun processGlobalComputationChange(
     response: StreamActiveGlobalComputationsResponse
   ) {
+    // TODO: create computation according to the protocol specified by the kingdom.
     val globalId: String = checkNotNull(response.globalComputation.key?.globalComputationId)
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = response.globalComputation.state) {
@@ -154,10 +155,10 @@ class LiquidLegionsHerald(
     try {
       computationStorageClient.createComputation(
         CreateComputationRequest.newBuilder().apply {
-          computationType =
-            COMPUTATION_TYPE
+          computationType = COMPUTATION_TYPE
           globalComputationId = globalId
           stageDetailsBuilder
+            .liquidLegionsV1Builder
             .toConfirmRequisitionsStageDetailsBuilder
             .addAllKeys(requisitionsAtThisDuchy)
         }.build()
@@ -204,7 +205,7 @@ class LiquidLegionsHerald(
         .getComputationToken(globalId.toGetTokenRequest(COMPUTATION_TYPE))
         .token
 
-    when (val stage = token.computationStage.liquidLegionsSketchAggregation) {
+    when (val stage = token.computationStage.liquidLegionsSketchAggregationV1) {
       // We expect stage WAIT_TO_START.
       WAIT_TO_START -> {
         computationStorageClient.advanceLiquidLegionsComputationStage(
