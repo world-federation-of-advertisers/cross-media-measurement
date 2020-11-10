@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.protobuf.Message
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
@@ -34,8 +35,8 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
-import org.wfanet.measurement.gcloud.common.toEpochMilli
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
 import org.wfanet.measurement.gcloud.spanner.getNullableString
@@ -585,10 +586,21 @@ class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
       val current =
         ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
           ?: error("No row for computation (${token.localId})")
-      if (current.getTimestamp("UpdateTime").toEpochMilli() == token.editVersion) {
+      val updateTime = current.getTimestamp("UpdateTime").toInstant()
+      val updateTimeMillis = updateTime.toEpochMilli()
+      val tokenTimeMillis = token.editVersion
+      if (updateTimeMillis == tokenTimeMillis) {
         readWriteTransactionBlock(ctx)
       } else {
-        error("Failed to update, token is from older update time.")
+        val tokenTime = Instant.ofEpochMilli(tokenTimeMillis)
+        error {
+          """
+          Failed to update because of editVersion mismatch.
+            Token's editVersion: $tokenTimeMillis ($tokenTime)
+            Computations table's UpdateTime: $updateTimeMillis ($updateTime)
+            Difference: ${Duration.between(tokenTime, updateTime)}
+          """.trimIndent()
+        }
       }
     }
   }
