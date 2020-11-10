@@ -163,6 +163,10 @@ class LiquidLegionsMill(
   }
 
   private suspend fun processNextComputation(token: ComputationToken) {
+    // Log the current mill memory usage before processing.
+    logStageMetric(token, CURRENT_RUNTIME_MEMORY_MAXIMUM, Runtime.getRuntime().maxMemory())
+    logStageMetric(token, CURRENT_RUNTIME_MEMORY_TOTAL, Runtime.getRuntime().totalMemory())
+    logStageMetric(token, CURRENT_RUNTIME_MEMORY_FREE, Runtime.getRuntime().freeMemory())
     val stage = token.computationStage.liquidLegionsSketchAggregation
     val globalId = token.globalComputationId
     logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
@@ -685,6 +689,9 @@ class LiquidLegionsMill(
     private const val STAGE_CPU_TIME = "stage_cpu_time"
     private const val STAGE_WALL_CLOCK_TIME = "stage_wall_clock_time"
     private const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
+    private const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
+    private const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
+    private const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
     private val threadBean: ThreadMXBean = ManagementFactory.getThreadMXBean()
 
     init {
