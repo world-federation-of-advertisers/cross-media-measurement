@@ -239,24 +239,6 @@ http_file(
     urls = ["https://packages.cloud.google.com/apt/doc/apt-key.gpg"],
 )
 
-# ktlint
-http_file(
-    name = "ktlint",
-    downloaded_file_path = "ktlint",
-    executable = True,
-    sha256 = "cf1c1a2efca79d07957a4de815af6e74287e46730d02393593edfa304e237153",
-    urls = ["https://github.com/pinterest/ktlint/releases/download/0.39.0/ktlint"],
-)
-
-# buildifier
-http_file(
-    name = "buildifier",
-    downloaded_file_path = "buildifier",
-    executable = True,
-    sha256 = "f9a9c082b8190b9260fce2986aeba02a25d41c00178855a1425e1ce6f1169843",
-    urls = ["https://github.com/bazelbuild/buildtools/releases/download/3.5.0/buildifier"],
-)
-
 # @com_google_private_join_and_compute
 
 load("//build/com_google_private_join_and_compute:repo.bzl", "private_join_and_compute_repo")
