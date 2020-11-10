@@ -57,7 +57,7 @@ import ("strings")
 		"spanner-liquid-legions-computations-server": {}
 		"metric-values-storage-server": {}
 		"publisher-data-server": {
-			_type:     "NodePort"
+			_type: "NodePort"
 		}
 	}
 
@@ -95,6 +95,7 @@ import ("strings")
 				"--mill-id=\(_name)-mill-1",
 				"--polling-interval=1s",
 			] + _computation_control_service_flags + _blob_storage_flags
+			_jvm_flags: "-Xmx1g -Xms256m"
 		}
 		"liquid-legions-computation-control-server-pod": #ServerPod & {
 			_args: [

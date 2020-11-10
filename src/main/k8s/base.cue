@@ -69,6 +69,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
 	_system:          string
+	_jvm_flags:       string | *""
 	apiVersion:       "v1"
 	kind:             "Pod"
 	metadata: {
@@ -83,6 +84,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			imagePullPolicy: _imagePullPolicy
 			args:            _args
 			ports:           _ports
+			env: [{
+				name:  "JAVA_TOOL_OPTIONS"
+				value: _jvm_flags
+			}]
 		}]
 		restartPolicy: _restartPolicy
 	}
