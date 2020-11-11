@@ -23,7 +23,7 @@ option java_multiple_files = true;
 message LiquidLegionsSketchAggregationV2 {
   enum Stage {
     // The computation stage is unknown. This is never set intentionally.
-    SKETCH_AGGREGATION_STAGE_UNKNOWN = 0;
+    STAGE_UNKNOWN = 0;
 
     // The computation is known and the worker should confirm all required local
     // requisitions are available. After confirmation, the computation enters
