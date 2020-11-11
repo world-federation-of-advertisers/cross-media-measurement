@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 # Copyright 2020 The Measurement System Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,30 +14,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -eEu -o pipefail
 
-set -e
-set -u
-set -o pipefail
+readonly BAZEL="${BAZEL:-bazel}"
 
-# Copy the logs to the ARTIFACTS directory when finished, so that prow can make
-# them available to the user. 
-copyLogs() {
-  local test_log_dir="$(bazel info bazel-testlogs)"
-  cp -Lr "${test_log_dir}" "${ARTIFACTS}/"
+# Copies Bazel test logs to the ARTIFACTS directory so that Prow can make them
+# available to the user.
+copy_test_logs() {
+  local bazel_testlogs
+  bazel_testlogs="$($BAZEL info bazel-testlogs)"
+
+  cp -Lr "${bazel_testlogs}" "${ARTIFACTS}/"
 }
 
-trap copyLogs EXIT
+configure_auth() {
+  # Use gcloud auth for Docker.
+  gcloud auth configure-docker
+}
 
-# Change sso:// references in the WORKSPACE file to https://
-sed -i -e 's%sso://team/%https://team.googlesource.com/%' WORKSPACE
+# Configure access for Google-hosted Git.
+configure_google_git() {
+  # Use gcloud for Git auth.
+  git config --global credential.helper gcloud.sh
 
-# Use gcloud for git and docker authentication.
-git config --global credential.helper gcloud.sh
-gcloud auth configure-docker
+  # Change sso:// references in the WORKSPACE file to https://
+  sed -i -e 's%sso://team/%https://team.googlesource.com/%' WORKSPACE
+}
 
-# Run the tests.
-# TODO(kmillar): add --config=remote
-# TODO(kmillar): add --config=results
-bazel test \
-  -k \
-  //... 
+main() {
+  local -i failed=0
+  configure_auth
+  configure_google_git
+
+  # Build all targets.
+  $BAZEL --nohome_rc build --keep_going //... || failed=1
+
+  # Run all tests.
+  $BAZEL --nohome_rc test --keep_going --test_output=errors //... || failed=1
+  copy_test_logs
+
+  ! ((failed))
+}
+
+main "$@"
