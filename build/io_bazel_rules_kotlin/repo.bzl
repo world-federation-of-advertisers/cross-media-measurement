@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# @io_bazel_rules_kotlin
-# See https://github.com/bazelbuild/rules_kotlin/
+"""Repository rules/macros for rules_kotlin.
+
+See https://github.com/bazelbuild/rules_kotlin
+"""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

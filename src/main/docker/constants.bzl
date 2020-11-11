@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Shared constants for container build targets."""
+
 _DEBIAN_JAVA_11_HOME = "/usr/lib/jvm/java-11-openjdk-amd64"
 _DEBIAN_JAVA_11_BIN = _DEBIAN_JAVA_11_HOME + "/bin"
 

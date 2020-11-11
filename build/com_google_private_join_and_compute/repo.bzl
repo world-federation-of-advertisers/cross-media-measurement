@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# private-join-and-compute library used in the C++ crypto primitive.
-#
-# @com_google_private_join_and_compute
-# See https://github.com/google/private-join-and-compute/
+"""Repository rules/macros for private-join-and-compute library.
+
+See https://github.com/google/private-join-and-compute
+"""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

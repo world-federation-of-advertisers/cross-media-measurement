@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Repository rules/macros for Google Cloud Spanner Emulator."""
+
 def _cloud_spanner_emulator_impl(rctx):
     version = rctx.attr.version
     sha256 = rctx.attr.sha256
@@ -26,5 +28,8 @@ def _cloud_spanner_emulator_impl(rctx):
 
 cloud_spanner_emulator_binaries = repository_rule(
     implementation = _cloud_spanner_emulator_impl,
-    attrs = {"version": attr.string(mandatory = True), "sha256": attr.string()},
+    attrs = {
+        "version": attr.string(mandatory = True),
+        "sha256": attr.string(),
+    },
 )

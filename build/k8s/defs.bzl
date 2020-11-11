@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//build:defs.bzl", "to_label")
+"""Build defs for Kubernetes (K8s)."""
 
 ImageImportInfo = provider(
     doc = "Information about importing container images.",

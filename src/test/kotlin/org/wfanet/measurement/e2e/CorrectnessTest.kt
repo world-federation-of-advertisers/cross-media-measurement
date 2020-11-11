@@ -16,6 +16,13 @@ package org.wfanet.measurement.e2e
 
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
+import java.net.URL
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import kotlin.test.fail
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.ClassRule
@@ -32,13 +39,6 @@ import org.wfanet.measurement.loadtest.CorrectnessImpl
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.tools.ClusterState
-import java.net.URL
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import kotlin.test.fail
 
 /**
  * Runs a correctness test in a Kubernetes-in-Docker (kind) cluster.
@@ -112,7 +112,6 @@ class CorrectnessTest {
 
     val clock = Clock.systemUTC()
     runBlocking {
-
       SpannerDatabaseConnector(
         emulatorHost = spannerEmulatorHost,
         instanceName = "emulator-instance",

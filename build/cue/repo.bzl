@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Repository rules/macros for CUE."""
+
 def _cue_binaries_impl(rctx):
     version = rctx.attr.version
     sha256 = rctx.attr.sha256

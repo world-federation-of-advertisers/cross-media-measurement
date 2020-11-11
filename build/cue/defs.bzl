@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Build defs for CUE.
+
+See https://cuelang.org/
+"""
+
 def _cue_string_field_impl(ctx):
     args = ctx.actions.args()
     args.add(ctx.attr.package)
@@ -54,10 +59,12 @@ def cue_string_field(name, src, identifier, package = None, **kwargs):
     Output: **name**.cue
 
     Args:
+        name: Target name.
         src: Input file whose contents should be the field value.
         identifier: The CUE identifier for the string field.
         package: The CUE package. Defaults to the Bazel package name separated
             by underscores.
+        **kwargs: Keyword arguments.
     """
     if not package:
         package = native.package_name().replace("/", "_")

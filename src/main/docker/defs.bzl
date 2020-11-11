@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Build defs for container images."""
+
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit_layer")
 
 _APT_GET_ENV = {
@@ -44,7 +46,16 @@ def container_commit_install_apt_packages(
         tags = [],
         upgrade = False,
         **kwargs):
-    """Commits a new layer with the APT packages installed."""
+    """Commits a new layer with the APT packages installed.
+
+    Args:
+        name: Target name.
+        image: Image archive.
+        packages: List of APT packages to install.
+        tags: Standard attribute.
+        upgrade: Whether to upgrade existing packages.
+        **kwargs: Keyword arguments.
+    """
     if len(packages) == 0:
         fail("Must specify at least one package")
 
@@ -72,7 +83,16 @@ def container_commit_add_apt_key(
         key_path,
         tags = [],
         **kwargs):
-    """Commits a new layer with the GPG key added to an APT keyring."""
+    """Commits a new layer with the GPG key added to an APT keyring.
+
+    Args:
+        name: Target name.
+        image: Image archive.
+        keyring_path: Path of the keyring file within the image.
+        key_path: Path of the key file within the image.
+        tags: Standard attribute.
+        **kwargs: Keyword arguments.
+    """
     command = "apt-key --keyring {keyring} add {key}".format(
         keyring = keyring_path,
         key = key_path,

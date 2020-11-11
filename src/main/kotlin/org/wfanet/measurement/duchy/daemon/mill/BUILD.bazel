@@ -1,7 +1,5 @@
 load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
-load("@rules_java//java:defs.bzl", "java_binary")
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
     test_target(":__pkg__"),

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Build defs for base container images."""
+
 load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
 
 def base_java_images(digest, debug_digest):

@@ -4,6 +4,7 @@
 # TODO(b/169968333): Move everything that isn't related to gRPC services outside
 # of this package.
 
+load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//:__subpackages__"])

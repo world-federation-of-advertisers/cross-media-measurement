@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Repository defs for Truth library."""
+
 _ARTIFACT_NAMES = [
     "com.google.truth.extensions:truth-java8-extension",
     "com.google.truth.extensions:truth-proto-extension",

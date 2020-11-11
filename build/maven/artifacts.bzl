@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Maven artifact utils."""
+
 def _list_to_dict(artifact_list):
     """Returns a dict of artifact name to version."""
     tuples = [tuple(item.rsplit(":", 1)) for item in artifact_list]

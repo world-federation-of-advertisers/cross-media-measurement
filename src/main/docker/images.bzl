@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Container image specs."""
+
 # List of specs for all Docker containers to push to a container registry.
 # These are common to both local execution (e.g. in Kind) as well as on GKE.
 COMMON_IMAGES = [

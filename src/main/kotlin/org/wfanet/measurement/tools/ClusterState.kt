@@ -16,13 +16,13 @@ package org.wfanet.measurement.tools
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser.parseReader
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import com.google.gson.stream.JsonReader
 import java.io.Reader
 import java.lang.Exception
 import java.util.stream.Collectors
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * Fetch state of a Kubernetes-in-Docker (kind) cluster.
@@ -84,10 +84,9 @@ class ClusterState(private val clusterName: String = "kind") {
         .getAsJsonArray("items")
         .map { it.asJsonObject }
         .filter { el ->
-          el.getAsJsonPrimitive("kind").asString == "Service"
-            &&
+          el.getAsJsonPrimitive("kind").asString == "Service" &&
             el.getAsJsonObject("spec")
-              .getAsJsonPrimitive("type").asString == "NodePort"
+            .getAsJsonPrimitive("type").asString == "NodePort"
         }.associate { el ->
           Pair(
             el.getAsJsonObject("metadata")
@@ -107,7 +106,7 @@ class ClusterState(private val clusterName: String = "kind") {
   fun jobsSucceeded(jobNames: List<String>): Boolean =
     handleJson(
       "kubectl get jobs ${
-        jobNames.joinToString(" ")
+      jobNames.joinToString(" ")
       } -o json --context kind-$clusterName"
     ) { json ->
       json

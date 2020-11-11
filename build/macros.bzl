@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Common macros."""
+
 load(":defs.bzl", "to_label")
 load("@rules_java//java:defs.bzl", "java_library", "java_proto_library")
 load(
@@ -31,6 +33,15 @@ def kt_jvm_grpc_library(
     This includes a convenience export for the java_proto_library dep as well as
     some transitive dependencies that IntelliJ doesn't pick up from
     kt_jvm_library rules.
+
+    Args:
+      name: Target name.
+      srcs: Exactly one proto_library target.
+      deps: Exactly one java_proto_library target.
+      flavor: "normal" (default) for normal proto runtime, or "lite" for the
+          lite runtime (for Android usage)
+      visibility: List of visibility labels.
+      **kwargs: Keyword arguments.
     """
 
     internal_name = name + "_internal"
@@ -59,7 +70,16 @@ def kt_jvm_grpc_and_java_proto_library(
         flavor = None,
         visibility = None,
         **kwargs):
-    """kt_jvm_grpc_library with java_proto_library generated from srcs."""
+    """kt_jvm_grpc_library with java_proto_library generated from srcs.
+
+    Args:
+      name: Target name.
+      srcs: Exactly one proto source file.
+      flavor: "normal" (default) for normal proto runtime, or "lite" for the
+          lite runtime (for Android usage)
+      visibility: List of visibility labels.
+      **kwargs: Keyword arguments.
+    """
 
     if len(srcs) != 1:
         fail("Expected exactly one src", "srcs")

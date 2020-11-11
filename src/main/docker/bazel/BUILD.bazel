@@ -17,8 +17,6 @@ JAVA = DEBIAN_JAVA_11
 
 BASE_IMAGE = "@ubuntu_18_04//image"
 
-BAZEL_IMAGE = "@bazel_image//image"
-
 # APT packages necessary for adding an APT key.
 container_commit_install_apt_packages(
     name = "apt_key_packages",

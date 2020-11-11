@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Repository rules/macros for rules_docker."""
+
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 _RELEASE_URL = "https://github.com/bazelbuild/rules_docker/releases/download/v{version}/rules_docker-v{version}.tar.gz"
