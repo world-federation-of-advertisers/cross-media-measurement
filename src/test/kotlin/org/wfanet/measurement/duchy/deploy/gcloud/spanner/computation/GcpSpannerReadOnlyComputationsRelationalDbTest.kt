@@ -22,6 +22,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
@@ -55,6 +56,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
 
   private val computationMutations =
     ComputationMutations(
+      ComputationTypes,
       LiquidLegionsSketchAggregationV1Protocol.EnumStages,
       LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(
         listOf(NEXT_DUCHY_IN_RING, THIRD_DUCHY_IN_RING)

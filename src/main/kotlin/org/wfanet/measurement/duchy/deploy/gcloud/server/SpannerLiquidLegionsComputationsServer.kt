@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.server
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
@@ -61,7 +62,9 @@ class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
           databaseClient = databaseClient,
           duchyName = flags.duchy.duchyName,
           duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
-          computationMutations = ComputationMutations(stageEnumHelper, stageDetails)
+          computationMutations = ComputationMutations(
+            ComputationTypes, stageEnumHelper, stageDetails
+          )
         )
       )
     }

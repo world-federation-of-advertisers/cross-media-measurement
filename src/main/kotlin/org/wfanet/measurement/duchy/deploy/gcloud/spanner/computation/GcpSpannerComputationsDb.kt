@@ -50,15 +50,15 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
  */
-class GcpSpannerComputationsDb<StageT, StageDetailsT : Message>(
+class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
   private val databaseClient: AsyncDatabaseClient,
   private val duchyName: String,
   private val duchyOrder: DuchyOrder,
   private val blobStorageBucket: String = "mill-computation-stage-storage",
-  private val computationMutations: ComputationMutations<StageT, StageDetailsT>,
+  private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDetailsT>,
   private val clock: Clock = Clock.systemUTC(),
   private val lockDuration: Duration = Duration.ofMinutes(5)
-) : ComputationsRelationalDb<StageT, StageDetailsT> {
+) : ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     GlobalBitsPlusTimeStampIdGenerator(clock)

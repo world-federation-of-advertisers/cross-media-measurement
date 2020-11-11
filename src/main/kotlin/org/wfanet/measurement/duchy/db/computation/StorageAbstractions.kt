@@ -22,6 +22,8 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
  * Information about a computation needed to edit a computation.
+ *
+ * TODO: Add a ProtocolT to token as well.
  */
 data class ComputationStorageEditToken<StageT>(
   /** The identifier for the computation used locally. */
@@ -105,13 +107,14 @@ interface ReadOnlyComputationsRelationalDb {
  *
  * @param StageT Object represent a stage of a computation protocol.
  */
-interface ComputationsRelationalDb<StageT, StageDetailsT> {
+interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
 
   /**
    * Inserts a new computation for the global identifier.
    *
    * The computation is added to the queue immediately.
    */
+  // TODO: Add the ProtocolT when inserting a computation.
   suspend fun insertComputation(globalId: String, initialStage: StageT, stageDetails: StageDetailsT)
 
   /**
@@ -175,9 +178,10 @@ interface ComputationsRelationalDb<StageT, StageDetailsT> {
  */
 interface SingleProtocolDatabase :
   ReadOnlyComputationsRelationalDb,
-  ComputationsRelationalDb<ComputationStage, ComputationStageDetails>,
+  ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>,
   ProtocolStageEnumHelper<ComputationStage> {
 
+  // TODO: Allow all computation types instead of single type, i.e. remove uses of this field.
   val computationType: ComputationType
 }
 

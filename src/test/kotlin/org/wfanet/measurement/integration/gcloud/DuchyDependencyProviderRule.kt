@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
@@ -47,8 +48,11 @@ import org.wfanet.measurement.integration.common.DUCHY_ORDER
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.storage.StorageClient
+
+private typealias ComputationsDb =
+  ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>
 
 class DuchyDependencyProviderRule(
   duchyIds: Iterable<String>
@@ -97,23 +101,25 @@ class DuchyDependencyProviderRule(
       computationsDatabaseClient,
       stageEnumHelper
     )
-    val computationsDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails> =
+    val computationsDb: ComputationsDb =
       GcpSpannerComputationsDb(
         databaseClient = computationsDatabaseClient,
         duchyName = duchyId,
         duchyOrder = DUCHY_ORDER,
         blobStorageBucket = "mill-computation-stage-storage-$duchyId",
-        computationMutations = ComputationMutations(stageEnumHelper, stageDetails),
+        computationMutations = ComputationMutations(
+          ComputationTypes, stageEnumHelper, stageDetails
+        ),
         lockDuration = Duration.ofSeconds(1)
       )
 
     return object :
       SingleProtocolDatabase,
       ReadOnlyComputationsRelationalDb by readOnlyDb,
-      ComputationsRelationalDb<ComputationStage, ComputationStageDetails> by computationsDb,
+      ComputationsDb by computationsDb,
       ProtocolStageEnumHelper<ComputationStage> by stageEnumHelper {
       override val computationType =
-        ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+        ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
     }
   }
 

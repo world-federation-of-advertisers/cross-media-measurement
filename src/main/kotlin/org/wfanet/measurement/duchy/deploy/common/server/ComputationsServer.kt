@@ -33,6 +33,9 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
+private typealias ComputationsDb =
+  ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>
+
 /** gRPC server for Computations service. */
 abstract class ComputationsServer : Runnable {
   @CommandLine.Mixin
@@ -49,7 +52,7 @@ abstract class ComputationsServer : Runnable {
 
   protected fun run(
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
-    computationDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails>
+    computationDb: ComputationsDb
   ) {
     val channel = buildChannel(flags.globalComputationsServiceTarget, flags.channelShutdownTimeout)
 
@@ -71,12 +74,12 @@ abstract class ComputationsServer : Runnable {
 
   private fun newSingleProtocolDb(
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
-    computationDb: ComputationsRelationalDb<ComputationStage, ComputationStageDetails>
+    computationDb: ComputationsDb
   ): SingleProtocolDatabase {
     return object :
       SingleProtocolDatabase,
       ReadOnlyComputationsRelationalDb by readOnlyComputationDb,
-      ComputationsRelationalDb<ComputationStage, ComputationStageDetails> by computationDb,
+      ComputationsDb by computationDb,
       ProtocolStageEnumHelper<ComputationStage> by stageEnumHelper {
       override val computationType = this@ComputationsServer.computationType
     }

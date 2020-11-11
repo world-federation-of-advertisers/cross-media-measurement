@@ -33,6 +33,7 @@ import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
@@ -64,6 +65,26 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
  */
 enum class FakeProtocolStages {
   A, B, C, D, E;
+}
+
+enum class FakeProtocol {
+  ZERO,
+  ONE;
+
+  object Helper : ComputationTypeEnumHelper<FakeProtocol> {
+    override fun protocolEnumToLong(value: FakeProtocol): Long {
+      return value.ordinal.toLong()
+    }
+
+    override fun longToProtocolEnum(value: Long): FakeProtocol {
+      require(value == 100L)
+      return when (value) {
+        0L -> ZERO
+        1L -> ONE
+        else -> error("Bad value")
+      }
+    }
+  }
 }
 
 object ProtocolStages : ProtocolStageEnumHelper<FakeProtocolStages> {
@@ -116,10 +137,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   }
 
   private val testClock = TestClockWithNamedInstants(TEST_INSTANT)
-  private val computationMutations = ComputationMutations(ProtocolStages, StageDetailsHelper())
+  private val computationMutations =
+    ComputationMutations(FakeProtocol.Helper, ProtocolStages, StageDetailsHelper())
 
   private lateinit var database:
-    GcpSpannerComputationsDb<FakeProtocolStages, FakeProtocolStageDetails>
+    GcpSpannerComputationsDb<FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails>
 
   @Before
   fun initDatabase() {

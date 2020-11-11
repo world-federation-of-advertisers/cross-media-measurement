@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Message
+import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
@@ -48,10 +49,12 @@ private fun nonNullValueTimestamp(t: Timestamp) = requireNotNull(timestampOrNull
 typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
-class ComputationMutations<StageT, StageDetailsT : Message>(
+class ComputationMutations<ComputationT, StageT, StageDetailsT : Message>(
+  computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationT>,
   stageEnumHelper: ProtocolStageEnumHelper<StageT>,
   details: ProtocolStageDetails<StageT, StageDetailsT>
 ) :
+  ComputationTypeEnumHelper<ComputationT> by computationTypeEnumHelper,
   ProtocolStageEnumHelper<StageT> by stageEnumHelper,
   ProtocolStageDetails<StageT, StageDetailsT> by details {
   /**
@@ -62,6 +65,7 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     localId: Long,
     updateTime: Timestamp,
     globalId: String? = null,
+    computationType: ComputationT? = null,
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
@@ -71,6 +75,7 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     m.set("ComputationId").to(localId)
     m.set("UpdateTime").to(nonNullValueTimestamp(updateTime))
     globalId?.let { m.set("GlobalComputationId").to(it) }
+    computationType?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
     stage?.let { m.set("ComputationStage").to(enumToLong(it)) }
     lockOwner?.let { m.set("LockOwner").to(stringOrNull(it)) }
     lockExpirationTime?.let {
@@ -100,14 +105,16 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
     details: ComputationDetails
   ): Mutation {
     return computation(
-      Mutation::newInsertBuilder,
-      localId,
-      updateTime,
-      globalId,
-      stage,
-      lockOwner,
-      lockExpirationTime,
-      details
+      newBuilderFunction = Mutation::newInsertBuilder,
+      localId = localId,
+      updateTime = updateTime,
+      globalId = globalId,
+      // TODO: Add computationType to insert parameters.
+      computationType = null,
+      stage = stage,
+      lockOwner = lockOwner,
+      lockExpirationTime = lockExpirationTime,
+      details = details
     )
   }
 
@@ -121,21 +128,19 @@ class ComputationMutations<StageT, StageDetailsT : Message>(
   fun updateComputation(
     localId: Long,
     updateTime: Timestamp,
-    globalId: String? = null,
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
     details: ComputationDetails? = null
   ): Mutation {
     return computation(
-      Mutation::newUpdateBuilder,
-      localId,
-      updateTime,
-      globalId,
-      stage,
-      lockOwner,
-      lockExpirationTime,
-      details
+      newBuilderFunction = Mutation::newUpdateBuilder,
+      localId = localId,
+      updateTime = updateTime,
+      stage = stage,
+      lockOwner = lockOwner,
+      lockExpirationTime = lockExpirationTime,
+      details = details
     )
   }
 
