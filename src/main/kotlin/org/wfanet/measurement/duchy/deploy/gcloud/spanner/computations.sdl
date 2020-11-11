@@ -43,10 +43,16 @@ CREATE TABLE Computations (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,
 
+  -- The protocol the computation is following. This column is immutable.
+  --
+  -- See the wfa.measurement.internal.duchy.ComputationTypeEnum proto
+  -- TODO: Make column NOT NULL
+  Protocol INT64,
+
   -- The current stage of the computation as known to this Node.
   -- This does not reflect the stage to all Nodes.
   --
-  -- See the wfa.measurement.internal.SketchAggregationState proto
+  -- See the protos in the wfa.measurement.protocol package
   ComputationStage INT64 NOT NULL,
 
   -- Last time the stage was modified.
@@ -98,6 +104,7 @@ CREATE TABLE Computations (
 
 -- Query computations ready for work. All computations that can be worked on
 -- have a non null LockExpirationTime.
+-- TODO: Add Protocol Column to index.
 CREATE NULL_FILTERED INDEX ComputationsByLockExpirationTime
   ON Computations(LockExpirationTime ASC, UpdateTime ASC)
   STORING (ComputationStage, GlobalComputationId);
@@ -119,7 +126,7 @@ CREATE TABLE ComputationStages (
 
   -- The stage the computation was in.
   --
-  -- See the wfa.measurement.internal.SketchAggregationState proto
+  -- See the protos in the wfa.measurement.protocol package.
   ComputationStage INT64 NOT NULL,
 
   -- The time the computation stage was created. This is strictly
@@ -178,7 +185,7 @@ CREATE TABLE ComputationBlobReferences (
 
   -- The stage the computation was in.
   --
-  -- See the wfa.measurement.internal.SketchAggregationState proto
+  -- See the protos in the wfa.measurement.protocol package.
   ComputationStage INT64 NOT NULL,
 
   -- A unique identifier for the BLOB.
@@ -208,7 +215,7 @@ CREATE TABLE ComputationStageAttempts (
 
   -- The stage the computation was in.
   --
-  -- See the wfa.measurement.internal.SketchAggregationState proto
+  -- See the protos in the wfa.measurement.protocol package.
   ComputationStage INT64 NOT NULL,
 
   -- The attempt number for this stage for this computation.
