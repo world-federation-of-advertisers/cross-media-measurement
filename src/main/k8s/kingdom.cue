@@ -19,12 +19,16 @@ import ("strings")
 #Kingdom: {
 	_duchy_ids: [...string]
 	_duchy_id_flags: [ for d in _duchy_ids {"--duchy-ids=\(d)"}]
+	_verbose_grpc_logging: "true" | "false"
 
 	_spanner_schema_push_flags: [...string]
 	_spanner_flags: [...string]
 
 	_images: [Name=_]: string
 	_kingdom_image_pull_policy: string
+
+	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
 	kingdom_service: [Name=_]: #GrpcService & {
 		_name:   Name
@@ -64,7 +68,7 @@ import ("strings")
 	kingdom_pod: {
 		"report-maker-daemon-pod": #Pod & {
 			_args: [
-				"--debug-verbose-grpc-client-logging=true",
+				_debug_verbose_grpc_client_logging_flag,
 				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--max-concurrency=32",
 				"--throttler-overload-factor=1.2",
@@ -76,7 +80,7 @@ import ("strings")
 
 		"report-starter-daemon-pod": #Pod & {
 			_args: [
-				"--debug-verbose-grpc-client-logging=true",
+				_debug_verbose_grpc_client_logging_flag,
 				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--max-concurrency=32",
 				"--throttler-overload-factor=1.2",
@@ -87,7 +91,7 @@ import ("strings")
 
 		"requisition-linker-daemon-pod": #Pod & {
 			_args: [
-				"--debug-verbose-grpc-client-logging=true",
+				_debug_verbose_grpc_client_logging_flag,
 				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--max-concurrency=32",
 				"--throttler-overload-factor=1.2",
@@ -98,15 +102,15 @@ import ("strings")
 
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
-				"--debug-verbose-grpc-server-logging=true",
+				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _duchy_id_flags + _spanner_flags
 		}
 
 		"global-computation-server-pod": #ServerPod & {
 			_args: [
-				"--debug-verbose-grpc-client-logging=true",
-				"--debug-verbose-grpc-server-logging=true",
+				_debug_verbose_grpc_client_logging_flag,
+				_debug_verbose_grpc_server_logging_flag,
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags
@@ -114,8 +118,8 @@ import ("strings")
 
 		"requisition-server-pod": #ServerPod & {
 			_args: [
-				"--debug-verbose-grpc-client-logging=true",
-				"--debug-verbose-grpc-server-logging=true",
+				_debug_verbose_grpc_client_logging_flag,
+				_debug_verbose_grpc_server_logging_flag,
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags

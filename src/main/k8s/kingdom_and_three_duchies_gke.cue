@@ -64,6 +64,7 @@ objectSets: [
 		"spanner-liquid-legions-computations-server": "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-spanner-computations"
 	}
 	_duchy_image_pull_policy: "Always"
+	_verbose_grpc_logging:    "false"
 }
 
 duchies: {for d in #Duchies {"\(d.name)": #GkeDuchy & {_duchy: d}}}
@@ -90,6 +91,7 @@ kingdom: #Kingdom & {
 		"requisition-server":            "gcr.io/ads-open-measurement/kingdom/requisition"
 	}
 	_kingdom_image_pull_policy: "Always"
+	_verbose_grpc_logging:      "false"
 }
 
 setup_job: "correctness-test-job": #CorrectnessTest & {

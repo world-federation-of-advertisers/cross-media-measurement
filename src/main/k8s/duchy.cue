@@ -22,6 +22,7 @@ import ("strings")
 	_spanner_schema_push_flags: [...string]
 	_spanner_flags: [...string]
 	_blob_storage_flags: [...string]
+	_verbose_grpc_logging: "true" | "false"
 
 	_name: _duchy.name
 	_key:  _duchy.key
@@ -47,6 +48,9 @@ import ("strings")
 	_global_computations_service_target_flag: "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
 	_metric_values_service_target_flag:       "--metric-values-service-target=" + (#Target & {name:      "\(_name)-metric-values-storage-server"}).target
 	_requisition_service_target_flag:         "--requisition-service-target=" + (#Target & {name:        "requisition-server"}).target
+
+	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
 	duchy_service: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
@@ -102,34 +106,34 @@ import ("strings")
 				_computations_service_target_flag,
 				_duchy_name_flag,
 				_duchy_public_keys_config_flag,
-				"--debug-verbose-grpc-server-logging=true",
+				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _duchy_id_flags + _blob_storage_flags
 		}
 		"spanner-liquid-legions-computations-server-pod": #ServerPod & {
 			_args: [
+				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
 				_duchy_public_keys_config_flag,
 				_global_computations_service_target_flag,
 				"--channel-shutdown-timeout=3s",
-				"--debug-verbose-grpc-server-logging=true",
 				"--port=8080",
 				"--spanner-database=\(_name)_duchy_computations",
 			] + _spanner_flags
 		}
 		"metric-values-storage-server-pod": #ServerPod & {
 			_args: [
-				"--debug-verbose-grpc-server-logging=true",
+				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 				"--spanner-database=\(_name)_duchy_metric_values",
 			] + _spanner_flags + _blob_storage_flags
 		}
 		"publisher-data-server-pod": #ServerPod & {
 			_args: [
+				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
 				_metric_values_service_target_flag,
 				_requisition_service_target_flag,
-				"--debug-verbose-grpc-server-logging=true",
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
 				"--port=8080",
 				"--registration-service-target=127.0.0.1:9000", // TODO: change once implemented.

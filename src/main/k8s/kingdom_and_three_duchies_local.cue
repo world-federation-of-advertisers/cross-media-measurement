@@ -119,6 +119,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"spanner-liquid-legions-computations-server": "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_liquid_legions_computations_server_image"
 	}
 	_duchy_image_pull_policy: "Never"
+	_verbose_grpc_logging:    "true"
 }
 
 duchies: {for d in #Duchies {"\(d.name)": #LocalDuchy & {_duchy: d}}}
@@ -150,6 +151,7 @@ kingdom: #Kingdom & {
 		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image"
 	}
 	_kingdom_image_pull_policy: "Never"
+	_verbose_grpc_logging:      "true"
 }
 
 setup_job: "correctness-test-job": #CorrectnessTest & {
