@@ -11,7 +11,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",
-        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_java_proto",
         "//src/main/swig/common/crypto:protocol_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
@@ -26,6 +26,6 @@ kt_jvm_test(
         "//imports/java/com/google/common/truth",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/crypto",
-        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_java_proto",
     ],
 )

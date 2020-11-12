@@ -16,7 +16,7 @@
 #define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
 
 #include "util/statusor.h"
-#include "wfa/measurement/common/crypto/protocol_encryption_methods.pb.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 
 namespace wfa {
 namespace measurement {

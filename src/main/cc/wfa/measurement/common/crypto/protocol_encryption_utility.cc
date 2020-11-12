@@ -22,6 +22,7 @@
 #include "crypto/ec_commutative_cipher.h"
 #include "util/canonical_errors.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/common/string_block_sorter.h"

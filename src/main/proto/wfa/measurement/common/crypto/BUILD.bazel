@@ -7,18 +7,54 @@ package(default_visibility = [
 ])
 
 proto_library(
-    name = "protocol_encryption_methods_proto",
-    srcs = ["protocol_encryption_methods.proto"],
+    name = "parameters_proto",
+    srcs = ["parameters.proto"],
     strip_import_prefix = "/src/main/proto",
     visibility = ["//visibility:private"],
 )
 
 cc_proto_library(
-    name = "protocol_encryption_methods_cc_proto",
-    deps = [":protocol_encryption_methods_proto"],
+    name = "parameters_cc_proto",
+    deps = [":parameters_proto"],
 )
 
 java_proto_library(
-    name = "protocol_encryption_methods_java_proto",
-    deps = [":protocol_encryption_methods_proto"],
+    name = "parameters_java_proto",
+    deps = [":parameters_proto"],
+)
+
+proto_library(
+    name = "liquid_legions_v1_encryption_methods_proto",
+    srcs = ["liquid_legions_v1_encryption_methods.proto"],
+    strip_import_prefix = "/src/main/proto",
+    visibility = ["//visibility:private"],
+    deps = [":parameters_proto"],
+)
+
+cc_proto_library(
+    name = "liquid_legions_v1_encryption_methods_cc_proto",
+    deps = [":liquid_legions_v1_encryption_methods_proto"],
+)
+
+java_proto_library(
+    name = "liquid_legions_v1_encryption_methods_java_proto",
+    deps = [":liquid_legions_v1_encryption_methods_proto"],
+)
+
+proto_library(
+    name = "liquid_legions_v2_encryption_methods_proto",
+    srcs = ["liquid_legions_v2_encryption_methods.proto"],
+    strip_import_prefix = "/src/main/proto",
+    visibility = ["//visibility:private"],
+    deps = [":parameters_proto"],
+)
+
+cc_proto_library(
+    name = "liquid_legions_v2_encryption_methods_cc_proto",
+    deps = [":liquid_legions_v2_encryption_methods_proto"],
+)
+
+java_proto_library(
+    name = "liquid_legions_v2_encryption_methods_java_proto",
+    deps = [":liquid_legions_v2_encryption_methods_proto"],
 )

@@ -23,7 +23,7 @@
 #include "gtest/gtest.h"
 #include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
-#include "wfa/measurement/common/crypto/protocol_encryption_methods.pb.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 
 namespace wfa::measurement::common::crypto {
 namespace {

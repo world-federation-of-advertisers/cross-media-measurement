@@ -16,29 +16,16 @@ syntax = "proto3";
 
 package wfa.measurement.common.crypto;
 
+import "wfa/measurement/common/crypto/parameters.proto";
+
 option java_package = "org.wfanet.measurement.common.crypto";
 option java_multiple_files = true;
 
-// Proto messages wrapping the input arguments or output results of the protocol
-// encryption methods, which are to be called via JNI in the Duchy.
-// Note that these protos contain sensitive data, e.g., private keys used in the
-// ciphers. So they SHOULD NOT be written into any logs or leave the running
-// process.
-
-// Public keys of the ElGamal cipher.
-message ElGamalPublicKeys {
-  // Public key g (generator) of the ElGamal cipher.
-  bytes el_gamal_g = 1;
-  // Public key y (g^sk) of the ElGamal cipher.
-  bytes el_gamal_y = 2;
-}
-// Keys of the ElGamal cipher.
-message ElGamalKeys {
-  // Secret key of the ElGamal cipher.
-  bytes el_gamal_sk = 1;
-  // Public keys of the ElGamal cipher.
-  ElGamalPublicKeys el_gamal_pk = 2;
-}
+// Proto messages wrapping the input arguments or output results of the Liquid
+// legion v1 (two round) MPC protocol encryption methods, which are to be called
+// via JNI in the Mill. Note that these protos contain sensitive data, e.g.,
+// private keys used in the ciphers. So they SHOULD NOT be written into any logs
+// or leave the running process.
 
 // The request to add noise registers to the sketch.
 // Only 3-tuple (register_index, fingerprint, count) registers are supported.
@@ -158,7 +145,7 @@ message DecryptOneLayerFlagAndCountRequest {
   // The keys used to create the local ElGamal cipher. required.
   ElGamalKeys local_el_gamal_keys = 2;
   // The elliptical curve to work on.
-  int64 curve_id = 4;
+  int64 curve_id = 3;
 }
 
 // The response of the DecryptCountAndFlag method.

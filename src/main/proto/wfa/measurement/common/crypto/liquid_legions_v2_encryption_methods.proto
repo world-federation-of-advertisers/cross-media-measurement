@@ -1,0 +1,253 @@
+// Copyright 2020 The Measurement System Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.common.crypto;
+
+import "wfa/measurement/common/crypto/parameters.proto";
+
+option java_package = "org.wfanet.measurement.common.crypto";
+option java_multiple_files = true;
+
+// Proto messages wrapping the input arguments or output results of the liquid
+// legion v2 (three round) MPC protocol encryption methods, which are to be
+// called via JNI in the Mill. Note that these protos contain sensitive data,
+// e.g., private keys used in the ciphers. So they SHOULD NOT be written into
+// any logs or leave the running process.
+
+message RegisterNoiseGenerationParameters {
+  // Public keys of the composite ElGamal cipher. Used to encrypt the added
+  // noise.
+  ElGamalPublicKeys composite_el_gamal_keys = 1;
+  // The elliptical curve to work on.
+  int64 curve_id = 2;
+  // The baseline of noise agreed by all workers.
+  // The number of noise register to be added would be equal to
+  // noise_baseline + X, where X is the diff of two polya random numbers.
+  int32 noise_baseline = 3;
+  // The parameters of the polya distribution used to generate the noise.
+  PolyaParameters polya_parameters = 4;
+}
+
+message FlagCountTupleNoiseGenerationParameters {
+  // Public keys of the composite ElGamal cipher. Used to encrypt the added
+  // counts.
+  ElGamalPublicKeys composite_el_gamal_keys = 1;
+  // Public keys of the partial composite ElGamal cipher. Used to encrypt the
+  // added flags.
+  ElGamalPublicKeys partial_composite_el_gamal_keys = 2;
+  // The elliptical curve to work on.
+  int64 curve_id = 3;
+  // The baseline of noise agreed by all workers. Should be positive.
+  int32 noise_baseline = 4;
+  // Parameter of the algorithm used.
+  oneof algorithm {
+    // The parameters of the polya distribution used to generate the noise.
+    PolyaParameters polya_parameters = 5;
+  }
+}
+
+// The request to complete work in the setup phase.
+message CompleteSetupPhaseRequest {
+  // The input combined register vector (CRV)
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the CRV size should be
+  // divisible by 66*3.
+  // The CRV is only needed so the noise can be interleaved and hidden in the
+  // CRV. The registers in the CRV are unchanged, except for their orders.
+  bytes combined_register_vector = 1;
+  // The parameters required for generating noise registers.
+  // if unset, the worker only shuffles the register without adding any noise.
+  RegisterNoiseGenerationParameters noise_parameters = 2;
+}
+
+// Response of the CompleteSetupPhase method.
+message CompleteSetupPhaseResponse {
+  // The output combined register vector (CRV), which contains shuffled input
+  // and noise registers.
+  bytes combined_register_vector = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}
+
+// The request to complete work in the reach estimation phase at a
+// non-aggregator worker.
+message CompleteReachEstimationPhaseRequest {
+  // The input combined register vector (CRV).
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
+  bytes combined_register_vector = 1;
+  // Keys of the local ElGamal cipher. Required.
+  ElGamalKeys local_el_gamal_keys = 2;
+  // Secret key of the local Pohlig-Hellman cipher. Optional.
+  // If unset, a random key will be used.
+  bytes local_pohlig_hellman_sk = 3;
+  // The elliptical curve to work on.
+  int64 curve_id = 4;
+  // Public Keys of the composite ElGamal cipher. Used to re-randomize the keys
+  // and counts.
+  ElGamalPublicKeys composite_el_gamal_keys = 5;
+}
+
+// Response of the CompleteReachEstimationPhase method.
+message CompleteReachEstimationPhaseResponse {
+  // The output combined register vector (CRV), whose register indexes are
+  // partially decrypted. Each register contains a 3-tuple of (index, key,
+  // count), each of which is a 66 bytes ElGamal ciphertext. In other words, the
+  // CRV size should be divisible by 66*3.
+  bytes combined_register_vector = 1;
+  // The key used to create the local Pohlig Hellman cipher.
+  // If the request specifies this key, the same value is returned,
+  // otherwise, the randomly generated key is returned.
+  bytes local_pohlig_hellman_sk = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
+}
+
+// The request to complete work in the reach estimation phase at the aggregator
+// worker.
+message CompleteReachEstimationPhaseAtAggregatorRequest {
+  // The input combined register vector (CRV).
+  // Each register contains a 3-tuple of (index, key, count), each of which is
+  // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
+  // divisible by 66*3.
+  // There should be only one layer of ElGamal encryption left
+  // on the register indexes.
+  bytes combined_register_vector = 1;
+  // Keys of the local ElGamal cipher. Required.
+  ElGamalKeys local_el_gamal_keys = 2;
+  // The elliptical curve to work on.
+  int64 curve_id = 3;
+  // Public Keys of the composite ElGamal cipher. Used to encrypt the random
+  // numbers in SameKeyAggregation.
+  ElGamalPublicKeys composite_el_gamal_keys = 4;
+}
+
+// The response of the CompleteReachEstimationPhaseAtAggregator method.
+message CompleteReachEstimationPhaseAtAggregatorResponse {
+  // A concatenation of a list of (flag, count) tuples in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_count_tuples = 1;
+  // The estimated reach.
+  int64 reach = 2;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 3;
+}
+
+// The request to complete work in the filtering phase at a non-aggregator
+// worker.
+message CompleteFilteringPhaseRequest {
+  // A concatenation of a list of (flag, count) tuples in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_count_tuples = 1;
+  // The parameters required for generating noise flag count tuples.
+  // if unset, no noise would be added.
+  FlagCountTupleNoiseGenerationParameters noise_parameters = 2;
+}
+
+// The response of the CompleteFilteringPhase method.
+message CompleteFilteringPhaseResponse {
+  // A concatenation of a list of (flag, count) tuples in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_count_tuples = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}
+
+// The request to complete work in the filtering phase at the aggregator worker.
+message CompleteFilteringPhaseAtAggregatorRequest {
+  // A concatenation of a list of (flag, count) tuples in bytes.
+  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_lists should be divisible by 132.
+  bytes flag_count_tuples = 1;
+  // Public keys of the composite ElGamal cipher. Used to generate the 2-D same
+  // key aggregator (SKA) matrix.
+  ElGamalPublicKeys composite_el_gamal_keys = 2;
+  // The elliptical curve to work on for SKA generation.
+  int64 curve_id = 3;
+  // Maximum frequency to measure. This is also the row dimension of the 2-D SKA
+  // matrix.
+  int32 maximum_frequency = 4;
+  // The parameters required for generating noise flag count tuples.
+  // if unset, no noise would be added.
+  FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
+}
+
+// The response of the CompleteFilteringPhaseAtAggregator method.
+message CompleteFilteringPhaseAtAggregatorResponse {
+  // The 2-D same key aggregator (SKA) matrix.
+  // Each element is a 66 bytes ciphertext. The row size of the matrix is equal
+  // to the maximum_frequency, and the column size of the matrix is equal to the
+  // number of un-destroyed flags.
+  bytes same_key_aggregator_matrix = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}
+
+// The request to complete work in the frequency estimation phase at a
+// non-aggregator worker.
+message CompleteFrequencyEstimationPhaseRequest {
+  // The 2-D same key aggregator matrix.
+  // Each element is a partially decrypted ciphertext (66 bytes). The row size
+  // of the matrix is equal to the maximum_frequency, and the column size of the
+  // matrix is equal to the number of un-destroyed flags.
+  bytes same_key_aggregator_matrix = 1;
+  // Keys of the local ElGamal cipher. Required.
+  ElGamalKeys local_el_gamal_keys = 2;
+  // The elliptical curve to work on.
+  int64 curve_id = 3;
+}
+
+// The response of the CompleteFrequencyEstimationPhase method.
+message CompleteFrequencyEstimationPhaseResponse {
+  // The 2-D same key aggregator (SKA) matrix.
+  // Each element is a partially decrypted ciphertext (66 bytes). The row size
+  // of the matrix is equal to the maximum_frequency, and the column size of the
+  // matrix is equal to the number of un-destroyed flags.
+  bytes same_key_aggregator_matrix = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}
+
+// The request to complete work in the frequency estimation phase at the
+// aggregator worker.
+message CompleteFrequencyEstimationPhaseAtAggregatorRequest {
+  // The 2-D same key aggregator matrix.
+  // Each element is a decrypted (66 bytes). The row size of the matrix is equal
+  // to the maximum_frequency, and the column size of the matrix is equal to the
+  // number of un-destroyed flags.
+  bytes same_key_aggregator_matrix = 1;
+  // Keys of the local ElGamal cipher. Required.
+  ElGamalKeys local_el_gamal_keys = 2;
+  // The elliptical curve to work on.
+  int64 curve_id = 3;
+  // Maximum frequency to measure.
+  int32 maximum_frequency = 4;
+}
+
+// The response of the CompleteFrequencyEstimationPhaseAtAggregator method.
+message CompleteFrequencyEstimationPhaseAtAggregatorResponse {
+  // The relative frequency distribution.
+  // The map contains the frequency distribution for [1, max_frequency] and also
+  // includes max_frequency+1 for the "max_freq+1+" reach. In other words, the
+  // map contains max_frequency+1 entries.
+  map<int64, double> frequency_distribution = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
+}

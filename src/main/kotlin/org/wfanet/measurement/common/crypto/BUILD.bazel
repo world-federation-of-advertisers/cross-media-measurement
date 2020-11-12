@@ -8,7 +8,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/protobuf",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/common/crypto:protocol_encryption_methods_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_java_proto",
         "//src/main/swig/common/crypto:protocol_encryption_utility",
     ],
 )
