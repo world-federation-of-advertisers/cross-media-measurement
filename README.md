@@ -19,4 +19,4 @@ differences from the AIPs:
 
 ### Resource Relationships
 
-![resource diagram](docs/api_resources.png)
+![resource diagram](docs/diagrams/api_resources.png)

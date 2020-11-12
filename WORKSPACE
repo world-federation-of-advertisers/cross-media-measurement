@@ -1,6 +1,6 @@
 workspace(name = "wfa_measurement_proto")
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 http_archive(
     name = "rules_proto",
@@ -17,3 +17,10 @@ load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_
 rules_proto_dependencies()
 
 rules_proto_toolchains()
+
+http_file(
+    name = "plantuml",
+    downloaded_file_path = "plantuml.jar",
+    sha256 = "112b9c44ea069a9b24f237dfb6cb7a6cfb9cd918e507e9bee2ebb9c3797f6051",
+    urls = ["https://downloads.sourceforge.net/project/plantuml/1.2020.19/plantuml.1.2020.19.jar"],
+)

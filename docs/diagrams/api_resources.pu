@@ -1,11 +1,11 @@
 @startuml
-!unquoted function resource($type)
+!unquoted procedure resource($type)
   class $type << (R, SandyBrown) >>
-!endfunction
-!unquoted function collection($name, $type)
+!endprocedure
+!unquoted procedure collection($name, $type)
   $name "1" *-- "many" $type
   object $name
-!endfunction
+!endprocedure
 
 skinparam default {
   fontName "Roboto Mono"

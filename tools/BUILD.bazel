@@ -1,0 +1,6 @@
+sh_binary(
+    name = "generate_plantuml_diagrams",
+    srcs = ["generate_plantuml_diagrams.sh"],
+    data = ["@plantuml//file"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
