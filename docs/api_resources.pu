@@ -22,14 +22,6 @@ resource(CombinedPublicKey) {
   encryption_key
   Get()
 }
-resource(GlobalComputation) {
-  state
-  metric_requisitions
-  [result]
-  Get()
-  Confirm()
-  Finish()
-}
 
 together {
   collection(dataProviders, DataProvider) {
@@ -41,9 +33,6 @@ together {
   collection(sketchConfigs, SketchConfig) {
   }
   collection(combinedPublicKeys, CombinedPublicKey) {
-  }
-  collection(globalComputations, GlobalComputation) {
-    StreamActive()
   }
 }
 
@@ -77,8 +66,6 @@ Campaign *-- metricRequisitions
 MetricRequisition *-- "0..1" MetricValue
 MetricRequisition "1" ..> "many" SketchConfig
 MetricRequisition ..> CombinedPublicKey
-
-GlobalComputation "1" ..> "many" MetricRequisition
 
 Advertiser -[hidden]> DataProvider
 
