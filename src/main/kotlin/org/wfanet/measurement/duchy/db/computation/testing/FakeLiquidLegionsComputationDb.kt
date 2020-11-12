@@ -55,6 +55,7 @@ class FakeLiquidLegionsComputationDb private constructor(
 
   override suspend fun insertComputation(
     globalId: String,
+    protocol: ComputationType,
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails
   ) {
@@ -129,7 +130,7 @@ class FakeLiquidLegionsComputationDb private constructor(
    *   replace the [tokenToUpdate]. The version of the token is always incremented.
    */
   private fun updateToken(
-    tokenToUpdate: ComputationStorageEditToken<ComputationStage>,
+    tokenToUpdate: ComputationStorageEditToken<ComputationType, ComputationStage>,
     changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder
   ) {
     val current = requireTokenFromCurrent(tokenToUpdate)
@@ -138,7 +139,7 @@ class FakeLiquidLegionsComputationDb private constructor(
   }
 
   private fun requireTokenFromCurrent(
-    token: ComputationStorageEditToken<ComputationStage>
+    token: ComputationStorageEditToken<ComputationType, ComputationStage>
   ): ComputationToken {
     val current = getNonNull(token.localId)
     // Just the last update time is checked because it mimics the way in which a relational database
@@ -153,7 +154,7 @@ class FakeLiquidLegionsComputationDb private constructor(
     tokens[globalId] ?: error("No computation for $globalId")
 
   override suspend fun updateComputationStage(
-    token: ComputationStorageEditToken<ComputationStage>,
+    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
     nextStage: ComputationStage,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
@@ -210,7 +211,7 @@ class FakeLiquidLegionsComputationDb private constructor(
   }
 
   override suspend fun endComputation(
-    token: ComputationStorageEditToken<ComputationStage>,
+    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
     endingStage: ComputationStage,
     endComputationReason: EndComputationReason
   ) {
@@ -222,7 +223,7 @@ class FakeLiquidLegionsComputationDb private constructor(
   }
 
   override suspend fun writeOutputBlobReference(
-    token: ComputationStorageEditToken<ComputationStage>,
+    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
     blobRef: BlobRef
   ) {
     updateToken(token) { existing ->
@@ -242,7 +243,7 @@ class FakeLiquidLegionsComputationDb private constructor(
   }
 
   override suspend fun enqueue(
-    token: ComputationStorageEditToken<ComputationStage>,
+    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
     delaySecond: Int
   ) {
     // ignore the delaySecond in the fake
@@ -252,12 +253,19 @@ class FakeLiquidLegionsComputationDb private constructor(
     }
   }
 
-  override suspend fun claimTask(ownerId: String): String? {
+  override suspend fun claimTask(protocol: ComputationType, ownerId: String): String? {
     val claimed = tokens.values.asSequence()
       .filter { it.globalComputationId !in claimedComputationIds }
       .map {
         ComputationStorageEditToken(
           localId = it.localComputationId,
+          protocol = when (it.computationStage.stageCase) {
+            ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
+              ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+            ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+              ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+            else -> error("Computation type for $it is unknown")
+          },
           stage = it.computationStage,
           attempt = it.attempt,
           editVersion = it.version

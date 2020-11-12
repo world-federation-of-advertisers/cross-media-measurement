@@ -49,12 +49,12 @@ private fun nonNullValueTimestamp(t: Timestamp) = requireNotNull(timestampOrNull
 typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
-class ComputationMutations<ComputationT, StageT, StageDetailsT : Message>(
-  computationTypeEnumHelper: ComputationTypeEnumHelper<ComputationT>,
+class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
+  computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   stageEnumHelper: ProtocolStageEnumHelper<StageT>,
   details: ProtocolStageDetails<StageT, StageDetailsT>
 ) :
-  ComputationTypeEnumHelper<ComputationT> by computationTypeEnumHelper,
+  ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
   ProtocolStageEnumHelper<StageT> by stageEnumHelper,
   ProtocolStageDetails<StageT, StageDetailsT> by details {
   /**
@@ -65,7 +65,7 @@ class ComputationMutations<ComputationT, StageT, StageDetailsT : Message>(
     localId: Long,
     updateTime: Timestamp,
     globalId: String? = null,
-    computationType: ComputationT? = null,
+    protocol: ProtocolT? = null,
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
@@ -75,7 +75,7 @@ class ComputationMutations<ComputationT, StageT, StageDetailsT : Message>(
     m.set("ComputationId").to(localId)
     m.set("UpdateTime").to(nonNullValueTimestamp(updateTime))
     globalId?.let { m.set("GlobalComputationId").to(it) }
-    computationType?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
+    protocol?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
     stage?.let { m.set("ComputationStage").to(enumToLong(it)) }
     lockOwner?.let { m.set("LockOwner").to(stringOrNull(it)) }
     lockExpirationTime?.let {
@@ -99,6 +99,7 @@ class ComputationMutations<ComputationT, StageT, StageDetailsT : Message>(
     localId: Long,
     updateTime: Timestamp,
     globalId: String,
+    protocol: ProtocolT,
     stage: StageT,
     lockOwner: String = WRITE_NULL_STRING,
     lockExpirationTime: Timestamp = WRITE_NULL_TIMESTAMP,
@@ -109,8 +110,7 @@ class ComputationMutations<ComputationT, StageT, StageDetailsT : Message>(
       localId = localId,
       updateTime = updateTime,
       globalId = globalId,
-      // TODO: Add computationType to insert parameters.
-      computationType = null,
+      protocol = protocol,
       stage = stage,
       lockOwner = lockOwner,
       lockExpirationTime = lockExpirationTime,

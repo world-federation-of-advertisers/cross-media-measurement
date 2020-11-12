@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.service.internal.computation
 import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
@@ -34,6 +35,7 @@ import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
@@ -63,7 +65,7 @@ class ComputationsService(
       "May only claim work for ${computationsDatabase.computationType} computations. " +
         "${request.computationType} is not supported."
     }
-    val claimed = computationsDatabase.claimTask(request.owner)
+    val claimed = computationsDatabase.claimTask(request.computationType, request.owner)
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
       sendStatusUpdateToKingdom(
@@ -90,6 +92,7 @@ class ComputationsService(
     }
     computationsDatabase.insertComputation(
       request.globalComputationId,
+      request.computationType,
       computationsDatabase.validInitialStages.first(),
       request.stageDetails
     )
@@ -242,10 +245,21 @@ class ComputationsService(
   }
 }
 
-fun ComputationToken.toDatabaseEditToken(): ComputationStorageEditToken<ComputationStage> =
-  ComputationStorageEditToken(
-    localId = localComputationId,
-    stage = computationStage,
-    attempt = attempt,
-    editVersion = version
-  )
+private fun ComputationToken.toDatabaseEditToken():
+  ComputationStorageEditToken<ComputationType, ComputationStage> =
+    ComputationStorageEditToken(
+      localId = localComputationId,
+      protocol = computationStage.toComputationType(),
+      stage = computationStage,
+      attempt = attempt,
+      editVersion = version
+    )
+
+private fun ComputationStage.toComputationType() =
+  when (stageCase) {
+    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
+      ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+      ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    else -> failGrpc { "Computation type for $this is unknown" }
+  }

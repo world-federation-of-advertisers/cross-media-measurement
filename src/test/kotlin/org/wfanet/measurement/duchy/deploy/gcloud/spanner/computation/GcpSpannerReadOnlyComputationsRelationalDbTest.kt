@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 
 @RunWith(JUnit4::class)
@@ -84,6 +85,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES,
       details = DETAILS_WHEN_PRIMARY
     )
@@ -151,6 +153,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED,
       details = DETAILS_WHEN_SECONDARY
     )
@@ -253,6 +256,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
       localId = localId,
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED,
       details = DETAILS_WHEN_SECONDARY
     )
@@ -297,6 +301,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val toAddNoiseRow = computationMutations.insertComputation(
       localId = 123,
       updateTime = lastUpdatedTimeStamp,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE,
       globalId = "A",
       details = DETAILS_WHEN_SECONDARY
@@ -304,6 +309,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val toBlindPositionsRow = computationMutations.insertComputation(
       localId = 234,
       updateTime = lastUpdatedTimeStamp,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS,
       globalId = "B",
       details = DETAILS_WHEN_SECONDARY
@@ -311,6 +317,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val toAppendAndAddNoiseRow = computationMutations.insertComputation(
       localId = 345,
       updateTime = lastUpdatedTimeStamp,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE,
       globalId = "C",
       details = DETAILS_WHEN_PRIMARY
@@ -318,6 +325,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     val completedRow = computationMutations.insertComputation(
       localId = 456,
       updateTime = lastUpdatedTimeStamp,
+      protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage = LiquidLegionsSketchAggregationV1.Stage.COMPLETED,
       globalId = "D",
       details = DETAILS_WHEN_PRIMARY

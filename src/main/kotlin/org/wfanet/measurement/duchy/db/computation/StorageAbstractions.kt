@@ -22,12 +22,12 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
  * Information about a computation needed to edit a computation.
- *
- * TODO: Add a ProtocolT to token as well.
  */
-data class ComputationStorageEditToken<StageT>(
+data class ComputationStorageEditToken<ProtocolT, StageT>(
   /** The identifier for the computation used locally. */
   val localId: Long,
+  /** The protocol used for the computation. */
+  val protocol: ProtocolT,
   /** The stage of the computation when the token was created. */
   val stage: StageT,
   /** The number of the current attempt of this stage for this computation. */
@@ -105,7 +105,9 @@ interface ReadOnlyComputationsRelationalDb {
  * The database must have strong consistency guarantees as it is used to
  * coordinate assignment of work by pulling jobs.
  *
- * @param StageT Object represent a stage of a computation protocol.
+ * @param ProtocolT Object representing different protocols (computation types)
+ * @param StageT Object representing stages of the computation protocol.
+ * @param StageDetailsT Object representing details specific to a stage of a computation.
  */
 interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
 
@@ -114,23 +116,28 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
    *
    * The computation is added to the queue immediately.
    */
-  // TODO: Add the ProtocolT when inserting a computation.
-  suspend fun insertComputation(globalId: String, initialStage: StageT, stageDetails: StageDetailsT)
+  suspend fun insertComputation(
+    globalId: String,
+    protocol: ProtocolT,
+    initialStage: StageT,
+    stageDetails: StageDetailsT
+  )
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.
    *
    * This will release any ownership and locks associated with the computation after delaySecond.
    */
-  suspend fun enqueue(token: ComputationStorageEditToken<StageT>, delaySecond: Int)
+  suspend fun enqueue(token: ComputationStorageEditToken<ProtocolT, StageT>, delaySecond: Int)
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.
    *
+   * @param protocol The protocol of the task to claim
    * @param ownerId The identifier of the worker process that will own the lock.
    * @return global computation id of work that was claimed. When null, no work was claimed.
    */
-  suspend fun claimTask(ownerId: String): String?
+  suspend fun claimTask(protocol: ProtocolT, ownerId: String): String?
 
   /**
    * Transitions a computation to a new stage.
@@ -145,7 +152,7 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
    * @param nextStageDetails Details specific to the next stage.
    */
   suspend fun updateComputationStage(
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
@@ -155,13 +162,16 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
   suspend fun endComputation(
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   )
 
   /** Writes the reference to a BLOB needed for an output blob from a stage. */
-  suspend fun writeOutputBlobReference(token: ComputationStorageEditToken<StageT>, blobRef: BlobRef)
+  suspend fun writeOutputBlobReference(
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    blobRef: BlobRef
+  )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */
   suspend fun insertComputationStat(

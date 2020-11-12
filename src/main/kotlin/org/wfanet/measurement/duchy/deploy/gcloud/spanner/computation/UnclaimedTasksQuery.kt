@@ -20,13 +20,15 @@ import com.google.cloud.spanner.Struct
 
 /** Queries for computations which may be claimed at a timestamp. */
 class UnclaimedTasksQuery<StageT>(
+  val protocol: Long,
   val parseStageEnum: (Long) -> StageT,
   timestamp: Timestamp
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
     private const val parameterizedQueryString =
       """
-      SELECT c.ComputationId,  c.GlobalComputationId, c.ComputationStage, c.UpdateTime,
+      SELECT c.ComputationId,  c.GlobalComputationId,
+             c.Protocol, c.ComputationStage, c.UpdateTime,
              cs.NextAttempt
       FROM Computations@
         {
@@ -34,7 +36,8 @@ class UnclaimedTasksQuery<StageT>(
           spanner_emulator.disable_query_null_filtered_index_check=true
         } AS c
       JOIN ComputationStages AS cs USING(ComputationId, ComputationStage)
-      WHERE c.LockExpirationTime IS NOT NULL
+      WHERE c.Protocol = @protocol
+        AND c.LockExpirationTime IS NOT NULL
         AND c.UpdateTime IS NOT NULL
         AND c.LockExpirationTime <= @current_time
       ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
@@ -42,7 +45,10 @@ class UnclaimedTasksQuery<StageT>(
       """
   }
   override val sql: Statement =
-    Statement.newBuilder(parameterizedQueryString).bind("current_time").to(timestamp).build()
+    Statement.newBuilder(parameterizedQueryString)
+      .bind("current_time").to(timestamp)
+      .bind("protocol").to(protocol)
+      .build()
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),

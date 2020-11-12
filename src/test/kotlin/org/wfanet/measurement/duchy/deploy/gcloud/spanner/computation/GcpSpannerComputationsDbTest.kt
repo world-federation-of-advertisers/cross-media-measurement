@@ -165,10 +165,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val idGenerator = GlobalBitsPlusTimeStampIdGenerator(testClock)
     val globalId1 = "12345"
     val localId1 = idGenerator.localId(globalId1)
-    database.insertComputation(globalId1, A, computationMutations.detailsFor(A))
+    database.insertComputation(globalId1, FakeProtocol.ONE, A, computationMutations.detailsFor(A))
     val globalId2 = "5678"
     val localId2 = idGenerator.localId(globalId2)
-    database.insertComputation(globalId2, A, computationMutations.detailsFor(A))
+    database.insertComputation(globalId2, FakeProtocol.ONE, A, computationMutations.detailsFor(A))
 
     val expectedDetails123 = ComputationDetails.newBuilder().apply {
       role = ComputationDetails.RoleInComputation.PRIMARY
@@ -264,26 +264,26 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun `insert computations with same global id fails`() = runBlocking<Unit> {
-    database.insertComputation("123", A, computationMutations.detailsFor(A))
+    database.insertComputation("123", FakeProtocol.ONE, A, computationMutations.detailsFor(A))
     // This one fails because the same local id is used.
     assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
-      database.insertComputation("123", A, computationMutations.detailsFor(A))
+      database.insertComputation("123", FakeProtocol.ONE, A, computationMutations.detailsFor(A))
     }
   }
 
   @Test
   fun `insert computation with bad initial stage fails`() = runBlocking<Unit> {
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation("123", B, computationMutations.detailsFor(B))
+      database.insertComputation("123", FakeProtocol.ONE, B, computationMutations.detailsFor(B))
     }
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation("123", C, computationMutations.detailsFor(C))
+      database.insertComputation("123", FakeProtocol.ONE, C, computationMutations.detailsFor(C))
     }
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation("123", D, computationMutations.detailsFor(D))
+      database.insertComputation("123", FakeProtocol.ZERO, D, computationMutations.detailsFor(D))
     }
     assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation("123", E, computationMutations.detailsFor(E))
+      database.insertComputation("123", FakeProtocol.ONE, E, computationMutations.detailsFor(E))
     }
   }
 
@@ -293,6 +293,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationStorageEditToken(
       localId = 1,
+      protocol = FakeProtocol.ZERO,
       stage = C,
       attempt = 1,
       editVersion = lastUpdated.toEpochMilli()
@@ -302,6 +303,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       localId = token.localId,
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = "0",
+      protocol = token.protocol,
       stage = token.stage,
       lockOwner = "PeterSpacemen",
       lockExpirationTime = lockExpires.toGcloudTimestamp(),
@@ -311,6 +313,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       localId = 456789,
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = "10111213",
+      protocol = token.protocol,
       stage = B,
       lockOwner = "PeterSpacemen",
       lockExpirationTime = lockExpires.toGcloudTimestamp(),
@@ -323,13 +326,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     assertQueryReturns(
       databaseClient,
       """
-      SELECT ComputationId, ComputationStage, LockOwner, LockExpirationTime,
+      SELECT ComputationId, Protocol, ComputationStage, LockOwner, LockExpirationTime,
              ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
+        .set("Protocol").to(0)
         .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
         .set("LockOwner").to(null as String?)
         .set("LockExpirationTime").to(TEST_INSTANT.plusSeconds(2).toGcloudTimestamp())
@@ -338,6 +342,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(456789)
+        .set("Protocol").to(0)
         .set("ComputationStage").to(1)
         .set("LockOwner").to("PeterSpacemen")
         .set("LockExpirationTime").to(lockExpires.toGcloudTimestamp())
@@ -351,6 +356,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun `enqueue deteleted computation fails`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 1,
+      protocol = FakeProtocol.ZERO,
       stage = C,
       attempt = 1,
       editVersion = 0
@@ -364,6 +370,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val lockExpires = lastUpdated.plusSeconds(1)
     val token = ComputationStorageEditToken(
       localId = 1,
+      protocol = FakeProtocol.ZERO,
       stage = C,
       attempt = 1,
       editVersion = lastUpdated.minusSeconds(200).toEpochMilli()
@@ -373,6 +380,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       localId = token.localId,
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = "1234",
+      protocol = FakeProtocol.ONE,
       stage = token.stage,
       lockOwner = "AnOwnedLock",
       lockExpirationTime = lockExpires.toGcloudTimestamp(),
@@ -384,15 +392,36 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun claimTask() = runBlocking<Unit> {
-    testClock.tickSeconds("6_minutes_ago")
+    testClock.tickSeconds("7_minutes_ago")
+    testClock.tickSeconds("6_minutes_ago", 60)
     testClock.tickSeconds("5_minutes_ago", 60)
     testClock.tickSeconds("TimeOfTest", 300)
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcloudTimestamp()
     val sixMinutesAgo = testClock["6_minutes_ago"].toGcloudTimestamp()
+    val sevenMinutesAgo = testClock["7_minutes_ago"].toGcloudTimestamp()
+    val enqueuedSevenMinutesAgoForOtherProtocol = computationMutations.insertComputation(
+      localId = 111,
+      updateTime = fiveMinutesAgo,
+      globalId = "11",
+      protocol = FakeProtocol.ZERO,
+      stage = A,
+      lockOwner = WRITE_NULL_STRING,
+      lockExpirationTime = sevenMinutesAgo,
+      details = COMPUTATION_DETAILS
+    )
+    val enqueuedSevenMinutesAgoForOtherProtocolStage = computationMutations.insertComputationStage(
+      localId = 111,
+      stage = A,
+      nextAttempt = 1,
+      creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
+      details = computationMutations.detailsFor(A)
+    )
+
     val enqueuedFiveMinutesAgo = computationMutations.insertComputation(
       localId = 555,
       updateTime = fiveMinutesAgo,
       globalId = "55",
+      protocol = FakeProtocol.ONE,
       stage = A,
       lockOwner = WRITE_NULL_STRING,
       lockExpirationTime = fiveMinutesAgo,
@@ -408,6 +437,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
     val enqueuedSixMinutesAgo = computationMutations.insertComputation(
       localId = 66,
+      protocol = FakeProtocol.ONE,
       stage = A,
       updateTime = sixMinutesAgo,
       globalId = "6",
@@ -427,10 +457,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         enqueuedFiveMinutesAgo,
         enqueuedFiveMinutesAgoStage,
         enqueuedSixMinutesAgo,
-        enqueuedSixMinutesAgoStage
+        enqueuedSixMinutesAgoStage,
+        enqueuedSevenMinutesAgoForOtherProtocol,
+        enqueuedSevenMinutesAgoForOtherProtocolStage
       )
     )
-    assertEquals("6", database.claimTask("the-owner-of-the-lock"))
+    assertEquals("6", database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock"))
 
     assertQueryReturns(
       databaseClient,
@@ -446,7 +478,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build()
     )
 
-    assertEquals("55", database.claimTask("the-owner-of-the-lock"))
+    assertEquals("55", database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock"))
 
     assertQueryReturns(
       databaseClient,
@@ -463,7 +495,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     )
 
     // No tasks to claim anymore
-    assertNull(database.claimTask("the-owner-of-the-lock"))
+    assertNull(database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock"))
   }
 
   @Test
@@ -474,6 +506,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val fiveMinutesFromNow = testClock.last().plusSeconds(300).toGcloudTimestamp()
     val expiredClaim = computationMutations.insertComputation(
       localId = 111L,
+      protocol = FakeProtocol.ZERO,
       stage = A,
       updateTime = testClock["start"].toGcloudTimestamp(),
       globalId = "11",
@@ -499,6 +532,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
     val claimed = computationMutations.insertComputation(
       localId = 333,
+      protocol = FakeProtocol.ZERO,
       stage = A,
       updateTime = testClock["start"].toGcloudTimestamp(),
       globalId = "33",
@@ -523,7 +557,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     databaseClient.write(listOf(claimed, claimedStage, claimedAttempt))
 
     // Claim a task that is owned but the lock expired.
-    assertEquals("11", database.claimTask("new-owner"))
+    assertEquals("11", database.claimTask(FakeProtocol.ZERO, "new-owner"))
 
     assertQueryReturns(
       databaseClient,
@@ -551,18 +585,19 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     )
 
     // No task may be claimed at this point
-    assertNull(database.claimTask("new-owner"))
+    assertNull(database.claimTask(FakeProtocol.ZERO, "new-owner"))
   }
 
   private fun testTransitionOfStageWhere(
     afterTransition: AfterTransition
-  ): ComputationStorageEditToken<FakeProtocolStages> = runBlocking {
+  ): ComputationStorageEditToken<FakeProtocol, FakeProtocolStages> = runBlocking {
     testClock.tickSeconds("stage_b_created")
     testClock.tickSeconds("last_updated")
     testClock.tickSeconds("lock_expires", 100)
     val globalId = "55"
     val token = ComputationStorageEditToken(
       localId = 4315,
+      protocol = FakeProtocol.ONE,
       stage = B,
       attempt = 2,
       editVersion = testClock["last_updated"].toEpochMilli()
@@ -571,6 +606,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       localId = token.localId,
       updateTime = testClock["last_updated"].toGcloudTimestamp(),
       globalId = globalId,
+      protocol = token.protocol,
       stage = B,
       lockOwner = "the-owner-of-the-lock",
       lockExpirationTime = testClock["lock_expires"].toGcloudTimestamp(),
@@ -609,7 +645,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   }
 
   private suspend fun assertStageTransitioned(
-    token: ComputationStorageEditToken<FakeProtocolStages>
+    token: ComputationStorageEditToken<FakeProtocol, FakeProtocolStages>
   ) {
     assertQueryReturns(
       databaseClient,
@@ -782,6 +818,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val token = ComputationStorageEditToken(
       localId = 1,
       attempt = 1,
+      protocol = FakeProtocol.ZERO,
       stage = A,
       editVersion = 0
     )
@@ -801,12 +838,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun writeOutputBlobReference() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 4315,
+      protocol = FakeProtocol.ZERO,
       stage = B,
       attempt = 1,
       editVersion = testClock.last().toEpochMilli()
     )
     val computation = computationMutations.insertComputation(
       localId = token.localId,
+      protocol = token.protocol,
       stage = B,
       updateTime = testClock.last().toGcloudTimestamp(),
       globalId = "2002",
@@ -882,6 +921,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun `end successful computation`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 4315,
+      protocol = FakeProtocol.ZERO,
       stage = C,
       attempt = 2,
       editVersion = testClock.last().toEpochMilli()
@@ -889,6 +929,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val computation = computationMutations.insertComputation(
       localId = token.localId,
       updateTime = testClock.last().toGcloudTimestamp(),
+      protocol = token.protocol,
       stage = C,
       globalId = "55",
       lockOwner = WRITE_NULL_STRING,
@@ -981,6 +1022,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val globalId = "474747"
     val token = ComputationStorageEditToken(
       localId = 4315,
+      protocol = FakeProtocol.ZERO,
       stage = C,
       attempt = 1,
       editVersion = testClock.last().toEpochMilli()
@@ -988,6 +1030,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val computation = computationMutations.insertComputation(
       localId = token.localId,
       updateTime = testClock.last().toGcloudTimestamp(),
+      protocol = token.protocol,
       stage = C,
       globalId = globalId,
       lockOwner = "lock-owner",
@@ -1059,6 +1102,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun `endComputation throws for non-ending state`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 4315,
+      protocol = FakeProtocol.ZERO,
       stage = C,
       attempt = 1,
       editVersion = testClock.last().toEpochMilli()
@@ -1075,6 +1119,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val computation = computationMutations.insertComputation(
       localId = localId,
       updateTime = testClock.last().toGcloudTimestamp(),
+      protocol = FakeProtocol.ZERO,
       stage = C,
       globalId = globalId,
       lockOwner = "lock-owner",

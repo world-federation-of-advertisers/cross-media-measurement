@@ -65,6 +65,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
 
   override suspend fun insertComputation(
     globalId: String,
+    protocol: ProtocolT,
     initialStage: StageT,
     stageDetails: StageDetailsT
   ) {
@@ -95,6 +96,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
         lockOwner = WRITE_NULL_STRING,
         lockExpirationTime = clock.gcloudTimestamp(),
         details = details,
+        protocol = protocol,
         stage = initialStage
       )
 
@@ -122,7 +124,10 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     )
   }
 
-  override suspend fun enqueue(token: ComputationStorageEditToken<StageT>, delaySecond: Int) {
+  override suspend fun enqueue(
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    delaySecond: Int
+  ) {
     runIfTokenFromLastUpdate(token) { ctx ->
       ctx.buffer(
         computationMutations.updateComputation(
@@ -143,7 +148,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     }
   }
 
-  override suspend fun claimTask(ownerId: String): String? {
+  override suspend fun claimTask(protocol: ProtocolT, ownerId: String): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
       databaseClient.readWriteTransaction().execute { ctx ->
@@ -156,7 +161,11 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
           ownerId
         )
       }
-    return UnclaimedTasksQuery(computationMutations::longToEnum, clock.gcloudTimestamp())
+    return UnclaimedTasksQuery(
+      computationMutations.protocolEnumToLong(protocol),
+      computationMutations::longToEnum,
+      clock.gcloudTimestamp()
+    )
       .execute(databaseClient)
       // First the possible tasks to claim are selected from the computations table, then for each
       // item in the list we try to claim the lock in a transaction which will only succeed if the
@@ -251,7 +260,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     clock.instant().plus(lockDuration).toGcloudTimestamp()
 
   override suspend fun updateComputationStage(
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
     outputBlobs: Int,
@@ -289,7 +298,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
   }
 
   override suspend fun endComputation(
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   ) {
@@ -374,7 +383,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
 
   private suspend fun mutationsToChangeStages(
     ctx: AsyncDatabaseClient.TransactionContext,
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     newStage: StageT,
     writeTime: Timestamp,
     afterTransition: AfterTransition,
@@ -523,7 +532,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
   }
 
   override suspend fun writeOutputBlobReference(
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     blobRef: BlobRef
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
@@ -587,7 +596,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
    *     update
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
-    token: ComputationStorageEditToken<StageT>,
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
     readWriteTransactionBlock: TransactionWork<R>
   ): R {
     return databaseClient.readWriteTransaction().execute { ctx ->
