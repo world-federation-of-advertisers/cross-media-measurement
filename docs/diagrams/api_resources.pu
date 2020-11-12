@@ -1,4 +1,5 @@
 @startuml
+
 !unquoted procedure resource($type)
   class $type << (R, SandyBrown) >>
 !endprocedure
@@ -42,6 +43,7 @@ collection(metricRequisitions, MetricRequisition) {
 }
 collection(campaigns, Campaign) {
   Create(campaign)
+  List([advertisers])
 }
 
 resource(MetricRequisition) {
@@ -64,8 +66,8 @@ Campaign "many" ..> "1" Advertiser
 Campaign *-- metricRequisitions
 
 MetricRequisition *-- "0..1" MetricValue
-MetricRequisition "1" ..> "many" SketchConfig
-MetricRequisition ..> CombinedPublicKey
+MetricRequisition "many" .> " 1" SketchConfig
+MetricRequisition "many" .> "1" CombinedPublicKey
 
 Advertiser -[hidden]> DataProvider
 
