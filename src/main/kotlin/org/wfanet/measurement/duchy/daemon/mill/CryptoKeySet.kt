@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.duchy.daemon.mill
 
-import org.wfanet.measurement.common.crypto.ElGamalKeys
-import org.wfanet.measurement.common.crypto.ElGamalPublicKeys
+import org.wfanet.measurement.common.crypto.ElGamalKeyPair
+import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.hexAsByteString
 
 /**
@@ -23,11 +23,11 @@ import org.wfanet.measurement.common.hexAsByteString
  */
 data class CryptoKeySet(
   // The public and private ElGamal keys of the duchy that owns the mill.
-  val ownPublicAndPrivateKeys: ElGamalKeys,
+  val ownPublicAndPrivateKeys: ElGamalKeyPair,
   // A map from other duchies' name and their public ElGamal keys.
-  val otherDuchyPublicKeys: Map<String, ElGamalPublicKeys>,
+  val otherDuchyPublicKeys: Map<String, ElGamalPublicKey>,
   // The client ElGamal public keys combined from all duchies' public keys.
-  val clientPublicKey: ElGamalPublicKeys,
+  val clientPublicKey: ElGamalPublicKey,
   // The id of the elliptic curve
   val curveId: Int
 )
@@ -39,26 +39,26 @@ const val BYTES_OF_EL_GAMAL_PUBLIC_KEYS = BYTES_PER_PUBLIC_KEY * 2
 const val BYTES_OF_EL_GAMAL_KEYS = BYTES_OF_EL_GAMAL_PUBLIC_KEYS + BYTES_PER_PRIVATE_KEY
 
 /**
- * Convert a hexString to its equivalent ElGamalKeys proto object.
+ * Convert a hexString to its equivalent ElGamalKeyPair proto object.
  */
-fun String.toElGamalKeys(): ElGamalKeys {
+fun String.toElGamalKeyPair(): ElGamalKeyPair {
   require(length == BYTES_OF_EL_GAMAL_KEYS * 2) {
     "Expected string size : ${BYTES_OF_EL_GAMAL_KEYS * 2}, actual size $length."
   }
-  return ElGamalKeys.newBuilder()
-    .setElGamalPk(substring(0, BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).toElGamalPublicKeys())
+  return ElGamalKeyPair.newBuilder()
+    .setElGamalPk(substring(0, BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).toElGamalPublicKey())
     .setElGamalSk(substring(BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).hexAsByteString())
     .build()
 }
 
 /**
- * Convert a hexString to its equivalent ElGamalPublicKeys proto object.
+ * Convert a hexString to its equivalent ElGamalPublicKey proto object.
  */
-fun String.toElGamalPublicKeys(): ElGamalPublicKeys {
+fun String.toElGamalPublicKey(): ElGamalPublicKey {
   require(length == BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2) {
     "Expected string size : ${BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2}, actual size $length."
   }
-  return ElGamalPublicKeys.newBuilder()
+  return ElGamalPublicKey.newBuilder()
     .setElGamalG(substring(0, BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
     .setElGamalY(substring(BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
     .build()

@@ -61,7 +61,7 @@ struct KeyCountPairCipherText {
   ElGamalCiphertext count;
 };
 
-ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKeys& public_keys) {
+ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKey& public_keys) {
   return std::make_pair(public_keys.el_gamal_g(), public_keys.el_gamal_y());
 }
 
@@ -300,12 +300,12 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
       CreateProtocolCryptorWithKeys(
           request.curve_id(),
           std::make_pair(
-              request.local_el_gamal_keys().el_gamal_pk().el_gamal_g(),
-              request.local_el_gamal_keys().el_gamal_pk().el_gamal_y()),
-          request.local_el_gamal_keys().el_gamal_sk(),
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
+          request.local_el_gamal_key_pair().el_gamal_sk(),
           request.local_pohlig_hellman_sk(),
-          std::make_pair(request.composite_el_gamal_keys().el_gamal_g(),
-                         request.composite_el_gamal_keys().el_gamal_y())),
+          std::make_pair(request.composite_el_gamal_public_key().el_gamal_g(),
+                         request.composite_el_gamal_public_key().el_gamal_y())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   BlindOneLayerRegisterIndexResponse response;
@@ -366,12 +366,12 @@ BlindLastLayerIndexThenJoinRegisters(
       CreateProtocolCryptorWithKeys(
           request.curve_id(),
           std::make_pair(
-              request.local_el_gamal_keys().el_gamal_pk().el_gamal_g(),
-              request.local_el_gamal_keys().el_gamal_pk().el_gamal_y()),
-          request.local_el_gamal_keys().el_gamal_sk(),
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
+          request.local_el_gamal_key_pair().el_gamal_sk(),
           request.local_pohlig_hellman_sk(),
-          std::make_pair(request.composite_el_gamal_keys().el_gamal_g(),
-                         request.composite_el_gamal_keys().el_gamal_y())),
+          std::make_pair(request.composite_el_gamal_public_key().el_gamal_g(),
+                         request.composite_el_gamal_public_key().el_gamal_y())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(
@@ -417,8 +417,9 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
       std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
       CommutativeElGamal::CreateFromPublicAndPrivateKeys(
           request.curve_id(),
-          GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
-          request.local_el_gamal_keys().el_gamal_sk()),
+          GetPublicKeyStringPair(
+              request.local_el_gamal_key_pair().el_gamal_pk()),
+          request.local_el_gamal_key_pair().el_gamal_sk()),
       "Failed to create the local ElGamal cipher, invalid curveId or keys");
 
   DecryptOneLayerFlagAndCountResponse response;
@@ -465,8 +466,9 @@ DecryptLastLayerFlagAndCount(
       std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
       CommutativeElGamal::CreateFromPublicAndPrivateKeys(
           request.curve_id(),
-          GetPublicKeyStringPair(request.local_el_gamal_keys().el_gamal_pk()),
-          request.local_el_gamal_keys().el_gamal_sk()),
+          GetPublicKeyStringPair(
+              request.local_el_gamal_key_pair().el_gamal_pk()),
+          request.local_el_gamal_key_pair().el_gamal_sk()),
       "Failed to create the local ElGamal cipher, invalid curveId or keys");
   absl::flat_hash_map<std::string, int> count_lookup_table;
   ASSIGN_OR_RETURN(

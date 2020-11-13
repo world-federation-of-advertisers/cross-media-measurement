@@ -20,7 +20,6 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
-import org.wfanet.measurement.common.crypto.toProtoMessage
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -133,16 +132,14 @@ class DuchyDependencyProviderRule(
 
   private fun buildCryptoKeySet(duchyId: String): CryptoKeySet {
     val latestDuchyPublicKeys = DUCHY_PUBLIC_KEYS.latest
-    val keyPair =
-      ElGamalKeyPair(
-        latestDuchyPublicKeys.getValue(duchyId),
-        checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
-      )
     return CryptoKeySet(
-      ownPublicAndPrivateKeys = keyPair.toProtoMessage(),
-      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value.toProtoMessage() },
-      clientPublicKey = latestDuchyPublicKeys.combinedPublicKey.toProtoMessage(),
-      curveId = latestDuchyPublicKeys.combinedPublicKey.ellipticCurveId
+      ownPublicAndPrivateKeys = ElGamalKeyPair.newBuilder().apply {
+        elGamalPk = latestDuchyPublicKeys.getValue(duchyId)
+        elGamalSk = checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
+      }.build(),
+      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
+      clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
+      curveId = latestDuchyPublicKeys.curveId
     )
   }
 }

@@ -371,9 +371,9 @@ class LiquidLegionsMill(
       val cryptoResult: BlindOneLayerRegisterIndexResponse =
         cryptoWorker.blindOneLayerRegisterIndex(
           BlindOneLayerRegisterIndexRequest.newBuilder()
-            .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+            .setCompositeElGamalPublicKey(cryptoKeySet.clientPublicKey)
             .setCurveId(cryptoKeySet.curveId.toLong())
-            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setLocalElGamalKeyPair(cryptoKeySet.ownPublicAndPrivateKeys)
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
@@ -397,9 +397,9 @@ class LiquidLegionsMill(
       val cryptoResult: BlindLastLayerIndexThenJoinRegistersResponse =
         cryptoWorker.blindLastLayerIndexThenJoinRegisters(
           BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
-            .setCompositeElGamalKeys(cryptoKeySet.clientPublicKey)
+            .setCompositeElGamalPublicKey(cryptoKeySet.clientPublicKey)
             .setCurveId(cryptoKeySet.curveId.toLong())
-            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setLocalElGamalKeyPair(cryptoKeySet.ownPublicAndPrivateKeys)
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
@@ -424,7 +424,7 @@ class LiquidLegionsMill(
         cryptoWorker.decryptOneLayerFlagAndCount(
           DecryptOneLayerFlagAndCountRequest.newBuilder()
             .setCurveId(cryptoKeySet.curveId.toLong())
-            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setLocalElGamalKeyPair(cryptoKeySet.ownPublicAndPrivateKeys)
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
@@ -451,7 +451,7 @@ class LiquidLegionsMill(
         cryptoWorker.decryptLastLayerFlagAndCount(
           DecryptLastLayerFlagAndCountRequest.newBuilder()
             .setCurveId(cryptoKeySet.curveId.toLong())
-            .setLocalElGamalKeys(cryptoKeySet.ownPublicAndPrivateKeys)
+            .setLocalElGamalKeyPair(cryptoKeySet.ownPublicAndPrivateKeys)
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
             .build()

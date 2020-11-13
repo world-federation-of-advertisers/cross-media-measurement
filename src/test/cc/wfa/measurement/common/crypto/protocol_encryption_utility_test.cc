@@ -77,17 +77,17 @@ MATCHER_P(EqualsProto, expected, "") {
   return differencer.Compare(arg, expected);
 }
 
-ElGamalKeys GenerateRandomElGamalKeys(const int curve_id) {
-  ElGamalKeys el_gamal_keys;
+ElGamalKeyPair GenerateRandomElGamalKeyPair(const int curve_id) {
+  ElGamalKeyPair el_gamal_key_pair;
   auto el_gamal_cipher =
       CommutativeElGamal::CreateWithNewKeyPair(curve_id).value();
-  *el_gamal_keys.mutable_el_gamal_sk() =
+  *el_gamal_key_pair.mutable_el_gamal_sk() =
       el_gamal_cipher.get()->GetPrivateKeyBytes().value();
-  *el_gamal_keys.mutable_el_gamal_pk()->mutable_el_gamal_g() =
+  *el_gamal_key_pair.mutable_el_gamal_pk()->mutable_el_gamal_g() =
       el_gamal_cipher.get()->GetPublicKeyBytes().value().first;
-  *el_gamal_keys.mutable_el_gamal_pk()->mutable_el_gamal_y() =
+  *el_gamal_key_pair.mutable_el_gamal_pk()->mutable_el_gamal_y() =
       el_gamal_cipher.get()->GetPublicKeyBytes().value().second;
-  return el_gamal_keys;
+  return el_gamal_key_pair;
 }
 
 std::string GenerateRandomPhKey(const int curve_id) {
@@ -125,19 +125,19 @@ FlagCount CreateFlagCount(const bool is_not_destroyed, const int frequency) {
 // key for the data providers.
 class TestData {
  public:
-  ElGamalKeys duchy_1_el_gamal_keys_;
+  ElGamalKeyPair duchy_1_el_gamal_key_pair_;
   std::string duchy_1_p_h_key_;
-  ElGamalKeys duchy_2_el_gamal_keys_;
+  ElGamalKeyPair duchy_2_el_gamal_key_pair_;
   std::string duchy_2_p_h_key_;
-  ElGamalKeys duchy_3_el_gamal_keys_;
+  ElGamalKeyPair duchy_3_el_gamal_key_pair_;
   std::string duchy_3_p_h_key_;
-  ElGamalPublicKeys client_el_gamal_keys_;  // combined from 3 duchy keys;
+  ElGamalPublicKey client_el_gamal_public_key;  // combined from 3 duchy keys;
   std::unique_ptr<any_sketch::crypto::SketchEncrypter> sketch_encrypter;
 
   TestData() {
-    duchy_1_el_gamal_keys_ = GenerateRandomElGamalKeys(kTestCurveId);
-    duchy_2_el_gamal_keys_ = GenerateRandomElGamalKeys(kTestCurveId);
-    duchy_3_el_gamal_keys_ = GenerateRandomElGamalKeys(kTestCurveId);
+    duchy_1_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
+    duchy_2_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
+    duchy_3_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
     duchy_1_p_h_key_ = GenerateRandomPhKey(kTestCurveId);
     duchy_2_p_h_key_ = GenerateRandomPhKey(kTestCurveId);
     duchy_3_p_h_key_ = GenerateRandomPhKey(kTestCurveId);
@@ -148,29 +148,32 @@ class TestData {
     ECGroup ec_group = ECGroup::Create(kTestCurveId, &ctx).value();
     ECPoint duchy_1_public_el_gamal_y_ec =
         ec_group
-            .CreateECPoint(duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_y())
+            .CreateECPoint(
+                duchy_1_el_gamal_key_pair_.el_gamal_pk().el_gamal_y())
             .value();
     ECPoint duchy_2_public_el_gamal_y_ec =
         ec_group
-            .CreateECPoint(duchy_2_el_gamal_keys_.el_gamal_pk().el_gamal_y())
+            .CreateECPoint(
+                duchy_2_el_gamal_key_pair_.el_gamal_pk().el_gamal_y())
             .value();
     ECPoint duchy_3_public_el_gamal_y_ec =
         ec_group
-            .CreateECPoint(duchy_3_el_gamal_keys_.el_gamal_pk().el_gamal_y())
+            .CreateECPoint(
+                duchy_3_el_gamal_key_pair_.el_gamal_pk().el_gamal_y())
             .value();
     ECPoint client_public_el_gamal_y_ec =
         duchy_1_public_el_gamal_y_ec.Add(duchy_2_public_el_gamal_y_ec)
             .value()
             .Add(duchy_3_public_el_gamal_y_ec)
             .value();
-    client_el_gamal_keys_.set_el_gamal_g(
-        duchy_1_el_gamal_keys_.el_gamal_pk().el_gamal_g());
-    client_el_gamal_keys_.set_el_gamal_y(
+    client_el_gamal_public_key.set_el_gamal_g(
+        duchy_1_el_gamal_key_pair_.el_gamal_pk().el_gamal_g());
+    client_el_gamal_public_key.set_el_gamal_y(
         client_public_el_gamal_y_ec.ToBytesCompressed().value());
 
     any_sketch::crypto::CiphertextString client_public_key = {
-        .u = client_el_gamal_keys_.el_gamal_g(),
-        .e = client_el_gamal_keys_.el_gamal_y(),
+        .u = client_el_gamal_public_key.el_gamal_g(),
+        .e = client_el_gamal_public_key.el_gamal_y(),
     };
 
     // Create a sketch_encryter for encrypting plaintext any_sketch data.
@@ -195,10 +198,10 @@ class TestData {
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_1;
     *blind_one_layer_register_index_request_1
          .mutable_local_pohlig_hellman_sk() = duchy_1_p_h_key_;
-    *blind_one_layer_register_index_request_1.mutable_local_el_gamal_keys() =
-        duchy_1_el_gamal_keys_;
     *blind_one_layer_register_index_request_1
-         .mutable_composite_el_gamal_keys() = client_el_gamal_keys_;
+         .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
+    *blind_one_layer_register_index_request_1
+         .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key;
     blind_one_layer_register_index_request_1.set_curve_id(kTestCurveId);
     *blind_one_layer_register_index_request_1.mutable_sketch() =
         add_noise_to_sketch_response.sketch();
@@ -213,10 +216,10 @@ class TestData {
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_2;
     *blind_one_layer_register_index_request_2
          .mutable_local_pohlig_hellman_sk() = duchy_2_p_h_key_;
-    *blind_one_layer_register_index_request_2.mutable_local_el_gamal_keys() =
-        duchy_2_el_gamal_keys_;
     *blind_one_layer_register_index_request_2
-         .mutable_composite_el_gamal_keys() = client_el_gamal_keys_;
+         .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
+    *blind_one_layer_register_index_request_2
+         .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key;
     blind_one_layer_register_index_request_2.set_curve_id(kTestCurveId);
     blind_one_layer_register_index_request_2.mutable_sketch()->append(
         blind_one_layer_register_index_response_1.sketch().begin(),
@@ -234,9 +237,9 @@ class TestData {
     *blind_last_layer_index_then_join_registers_request
          .mutable_local_pohlig_hellman_sk() = duchy_3_p_h_key_;
     *blind_last_layer_index_then_join_registers_request
-         .mutable_local_el_gamal_keys() = duchy_3_el_gamal_keys_;
+         .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
     *blind_last_layer_index_then_join_registers_request
-         .mutable_composite_el_gamal_keys() = client_el_gamal_keys_;
+         .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key;
     blind_last_layer_index_then_join_registers_request.set_curve_id(
         kTestCurveId);
     blind_last_layer_index_then_join_registers_request.mutable_sketch()->append(
@@ -254,8 +257,8 @@ class TestData {
     // Decrypt flags and counts at duchy 1
     DecryptOneLayerFlagAndCountRequest
         decrypt_one_layer_flag_and_count_request_1;
-    *decrypt_one_layer_flag_and_count_request_1.mutable_local_el_gamal_keys() =
-        duchy_1_el_gamal_keys_;
+    *decrypt_one_layer_flag_and_count_request_1
+         .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
     decrypt_one_layer_flag_and_count_request_1.set_curve_id(kTestCurveId);
     decrypt_one_layer_flag_and_count_request_1.mutable_flag_counts()->append(
         blind_last_layer_index_then_join_registers_response.flag_counts()
@@ -273,8 +276,8 @@ class TestData {
     // Decrypt flags and counts at duchy 2
     DecryptOneLayerFlagAndCountRequest
         decrypt_one_layer_flag_and_count_request_2;
-    *decrypt_one_layer_flag_and_count_request_2.mutable_local_el_gamal_keys() =
-        duchy_2_el_gamal_keys_;
+    *decrypt_one_layer_flag_and_count_request_2
+         .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
     decrypt_one_layer_flag_and_count_request_2.set_curve_id(kTestCurveId);
     decrypt_one_layer_flag_and_count_request_2.mutable_flag_counts()->append(
         decrypt_one_layer_flag_and_count_response_1.flag_counts().begin(),
@@ -290,8 +293,8 @@ class TestData {
     // Decrypt flags and counts at duchy 3 (primary duchy).
     DecryptLastLayerFlagAndCountRequest
         decrypt_last_layer_flag_and_count_request;
-    *decrypt_last_layer_flag_and_count_request.mutable_local_el_gamal_keys() =
-        duchy_3_el_gamal_keys_;
+    *decrypt_last_layer_flag_and_count_request
+         .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
     decrypt_last_layer_flag_and_count_request.set_curve_id(kTestCurveId);
     decrypt_last_layer_flag_and_count_request.set_maximum_frequency(
         kMaxFrequency);
@@ -315,8 +318,10 @@ TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
   // Blind register indexes at duchy 1
   BlindOneLayerRegisterIndexRequest request;
   *request.mutable_local_pohlig_hellman_sk() = test_data.duchy_1_p_h_key_;
-  *request.mutable_local_el_gamal_keys() = test_data.duchy_1_el_gamal_keys_;
-  *request.mutable_composite_el_gamal_keys() = test_data.client_el_gamal_keys_;
+  *request.mutable_local_el_gamal_key_pair() =
+      test_data.duchy_1_el_gamal_key_pair_;
+  *request.mutable_composite_el_gamal_public_key() =
+      test_data.client_el_gamal_public_key;
   request.set_curve_id(kTestCurveId);
   request.mutable_sketch()->append(encrypted_sketch.begin(),
                                    encrypted_sketch.end());

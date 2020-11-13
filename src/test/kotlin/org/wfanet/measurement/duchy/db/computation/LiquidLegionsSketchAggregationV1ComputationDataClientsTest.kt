@@ -190,11 +190,10 @@ class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
   companion object {
     private val publicKeysMap: DuchyPublicKeyMap =
       DUCHIES.mapIndexed { idx, name ->
-        name to ElGamalPublicKey(
-          ELLIPTIC_CURVE_ID,
-          EL_GAMAL_GENERATOR,
-          byteStringOf(idx).withPadding(ElGamalPublicKey.ELEMENT_SIZE)
-        )
+        name to ElGamalPublicKey.newBuilder().apply {
+          elGamalG = EL_GAMAL_GENERATOR
+          elGamalY = byteStringOf(idx).withPadding(33)
+        }.build()
       }.toMap()
   }
 }

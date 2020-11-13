@@ -20,8 +20,7 @@ option java_package = "org.wfanet.measurement.common.crypto";
 option java_multiple_files = true;
 
 // Public keys of the ElGamal cipher.
-// TODO: rename to ElGamalPublicKey
-message ElGamalPublicKeys {
+message ElGamalPublicKey {
   // Public key g (generator) of the ElGamal cipher.
   bytes el_gamal_g = 1;
   // Public key y (g^sk) of the ElGamal cipher.
@@ -29,12 +28,11 @@ message ElGamalPublicKeys {
 }
 
 // Keys of the ElGamal cipher.
-// TODO: rename to ElGamalKeyPair
-message ElGamalKeys {
+message ElGamalKeyPair {
   // Secret key of the ElGamal cipher.
   bytes el_gamal_sk = 1;
   // Public keys of the ElGamal cipher.
-  ElGamalPublicKeys el_gamal_pk = 2;
+  ElGamalPublicKey el_gamal_pk = 2;
 }
 
 // Parameters of the polya distribution.

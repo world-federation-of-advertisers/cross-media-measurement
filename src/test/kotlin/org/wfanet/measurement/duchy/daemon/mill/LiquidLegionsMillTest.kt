@@ -1172,12 +1172,12 @@ class LiquidLegionsMillTest {
 
     private val cryptoKeySet =
       CryptoKeySet(
-        ownPublicAndPrivateKeys = OWN_EL_GAMAL_KEY.toElGamalKeys(),
+        ownPublicAndPrivateKeys = OWN_EL_GAMAL_KEY.toElGamalKeyPair(),
         otherDuchyPublicKeys = mapOf(
-          DUCHY_ONE_NAME to DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKeys(),
-          DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKeys()
+          DUCHY_ONE_NAME to DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey(),
+          DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKey()
         ),
-        clientPublicKey = CLIENT_PUBLIC_KEY.toElGamalPublicKeys(),
+        clientPublicKey = CLIENT_PUBLIC_KEY.toElGamalPublicKey(),
         curveId = CURVE_ID
       )
   }

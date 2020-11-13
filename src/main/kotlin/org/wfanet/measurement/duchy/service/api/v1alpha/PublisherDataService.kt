@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.CreateCampaignRequest
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
-import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -117,7 +116,11 @@ class PublisherDataService(
     return CombinedPublicKey.newBuilder().apply {
       keyBuilder.combinedPublicKeyId = combinedPublicKeyId
       version = entry.combinedPublicKeyVersion
-      encryptionKey = entry.combinedPublicKey.toApiMessage()
+      encryptionKeyBuilder.apply {
+        ellipticCurveId = entry.curveId
+        generator = entry.combinedPublicKey.elGamalG
+        element = entry.combinedPublicKey.elGamalY
+      }
     }.build()
   }
 }
@@ -135,13 +138,5 @@ fun MetricRequisition.KeyOrBuilder.toResourceKey(): ResourceKey {
     dataProviderResourceId = dataProviderId
     campaignResourceId = campaignId
     metricRequisitionResourceId = metricRequisitionId
-  }.build()
-}
-
-private fun org.wfanet.measurement.common.crypto.ElGamalPublicKey.toApiMessage(): ElGamalPublicKey {
-  return ElGamalPublicKey.newBuilder().also {
-    it.ellipticCurveId = ellipticCurveId
-    it.generator = generator
-    it.element = element
   }.build()
 }

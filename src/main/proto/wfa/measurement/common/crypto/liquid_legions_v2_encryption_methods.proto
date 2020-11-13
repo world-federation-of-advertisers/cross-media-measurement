@@ -30,7 +30,7 @@ option java_multiple_files = true;
 message RegisterNoiseGenerationParameters {
   // Public keys of the composite ElGamal cipher. Used to encrypt the added
   // noise.
-  ElGamalPublicKeys composite_el_gamal_keys = 1;
+  ElGamalPublicKey composite_el_gamal_public_key = 1;
   // The elliptical curve to work on.
   int64 curve_id = 2;
   // The baseline of noise agreed by all workers.
@@ -44,10 +44,10 @@ message RegisterNoiseGenerationParameters {
 message FlagCountTupleNoiseGenerationParameters {
   // Public keys of the composite ElGamal cipher. Used to encrypt the added
   // counts.
-  ElGamalPublicKeys composite_el_gamal_keys = 1;
-  // Public keys of the partial composite ElGamal cipher. Used to encrypt the
+  ElGamalPublicKey composite_el_gamal_public_key = 1;
+  // Public key of the partial composite ElGamal cipher. Used to encrypt the
   // added flags.
-  ElGamalPublicKeys partial_composite_el_gamal_keys = 2;
+  ElGamalPublicKey partial_composite_el_gamal_public_key = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
   // The baseline of noise agreed by all workers. Should be positive.
@@ -90,16 +90,16 @@ message CompleteReachEstimationPhaseRequest {
   // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
   // divisible by 66*3.
   bytes combined_register_vector = 1;
-  // Keys of the local ElGamal cipher. Required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Secret key of the local Pohlig-Hellman cipher. Optional.
   // If unset, a random key will be used.
   bytes local_pohlig_hellman_sk = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
-  // Public Keys of the composite ElGamal cipher. Used to re-randomize the keys
+  // Public Key of the composite ElGamal cipher. Used to re-randomize the keys
   // and counts.
-  ElGamalPublicKeys composite_el_gamal_keys = 5;
+  ElGamalPublicKey composite_el_gamal_public_key = 5;
 }
 
 // Response of the CompleteReachEstimationPhase method.
@@ -127,13 +127,13 @@ message CompleteReachEstimationPhaseAtAggregatorRequest {
   // There should be only one layer of ElGamal encryption left
   // on the register indexes.
   bytes combined_register_vector = 1;
-  // Keys of the local ElGamal cipher. Required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
-  // Public Keys of the composite ElGamal cipher. Used to encrypt the random
+  // Public Key of the composite ElGamal cipher. Used to encrypt the random
   // numbers in SameKeyAggregation.
-  ElGamalPublicKeys composite_el_gamal_keys = 4;
+  ElGamalPublicKey composite_el_gamal_public_key = 4;
 }
 
 // The response of the CompleteReachEstimationPhaseAtAggregator method.
@@ -176,9 +176,9 @@ message CompleteFilteringPhaseAtAggregatorRequest {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 132.
   bytes flag_count_tuples = 1;
-  // Public keys of the composite ElGamal cipher. Used to generate the 2-D same
+  // Public key of the composite ElGamal cipher. Used to generate the 2-D same
   // key aggregator (SKA) matrix.
-  ElGamalPublicKeys composite_el_gamal_keys = 2;
+  ElGamalPublicKey composite_el_gamal_public_key = 2;
   // The elliptical curve to work on for SKA generation.
   int64 curve_id = 3;
   // Maximum frequency to measure. This is also the row dimension of the 2-D SKA
@@ -208,8 +208,8 @@ message CompleteFrequencyEstimationPhaseRequest {
   // of the matrix is equal to the maximum_frequency, and the column size of the
   // matrix is equal to the number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
-  // Keys of the local ElGamal cipher. Required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_keys = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
 }
@@ -233,8 +233,8 @@ message CompleteFrequencyEstimationPhaseAtAggregatorRequest {
   // to the maximum_frequency, and the column size of the matrix is equal to the
   // number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
-  // Keys of the local ElGamal cipher. Required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
   // Maximum frequency to measure.

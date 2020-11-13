@@ -50,17 +50,3 @@ interface ProtocolEncryption {
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse
 }
-
-fun ElGamalPublicKey.toProtoMessage(): ElGamalPublicKeys {
-  return ElGamalPublicKeys.newBuilder().apply {
-    elGamalG = generator
-    elGamalY = element
-  }.build()
-}
-
-fun ElGamalKeyPair.toProtoMessage(): ElGamalKeys {
-  return ElGamalKeys.newBuilder().apply {
-    elGamalPk = publicKey.toProtoMessage()
-    elGamalSk = secretKey
-  }.build()
-}

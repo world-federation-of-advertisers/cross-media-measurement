@@ -37,9 +37,9 @@ message AddNoiseToSketchRequest {
   // The sketch is only needed so the noise can be interleaved and hidden in the
   // sktech. The registers in the sketch are unchanged, except for their orders.
   bytes sketch = 1;
-  // Public keys of the composite ElGamal cipher. Used to encrypt the added
+  // Public key of the composite ElGamal cipher. Used to encrypt the added
   // noise.
-  ElGamalPublicKeys composite_el_gamal_keys = 2;
+  ElGamalPublicKey composite_el_gamal_public_key = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
   // Maximum frequency to display. Every count value greater than this value
@@ -70,16 +70,16 @@ message BlindOneLayerRegisterIndexRequest {
   // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
   // divisible by 66*3.
   bytes sketch = 1;
-  // Keys of the local ElGamal cipher. Required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Secret key of the local Pohlig-Hellman cipher. Optional.
   // If unset, a random key will be used.
   bytes local_pohlig_hellman_sk = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
-  // Public Keys of the composite ElGamal cipher. Used to re-randomize the keys
+  // Public Key of the composite ElGamal cipher. Used to re-randomize the keys
   // and counts.
-  ElGamalPublicKeys composite_el_gamal_keys = 5;
+  ElGamalPublicKey composite_el_gamal_public_key = 5;
 }
 
 // Response of the BlindOneLayerRegisterIndex method.
@@ -109,16 +109,16 @@ message BlindLastLayerIndexThenJoinRegistersRequest {
   // on the register indexes. In other words, this method should only be called
   // by the primary duchy at the last stop of round 1.
   bytes sketch = 1;
-  // Keys of the local ElGamal cipher. Required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Secret key of the local Pohlig-Hellman cipher. Optional.
   // If unset, a random key will be used.
   bytes local_pohlig_hellman_sk = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
-  // Public Keys of the composite ElGamal cipher. Used to encrypt the random
+  // Public Key of the composite ElGamal cipher. Used to encrypt the random
   // numbers in SameKeyAggregation.
-  ElGamalPublicKeys composite_el_gamal_keys = 5;
+  ElGamalPublicKey composite_el_gamal_public_key = 5;
 }
 
 // The response of the BlindLastLayerIndexThenJoinRegisters method.
@@ -142,8 +142,8 @@ message DecryptOneLayerFlagAndCountRequest {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 132.
   bytes flag_counts = 1;
-  // The keys used to create the local ElGamal cipher. required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  // The key pair used to create the local ElGamal cipher. required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
 }
@@ -168,7 +168,7 @@ message DecryptLastLayerFlagAndCountRequest {
   // The size of flag_count_lists should be divisible by 132.
   bytes flag_counts = 1;
   // The keys used to create the local ElGamal cipher. required.
-  ElGamalKeys local_el_gamal_keys = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Maximum frequency to display. Every count value greater than this value
   // is decrypted as the maximum_frequency.
   int32 maximum_frequency = 3;

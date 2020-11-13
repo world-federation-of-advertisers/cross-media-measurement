@@ -17,21 +17,22 @@ package org.wfanet.measurement.duchy.daemon.mill
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.common.crypto.ElGamalKeys
+import org.wfanet.measurement.common.crypto.ElGamalKeyPair
 
 class CryptoKeySetTest {
 
   @Test
   fun `convert valid string to elgamal key`() {
-    val elGamalKeys: ElGamalKeys = "$PUBLIC_KEY_G$PUBLIC_KEY_Y$PRIVATE_KEY".toElGamalKeys()
-    assertEquals(elGamalKeys.elGamalPk.elGamalG.size(), 33)
-    assertEquals(elGamalKeys.elGamalPk.elGamalY.size(), 33)
-    assertEquals(elGamalKeys.elGamalSk.size(), 32)
+    val elGamalKeyPair: ElGamalKeyPair =
+      "$PUBLIC_KEY_G$PUBLIC_KEY_Y$PRIVATE_KEY".toElGamalKeyPair()
+    assertEquals(elGamalKeyPair.elGamalPk.elGamalG.size(), 33)
+    assertEquals(elGamalKeyPair.elGamalPk.elGamalY.size(), 33)
+    assertEquals(elGamalKeyPair.elGamalSk.size(), 32)
   }
 
   @Test
   fun `wrong size should fail`() {
-    assertFailsWith(IllegalArgumentException::class) { "123445".toElGamalKeys() }
+    assertFailsWith(IllegalArgumentException::class) { "123445".toElGamalKeyPair() }
   }
 
   companion object {

@@ -19,7 +19,6 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
 import org.wfanet.measurement.common.crypto.JniProtocolEncryption
-import org.wfanet.measurement.common.crypto.toProtoMessage
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -100,16 +99,14 @@ abstract class LiquidLegionsMillDaemon : Runnable {
 
   private fun newCryptoKeySet(): CryptoKeySet {
     val latestDuchyPublicKeys = duchyPublicKeys.latest
-    val keyPair =
-      ElGamalKeyPair(
-        latestDuchyPublicKeys.getValue(flags.duchy.duchyName),
-        flags.duchySecretKey.hexAsByteString()
-      )
     return CryptoKeySet(
-      ownPublicAndPrivateKeys = keyPair.toProtoMessage(),
-      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value.toProtoMessage() },
-      clientPublicKey = latestDuchyPublicKeys.combinedPublicKey.toProtoMessage(),
-      curveId = latestDuchyPublicKeys.combinedPublicKey.ellipticCurveId
+      ownPublicAndPrivateKeys = ElGamalKeyPair.newBuilder().apply {
+        elGamalPk = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
+        elGamalSk = flags.duchySecretKey.hexAsByteString()
+      }.build(),
+      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
+      clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
+      curveId = latestDuchyPublicKeys.curveId
     )
   }
 

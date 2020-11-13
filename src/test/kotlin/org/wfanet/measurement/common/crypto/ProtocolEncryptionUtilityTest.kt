@@ -53,28 +53,28 @@ private const val CLIENT_PK_G =
   "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"
 private const val CLIENT_PK_Y =
   "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
-private val DUCHY_1_EL_GAMAL_KEYS = ElGamalKeys.newBuilder().apply {
+private val DUCHY_1_EL_GAMAL_KEYS = ElGamalKeyPair.newBuilder().apply {
   elGamalPkBuilder.apply {
     elGamalG = DUCHY_1_PK_G.hexAsByteString()
     elGamalY = DUCHY_1_PK_Y.hexAsByteString()
   }
   elGamalSk = DUCHY_1_SK.hexAsByteString()
 }.build()
-private val DUCHY_2_EL_GAMAL_KEYS = ElGamalKeys.newBuilder().apply {
+private val DUCHY_2_EL_GAMAL_KEYS = ElGamalKeyPair.newBuilder().apply {
   elGamalPkBuilder.apply {
     elGamalG = DUCHY_2_PK_G.hexAsByteString()
     elGamalY = DUCHY_2_PK_Y.hexAsByteString()
   }
   elGamalSk = DUCHY_2_SK.hexAsByteString()
 }.build()
-private val DUCHY_3_EL_GAMAL_KEYS = ElGamalKeys.newBuilder().apply {
+private val DUCHY_3_EL_GAMAL_KEYS = ElGamalKeyPair.newBuilder().apply {
   elGamalPkBuilder.apply {
     elGamalG = DUCHY_3_PK_G.hexAsByteString()
     elGamalY = DUCHY_3_PK_Y.hexAsByteString()
   }
   elGamalSk = DUCHY_3_SK.hexAsByteString()
 }.build()
-private val CLIENT_EL_GAMAL_KEYS = ElGamalPublicKeys.newBuilder().apply {
+private val CLIENT_EL_GAMAL_KEYS = ElGamalPublicKey.newBuilder().apply {
   elGamalG = CLIENT_PK_G.hexAsByteString()
   elGamalY = CLIENT_PK_Y.hexAsByteString()
 }.build()
@@ -101,8 +101,8 @@ class ProtocolEncryptionUtilityTest {
     // Blind register indexes at duchy 1
     val blindOneLayerRegisterIndexRequest1 = BlindOneLayerRegisterIndexRequest.newBuilder()
       .setCurveId(CURVE_ID)
-      .setLocalElGamalKeys(DUCHY_1_EL_GAMAL_KEYS)
-      .setCompositeElGamalKeys(CLIENT_EL_GAMAL_KEYS)
+      .setLocalElGamalKeyPair(DUCHY_1_EL_GAMAL_KEYS)
+      .setCompositeElGamalPublicKey(CLIENT_EL_GAMAL_KEYS)
       .setSketch(addNoiseToSketchResponse.sketch)
       .build()
     val blindOneLayerRegisterIndexResponse1 = BlindOneLayerRegisterIndexResponse.parseFrom(
@@ -114,8 +114,8 @@ class ProtocolEncryptionUtilityTest {
     // Blind register indexes at duchy 2
     val blindOneLayerRegisterIndexRequest2 = BlindOneLayerRegisterIndexRequest.newBuilder()
       .setCurveId(CURVE_ID)
-      .setLocalElGamalKeys(DUCHY_2_EL_GAMAL_KEYS)
-      .setCompositeElGamalKeys(CLIENT_EL_GAMAL_KEYS)
+      .setLocalElGamalKeyPair(DUCHY_2_EL_GAMAL_KEYS)
+      .setCompositeElGamalPublicKey(CLIENT_EL_GAMAL_KEYS)
       .setSketch(blindOneLayerRegisterIndexResponse1.sketch)
       .build()
     val blindOneLayerRegisterIndexResponse2 = BlindOneLayerRegisterIndexResponse.parseFrom(
@@ -128,8 +128,8 @@ class ProtocolEncryptionUtilityTest {
     val blindLastLayerIndexThenJoinRegistersRequest =
       BlindLastLayerIndexThenJoinRegistersRequest.newBuilder()
         .setCurveId(CURVE_ID)
-        .setCompositeElGamalKeys(CLIENT_EL_GAMAL_KEYS)
-        .setLocalElGamalKeys(DUCHY_3_EL_GAMAL_KEYS)
+        .setCompositeElGamalPublicKey(CLIENT_EL_GAMAL_KEYS)
+        .setLocalElGamalKeyPair(DUCHY_3_EL_GAMAL_KEYS)
         .setSketch(blindOneLayerRegisterIndexResponse2.sketch)
         .build()
     val blindLastLayerIndexThenJoinRegistersResponse =
@@ -143,7 +143,7 @@ class ProtocolEncryptionUtilityTest {
     val decryptOneLayerFlagAndCountRequest1 = DecryptOneLayerFlagAndCountRequest.newBuilder()
       .setFlagCounts(blindLastLayerIndexThenJoinRegistersResponse.flagCounts)
       .setCurveId(CURVE_ID)
-      .setLocalElGamalKeys(DUCHY_1_EL_GAMAL_KEYS)
+      .setLocalElGamalKeyPair(DUCHY_1_EL_GAMAL_KEYS)
       .build()
     val decryptOneLayerFlagAndCountResponse1 = DecryptOneLayerFlagAndCountResponse.parseFrom(
       ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(
@@ -155,7 +155,7 @@ class ProtocolEncryptionUtilityTest {
     val decryptOneLayerFlagAndCountRequest2 = DecryptOneLayerFlagAndCountRequest.newBuilder()
       .setFlagCounts(decryptOneLayerFlagAndCountResponse1.flagCounts)
       .setCurveId(CURVE_ID)
-      .setLocalElGamalKeys(DUCHY_2_EL_GAMAL_KEYS)
+      .setLocalElGamalKeyPair(DUCHY_2_EL_GAMAL_KEYS)
       .build()
     val decryptOneLayerFlagAndCountResponse2 = DecryptOneLayerFlagAndCountResponse.parseFrom(
       ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(
@@ -167,7 +167,7 @@ class ProtocolEncryptionUtilityTest {
     val decryptLastLayerFlagAndCountRequest = DecryptLastLayerFlagAndCountRequest.newBuilder()
       .setFlagCounts(decryptOneLayerFlagAndCountResponse2.flagCounts)
       .setCurveId(CURVE_ID)
-      .setLocalElGamalKeys(DUCHY_3_EL_GAMAL_KEYS)
+      .setLocalElGamalKeyPair(DUCHY_3_EL_GAMAL_KEYS)
       .setMaximumFrequency(MAX_COUNTER_VALUE)
       .build()
     return DecryptLastLayerFlagAndCountResponse.parseFrom(
