@@ -54,8 +54,11 @@ message MetricRequisition {
     STATE_UNSPECIFIED = 0;
     // No metric value has been sent to fulfill this requisition.
     UNFULFILLED = 1;
-    // A metric value has been sent to fulfill this requisition.
+    // A metric value has been sent to fulfill this requisition. Terminal state.
     FULFILLED = 2;
+    // The requisition cannot be fulfilled. Terminal state. Any Reports using
+    // this requisition will be put into the FAILED state.
+    PERMANENTLY_UNFILLABLE = 3;
   }
   // The state of this requisition. Output-only.
   State state = 3;

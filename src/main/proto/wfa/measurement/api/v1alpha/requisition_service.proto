@@ -41,10 +41,10 @@ service Requisition {
   rpc FulfillMetricRequisition(FulfillMetricRequisitionRequest)
       returns (MetricRequisition);
 
-  // Marks a MetricRequisition as permanently unfulfillable. This is a terminal
-  // state for the MetricRequisition and all computations that rely on the
-  // MetricRequisition will fail. Consequently, this should only be used for
-  // permanent failures, not transient errors.
+  // Transitions the MetricRequisition to the PERMANENTLY_UNFILLABLE state. This
+  // is a terminal state for the MetricRequisition and all computations that
+  // rely on the MetricRequisition will fail. Consequently, this should only be
+  // used for permanent failures, not transient errors.
   //
   // This is a state transition method (see https://aip.dev/216).
   rpc RefuseMetricRequisition(RefuseMetricRequisitionRequest)
@@ -122,7 +122,7 @@ message RefuseMetricRequisitionRequest {
     DATA_UNAVAILABLE = 2;
 
     // The `MetricRequisition.metric_definition` specifies a configuration that
-    // the Data Provider does not support.
+    // the Data Provider does not and will never support.
     METRIC_DEFINITION_UNSUPPORTED = 3;
 
     // The data requested is sufficiently old that the Data Provider no longer
