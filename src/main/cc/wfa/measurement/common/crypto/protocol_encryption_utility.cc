@@ -20,7 +20,9 @@
 #include "absl/types/span.h"
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
+#include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
+#include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/macros.h"
@@ -40,15 +42,6 @@ using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
 using ElGamalCiphertext = std::pair<std::string, std::string>;
 using FlagCount = DecryptLastLayerFlagAndCountResponse::FlagCount;
-
-constexpr int kBytesPerEcPoint = 33;
-// A ciphertext contains 2 EcPoints.
-constexpr int kBytesPerCipherText = kBytesPerEcPoint * 2;
-// A register contains 3 ciphertexts, i.e., (index, key, count)
-constexpr int kBytesPerCipherRegister = kBytesPerCipherText * 3;
-// The seed for the IsNotDestoryed flag.
-constexpr char kIsNotDestroyed[] = "IsNotDestroyed";
-constexpr char KUnitECPointSeed[] = "unit_ec_point";
 
 // crypto primitives used for blinding a ciphertext.
 struct CompositeCipher {
@@ -75,17 +68,6 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   return absl::OkStatus();
 }
 
-// Extract an ElGamalCiphertext from a string_view.
-absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
-    absl::string_view str) {
-  if (str.size() != kBytesPerCipherText) {
-    return absl::InternalError("string size doesn't match ciphertext size.");
-  }
-  return std::make_pair(
-      std::string(str.substr(0, kBytesPerEcPoint)),
-      std::string(str.substr(kBytesPerEcPoint, kBytesPerEcPoint)));
-}
-
 // Extract a KeyCountPairCipherText from a string_view.
 absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
     absl::string_view str) {
@@ -102,32 +84,19 @@ absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
   return result;
 }
 
-absl::Status ValidateByteSize(absl::string_view data, const int bytes_per_row) {
-  if (data.empty()) {
-    return absl::InvalidArgumentError("Input data is empty");
-  }
-  if (data.size() % bytes_per_row) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "The size of byte array is not divisible by the row_size: ",
-        bytes_per_row));
-  }
-  return absl::OkStatus();
-}
-
 // Blind the last layer of ElGamal Encryption of registers, and return the
 // deterministically encrypted results.
 absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
     absl::string_view sketch, ProtocolCryptor& protocol_cryptor) {
-  RETURN_IF_ERROR(ValidateByteSize(sketch, kBytesPerCipherRegister));
-  const int num_registers = sketch.size() / kBytesPerCipherRegister;
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(sketch, kBytesPerCipherRegister));
   std::vector<std::string> blinded_register_indexes;
-  blinded_register_indexes.reserve(num_registers);
-  for (size_t offset = 0; offset < sketch.size();
-       offset += kBytesPerCipherRegister) {
+  blinded_register_indexes.reserve(register_count);
+  for (size_t index = 0; index < register_count; ++index) {
     // The size of current_block is guaranteed to be equal to
     // kBytesPerCipherText
-    absl::string_view current_block =
-        absl::string_view(sketch).substr(offset, kBytesPerCipherText);
+    absl::string_view current_block = absl::string_view(sketch).substr(
+        index * kBytesPerCipherRegister, kBytesPerCipherText);
     ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
                      ExtractElGamalCiphertextFromString(current_block));
     ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
@@ -277,24 +246,16 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
   return absl::OkStatus();
 }
 
-absl::Duration getCurrentThreadCpuDuration() {
-  struct timespec ts;
-#ifdef __linux__
-  CHECK(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
-      << "Failed to get the thread cpu time.";
-  return absl::DurationFromTimespec(ts);
-#else
-  return absl::ZeroDuration();
-#endif
-}
-
 }  // namespace
 
 absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request) {
-  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
+  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
 
-  RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
+  ASSIGN_OR_RETURN(
+      size_t register_count,
+      GetNumberOfBlocks(request.sketch(), kBytesPerCipherRegister));
+
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -314,21 +275,20 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   std::string* response_sketch = response.mutable_sketch();
   // The output sketch is the same size with the input sketch.
   response_sketch->reserve(request.sketch().size());
-  for (size_t offset = 0; offset < request.sketch().size();
-       offset += kBytesPerCipherRegister) {
+  for (size_t index = 0; index < register_count; ++index) {
     // The size of current_block is guaranteed to be equal to
     // kBytesPerCipherRegister
     absl::string_view current_block =
         absl::string_view(request.sketch())
-            .substr(offset, kBytesPerCipherRegister);
+            .substr(index * kBytesPerCipherRegister, kBytesPerCipherRegister);
     RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
         current_block,
         {Action::kBlind, Action::kReRandomize, Action::kReRandomize},
-        response_sketch));
+        *response_sketch));
   }
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
   absl::Duration elaspedDuration =
-      getCurrentThreadCpuDuration() - startCpuDuration;
+      GetCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
       absl::ToInt64Milliseconds(elaspedDuration));
   return response;
@@ -337,9 +297,11 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
 absl::StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
 BlindLastLayerIndexThenJoinRegisters(
     const BlindLastLayerIndexThenJoinRegistersRequest& request) {
-  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
+  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
 
-  RETURN_IF_ERROR(ValidateByteSize(request.sketch(), kBytesPerCipherRegister));
+  ASSIGN_OR_RETURN(
+      size_t register_count,
+      GetNumberOfBlocks(request.sketch(), kBytesPerCipherRegister));
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -356,13 +318,11 @@ BlindLastLayerIndexThenJoinRegisters(
   ASSIGN_OR_RETURN(
       std::vector<std::string> blinded_register_indexes,
       GetBlindedRegisterIndexes(request.sketch(), *protocol_cryptor));
-  const size_t num_registers =
-      request.sketch().size() / kBytesPerCipherRegister;
 
   // Create a sorting permutation of the blinded register indexes, such that we
   // don't need to modify the sketch data, whose size could be huge. We only
   // need a way to point to registers with a same index.
-  std::vector<size_t> permutation(num_registers);
+  std::vector<size_t> permutation(register_count);
   absl::c_iota(permutation, 0);
   absl::c_sort(permutation, [&](size_t a, size_t b) {
     return blinded_register_indexes[a] < blinded_register_indexes[b];
@@ -378,7 +338,7 @@ BlindLastLayerIndexThenJoinRegisters(
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
   absl::Duration elaspedDuration =
-      getCurrentThreadCpuDuration() - startCpuDuration;
+      GetCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
       absl::ToInt64Milliseconds(elaspedDuration));
   return response;
@@ -386,11 +346,11 @@ BlindLastLayerIndexThenJoinRegisters(
 
 absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     const DecryptOneLayerFlagAndCountRequest& request) {
-  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
+  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
 
-  // Each unit contains 2 ciphertexts, e.g., flag and count.
-  RETURN_IF_ERROR(
-      ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
+  ASSIGN_OR_RETURN(
+      size_t ciphertext_count,
+      GetNumberOfBlocks(request.flag_counts(), kBytesPerCipherText));
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -407,20 +367,20 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   std::string* response_data = response.mutable_flag_counts();
   // The output sketch is the same size with the input sketch.
   response_data->reserve(request.flag_counts().size());
-  for (size_t offset = 0; offset < request.flag_counts().size();
-       offset += kBytesPerCipherText) {
+  for (size_t index = 0; index < ciphertext_count; ++index) {
     // The size of current_block is guaranteed to be equal to
     // kBytesPerCipherText
-    absl::string_view current_block = absl::string_view(request.flag_counts())
-                                          .substr(offset, kBytesPerCipherText);
+    absl::string_view current_block =
+        absl::string_view(request.flag_counts())
+            .substr(index * kBytesPerCipherText, kBytesPerCipherText);
     RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
-        current_block, {Action::kPartialDecrypt}, response_data));
+        current_block, {Action::kPartialDecrypt}, *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
   absl::Duration elaspedDuration =
-      getCurrentThreadCpuDuration() - startCpuDuration;
+      GetCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
       absl::ToInt64Milliseconds(elaspedDuration));
   return response;
@@ -429,11 +389,11 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
 absl::StatusOr<DecryptLastLayerFlagAndCountResponse>
 DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request) {
-  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
+  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
 
-  // Each register contains 2 ciphertexts, e.g., flag and count.
-  RETURN_IF_ERROR(
-      ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
+  ASSIGN_OR_RETURN(
+      size_t flag_count_tuple_count,
+      GetNumberOfBlocks(request.flag_counts(), kBytesPerCipherText * 2));
   // Create an ElGamal cipher for decryption.
   ASSIGN_OR_RETURN_ERROR(
       std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
@@ -452,13 +412,12 @@ DecryptLastLayerFlagAndCount(
                    GetIsNotDestroyedFlag(request.curve_id()));
 
   DecryptLastLayerFlagAndCountResponse response;
-  for (size_t offset = 0; offset < request.flag_counts().size();
-       offset += kBytesPerCipherText * 2) {
+  for (size_t index = 0; index < flag_count_tuple_count; ++index) {
     // The size of current_block is guaranteed to be equal to
     // kBytesPerCipherText * 2
     absl::string_view current_block =
         absl::string_view(request.flag_counts())
-            .substr(offset, kBytesPerCipherText * 2);
+            .substr(index * kBytesPerCipherText * 2, kBytesPerCipherText * 2);
     ASSIGN_OR_RETURN(ElGamalCiphertext flag_ciphertext,
                      ExtractElGamalCiphertextFromString(
                          current_block.substr(0, kBytesPerCipherText)));
@@ -494,7 +453,7 @@ DecryptLastLayerFlagAndCount(
   }
 
   absl::Duration elaspedDuration =
-      getCurrentThreadCpuDuration() - startCpuDuration;
+      GetCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
       absl::ToInt64Milliseconds(elaspedDuration));
   return response;
@@ -502,7 +461,7 @@ DecryptLastLayerFlagAndCount(
 
 absl::StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
     const AddNoiseToSketchRequest& request) {
-  absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
+  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
 
   AddNoiseToSketchResponse response;
   *response.mutable_sketch() = request.sketch();
@@ -512,7 +471,7 @@ absl::StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
       SortStringByBlock<kBytesPerCipherRegister>(*response.mutable_sketch()));
 
   absl::Duration elaspedDuration =
-      getCurrentThreadCpuDuration() - startCpuDuration;
+      GetCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
       absl::ToInt64Milliseconds(elaspedDuration));
   return response;

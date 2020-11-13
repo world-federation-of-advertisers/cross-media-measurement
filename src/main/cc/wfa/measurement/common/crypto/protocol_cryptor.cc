@@ -22,6 +22,7 @@
 #include "crypto/context.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "crypto/ec_group.h"
+#include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 
 namespace wfa::measurement::common::crypto {
@@ -32,11 +33,6 @@ using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
-
-// TODO: move to a constants.h
-constexpr int kBytesPerEcPoint = 33;
-// A ciphertext contains 2 EcPoints.
-constexpr int kBytesPerCipherText = kBytesPerEcPoint * 2;
 
 class ProtocolCryptorImpl : public ProtocolCryptor {
  public:
@@ -67,7 +63,7 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   std::string GetLocalPohligHellmanKey() override;
   absl::Status BatchProcess(absl::string_view data,
                             absl::Span<const Action> actions,
-                            std::string* result) override;
+                            std::string& result) override;
 
  private:
   // A CommutativeElGamal cipher created using local ElGamal Keys, used for
@@ -172,10 +168,7 @@ std::string ProtocolCryptorImpl::GetLocalPohligHellmanKey() {
 
 absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
                                                absl::Span<const Action> actions,
-                                               std::string* result) {
-  if (result == nullptr) {
-    return absl::InvalidArgumentError("The result string pointer is null.");
-  }
+                                               std::string& result) {
   size_t num_of_ciphertext = actions.size();
   if (data.size() != num_of_ciphertext * kBytesPerCipherText) {
     return absl::InvalidArgumentError(
@@ -189,8 +182,8 @@ absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
     switch (actions[index]) {
       case Action::kBlind: {
         ASSIGN_OR_RETURN(ElGamalCiphertext temp, Blind(ciphertext));
-        result->append(temp.first);
-        result->append(temp.second);
+        result.append(temp.first);
+        result.append(temp.second);
         break;
       }
       case Action::kPartialDecrypt: {
@@ -198,24 +191,24 @@ absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
         // The first part of the ciphertext is the random number which is still
         // required to decrypt the other layers of ElGamal encryptions (at the
         // subsequent duchies. So we keep it.
-        result->append(ciphertext.first);
-        result->append(temp);
+        result.append(ciphertext.first);
+        result.append(temp);
         break;
       }
       case Action::kDecrypt: {
         ASSIGN_OR_RETURN(std::string temp, DecryptLocalElGamal(ciphertext));
-        result->append(temp);
+        result.append(temp);
         break;
       }
       case Action::kReRandomize: {
         ASSIGN_OR_RETURN(ElGamalCiphertext temp, ReRandomize(ciphertext));
-        result->append(temp.first);
-        result->append(temp.second);
+        result.append(temp.first);
+        result.append(temp.second);
         break;
       }
       case Action::kNoop: {
-        result->append(ciphertext.first);
-        result->append(ciphertext.second);
+        result.append(ciphertext.first);
+        result.append(ciphertext.second);
         break;
       }
       default:

@@ -66,7 +66,7 @@ class ProtocolCryptor {
   // the result.
   virtual absl::Status BatchProcess(absl::string_view data,
                                     absl::Span<const Action> actions,
-                                    std::string* result) = 0;
+                                    std::string& result) = 0;
 
  protected:
   ProtocolCryptor() = default;

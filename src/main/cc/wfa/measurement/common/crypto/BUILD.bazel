@@ -10,6 +10,32 @@ package(default_visibility = [
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
+    name = "constants",
+    hdrs = [
+        "constants.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+)
+
+cc_library(
+    name = "encryption_utility_helper",
+    srcs = [
+        "encryption_utility_helper.cc",
+    ],
+    hdrs = [
+        "encryption_utility_helper.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":constants",
+        ":ec_point_util",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_private_join_and_compute//util:status",
+    ],
+)
+
+cc_library(
     name = "ec_point_util",
     srcs = [
         "ec_point_util.cc",
@@ -34,8 +60,10 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":constants",
         ":ec_point_util",
         "//src/main/cc/wfa/measurement/common:macros",
+        "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
@@ -54,6 +82,8 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":constants",
+        ":encryption_utility_helper",
         ":protocol_cryptor",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
@@ -76,6 +106,10 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":constants",
+        ":encryption_utility_helper",
+        ":protocol_cryptor",
+        "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status",
     ],

@@ -14,6 +14,60 @@
 
 #include "wfa/measurement/common/crypto/liquid_legions_v2_encryption_utility.h"
 
+#include "absl/status/statusor.h"
+#include "wfa/measurement/common/crypto/constants.h"
+#include "wfa/measurement/common/crypto/encryption_utility_helper.h"
+#include "wfa/measurement/common/crypto/protocol_cryptor.h"
+#include "wfa/measurement/common/macros.h"
+#include "wfa/measurement/common/string_block_sorter.h"
+
 namespace wfa::measurement::common::crypto {
+
+absl::StatusOr<CompleteReachEstimationPhaseResponse>
+CompleteReachEstimationPhase(
+    const CompleteReachEstimationPhaseRequest& request) {
+  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(request.combined_register_vector(),
+                                     kBytesPerCipherRegister));
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
+          request.curve_id(),
+          std::make_pair(
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
+          request.local_el_gamal_key_pair().el_gamal_sk(),
+          request.local_pohlig_hellman_sk(),
+          std::make_pair(request.composite_el_gamal_public_key().el_gamal_g(),
+                         request.composite_el_gamal_public_key().el_gamal_y())),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
+
+  CompleteReachEstimationPhaseResponse response;
+  *response.mutable_local_pohlig_hellman_sk() =
+      protocol_cryptor->GetLocalPohligHellmanKey();
+  std::string* response_crv = response.mutable_combined_register_vector();
+  // The output crv is the same size with the input crv.
+  response_crv->reserve(request.combined_register_vector().size());
+
+  for (size_t index_i = 0; index_i < register_count; ++index_i) {
+    absl::string_view current_block =
+        absl::string_view(request.combined_register_vector())
+            .substr(index_i * kBytesPerCipherRegister, kBytesPerCipherRegister);
+    RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
+        current_block,
+        {Action::kBlind, Action::kReRandomize, Action::kReRandomize},
+        *response_crv));
+  }
+
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_crv));
+
+  absl::Duration elaspedDuration =
+      GetCurrentThreadCpuDuration() - startCpuDuration;
+  response.set_elapsed_cpu_time_millis(
+      absl::ToInt64Milliseconds(elaspedDuration));
+  return response;
+}
 
 }  // namespace wfa::measurement::common::crypto
