@@ -46,8 +46,7 @@ CREATE TABLE Computations (
   -- The protocol the computation is following. This column is immutable.
   --
   -- See the wfa.measurement.internal.duchy.ComputationTypeEnum proto
-  -- TODO: Make column NOT NULL
-  Protocol INT64,
+  Protocol INT64 NOT NULL,
 
   -- The current stage of the computation as known to this Node.
   -- This does not reflect the stage to all Nodes.
@@ -104,9 +103,8 @@ CREATE TABLE Computations (
 
 -- Query computations ready for work. All computations that can be worked on
 -- have a non null LockExpirationTime.
--- TODO: Add Protocol Column to index.
 CREATE NULL_FILTERED INDEX ComputationsByLockExpirationTime
-  ON Computations(LockExpirationTime ASC, UpdateTime ASC)
+  ON Computations(Protocol, LockExpirationTime ASC, UpdateTime ASC)
   STORING (ComputationStage, GlobalComputationId);
 
 -- Query computations by the owner of the lock.

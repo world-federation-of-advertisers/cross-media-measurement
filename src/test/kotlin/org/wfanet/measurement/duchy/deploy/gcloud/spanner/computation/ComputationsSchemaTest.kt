@@ -91,6 +91,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   private fun makeInsertMutation(): Mutation {
     return Mutation.newInsertBuilder("Computations")
       .set("ComputationId").to(computationId)
+      .set("Protocol").to(1000)
       .set("ComputationStage").to(1)
       .set("GlobalComputationId").to(1)
       .set("ComputationDetails").to(ByteArray.copyFrom("123"))
