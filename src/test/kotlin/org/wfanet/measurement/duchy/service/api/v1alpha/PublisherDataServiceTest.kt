@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
+import org.wfanet.measurement.api.v1alpha.RefuseMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase as RequisitionCoroutineService
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
@@ -82,7 +83,7 @@ class PublisherDataServiceTest {
     )
   }
 
-  @Test fun `listMetricRequisitions delegates to RequisitionService`() {
+  @Test fun `listMetricRequisitions delegates to Requisition service`() {
     val metricRequisitionKey = MetricRequisition.Key.newBuilder().apply {
       dataProviderId = "dataProviderId"
       campaignId = "campaign"
@@ -105,6 +106,36 @@ class PublisherDataServiceTest {
     argumentCaptor<ListMetricRequisitionsRequest>() {
       verifyBlocking(requisitionServiceMock, times(1)) {
         listMetricRequisitions(capture())
+      }
+      assertThat(firstValue).isEqualTo(request)
+    }
+  }
+
+  @Test fun `refuseMetricRequisition delegates to Requisition service`() {
+    val metricRequisitionKey = MetricRequisition.Key.newBuilder().apply {
+      dataProviderId = "dataProviderId"
+      campaignId = "campaign"
+      metricRequisitionId = "metricRequisition"
+    }.build()
+    val expectedResponse = MetricRequisition.newBuilder().apply {
+      key = metricRequisitionKey
+      state = MetricRequisition.State.PERMANENTLY_UNFILLABLE
+    }.build()
+    requisitionServiceMock.stub {
+      onBlocking { refuseMetricRequisition(any()) }.thenReturn(expectedResponse)
+    }
+
+    val request = RefuseMetricRequisitionRequest.newBuilder().apply {
+      key = metricRequisitionKey
+      justification = RefuseMetricRequisitionRequest.Justification.DATA_UNAVAILABLE
+      justificationMessage = "Disk corrupted"
+    }.build()
+    val response = runBlocking { service.refuseMetricRequisition(request) }
+
+    assertThat(response).isEqualTo(expectedResponse)
+    argumentCaptor<RefuseMetricRequisitionRequest> {
+      verifyBlocking(requisitionServiceMock, times(1)) {
+        refuseMetricRequisition(capture())
       }
       assertThat(firstValue).isEqualTo(request)
     }

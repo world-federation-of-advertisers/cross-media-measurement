@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineImplBase as PublisherDataCoroutineService
+import org.wfanet.measurement.api.v1alpha.RefuseMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueResponse
@@ -61,6 +62,9 @@ class PublisherDataService(
 
   override suspend fun listMetricRequisitions(request: ListMetricRequisitionsRequest) =
     requisitionClient.listMetricRequisitions(request)
+
+  override suspend fun refuseMetricRequisition(request: RefuseMetricRequisitionRequest) =
+    requisitionClient.refuseMetricRequisition(request)
 
   override suspend fun createCampaign(request: CreateCampaignRequest) =
     registrationClient.createCampaign(request)

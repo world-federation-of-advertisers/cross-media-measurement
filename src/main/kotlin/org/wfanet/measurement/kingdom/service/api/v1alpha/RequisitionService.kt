@@ -112,7 +112,9 @@ private fun RequisitionState.toV1Api(): MetricRequisition.State =
   when (this) {
     RequisitionState.UNFULFILLED -> MetricRequisition.State.UNFULFILLED
     RequisitionState.FULFILLED -> MetricRequisition.State.FULFILLED
-    else -> MetricRequisition.State.STATE_UNSPECIFIED
+    RequisitionState.PERMANENTLY_UNAVAILABLE -> MetricRequisition.State.PERMANENTLY_UNFILLABLE
+    RequisitionState.REQUISITION_STATE_UNKNOWN, RequisitionState.UNRECOGNIZED ->
+      MetricRequisition.State.STATE_UNSPECIFIED
   }
 
 /**
@@ -122,5 +124,7 @@ private fun MetricRequisition.State.toRequisitionState(): RequisitionState =
   when (this) {
     MetricRequisition.State.UNFULFILLED -> RequisitionState.UNFULFILLED
     MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
-    else -> error("Invalid state: $this")
+    MetricRequisition.State.PERMANENTLY_UNFILLABLE -> RequisitionState.PERMANENTLY_UNAVAILABLE
+    MetricRequisition.State.STATE_UNSPECIFIED, MetricRequisition.State.UNRECOGNIZED ->
+      RequisitionState.REQUISITION_STATE_UNKNOWN
   }
