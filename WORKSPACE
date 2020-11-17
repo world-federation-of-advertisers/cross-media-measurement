@@ -37,11 +37,11 @@ load("//build/com_google_truth:repo.bzl", "com_google_truth_artifact_dict")
 
 # @io_bazel_rules_kotlin
 
-load("//build/io_bazel_rules_kotlin:repo.bzl", "kotlinc_release", "rules_kotin_repo")
+load("//build/io_bazel_rules_kotlin:repo.bzl", "kotlinc_release", "rules_kotlin_repo")
 
-rules_kotin_repo(
-    sha256 = "da0e6e1543fcc79e93d4d93c3333378f3bd5d29e82c1bc2518de0dbe048e6598",
-    version = "legacy-1.4.0-rc3",
+rules_kotlin_repo(
+    sha256 = "9cc0e4031bcb7e8508fd9569a81e7042bbf380604a0157f796d06d511cff2769",
+    version = "legacy-1.4.0-rc4",
 )
 
 load("//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
@@ -58,9 +58,8 @@ load("//build/kotlinx_coroutines:repo.bzl", "kotlinx_coroutines_artifact_dict")
 
 http_archive(
     name = "com_github_grpc_grpc_kotlin",
-    sha256 = "bfc60770a48aaec1489b4cb7dbf0ff712bed7ed7d2479281d94f56f565832048",
-    strip_prefix = "grpc-kotlin-0.1.4",
-    url = "https://github.com/grpc/grpc-kotlin/archive/v0.1.4.zip",
+    strip_prefix = "grpc-kotlin-0.2.1",
+    url = "https://github.com/grpc/grpc-kotlin/archive/v0.2.1.zip",
 )
 
 load(
@@ -105,9 +104,10 @@ MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.3.6"))
 # or default dependency versions).
 MAVEN_ARTIFACTS.update({
     "com.google.api.grpc:grpc-google-cloud-pubsub-v1": "0.1.24",
-    "com.google.cloud:google-cloud-nio": "0.121.2",
-    "com.google.cloud:google-cloud-spanner": "2.0.2",
+    "com.google.cloud:google-cloud-nio": "0.122.0",
+    "com.google.cloud:google-cloud-spanner": "3.0.3",
     "com.google.code.gson:gson": "2.8.6",
+    "com.google.guava:guava": "30.0-jre",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
     "info.picocli:picocli": "4.4.0",
     "junit:junit": "4.13",
@@ -268,11 +268,11 @@ load("//build/bazel_toolchains:repo.bzl", "bazel_toolchains")
 
 bazel_toolchains(
     name = "bazel_toolchains",
-    sha256 = "89a053218639b1c5e3589a859bb310e0a402dedbe4ee369560e66026ae5ef1f2",
-    version = "3.5.0",
+    sha256 = "8e0633dfb59f704594f19ae996a35650747adc621ada5e8b9fb588f808c89cb0s",
+    version = "3.7.0",
 )
 
-RBE_BASE_DIGEST = "sha256:9c844370b42dcdc01284f8e99c7b6872201c4bca0f536b1020b7a5791b678b4d"
+RBE_BASE_DIGEST = "sha256:687b98e38d2bd85499951cacacf714c06e4bd94f0f44836be9e6326e074450f5"
 
 container_pull(
     name = "rbe_ubuntu_18_04",
@@ -288,7 +288,7 @@ load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
 rbe_autoconfig(
     name = "rbe_default",
     base_container_digest = RBE_BASE_DIGEST,
-    digest = "sha256:1fdad048b3a8fffb924852488401056ca6efb18467578fe85f7e2b8034fdb5aa",
+    digest = "sha256:308c797bf7374748ac17e094be0060831dd4650aa4d89b812f4b178e6d799e8e",
     java_home = "/usr/lib/jvm/java-11-openjdk-amd64",
     registry = "gcr.io",
     repository = "ads-open-measurement/rbe",
@@ -301,8 +301,8 @@ load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries
 
 cloud_spanner_emulator_binaries(
     name = "cloud_spanner_emulator",
-    sha256 = "86df7eeb4c2c03c8f1254f222360637bb84d43f64ee5464f98a8057104791dad",
-    version = "1.1.0",
+    sha256 = "7a3cdd5db7f5a427230ab67a8dc09cfcb6752dd7f0b28d51e8d08150b2641506",
+    version = "1.1.1",
 )
 
 # CUE binaries.
