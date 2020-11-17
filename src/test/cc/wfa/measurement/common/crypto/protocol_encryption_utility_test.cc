@@ -16,6 +16,8 @@
 
 #include <openssl/obj_mac.h>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "gmock/gmock.h"
@@ -33,8 +35,6 @@ using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
-using ::private_join_and_compute::Status;
-using ::private_join_and_compute::StatusCode;
 using ::testing::SizeIs;
 using ::wfa::measurement::api::v1alpha::Sketch;
 using ::wfa::measurement::api::v1alpha::SketchConfig;
@@ -47,10 +47,13 @@ constexpr int kBytesCipherText = kBytesPerEcPoint * 2;
 constexpr int kBytesPerEncryptedRegister = kBytesCipherText * 3;
 
 MATCHER_P2(StatusIs, code, message, "") {
-  return ExplainMatchResult(
-      AllOf(testing::Property(&Status::code, code),
-            testing::Property(&Status::message, testing::HasSubstr(message))),
-      arg, result_listener);
+  if (arg.code() != code) {
+    *result_listener << "Expected code: " << code << " but got code "
+                     << arg.code();
+    return false;
+  }
+  return testing::ExplainMatchResult(
+      testing::HasSubstr(message), std::string(arg.message()), result_listener);
 }
 
 MATCHER_P(IsBlockSorted, block_size, "") {
@@ -317,9 +320,9 @@ TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
   request.set_curve_id(kTestCurveId);
   request.mutable_sketch()->append(encrypted_sketch.begin(),
                                    encrypted_sketch.end());
-  StatusOr<BlindOneLayerRegisterIndexResponse> response_1 =
+  absl::StatusOr<BlindOneLayerRegisterIndexResponse> response_1 =
       BlindOneLayerRegisterIndex(request);
-  StatusOr<BlindOneLayerRegisterIndexResponse> response_2 =
+  absl::StatusOr<BlindOneLayerRegisterIndexResponse> response_2 =
       BlindOneLayerRegisterIndex(request);
 
   ASSERT_TRUE(response_1.ok());
@@ -350,52 +353,56 @@ TEST(BlindOneLayerRegisterIndex, WrongInputSketchSizeShouldThrow) {
   auto result = BlindOneLayerRegisterIndex(request);
 
   ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(), StatusIs(StatusCode::kInvalidArgument, "empty"));
+  EXPECT_THAT(result.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   *request.mutable_sketch() = "1234";
   result = BlindOneLayerRegisterIndex(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
-              StatusIs(StatusCode::kInvalidArgument, "not divisible"));
+              StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
 TEST(BlindLastLayerIndexThenJoinRegisters, WrongInputSketchSizeShouldThrow) {
   BlindLastLayerIndexThenJoinRegistersRequest request;
   auto result = BlindLastLayerIndexThenJoinRegisters(request);
   ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(), StatusIs(StatusCode::kInvalidArgument, "empty"));
+  EXPECT_THAT(result.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   *request.mutable_sketch() = "1234";
   result = BlindLastLayerIndexThenJoinRegisters(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
-              StatusIs(StatusCode::kInvalidArgument, "not divisible"));
+              StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
 TEST(DecryptOneLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
   DecryptOneLayerFlagAndCountRequest request;
   auto result = DecryptOneLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(), StatusIs(StatusCode::kInvalidArgument, "empty"));
+  EXPECT_THAT(result.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   *request.mutable_flag_counts() = "1234";
   result = DecryptOneLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
-              StatusIs(StatusCode::kInvalidArgument, "not divisible"));
+              StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
 TEST(DecryptLastLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
   DecryptLastLayerFlagAndCountRequest request;
   auto result = DecryptLastLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(), StatusIs(StatusCode::kInvalidArgument, "empty"));
+  EXPECT_THAT(result.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   *request.mutable_flag_counts() = "1234";
   result = DecryptLastLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
-              StatusIs(StatusCode::kInvalidArgument, "not divisible"));
+              StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
 TEST(EndToEnd, SumOfCountsShouldBeCorrect) {

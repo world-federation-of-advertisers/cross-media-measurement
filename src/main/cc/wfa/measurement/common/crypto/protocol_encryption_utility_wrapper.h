@@ -15,7 +15,7 @@
 #ifndef WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCAL_ENCRYPTION_UTILITY_WRAPPER_H_
 #define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCAL_ENCRYPTION_UTILITY_WRAPPER_H_
 
-#include "util/statusor.h"
+#include "absl/status/statusor.h"
 #include "wfa/measurement/common/crypto/protocol_encryption_utility.h"
 
 // Wrapper methods used to generate the swig/JNI Java classes.
@@ -27,19 +27,19 @@ namespace measurement {
 namespace common {
 namespace crypto {
 
-private_join_and_compute::StatusOr<std::string> AddNoiseToSketch(
+absl::StatusOr<std::string> AddNoiseToSketch(
     const std::string& serialized_request);
 
-private_join_and_compute::StatusOr<std::string> BlindOneLayerRegisterIndex(
+absl::StatusOr<std::string> BlindOneLayerRegisterIndex(
     const std::string& serialized_request);
 
-private_join_and_compute::StatusOr<std::string>
-BlindLastLayerIndexThenJoinRegisters(const std::string& serialized_request);
-
-private_join_and_compute::StatusOr<std::string> DecryptOneLayerFlagAndCount(
+absl::StatusOr<std::string> BlindLastLayerIndexThenJoinRegisters(
     const std::string& serialized_request);
 
-private_join_and_compute::StatusOr<std::string> DecryptLastLayerFlagAndCount(
+absl::StatusOr<std::string> DecryptOneLayerFlagAndCount(
+    const std::string& serialized_request);
+
+absl::StatusOr<std::string> DecryptLastLayerFlagAndCount(
     const std::string& serialized_request);
 
 }  // namespace crypto

@@ -14,7 +14,7 @@
 
 #include "wfa/measurement/common/crypto/protocol_encryption_utility_wrapper.h"
 
-#include "util/canonical_errors.h"
+#include "absl/status/statusor.h"
 #include "util/status_macros.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 
@@ -23,11 +23,11 @@ namespace measurement {
 namespace common {
 namespace crypto {
 
-private_join_and_compute::StatusOr<std::string> AddNoiseToSketch(
+absl::StatusOr<std::string> AddNoiseToSketch(
     const std::string& serialized_request) {
   AddNoiseToSketchRequest request_proto;
   if (!request_proto.ParseFromString(serialized_request)) {
-    return private_join_and_compute::InternalError(
+    return absl::InternalError(
         "failed to parse the AddNoiseToSketchRequest proto.");
   }
   ASSIGN_OR_RETURN(AddNoiseToSketchResponse result,
@@ -35,11 +35,11 @@ private_join_and_compute::StatusOr<std::string> AddNoiseToSketch(
   return result.SerializeAsString();
 };
 
-private_join_and_compute::StatusOr<std::string> BlindOneLayerRegisterIndex(
+absl::StatusOr<std::string> BlindOneLayerRegisterIndex(
     const std::string& serialized_request) {
   BlindOneLayerRegisterIndexRequest request_proto;
   if (!request_proto.ParseFromString(serialized_request)) {
-    return private_join_and_compute::InternalError(
+    return absl::InternalError(
         "failed to parse the BlindOneLayerRegisterIndexRequest proto.");
   }
   ASSIGN_OR_RETURN(BlindOneLayerRegisterIndexResponse result,
@@ -47,11 +47,11 @@ private_join_and_compute::StatusOr<std::string> BlindOneLayerRegisterIndex(
   return result.SerializeAsString();
 };
 
-private_join_and_compute::StatusOr<std::string>
-BlindLastLayerIndexThenJoinRegisters(const std::string& serialized_request) {
+absl::StatusOr<std::string> BlindLastLayerIndexThenJoinRegisters(
+    const std::string& serialized_request) {
   BlindLastLayerIndexThenJoinRegistersRequest request_proto;
   if (!request_proto.ParseFromString(serialized_request)) {
-    return private_join_and_compute::InternalError(
+    return absl::InternalError(
         "failed to parse the BlindLastLayerIndexThenJoinRegistersRequest "
         "proto.");
   }
@@ -60,11 +60,11 @@ BlindLastLayerIndexThenJoinRegisters(const std::string& serialized_request) {
   return result.SerializeAsString();
 };
 
-private_join_and_compute::StatusOr<std::string> DecryptOneLayerFlagAndCount(
+absl::StatusOr<std::string> DecryptOneLayerFlagAndCount(
     const std::string& serialized_request) {
   DecryptOneLayerFlagAndCountRequest request_proto;
   if (!request_proto.ParseFromString(serialized_request)) {
-    return private_join_and_compute::InternalError(
+    return absl::InternalError(
         "failed to parse the DecryptOneLayerFlagAndCountRequest proto.");
   }
   ASSIGN_OR_RETURN(DecryptOneLayerFlagAndCountResponse result,
@@ -72,11 +72,11 @@ private_join_and_compute::StatusOr<std::string> DecryptOneLayerFlagAndCount(
   return result.SerializeAsString();
 };
 
-private_join_and_compute::StatusOr<std::string> DecryptLastLayerFlagAndCount(
+absl::StatusOr<std::string> DecryptLastLayerFlagAndCount(
     const std::string& serialized_request) {
   DecryptLastLayerFlagAndCountRequest request_proto;
   if (!request_proto.ParseFromString(serialized_request)) {
-    return private_join_and_compute::InternalError(
+    return absl::InternalError(
         "failed to parse the DecryptLastLayerFlagAndCountRequest proto.");
   }
   ASSIGN_OR_RETURN(DecryptLastLayerFlagAndCountResponse result,

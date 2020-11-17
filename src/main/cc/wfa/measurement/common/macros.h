@@ -17,7 +17,7 @@
 
 #define RETURN_IF_ERROR(status)        \
   do {                                 \
-    Status _status = (status);         \
+    absl::Status _status = (status);   \
     if (!_status.ok()) return _status; \
   } while (0)
 
@@ -31,7 +31,7 @@
                                                        message)              \
   auto statusor = (rexpr);                                                   \
   if (ABSL_PREDICT_FALSE(!statusor.ok())) {                                  \
-    return InvalidArgumentError(message);                                    \
+    return absl::InvalidArgumentError(message);                              \
   }                                                                          \
   lhs = std::move(statusor).value()
 

@@ -19,8 +19,8 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "@com_google_absl//absl/status:statusor",
         "@com_google_private_join_and_compute//crypto:ec_util",
-        "@com_google_private_join_and_compute//util:status",
     ],
 )
 
@@ -36,8 +36,8 @@ cc_library(
     deps = [
         ":ec_point_util",
         "//src/main/cc/wfa/measurement/common:macros",
-        "@absl//absl/algorithm:container",
-        "@absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//util:status",
@@ -58,8 +58,8 @@ cc_library(
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
-        "@absl//absl/algorithm:container",
-        "@absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//util:status",

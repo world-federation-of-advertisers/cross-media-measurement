@@ -14,9 +14,11 @@
 
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 
+#include "absl/status/statusor.h"
+
 namespace wfa::measurement::common::crypto {
 
-StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
+absl::StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
     const ElGamalCiphertext& cipher_text, const ECGroup& ec_group) {
   ASSIGN_OR_RETURN(ECPoint ec_point_u,
                    ec_group.CreateECPoint(cipher_text.first));
@@ -29,8 +31,8 @@ StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
   return result;
 }
 
-StatusOr<ElGamalEcPointPair> AddEcPointPairs(const ElGamalEcPointPair& a,
-                                             const ElGamalEcPointPair& b) {
+absl::StatusOr<ElGamalEcPointPair> AddEcPointPairs(
+    const ElGamalEcPointPair& a, const ElGamalEcPointPair& b) {
   ASSIGN_OR_RETURN(ECPoint result_u, a.u.Add(b.u));
   ASSIGN_OR_RETURN(ECPoint result_e, a.e.Add(b.e));
   ElGamalEcPointPair result = {
@@ -40,7 +42,7 @@ StatusOr<ElGamalEcPointPair> AddEcPointPairs(const ElGamalEcPointPair& a,
   return result;
 }
 
-StatusOr<ElGamalEcPointPair> InvertEcPointPair(
+absl::StatusOr<ElGamalEcPointPair> InvertEcPointPair(
     const ElGamalEcPointPair& ec_point_pair) {
   ASSIGN_OR_RETURN(ECPoint inverse_u, ec_point_pair.u.Inverse());
   ASSIGN_OR_RETURN(ECPoint inverse_e, ec_point_pair.e.Inverse());
@@ -51,7 +53,7 @@ StatusOr<ElGamalEcPointPair> InvertEcPointPair(
   return result;
 }
 
-StatusOr<ElGamalEcPointPair> MultiplyEcPointPairByScalar(
+absl::StatusOr<ElGamalEcPointPair> MultiplyEcPointPairByScalar(
     const ElGamalEcPointPair& ec_point_pair, const BigNum& n) {
   ASSIGN_OR_RETURN(ECPoint result_u, ec_point_pair.u.Mul(n));
   ASSIGN_OR_RETURN(ECPoint result_e, ec_point_pair.e.Mul(n));

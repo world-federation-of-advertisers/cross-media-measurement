@@ -8,7 +8,7 @@ cc_test(
     ],
     deps = [
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
-        "@absl//absl/strings",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

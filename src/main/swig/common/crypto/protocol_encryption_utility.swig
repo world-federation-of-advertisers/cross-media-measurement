@@ -17,12 +17,12 @@
 #include "wfa/measurement/common/crypto/protocol_encryption_utility_wrapper.h"
 %}
 
-// Convert C++ ::private_join_and_compute::StatusOr<std::string> to a Java byte
+// Convert C++ ::absl::StatusOr<std::string> to a Java byte
 // array.
-%typemap(jni) ::private_join_and_compute::StatusOr<std::string> "jbyteArray"
-%typemap(jtype) ::private_join_and_compute::StatusOr<std::string> "byte[]"
-%typemap(jstype) ::private_join_and_compute::StatusOr<std::string> "byte[]"
-%typemap(out) ::private_join_and_compute::StatusOr<std::string> {
+%typemap(jni) ::absl::StatusOr<std::string> "jbyteArray"
+%typemap(jtype) ::absl::StatusOr<std::string> "byte[]"
+%typemap(jstype) ::absl::StatusOr<std::string> "byte[]"
+%typemap(out) ::absl::StatusOr<std::string> {
   if ($1.ok()) {
     $result = JCALL1(NewByteArray, jenv, $1.value().length());
     JCALL4(SetByteArrayRegion, jenv, $result, 0,
@@ -31,7 +31,7 @@
     SWIG_exception(SWIG_RuntimeError, $1.status().ToString().c_str());
   }
 }
-%typemap(javaout) ::private_join_and_compute::StatusOr<std::string> {
+%typemap(javaout) ::absl::StatusOr<std::string> {
   return $jnicall;
 }
 

@@ -19,6 +19,6 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "@absl//absl/random:distributions",
+        "@com_google_absl//absl/random:distributions",
     ],
 )

@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <cstring>
 
-#include "util/canonical_errors.h"
+#include "absl/status/status.h"
 
 namespace wfa {
 namespace measurement {
@@ -45,20 +45,18 @@ struct DataBlock {
 
 // Sort the string by blocks.
 template <size_t kBlockSize>
-private_join_and_compute::Status SortStringByBlock(std::string& data) {
+absl::Status SortStringByBlock(std::string& data) {
   if (data.length() % kBlockSize != 0) {
-    return private_join_and_compute::InternalError(
-        "Data size is not divisible by the block size.");
+    return absl::InternalError("Data size is not divisible by the block size.");
   }
   std::sort(reinterpret_cast<internal::DataBlock<kBlockSize>*>(data.data()),
             reinterpret_cast<internal::DataBlock<kBlockSize>*>(data.data() +
                                                                data.length()));
-  return private_join_and_compute::Status::OK;
+  return absl::OkStatus();
 }
 
 template <>
-private_join_and_compute::Status SortStringByBlock<0>(std::string& data) =
-    delete;
+absl::Status SortStringByBlock<0>(std::string& data) = delete;
 
 }  // namespace common
 }  // namespace measurement

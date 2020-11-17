@@ -15,19 +15,15 @@
 #ifndef WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
 #define WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
 
-#include <memory>
-
+#include "absl/status/statusor.h"
 #include "crypto/ec_group.h"
 #include "crypto/ec_point.h"
-#include "util/statusor.h"
 
 namespace wfa::measurement::common::crypto {
 
 using ::private_join_and_compute::BigNum;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
-// TODO: use absl::StatusOr.
-using ::private_join_and_compute::StatusOr;
 
 // Each ElGamalCiphertext is a two tuple (u, e), where u=g^r and e=m*y^r.
 using ElGamalCiphertext = std::pair<std::string, std::string>;
@@ -39,19 +35,19 @@ struct ElGamalEcPointPair {
 };
 
 // Gets the equivalent ECPoint depiction of a ElGamalCiphertext
-StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
+absl::StatusOr<ElGamalEcPointPair> GetElGamalEcPoints(
     const ElGamalCiphertext& cipher_text, const ECGroup& ec_group);
 
 // Computes the sum of two ElGamalEcPointPairs.
-StatusOr<ElGamalEcPointPair> AddEcPointPairs(const ElGamalEcPointPair& a,
-                                             const ElGamalEcPointPair& b);
+absl::StatusOr<ElGamalEcPointPair> AddEcPointPairs(const ElGamalEcPointPair& a,
+                                                   const ElGamalEcPointPair& b);
 
 // Computes the inverse of an ElGamalEcPointPair
-StatusOr<ElGamalEcPointPair> InvertEcPointPair(
+absl::StatusOr<ElGamalEcPointPair> InvertEcPointPair(
     const ElGamalEcPointPair& ec_point_pair);
 
 // Computes the multiplication of an ElGamalEcPointPair and scalar
-StatusOr<ElGamalEcPointPair> MultiplyEcPointPairByScalar(
+absl::StatusOr<ElGamalEcPointPair> MultiplyEcPointPairByScalar(
     const ElGamalEcPointPair& ec_point_pair, const BigNum& n);
 
 }  // namespace wfa::measurement::common::crypto

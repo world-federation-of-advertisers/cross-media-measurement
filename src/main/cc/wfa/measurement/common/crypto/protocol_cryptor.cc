@@ -15,6 +15,7 @@
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "crypto/commutative_elgamal.h"
 #include "crypto/context.h"
@@ -44,18 +45,18 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   ProtocolCryptorImpl(const ProtocolCryptorImpl&) = delete;
   ProtocolCryptorImpl& operator=(const ProtocolCryptorImpl&) = delete;
 
-  StatusOr<ElGamalCiphertext> Blind(
+  absl::StatusOr<ElGamalCiphertext> Blind(
       const ElGamalCiphertext& ciphertext) override;
-  StatusOr<std::string> DecryptLocalElGamal(
+  absl::StatusOr<std::string> DecryptLocalElGamal(
       const ElGamalCiphertext& ciphertext) override;
-  StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
+  absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) override;
-  StatusOr<ElGamalCiphertext> ReRandomize(
+  absl::StatusOr<ElGamalCiphertext> ReRandomize(
       const ElGamalCiphertext& ciphertext) override;
-  StatusOr<ElGamalEcPointPair> CalculateDestructor(
+  absl::StatusOr<ElGamalEcPointPair> CalculateDestructor(
       const ElGamalEcPointPair& base, const ElGamalEcPointPair& key) override;
-  StatusOr<std::string> MapToCurve(absl::string_view str) override;
-  StatusOr<ElGamalEcPointPair> ToElGamalEcPoints(
+  absl::StatusOr<std::string> MapToCurve(absl::string_view str) override;
+  absl::StatusOr<ElGamalEcPointPair> ToElGamalEcPoints(
       const ElGamalCiphertext& cipher_text) override;
   std::string GetLocalPohligHellmanKey() override;
 
@@ -91,7 +92,7 @@ ProtocolCryptorImpl::ProtocolCryptorImpl(
       ctx_(std::move(ctx)),
       ec_group_(std::move(ec_group)) {}
 
-StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::Blind(
+absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::Blind(
     const ElGamalCiphertext& ciphertext) {
   absl::WriterMutexLock l(&mutex_);
   ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
@@ -102,19 +103,19 @@ StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::Blind(
   return {std::move(re_encrypted_p_h)};
 }
 
-StatusOr<std::string> ProtocolCryptorImpl::DecryptLocalElGamal(
+absl::StatusOr<std::string> ProtocolCryptorImpl::DecryptLocalElGamal(
     const ElGamalCiphertext& ciphertext) {
   absl::WriterMutexLock l(&mutex_);
   return local_el_gamal_cipher_->Decrypt(ciphertext);
 }
 
-StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
+absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
     absl::string_view plain_ec_point) {
   absl::WriterMutexLock l(&mutex_);
   return composite_el_gamal_cipher_->Encrypt(std::string(plain_ec_point));
 }
 
-StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
+absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
     const ElGamalCiphertext& ciphertext) {
   absl::WriterMutexLock l(&mutex_);
   ASSIGN_OR_RETURN(ElGamalCiphertext zero,
@@ -132,7 +133,7 @@ StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
   return {std::move(result_ciphertext)};
 }
 
-StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::CalculateDestructor(
+absl::StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::CalculateDestructor(
     const ElGamalEcPointPair& base_inverse, const ElGamalEcPointPair& key) {
   absl::WriterMutexLock l(&mutex_);
   BigNum r = ec_group_.GeneratePrivateKey();
@@ -141,14 +142,15 @@ StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::CalculateDestructor(
   return MultiplyEcPointPairByScalar(key_delta, r);
 }
 
-StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(absl::string_view str) {
+absl::StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(
+    absl::string_view str) {
   absl::WriterMutexLock l(&mutex_);
   ASSIGN_OR_RETURN(ECPoint temp_ec_point,
                    ec_group_.GetPointByHashingToCurveSha256(std::string(str)));
   return temp_ec_point.ToBytesCompressed();
 }
 
-StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::ToElGamalEcPoints(
+absl::StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::ToElGamalEcPoints(
     const ElGamalCiphertext& cipher_text) {
   absl::WriterMutexLock l(&mutex_);
   return GetElGamalEcPoints(cipher_text, ec_group_);
@@ -161,7 +163,7 @@ std::string ProtocolCryptorImpl::GetLocalPohligHellmanKey() {
 
 }  // namespace
 
-StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
+absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
     int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
     absl::string_view local_el_gamal_private_key,
     absl::string_view local_pohlig_hellman_private_key,

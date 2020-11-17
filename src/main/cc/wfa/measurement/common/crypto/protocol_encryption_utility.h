@@ -15,7 +15,7 @@
 #ifndef WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
 #define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
 
-#include "util/statusor.h"
+#include "absl/status/statusor.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 
 namespace wfa {
@@ -23,30 +23,29 @@ namespace measurement {
 namespace common {
 namespace crypto {
 
-using ::private_join_and_compute::StatusOr;
-
 // Add noise registers to the input sketch.
-StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
+absl::StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
     const AddNoiseToSketchRequest& request);
 
 // Blind (one layer) all register indexes of a sketch. Only 3-tuple
 // (register_index, fingerprint, count) registers are supported.
-StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
+absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request);
 
 // Blind (last layer) the register indexes, and then join the registers by the
 // deterministically encrypted register indexes, and then merge the counts
 // using the same-key-aggregating algorithm.
-StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
+absl::StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
 BlindLastLayerIndexThenJoinRegisters(
     const BlindLastLayerIndexThenJoinRegistersRequest& request);
 
 // Decrypt (one layer) the count and flag of all registers.
-StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
+absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     const DecryptOneLayerFlagAndCountRequest& request);
 
 // Decrypt (last layer) the count and flag of all registers.
-StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
+absl::StatusOr<DecryptLastLayerFlagAndCountResponse>
+DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request);
 
 }  // namespace crypto

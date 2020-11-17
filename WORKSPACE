@@ -25,11 +25,12 @@ http_archive(
     urls = ["https://github.com/google/googletest/archive/release-1.10.0.zip"],
 )
 
-http_archive(
-    name = "absl",
-    sha256 = "f342aac71a62861ac784cadb8127d5a42c6c61ab1cd07f00aef05f2cc4988c42",
-    strip_prefix = "abseil-cpp-20200225.2",
-    urls = ["https://github.com/abseil/abseil-cpp/archive/20200225.2.zip"],
+# Abseil C++ libraries
+git_repository(
+    name = "com_google_absl",
+    commit = "0f3bb466b868b523cf1dc9b2aaaed65c77b28862",
+    remote = "https://github.com/abseil/abseil-cpp.git",
+    shallow_since = "1603283562 -0400",
 )
 
 # @com_google_truth_truth
@@ -230,22 +231,30 @@ http_file(
 )
 
 # @com_google_private_join_and_compute
+git_repository(
+    name = "com_google_private_join_and_compute",
+    commit = "aa2d68e68193547e88a120c667e173662abd7478",
+    remote = "https://github.com/google/private-join-and-compute.git",
+    shallow_since = "1605559721 -0400",
+)
 
-load("//build/com_google_private_join_and_compute:repo.bzl", "private_join_and_compute_repo")
-
-private_join_and_compute_repo(
-    commit = "b040c117663747c7d0f3fae082a613ca8bf60943",
-    sha256 = "9fc5ff2134ba87332596199289c7752e062567fe67802b73495297a851b9c240",
+# glog
+# Needed for private-join-and-compute
+http_archive(
+    name = "com_github_glog_glog",
+    sha256 = "f28359aeba12f30d73d9e4711ef356dc842886968112162bc73002645139c39c",
+    strip_prefix = "glog-0.4.0",
+    urls = ["https://github.com/google/glog/archive/v0.4.0.tar.gz"],
 )
 
 # gRPC
 # Needed for private-join-and-compute
 http_archive(
     name = "com_github_grpc_grpc",
-    sha256 = "4cbce7f708917b6e58b631c24c59fe720acc8fef5f959df9a58cdf9558d0a79b",
-    strip_prefix = "grpc-1.28.1",
+    sha256 = "2060769f2d4b0d3535ba594b2ab614d7f68a492f786ab94b4318788d45e3278a",
+    strip_prefix = "grpc-1.33.2",
     urls = [
-        "https://github.com/grpc/grpc/archive/v1.28.1.tar.gz",
+        "https://github.com/grpc/grpc/archive/v1.33.2.tar.gz",
     ],
 )
 
@@ -352,14 +361,14 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    commit = "523107ea635c4aabb39496d1bd776bd439dc65c9",
+    commit = "5415eec38253c3bd3f250cb12fdc24242743e426",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     shallow_since = "1603139261 +0000",
 )
 
 git_repository(
     name = "any_sketch_java",
-    commit = "54089b0f800fd6707d00c099a63d4963c40bb652",
+    commit = "d4a8369630667880026b7bf927e405508fbee381",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
     shallow_since = "1604438026 -0500",
 )

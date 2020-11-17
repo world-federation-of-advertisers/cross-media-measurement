@@ -20,7 +20,6 @@
 #include "absl/types/span.h"
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
-#include "util/canonical_errors.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
@@ -39,9 +38,6 @@ using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
-using ::private_join_and_compute::InternalError;
-using ::private_join_and_compute::InvalidArgumentError;
-using ::private_join_and_compute::Status;
 using ElGamalCiphertext = std::pair<std::string, std::string>;
 using FlagCount = DecryptLastLayerFlagAndCountResponse::FlagCount;
 
@@ -69,21 +65,21 @@ ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKeys& public_keys) {
   return std::make_pair(public_keys.el_gamal_g(), public_keys.el_gamal_y());
 }
 
-Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
-                                 std::string& result) {
+absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
+                                       std::string& result) {
   std::string temp;
   ASSIGN_OR_RETURN(temp, ec_point_pair.u.ToBytesCompressed());
   result.append(temp);
   ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
   result.append(temp);
-  return Status::OK;
+  return absl::OkStatus();
 }
 
 // Extract an ElGamalCiphertext from a string_view.
-StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
+absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
     absl::string_view str) {
   if (str.size() != kBytesPerCipherText) {
-    return InternalError("string size doesn't match ciphertext size.");
+    return absl::InternalError("string size doesn't match ciphertext size.");
   }
   return std::make_pair(
       std::string(str.substr(0, kBytesPerEcPoint)),
@@ -91,10 +87,10 @@ StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
 }
 
 // Extract a KeyCountPairCipherText from a string_view.
-StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
+absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
     absl::string_view str) {
   if (str.size() != kBytesPerCipherText * 2) {
-    return InternalError(
+    return absl::InternalError(
         "string size doesn't match keycount pair ciphertext size.");
   }
   KeyCountPairCipherText result;
@@ -106,21 +102,21 @@ StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
   return result;
 }
 
-Status ValidateByteSize(absl::string_view data, const int bytes_per_row) {
+absl::Status ValidateByteSize(absl::string_view data, const int bytes_per_row) {
   if (data.empty()) {
-    return InvalidArgumentError("Input data is empty");
+    return absl::InvalidArgumentError("Input data is empty");
   }
   if (data.size() % bytes_per_row) {
-    return InvalidArgumentError(absl::StrCat(
+    return absl::InvalidArgumentError(absl::StrCat(
         "The size of byte array is not divisible by the row_size: ",
         bytes_per_row));
   }
-  return Status::OK;
+  return absl::OkStatus();
 }
 
 // Blind the last layer of ElGamal Encryption of registers, and return the
 // deterministically encrypted results.
-StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
+absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
     absl::string_view sketch, ProtocolCryptor& protocol_cryptor) {
   RETURN_IF_ERROR(ValidateByteSize(sketch, kBytesPerCipherRegister));
   const int num_registers = sketch.size() / kBytesPerCipherRegister;
@@ -149,7 +145,7 @@ StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
 //      the unit integer, denoted as EC_1.
 //   3. For EC_n, it is obtained via calculateing EC_1.mul(n) on the curve.
 // This method generates the reverse lookup table for decryption.
-StatusOr<absl::flat_hash_map<std::string, int>> CreateCountLookUpTable(
+absl::StatusOr<absl::flat_hash_map<std::string, int>> CreateCountLookUpTable(
     const int curve_id, const int maximum_frequency) {
   absl::flat_hash_map<std::string, int> count_lookup_table;
   auto ctx = absl::make_unique<Context>();
@@ -173,7 +169,7 @@ StatusOr<absl::flat_hash_map<std::string, int>> CreateCountLookUpTable(
 
 // TODO: delete this method after DecryptLastLayerFlagAndCount() uses the
 // ProtocolCryptor.
-StatusOr<std::string> GetIsNotDestroyedFlag(const int curve_id) {
+absl::StatusOr<std::string> GetIsNotDestroyedFlag(const int curve_id) {
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(auto ec_group, ECGroup::Create(curve_id, ctx.get()));
   ASSIGN_OR_RETURN(ECPoint temp_ec_point,
@@ -185,11 +181,11 @@ StatusOr<std::string> GetIsNotDestroyedFlag(const int curve_id) {
 // The calculated (flag, count) is appended to the response.
 // 'sub_permutation' contains the locations of the registers belonging to this
 // group, i.e., having the same blinded register index.
-Status MergeCountsUsingSameKeyAggregation(
+absl::Status MergeCountsUsingSameKeyAggregation(
     absl::Span<const size_t> sub_permutation, absl::string_view sketch,
     ProtocolCryptor& protocol_cryptor, std::string& response) {
   if (sub_permutation.empty()) {
-    return InternalError("Empty sub permutation.");
+    return absl::InternalError("Empty sub permutation.");
   }
   // Create a new ElGamal Encryption of the is_not_destroyed flag.
   ASSIGN_OR_RETURN(std::string is_not_destroyed,
@@ -199,7 +195,7 @@ Status MergeCountsUsingSameKeyAggregation(
   size_t offset =
       sub_permutation[0] * kBytesPerCipherRegister + kBytesPerCipherText;
   if (offset > sketch.size()) {
-    return InternalError("Offset is out of bound");
+    return absl::InternalError("Offset is out of bound");
   }
   ASSIGN_OR_RETURN(KeyCountPairCipherText key_count_0,
                    ExtractKeyCountPairFromSubstring(
@@ -223,7 +219,7 @@ Status MergeCountsUsingSameKeyAggregation(
       size_t data_offset =
           sub_permutation[i] * kBytesPerCipherRegister + kBytesPerCipherText;
       if (data_offset > sketch.size()) {
-        return InternalError("Offset is out of bound");
+        return absl::InternalError("Offset is out of bound");
       }
       ASSIGN_OR_RETURN(KeyCountPairCipherText next_key_count,
                        ExtractKeyCountPairFromSubstring(sketch.substr(
@@ -247,13 +243,13 @@ Status MergeCountsUsingSameKeyAggregation(
   // response.
   RETURN_IF_ERROR(AppendEcPointPairToString(final_flag, response));
   RETURN_IF_ERROR(AppendEcPointPairToString(final_count, response));
-  return Status::OK;
+  return absl::OkStatus();
 }
 
 // Join registers with the same blinded register index as a group, and merge all
 // the counts in each group using the SameKeyAggregation algorithm. Then, append
 // the (flag, count) result of each group to the response.
-Status JoinRegistersByIndexAndMergeCounts(
+absl::Status JoinRegistersByIndexAndMergeCounts(
     ProtocolCryptor& protocol_cryptor, absl::string_view sketch,
     const std::vector<std::string>& blinded_register_indexes,
     absl::Span<const size_t> permutation, std::string& response) {
@@ -278,7 +274,7 @@ Status JoinRegistersByIndexAndMergeCounts(
   RETURN_IF_ERROR(MergeCountsUsingSameKeyAggregation(
       permutation.subspan(start, num_registers - start), sketch,
       protocol_cryptor, response));
-  return Status::OK;
+  return absl::OkStatus();
 }
 
 absl::Duration getCurrentThreadCpuDuration() {
@@ -294,7 +290,7 @@ absl::Duration getCurrentThreadCpuDuration() {
 
 }  // namespace
 
-StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
+absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request) {
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
@@ -359,7 +355,7 @@ StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
   return response;
 };
 
-StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
+absl::StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
 BlindLastLayerIndexThenJoinRegisters(
     const BlindLastLayerIndexThenJoinRegistersRequest& request) {
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
@@ -409,7 +405,7 @@ BlindLastLayerIndexThenJoinRegisters(
   return response;
 };
 
-StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
+absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     const DecryptOneLayerFlagAndCountRequest& request) {
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
@@ -456,7 +452,8 @@ StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   return response;
 };
 
-StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
+absl::StatusOr<DecryptLastLayerFlagAndCountResponse>
+DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request) {
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
@@ -497,7 +494,7 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
     ASSIGN_OR_RETURN(ElGamalCiphertext count_ciphertext,
                      ExtractElGamalCiphertextFromString(current_block.substr(
                          kBytesPerCipherText, kBytesPerCipherText)));
-    StatusOr<std::string> count_plaintext =
+    absl::StatusOr<std::string> count_plaintext =
         el_gamal_cipher->Decrypt(count_ciphertext);
 
     if (count_plaintext.ok()) {
@@ -528,7 +525,7 @@ StatusOr<DecryptLastLayerFlagAndCountResponse> DecryptLastLayerFlagAndCount(
   return response;
 };
 
-StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
+absl::StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
     const AddNoiseToSketchRequest& request) {
   absl::Duration startCpuDuration = getCurrentThreadCpuDuration();
 
