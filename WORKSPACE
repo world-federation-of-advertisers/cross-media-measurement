@@ -201,7 +201,7 @@ container_pull(
 # gcr.io/ads-open-measurement/bazel
 container_pull(
     name = "bazel_image",
-    digest = "sha256:a1437a53ce0f06028d7a4527dc403b8acf00bb5674e15e4f1b993e29b02a0d82",
+    digest = "sha256:4d63678c47062af86b9149fd24985dfabf83db62dc9ff18b209337d5c321670b",
     registry = "gcr.io",
     repository = "ads-open-measurement/bazel",
 )
@@ -212,14 +212,6 @@ container_pull(
     digest = "sha256:e2d6a9216a49e4c909690a1f98d4670aa503d6a3fe5d6f1f9a171eadb45e23e5",
     registry = "gcr.io",
     repository = "ads-open-measurement/java-base",
-)
-
-# See https://docs.bazel.build/versions/3.7.0/install-ubuntu.html
-http_file(
-    name = "bazel_apt_key",
-    downloaded_file_path = "bazel-release.pub.gpg",
-    sha256 = "547ec71b61f94b07909969649d52ee069db9b0c55763d3add366ca7a30fb3f6d",
-    urls = ["https://bazel.build/bazel-release.pub.gpg"],
 )
 
 # APT key for Google cloud.
@@ -340,6 +332,15 @@ http_file(
     executable = True,
     sha256 = "f9a9c082b8190b9260fce2986aeba02a25d41c00178855a1425e1ce6f1169843",
     urls = ["https://github.com/bazelbuild/buildtools/releases/download/3.5.0/buildifier"],
+)
+
+# bazel
+http_file(
+    name = "bazel",
+    downloaded_file_path = "bazel",
+    executable = True,
+    sha256 = "b7583eec83cc38302997098a40b8c870c37e0ab971a83cb3364c754a178b74ec",
+    urls = ["https://github.com/bazelbuild/bazel/releases/download/3.7.0/bazel-3.7.0-linux-x86_64"],
 )
 
 # Rules for swig wrapping.

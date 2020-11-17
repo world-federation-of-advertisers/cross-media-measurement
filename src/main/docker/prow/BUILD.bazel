@@ -12,6 +12,18 @@ load(
 
 BASE_IMAGE = "@bazel_image//image"
 
+# APT packages necessary for adding an APT key.
+container_commit_install_apt_packages(
+    name = "apt_key_packages",
+    image = BASE_IMAGE,
+    packages = [
+        "apt-transport-https",
+        "ca-certificates",
+        "gnupg",
+    ],
+    tags = ["manual"],
+)
+
 container_layer(
     name = "gcloud_key_file",
     directory = "/root",
@@ -24,6 +36,7 @@ container_image(
     name = "apt_key_install_image",
     base = BASE_IMAGE,
     layers = [
+        ":apt_key_packages",
         ":gcloud_key_file",
     ],
     tags = ["manual"],
