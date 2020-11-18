@@ -17,11 +17,15 @@
 
 #include <memory>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 
 namespace wfa::measurement::common::crypto {
+
+enum Action { kBlind, kPartialDecrypt, kDecrypt, kReRandomize, kNoop };
 
 // A cryptor dealing with basic operations in various MPC protocols.
 class ProtocolCryptor {
@@ -58,6 +62,11 @@ class ProtocolCryptor {
       const ElGamalCiphertext& cipher_text) = 0;
   // Returns the key of the local PohligHellman cipher.
   virtual std::string GetLocalPohligHellmanKey() = 0;
+  // Batch processes the ciphertexts in the data, and attaches the results to
+  // the result.
+  virtual absl::Status BatchProcess(absl::string_view data,
+                                    absl::Span<const Action> actions,
+                                    std::string* result) = 0;
 
  protected:
   ProtocolCryptor() = default;

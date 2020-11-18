@@ -15,6 +15,7 @@
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "crypto/commutative_elgamal.h"
@@ -31,6 +32,11 @@ using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
+
+// TODO: move to a constants.h
+constexpr int kBytesPerEcPoint = 33;
+// A ciphertext contains 2 EcPoints.
+constexpr int kBytesPerCipherText = kBytesPerEcPoint * 2;
 
 class ProtocolCryptorImpl : public ProtocolCryptor {
  public:
@@ -59,6 +65,9 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   absl::StatusOr<ElGamalEcPointPair> ToElGamalEcPoints(
       const ElGamalCiphertext& cipher_text) override;
   std::string GetLocalPohligHellmanKey() override;
+  absl::Status BatchProcess(absl::string_view data,
+                            absl::Span<const Action> actions,
+                            std::string* result) override;
 
  private:
   // A CommutativeElGamal cipher created using local ElGamal Keys, used for
@@ -161,6 +170,61 @@ std::string ProtocolCryptorImpl::GetLocalPohligHellmanKey() {
   return local_pohlig_hellman_cipher_->GetPrivateKeyBytes();
 }
 
+absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
+                                               absl::Span<const Action> actions,
+                                               std::string* result) {
+  if (result == nullptr) {
+    return absl::InvalidArgumentError("The result string pointer is null.");
+  }
+  size_t num_of_ciphertext = actions.size();
+  if (data.size() != num_of_ciphertext * kBytesPerCipherText) {
+    return absl::InvalidArgumentError(
+        "The input data can not be partitioned to ciphertexts.");
+  }
+  for (size_t index = 0; index < num_of_ciphertext; ++index) {
+    ElGamalCiphertext ciphertext = std::make_pair(
+        std::string(data.substr(index * kBytesPerCipherText, kBytesPerEcPoint)),
+        std::string(data.substr(index * kBytesPerCipherText + kBytesPerEcPoint,
+                                kBytesPerEcPoint)));
+    switch (actions[index]) {
+      case Action::kBlind: {
+        ASSIGN_OR_RETURN(ElGamalCiphertext temp, Blind(ciphertext));
+        result->append(temp.first);
+        result->append(temp.second);
+        break;
+      }
+      case Action::kPartialDecrypt: {
+        ASSIGN_OR_RETURN(std::string temp, DecryptLocalElGamal(ciphertext));
+        // The first part of the ciphertext is the random number which is still
+        // required to decrypt the other layers of ElGamal encryptions (at the
+        // subsequent duchies. So we keep it.
+        result->append(ciphertext.first);
+        result->append(temp);
+        break;
+      }
+      case Action::kDecrypt: {
+        ASSIGN_OR_RETURN(std::string temp, DecryptLocalElGamal(ciphertext));
+        result->append(temp);
+        break;
+      }
+      case Action::kReRandomize: {
+        ASSIGN_OR_RETURN(ElGamalCiphertext temp, ReRandomize(ciphertext));
+        result->append(temp.first);
+        result->append(temp.second);
+        break;
+      }
+      case Action::kNoop: {
+        result->append(ciphertext.first);
+        result->append(ciphertext.second);
+        break;
+      }
+      default:
+        return absl::InvalidArgumentError("Unknown action.");
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
@@ -178,8 +242,10 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
                              curve_id, local_el_gamal_public_key,
                              std::string(local_el_gamal_private_key)));
   ASSIGN_OR_RETURN(auto client_el_gamal_cipher,
-                   CommutativeElGamal::CreateFromPublicKey(
-                       curve_id, composite_el_gamal_public_key));
+                   composite_el_gamal_public_key.first.empty()
+                       ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
+                       : CommutativeElGamal::CreateFromPublicKey(
+                             curve_id, composite_el_gamal_public_key));
   ASSIGN_OR_RETURN(
       auto local_pohlig_hellman_cipher,
       local_pohlig_hellman_private_key.empty()

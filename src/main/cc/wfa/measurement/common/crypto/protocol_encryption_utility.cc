@@ -321,33 +321,12 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     absl::string_view current_block =
         absl::string_view(request.sketch())
             .substr(offset, kBytesPerCipherRegister);
-    ASSIGN_OR_RETURN(ElGamalCiphertext index,
-                     ExtractElGamalCiphertextFromString(
-                         current_block.substr(0, kBytesPerCipherText)));
-    ASSIGN_OR_RETURN(ElGamalCiphertext key,
-                     ExtractElGamalCiphertextFromString(current_block.substr(
-                         kBytesPerCipherText, kBytesPerCipherText)));
-    ASSIGN_OR_RETURN(ElGamalCiphertext count,
-                     ExtractElGamalCiphertextFromString(current_block.substr(
-                         kBytesPerCipherText * 2, kBytesPerCipherText)));
-
-    ASSIGN_OR_RETURN(ElGamalCiphertext blinded_index,
-                     protocol_cryptor->Blind(index));
-    ASSIGN_OR_RETURN(ElGamalCiphertext re_randomized_key,
-                     protocol_cryptor->ReRandomize(key));
-    ASSIGN_OR_RETURN(ElGamalCiphertext re_randomized_count,
-                     protocol_cryptor->ReRandomize(count));
-    // Append the result to the response.
-    response_sketch->append(blinded_index.first);
-    response_sketch->append(blinded_index.second);
-    response_sketch->append(re_randomized_key.first);
-    response_sketch->append(re_randomized_key.second);
-    response_sketch->append(re_randomized_count.first);
-    response_sketch->append(re_randomized_count.second);
+    RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
+        current_block,
+        {Action::kBlind, Action::kReRandomize, Action::kReRandomize},
+        response_sketch));
   }
-
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
-
   absl::Duration elaspedDuration =
       getCurrentThreadCpuDuration() - startCpuDuration;
   response.set_elapsed_cpu_time_millis(
@@ -412,15 +391,17 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
   // Each unit contains 2 ciphertexts, e.g., flag and count.
   RETURN_IF_ERROR(
       ValidateByteSize(request.flag_counts(), kBytesPerCipherText * 2));
-  // Create an ElGamal cipher for decryption.
   ASSIGN_OR_RETURN_ERROR(
-      std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
-      CommutativeElGamal::CreateFromPublicAndPrivateKeys(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
           request.curve_id(),
-          GetPublicKeyStringPair(
-              request.local_el_gamal_key_pair().el_gamal_pk()),
-          request.local_el_gamal_key_pair().el_gamal_sk()),
-      "Failed to create the local ElGamal cipher, invalid curveId or keys");
+          std::make_pair(
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
+              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
+          request.local_el_gamal_key_pair().el_gamal_sk(),
+          /*local_el_gamal_private_key=*/"",
+          /*composite_el_gamal_public_key=*/std::make_pair("", "")),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
 
   DecryptOneLayerFlagAndCountResponse response;
   std::string* response_data = response.mutable_flag_counts();
@@ -432,16 +413,8 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     // kBytesPerCipherText
     absl::string_view current_block = absl::string_view(request.flag_counts())
                                           .substr(offset, kBytesPerCipherText);
-    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractElGamalCiphertextFromString(current_block));
-    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     el_gamal_cipher->Decrypt(ciphertext));
-    // Append the result to the response.
-    // The first part of the ciphertext is the random number which is still
-    // required to decrypt the other layers of ElGamal encryptions (at the
-    // subsequent duchies. So we keep it.
-    response_data->append(ciphertext.first);
-    response_data->append(decrypted_el_gamal);
+    RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
+        current_block, {Action::kPartialDecrypt}, response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
