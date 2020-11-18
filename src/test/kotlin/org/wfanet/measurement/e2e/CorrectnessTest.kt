@@ -62,15 +62,18 @@ class CorrectnessTest {
   fun testCorrectnessInKind() {
     val clusterState = ClusterState(KindRule.clusterName)
 
+    // TODO(fashing): Replace with k8s readiness checks or something similar.
     // Poll statuses until cluster is ready
-    val maxAttempts = 60
+    val maxAttempts = 300
     var isReady = false
     for (numAttempts in 1..maxAttempts) {
-      val isPublisherDataServerRunning =
-        clusterState.isPodRunning("$publisherDataServer-pod")
+      val podStatuses = clusterState.getPodStatuses()
+        .filter { !it.key.startsWith("correctness-test-job-") }
+      val podsRunningOrSucceeded =
+        podStatuses.isNotEmpty() && podStatuses.values.all { it == "Running" || it == "Succeeded" }
       val haveSchemaPushesSucceeded =
         clusterState.jobsSucceeded(('a'..'c').map { "$it-$pushSpannerSchemaJob" })
-      isReady = isPublisherDataServerRunning && haveSchemaPushesSucceeded
+      isReady = podsRunningOrSucceeded && haveSchemaPushesSucceeded
       if (isReady) {
         break
       }
@@ -79,6 +82,8 @@ class CorrectnessTest {
     if (!isReady) {
       fail("Timed out waiting for cluster to be ready")
     }
+    // Wait for servers to be ready to accept traffic
+    Thread.sleep(30000L)
 
     val nodeIp = clusterState.getNodeIp()
     val nodePorts = clusterState.getNodePorts()

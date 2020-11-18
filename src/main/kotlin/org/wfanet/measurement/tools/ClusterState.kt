@@ -117,27 +117,33 @@ class ClusterState(private val clusterName: String = "kind") {
         }
     }
 
-  fun isPodRunning(podName: String): Boolean =
-    handleJson("kubectl get pod $podName -o json --context kind-$clusterName") { json ->
-      json.getAsJsonObject("status")
-        .getAsJsonPrimitive("phase").asString == "Running"
+  fun getPodStatuses(): Map<String, String> =
+    exec(
+      listOf(
+        "kubectl", "get", "pods", "--context", "kind-$clusterName",
+        "-o=jsonpath={range .items[*]}{.metadata.name}{\"=\"}{.status.phase}{\"\\n\"}{end}"
+      )
+    ) { reader ->
+      reader.readLines().associate {
+        val str = it.split("=")
+        require(str.size == 2)
+        Pair(str[0], str[1])
+      }
     }
 }
 
 private fun <T> handleJson(command: String, parse: (JsonObject) -> T): T =
-  exec(command) { reader ->
+  exec(command.split("\\s".toRegex())) { reader ->
     val element = parseReader(JsonReader(reader))
     parse(element.asJsonObject)
   }
 
 /** Runs a subprocess and runs its stdout through the parser. */
 private fun <T> exec(
-  command: String,
+  command: List<String>,
   parse: (Reader) -> T
 ): T {
-  val process =
-    ProcessBuilder(command.split("\\s".toRegex()))
-      .start()
+  val process = ProcessBuilder(command).start()
   var errorMessage: String? = null
   var result: T? = null
 
