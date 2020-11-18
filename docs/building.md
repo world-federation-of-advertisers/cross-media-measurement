@@ -9,10 +9,11 @@ resulting container images are intended to run in
 In order to build the primary system executables and run the corresponding
 tests, your build environment must meet the following:
 
-*   Bazel and its dependencies
-    *   Known to work with Bazel 3.6.0
+*   Bazel
+    *   Known to work with Bazel 3.7.0
 *   GNU/Linux OS with x86-64 architecture
-    *   Known to work on Debian Bullseye
+    *   Known to work on Debian Bullseye and Ubuntu 18.04
+*   [Clang](https://clang.llvm.org/)
 *   [SWIG](http://swig.org/)
 *   Bash
 

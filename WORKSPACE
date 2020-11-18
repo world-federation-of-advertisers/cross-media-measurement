@@ -284,6 +284,7 @@ container_pull(
 )
 
 load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
+load("//src/main/docker:constants.bzl", "DEBIAN_JAVA_11")
 
 # Configuration for RBE (Foundry).
 # See //src/main/docker/rbe:rbe_image.
@@ -291,7 +292,7 @@ rbe_autoconfig(
     name = "rbe_default",
     base_container_digest = RBE_BASE_DIGEST,
     digest = "sha256:308c797bf7374748ac17e094be0060831dd4650aa4d89b812f4b178e6d799e8e",
-    java_home = "/usr/lib/jvm/java-11-openjdk-amd64",
+    java_home = DEBIAN_JAVA_11.home,
     registry = "gcr.io",
     repository = "ads-open-measurement/rbe",
     use_legacy_platform_definition = False,

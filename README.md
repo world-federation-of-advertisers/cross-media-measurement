@@ -167,6 +167,8 @@ production code.
 
 ### How to Build
 
+See [Building](docs/building.md).
+
 ### How to Deploy
 
 ## Documentation
@@ -177,7 +179,7 @@ this README alone. More details are covered in:
 *   [A System Design for Privacy-Preserving Reach and Frequency Estimation](https://research.google/pubs/pub49526/)
 *   [Privacy-Preserving Secure Cardinality and Frequency Estimation](https://research.google/pubs/pub49177/)
 
-### Dependencies
+### Technologies
 
 *   [Bazel](https://bazel.build/)
 *   [Docker](https://www.docker.com/)

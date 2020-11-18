@@ -16,20 +16,25 @@ JAVA = DEBIAN_JAVA_11
 
 BASE_IMAGE = "@ubuntu_18_04//image"
 
+# Bazel requires zip/unzip, a C++ compiler, and a JDK.
+# See https://docs.bazel.build/versions/3.7.0/install-ubuntu.html#step-1-install-required-packages
+BAZEL_DEPS = [
+    "clang-9",
+    "openjdk-11-jdk-headless",
+    "unzip",
+    "zip",
+]
+
 container_commit_install_apt_packages(
     name = "apt_packages",
     image = BASE_IMAGE,
     packages = [
-        "clang-9",
         "git",
-        "openjdk-11-jdk-headless",
         "python",
         "python3",
         "swig",
-        "tzdata",
-        "unzip",
-        "zip",
-    ],
+        "tzdata",  # For Cloud Spanner Emulator.
+    ] + BAZEL_DEPS,
     tags = ["manual"],
     upgrade = True,
 )

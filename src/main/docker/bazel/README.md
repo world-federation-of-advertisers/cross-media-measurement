@@ -13,12 +13,14 @@ the build environment needed for this project.
 
 In particular:
 
-1.  Bazel
-1.  JDK 11
-1.  Python
-1.  Git
-1.  Timezone database (`tzdata`)
-1.  [SWIG](http://swig.org/)
+*   Bazel
+    *   `zip`/`unzip`
+    *   [Clang](https://clang.llvm.org/)
+    *   JDK 11
+*   Python
+*   Git
+*   Timezone database (`tzdata`)
+*   [SWIG](http://swig.org/)
 
 ## Building in Container
 
