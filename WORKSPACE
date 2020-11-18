@@ -59,6 +59,7 @@ load("//build/kotlinx_coroutines:repo.bzl", "kotlinx_coroutines_artifact_dict")
 
 http_archive(
     name = "com_github_grpc_grpc_kotlin",
+    sha256 = "08f06a797ec806d68e8811018cefd1d5a6b8bf1782b63937f2618a6be86a9e2d",
     strip_prefix = "grpc-kotlin-0.2.1",
     url = "https://github.com/grpc/grpc-kotlin/archive/v0.2.1.zip",
 )
@@ -227,7 +228,7 @@ git_repository(
     name = "com_google_private_join_and_compute",
     commit = "aa2d68e68193547e88a120c667e173662abd7478",
     remote = "https://github.com/google/private-join-and-compute.git",
-    shallow_since = "1605559721 -0400",
+    shallow_since = "1605562036 +0000",
 )
 
 # glog
@@ -364,12 +365,12 @@ git_repository(
     name = "any_sketch",
     commit = "5415eec38253c3bd3f250cb12fdc24242743e426",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
-    shallow_since = "1603139261 +0000",
+    shallow_since = "1605572796 -0500",
 )
 
 git_repository(
     name = "any_sketch_java",
     commit = "d4a8369630667880026b7bf927e405508fbee381",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
-    shallow_since = "1604438026 -0500",
+    shallow_since = "1605573394 -0500",
 )
