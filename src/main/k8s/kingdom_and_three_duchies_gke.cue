@@ -89,6 +89,7 @@ kingdom: #Kingdom & {
 		"gcp-kingdom-data-server":       "gcr.io/ads-open-measurement/kingdom/data-server"
 		"global-computation-server":     "gcr.io/ads-open-measurement/kingdom/global-computation"
 		"requisition-server":            "gcr.io/ads-open-measurement/kingdom/requisition"
+		"system-requisition-server":     "gcr.io/ads-open-measurement/kingdom/system-requisition"
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"

@@ -63,6 +63,11 @@ COMMON_IMAGES = [
         repository = "ads-open-measurement/kingdom/requisition",
     ),
     struct(
+        name = "kingdom_system_requisition_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_requisition_server_image",
+        repository = "ads-open-measurement/kingdom/system-requisition",
+    ),
+    struct(
         name = "kingdom_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image",
         repository = "ads-open-measurement/kingdom/data-server",
