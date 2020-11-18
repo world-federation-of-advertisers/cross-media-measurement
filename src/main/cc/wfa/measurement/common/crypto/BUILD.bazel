@@ -15,6 +15,9 @@ cc_library(
         "constants.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 cc_library(

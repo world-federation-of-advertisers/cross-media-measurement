@@ -15,6 +15,8 @@
 #ifndef WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
 #define WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
 
+#include "absl/strings/string_view.h"
+
 namespace wfa::measurement::common::crypto {
 
 inline constexpr int kBytesPerEcPoint = 33;
@@ -25,6 +27,10 @@ inline constexpr int kBytesPerCipherRegister = kBytesPerCipherText * 3;
 // The seed for the IsNotDestoryed flag.
 inline constexpr char kIsNotDestroyed[] = "IsNotDestroyed";
 inline constexpr char KUnitECPointSeed[] = "unit_ec_point";
+
+inline constexpr absl::string_view kGenerateWithNewPohligHellmanKey = "";
+inline const std::pair<std::string, std::string> kGenerateWithNewElGamalKey = {
+    "", ""};
 
 }  // namespace wfa::measurement::common::crypto
 

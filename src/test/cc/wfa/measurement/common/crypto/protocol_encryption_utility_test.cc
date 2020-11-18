@@ -90,13 +90,6 @@ ElGamalKeyPair GenerateRandomElGamalKeyPair(const int curve_id) {
   return el_gamal_key_pair;
 }
 
-std::string GenerateRandomPhKey(const int curve_id) {
-  auto p_h_cipher = ECCommutativeCipher::CreateWithNewKey(
-                        curve_id, ECCommutativeCipher::HashType::SHA256)
-                        .value();
-  return p_h_cipher.get()->GetPrivateKeyBytes();
-}
-
 void AddRegister(Sketch* sketch, const int index, const int key,
                  const int count) {
   auto register_ptr = sketch->add_registers();
@@ -138,9 +131,6 @@ class TestData {
     duchy_1_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
     duchy_2_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
     duchy_3_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
-    duchy_1_p_h_key_ = GenerateRandomPhKey(kTestCurveId);
-    duchy_2_p_h_key_ = GenerateRandomPhKey(kTestCurveId);
-    duchy_3_p_h_key_ = GenerateRandomPhKey(kTestCurveId);
 
     // Combine the el_gamal keys from all duchies to generate the data provider
     // el_gamal key.
@@ -197,8 +187,6 @@ class TestData {
     // Blind register indexes at duchy 1
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_1;
     *blind_one_layer_register_index_request_1
-         .mutable_local_pohlig_hellman_sk() = duchy_1_p_h_key_;
-    *blind_one_layer_register_index_request_1
          .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
     *blind_one_layer_register_index_request_1
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key;
@@ -214,8 +202,6 @@ class TestData {
 
     // Blind register indexes at duchy 2
     BlindOneLayerRegisterIndexRequest blind_one_layer_register_index_request_2;
-    *blind_one_layer_register_index_request_2
-         .mutable_local_pohlig_hellman_sk() = duchy_2_p_h_key_;
     *blind_one_layer_register_index_request_2
          .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
     *blind_one_layer_register_index_request_2
@@ -234,8 +220,6 @@ class TestData {
     // Blind register indexes and join registers at duchy 3 (primary duchy)
     BlindLastLayerIndexThenJoinRegistersRequest
         blind_last_layer_index_then_join_registers_request;
-    *blind_last_layer_index_then_join_registers_request
-         .mutable_local_pohlig_hellman_sk() = duchy_3_p_h_key_;
     *blind_last_layer_index_then_join_registers_request
          .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
     *blind_last_layer_index_then_join_registers_request
@@ -317,7 +301,6 @@ TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
 
   // Blind register indexes at duchy 1
   BlindOneLayerRegisterIndexRequest request;
-  *request.mutable_local_pohlig_hellman_sk() = test_data.duchy_1_p_h_key_;
   *request.mutable_local_el_gamal_key_pair() =
       test_data.duchy_1_el_gamal_key_pair_;
   *request.mutable_composite_el_gamal_public_key() =

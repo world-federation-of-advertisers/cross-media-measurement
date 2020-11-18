@@ -264,14 +264,12 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
               request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
               request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
           request.local_el_gamal_key_pair().el_gamal_sk(),
-          request.local_pohlig_hellman_sk(),
+          kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().el_gamal_g(),
                          request.composite_el_gamal_public_key().el_gamal_y())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   BlindOneLayerRegisterIndexResponse response;
-  *response.mutable_local_pohlig_hellman_sk() =
-      protocol_cryptor->GetLocalPohligHellmanKey();
   std::string* response_sketch = response.mutable_sketch();
   // The output sketch is the same size with the input sketch.
   response_sketch->reserve(request.sketch().size());
@@ -310,7 +308,7 @@ BlindLastLayerIndexThenJoinRegisters(
               request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
               request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
           request.local_el_gamal_key_pair().el_gamal_sk(),
-          request.local_pohlig_hellman_sk(),
+          kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().el_gamal_g(),
                          request.composite_el_gamal_public_key().el_gamal_y())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
@@ -330,8 +328,6 @@ BlindLastLayerIndexThenJoinRegisters(
 
   BlindLastLayerIndexThenJoinRegistersResponse response;
   std::string* response_data = response.mutable_flag_counts();
-  *response.mutable_local_pohlig_hellman_sk() =
-      protocol_cryptor->GetLocalPohligHellmanKey();
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       *protocol_cryptor, request.sketch(), blinded_register_indexes,
       permutation, *response_data));
@@ -359,8 +355,7 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
               request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
               request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
           request.local_el_gamal_key_pair().el_gamal_sk(),
-          /*local_el_gamal_private_key=*/"",
-          /*composite_el_gamal_public_key=*/std::make_pair("", "")),
+          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   DecryptOneLayerFlagAndCountResponse response;

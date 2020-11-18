@@ -72,14 +72,11 @@ message BlindOneLayerRegisterIndexRequest {
   bytes sketch = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
-  // Secret key of the local Pohlig-Hellman cipher. Optional.
-  // If unset, a random key will be used.
-  bytes local_pohlig_hellman_sk = 3;
-  // The elliptical curve to work on.
-  int64 curve_id = 4;
   // Public Key of the composite ElGamal cipher. Used to re-randomize the keys
   // and counts.
-  ElGamalPublicKey composite_el_gamal_public_key = 5;
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
+  // The elliptical curve to work on.
+  int64 curve_id = 4;
 }
 
 // Response of the BlindOneLayerRegisterIndex method.
@@ -89,12 +86,8 @@ message BlindOneLayerRegisterIndexResponse {
   // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
   // divisible by 66*3.
   bytes sketch = 1;
-  // The key used to create the local Pohlig Hellman cipher.
-  // If the request specifies this key, the same value is returned,
-  // otherwise, the randomly generated key is returned.
-  bytes local_pohlig_hellman_sk = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 3;
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to blind (last layer) the register indexes, and then join the
@@ -111,14 +104,11 @@ message BlindLastLayerIndexThenJoinRegistersRequest {
   bytes sketch = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
-  // Secret key of the local Pohlig-Hellman cipher. Optional.
-  // If unset, a random key will be used.
-  bytes local_pohlig_hellman_sk = 3;
-  // The elliptical curve to work on.
-  int64 curve_id = 4;
   // Public Key of the composite ElGamal cipher. Used to encrypt the random
   // numbers in SameKeyAggregation.
-  ElGamalPublicKey composite_el_gamal_public_key = 5;
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
+  // The elliptical curve to work on.
+  int64 curve_id = 4;
 }
 
 // The response of the BlindLastLayerIndexThenJoinRegisters method.
@@ -127,12 +117,8 @@ message BlindLastLayerIndexThenJoinRegistersResponse {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 132.
   bytes flag_counts = 1;
-  // The key used to create the local Pohlig Hellman cipher.
-  // If the request specifies this key, the same value is returned,
-  // otherwise, the randomly generated key is returned.
-  bytes local_pohlig_hellman_sk = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 3;
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to decrypt one layer of ElGamal encryption on the flag and count
