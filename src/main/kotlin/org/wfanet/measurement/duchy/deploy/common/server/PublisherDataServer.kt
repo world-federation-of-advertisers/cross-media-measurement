@@ -24,6 +24,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 import picocli.CommandLine
 
 private const val SERVICE_NAME = "PublisherData"
@@ -59,6 +60,16 @@ private class Flags {
     private set
 
   @CommandLine.Option(
+    names = ["--system-requisition-service-target"],
+    description = [
+      "gRPC target (authority string or URI) for Requisition service in the system API."
+    ],
+    required = true
+  )
+  lateinit var systemRequisitionServiceTarget: String
+    private set
+
+  @CommandLine.Option(
     names = ["--registration-service-target"],
     description = ["gRPC target (authority string or URI) for DataProviderRegistration service."],
     required = true
@@ -78,12 +89,16 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val requisitionClient =
     RequisitionCoroutineStub(buildChannel(flags.requisitionServiceTarget))
       .withDuchyId(flags.duchy.duchyName)
+  val systemRequisitionClient =
+    SystemRequisitionCoroutineStub(buildChannel(flags.systemRequisitionServiceTarget))
+      .withDuchyId(flags.duchy.duchyName)
   val registrationClient =
     DataProviderRegistrationCoroutineStub(buildChannel(flags.registrationServiceTarget))
 
   val service = PublisherDataService(
     metricValuesClient,
     requisitionClient,
+    systemRequisitionClient,
     registrationClient,
     DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
   )

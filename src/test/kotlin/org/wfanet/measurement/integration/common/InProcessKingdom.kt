@@ -58,6 +58,7 @@ import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService as SystemRequisitionService
 
 /**
  * TestRule that starts and stops all Kingdom gRPC services and daemons.
@@ -79,17 +80,22 @@ class InProcessKingdom(
 
   private val kingdomApiServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     logger.info("Building Kingdom's public API services")
-    val reportStorage = ReportsCoroutineStub(databaseServices.channel)
-    val reportLogEntryStorage = ReportLogEntriesCoroutineStub(databaseServices.channel)
-    val requisitionStorage = RequisitionsCoroutineStub(databaseServices.channel)
+    val reportsClient = ReportsCoroutineStub(databaseServices.channel)
+    val reportLogEntriesClient = ReportLogEntriesCoroutineStub(databaseServices.channel)
+    val requisitionsClient = RequisitionsCoroutineStub(databaseServices.channel)
 
     addService(
-      GlobalComputationService(reportStorage, reportLogEntryStorage)
+      GlobalComputationService(reportsClient, reportLogEntriesClient)
         .withDuchyIdentities()
         .withVerboseLogging(verboseGrpcLogging)
     )
     addService(
-      RequisitionService(requisitionStorage)
+      RequisitionService(requisitionsClient)
+        .withDuchyIdentities()
+        .withVerboseLogging(verboseGrpcLogging)
+    )
+    addService(
+      SystemRequisitionService(requisitionsClient)
         .withDuchyIdentities()
         .withVerboseLogging(verboseGrpcLogging)
     )

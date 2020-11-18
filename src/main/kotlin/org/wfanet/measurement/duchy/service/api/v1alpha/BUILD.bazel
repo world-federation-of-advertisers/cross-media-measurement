@@ -20,5 +20,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v1alpha:requisition_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:requisition_service_kt_jvm_grpc",
     ],
 )

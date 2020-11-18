@@ -48,6 +48,7 @@ import ("strings")
 	_global_computations_service_target_flag: "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
 	_metric_values_service_target_flag:       "--metric-values-service-target=" + (#Target & {name:      "\(_name)-metric-values-storage-server"}).target
 	_requisition_service_target_flag:         "--requisition-service-target=" + (#Target & {name:        "requisition-server"}).target
+	_system_requisition_service_target_flag:  "--system-requisition-service-target=" + (#Target & {name: "system-requisition-server"}).target
 
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
@@ -134,6 +135,7 @@ import ("strings")
 				_duchy_name_flag,
 				_metric_values_service_target_flag,
 				_requisition_service_target_flag,
+				_system_requisition_service_target_flag,
 				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
 				"--port=8080",
 				"--registration-service-target=127.0.0.1:9000", // TODO: change once implemented.

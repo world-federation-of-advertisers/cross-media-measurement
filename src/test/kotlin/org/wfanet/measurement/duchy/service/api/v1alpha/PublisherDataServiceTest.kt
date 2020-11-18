@@ -52,6 +52,9 @@ import org.wfanet.measurement.internal.duchy.MetricValue as InternalMetricValue
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase as MetricValuesCoroutineService
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
+import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionResponse
+import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase as SystemRequisitionCoroutineService
+import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 
 /** Test for [PublisherDataService]. */
 @RunWith(JUnit4::class)
@@ -60,6 +63,8 @@ class PublisherDataServiceTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val requisitionServiceMock: RequisitionCoroutineService =
     mock(useConstructor = UseConstructor.parameterless())
+  private val systemRequisitionServiceMock: SystemRequisitionCoroutineService =
+    mock(useConstructor = UseConstructor.parameterless())
   private val registrationServiceMock: DataProviderRegistrationCoroutineService =
     mock(useConstructor = UseConstructor.parameterless())
 
@@ -67,6 +72,7 @@ class PublisherDataServiceTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(metricValuesServiceMock)
     addService(requisitionServiceMock)
+    addService(systemRequisitionServiceMock)
     addService(registrationServiceMock)
   }
 
@@ -78,6 +84,7 @@ class PublisherDataServiceTest {
     service = PublisherDataService(
       MetricValuesCoroutineStub(channel),
       RequisitionCoroutineStub(channel),
+      SystemRequisitionCoroutineStub(channel),
       DataProviderRegistrationCoroutineStub(channel),
       DUCHY_PUBLIC_KEYS
     )
@@ -147,10 +154,6 @@ class PublisherDataServiceTest {
       campaignId = "campaign"
       metricRequisitionId = "metricRequisition"
     }.build()
-    val metricRequisition = MetricRequisition.newBuilder().apply {
-      key = metricValueKey
-      state = MetricRequisition.State.FULFILLED
-    }.build()
 
     lateinit var storeRequests: List<StoreMetricValueRequest>
     metricValuesServiceMock.stub {
@@ -162,8 +165,10 @@ class PublisherDataServiceTest {
         }.build()
       }
     }
-    requisitionServiceMock.stub {
-      onBlocking { fulfillMetricRequisition(any()) }.thenReturn(metricRequisition)
+    systemRequisitionServiceMock.stub {
+      onBlocking {
+        fulfillMetricRequisition(any())
+      }.thenReturn(FulfillMetricRequisitionResponse.getDefaultInstance())
     }
 
     val response = runBlocking {
@@ -179,7 +184,7 @@ class PublisherDataServiceTest {
       )
     }
 
-    assertThat(response.state).isEqualTo(metricRequisition.state)
+    assertThat(response.state).isEqualTo(MetricRequisition.State.FULFILLED)
     assertThat(storeRequests).containsExactly(
       StoreMetricValueRequest.newBuilder().apply {
         headerBuilder.resourceKey = metricValueKey.toResourceKey()

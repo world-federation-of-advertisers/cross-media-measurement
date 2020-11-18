@@ -21,7 +21,6 @@ import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
 import org.wfanet.measurement.api.v1alpha.CreateCampaignRequest
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.ElGamalPublicKey
-import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -36,6 +35,9 @@ import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKeyOrBuilder
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
+import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionRequest
+import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
+import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 
 /**
  * Implementation of `wfa.measurement.api.v1alpha.PublisherData` service.
@@ -47,6 +49,7 @@ import org.wfanet.measurement.internal.duchy.StoreMetricValueRequest
 class PublisherDataService(
   private val metricValuesClient: MetricValuesCoroutineStub,
   private val requisitionClient: RequisitionCoroutineStub,
+  private val systemRequisitionClient: SystemRequisitionCoroutineStub,
   private val registrationClient: DataProviderRegistrationCoroutineStub,
   private val duchyPublicKeys: DuchyPublicKeys
 ) : PublisherDataCoroutineService() {
@@ -85,14 +88,14 @@ class PublisherDataService(
       }
     )
 
-    val requisition = requisitionClient.fulfillMetricRequisition(
+    systemRequisitionClient.fulfillMetricRequisition(
       FulfillMetricRequisitionRequest.newBuilder().apply {
-        key = internalMetricValue.resourceKey.toRequisitionKey()
+        key = internalMetricValue.resourceKey.toSystemRequisitionKey()
       }.build()
     )
 
     return UploadMetricValueResponse.newBuilder().apply {
-      state = requisition.state
+      state = MetricRequisition.State.FULFILLED
     }.build()
   }
 
@@ -119,8 +122,8 @@ class PublisherDataService(
   }
 }
 
-private fun ResourceKeyOrBuilder.toRequisitionKey(): MetricRequisition.Key {
-  return MetricRequisition.Key.newBuilder().apply {
+private fun ResourceKeyOrBuilder.toSystemRequisitionKey(): MetricRequisitionKey {
+  return MetricRequisitionKey.newBuilder().apply {
     dataProviderId = dataProviderResourceId
     campaignId = campaignResourceId
     metricRequisitionId = metricRequisitionResourceId

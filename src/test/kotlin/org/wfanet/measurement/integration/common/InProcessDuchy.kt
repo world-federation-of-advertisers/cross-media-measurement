@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
@@ -187,6 +188,7 @@ class InProcessDuchy(
         PublisherDataService(
           MetricValuesCoroutineStub(metricValuesServer.channel),
           RequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
+          SystemRequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
           DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId),
           duchyDependencies.duchyPublicKeys
         )
