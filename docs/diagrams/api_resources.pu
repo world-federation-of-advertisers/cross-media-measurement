@@ -25,11 +25,11 @@ resource(CombinedPublicKey) {
 }
 
 together {
-  collection(dataProviders, DataProvider) {
-    Create(data_provider)
-  }
   collection(advertisers, Advertiser) {
     Create(advertiser)
+  }
+  collection(dataProviders, DataProvider) {
+    Create(data_provider)
   }
   collection(sketchConfigs, SketchConfig) {
   }
@@ -51,7 +51,7 @@ resource(MetricRequisition) {
   metric_definition
   state
   combined_public_key
-  Fulfill()
+  Refuse()
 }
 resource(Campaign) {
   advertiser
@@ -68,7 +68,5 @@ Campaign *-- metricRequisitions
 MetricRequisition *-- "0..1" MetricValue
 MetricRequisition "many" .> " 1" SketchConfig
 MetricRequisition "many" .> "1" CombinedPublicKey
-
-Advertiser -[hidden]> DataProvider
 
 @enduml
