@@ -21,18 +21,19 @@ option java_multiple_files = true;
 
 // Public keys of the ElGamal cipher.
 message ElGamalPublicKey {
-  // Public key g (generator) of the ElGamal cipher.
-  bytes el_gamal_g = 1;
-  // Public key y (g^sk) of the ElGamal cipher.
-  bytes el_gamal_y = 2;
+  // Public key generator `g`.
+  bytes generator = 2;
+  // Public key element `y = g^x`, where `g` is the generator and `x` is the
+  // secret key.
+  bytes element = 3;
 }
 
 // Keys of the ElGamal cipher.
 message ElGamalKeyPair {
   // Secret key of the ElGamal cipher.
-  bytes el_gamal_sk = 1;
-  // Public keys of the ElGamal cipher.
-  ElGamalPublicKey el_gamal_pk = 2;
+  bytes secret_key = 1;
+  // Public key of the ElGamal cipher.
+  ElGamalPublicKey public_key = 2;
 }
 
 // Parameters of the polya distribution.

@@ -81,11 +81,11 @@ ElGamalKeyPair GenerateRandomElGamalKeyPair(const int curve_id) {
   ElGamalKeyPair el_gamal_key_pair;
   auto el_gamal_cipher =
       CommutativeElGamal::CreateWithNewKeyPair(curve_id).value();
-  *el_gamal_key_pair.mutable_el_gamal_sk() =
+  *el_gamal_key_pair.mutable_secret_key() =
       el_gamal_cipher.get()->GetPrivateKeyBytes().value();
-  *el_gamal_key_pair.mutable_el_gamal_pk()->mutable_el_gamal_g() =
+  *el_gamal_key_pair.mutable_public_key()->mutable_generator() =
       el_gamal_cipher.get()->GetPublicKeyBytes().value().first;
-  *el_gamal_key_pair.mutable_el_gamal_pk()->mutable_el_gamal_y() =
+  *el_gamal_key_pair.mutable_public_key()->mutable_element() =
       el_gamal_cipher.get()->GetPublicKeyBytes().value().second;
   return el_gamal_key_pair;
 }
@@ -138,32 +138,29 @@ class TestData {
     ECGroup ec_group = ECGroup::Create(kTestCurveId, &ctx).value();
     ECPoint duchy_1_public_el_gamal_y_ec =
         ec_group
-            .CreateECPoint(
-                duchy_1_el_gamal_key_pair_.el_gamal_pk().el_gamal_y())
+            .CreateECPoint(duchy_1_el_gamal_key_pair_.public_key().element())
             .value();
     ECPoint duchy_2_public_el_gamal_y_ec =
         ec_group
-            .CreateECPoint(
-                duchy_2_el_gamal_key_pair_.el_gamal_pk().el_gamal_y())
+            .CreateECPoint(duchy_2_el_gamal_key_pair_.public_key().element())
             .value();
     ECPoint duchy_3_public_el_gamal_y_ec =
         ec_group
-            .CreateECPoint(
-                duchy_3_el_gamal_key_pair_.el_gamal_pk().el_gamal_y())
+            .CreateECPoint(duchy_3_el_gamal_key_pair_.public_key().element())
             .value();
     ECPoint client_public_el_gamal_y_ec =
         duchy_1_public_el_gamal_y_ec.Add(duchy_2_public_el_gamal_y_ec)
             .value()
             .Add(duchy_3_public_el_gamal_y_ec)
             .value();
-    client_el_gamal_public_key.set_el_gamal_g(
-        duchy_1_el_gamal_key_pair_.el_gamal_pk().el_gamal_g());
-    client_el_gamal_public_key.set_el_gamal_y(
+    client_el_gamal_public_key.set_generator(
+        duchy_1_el_gamal_key_pair_.public_key().generator());
+    client_el_gamal_public_key.set_element(
         client_public_el_gamal_y_ec.ToBytesCompressed().value());
 
     any_sketch::crypto::CiphertextString client_public_key = {
-        .u = client_el_gamal_public_key.el_gamal_g(),
-        .e = client_el_gamal_public_key.el_gamal_y(),
+        .u = client_el_gamal_public_key.generator(),
+        .e = client_el_gamal_public_key.element(),
     };
 
     // Create a sketch_encryter for encrypting plaintext any_sketch data.

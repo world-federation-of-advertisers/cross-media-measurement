@@ -95,14 +95,14 @@ private fun ConfigMapEntry.toDuchyPublicKeysEntry(): DuchyPublicKeys.Entry {
           "Expected $ELEMENT_SIZE bytes for element. Got ${it.value.size()}."
         }
         ElGamalPublicKey.newBuilder().apply {
-          elGamalG = elGamalGenerator
-          elGamalY = it.value
+          generator = elGamalGenerator
+          element = it.value
         }.build()
       },
       combinedPublicKeyId = key,
       combinedPublicKey = ElGamalPublicKey.newBuilder().apply {
-        elGamalG = elGamalGenerator
-        elGamalY = combinedElGamalElement
+        generator = elGamalGenerator
+        element = combinedElGamalElement
       }.build(),
       combinedPublicKeyVersion = combinedPublicKeyVersion,
       curveId = ellipticCurveId

@@ -25,9 +25,9 @@ class CryptoKeySetTest {
   fun `convert valid string to elgamal key`() {
     val elGamalKeyPair: ElGamalKeyPair =
       "$PUBLIC_KEY_G$PUBLIC_KEY_Y$PRIVATE_KEY".toElGamalKeyPair()
-    assertEquals(elGamalKeyPair.elGamalPk.elGamalG.size(), 33)
-    assertEquals(elGamalKeyPair.elGamalPk.elGamalY.size(), 33)
-    assertEquals(elGamalKeyPair.elGamalSk.size(), 32)
+    assertEquals(elGamalKeyPair.publicKey.generator.size(), 33)
+    assertEquals(elGamalKeyPair.publicKey.element.size(), 33)
+    assertEquals(elGamalKeyPair.secretKey.size(), 32)
   }
 
   @Test

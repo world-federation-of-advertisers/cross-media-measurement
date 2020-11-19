@@ -134,8 +134,8 @@ class DuchyDependencyProviderRule(
     val latestDuchyPublicKeys = DUCHY_PUBLIC_KEYS.latest
     return CryptoKeySet(
       ownPublicAndPrivateKeys = ElGamalKeyPair.newBuilder().apply {
-        elGamalPk = latestDuchyPublicKeys.getValue(duchyId)
-        elGamalSk = checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
+        publicKey = latestDuchyPublicKeys.getValue(duchyId)
+        secretKey = checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
       }.build(),
       otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
       clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,

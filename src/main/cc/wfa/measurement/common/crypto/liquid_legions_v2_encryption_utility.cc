@@ -36,12 +36,12 @@ CompleteReachEstimationPhase(
       CreateProtocolCryptorWithKeys(
           request.curve_id(),
           std::make_pair(
-              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_g(),
-              request.local_el_gamal_key_pair().el_gamal_pk().el_gamal_y()),
-          request.local_el_gamal_key_pair().el_gamal_sk(),
+              request.local_el_gamal_key_pair().public_key().generator(),
+              request.local_el_gamal_key_pair().public_key().element()),
+          request.local_el_gamal_key_pair().secret_key(),
           /*local_pohlig_hellman_private_key=*/"",
-          std::make_pair(request.composite_el_gamal_public_key().el_gamal_g(),
-                         request.composite_el_gamal_public_key().el_gamal_y())),
+          std::make_pair(request.composite_el_gamal_public_key().generator(),
+                         request.composite_el_gamal_public_key().element())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteReachEstimationPhaseResponse response;

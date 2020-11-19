@@ -118,8 +118,8 @@ class PublisherDataService(
       version = entry.combinedPublicKeyVersion
       encryptionKeyBuilder.apply {
         ellipticCurveId = entry.curveId
-        generator = entry.combinedPublicKey.elGamalG
-        element = entry.combinedPublicKey.elGamalY
+        generator = entry.combinedPublicKey.generator
+        element = entry.combinedPublicKey.element
       }
     }.build()
   }

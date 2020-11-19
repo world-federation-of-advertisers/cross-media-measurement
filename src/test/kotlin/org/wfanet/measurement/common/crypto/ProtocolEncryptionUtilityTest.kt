@@ -54,29 +54,29 @@ private const val CLIENT_PK_G =
 private const val CLIENT_PK_Y =
   "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
 private val DUCHY_1_EL_GAMAL_KEYS = ElGamalKeyPair.newBuilder().apply {
-  elGamalPkBuilder.apply {
-    elGamalG = DUCHY_1_PK_G.hexAsByteString()
-    elGamalY = DUCHY_1_PK_Y.hexAsByteString()
+  publicKeyBuilder.apply {
+    generator = DUCHY_1_PK_G.hexAsByteString()
+    element = DUCHY_1_PK_Y.hexAsByteString()
   }
-  elGamalSk = DUCHY_1_SK.hexAsByteString()
+  secretKey = DUCHY_1_SK.hexAsByteString()
 }.build()
 private val DUCHY_2_EL_GAMAL_KEYS = ElGamalKeyPair.newBuilder().apply {
-  elGamalPkBuilder.apply {
-    elGamalG = DUCHY_2_PK_G.hexAsByteString()
-    elGamalY = DUCHY_2_PK_Y.hexAsByteString()
+  publicKeyBuilder.apply {
+    generator = DUCHY_2_PK_G.hexAsByteString()
+    element = DUCHY_2_PK_Y.hexAsByteString()
   }
-  elGamalSk = DUCHY_2_SK.hexAsByteString()
+  secretKey = DUCHY_2_SK.hexAsByteString()
 }.build()
 private val DUCHY_3_EL_GAMAL_KEYS = ElGamalKeyPair.newBuilder().apply {
-  elGamalPkBuilder.apply {
-    elGamalG = DUCHY_3_PK_G.hexAsByteString()
-    elGamalY = DUCHY_3_PK_Y.hexAsByteString()
+  publicKeyBuilder.apply {
+    generator = DUCHY_3_PK_G.hexAsByteString()
+    element = DUCHY_3_PK_Y.hexAsByteString()
   }
-  elGamalSk = DUCHY_3_SK.hexAsByteString()
+  secretKey = DUCHY_3_SK.hexAsByteString()
 }.build()
 private val CLIENT_EL_GAMAL_KEYS = ElGamalPublicKey.newBuilder().apply {
-  elGamalG = CLIENT_PK_G.hexAsByteString()
-  elGamalY = CLIENT_PK_Y.hexAsByteString()
+  generator = CLIENT_PK_G.hexAsByteString()
+  element = CLIENT_PK_Y.hexAsByteString()
 }.build()
 private val SKETCH_ENCRYPTER_KEY =
   org.wfanet.anysketch.crypto.ElGamalPublicKeys.newBuilder().apply {

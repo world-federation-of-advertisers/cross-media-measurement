@@ -46,8 +46,8 @@ fun String.toElGamalKeyPair(): ElGamalKeyPair {
     "Expected string size : ${BYTES_OF_EL_GAMAL_KEYS * 2}, actual size $length."
   }
   return ElGamalKeyPair.newBuilder()
-    .setElGamalPk(substring(0, BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).toElGamalPublicKey())
-    .setElGamalSk(substring(BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).hexAsByteString())
+    .setPublicKey(substring(0, BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).toElGamalPublicKey())
+    .setSecretKey(substring(BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2).hexAsByteString())
     .build()
 }
 
@@ -59,7 +59,7 @@ fun String.toElGamalPublicKey(): ElGamalPublicKey {
     "Expected string size : ${BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2}, actual size $length."
   }
   return ElGamalPublicKey.newBuilder()
-    .setElGamalG(substring(0, BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
-    .setElGamalY(substring(BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
+    .setGenerator(substring(0, BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
+    .setElement(substring(BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
     .build()
 }

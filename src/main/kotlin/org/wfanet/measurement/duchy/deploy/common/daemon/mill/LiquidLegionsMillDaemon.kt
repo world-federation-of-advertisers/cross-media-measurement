@@ -101,8 +101,8 @@ abstract class LiquidLegionsMillDaemon : Runnable {
     val latestDuchyPublicKeys = duchyPublicKeys.latest
     return CryptoKeySet(
       ownPublicAndPrivateKeys = ElGamalKeyPair.newBuilder().apply {
-        elGamalPk = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
-        elGamalSk = flags.duchySecretKey.hexAsByteString()
+        publicKey = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
+        secretKey = flags.duchySecretKey.hexAsByteString()
       }.build(),
       otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
       clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,

@@ -191,8 +191,8 @@ class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
     private val publicKeysMap: DuchyPublicKeyMap =
       DUCHIES.mapIndexed { idx, name ->
         name to ElGamalPublicKey.newBuilder().apply {
-          elGamalG = EL_GAMAL_GENERATOR
-          elGamalY = byteStringOf(idx).withPadding(33)
+          generator = EL_GAMAL_GENERATOR
+          element = byteStringOf(idx).withPadding(33)
         }.build()
       }.toMap()
   }

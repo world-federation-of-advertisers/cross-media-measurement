@@ -233,8 +233,8 @@ class PublisherDataServiceTest {
 
     val combinedPublicKey = latestPublicKeys.combinedPublicKey
     assertThat(response.encryptionKey.ellipticCurveId).isEqualTo(latestPublicKeys.curveId)
-    assertThat(response.encryptionKey.generator).isEqualTo(combinedPublicKey.elGamalG)
-    assertThat(response.encryptionKey.element).isEqualTo(combinedPublicKey.elGamalY)
+    assertThat(response.encryptionKey.generator).isEqualTo(combinedPublicKey.generator)
+    assertThat(response.encryptionKey.element).isEqualTo(combinedPublicKey.element)
   }
 
   companion object {
