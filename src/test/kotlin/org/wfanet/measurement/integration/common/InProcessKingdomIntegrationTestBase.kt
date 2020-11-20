@@ -24,7 +24,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
-import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
@@ -39,10 +38,12 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.GetGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
+import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
 
 /**
@@ -94,6 +95,10 @@ abstract class InProcessKingdomIntegrationTestBase {
 
   private val requisitionsStub by lazy {
     RequisitionCoroutineStub(kingdom.publicApiChannel).withDuchyId(duchyId)
+  }
+
+  private val systemRequisitionsStub by lazy {
+    SystemRequisitionCoroutineStub(kingdom.publicApiChannel).withDuchyId(duchyId)
   }
 
   private val globalComputationsStub by lazy {
@@ -241,9 +246,9 @@ abstract class InProcessKingdomIntegrationTestBase {
 
   private suspend fun fulfillRequisition(metricRequisition: MetricRequisition) {
     logger.info("Fulfilling requisition: $metricRequisition")
-    requisitionsStub.fulfillMetricRequisition(
+    systemRequisitionsStub.fulfillMetricRequisition(
       FulfillMetricRequisitionRequest.newBuilder().apply {
-        key = metricRequisition.key
+        key = metricRequisition.key.toSystemKey()
       }.build()
     )
   }
