@@ -29,20 +29,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.captureFirst
-import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
@@ -79,14 +74,8 @@ private val REQUISITION_API_KEY: MetricRequisition.Key =
     metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
   }.build()
 
-private const val DUCHY_ID: String = "some-duchy-id"
-private val DUCHY_AUTH_PROVIDER = { DuchyIdentity(DUCHY_ID) }
-
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
-
   private val requisitionStorage: RequisitionsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
@@ -94,44 +83,7 @@ class RequisitionServiceTest {
   val grpcTestServerRule = GrpcTestServerRule { addService(requisitionStorage) }
 
   private val channel = grpcTestServerRule.channel
-  private val service =
-    RequisitionService(
-      RequisitionsCoroutineStub(channel),
-      DUCHY_AUTH_PROVIDER
-    )
-
-  @Test
-  fun fulfillMetricRequisition() = runBlocking<Unit> {
-    whenever(requisitionStorage.fulfillRequisition(any()))
-      .thenReturn(REQUISITION)
-
-    val request = FulfillMetricRequisitionRequest.newBuilder().apply {
-      keyBuilder.apply {
-        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
-        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
-        metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
-      }
-    }.build()
-
-    val result = service.fulfillMetricRequisition(request)
-
-    val expected = MetricRequisition.newBuilder().apply {
-      key = REQUISITION_API_KEY
-      state = MetricRequisition.State.FULFILLED
-      campaignReferenceId = REQUISITION.providedCampaignId
-      combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
-    }.build()
-
-    assertThat(result).isEqualTo(expected)
-
-    verifyProtoArgument(requisitionStorage, RequisitionsCoroutineImplBase::fulfillRequisition)
-      .isEqualTo(
-        FulfillRequisitionRequest.newBuilder()
-          .setExternalRequisitionId(REQUISITION.externalRequisitionId)
-          .setDuchyId(DUCHY_ID)
-          .build()
-      )
-  }
+  private val service = RequisitionService(RequisitionsCoroutineStub(channel))
 
   @Test
   fun `listMetricRequisitions without page token`() = runBlocking<Unit> {

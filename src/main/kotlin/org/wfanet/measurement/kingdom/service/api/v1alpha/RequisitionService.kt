@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.api.v1alpha
 
 import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v1alpha.FulfillMetricRequisitionRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
@@ -25,31 +24,14 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ApiId
-import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
-class RequisitionService(
-  private val internalRequisitionStub: RequisitionsCoroutineStub,
-  private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
-) : RequisitionCoroutineImplBase() {
-
-  override suspend fun fulfillMetricRequisition(
-    request: FulfillMetricRequisitionRequest
-  ): MetricRequisition {
-    val externalId = ApiId(request.key.metricRequisitionId).externalId
-    val internalRequest =
-      FulfillRequisitionRequest.newBuilder()
-        .setExternalRequisitionId(externalId.value)
-        .setDuchyId(duchyIdentityProvider().id)
-        .build()
-    return internalRequisitionStub.fulfillRequisition(internalRequest).toV1Api()
-  }
+class RequisitionService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
+  RequisitionCoroutineImplBase() {
 
   override suspend fun listMetricRequisitions(
     request: ListMetricRequisitionsRequest
