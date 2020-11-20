@@ -22,10 +22,10 @@ option java_multiple_files = true;
 // Public keys of the ElGamal cipher.
 message ElGamalPublicKey {
   // Public key generator `g`.
-  bytes generator = 2;
+  bytes generator = 1;
   // Public key element `y = g^x`, where `g` is the generator and `x` is the
   // secret key.
-  bytes element = 3;
+  bytes element = 2;
 }
 
 // Keys of the ElGamal cipher.
