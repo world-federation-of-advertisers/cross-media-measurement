@@ -1,6 +1,30 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "ComputationTypesTest",
+    srcs = ["ComputationTypesTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.ComputationTypesTest",
+    deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_java_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "ComputationsEnumHelperTest",
+    srcs = ["ComputationsEnumHelperTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.ComputationsEnumHelperTest",
+    deps = [
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_java_proto",
+    ],
+)
+
+kt_jvm_test(
     name = "LiquidLegionsSketchAggregationV1ProtocolEnumStagesTest",
     srcs = ["LiquidLegionsSketchAggregationV1ProtocolEnumStagesTest.kt"],
     test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1ProtocolEnumStagesTest",
