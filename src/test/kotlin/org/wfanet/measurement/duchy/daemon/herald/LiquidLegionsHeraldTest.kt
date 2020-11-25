@@ -30,7 +30,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
-import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -55,7 +55,7 @@ internal class LiquidLegionsHeraldTest {
     mock(useConstructor = UseConstructor.parameterless()) {}
   private val duchyName = "foo"
   private val otherDuchyNames = listOf("Bavaria", "Carinthia")
-  private val fakeComputationStorage = FakeLiquidLegionsComputationDb()
+  private val fakeComputationStorage = FakeComputationDb()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

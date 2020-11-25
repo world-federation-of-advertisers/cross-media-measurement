@@ -17,11 +17,12 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 
 /** Queries for computations which may be claimed at a timestamp. */
 class UnclaimedTasksQuery<StageT>(
   val protocol: Long,
-  val parseStageEnum: (Long) -> StageT,
+  val parseStageEnum: (ComputationStageLongValues) -> StageT,
   timestamp: Timestamp
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
@@ -53,7 +54,12 @@ class UnclaimedTasksQuery<StageT>(
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),
       globalId = struct.getString("GlobalComputationId"),
-      computationStage = parseStageEnum(struct.getLong("ComputationStage")),
+      computationStage = parseStageEnum(
+        ComputationStageLongValues(
+          struct.getLong("Protocol"),
+          struct.getLong("ComputationStage")
+        )
+      ),
       updateTime = struct.getTimestamp("UpdateTime"),
       nextAttempt = struct.getLong("NextAttempt")
     )

@@ -30,7 +30,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
 import org.wfanet.measurement.duchy.DuchyPublicKeyMap
-import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
@@ -78,7 +78,7 @@ private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
 class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
-  private val fakeDatabase = FakeLiquidLegionsComputationDb()
+  private val fakeDatabase = FakeComputationDb()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

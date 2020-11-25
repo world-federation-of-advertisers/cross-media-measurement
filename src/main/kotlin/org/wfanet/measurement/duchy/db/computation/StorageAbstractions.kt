@@ -183,17 +183,13 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
 }
 
 /**
- * Grouping of a database reader and writer to interact with a database for one type of computation
- * through [ComputationStage]s.
+ * Grouping of a database reader and writer to interact with a database for all types of
+ * computations.
  */
-interface SingleProtocolDatabase :
+interface ComputationsDatabase :
   ReadOnlyComputationsRelationalDb,
   ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>,
-  ProtocolStageEnumHelper<ComputationStage> {
-
-  // TODO: Allow all computation types instead of single type, i.e. remove uses of this field.
-  val computationType: ComputationType
-}
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
 /**
  * Reference to a BLOB's storage location (key).

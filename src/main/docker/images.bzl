@@ -33,9 +33,9 @@ COMMON_IMAGES = [
         repository = "ads-open-measurement/duchy/publisher-data",
     ),
     struct(
-        name = "duchy_spanner_liquid_legions_computations_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_liquid_legions_computations_server_image",
-        repository = "ads-open-measurement/duchy/liquid-legions-v1-spanner-computations",
+        name = "duchy_spanner_computations_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image",
+        repository = "ads-open-measurement/duchy/spanner-computations",
     ),
     struct(
         name = "kingdom_global_computation_server_image",

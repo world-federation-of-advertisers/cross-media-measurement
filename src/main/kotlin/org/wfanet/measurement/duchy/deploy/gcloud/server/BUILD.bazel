@@ -77,8 +77,8 @@ java_image(
 )
 
 kt_jvm_library(
-    name = "spanner_liquid_legions_computations_server",
-    srcs = ["SpannerLiquidLegionsComputationsServer.kt"],
+    name = "spanner_computations_server",
+    srcs = ["SpannerComputationsServer.kt"],
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
@@ -90,14 +90,14 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "SpannerLiquidLegionsComputationStorageServer",
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerLiquidLegionsComputationsServerKt",
-    runtime_deps = [":spanner_liquid_legions_computations_server"],
+    name = "SpannerComputationStorageServer",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerComputationsServerKt",
+    runtime_deps = [":spanner_computations_server"],
 )
 
 java_image(
-    name = "spanner_liquid_legions_computations_server_image",
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerLiquidLegionsComputationsServerKt",
+    name = "spanner_computations_server_image",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerComputationsServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":spanner_liquid_legions_computations_server"],
+    runtime_deps = [":spanner_computations_server"],
 )

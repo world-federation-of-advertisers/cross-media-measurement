@@ -70,7 +70,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     stageDetails: StageDetailsT
   ) {
     require(
-      computationMutations.validInitialStage(initialStage)
+      computationMutations.validInitialStage(protocol, initialStage)
     ) { "Invalid initial stage $initialStage" }
 
     val localId: Long = localComputationIdGenerator.localId(globalId)
@@ -163,7 +163,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
       }
     return UnclaimedTasksQuery(
       computationMutations.protocolEnumToLong(protocol),
-      computationMutations::longToEnum,
+      computationMutations::longValuesToComputationStageEnum,
       clock.gcloudTimestamp()
     )
       .execute(databaseClient)
@@ -224,7 +224,11 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
       val details =
         ctx.readRow(
           "ComputationStageAttempts",
-          Key.of(computationId, computationMutations.enumToLong(stage), currentAttempt),
+          Key.of(
+            computationId,
+            stage.toLongStage(),
+            currentAttempt
+          ),
           listOf("Details")
         )
           ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
@@ -302,7 +306,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     endingStage: StageT,
     endComputationReason: EndComputationReason
   ) {
-    require(computationMutations.validTerminalStage(endingStage)) {
+    require(computationMutations.validTerminalStage(token.protocol, endingStage)) {
       "Invalid terminal stage of computation $endingStage"
     }
     runIfTokenFromLastUpdate(token) { ctx ->
@@ -346,7 +350,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
           details = computationMutations.detailsFor(endingStage)
         )
       )
-      UnfinishedAttemptQuery(computationMutations::longToEnum, token.localId)
+      UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)
         .execute(ctx)
         .collect { unfinished ->
           // Determine the reason the unfinished computation stage attempt is ending.
@@ -426,7 +430,11 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     val attemptDetails =
       ctx.readRow(
         "ComputationStageAttempts",
-        Key.of(token.localId, computationMutations.enumToLong(token.stage), token.attempt),
+        Key.of(
+          token.localId,
+          token.stage.toLongStage(),
+          token.attempt
+        ),
         listOf("Details")
       )
         ?.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
@@ -520,7 +528,12 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
   ): Map<Long, String?> {
     return ctx.read(
       "ComputationBlobReferences",
-      KeySet.prefixRange(Key.of(localId, computationMutations.enumToLong(stage))),
+      KeySet.prefixRange(
+        Key.of(
+          localId,
+          stage.toLongStage()
+        )
+      ),
       listOf("BlobId", "PathToBlob", "DependencyType")
     )
       .filter {
@@ -541,7 +554,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
         "ComputationBlobReferences",
         Key.of(
           token.localId,
-          computationMutations.enumToLong(token.stage),
+          token.stage.toLongStage(),
           blobRef.idInRelationalDatabase
         ),
         listOf("DependencyType")
@@ -621,6 +634,10 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
       }
     }
   }
+
+  // Converts the [StageT] to a [Long] value used for the stage column in spanner.
+  private fun StageT.toLongStage(): Long =
+    computationMutations.computationStageEnumToLongValues(this).stage
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

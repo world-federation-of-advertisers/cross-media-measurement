@@ -18,9 +18,9 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Message
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
@@ -51,12 +51,12 @@ typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
 class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
   computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
-  stageEnumHelper: ProtocolStageEnumHelper<StageT>,
-  details: ProtocolStageDetails<StageT, StageDetailsT>
+  computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
+  details: ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDetailsT>
 ) :
   ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
-  ProtocolStageEnumHelper<StageT> by stageEnumHelper,
-  ProtocolStageDetails<StageT, StageDetailsT> by details {
+  ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
+  ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDetailsT> by details {
   /**
    * Appends fields to write in a mutation of the Computations spanner table.
    */
@@ -76,7 +76,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     m.set("UpdateTime").to(nonNullValueTimestamp(updateTime))
     globalId?.let { m.set("GlobalComputationId").to(it) }
     protocol?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
-    stage?.let { m.set("ComputationStage").to(enumToLong(it)) }
+    stage?.let { m.set("ComputationStage").to(computationStageEnumToLongValues(it).stage) }
     lockOwner?.let { m.set("LockOwner").to(stringOrNull(it)) }
     lockExpirationTime?.let {
       m.set("LockExpirationTime").to(timestampOrNull(it))
@@ -160,12 +160,12 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
   ): Mutation {
     val m = newBuilderFunction("ComputationStages")
     m.set("ComputationId").to(localId)
-    m.set("ComputationStage").to(enumToLong(stage))
+    m.set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
     nextAttempt?.let { m.set("NextAttempt").to(it) }
     creationTime?.let { m.set("CreationTime").to(nonNullValueTimestamp(it)) }
     endTime?.let { m.set("EndTime").to(nonNullValueTimestamp(it)) }
-    previousStage?.let { m.set("PreviousStage").to(enumToLong(it)) }
-    followingStage?.let { m.set("FollowingStage").to(enumToLong(it)) }
+    previousStage?.let { m.set("PreviousStage").to(computationStageEnumToLongValues(it).stage) }
+    followingStage?.let { m.set("FollowingStage").to(computationStageEnumToLongValues(it).stage) }
     details?.let { m.set("Details").toProtoBytes(details).set("DetailsJSON").toProtoJson(details) }
     return m.build()
   }
@@ -226,7 +226,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
   ): Mutation {
     val m = newBuilderFunction("ComputationStageAttempts")
     m.set("ComputationId").to(localId)
-    m.set("ComputationStage").to(enumToLong(stage))
+    m.set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
     m.set("Attempt").to(attempt)
     beginTime?.let { m.set("BeginTime").to(nonNullValueTimestamp(it)) }
     endTime?.let { m.set("EndTime").to(nonNullValueTimestamp(it)) }
@@ -295,7 +295,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
   ): Mutation {
     val m = newBuilderFunction("ComputationBlobReferences")
     m.set("ComputationId").to(localId)
-    m.set("ComputationStage").to(enumToLong(stage))
+    m.set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
     m.set("BlobId").to(blobId)
     pathToBlob?.let { m.set("PathToBlob").to(nonNullValueString(it)) }
     dependencyType?.let { m.set("DependencyType").toProtoEnum(it) }
@@ -359,7 +359,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
   ): Mutation {
     return newBuilderFunction("ComputationStats")
       .set("ComputationId").to(localId)
-      .set("ComputationStage").to(enumToLong(stage))
+      .set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
       .set("Attempt").to(attempt)
       .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
       .set("MetricName").to(metricName)

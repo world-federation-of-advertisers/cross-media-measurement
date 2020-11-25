@@ -24,12 +24,13 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
@@ -80,7 +81,7 @@ class DuchyDependencyProviderRule(
       ?: error("Missing Computations Spanner database for duchy $duchy")
 
     return InProcessDuchy.DuchyDependencies(
-      buildSingleProtocolDb(duchy.name, computationsDatabase.databaseClient),
+      buildComputationsDb(duchy.name, computationsDatabase.databaseClient),
       buildMetricValueDb(metricValueDatabase.databaseClient),
       buildStorageClient(duchy.name),
       DUCHY_PUBLIC_KEYS,
@@ -88,17 +89,16 @@ class DuchyDependencyProviderRule(
     )
   }
 
-  private fun buildSingleProtocolDb(
+  private fun buildComputationsDb(
     duchyId: String,
     computationsDatabaseClient: AsyncDatabaseClient
-  ): SingleProtocolDatabase {
+  ): ComputationsDatabase {
     val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
-    val stageEnumHelper = LiquidLegionsSketchAggregationV1Protocol.ComputationStages
-    val stageDetails =
-      LiquidLegionsSketchAggregationV1Protocol.ComputationStages.Details(otherDuchyNames)
+    val protocolStageEnumHelper = ComputationProtocolStages
+    val stageDetails = ComputationProtocolStageDetails(otherDuchyNames)
     val readOnlyDb = GcpSpannerReadOnlyComputationsRelationalDb(
       computationsDatabaseClient,
-      stageEnumHelper
+      protocolStageEnumHelper
     )
     val computationsDb: ComputationsDb =
       GcpSpannerComputationsDb(
@@ -107,18 +107,17 @@ class DuchyDependencyProviderRule(
         duchyOrder = DUCHY_ORDER,
         blobStorageBucket = "mill-computation-stage-storage-$duchyId",
         computationMutations = ComputationMutations(
-          ComputationTypes, stageEnumHelper, stageDetails
+          ComputationTypes, protocolStageEnumHelper, stageDetails
         ),
         lockDuration = Duration.ofSeconds(1)
       )
 
     return object :
-      SingleProtocolDatabase,
+      ComputationsDatabase,
       ReadOnlyComputationsRelationalDb by readOnlyDb,
       ComputationsDb by computationsDb,
-      ProtocolStageEnumHelper<ComputationStage> by stageEnumHelper {
-      override val computationType =
-        ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+      by protocolStageEnumHelper {
     }
   }
 

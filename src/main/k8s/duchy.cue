@@ -42,7 +42,7 @@ import ("strings")
 		},
 	]
 
-	_computations_service_target_flag:        "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-liquid-legions-computations-server"}).target
+	_computations_service_target_flag:        "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
 	_duchy_name_flag:                         "--duchy-name=duchy-\(_name)"
 	_duchy_public_keys_config_flag:           "--duchy-public-keys-config=" + #DuchyPublicKeysConfig
 	_global_computations_service_target_flag: "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
@@ -59,7 +59,7 @@ import ("strings")
 	}
 	duchy_service: {
 		"liquid-legions-computation-control-server": {}
-		"spanner-liquid-legions-computations-server": {}
+		"spanner-computations-server": {}
 		"metric-values-storage-server": {}
 		"publisher-data-server": {
 			_type: "NodePort"
@@ -111,7 +111,7 @@ import ("strings")
 				"--port=8080",
 			] + _duchy_id_flags + _blob_storage_flags
 		}
-		"spanner-liquid-legions-computations-server-pod": #ServerPod & {
+		"spanner-computations-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,

@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.gcloud.common.toEpochMilli
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -27,7 +28,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 
 /** Query for fields needed to make a [ComputationToken] .*/
 class ComputationTokenProtoQuery(
-  val parseStageEnum: (Long) -> ComputationStage,
+  val parseStageEnum: (ComputationStageLongValues) -> ComputationStage,
   globalId: String
 ) :
   SqlBasedQuery<ComputationToken> {
@@ -39,6 +40,7 @@ class ComputationTokenProtoQuery(
              c.LockOwner,
              c.ComputationStage,
              c.ComputationDetails,
+             c.Protocol,
              c.UpdateTime,
              cs.NextAttempt,
              cs.Details AS StageDetails,
@@ -51,7 +53,7 @@ class ComputationTokenProtoQuery(
       FROM Computations AS c
       JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
       WHERE c.GlobalComputationId = @global_id
-      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
       """.trimIndent()
   }
 
@@ -82,7 +84,12 @@ class ComputationTokenProtoQuery(
     return ComputationToken.newBuilder().apply {
       globalComputationId = struct.getString("GlobalComputationId")
       localComputationId = struct.getLong("ComputationId")
-      computationStage = parseStageEnum(struct.getLong("ComputationStage"))
+      computationStage = parseStageEnum(
+        ComputationStageLongValues(
+          struct.getLong("Protocol"),
+          struct.getLong("ComputationStage")
+        )
+      )
       attempt = struct.getLong("NextAttempt").toInt() - 1
       nextDuchy = computationDetails.outgoingNodeId
       primaryDuchy = computationDetails.primaryNodeId

@@ -23,14 +23,14 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
 
 @RunWith(JUnit4::class)
 class ComputationStatsServiceTest {
-  private val fakeDatabase = FakeLiquidLegionsComputationDb()
+  private val fakeDatabase = FakeComputationDb()
   private val service: ComputationStatsService
 
   init {

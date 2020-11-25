@@ -19,11 +19,11 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
@@ -46,9 +46,11 @@ abstract class ComputationsServer : Runnable {
     DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
   }
 
-  abstract val computationType: ComputationType
-  abstract val stageEnumHelper: ProtocolStageEnumHelper<ComputationStage>
-  abstract val stageDetails: ProtocolStageDetails<ComputationStage, ComputationStageDetails>
+  abstract val protocolStageEnumHelper:
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  abstract val computationProtocolStageDetails:
+    ComputationProtocolStageDetailsHelper<
+      ComputationType, ComputationStage, ComputationStageDetails>
 
   protected fun run(
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
@@ -59,29 +61,29 @@ abstract class ComputationsServer : Runnable {
     val globalComputationsClient = GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
-    val singleProtocolDb = newSingleProtocolDb(readOnlyComputationDb, computationDb)
+    val computationsDatabase = newComputationsDatabase(readOnlyComputationDb, computationDb)
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
       ComputationsService(
-        computationsDatabase = singleProtocolDb,
+        computationsDatabase = computationsDatabase,
         globalComputationsClient = globalComputationsClient,
         duchyName = flags.duchy.duchyName
       ),
-      ComputationStatsService(singleProtocolDb)
+      ComputationStatsService(computationsDatabase)
     ).start().blockUntilShutdown()
   }
 
-  private fun newSingleProtocolDb(
+  private fun newComputationsDatabase(
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
     computationDb: ComputationsDb
-  ): SingleProtocolDatabase {
+  ): ComputationsDatabase {
     return object :
-      SingleProtocolDatabase,
+      ComputationsDatabase,
       ReadOnlyComputationsRelationalDb by readOnlyComputationDb,
       ComputationsDb by computationDb,
-      ProtocolStageEnumHelper<ComputationStage> by stageEnumHelper {
-      override val computationType = this@ComputationsServer.computationType
+      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+      by protocolStageEnumHelper {
     }
   }
 

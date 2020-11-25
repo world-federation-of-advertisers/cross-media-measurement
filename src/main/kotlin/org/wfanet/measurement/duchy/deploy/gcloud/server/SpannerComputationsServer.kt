@@ -17,29 +17,27 @@ package org.wfanet.measurement.duchy.deploy.gcloud.server
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.DuchyPublicKeys
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
 import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
 /**
- * Implementation of [ComputationsServer] using Google Cloud Spanner and the
- * [Liquid Legions sketch aggregation][ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1]
- * protocol.
+ * Implementation of [ComputationsServer] using Google Cloud Spanner.
  */
 @CommandLine.Command(
-  name = "SpannerLiquidLegionsComputationsServer",
+  name = "SpannerComputationsServer",
   description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
+class SpannerComputationsServer : ComputationsServer() {
   @CommandLine.Mixin
   private lateinit var spannerFlags: SpannerFlags
 
@@ -48,22 +46,20 @@ class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
   private val otherDuchyNames: List<String>
     get() = latestDuchyPublicKeys.keys.filter { it != flags.duchy.duchyName }
 
-  override val computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-  override val stageEnumHelper = LiquidLegionsSketchAggregationV1Protocol.ComputationStages
-  override val stageDetails
-    get() = LiquidLegionsSketchAggregationV1Protocol.ComputationStages.Details(otherDuchyNames)
+  override val protocolStageEnumHelper = ComputationProtocolStages
+  override val computationProtocolStageDetails = ComputationProtocolStageDetails(otherDuchyNames)
 
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->
       val databaseClient = spanner.databaseClient
       run(
-        GcpSpannerReadOnlyComputationsRelationalDb(databaseClient, stageEnumHelper),
+        GcpSpannerReadOnlyComputationsRelationalDb(databaseClient, protocolStageEnumHelper),
         GcpSpannerComputationsDb(
           databaseClient = databaseClient,
           duchyName = flags.duchy.duchyName,
           duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
           computationMutations = ComputationMutations(
-            ComputationTypes, stageEnumHelper, stageDetails
+            ComputationTypes, protocolStageEnumHelper, computationProtocolStageDetails
           )
         )
       )
@@ -72,4 +68,4 @@ class SpannerLiquidLegionsComputationsServer : ComputationsServer() {
 }
 
 fun main(args: Array<String>) =
-  commandLineMain(SpannerLiquidLegionsComputationsServer(), args)
+  commandLineMain(SpannerComputationsServer(), args)

@@ -16,27 +16,44 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toCollection
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
  * Implementation of [ReadOnlyComputationsRelationalDb] using GCP Spanner Database.
  */
 class GcpSpannerReadOnlyComputationsRelationalDb(
   private val databaseClient: AsyncDatabaseClient,
-  private val computationStagesHelper: ProtocolStageEnumHelper<ComputationStage>
+  private val computationProtocolStagesHelper:
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) : ReadOnlyComputationsRelationalDb {
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? =
-    ComputationTokenProtoQuery(computationStagesHelper::longToEnum, globalId)
+    ComputationTokenProtoQuery(
+      computationProtocolStagesHelper::longValuesToComputationStageEnum, globalId
+    )
       .execute(databaseClient)
       .singleOrNull()
 
-  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
-    GlobalIdsQuery(computationStagesHelper::enumToLong, stages)
+  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> {
+    val computationTypes = stages.map { stageToProtocol(it) }.distinct()
+    grpcRequire(computationTypes.count() == 1) {
+      "All stages should have the same ComputationType."
+    }
+
+    return GlobalIdsQuery(
+      ComputationProtocolStages::computationStageEnumToLongValues,
+      stages,
+      computationTypes[0]
+    )
       .execute(databaseClient)
       .toCollection(mutableSetOf())
+  }
 }

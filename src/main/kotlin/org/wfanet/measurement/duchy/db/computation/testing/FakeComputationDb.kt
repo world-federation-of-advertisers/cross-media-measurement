@@ -17,12 +17,12 @@ package org.wfanet.measurement.duchy.db.computation.testing
 import io.grpc.Status
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol.ComputationStages as LiquidLegionsComputationStages
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
-import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
@@ -36,19 +36,18 @@ private const val NEXT_WORKER = "NEXT_WORKER"
 private const val PRIMARY_WORKER = "PRIMARY_WORKER"
 
 /**
- * In-memory [SingleProtocolDatabase] for [ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1].
+ * In-memory [ComputationsDatabase]
  */
-class FakeLiquidLegionsComputationDb private constructor(
+class FakeComputationDb private constructor(
   /** Map of local computation ID to [ComputationToken]. */
   private val tokens: MutableMap<Long, ComputationToken>
 ) : Map<Long, ComputationToken> by tokens,
-  SingleProtocolDatabase,
-  ProtocolStageEnumHelper<ComputationStage> by LiquidLegionsComputationStages {
+  ComputationsDatabase,
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  by ComputationProtocolStages {
 
   constructor() : this(mutableMapOf())
 
-  override val computationType: ComputationType =
-    ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
   val claimedComputationIds = mutableSetOf<String>()
 
   fun remove(localId: Long) = tokens.remove(localId)
@@ -215,7 +214,7 @@ class FakeLiquidLegionsComputationDb private constructor(
     endingStage: ComputationStage,
     endComputationReason: EndComputationReason
   ) {
-    require(validTerminalStage(endingStage))
+    require(validTerminalStage(token.protocol, endingStage))
     updateToken(token) { existing ->
       claimedComputationIds.remove(existing.globalComputationId)
       existing.toBuilder().setComputationStage(endingStage).clearBlobs().clearStageSpecificDetails()

@@ -30,8 +30,8 @@ class ComputationsEnumHelperTest {
           .setLiquidLegionsSketchAggregationV1(stage).build()
         assertEquals(
           computationStage,
-          ComputationsEnumHelper.longValuesToComputationStageEnum(
-            ComputationsEnumHelper.computationStageEnumToLongValues(
+          ComputationProtocolStages.longValuesToComputationStageEnum(
+            ComputationProtocolStages.computationStageEnumToLongValues(
               computationStage
             )
           ),
@@ -49,8 +49,8 @@ class ComputationsEnumHelperTest {
           .setLiquidLegionsSketchAggregationV2(stage).build()
         assertEquals(
           computationStage,
-          ComputationsEnumHelper.longValuesToComputationStageEnum(
-            ComputationsEnumHelper.computationStageEnumToLongValues(
+          ComputationProtocolStages.longValuesToComputationStageEnum(
+            ComputationProtocolStages.computationStageEnumToLongValues(
               computationStage
             )
           ),
@@ -63,8 +63,8 @@ class ComputationsEnumHelperTest {
   @Test
   fun `longValuesToComputationStageEnum with invalid numbers`() {
     assertFails {
-      ComputationsEnumHelper.longValuesToComputationStageEnum(
-        ComputationsEnumHelper.ComputationStageLongValues(-1, -1)
+      ComputationProtocolStages.longValuesToComputationStageEnum(
+        ComputationStageLongValues(-1, -1)
       )
     }
   }

@@ -38,7 +38,7 @@ import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients as LiquidLegionsClients
-import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.db.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
@@ -74,7 +74,7 @@ private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
 class LiquidLegionsComputationControlServiceTest {
-  private val fakeComputationDb = FakeLiquidLegionsComputationDb()
+  private val fakeComputationDb = FakeComputationDb()
   private val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *OTHER_DUCHY_NAMES.toTypedArray())
   private val tempDirectory = TemporaryFolder()
   private val grpcTestServer = GrpcTestServerRule {
@@ -140,7 +140,7 @@ class LiquidLegionsComputationControlServiceTest {
 
   @Test
   fun `receive sketches`() = runBlocking<Unit> {
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = 252525,
       stage = WAIT_SKETCHES.toProtocolStage()
     ).build()

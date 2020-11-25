@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.ValueBinder
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -31,17 +32,21 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageDetails
-import org.wfanet.measurement.duchy.db.computation.ProtocolStageEnumHelper
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.A
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.B
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.C
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.D
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.E
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.X
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Y
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Z
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
@@ -55,6 +60,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /**
+ * Protocol Zero:
  * +--------------+
  * |              |
  * |              v
@@ -62,9 +68,12 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
  *      |         ^
  *      v         |
  *      D --------+
+ *
+ * Protocol One:
+ * X -> Y -> Z
  */
 enum class FakeProtocolStages {
-  A, B, C, D, E;
+  A, B, C, D, E, X, Y, Z;
 }
 
 enum class FakeProtocol {
@@ -87,38 +96,90 @@ enum class FakeProtocol {
   }
 }
 
-object ProtocolStages : ProtocolStageEnumHelper<FakeProtocolStages> {
-  override val validInitialStages = setOf(A)
-  override val validTerminalStages = setOf(E)
-  override val validSuccessors = mapOf(
+object ComputationProtocolStages :
+  ComputationProtocolStagesEnumHelper<FakeProtocol, FakeProtocolStages> {
+  private val validInitialStages = mapOf(
+    FakeProtocol.ZERO to setOf(A),
+    FakeProtocol.ONE to setOf(X)
+  )
+  private val validTerminalStages = mapOf(
+    FakeProtocol.ZERO to setOf(E),
+    FakeProtocol.ONE to setOf(Z)
+  )
+  private val validSuccessors = mapOf(
     A to setOf(B),
-    B to setOf(C, D)
+    B to setOf(C, D),
+    X to setOf(Y)
   )
 
-  override fun enumToLong(value: FakeProtocolStages): Long {
-    return value.ordinal.toLong()
+  override fun stageToProtocol(stage: FakeProtocolStages): FakeProtocol {
+    return when (stage) {
+      A, B, C, D, E -> FakeProtocol.ZERO
+      X, Y, Z -> FakeProtocol.ONE
+    }
   }
 
-  override fun longToEnum(value: Long): FakeProtocolStages {
-    return when (value) {
-      0L -> A
-      1L -> B
-      2L -> C
-      3L -> D
-      4L -> E
-      else -> error("Bad value")
+  override fun computationStageEnumToLongValues(value: FakeProtocolStages):
+    ComputationStageLongValues {
+      return when (value) {
+        A -> ComputationStageLongValues(0, 0)
+        B -> ComputationStageLongValues(0, 1)
+        C -> ComputationStageLongValues(0, 2)
+        D -> ComputationStageLongValues(0, 3)
+        E -> ComputationStageLongValues(0, 4)
+        X -> ComputationStageLongValues(1, 0)
+        Y -> ComputationStageLongValues(1, 1)
+        Z -> ComputationStageLongValues(1, 2)
+      }
     }
+
+  override fun longValuesToComputationStageEnum(value: ComputationStageLongValues):
+    FakeProtocolStages {
+      return when (value) {
+        ComputationStageLongValues(0, 0) -> A
+        ComputationStageLongValues(0, 1) -> B
+        ComputationStageLongValues(0, 2) -> C
+        ComputationStageLongValues(0, 3) -> D
+        ComputationStageLongValues(0, 4) -> E
+        ComputationStageLongValues(1, 0) -> X
+        ComputationStageLongValues(1, 1) -> Y
+        ComputationStageLongValues(1, 2) -> Z
+        else -> error("Bad value")
+      }
+    }
+
+  override fun getValidInitialStage(protocol: FakeProtocol): Set<FakeProtocolStages> =
+    validInitialStages[protocol] ?: error("bad protocol")
+
+  override fun getValidTerminalStages(protocol: FakeProtocol): Set<FakeProtocolStages> =
+    validTerminalStages[protocol] ?: error("bad protocol")
+
+  override fun validInitialStage(protocol: FakeProtocol, stage: FakeProtocolStages): Boolean {
+    return stage in getValidInitialStage(protocol)
+  }
+
+  override fun validTerminalStage(protocol: FakeProtocol, stage: FakeProtocolStages): Boolean {
+    return stage in getValidTerminalStages(protocol)
+  }
+
+  override fun validTransition(
+    currentStage: FakeProtocolStages,
+    nextStage: FakeProtocolStages
+  ): Boolean {
+    return nextStage in validSuccessors[currentStage] ?: error("bad stage")
   }
 }
 
-class StageDetailsHelper : ProtocolStageDetails<FakeProtocolStages, FakeProtocolStageDetails> {
+class ProtocolStageDetailsHelper :
+  ComputationProtocolStageDetailsHelper<
+    FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails> {
   override fun detailsFor(stage: FakeProtocolStages): FakeProtocolStageDetails {
     return FakeProtocolStageDetails.newBuilder()
       .setName(stage.name)
       .build()
   }
 
-  override fun parseDetails(bytes: ByteArray): FakeProtocolStageDetails =
+  override fun parseDetails(protocol: FakeProtocol, bytes: ByteArray): FakeProtocolStageDetails =
     FakeProtocolStageDetails.parseFrom(bytes)
 }
 
@@ -138,7 +199,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   private val testClock = TestClockWithNamedInstants(TEST_INSTANT)
   private val computationMutations =
-    ComputationMutations(FakeProtocol.Helper, ProtocolStages, StageDetailsHelper())
+    ComputationMutations(
+      FakeProtocol.Helper,
+      ComputationProtocolStages,
+      ProtocolStageDetailsHelper()
+    )
 
   private lateinit var database:
     GcpSpannerComputationsDb<FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails>
@@ -165,10 +230,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     val idGenerator = GlobalBitsPlusTimeStampIdGenerator(testClock)
     val globalId1 = "12345"
     val localId1 = idGenerator.localId(globalId1)
-    database.insertComputation(globalId1, FakeProtocol.ONE, A, computationMutations.detailsFor(A))
+    database.insertComputation(globalId1, FakeProtocol.ZERO, A, computationMutations.detailsFor(A))
     val globalId2 = "5678"
     val localId2 = idGenerator.localId(globalId2)
-    database.insertComputation(globalId2, FakeProtocol.ONE, A, computationMutations.detailsFor(A))
+    database.insertComputation(globalId2, FakeProtocol.ZERO, A, computationMutations.detailsFor(A))
 
     val expectedDetails123 = ComputationDetails.newBuilder().apply {
       role = ComputationDetails.RoleInComputation.PRIMARY
@@ -195,7 +260,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(localId1)
-        .set("ComputationStage").to(A.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(A)
         .set("UpdateTime").to(TEST_INSTANT.toGcloudTimestamp())
         .set("GlobalComputationId").to(globalId1)
         .set("LockOwner").to(null as String?)
@@ -205,7 +270,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(localId2)
-        .set("ComputationStage").to(A.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(A)
         .set("UpdateTime").to(TEST_INSTANT.toGcloudTimestamp())
         .set("GlobalComputationId").to(globalId2)
         .set("LockOwner").to(null as String?)
@@ -225,7 +290,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(localId1)
-        .set("ComputationStage").to(A.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(A)
         .set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
         .set("NextAttempt").to(1L)
         .set("EndTime").to(null as Timestamp?)
@@ -234,7 +299,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(localId2)
-        .set("ComputationStage").to(A.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(A)
         .set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
         .set("NextAttempt").to(1L)
         .set("EndTime").to(null as Timestamp?)
@@ -264,10 +329,10 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun `insert computations with same global id fails`() = runBlocking<Unit> {
-    database.insertComputation("123", FakeProtocol.ONE, A, computationMutations.detailsFor(A))
+    database.insertComputation("123", FakeProtocol.ZERO, A, computationMutations.detailsFor(A))
     // This one fails because the same local id is used.
     assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
-      database.insertComputation("123", FakeProtocol.ONE, A, computationMutations.detailsFor(A))
+      database.insertComputation("123", FakeProtocol.ZERO, A, computationMutations.detailsFor(A))
     }
   }
 
@@ -334,7 +399,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
         .set("Protocol").to(0)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
+        .set("ComputationStage").toFakeStage(token.stage)
         .set("LockOwner").to(null as String?)
         .set("LockExpirationTime").to(TEST_INSTANT.plusSeconds(2).toGcloudTimestamp())
         .set("ComputationDetails").toProtoBytes(COMPUTATION_DETAILS)
@@ -655,7 +720,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(D))
+        .set("ComputationStage").toFakeStage(D)
         .set("UpdateTime").to(testClock["update_stage"].toGcloudTimestamp())
         .build()
     )
@@ -670,19 +735,23 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(B))
+        .set("ComputationStage").toFakeStage(B)
         .set("CreationTime").to(testClock["stage_b_created"].toGcloudTimestamp())
         .set("EndTime").to(testClock["update_stage"].toGcloudTimestamp())
         .set("PreviousStage").to(null as Long?)
-        .set("FollowingStage").to(ProtocolStages.enumToLong(D))
+        .set("FollowingStage").to(
+          ComputationProtocolStages.computationStageEnumToLongValues(D).stage
+        )
         .set("Details").toProtoBytes(computationMutations.detailsFor(B))
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(D))
+        .set("ComputationStage").toFakeStage(D)
         .set("CreationTime").to(testClock["update_stage"].toGcloudTimestamp())
         .set("EndTime").to(null as Timestamp?)
-        .set("PreviousStage").to(ProtocolStages.enumToLong(B))
+        .set("PreviousStage").to(
+          ComputationProtocolStages.computationStageEnumToLongValues(B).stage
+        )
         .set("FollowingStage").to(null as Long?)
         .set("Details").toProtoBytes(computationMutations.detailsFor(D))
         .build()
@@ -712,7 +781,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(B))
+        .set("ComputationStage").toFakeStage(B)
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
@@ -724,7 +793,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(D))
+        .set("ComputationStage").toFakeStage(D)
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcloudTimestamp())
         .set("EndTime").to(null as Timestamp?)
@@ -756,7 +825,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(B))
+        .set("ComputationStage").toFakeStage(B)
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
@@ -792,7 +861,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(B))
+        .set("ComputationStage").toFakeStage(B)
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["stage_b_created"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
@@ -804,7 +873,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(D))
+        .set("ComputationStage").toFakeStage(D)
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock.last().toGcloudTimestamp())
         .set("EndTime").to(null as Timestamp?)
@@ -887,7 +956,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
+        .set("ComputationStage").toFakeStage(token.stage)
         .set("BlobId").to(1234L)
         .set("PathToBlob").to("/wrote/something/there")
         .set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
@@ -895,7 +964,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(token.stage))
+        .set("ComputationStage").toFakeStage(token.stage)
         .set("BlobId").to(5678L)
         .set("PathToBlob").to("/path/to/input/blob")
         .set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)
@@ -973,7 +1042,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(E.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(E)
         .set("UpdateTime").to(testClock.last().toGcloudTimestamp())
         .set("GlobalComputationId").to("55")
         .set("LockOwner").to(null as String?)
@@ -992,7 +1061,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(C))
+        .set("ComputationStage").toFakeStage(C)
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
@@ -1004,7 +1073,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .build(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(C))
+        .set("ComputationStage").toFakeStage(C)
         .set("Attempt").to(2)
         .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
@@ -1067,7 +1136,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(E.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(E)
         .set("UpdateTime").to(testClock.last().toGcloudTimestamp())
         .set("GlobalComputationId").to(globalId)
         .set("LockOwner").to(null as String?)
@@ -1085,7 +1154,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(token.localId)
-        .set("ComputationStage").to(ProtocolStages.enumToLong(C))
+        .set("ComputationStage").toFakeStage(C)
         .set("Attempt").to(1)
         .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
         .set("EndTime").to(testClock.last().toGcloudTimestamp())
@@ -1157,11 +1226,14 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       """.trimIndent(),
       Struct.newBuilder()
         .set("ComputationId").to(localId)
-        .set("ComputationStage").to(C.ordinal.toLong())
+        .set("ComputationStage").toFakeStage(C)
         .set("Attempt").to(2)
         .set("MetricName").to("crypto_cpu_time_millis")
         .set("MetricValue").to(3125)
         .build()
     )
   }
+
+  private fun <T> ValueBinder<T>.toFakeStage(value: FakeProtocolStages): T =
+    to(ComputationProtocolStages.computationStageEnumToLongValues(value).stage)
 }

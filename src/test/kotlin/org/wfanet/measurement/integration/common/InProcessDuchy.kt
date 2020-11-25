@@ -39,8 +39,8 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
@@ -72,7 +72,7 @@ class InProcessDuchy(
   duchyDependenciesProvider: () -> DuchyDependencies
 ) : TestRule {
   data class DuchyDependencies(
-    val singleProtocolDatabase: SingleProtocolDatabase,
+    val computationsDatabase: ComputationsDatabase,
     val metricValueDatabase: MetricValueDatabase,
     val storageClient: StorageClient,
     val duchyPublicKeys: DuchyPublicKeys,
@@ -92,7 +92,7 @@ class InProcessDuchy(
   private val storageServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     addService(
       ComputationsService(
-        duchyDependencies.singleProtocolDatabase,
+        duchyDependencies.computationsDatabase,
         kingdomGlobalComputationsStub,
         duchyId
       )
@@ -139,7 +139,7 @@ class InProcessDuchy(
         LiquidLegionsComputationControlService(computationDataClients).withDuchyIdentities()
       )
       addService(
-        ComputationStatsService(duchyDependencies.singleProtocolDatabase)
+        ComputationStatsService(duchyDependencies.computationsDatabase)
       )
     }
 

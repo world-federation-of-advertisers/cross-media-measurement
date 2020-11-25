@@ -23,8 +23,8 @@ import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.SingleProtocolDatabase
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
@@ -54,17 +54,13 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 
 /** Implementation of the Computations service. */
 class ComputationsService(
-  private val computationsDatabase: SingleProtocolDatabase,
+  private val computationsDatabase: ComputationsDatabase,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC()
 ) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
-    grpcRequire(computationsDatabase.computationType == request.computationType) {
-      "May only claim work for ${computationsDatabase.computationType} computations. " +
-        "${request.computationType} is not supported."
-    }
     val claimed = computationsDatabase.claimTask(request.computationType, request.owner)
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
@@ -86,21 +82,17 @@ class ComputationsService(
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
     }
 
-    grpcRequire(computationsDatabase.computationType == request.computationType) {
-      "May only create ${computationsDatabase.computationType} computations. " +
-        "${request.computationType} is not supported."
-    }
     computationsDatabase.insertComputation(
       request.globalComputationId,
       request.computationType,
-      computationsDatabase.validInitialStages.first(),
+      computationsDatabase.getValidInitialStage(request.computationType).first(),
       request.stageDetails
     )
 
     sendStatusUpdateToKingdom(
       newStatusUpdateRequest(
         request.globalComputationId,
-        computationsDatabase.validInitialStages.first()
+        computationsDatabase.getValidInitialStage(request.computationType).first()
       )
     )
 
@@ -136,11 +128,6 @@ class ComputationsService(
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
-    grpcRequire(computationsDatabase.computationType == request.computationType) {
-      "May only read tokens for type ${computationsDatabase.computationType}. " +
-        "${request.computationType} is not supported"
-    }
-
     val computationToken = computationsDatabase.readComputationToken(request.globalComputationId)
       ?: throw Status.NOT_FOUND.asRuntimeException()
     return computationToken.toGetComputationTokenResponse()

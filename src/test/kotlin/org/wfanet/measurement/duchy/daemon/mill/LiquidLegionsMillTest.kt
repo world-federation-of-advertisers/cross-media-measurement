@@ -68,7 +68,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.testing.FakeLiquidLegionsComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
@@ -127,7 +127,7 @@ class LiquidLegionsMillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockCryptoWorker: ProtocolEncryption =
     mock(useConstructor = UseConstructor.parameterless())
-  private val fakeComputationDb = FakeLiquidLegionsComputationDb()
+  private val fakeComputationDb = FakeComputationDb()
 
   private lateinit var computationDataClients:
     LiquidLegionsSketchAggregationComputationDataClients
@@ -495,7 +495,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to add noise using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_ADD_NOISE.toProtocolStage()
     ).build()
@@ -564,7 +564,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to append sketches any add noise using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
     ).build()
@@ -639,7 +639,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to blind positions using cached result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
     ).build()
@@ -701,7 +701,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to blind positions using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
     ).build()
@@ -773,7 +773,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to blind positions and merge register using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage()
     ).build()
@@ -846,7 +846,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to decrypt FlagCounts using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage()
     ).build()
@@ -908,7 +908,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `to decrypt flag count and compute metric`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS.toProtocolStage()
     ).build()
@@ -980,7 +980,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `permanent crypto worker failure, computation should FAIL`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
     ).build()
@@ -1051,7 +1051,7 @@ class LiquidLegionsMillTest {
   @Test
   fun `trancient grpc failure, result should be cached`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeLiquidLegionsComputationDb.newPartialToken(
+    val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
       stage = LiquidLegionsStage.TO_BLIND_POSITIONS.toProtocolStage()
     ).build()
