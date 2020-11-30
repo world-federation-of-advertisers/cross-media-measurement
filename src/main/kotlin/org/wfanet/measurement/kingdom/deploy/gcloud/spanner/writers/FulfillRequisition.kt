@@ -31,8 +31,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportRequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
-private typealias RequisitionTransition = RequisitionUpdate
-
 /**
  * [SpannerWriter] for reading a [Requisition] and, if its state is
  * [RequisitionState.UNFULFILLED], updating it to set its state to
@@ -43,8 +41,8 @@ private typealias RequisitionTransition = RequisitionUpdate
 class FulfillRequisition(
   private val externalRequisitionId: ExternalId,
   private val duchyId: String
-) : SpannerWriter<RequisitionTransition, RequisitionTransition>() {
-  override suspend fun TransactionScope.runTransaction(): RequisitionTransition {
+) : SpannerWriter<RequisitionUpdate, RequisitionUpdate>() {
+  override suspend fun TransactionScope.runTransaction(): RequisitionUpdate {
     val readResult = RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
     val requisition = readResult.requisition
     if (requisition.state != RequisitionState.UNFULFILLED) {
@@ -76,7 +74,7 @@ class FulfillRequisition(
       }.build()
   }
 
-  override fun ResultScope<RequisitionTransition>.buildResult(): RequisitionTransition {
+  override fun ResultScope<RequisitionUpdate>.buildResult(): RequisitionUpdate {
     return checkNotNull(transactionResult)
   }
 
