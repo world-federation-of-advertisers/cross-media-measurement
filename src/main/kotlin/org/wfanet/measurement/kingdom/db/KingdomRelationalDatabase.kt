@@ -44,9 +44,13 @@ interface KingdomRelationalDatabase {
   suspend fun createRequisition(requisition: Requisition): Requisition
 
   /**
-   * Updates the state of a [Requisition] to [RequisitionState.FULFILLED].
+   * Transitions the state of a [Requisition] to [RequisitionState.FULFILLED] if
+   * its current state is [RequisitionState.UNFULFILLED].
    */
-  suspend fun fulfillRequisition(externalRequisitionId: ExternalId, duchyId: String): Requisition
+  suspend fun fulfillRequisition(
+    externalRequisitionId: ExternalId,
+    duchyId: String
+  ): RequisitionUpdate
 
   /**
    * Streams [Requisition]s.

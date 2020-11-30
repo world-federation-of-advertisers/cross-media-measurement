@@ -20,9 +20,13 @@ import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.check
 import com.nhaarman.mockitokotlin2.eq
 import com.nhaarman.mockitokotlin2.mock
+import com.nhaarman.mockitokotlin2.stub
 import com.nhaarman.mockitokotlin2.verify
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -36,23 +40,23 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
+import org.wfanet.measurement.kingdom.db.to
+
+private val REQUISITION: Requisition = Requisition.newBuilder().apply {
+  externalDataProviderId = 1
+  externalCampaignId = 2
+  externalRequisitionId = 3
+  createTimeBuilder.seconds = 456
+  state = RequisitionState.UNFULFILLED
+}.build()
+private val FULFILLED_REQUISITION: Requisition = REQUISITION.toBuilder().apply {
+  state = RequisitionState.FULFILLED
+}.build()
 
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
-
-  companion object {
-    val REQUISITION: Requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = 1
-      externalCampaignId = 2
-      externalRequisitionId = 3
-      createTimeBuilder.seconds = 456
-      state = RequisitionState.UNFULFILLED
-    }.build()
-  }
-
   private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
     onBlocking { createRequisition(any()) }.thenReturn(REQUISITION)
-    onBlocking { fulfillRequisition(any(), any()) }.thenReturn(REQUISITION)
     on { streamRequisitions(any(), any()) }.thenReturn(flowOf(REQUISITION, REQUISITION))
   }
 
@@ -98,6 +102,12 @@ class RequisitionsServiceTest {
 
   @Test
   fun fulfillRequisition() = runBlocking<Unit> {
+    kingdomRelationalDatabase.stub {
+      onBlocking {
+        fulfillRequisition(any(), any())
+      }.thenReturn(REQUISITION to FULFILLED_REQUISITION)
+    }
+
     val request: FulfillRequisitionRequest =
       FulfillRequisitionRequest.newBuilder()
         .setExternalRequisitionId(12345)
@@ -105,10 +115,30 @@ class RequisitionsServiceTest {
         .build()
 
     assertThat(service.fulfillRequisition(request))
-      .isEqualTo(REQUISITION)
+      .isEqualTo(FULFILLED_REQUISITION)
 
     verify(kingdomRelationalDatabase)
       .fulfillRequisition(ExternalId(12345), "some-duchy")
+  }
+
+  @Test
+  fun `fulfillRequisition fails with FAILED_PRECONDITION with incorrect state`() = runBlocking {
+    kingdomRelationalDatabase.stub {
+      onBlocking {
+        fulfillRequisition(any(), any())
+      }.thenReturn(FULFILLED_REQUISITION to FULFILLED_REQUISITION)
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> {
+      service.fulfillRequisition(
+        FulfillRequisitionRequest.newBuilder()
+          .setExternalRequisitionId(12345)
+          .setDuchyId("some-duchy")
+          .build()
+      )
+    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test

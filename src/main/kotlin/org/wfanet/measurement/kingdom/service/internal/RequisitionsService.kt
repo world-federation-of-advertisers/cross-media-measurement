@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.internal
 
+import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
@@ -39,10 +41,16 @@ class RequisitionsService(
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
-    return kingdomRelationalDatabase.fulfillRequisition(
+    val transition = kingdomRelationalDatabase.fulfillRequisition(
       ExternalId(request.externalRequisitionId),
       request.duchyId
     )
+    return when (val preState = transition.original.state) {
+      RequisitionState.UNFULFILLED -> transition.current
+      else -> failGrpc(Status.FAILED_PRECONDITION) {
+        "Cannot fulfill MetricRequisition in state $preState"
+      }
+    }
   }
 
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {

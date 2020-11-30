@@ -25,22 +25,30 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
+import org.wfanet.measurement.kingdom.db.RequisitionUpdate
+import org.wfanet.measurement.kingdom.db.to
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportRequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
+private typealias RequisitionTransition = RequisitionUpdate
+
 /**
- * Marks a Requisition in Spanner as fulfilled (with state [RequisitionState.FULFILLED]).
+ * [SpannerWriter] for reading a [Requisition] and, if its state is
+ * [RequisitionState.UNFULFILLED], updating it to set its state to
+ * [RequisitionState.FULFILLED].
+ *
+ * If its state is not [RequisitionState.UNFULFILLED], no mutation is made.
  */
 class FulfillRequisition(
   private val externalRequisitionId: ExternalId,
   private val duchyId: String
-) : SpannerWriter<Requisition, Requisition>() {
-  override suspend fun TransactionScope.runTransaction(): Requisition {
+) : SpannerWriter<RequisitionTransition, RequisitionTransition>() {
+  override suspend fun TransactionScope.runTransaction(): RequisitionTransition {
     val readResult = RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
-
-    require(readResult.requisition.state == RequisitionState.UNFULFILLED) {
-      "Requisition $externalRequisitionId is not UNFULFILLED: $readResult"
+    val requisition = readResult.requisition
+    if (requisition.state != RequisitionState.UNFULFILLED) {
+      return RequisitionUpdate.noOp(requisition)
     }
 
     Mutation.newUpdateBuilder("Requisitions")
@@ -61,13 +69,14 @@ class FulfillRequisition(
       )
       .collect { updateReportDetails(it) }
 
-    return readResult.requisition.toBuilder()
-      .setState(RequisitionState.FULFILLED)
-      .setDuchyId(duchyId)
-      .build()
+    return requisition to
+      requisition.toBuilder().also {
+        it.duchyId = duchyId
+        it.state = RequisitionState.FULFILLED
+      }.build()
   }
 
-  override fun ResultScope<Requisition>.buildResult(): Requisition {
+  override fun ResultScope<RequisitionTransition>.buildResult(): RequisitionTransition {
     return checkNotNull(transactionResult)
   }
 

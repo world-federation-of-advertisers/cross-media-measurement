@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionUpdate
 import org.wfanet.measurement.kingdom.db.StreamReportsFilter
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetReport
@@ -68,7 +69,7 @@ class SpannerKingdomRelationalDatabase(
   override suspend fun fulfillRequisition(
     externalRequisitionId: ExternalId,
     duchyId: String
-  ): Requisition {
+  ): RequisitionUpdate {
     return FulfillRequisition(externalRequisitionId, duchyId).execute()
   }
 

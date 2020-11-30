@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
+import org.wfanet.measurement.kingdom.db.RequisitionUpdate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.buildRequisitionDetails
 
@@ -84,9 +85,10 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private suspend fun fulfillRequisition(externalRequisitionId: Long): Requisition {
-    return FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID)
-      .execute(databaseClient)
+  private suspend fun fulfillRequisition(
+    externalRequisitionId: Long
+  ): RequisitionUpdate {
+    return FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID).execute(databaseClient)
   }
 
   @Before
@@ -108,7 +110,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   @Test
   fun success() = runBlocking<Unit> {
     updateExistingRequisitionState(RequisitionState.UNFULFILLED)
-    val requisition = fulfillRequisition(EXTERNAL_REQUISITION_ID)
+    val requisition = fulfillRequisition(EXTERNAL_REQUISITION_ID).current
 
     val expectedRequisition: Requisition =
       REQUISITION
@@ -172,10 +174,9 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
     updateExistingRequisitionState(RequisitionState.FULFILLED)
     val existingRequisitions = readAllRequisitionsInSpanner()
 
-    assertFails {
-      fulfillRequisition(EXTERNAL_REQUISITION_ID)
-    }
+    val transition = fulfillRequisition(EXTERNAL_REQUISITION_ID)
 
+    assertThat(transition.original).isEqualTo(transition.current)
     assertThat(readAllRequisitionsInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactlyElementsIn(existingRequisitions)
