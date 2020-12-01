@@ -117,7 +117,7 @@ absl::StatusOr<std::string> ProtocolCryptorImpl::DecryptLocalElGamal(
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
     absl::string_view plain_ec_point) {
   absl::WriterMutexLock l(&mutex_);
-  return composite_el_gamal_cipher_->Encrypt(std::string(plain_ec_point));
+  return composite_el_gamal_cipher_->Encrypt(plain_ec_point);
 }
 
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
@@ -151,7 +151,7 @@ absl::StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(
     absl::string_view str) {
   absl::WriterMutexLock l(&mutex_);
   ASSIGN_OR_RETURN(ECPoint temp_ec_point,
-                   ec_group_.GetPointByHashingToCurveSha256(std::string(str)));
+                   ec_group_.GetPointByHashingToCurveSha256(str));
   return temp_ec_point.ToBytesCompressed();
 }
 
@@ -233,20 +233,19 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
                              curve_id, local_el_gamal_public_key)
                        : CommutativeElGamal::CreateFromPublicAndPrivateKeys(
                              curve_id, local_el_gamal_public_key,
-                             std::string(local_el_gamal_private_key)));
+                             local_el_gamal_private_key));
   ASSIGN_OR_RETURN(auto client_el_gamal_cipher,
                    composite_el_gamal_public_key.first.empty()
                        ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
                        : CommutativeElGamal::CreateFromPublicKey(
                              curve_id, composite_el_gamal_public_key));
-  ASSIGN_OR_RETURN(
-      auto local_pohlig_hellman_cipher,
-      local_pohlig_hellman_private_key.empty()
-          ? ECCommutativeCipher::CreateWithNewKey(
-                curve_id, ECCommutativeCipher::HashType::SHA256)
-          : ECCommutativeCipher::CreateFromKey(
-                curve_id, std::string(local_pohlig_hellman_private_key),
-                ECCommutativeCipher::HashType::SHA256));
+  ASSIGN_OR_RETURN(auto local_pohlig_hellman_cipher,
+                   local_pohlig_hellman_private_key.empty()
+                       ? ECCommutativeCipher::CreateWithNewKey(
+                             curve_id, ECCommutativeCipher::HashType::SHA256)
+                       : ECCommutativeCipher::CreateFromKey(
+                             curve_id, local_pohlig_hellman_private_key,
+                             ECCommutativeCipher::HashType::SHA256));
 
   std::unique_ptr<ProtocolCryptor> result =
       absl::make_unique<ProtocolCryptorImpl>(

@@ -226,9 +226,9 @@ http_file(
 # @com_google_private_join_and_compute
 git_repository(
     name = "com_google_private_join_and_compute",
-    commit = "aa2d68e68193547e88a120c667e173662abd7478",
+    commit = "99fbcf79c5aded3694973086651f535d08a645c5",
     remote = "https://github.com/google/private-join-and-compute.git",
-    shallow_since = "1605562036 +0000",
+    shallow_since = "1605559721 -0400",
 )
 
 # glog

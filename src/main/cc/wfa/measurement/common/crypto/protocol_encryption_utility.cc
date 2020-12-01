@@ -158,7 +158,7 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   }
   // Create a new ElGamal Encryption of the is_not_destroyed flag.
   ASSIGN_OR_RETURN(std::string is_not_destroyed,
-                   protocol_cryptor.MapToCurve(std::string(kIsNotDestroyed)));
+                   protocol_cryptor.MapToCurve(kIsNotDestroyed));
   ASSIGN_OR_RETURN(ElGamalCiphertext is_not_destroyed_ciphertext,
                    protocol_cryptor.EncryptCompositeElGamal(is_not_destroyed));
   size_t offset =
