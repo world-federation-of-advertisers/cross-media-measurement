@@ -27,15 +27,16 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.db.computation.toNoisedSketchBlobMetadataFor
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase as ComputationControlCoroutineService
 import org.wfanet.measurement.system.v1alpha.ComputationProcessRequestHeader
 import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
@@ -48,7 +49,7 @@ import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchResponse
 private val COMPUTATION_TYPE = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 
 class LiquidLegionsComputationControlService(
-  private val clients: LiquidLegionsSketchAggregationComputationDataClients,
+  private val clients: ComputationDataClients,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : ComputationControlCoroutineService() {
 
@@ -86,7 +87,7 @@ class LiquidLegionsComputationControlService(
 
     // The next stage to be worked depends upon the duchy's role in the computation.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum accessors never return null.
-    val nextStage = when (val role = tokenAfterWrite.role) {
+    val nextStage = when (val role = tokenAfterWrite.computationDetails.liquidLegionsV1.role) {
       RoleInComputation.PRIMARY ->
         LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
       RoleInComputation.SECONDARY ->
@@ -99,7 +100,7 @@ class LiquidLegionsComputationControlService(
     clients.transitionComputationToStage(
       computationToken = tokenAfterWrite,
       inputsToNextStage = listOf(tokenAfterWrite.singleOutputBlobMetadata().path),
-      stage = nextStage
+      stage = nextStage.toProtocolStage()
     )
 
     logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
@@ -139,7 +140,7 @@ class LiquidLegionsComputationControlService(
     val id = tokenAfterWrite.globalComputationId
 
     // The next stage to be worked depends upon the duchy's role in the computation.
-    val nextStage = when (val role = tokenAfterWrite.role) {
+    val nextStage = when (val role = tokenAfterWrite.computationDetails.liquidLegionsV1.role) {
       RoleInComputation.PRIMARY ->
         LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
       RoleInComputation.SECONDARY ->
@@ -150,7 +151,7 @@ class LiquidLegionsComputationControlService(
     clients.transitionComputationToStage(
       computationToken = tokenAfterWrite,
       inputsToNextStage = listOf(tokenAfterWrite.singleOutputBlobMetadata().path),
-      stage = nextStage
+      stage = nextStage.toProtocolStage()
     )
 
     logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage")
@@ -203,7 +204,7 @@ class LiquidLegionsComputationControlService(
       clients.transitionComputationToStage(
         computationToken = token,
         inputsToNextStage = token.blobsList.map { it.path }.toList(),
-        stage = nextStage
+        stage = nextStage.toProtocolStage()
       )
       logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage.")
     } else {

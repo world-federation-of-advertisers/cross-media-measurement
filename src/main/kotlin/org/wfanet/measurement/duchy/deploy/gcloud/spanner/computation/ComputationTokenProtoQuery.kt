@@ -78,7 +78,7 @@ class ComputationTokenProtoQuery(
         .sortedBy { it.blobId }
         .toList()
 
-    val computationDetails =
+    val computationDetailsProto =
       struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
     val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
     return ComputationToken.newBuilder().apply {
@@ -91,10 +91,8 @@ class ComputationTokenProtoQuery(
         )
       )
       attempt = struct.getLong("NextAttempt").toInt() - 1
-      nextDuchy = computationDetails.outgoingNodeId
-      primaryDuchy = computationDetails.primaryNodeId
+      computationDetails = computationDetailsProto
       version = struct.getTimestamp("UpdateTime").toEpochMilli()
-      role = computationDetails.role
       stageSpecificDetails = stageDetails
 
       if (blobs.isNotEmpty()) {

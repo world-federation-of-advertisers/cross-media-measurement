@@ -19,20 +19,18 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.read
 
 /**
- * Storage clients specific to running the Privacy-Preserving Secure Cardinality and
- * Frequency Estimation protocol using sparse representation of
- * Liquid Legions Cardinality Estimator sketches.
+ * Storage clients providing access to the ComputationsService and ComputationStore.
  */
-class LiquidLegionsSketchAggregationComputationDataClients private constructor(
+class ComputationDataClients private constructor(
   val computationsClient: ComputationsCoroutineStub,
   private val computationStore: ComputationStore,
   otherDuchies: List<String>
@@ -44,8 +42,7 @@ class LiquidLegionsSketchAggregationComputationDataClients private constructor(
     otherDuchies: List<String>
   ) : this(computationStorageClient, ComputationStore(storageClient), otherDuchies)
 
-  val liquidLegionsStageDetails: LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details =
-    LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(otherDuchies)
+  val computationProtocolStageDetails = ComputationProtocolStageDetails(otherDuchies)
 
   /**
    * Calls AdvanceComputationStage to move to a new stage in a consistent way.
@@ -57,14 +54,14 @@ class LiquidLegionsSketchAggregationComputationDataClients private constructor(
   suspend fun transitionComputationToStage(
     computationToken: ComputationToken,
     inputsToNextStage: List<String>,
-    stage: LiquidLegionsSketchAggregationV1.Stage
+    stage: ComputationStage
   ): ComputationToken =
     computationsClient
-      .advanceLiquidLegionsComputationStage(
+      .advanceComputationStage(
         computationToken,
         inputsToNextStage,
         stage,
-        liquidLegionsStageDetails
+        computationProtocolStageDetails
       )
 
   /**
@@ -74,6 +71,7 @@ class LiquidLegionsSketchAggregationComputationDataClients private constructor(
    * @return [ComputationToken] after updating blob reference. When the output already exists,
    * no blob is written, but the returned token will have a path to the previously written blob.
    */
+  // TODO: replace with something generic.
   suspend fun writeReceivedNoisedSketch(
     computationToken: ComputationToken,
     content: Flow<ByteString>,
@@ -177,8 +175,8 @@ class LiquidLegionsSketchAggregationComputationDataClients private constructor(
       computationStorageClient: ComputationsCoroutineStub,
       computationStore: ComputationStore,
       otherDuchies: List<String>
-    ): LiquidLegionsSketchAggregationComputationDataClients {
-      return LiquidLegionsSketchAggregationComputationDataClients(
+    ): ComputationDataClients {
+      return ComputationDataClients(
         computationStorageClient,
         computationStore,
         otherDuchies
@@ -204,6 +202,7 @@ fun ComputationToken.singleOutputBlobMetadata(): ComputationStageBlobMetadata =
  * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
  * case the path will be empty.
  */
+// TODO: replace with something generic.
 fun ComputationToken.toNoisedSketchBlobMetadataFor(
   sender: String
 ): ComputationStageBlobMetadata {

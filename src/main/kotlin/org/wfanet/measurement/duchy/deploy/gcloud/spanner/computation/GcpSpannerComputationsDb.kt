@@ -27,8 +27,6 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.common.DuchyOrder
-import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
@@ -40,25 +38,22 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
+import org.wfanet.measurement.gcloud.spanner.getBytesAsByteArray
 import org.wfanet.measurement.gcloud.spanner.getNullableString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
-import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /**
  * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
  */
-class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
+class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
   private val databaseClient: AsyncDatabaseClient,
-  private val duchyName: String,
-  private val duchyOrder: DuchyOrder,
-  private val blobStorageBucket: String = "mill-computation-stage-storage",
-  private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDetailsT>,
+  private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC(),
   private val lockDuration: Duration = Duration.ofMinutes(5)
-) : ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
+) : ComputationsRelationalDb<ProtocolT, StageT, StageDT, ComputationDT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     GlobalBitsPlusTimeStampIdGenerator(clock)
@@ -67,25 +62,14 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     globalId: String,
     protocol: ProtocolT,
     initialStage: StageT,
-    stageDetails: StageDetailsT
+    stageDetails: StageDT,
+    computationDetails: ComputationDT
   ) {
     require(
       computationMutations.validInitialStage(protocol, initialStage)
     ) { "Invalid initial stage $initialStage" }
 
     val localId: Long = localComputationIdGenerator.localId(globalId)
-    val computationAtThisDuchy = duchyOrder.positionFor(globalId, duchyName)
-
-    val details = ComputationDetails.newBuilder().apply {
-      role = when (computationAtThisDuchy.role) {
-        DuchyRole.PRIMARY -> ComputationDetails.RoleInComputation.PRIMARY
-        else -> ComputationDetails.RoleInComputation.SECONDARY
-      }
-      incomingNodeId = computationAtThisDuchy.prev
-      outgoingNodeId = computationAtThisDuchy.next
-      primaryNodeId = computationAtThisDuchy.primary
-      blobsStoragePrefix = "$blobStorageBucket/$localId"
-    }.build()
 
     val writeTimestamp = clock.gcloudTimestamp()
     val computationRow =
@@ -95,7 +79,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
         globalId = globalId,
         lockOwner = WRITE_NULL_STRING,
         lockExpirationTime = clock.gcloudTimestamp(),
-        details = details,
+        details = computationDetails,
         protocol = protocol,
         stage = initialStage
       )
@@ -269,7 +253,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     inputBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDetailsT
+    nextStageDetails: StageDT
   ) {
     require(
       computationMutations.validTransition(token.stage, nextStage)
@@ -311,10 +295,11 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     }
     runIfTokenFromLastUpdate(token) { ctx ->
       val writeTime = clock.gcloudTimestamp()
-      val details = ctx.readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
-        ?.getProtoMessage("ComputationDetails", ComputationDetails.parser())
-        ?: error("Computation missing $token")
-
+      val detailsBytes =
+        ctx.readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
+          ?.getBytesAsByteArray("ComputationDetails")
+          ?: error("Computation missing $token")
+      val details = computationMutations.parseComputationDetails(detailsBytes)
       ctx.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
@@ -323,13 +308,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = WRITE_NULL_TIMESTAMP,
           // Add a reason why the computation ended to the details section.
-          details = details.toBuilder().setEndingState(
-            when (endComputationReason) {
-              EndComputationReason.SUCCEEDED -> ComputationDetails.CompletedReason.SUCCEEDED
-              EndComputationReason.FAILED -> ComputationDetails.CompletedReason.FAILED
-              EndComputationReason.CANCELED -> ComputationDetails.CompletedReason.CANCELED
-            }
-          ).build()
+          details = computationMutations.setEndingState(details, endComputationReason)
         )
       )
       ctx.buffer(
@@ -391,7 +370,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDetailsT : Message>(
     newStage: StageT,
     writeTime: Timestamp,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDetailsT
+    nextStageDetails: StageDT
   ): List<Mutation> {
     val mutations = arrayListOf<Mutation>()
 

@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -31,13 +32,15 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.Duchy
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients as LiquidLegionsClients
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients as LiquidLegionsClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.db.computation.toBlobRef
 import org.wfanet.measurement.duchy.name
@@ -50,10 +53,11 @@ import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncrypte
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
@@ -71,6 +75,30 @@ private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
+private val duchyOrder = DuchyOrder(
+  setOf(
+    Duchy("BOHEMIA", 10L.toBigInteger()),
+    Duchy("SALZBURG", 200L.toBigInteger()),
+    Duchy("AUSTRIA", 303L.toBigInteger())
+  )
+)
+private val primaryComputationDetails = ComputationDetails.newBuilder().apply {
+  liquidLegionsV1Builder.apply {
+    role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+    primaryNodeId = "BOHEMIA"
+    incomingNodeId = "SALZBURG"
+    outgoingNodeId = "AUSTRIA"
+  }
+}.build()
+
+private val secondComputationDetails = ComputationDetails.newBuilder().apply {
+  liquidLegionsV1Builder.apply {
+    role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
+    primaryNodeId = "BOHEMIA"
+    incomingNodeId = "SALZBURG"
+    outgoingNodeId = "BOHEMIA"
+  }
+}.build()
 
 @RunWith(JUnit4::class)
 class LiquidLegionsComputationControlServiceTest {
@@ -82,7 +110,9 @@ class LiquidLegionsComputationControlServiceTest {
       ComputationsService(
         fakeComputationDb,
         globalComputationsClient,
-        RUNNING_DUCHY_NAME
+        RUNNING_DUCHY_NAME,
+        Clock.systemUTC(),
+        duchyOrder
       )
     )
 
@@ -149,13 +179,15 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(id = 0, key = generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(id = 1),
         newEmptyOutputBlobMetadata(id = 2)
       ),
-      stageDetails = computationStorageClients.liquidLegionsStageDetails.detailsFor(WAIT_SKETCHES)
+      stageDetails = computationStorageClients.computationProtocolStageDetails.detailsFor(
+        WAIT_SKETCHES.toProtocolStage()
+      )
     )
 
     assertNotNull(computationStorageClient.getComputationToken(id.toGetTokenRequest()))
@@ -219,7 +251,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb.addComputation(
       globalId = id,
       stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
     val exception = assertFailsWith<StatusRuntimeException> {
@@ -244,7 +276,7 @@ class LiquidLegionsComputationControlServiceTest {
       .addComputation(
         globalId = id,
         stage = WAIT_CONCATENATED.toProtocolStage(),
-        role = RoleInComputation.PRIMARY,
+        computationDetails = primaryComputationDetails,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
     val token =
@@ -281,7 +313,7 @@ class LiquidLegionsComputationControlServiceTest {
       .addComputation(
         globalId = id,
         stage = WAIT_CONCATENATED.toProtocolStage(),
-        role = RoleInComputation.SECONDARY,
+        computationDetails = secondComputationDetails,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
     val token =
@@ -322,7 +354,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb.addComputation(
       globalId = id,
       stage = TO_ADD_NOISE.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
     val exception = assertFailsWith<StatusRuntimeException> {
@@ -338,7 +370,7 @@ class LiquidLegionsComputationControlServiceTest {
       .addComputation(
         globalId = id,
         stage = WAIT_FLAG_COUNTS.toProtocolStage(),
-        role = RoleInComputation.PRIMARY,
+        computationDetails = primaryComputationDetails,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
     val token =
@@ -376,7 +408,7 @@ class LiquidLegionsComputationControlServiceTest {
       .addComputation(
         globalId = id,
         stage = WAIT_FLAG_COUNTS.toProtocolStage(),
-        role = RoleInComputation.SECONDARY,
+        computationDetails = secondComputationDetails,
         blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
       )
     val token =
@@ -418,7 +450,7 @@ class LiquidLegionsComputationControlServiceTest {
     fakeComputationDb.addComputation(
       globalId = id,
       stage = WAIT_SKETCHES.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0))
     )
     val exception = assertFailsWith<StatusRuntimeException> {

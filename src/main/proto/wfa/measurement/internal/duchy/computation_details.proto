@@ -16,33 +16,27 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
+import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v1.proto";
+import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v2.proto";
+
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
 // Details about a computation at a MPC Worker Node.
 message ComputationDetails {
-  enum RoleInComputation {
-    // Never set intentionally
-    UNKNOWN = 0;
-    // The primary duchy for the computation.
-    PRIMARY = 1;
-    // A non-primary duchy for the computation. This duchy has to do many
-    // crypto operations, but is not responsible for joining sketch positions
-    // together, nor computing the final results.
-    SECONDARY = 2;
+  // Protocol Specific Details
+  oneof details {
+    // Details specific to the liquidLegionV1 protocol.
+    protocol.LiquidLegionsSketchAggregationV1.ComputationDetails
+        liquid_legions_v1 = 1;
+    // Details specific to the liquidLegionV2 protocol.
+    protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
+        liquid_legions_v2 = 2;
   }
-  // The duchy's role in the computation.
-  RoleInComputation role = 1;
-  // The domain name of the duchy from which this one receives data for the
-  // computation.
-  string incoming_node_id = 2;
-  // The domain name of the duchy where outputs are sent for the computation.
-  string outgoing_node_id = 3;
-  // The domain name of the primary duchy of this computation.
-  string primary_node_id = 4;
+
   // A prefix of all the BLOBs stored for this computation. This is used for
   // cleaning up after a computation when the BLOBs are no longer needed.
-  string blobs_storage_prefix = 5;
+  string blobs_storage_prefix = 3;
 
   enum CompletedReason {
     UNSPECIFIED = 0;
@@ -55,7 +49,7 @@ message ComputationDetails {
   }
   // The final state of the computation at this duchy. This is only set
   // when the protocol has finished for the computation.
-  CompletedReason ending_state = 6;
+  CompletedReason ending_state = 4;
 }
 
 // Details about a single attempt of a computation stage.
@@ -80,69 +74,10 @@ message ComputationStageAttemptDetails {
 message ComputationStageDetails {
   oneof detail {
     // Details specific to the liquidLegionV1 protocol.
-    LiquidLegionsV1StageDetails liquid_legions_v1 = 1;
+    protocol.LiquidLegionsSketchAggregationV1.StageDetails liquid_legions_v1 =
+        1;
     // Details specific to the liquidLegionV2 protocol.
-    LiquidLegionsV2StageDetails liquid_legions_v2 = 2;
+    protocol.LiquidLegionsSketchAggregationV2.StageDetails liquid_legions_v2 =
+        2;
   }
-}
-
-// Details about a particular attempt of running a stage of the LiquidLegionV1
-// Protocol.
-message LiquidLegionsV1StageDetails {
-  oneof detail {
-    // Details specific to the WAIT_SKETCHES stage.
-    WaitSketchesStageDetails wait_sketch_stage_details = 1;
-    // Details specific to the TO_CONFIRM_REQUISITIONS stage.
-    ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details = 2;
-  }
-}
-
-// Details about a particular attempt of running a stage of the LiquidLegionV2
-// Protocol.
-message LiquidLegionsV2StageDetails {
-  oneof detail {
-    // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
-    WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
-    // Details specific to the TO_CONFIRM_REQUISITIONS stage.
-    ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details = 2;
-  }
-}
-
-// The WAIT_SETUP_PHASE_INPUTS stage has a bootstrapping step where it requires
-// input from all other duchies before it can move forward. The bookkeeping
-// of which duchy has provided is stored in this message.
-message WaitSetupPhaseInputsDetails {
-  // A mapping of the name of a duchy to the BlobId corresponding to the
-  // ComputationBlobDependency.OUTPUT BLOB where it will be written.
-  //
-  // Upon receiving a sketch from a duchy the OUTPUT reference with the id
-  // found in this map is updated with the local copy of the blob. When all
-  // the output references have a path the worker can move onto the next stage.
-  map<string, int64> external_duchy_local_blob_id = 1;
-}
-
-// The WAIT_SKETCHES stage has a bootstrapping step where it requires
-// input from all other duchies before it can move forward. The bookkeeping
-// of which duchy has provided is stored in this message.
-message WaitSketchesStageDetails {
-  // A mapping of the name of a duchy to the BlobId corresponding to the
-  // ComputationBlobDependency.OUTPUT BLOB where it will be written.
-  //
-  // Upon receiving a sketch from a duchy the OUTPUT reference with the id
-  // found in this map is updated with the local copy of the blob. When all
-  // the output references have a path the worker can move onto the next stage.
-  map<string, int64> external_duchy_local_blob_id = 1;
-}
-
-// The details used to run a TO_CONFIRM_REQUISITIONS stage.
-message ToConfirmRequisitionsStageDetails {
-  // The keys to identity a requisition in the MetricValue database
-  message RequisitionKey {
-    string data_provider_id = 1;
-    string campaign_id = 2;
-    string metric_requisition_id = 3;
-  }
-
-  // list of local requisitions that are required for this computation.
-  repeated RequisitionKey keys = 1;
 }

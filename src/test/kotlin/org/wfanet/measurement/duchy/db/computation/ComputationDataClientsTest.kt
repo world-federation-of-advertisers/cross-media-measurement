@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.db.computation
 
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.protobuf.ByteString
+import java.time.Clock
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.Duchy
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -38,7 +41,6 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -69,21 +71,36 @@ private val EL_GAMAL_GENERATOR = byteStringOf(
   0xF2, 0x77, 0x03, 0x7D, 0x81, 0x2D, 0xEB, 0x33, 0xA0, 0xF4, 0xA1, 0x39, 0x45, 0xD8, 0x98, 0xC2,
   0x96
 )
-private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "123"
-private const val ID_WHERE_ALSACE_IS_PRIMARY = "456"
+private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "456"
+private const val ID_WHERE_ALSACE_IS_PRIMARY = "123"
 private const val ALSACE = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
+val duchyOrder = DuchyOrder(
+  setOf(
+    Duchy(ALSACE, 10L.toBigInteger()),
+    Duchy(BAVARIA, 200L.toBigInteger()),
+    Duchy(CARINTHIA, 303L.toBigInteger())
+  )
+)
 
 @RunWith(JUnit4::class)
-class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
+class ComputationDataClientsTest {
   private val fakeDatabase = FakeComputationDb()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     globalComputationClient = GlobalComputationsCoroutineStub(channel)
-    addService(ComputationsService(fakeDatabase, globalComputationClient, "DUCHY 1"))
+    addService(
+      ComputationsService(
+        fakeDatabase,
+        globalComputationClient,
+        ALSACE,
+        Clock.systemUTC(),
+        duchyOrder
+      )
+    )
   }
 
   private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
@@ -110,7 +127,7 @@ class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
   fun runProtocolAtNonPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
-      LiquidLegionsSketchAggregationComputationDataClients(
+      ComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
         ),
@@ -148,7 +165,7 @@ class LiquidLegionsSketchAggregationV1ComputationDataClientsTest {
   fun runProtocolAtPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
     val computation = SingleLiquidLegionsComputation(
-      LiquidLegionsSketchAggregationComputationDataClients(
+      ComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
         ),
@@ -214,7 +231,7 @@ data class ComputationStep(
  * operation.
  */
 class SingleLiquidLegionsComputation(
-  private val dataClients: LiquidLegionsSketchAggregationComputationDataClients,
+  private val dataClients: ComputationDataClients,
   globalId: String,
   private val testClock: TestClockWithNamedInstants
 ) {
@@ -324,18 +341,22 @@ class SingleLiquidLegionsComputation(
           dataClients.transitionComputationToStage(
             it.token,
             it.inputs.paths() + it.outputs.paths(),
-            TO_APPEND_SKETCHES_AND_ADD_NOISE
+            TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
           )
         }
       }
     }
 
     /** Fakes receiving the concatenated sketch from the incoming duchy. */
+    // TODO: use the generic rpc
     suspend fun receiveConcatenatedSketchGrpc() {
       writeOutputs(WAIT_CONCATENATED)
       val stage =
-        if (token.role == RoleInComputation.PRIMARY) TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-        else TO_BLIND_POSITIONS
+        if (token.computationDetails.liquidLegionsV1.role ==
+          LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+        ) {
+          TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
+        } else TO_BLIND_POSITIONS
       assertTokenChangesTo(
         token.outputBlobsToInputBlobs()
           .addBlobs(newEmptyOutputBlobMetadata(1))
@@ -346,7 +367,7 @@ class SingleLiquidLegionsComputation(
         dataClients.transitionComputationToStage(
           it.token,
           it.outputs.paths(),
-          stage
+          stage.toProtocolStage()
         )
       }
     }
@@ -355,8 +376,11 @@ class SingleLiquidLegionsComputation(
     suspend fun receiveFlagCountsGrpc() {
       writeOutputs(WAIT_FLAG_COUNTS)
       val stage =
-        if (token.role == RoleInComputation.PRIMARY) TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-        else TO_DECRYPT_FLAG_COUNTS
+        if (token.computationDetails.liquidLegionsV1.role ==
+          LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+        ) {
+          TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
+        } else TO_DECRYPT_FLAG_COUNTS
       assertTokenChangesTo(
         token
           .outputBlobsToInputBlobs()
@@ -366,7 +390,7 @@ class SingleLiquidLegionsComputation(
         dataClients.transitionComputationToStage(
           it.token,
           it.outputs.paths(),
-          stage
+          stage.toProtocolStage()
         )
       }
     }
@@ -383,7 +407,9 @@ class SingleLiquidLegionsComputation(
         .setStageSpecificDetails(details)
         .build()
     ) {
-      dataClients.transitionComputationToStage(it.token, it.outputs.paths(), WAIT_SKETCHES)
+      dataClients.transitionComputationToStage(
+        it.token, it.outputs.paths(), WAIT_SKETCHES.toProtocolStage()
+      )
     }
   }
 
@@ -396,7 +422,9 @@ class SingleLiquidLegionsComputation(
         .setAttempt(0)
         .build()
     ) {
-      dataClients.transitionComputationToStage(it.token, it.inputs.paths(), TO_ADD_NOISE)
+      dataClients.transitionComputationToStage(
+        it.token, it.inputs.paths(), TO_ADD_NOISE.toProtocolStage()
+      )
     }
   }
 
@@ -409,7 +437,9 @@ class SingleLiquidLegionsComputation(
         .setComputationStage(stage.toProtocolStage()).setAttempt(1)
         .build()
     ) {
-      dataClients.transitionComputationToStage(it.token, it.outputs.paths(), stage)
+      dataClients.transitionComputationToStage(
+        it.token, it.outputs.paths(), stage.toProtocolStage()
+      )
     }
   }
 

@@ -25,7 +25,6 @@ import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
-import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /** Tells the mutation to write a null value to a string column. */
@@ -49,14 +48,20 @@ private fun nonNullValueTimestamp(t: Timestamp) = requireNotNull(timestampOrNull
 typealias MutationBuilderFunction = (String) -> Mutation.WriteBuilder
 
 /** Creates spanner [Mutation]s for writing to the tables in the computations database. */
-class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
+class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
   computationTypeEnumHelper: ComputationTypeEnumHelper<ProtocolT>,
   computationProtocolStagesEnumHelper: ComputationProtocolStagesEnumHelper<ProtocolT, StageT>,
-  details: ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDetailsT>
+  computationProtocolStageDetailsHelper:
+    ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDT, ComputationDT>
 ) :
   ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
   ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
-  ComputationProtocolStageDetailsHelper<ProtocolT, StageT, StageDetailsT> by details {
+  ComputationProtocolStageDetailsHelper<
+    ProtocolT,
+    StageT,
+    StageDT,
+    ComputationDT>
+  by computationProtocolStageDetailsHelper {
   /**
    * Appends fields to write in a mutation of the Computations spanner table.
    */
@@ -69,7 +74,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
-    details: ComputationDetails? = null
+    details: ComputationDT? = null
   ): Mutation {
     val m = newBuilderFunction("Computations")
     m.set("ComputationId").to(localId)
@@ -103,7 +108,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     stage: StageT,
     lockOwner: String = WRITE_NULL_STRING,
     lockExpirationTime: Timestamp = WRITE_NULL_TIMESTAMP,
-    details: ComputationDetails
+    details: ComputationDT
   ): Mutation {
     return computation(
       newBuilderFunction = Mutation::newInsertBuilder,
@@ -131,7 +136,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     stage: StageT? = null,
     lockOwner: String? = null,
     lockExpirationTime: Timestamp? = null,
-    details: ComputationDetails? = null
+    details: ComputationDT? = null
   ): Mutation {
     return computation(
       newBuilderFunction = Mutation::newUpdateBuilder,
@@ -156,7 +161,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     endTime: Timestamp? = null,
     previousStage: StageT? = null,
     followingStage: StageT? = null,
-    details: StageDetailsT? = null
+    details: StageDT? = null
   ): Mutation {
     val m = newBuilderFunction("ComputationStages")
     m.set("ComputationId").to(localId)
@@ -184,7 +189,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     endTime: Timestamp? = null,
     previousStage: StageT? = null,
     followingStage: StageT? = null,
-    details: StageDetailsT
+    details: StageDT
   ): Mutation {
     return computationStage(
       Mutation::newInsertBuilder, localId, stage, nextAttempt, creationTime, endTime,
@@ -206,7 +211,7 @@ class ComputationMutations<ProtocolT, StageT, StageDetailsT : Message>(
     endTime: Timestamp? = null,
     previousStage: StageT? = null,
     followingStage: StageT? = null,
-    details: StageDetailsT? = null
+    details: StageDT? = null
   ): Mutation {
     return computationStage(
       Mutation::newUpdateBuilder, localId, stage, nextAttempt, creationTime, endTime,

@@ -24,7 +24,6 @@ import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
@@ -56,8 +55,6 @@ class SpannerComputationsServer : ComputationsServer() {
         GcpSpannerReadOnlyComputationsRelationalDb(databaseClient, protocolStageEnumHelper),
         GcpSpannerComputationsDb(
           databaseClient = databaseClient,
-          duchyName = flags.duchy.duchyName,
-          duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
           computationMutations = ComputationMutations(
             ComputationTypes, protocolStageEnumHelper, computationProtocolStageDetails
           )

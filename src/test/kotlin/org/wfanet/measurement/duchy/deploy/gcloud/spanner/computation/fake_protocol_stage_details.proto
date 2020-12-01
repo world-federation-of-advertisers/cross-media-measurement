@@ -26,3 +26,16 @@ message FakeProtocolStageDetails {
   // for tests.
   string name = 1;
 }
+
+// Used by the GcpSpannerComputationsDb test.
+message FakeComputationDetails {
+  // The role of the duchy in this computation. This may not be the sort of
+  // thing to put in ComputationDetails in prod code, but it is easy to
+  // distinguish correctness of code for tests.
+  string role = 1;
+
+  // The end reason of this computation. This may not be the sort of
+  // thing to put in ComputationDetails in prod code, but it is easy to
+  // distinguish correctness of code for tests.
+  string end_reason = 2;
+}

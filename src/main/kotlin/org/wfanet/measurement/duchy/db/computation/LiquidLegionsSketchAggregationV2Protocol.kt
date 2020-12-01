@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
@@ -87,7 +88,26 @@ object LiquidLegionsSketchAggregationV2Protocol {
 
     /** Translates [Stage]s into [ComputationStageDetails]. */
     class Details(val otherDuchies: List<String>) :
-      ProtocolStageDetails<LiquidLegionsSketchAggregationV2.Stage, ComputationStageDetails> {
+      ProtocolStageDetails<
+        LiquidLegionsSketchAggregationV2.Stage,
+        ComputationStageDetails,
+        LiquidLegionsSketchAggregationV2.ComputationDetails> {
+      override fun validateRoleForStage(
+        stage: LiquidLegionsSketchAggregationV2.Stage,
+        details: LiquidLegionsSketchAggregationV2.ComputationDetails
+      ): Boolean {
+        TODO("Not yet implemented")
+      }
+
+      override fun afterTransitionForStage(stage: LiquidLegionsSketchAggregationV2.Stage):
+        AfterTransition {
+          TODO("Not yet implemented")
+        }
+
+      override fun outputBlobNumbersForStage(stage: LiquidLegionsSketchAggregationV2.Stage): Int {
+        TODO("Not yet implemented")
+      }
+
       override fun detailsFor(stage: LiquidLegionsSketchAggregationV2.Stage):
         ComputationStageDetails {
           return when (stage) {
@@ -136,7 +156,19 @@ object LiquidLegionsSketchAggregationV2Protocol {
      * [ComputationStageDetails].
      */
     class Details(otherDuchies: List<String>) :
-      ProtocolStageDetails<ComputationStage, ComputationStageDetails> {
+      ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
+      override fun validateRoleForStage(stage: ComputationStage, details: ComputationDetails):
+        Boolean {
+          TODO("Not yet implemented")
+        }
+
+      override fun afterTransitionForStage(stage: ComputationStage): AfterTransition {
+        TODO("Not yet implemented")
+      }
+
+      override fun outputBlobNumbersForStage(stage: ComputationStage): Int {
+        TODO("Not yet implemented")
+      }
 
       private val enumBasedDetails = EnumStages.Details(otherDuchies)
 

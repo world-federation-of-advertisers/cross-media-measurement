@@ -17,12 +17,15 @@ package org.wfanet.measurement.duchy.service.internal.computation
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.mock
+import java.time.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.Duchy
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
@@ -30,7 +33,6 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
@@ -45,6 +47,35 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
 class ComputationsServiceTest {
+
+  companion object {
+    val duchyOrder = DuchyOrder(
+      setOf(
+        Duchy("BOHEMIA", 10L.toBigInteger()),
+        Duchy("SALZBURG", 200L.toBigInteger()),
+        Duchy("AUSTRIA", 303L.toBigInteger())
+      )
+    )
+
+    val primaryComputationDetails = ComputationDetails.newBuilder().apply {
+      liquidLegionsV1Builder.apply {
+        role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+        primaryNodeId = "BOHEMIA"
+        incomingNodeId = "SALZBURG"
+        outgoingNodeId = "AUSTRIA"
+      }
+    }.build()
+
+    val secondComputationDetails = ComputationDetails.newBuilder().apply {
+      liquidLegionsV1Builder.apply {
+        role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
+        primaryNodeId = "BOHEMIA"
+        incomingNodeId = "SALZBURG"
+        outgoingNodeId = "BOHEMIA"
+      }
+    }.build()
+  }
+
   private val fakeDatabase = FakeComputationDb()
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -58,7 +89,9 @@ class ComputationsServiceTest {
     ComputationsService(
       fakeDatabase,
       GlobalComputationsCoroutineStub(grpcTestServerRule.channel),
-      "duchy 1"
+      "BOHEMIA",
+      Clock.systemUTC(),
+      duchyOrder
     )
   }
 
@@ -68,7 +101,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       id,
       LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES.toProtocolStage(),
-      RoleInComputation.PRIMARY,
+      primaryComputationDetails,
       listOf()
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
@@ -94,7 +127,7 @@ class ComputationsServiceTest {
         CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
           parentBuilder.globalComputationId = id
           statusUpdateBuilder.apply {
-            selfReportedIdentifier = "duchy 1"
+            selfReportedIdentifier = "BOHEMIA"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
               stageNumber = LiquidLegionsSketchAggregationV1.Stage.COMPLETED.number.toLong()
@@ -114,7 +147,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       id,
       LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
-      RoleInComputation.SECONDARY,
+      secondComputationDetails,
       listOf(
         newInputBlobMetadata(id = 0L, key = "an_input_blob"),
         newEmptyOutputBlobMetadata(id = 1L)
@@ -160,7 +193,7 @@ class ComputationsServiceTest {
         CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
           parentBuilder.globalComputationId = id
           statusUpdateBuilder.apply {
-            selfReportedIdentifier = "duchy 1"
+            selfReportedIdentifier = "BOHEMIA"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
               stageNumber = LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.number.toLong()
@@ -182,19 +215,19 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       blindId,
       LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
-      RoleInComputation.SECONDARY,
+      secondComputationDetails,
       listOf()
     )
     fakeDatabase.addComputation(
       completedId,
       LiquidLegionsSketchAggregationV1.Stage.COMPLETED.toProtocolStage(),
-      RoleInComputation.SECONDARY,
+      secondComputationDetails,
       listOf()
     )
     fakeDatabase.addComputation(
       decryptId,
       LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS.toProtocolStage(),
-      RoleInComputation.SECONDARY,
+      secondComputationDetails,
       listOf()
     )
     val getIdsInMillStagesRequest = GetComputationIdsRequest.newBuilder().apply {
@@ -220,7 +253,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       unclaimed,
       LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
-      RoleInComputation.SECONDARY,
+      secondComputationDetails,
       listOf()
     )
     val unclaimedAtStart =
@@ -228,7 +261,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       claimed,
       LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS.toProtocolStage(),
-      RoleInComputation.SECONDARY,
+      secondComputationDetails,
       listOf()
     )
     fakeDatabase.claimedComputationIds.add(claimed)
@@ -256,7 +289,7 @@ class ComputationsServiceTest {
         CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
           parentBuilder.globalComputationId = unclaimed
           statusUpdateBuilder.apply {
-            selfReportedIdentifier = "duchy 1"
+            selfReportedIdentifier = "BOHEMIA"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
               stageNumber =

@@ -51,9 +51,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "LiquidLegionsSketchAggregationV1ComputationDataClientsTest",
-    srcs = ["LiquidLegionsSketchAggregationV1ComputationDataClientsTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1ComputationDataClientsTest",
+    name = "ComputationDataClientsTest",
+    srcs = ["ComputationDataClientsTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.db.computation.ComputationDataClientsTest",
     deps = [
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/org/junit",

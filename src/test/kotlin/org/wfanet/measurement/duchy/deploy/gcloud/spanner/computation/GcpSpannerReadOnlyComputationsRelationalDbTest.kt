@@ -47,12 +47,16 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     private const val NEXT_DUCHY_IN_RING = "NEXT_DUCHY_IN_RING"
     private const val THIRD_DUCHY_IN_RING = "THIRD_DUCHY_IN_RING"
     val DETAILS_WHEN_SECONDARY: ComputationDetails = ComputationDetails.newBuilder().apply {
-      outgoingNodeId = NEXT_DUCHY_IN_RING
-      role = ComputationDetails.RoleInComputation.SECONDARY
+      liquidLegionsV1Builder.apply {
+        outgoingNodeId = NEXT_DUCHY_IN_RING
+        role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
+      }
     }.build()
     val DETAILS_WHEN_PRIMARY: ComputationDetails = ComputationDetails.newBuilder().apply {
-      outgoingNodeId = NEXT_DUCHY_IN_RING
-      role = ComputationDetails.RoleInComputation.PRIMARY
+      liquidLegionsV1Builder.apply {
+        outgoingNodeId = NEXT_DUCHY_IN_RING
+        role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+      }
     }.build()
   }
 
@@ -129,8 +133,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
         globalComputationId = globalId
         localComputationId = localId
         computationStage = LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES.toProtocolStage()
-        role = DETAILS_WHEN_PRIMARY.role
-        nextDuchy = DETAILS_WHEN_PRIMARY.outgoingNodeId
+        computationDetails = DETAILS_WHEN_PRIMARY
         attempt = 1
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =
@@ -220,8 +223,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
             LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
           )
           .build()
-        role = DETAILS_WHEN_SECONDARY.role
-        nextDuchy = DETAILS_WHEN_SECONDARY.outgoingNodeId
+        computationDetails = DETAILS_WHEN_SECONDARY
         attempt = 1
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =
@@ -292,8 +294,7 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
             LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
           )
           .build()
-        role = DETAILS_WHEN_SECONDARY.role
-        nextDuchy = DETAILS_WHEN_SECONDARY.outgoingNodeId
+        computationDetails = DETAILS_WHEN_SECONDARY
         attempt = 1
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =

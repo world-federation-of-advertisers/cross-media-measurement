@@ -50,6 +50,8 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.Duchy
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
 import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
@@ -67,7 +69,7 @@ import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
@@ -80,7 +82,7 @@ import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSk
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
@@ -92,8 +94,9 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
-import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage as LiquidLegionsStage
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
@@ -130,7 +133,7 @@ class LiquidLegionsMillTest {
   private val fakeComputationDb = FakeComputationDb()
 
   private lateinit var computationDataClients:
-    LiquidLegionsSketchAggregationComputationDataClients
+    ComputationDataClients
   private lateinit var computationStore: ComputationStore
 
   private val tempDirectory = TemporaryFolder()
@@ -145,10 +148,36 @@ class LiquidLegionsMillTest {
     ).joinToString("/").also { generatedBlobKeys.add(it) }
   }
 
+  private val duchyOrder = DuchyOrder(
+    setOf(
+      Duchy(DUCHY_NAME, 10L.toBigInteger()),
+      Duchy(DUCHY_ONE_NAME, 200L.toBigInteger()),
+      Duchy(DUCHY_TWO_NAME, 303L.toBigInteger())
+    )
+  )
+
+  private val primaryComputationDetails = ComputationDetails.newBuilder().apply {
+    liquidLegionsV1Builder.apply {
+      role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+      primaryNodeId = DUCHY_NAME
+      incomingNodeId = DUCHY_ONE_NAME
+      outgoingNodeId = DUCHY_TWO_NAME
+    }
+  }.build()
+
+  private val secondComputationDetails = ComputationDetails.newBuilder().apply {
+    liquidLegionsV1Builder.apply {
+      role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
+      primaryNodeId = DUCHY_ONE_NAME
+      incomingNodeId = DUCHY_NAME
+      outgoingNodeId = DUCHY_TWO_NAME
+    }
+  }.build()
+
   private val grpcTestServerRule = GrpcTestServerRule {
     computationStore =
       ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
-    computationDataClients = LiquidLegionsSketchAggregationComputationDataClients.forTesting(
+    computationDataClients = ComputationDataClients.forTesting(
       ComputationsCoroutineStub(channel),
       computationStore,
       otherDuchyNames
@@ -161,7 +190,9 @@ class LiquidLegionsMillTest {
       ComputationsService(
         fakeComputationDb,
         globalComputationStub,
-        DUCHY_NAME
+        DUCHY_NAME,
+        Clock.systemUTC(),
+        duchyOrder
       )
     )
   }
@@ -244,7 +275,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L))
     )
 
@@ -278,10 +309,8 @@ class LiquidLegionsMillTest {
               }
             }
           )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
+          .setComputationDetails(primaryComputationDetails)
           .setVersion(3) // CreateComputation + write blob + transitionStage
-          .setRole(RoleInComputation.PRIMARY)
           .build()
       )
     assertThat(computationStore.get(blobKey)?.readToString()).isEmpty()
@@ -306,7 +335,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L)),
       stageDetails = ComputationStageDetails.newBuilder().apply {
         liquidLegionsV1Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
@@ -353,10 +382,8 @@ class LiquidLegionsMillTest {
             .setBlobId(0)
             .setPath(blobKey)
         )
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + write blob + transitionStage
-        .setRole(RoleInComputation.SECONDARY)
+        .setComputationDetails(secondComputationDetails)
         .build()
     )
     assertThat(
@@ -394,7 +421,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
       stage = LiquidLegionsStage.TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L)),
       stageDetails = ComputationStageDetails.newBuilder().apply {
         liquidLegionsV1Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
@@ -441,10 +468,8 @@ class LiquidLegionsMillTest {
           .setLocalComputationId(LOCAL_ID)
           .setAttempt(1)
           .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
           .setVersion(2) // CreateComputation + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
+          .setComputationDetails(secondComputationDetails)
           .build()
       )
 
@@ -503,7 +528,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -544,10 +569,8 @@ class LiquidLegionsMillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setRole(RoleInComputation.SECONDARY)
+        .setComputationDetails(secondComputationDetails)
         .build()
     )
 
@@ -574,7 +597,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys[0]),
         newInputBlobMetadata(1L, generatedBlobKeys[1]),
@@ -617,10 +640,8 @@ class LiquidLegionsMillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setRole(RoleInComputation.PRIMARY)
+        .setComputationDetails(primaryComputationDetails)
         .build()
     )
 
@@ -648,7 +669,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys[0]),
         newOutputBlobMetadata(1L, generatedBlobKeys[1])
@@ -683,10 +704,8 @@ class LiquidLegionsMillTest {
             .setDependencyType(ComputationBlobDependency.OUTPUT)
             .setBlobId(1)
         )
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(2) // CreateComputation + transitionStage
-        .setRole(RoleInComputation.SECONDARY)
+        .setComputationDetails(secondComputationDetails)
         .build()
     )
 
@@ -709,7 +728,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -752,10 +771,8 @@ class LiquidLegionsMillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setRole(RoleInComputation.SECONDARY)
+        .setComputationDetails(secondComputationDetails)
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString())
@@ -781,7 +798,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -824,10 +841,8 @@ class LiquidLegionsMillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setRole(RoleInComputation.SECONDARY)
+        .setComputationDetails(secondComputationDetails)
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString())
@@ -854,7 +869,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -887,10 +902,8 @@ class LiquidLegionsMillTest {
         .setLocalComputationId(LOCAL_ID)
         .setAttempt(1)
         .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setRole(RoleInComputation.SECONDARY)
+        .setComputationDetails(secondComputationDetails)
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString())
@@ -916,7 +929,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -948,10 +961,8 @@ class LiquidLegionsMillTest {
         .setLocalComputationId(LOCAL_ID)
         .setAttempt(1)
         .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
-        .setNextDuchy("NEXT_WORKER")
-        .setPrimaryDuchy("PRIMARY_WORKER")
         .setVersion(3) // CreateComputation + write blob + transitionStage
-        .setRole(RoleInComputation.PRIMARY)
+        .setComputationDetails(primaryComputationDetails)
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
@@ -988,7 +999,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -1012,10 +1023,8 @@ class LiquidLegionsMillTest {
           .setLocalComputationId(LOCAL_ID)
           .setAttempt(1)
           .setComputationStage(LiquidLegionsStage.COMPLETED.toProtocolStage())
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
           .setVersion(2) // CreateComputation + transitionStage
-          .setRole(RoleInComputation.SECONDARY)
+          .setComputationDetails(secondComputationDetails)
           .build()
       )
 
@@ -1059,7 +1068,7 @@ class LiquidLegionsMillTest {
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -1106,10 +1115,8 @@ class LiquidLegionsMillTest {
               .setBlobId(1)
               .setPath(outputBlobKey)
           )
-          .setNextDuchy("NEXT_WORKER")
-          .setPrimaryDuchy("PRIMARY_WORKER")
           .setVersion(3) // CreateComputation + writeOutputBlob + enqueue
-          .setRole(RoleInComputation.SECONDARY)
+          .setComputationDetails(secondComputationDetails)
           .build()
       )
     assertThat(computationStore.get(outputBlobKey)?.readToString())

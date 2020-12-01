@@ -25,14 +25,16 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
+private const val PREVIOUS_WORKER = "PREVIOUS_WORKER"
 private const val NEXT_WORKER = "NEXT_WORKER"
+private const val AGGREGATOR_WORKER = "AGGREGATOR_WORKER"
 private const val PRIMARY_WORKER = "PRIMARY_WORKER"
 
 /**
@@ -56,18 +58,16 @@ class FakeComputationDb private constructor(
     globalId: String,
     protocol: ComputationType,
     initialStage: ComputationStage,
-    stageDetails: ComputationStageDetails
+    stageDetails: ComputationStageDetails,
+    computationDetails: ComputationDetails
   ) {
     if (globalId.toLong() in tokens) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
     }
-    val role =
-      if ((globalId.toLong() % 2) == 0L) RoleInComputation.PRIMARY
-      else RoleInComputation.SECONDARY
     addComputation(
       globalId = globalId,
       stage = initialStage,
-      role = role,
+      computationDetails = computationDetails,
       stageDetails = stageDetails,
       blobs = listOf(
         newEmptyOutputBlobMetadata(
@@ -81,7 +81,7 @@ class FakeComputationDb private constructor(
   fun addComputation(
     localId: Long,
     stage: ComputationStage,
-    role: RoleInComputation,
+    computationDetails: ComputationDetails,
     blobs: List<ComputationStageBlobMetadata>,
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
@@ -93,7 +93,7 @@ class FakeComputationDb private constructor(
     }
 
     tokens[localId] = newPartialToken(localId, stage).apply {
-      setRole(role)
+      setComputationDetails(computationDetails)
       addAllBlobs(blobs)
       if (stageDetails !== ComputationStageDetails.getDefaultInstance()) {
         stageSpecificDetails = stageDetails
@@ -105,7 +105,7 @@ class FakeComputationDb private constructor(
   fun addComputation(
     globalId: String,
     stage: ComputationStage,
-    role: RoleInComputation,
+    computationDetails: ComputationDetails,
     blobs: List<ComputationStageBlobMetadata>,
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
@@ -114,7 +114,7 @@ class FakeComputationDb private constructor(
       // use the Long value for the localId.
       localId = globalId.toLong(),
       stage = stage,
-      role = role,
+      computationDetails = computationDetails,
       blobs = blobs,
       stageDetails = stageDetails
     )
@@ -305,10 +305,7 @@ class FakeComputationDb private constructor(
         globalComputationId = localId.toString()
         localComputationId = localId
         computationStage = stage
-
         version = 0
-        nextDuchy = NEXT_WORKER
-        primaryDuchy = PRIMARY_WORKER
         attempt = 0
       }
     }

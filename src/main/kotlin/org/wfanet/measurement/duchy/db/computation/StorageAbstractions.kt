@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -108,8 +109,9 @@ interface ReadOnlyComputationsRelationalDb {
  * @param ProtocolT Object representing different protocols (computation types)
  * @param StageT Object representing stages of the computation protocol.
  * @param StageDetailsT Object representing details specific to a stage of a computation.
+ * @param ComputationDetailsT Object representing details specific to a computation.
  */
-interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
+interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, ComputationDetailsT> {
 
   /**
    * Inserts a new computation for the global identifier.
@@ -120,7 +122,8 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
     globalId: String,
     protocol: ProtocolT,
     initialStage: StageT,
-    stageDetails: StageDetailsT
+    stageDetails: StageDetailsT,
+    computationDetails: ComputationDetailsT
   )
 
   /**
@@ -188,7 +191,11 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT> {
  */
 interface ComputationsDatabase :
   ReadOnlyComputationsRelationalDb,
-  ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>,
+  ComputationsRelationalDb<
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails>,
   ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
 /**

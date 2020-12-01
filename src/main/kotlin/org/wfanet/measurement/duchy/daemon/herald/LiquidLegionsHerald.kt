@@ -26,14 +26,14 @@ import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV1Protocol
-import org.wfanet.measurement.duchy.db.computation.advanceLiquidLegionsComputationStage
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
+import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
-import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
@@ -48,6 +48,7 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WA
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
@@ -69,8 +70,8 @@ class LiquidLegionsHerald(
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val maxStartAttempts: Int = 10
 ) {
-  private val liquidLegionsStageDetails =
-    LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(otherDuchiesInComputation)
+  private val computationProtocolStageDetails =
+    ComputationProtocolStageDetails(otherDuchiesInComputation)
 
   // If one of the GlobalScope coroutines launched by `start` fails, it populates this.
   private lateinit var startException: Throwable
@@ -147,6 +148,7 @@ class LiquidLegionsHerald(
   }
 
   /** Creates a new computation. */
+  // TODO: create Computation of type mapping the protocol specified by the kingdom.
   private suspend fun create(
     globalId: String,
     requisitionsAtThisDuchy: List<RequisitionKey>
@@ -208,13 +210,13 @@ class LiquidLegionsHerald(
     when (val stage = token.computationStage.liquidLegionsSketchAggregationV1) {
       // We expect stage WAIT_TO_START.
       WAIT_TO_START -> {
-        computationStorageClient.advanceLiquidLegionsComputationStage(
+        computationStorageClient.advanceComputationStage(
           computationToken = token,
           // The inputs of WAIT_TO_START are copies of the sketches stored locally. These are the very
           // sketches required for the TO_ADD_NOISE step of the computation.
           inputsToNextStage = token.blobsList.filter { it.dependencyType == INPUT }.map { it.path },
-          stage = TO_ADD_NOISE,
-          liquidLegionsStageDetails = liquidLegionsStageDetails
+          stage = TO_ADD_NOISE.toProtocolStage(),
+          computationProtocolStageDetails = computationProtocolStageDetails
         )
         logger.info("[id=$globalId] Computation is now started")
         return

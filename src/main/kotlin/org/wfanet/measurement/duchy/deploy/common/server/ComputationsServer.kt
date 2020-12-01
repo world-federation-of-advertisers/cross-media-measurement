@@ -27,6 +27,8 @@ import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationa
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
+import org.wfanet.measurement.duchy.toDuchyOrder
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -34,7 +36,12 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 import picocli.CommandLine
 
 private typealias ComputationsDb =
-  ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>
+  ComputationsRelationalDb<
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails
+    >
 
 /** gRPC server for Computations service. */
 abstract class ComputationsServer : Runnable {
@@ -50,7 +57,7 @@ abstract class ComputationsServer : Runnable {
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
   abstract val computationProtocolStageDetails:
     ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails>
+      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
 
   protected fun run(
     readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
@@ -68,7 +75,8 @@ abstract class ComputationsServer : Runnable {
       ComputationsService(
         computationsDatabase = computationsDatabase,
         globalComputationsClient = globalComputationsClient,
-        duchyName = flags.duchy.duchyName
+        duchyName = flags.duchy.duchyName,
+        duchyOrder = duchyPublicKeys.latest.toDuchyOrder()
       ),
       ComputationStatsService(computationsDatabase)
     ).start().blockUntilShutdown()

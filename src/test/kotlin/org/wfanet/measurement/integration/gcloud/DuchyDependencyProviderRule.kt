@@ -44,15 +44,20 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.DUCHY_IDS
-import org.wfanet.measurement.integration.common.DUCHY_ORDER
 import org.wfanet.measurement.integration.common.InProcessDuchy
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.storage.StorageClient
 
 private typealias ComputationsDb =
-  ComputationsRelationalDb<ComputationType, ComputationStage, ComputationStageDetails>
+  ComputationsRelationalDb<
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails
+    >
 
 class DuchyDependencyProviderRule(
   duchyIds: Iterable<String>
@@ -103,9 +108,6 @@ class DuchyDependencyProviderRule(
     val computationsDb: ComputationsDb =
       GcpSpannerComputationsDb(
         databaseClient = computationsDatabaseClient,
-        duchyName = duchyId,
-        duchyOrder = DUCHY_ORDER,
-        blobStorageBucket = "mill-computation-stage-storage-$duchyId",
         computationMutations = ComputationMutations(
           ComputationTypes, protocolStageEnumHelper, stageDetails
         ),

@@ -19,6 +19,7 @@ import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.stub
+import java.time.Clock
 import kotlin.test.assertFails
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
@@ -27,6 +28,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.Duchy
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
@@ -35,13 +38,14 @@ import org.wfanet.measurement.duchy.service.internal.computation.ComputationsSer
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -53,9 +57,33 @@ internal class LiquidLegionsHeraldTest {
 
   private val globalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {}
-  private val duchyName = "foo"
-  private val otherDuchyNames = listOf("Bavaria", "Carinthia")
+  private val duchyName = "BOHEMIA"
+  private val otherDuchyNames = listOf("SALZBURG", "AUSTRIA")
   private val fakeComputationStorage = FakeComputationDb()
+  private val duchyOrder = DuchyOrder(
+    setOf(
+      Duchy("BOHEMIA", 10L.toBigInteger()),
+      Duchy("SALZBURG", 200L.toBigInteger()),
+      Duchy("AUSTRIA", 303L.toBigInteger())
+    )
+  )
+  private val primaryComputationDetails = ComputationDetails.newBuilder().apply {
+    liquidLegionsV1Builder.apply {
+      role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+      primaryNodeId = "BOHEMIA"
+      incomingNodeId = "SALZBURG"
+      outgoingNodeId = "AUSTRIA"
+    }
+  }.build()
+
+  private val secondComputationDetails = ComputationDetails.newBuilder().apply {
+    liquidLegionsV1Builder.apply {
+      role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
+      primaryNodeId = "BOHEMIA"
+      incomingNodeId = "SALZBURG"
+      outgoingNodeId = "BOHEMIA"
+    }
+  }.build()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -64,7 +92,9 @@ internal class LiquidLegionsHeraldTest {
       ComputationsService(
         fakeComputationStorage,
         globalComputationsStub,
-        duchyName
+        duchyName,
+        Clock.systemUTC(),
+        duchyOrder
       )
     )
   }
@@ -105,7 +135,7 @@ internal class LiquidLegionsHeraldTest {
     fakeComputationStorage.addComputation(
       globalId = confirmingKnown.globalId,
       stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
 
@@ -141,7 +171,7 @@ internal class LiquidLegionsHeraldTest {
     fakeComputationStorage.addComputation(
       globalId = waitingToStart.globalId,
       stage = WAIT_TO_START.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, "local-copy-of-sketches")
       )
@@ -150,7 +180,7 @@ internal class LiquidLegionsHeraldTest {
     fakeComputationStorage.addComputation(
       globalId = addingNoise.globalId,
       stage = TO_ADD_NOISE.toProtocolStage(),
-      role = RoleInComputation.PRIMARY,
+      computationDetails = primaryComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, "inputs-to-add-noise"),
         newEmptyOutputBlobMetadata(1L)
@@ -177,7 +207,7 @@ internal class LiquidLegionsHeraldTest {
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
       stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
@@ -196,7 +226,7 @@ internal class LiquidLegionsHeraldTest {
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
       stage = WAIT_TO_START.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
@@ -228,7 +258,7 @@ internal class LiquidLegionsHeraldTest {
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
       stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
-      role = RoleInComputation.SECONDARY,
+      computationDetails = secondComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 

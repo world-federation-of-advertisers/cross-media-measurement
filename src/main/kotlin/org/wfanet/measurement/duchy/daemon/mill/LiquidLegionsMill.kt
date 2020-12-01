@@ -55,17 +55,17 @@ import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.BlobRef
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
-import org.wfanet.measurement.internal.duchy.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -78,8 +78,9 @@ import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
-import org.wfanet.measurement.internal.duchy.ToConfirmRequisitionsStageDetails.RequisitionKey
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
@@ -108,7 +109,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  */
 class LiquidLegionsMill(
   private val millId: String,
-  private val dataClients: LiquidLegionsSketchAggregationComputationDataClients,
+  private val dataClients: ComputationDataClients,
   private val metricValuesClient: MetricValuesCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
@@ -248,11 +249,12 @@ class LiquidLegionsMill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = when (checkNotNull(nextToken.role)) {
-        RoleInComputation.PRIMARY -> Stage.WAIT_SKETCHES
-        RoleInComputation.SECONDARY -> Stage.WAIT_TO_START
+      stage = when (checkNotNull(nextToken.computationDetails.liquidLegionsV1.role)) {
+        RoleInComputation.PRIMARY -> Stage.WAIT_SKETCHES.toProtocolStage()
+        RoleInComputation.SECONDARY -> Stage.WAIT_TO_START.toProtocolStage()
         RoleInComputation.UNKNOWN,
-        RoleInComputation.UNRECOGNIZED -> error("Unknown role: ${nextToken.role}")
+        RoleInComputation.UNRECOGNIZED ->
+          error("Unknown role: ${nextToken.computationDetails.liquidLegionsV1.role}")
       }
     )
   }
@@ -293,10 +295,10 @@ class LiquidLegionsMill(
   /** Processes computation in the TO_ADD_NOISE stage */
   private suspend fun addNoise(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
-      val inputCount = when (token.role) {
+      val inputCount = when (token.computationDetails.liquidLegionsV1.role) {
         RoleInComputation.PRIMARY -> workerStubs.size + 1
         RoleInComputation.SECONDARY -> 1
-        else -> error("Unknown role: ${token.role}")
+        else -> error("Unknown role: ${token.computationDetails.liquidLegionsV1.role}")
       }
       val cryptoResult: AddNoiseToSketchResponse =
         cryptoWorker.addNoiseToSketch(
@@ -310,16 +312,16 @@ class LiquidLegionsMill(
       cryptoResult.sketch
     }
 
-    when (token.role) {
+    when (token.computationDetails.liquidLegionsV1.role) {
       RoleInComputation.PRIMARY -> sendConcatenatedSketch(nextToken, bytes)
       RoleInComputation.SECONDARY -> sendNoisedSketch(nextToken, bytes)
-      else -> error("Unknown role: ${token.role}")
+      else -> error("Unknown role: ${token.computationDetails.liquidLegionsV1.role}")
     }
 
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_CONCATENATED
+      stage = Stage.WAIT_CONCATENATED.toProtocolStage()
     )
   }
 
@@ -387,7 +389,7 @@ class LiquidLegionsMill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_FLAG_COUNTS
+      stage = Stage.WAIT_FLAG_COUNTS.toProtocolStage()
     )
   }
 
@@ -413,7 +415,7 @@ class LiquidLegionsMill(
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_FLAG_COUNTS
+      stage = Stage.WAIT_FLAG_COUNTS.toProtocolStage()
     )
   }
 
@@ -614,7 +616,7 @@ class LiquidLegionsMill(
   }
 
   private fun nextDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
-    val nextDuchy = token.nextDuchy
+    val nextDuchy = token.computationDetails.liquidLegionsV1.outgoingNodeId
     return workerStubs[nextDuchy]
       ?: throw PermanentComputationError(
         Exception("No ComputationControlService stub for next duchy '$nextDuchy'")
@@ -622,7 +624,7 @@ class LiquidLegionsMill(
   }
 
   private fun primaryDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
-    val primaryDuchy = token.primaryDuchy
+    val primaryDuchy = token.computationDetails.liquidLegionsV1.primaryNodeId
     return workerStubs[primaryDuchy]
       ?: throw PermanentComputationError(
         Exception("No ComputationControlService stub for primary duchy '$primaryDuchy'")

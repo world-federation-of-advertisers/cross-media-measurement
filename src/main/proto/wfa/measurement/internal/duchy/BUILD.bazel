@@ -31,6 +31,10 @@ java_proto_library(
 proto_library(
     name = "computation_details_proto",
     srcs = ["computation_details.proto"],
+    deps = [
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_proto",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_proto",
+    ],
 )
 
 java_proto_library(

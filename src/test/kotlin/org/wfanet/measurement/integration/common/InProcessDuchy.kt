@@ -39,14 +39,15 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
+import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationComputationDataClients
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
+import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -94,7 +95,9 @@ class InProcessDuchy(
       ComputationsService(
         duchyDependencies.computationsDatabase,
         kingdomGlobalComputationsStub,
-        duchyId
+        duchyId,
+        Clock.systemUTC(),
+        duchyDependencies.duchyPublicKeys.latest.toDuchyOrder()
       )
     )
   }
@@ -123,7 +126,7 @@ class InProcessDuchy(
   }
 
   private val computationDataClients by lazy {
-    LiquidLegionsSketchAggregationComputationDataClients(
+    ComputationDataClients(
       ComputationsCoroutineStub(storageServer.channel),
       duchyDependencies.storageClient,
       otherDuchyIds

@@ -15,28 +15,28 @@
 package org.wfanet.measurement.duchy.db.computation
 
 /** Provides methods for working with an enum representation of stages for a MPC protocol */
-interface ProtocolStageEnumHelper<T> {
-  val validInitialStages: Set<T>
+interface ProtocolStageEnumHelper<StageT> {
+  val validInitialStages: Set<StageT>
   /** True if a computation may start in the given stage. */
-  fun validInitialStage(stage: T): Boolean {
+  fun validInitialStage(stage: StageT): Boolean {
     return stage in validInitialStages
   }
-  val validTerminalStages: Set<T>
-  fun validTerminalStage(stage: T): Boolean = stage in validTerminalStages
+  val validTerminalStages: Set<StageT>
+  fun validTerminalStage(stage: StageT): Boolean = stage in validTerminalStages
 
-  val validSuccessors: Map<T, Set<T>>
+  val validSuccessors: Map<StageT, Set<StageT>>
   /** True if a computation may progress from the [currentStage] to the
    * [nextStage].*/
   fun validTransition(
-    currentStage: T,
-    nextStage: T
+    currentStage: StageT,
+    nextStage: StageT
   ): Boolean {
     return nextStage in validSuccessors.getOrDefault(currentStage, setOf())
   }
 
-  /** Turns an enum of type [T] into a [Long]. */
-  fun enumToLong(value: T): Long
+  /** Turns an enum of type [StageT] into a [Long]. */
+  fun enumToLong(value: StageT): Long
 
-  /** Turns a [Long] into an enum of type [T]. */
-  fun longToEnum(value: Long): T
+  /** Turns a [Long] into an enum of type [StageT]. */
+  fun longToEnum(value: Long): StageT
 }

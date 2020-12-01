@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
@@ -88,7 +89,86 @@ object LiquidLegionsSketchAggregationV1Protocol {
 
     /** Translates [LiquidLegionsSketchAggregationV1.Stage]s into [ComputationStageDetails]. */
     class Details(val otherDuchies: List<String>) :
-      ProtocolStageDetails<LiquidLegionsSketchAggregationV1.Stage, ComputationStageDetails> {
+      ProtocolStageDetails<
+        LiquidLegionsSketchAggregationV1.Stage,
+        ComputationStageDetails,
+        LiquidLegionsSketchAggregationV1.ComputationDetails> {
+      override fun validateRoleForStage(
+        stage: LiquidLegionsSketchAggregationV1.Stage,
+        details: LiquidLegionsSketchAggregationV1.ComputationDetails
+      ): Boolean {
+        return when (stage) {
+          WAIT_SKETCHES,
+          TO_APPEND_SKETCHES_AND_ADD_NOISE,
+          TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+          TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+            details.role ==
+              LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+          WAIT_TO_START,
+          TO_ADD_NOISE,
+          TO_BLIND_POSITIONS,
+          TO_DECRYPT_FLAG_COUNTS ->
+            details.role ==
+              LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
+          else ->
+            true /* Stage can be executed at either primary or non-primary */
+        }
+      }
+
+      override fun afterTransitionForStage(stage: LiquidLegionsSketchAggregationV1.Stage):
+        AfterTransition {
+          return when (stage) {
+            // Stages of computation mapping some number of inputs to single output.
+            TO_ADD_NOISE,
+            TO_APPEND_SKETCHES_AND_ADD_NOISE,
+            TO_BLIND_POSITIONS,
+            TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+            TO_DECRYPT_FLAG_COUNTS,
+            TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+              AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+            WAIT_TO_START,
+            WAIT_SKETCHES,
+            WAIT_CONCATENATED,
+            WAIT_FLAG_COUNTS ->
+              AfterTransition.DO_NOT_ADD_TO_QUEUE
+            COMPLETED -> error("Computation should be ended with call to endComputation(...)")
+            // Stages that we can't transition to ever.
+            UNRECOGNIZED,
+            LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN,
+            TO_CONFIRM_REQUISITIONS ->
+              error("Cannot make transition function to stage $stage")
+          }
+        }
+
+      override fun outputBlobNumbersForStage(stage: LiquidLegionsSketchAggregationV1.Stage): Int {
+        return when (stage) {
+          WAIT_TO_START ->
+            // There is no output in this stage, the input is forwarded to the next stage as input.
+            0
+          WAIT_CONCATENATED,
+          WAIT_FLAG_COUNTS,
+          TO_ADD_NOISE,
+          TO_APPEND_SKETCHES_AND_ADD_NOISE,
+          TO_BLIND_POSITIONS,
+          TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
+          TO_DECRYPT_FLAG_COUNTS,
+          TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+            // The output is the intermediate computation result either received from another duchy
+            // or computed locally.
+            1
+          WAIT_SKETCHES ->
+            // The output contains otherDuchiesInComputation sketches from the other duchies.
+            otherDuchies.size
+          // Mill have nothing to do for this stage.
+          COMPLETED -> error("Computation should be ended with call to endComputation(...)")
+          // Stages that we can't transition to ever.
+          UNRECOGNIZED,
+          LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN,
+          TO_CONFIRM_REQUISITIONS ->
+            error("Cannot make transition function to stage $stage")
+        }
+      }
+
       override fun detailsFor(stage: LiquidLegionsSketchAggregationV1.Stage):
         ComputationStageDetails {
           return when (stage) {
@@ -137,9 +217,24 @@ object LiquidLegionsSketchAggregationV1Protocol {
      * [ComputationStageDetails].
      */
     class Details(otherDuchies: List<String>) :
-      ProtocolStageDetails<ComputationStage, ComputationStageDetails> {
+      ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
 
       private val enumBasedDetails = EnumStages.Details(otherDuchies)
+      override fun validateRoleForStage(stage: ComputationStage, details: ComputationDetails):
+        Boolean {
+          return enumBasedDetails.validateRoleForStage(
+            stage.liquidLegionsSketchAggregationV1,
+            details.liquidLegionsV1
+          )
+        }
+
+      override fun afterTransitionForStage(stage: ComputationStage): AfterTransition {
+        return enumBasedDetails.afterTransitionForStage(stage.liquidLegionsSketchAggregationV1)
+      }
+
+      override fun outputBlobNumbersForStage(stage: ComputationStage): Int {
+        return enumBasedDetails.outputBlobNumbersForStage(stage.liquidLegionsSketchAggregationV1)
+      }
 
       override fun detailsFor(stage: ComputationStage): ComputationStageDetails =
         enumBasedDetails.detailsFor(stage.liquidLegionsSketchAggregationV1)
