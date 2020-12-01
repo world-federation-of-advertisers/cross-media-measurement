@@ -131,9 +131,9 @@ message CompleteReachEstimationPhaseAtAggregatorRequest {
 
 // The response of the CompleteReachEstimationPhaseAtAggregator method.
 message CompleteReachEstimationPhaseAtAggregatorResponse {
-  // A concatenation of a list of (flag, count) tuples in bytes.
+  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 132.
+  // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
   // The estimated reach.
   int64 reach = 2;
@@ -144,9 +144,9 @@ message CompleteReachEstimationPhaseAtAggregatorResponse {
 // The request to complete work in the filtering phase at a non-aggregator
 // worker.
 message CompleteFilteringPhaseRequest {
-  // A concatenation of a list of (flag, count) tuples in bytes.
+  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 132.
+  // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
   // The parameters required for generating noise flag count tuples.
   // if unset, no noise would be added.
@@ -155,9 +155,9 @@ message CompleteFilteringPhaseRequest {
 
 // The response of the CompleteFilteringPhase method.
 message CompleteFilteringPhaseResponse {
-  // A concatenation of a list of (flag, count) tuples in bytes.
+  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 132.
+  // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;
@@ -165,9 +165,9 @@ message CompleteFilteringPhaseResponse {
 
 // The request to complete work in the filtering phase at the aggregator worker.
 message CompleteFilteringPhaseAtAggregatorRequest {
-  // A concatenation of a list of (flag, count) tuples in bytes.
+  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 132.
+  // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
   // Public key of the composite ElGamal cipher. Used to generate the 2-D same
   // key aggregator (SKA) matrix.

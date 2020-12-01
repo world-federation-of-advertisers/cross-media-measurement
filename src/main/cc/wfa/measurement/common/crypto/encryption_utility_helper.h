@@ -20,8 +20,16 @@
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
+#include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
 namespace wfa::measurement::common::crypto {
+
+// A pair of ciphertexts which store the key and count values of a liquidlegions
+// register.
+struct KeyCountPairCipherText {
+  ElGamalCiphertext key;
+  ElGamalCiphertext count;
+};
 
 // Gets the number of equal sized blocks the data chunk can be partitioned to.
 absl::StatusOr<size_t> GetNumberOfBlocks(absl::string_view data,
@@ -33,6 +41,23 @@ absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
 
 // Gets the cpu duration of current thread.
 absl::Duration GetCurrentThreadCpuDuration();
+
+// Blinds the last layer of ElGamal Encryption of register indexes, and return
+// the deterministically encrypted results.
+absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
+    absl::string_view data, ProtocolCryptor& protocol_cryptor);
+
+// Extracts a KeyCountPairCipherText from a string_view.
+absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
+    absl::string_view str);
+
+// Extracts a KeyCountPairCipherText from the registers at the given index.
+absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromRegisters(
+    absl::string_view registers, size_t register_index);
+
+// Appends the bytes of an EcPoint to a target string.
+absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
+                                       std::string& result);
 
 }  // namespace wfa::measurement::common::crypto
 

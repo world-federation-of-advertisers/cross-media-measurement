@@ -19,6 +19,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/time/time.h"
 #include "wfa/measurement/common/crypto/constants.h"
+#include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
 namespace wfa::measurement::common::crypto {
 
@@ -46,6 +47,64 @@ absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
   return std::make_pair(
       std::string(str.substr(0, kBytesPerEcPoint)),
       std::string(str.substr(kBytesPerEcPoint, kBytesPerEcPoint)));
+}
+
+absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
+    absl::string_view data, ProtocolCryptor& protocol_cryptor) {
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(data, kBytesPerCipherRegister));
+  std::vector<std::string> blinded_register_indexes;
+  blinded_register_indexes.reserve(register_count);
+  for (size_t index = 0; index < register_count; ++index) {
+    // The size of data_block is guaranteed to be equal to
+    // kBytesPerCipherText
+    absl::string_view data_block =
+        data.substr(index * kBytesPerCipherRegister, kBytesPerCipherText);
+    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
+                     ExtractElGamalCiphertextFromString(data_block));
+    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
+                     protocol_cryptor.DecryptLocalElGamal(ciphertext));
+    blinded_register_indexes.push_back(std::move(decrypted_el_gamal));
+  }
+  return blinded_register_indexes;
+}
+
+absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
+    absl::string_view str) {
+  if (str.size() != kBytesPerCipherText * 2) {
+    return absl::InternalError(
+        "string size doesn't match keycount pair ciphertext size.");
+  }
+  KeyCountPairCipherText result;
+  ASSIGN_OR_RETURN(result.key, ExtractElGamalCiphertextFromString(
+                                   str.substr(0, kBytesPerCipherText)));
+  ASSIGN_OR_RETURN(result.count,
+                   ExtractElGamalCiphertextFromString(
+                       str.substr(kBytesPerCipherText, kBytesPerCipherText)));
+  return result;
+}
+
+absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromRegisters(
+    absl::string_view registers, size_t register_index) {
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(registers, kBytesPerCipherRegister));
+  if (register_index >= register_count) {
+    return absl::InternalError("index is out of bound");
+  }
+  size_t offset =
+      register_index * kBytesPerCipherRegister + kBytesPerCipherText;
+  return ExtractKeyCountPairFromSubstring(
+      registers.substr(offset, kBytesPerCipherText * 2));
+}
+
+absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
+                                       std::string& result) {
+  std::string temp;
+  ASSIGN_OR_RETURN(temp, ec_point_pair.u.ToBytesCompressed());
+  result.append(temp);
+  ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
+  result.append(temp);
+  return absl::OkStatus();
 }
 
 absl::Duration GetCurrentThreadCpuDuration() {

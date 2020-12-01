@@ -24,9 +24,13 @@ inline constexpr int kBytesPerEcPoint = 33;
 inline constexpr int kBytesPerCipherText = kBytesPerEcPoint * 2;
 // A register contains 3 ciphertexts, i.e., (index, key, count)
 inline constexpr int kBytesPerCipherRegister = kBytesPerCipherText * 3;
-// The seed for the IsNotDestoryed flag.
-inline constexpr char kIsNotDestroyed[] = "IsNotDestroyed";
-inline constexpr char KUnitECPointSeed[] = "unit_ec_point";
+// The seed for flag value 0. We need such a value since ECPoint 0 is illegal.
+inline constexpr absl::string_view kFlagZeroBase = "flag_zero_base";
+// The seed for the unit ECPoint in addition.
+inline constexpr absl::string_view KUnitECPointSeed = "unit_ec_point";
+// The seed for the EcPoint denoting the DestroyedRegisterKey constant.
+inline constexpr absl::string_view KDestroyedRegisterKey =
+    "destroyed_register_key";
 
 inline constexpr absl::string_view kGenerateWithNewPohligHellmanKey = "";
 inline const std::pair<std::string, std::string> kGenerateWithNewElGamalKey = {

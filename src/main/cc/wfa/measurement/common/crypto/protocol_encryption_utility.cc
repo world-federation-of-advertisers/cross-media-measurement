@@ -43,67 +43,8 @@ using ::private_join_and_compute::ECPoint;
 using ElGamalCiphertext = std::pair<std::string, std::string>;
 using FlagCount = DecryptLastLayerFlagAndCountResponse::FlagCount;
 
-// crypto primitives used for blinding a ciphertext.
-struct CompositeCipher {
-  std::unique_ptr<CommutativeElGamal> e_g_cipher;
-  std::unique_ptr<ECCommutativeCipher> p_h_cipher;
-};
-
-struct KeyCountPairCipherText {
-  ElGamalCiphertext key;
-  ElGamalCiphertext count;
-};
-
 ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKey& public_keys) {
   return std::make_pair(public_keys.generator(), public_keys.element());
-}
-
-absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
-                                       std::string& result) {
-  std::string temp;
-  ASSIGN_OR_RETURN(temp, ec_point_pair.u.ToBytesCompressed());
-  result.append(temp);
-  ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
-  result.append(temp);
-  return absl::OkStatus();
-}
-
-// Extract a KeyCountPairCipherText from a string_view.
-absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromSubstring(
-    absl::string_view str) {
-  if (str.size() != kBytesPerCipherText * 2) {
-    return absl::InternalError(
-        "string size doesn't match keycount pair ciphertext size.");
-  }
-  KeyCountPairCipherText result;
-  ASSIGN_OR_RETURN(result.key, ExtractElGamalCiphertextFromString(
-                                   str.substr(0, kBytesPerCipherText)));
-  ASSIGN_OR_RETURN(result.count,
-                   ExtractElGamalCiphertextFromString(
-                       str.substr(kBytesPerCipherText, kBytesPerCipherText)));
-  return result;
-}
-
-// Blind the last layer of ElGamal Encryption of registers, and return the
-// deterministically encrypted results.
-absl::StatusOr<std::vector<std::string>> GetBlindedRegisterIndexes(
-    absl::string_view sketch, ProtocolCryptor& protocol_cryptor) {
-  ASSIGN_OR_RETURN(size_t register_count,
-                   GetNumberOfBlocks(sketch, kBytesPerCipherRegister));
-  std::vector<std::string> blinded_register_indexes;
-  blinded_register_indexes.reserve(register_count);
-  for (size_t index = 0; index < register_count; ++index) {
-    // The size of current_block is guaranteed to be equal to
-    // kBytesPerCipherText
-    absl::string_view current_block = absl::string_view(sketch).substr(
-        index * kBytesPerCipherRegister, kBytesPerCipherText);
-    ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
-                     ExtractElGamalCiphertextFromString(current_block));
-    ASSIGN_OR_RETURN(std::string decrypted_el_gamal,
-                     protocol_cryptor.DecryptLocalElGamal(ciphertext));
-    blinded_register_indexes.emplace_back(std::move(decrypted_el_gamal));
-  }
-  return blinded_register_indexes;
 }
 
 // Create a lookup table mapping the ECPoint strings to real world frequency
@@ -142,7 +83,7 @@ absl::StatusOr<std::string> GetIsNotDestroyedFlag(const int curve_id) {
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(auto ec_group, ECGroup::Create(curve_id, ctx.get()));
   ASSIGN_OR_RETURN(ECPoint temp_ec_point,
-                   ec_group.GetPointByHashingToCurveSha256(kIsNotDestroyed));
+                   ec_group.GetPointByHashingToCurveSha256(kFlagZeroBase));
   return temp_ec_point.ToBytesCompressed();
 }
 
@@ -158,17 +99,12 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   }
   // Create a new ElGamal Encryption of the is_not_destroyed flag.
   ASSIGN_OR_RETURN(std::string is_not_destroyed,
-                   protocol_cryptor.MapToCurve(kIsNotDestroyed));
+                   protocol_cryptor.MapToCurve(kFlagZeroBase));
   ASSIGN_OR_RETURN(ElGamalCiphertext is_not_destroyed_ciphertext,
                    protocol_cryptor.EncryptCompositeElGamal(is_not_destroyed));
-  size_t offset =
-      sub_permutation[0] * kBytesPerCipherRegister + kBytesPerCipherText;
-  if (offset > sketch.size()) {
-    return absl::InternalError("Offset is out of bound");
-  }
-  ASSIGN_OR_RETURN(KeyCountPairCipherText key_count_0,
-                   ExtractKeyCountPairFromSubstring(
-                       sketch.substr(offset, kBytesPerCipherText * 2)));
+  ASSIGN_OR_RETURN(
+      KeyCountPairCipherText key_count_0,
+      ExtractKeyCountPairFromRegisters(sketch, sub_permutation[0]));
   // Initialize the flag and count.
   ASSIGN_OR_RETURN(
       ElGamalEcPointPair final_flag,
@@ -185,14 +121,9 @@ absl::Status MergeCountsUsingSameKeyAggregation(
                      InvertEcPointPair(key_0));
     // Merge all addition points to the result
     for (size_t i = 1; i < sub_permutation.size(); ++i) {
-      size_t data_offset =
-          sub_permutation[i] * kBytesPerCipherRegister + kBytesPerCipherText;
-      if (data_offset > sketch.size()) {
-        return absl::InternalError("Offset is out of bound");
-      }
-      ASSIGN_OR_RETURN(KeyCountPairCipherText next_key_count,
-                       ExtractKeyCountPairFromSubstring(sketch.substr(
-                           data_offset, kBytesPerCipherText * 2)));
+      ASSIGN_OR_RETURN(
+          KeyCountPairCipherText next_key_count,
+          ExtractKeyCountPairFromRegisters(sketch, sub_permutation[i]));
       // Get the ECPoints of this (Key, count) pair, 2 for key, and 2 for count.
       ASSIGN_OR_RETURN(
           ElGamalEcPointPair count_i,

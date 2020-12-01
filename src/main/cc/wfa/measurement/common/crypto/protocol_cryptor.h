@@ -44,6 +44,10 @@ class ProtocolCryptor {
   // Decrypts one layer of ElGamal encryption.
   virtual absl::StatusOr<std::string> DecryptLocalElGamal(
       const ElGamalCiphertext& ciphertext) = 0;
+  // Maps a plaintext onto the curve and then encrypts the EcPoint with the
+  // composite ElGamal Key.
+  virtual absl::StatusOr<ElGamalCiphertext> EncryptPlaintextCompositeElGamal(
+      absl::string_view plaintext) = 0;
   // Encrypts the plain EcPoint using the composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) = 0;

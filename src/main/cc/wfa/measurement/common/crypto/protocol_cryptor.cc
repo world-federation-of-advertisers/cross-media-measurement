@@ -51,6 +51,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
       const ElGamalCiphertext& ciphertext) override;
   absl::StatusOr<std::string> DecryptLocalElGamal(
       const ElGamalCiphertext& ciphertext) override;
+  absl::StatusOr<ElGamalCiphertext> EncryptPlaintextCompositeElGamal(
+      absl::string_view plaintext) override;
   absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) override;
   absl::StatusOr<ElGamalCiphertext> ReRandomize(
@@ -112,6 +114,13 @@ absl::StatusOr<std::string> ProtocolCryptorImpl::DecryptLocalElGamal(
     const ElGamalCiphertext& ciphertext) {
   absl::WriterMutexLock l(&mutex_);
   return local_el_gamal_cipher_->Decrypt(ciphertext);
+}
+
+absl::StatusOr<ElGamalCiphertext>
+ProtocolCryptorImpl::EncryptPlaintextCompositeElGamal(
+    absl::string_view plaintext) {
+  ASSIGN_OR_RETURN(std::string ec_point, MapToCurve(plaintext));
+  return EncryptCompositeElGamal(ec_point);
 }
 
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
