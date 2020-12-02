@@ -418,7 +418,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   }
 
   @Test
-  fun `enqueue deteleted computation fails`() = runBlocking<Unit> {
+  fun `enqueue deleted computation fails`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 1,
       protocol = FakeProtocol.ZERO,
@@ -426,7 +426,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       attempt = 1,
       editVersion = 0
     )
-    assertFailsWith<SpannerException> { database.enqueue(token, 0) }
+    assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
   }
 
   @Test
@@ -452,7 +452,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       details = COMPUTATION_DETAILS
     )
     databaseClient.write(listOf(computation))
-    assertFailsWith<SpannerException> { database.enqueue(token, 0) }
+    assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
   }
 
   @Test
@@ -977,11 +977,11 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       database.writeOutputBlobReference(token, BlobRef(1234L, ""))
     }
     // Can't update an input blob
-    assertFailsWith<SpannerException> {
+    assertFailsWith<IllegalStateException> {
       database.writeOutputBlobReference(token, BlobRef(5678L, "/wrote/something/there"))
     }
     // Blob id doesn't exist
-    assertFailsWith<SpannerException> {
+    assertFailsWith<IllegalStateException> {
       database.writeOutputBlobReference(token, BlobRef(223344L, "/wrote/something/there"))
     }
   }

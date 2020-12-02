@@ -14,12 +14,14 @@
 
 package org.wfanet.measurement.gcloud.spanner
 
+import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Instance
 import com.google.cloud.spanner.InstanceConfigId
 import com.google.cloud.spanner.InstanceId
 import com.google.cloud.spanner.InstanceInfo
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Spanner
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.SpannerOptions
 import com.google.cloud.spanner.Statement
 
@@ -71,3 +73,10 @@ fun Spanner.createInstance(
       .build()
   return instanceAdminClient.createInstance(instanceInfo).get()
 }
+
+/**
+ * The wrapped cause of this exception if it doesn't have a known [ErrorCode],
+ * or `null` otherwise.
+ */
+val SpannerException.wrappedException: Throwable?
+  get() = if (errorCode == ErrorCode.UNKNOWN) cause else null

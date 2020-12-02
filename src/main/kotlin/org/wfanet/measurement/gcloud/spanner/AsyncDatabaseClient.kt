@@ -26,6 +26,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options.QueryOption
 import com.google.cloud.spanner.Options.ReadOption
 import com.google.cloud.spanner.ReadContext
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
@@ -208,7 +209,11 @@ private class TransactionRunnerImpl(private val runner: AsyncRunner) :
   AsyncDatabaseClient.TransactionRunner {
 
   override suspend fun <R> execute(work: TransactionWork<R>): R {
-    return executeAsync(work).await()
+    return try {
+      executeAsync(work).await()
+    } catch (e: SpannerException) {
+      throw e.wrappedException ?: e
+    }
   }
 
   private fun <R> executeAsync(work: TransactionWork<R>): Deferred<R> {
