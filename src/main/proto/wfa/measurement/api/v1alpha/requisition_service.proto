@@ -84,33 +84,6 @@ message RefuseMetricRequisitionRequest {
   // Required.
   MetricRequisition.Key key = 1;
 
-  // Why the MetricRequisition cannot be fulfilled.
-  Justification justification = 2;
-
-  // Human-readable string adding more context to the provided Justification.
-  // This should NOT include sensitive information.
-  //
-  // Example: "Data Provider X does not support Virtual ID model line Y".
-  string justification_message = 3;
-
-  enum Justification {
-    JUSTIFICATION_UNKNOWN = 0;
-
-    // The Campaign is not known to the Data Provider. This should only happen
-    // if the Campaign once existed and then was deleted.
-    UNKNOWN_CAMPAIGN = 1;
-
-    // The data required to fulfill this MetricRequisition is permanently
-    // inaccessible or lost. If the data is unavailable because it's too old,
-    // prefer TIME_INTERVAL_TOO_DISTANT.
-    DATA_UNAVAILABLE = 2;
-
-    // The `MetricRequisition.metric_definition` specifies a configuration that
-    // the Data Provider does not and will never support.
-    METRIC_DEFINITION_UNSUPPORTED = 3;
-
-    // The data requested is sufficiently old that the Data Provider no longer
-    // retains it. This is similar to DATA_UNAVAILABLE, but more specific.
-    TIME_INTERVAL_TOO_DISTANT = 4;
-  }
+  // Details about the refusal.
+  MetricRequisition.Refusal refusal = 2;
 }
