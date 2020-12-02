@@ -18,7 +18,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "absl/time/time.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
@@ -38,9 +37,6 @@ absl::StatusOr<size_t> GetNumberOfBlocks(absl::string_view data,
 // Extracts an ElGamalCiphertext from a string_view.
 absl::StatusOr<ElGamalCiphertext> ExtractElGamalCiphertextFromString(
     absl::string_view str);
-
-// Gets the cpu duration of current thread.
-absl::Duration GetCurrentThreadCpuDuration();
 
 // Blinds the last layer of ElGamal Encryption of register indexes, and return
 // the deterministically encrypted results.

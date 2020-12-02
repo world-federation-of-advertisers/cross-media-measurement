@@ -51,9 +51,11 @@ CompleteReachEstimationPhaseAtAggregator(
 //  Complete work in the filtering phase at a non-aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the local ElGamal encryption on the flags.
-//    2. add local (flag, count) noises (if configured to), while the flags are
-//    encrypted with a partial composite ElGamal public key and the counts are
-//    encrypted with the full composite ElGamal public key.
+//    2. re-randomize the counts.
+//    3. add local (flag_a, flag_b, count) noises (if configured to), while the
+//    flags are encrypted with a partial composite ElGamal public key and the
+//    counts are encrypted with the full composite ElGamal public key.
+//    4. shuffle all the (flag_a, flag_b, count) tuples.
 absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
     const CompleteFilteringPhaseRequest& request);
 

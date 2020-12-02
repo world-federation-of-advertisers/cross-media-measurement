@@ -153,9 +153,16 @@ message CompleteFilteringPhaseRequest {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
+  // The elliptical curve to work on.
+  int64 curve_id = 3;
+  // Public Key of the composite ElGamal cipher. Used to re-randomize the
+  // counts.
+  ElGamalPublicKey composite_el_gamal_public_key = 4;
   // The parameters required for generating noise flag count tuples.
   // if unset, no noise would be added.
-  FlagCountTupleNoiseGenerationParameters noise_parameters = 2;
+  FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
 }
 
 // The response of the CompleteFilteringPhase method.

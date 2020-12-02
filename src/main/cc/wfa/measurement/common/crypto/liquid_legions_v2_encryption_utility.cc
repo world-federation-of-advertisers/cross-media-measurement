@@ -23,6 +23,7 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
+#include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/common/string_block_sorter.h"
 
@@ -151,7 +152,7 @@ absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
 absl::StatusOr<CompleteReachEstimationPhaseResponse>
 CompleteReachEstimationPhase(
     const CompleteReachEstimationPhaseRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(request.combined_register_vector(),
@@ -164,7 +165,7 @@ CompleteReachEstimationPhase(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          /*local_pohlig_hellman_private_key=*/"",
+          kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
@@ -186,17 +187,14 @@ CompleteReachEstimationPhase(
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_crv));
 
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 
 absl::StatusOr<CompleteReachEstimationPhaseAtAggregatorResponse>
 CompleteReachEstimationPhaseAtAggregator(
     const CompleteReachEstimationPhaseAtAggregatorRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(request.combined_register_vector(),
@@ -250,10 +248,54 @@ CompleteReachEstimationPhaseAtAggregator(
     // TODO: add noise
   }
 
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  return response;
+}
+
+absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
+    const CompleteFilteringPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+
+  ASSIGN_OR_RETURN(
+      size_t tuple_counts,
+      GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
+          request.curve_id(),
+          std::make_pair(
+              request.local_el_gamal_key_pair().public_key().generator(),
+              request.local_el_gamal_key_pair().public_key().element()),
+          request.local_el_gamal_key_pair().secret_key(),
+          kGenerateWithNewPohligHellmanKey,
+          std::make_pair(request.composite_el_gamal_public_key().generator(),
+                         request.composite_el_gamal_public_key().element())),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
+
+  CompleteFilteringPhaseResponse response;
+  std::string* response_data = response.mutable_flag_count_tuples();
+  // Without noise, the output flag_count_tuples is the same size as the input
+  // flag_count_tuples.
+  response_data->reserve(request.flag_count_tuples().size());
+  for (size_t index = 0; index < tuple_counts; ++index) {
+    absl::string_view current_block =
+        absl::string_view(request.flag_count_tuples())
+            .substr(index * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
+    RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
+        current_block,
+        {Action::kPartialDecrypt, Action::kPartialDecrypt,
+         Action::kReRandomize},
+        *response_data));
+  }
+
+  // Add noise (flag_a, flag_b, count) tuples if configured to.
+  if (request.has_noise_parameters()) {
+    // TODO: add noise
+  }
+
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 

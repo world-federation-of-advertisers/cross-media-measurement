@@ -17,7 +17,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/time/time.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
@@ -105,17 +104,6 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
   result.append(temp);
   return absl::OkStatus();
-}
-
-absl::Duration GetCurrentThreadCpuDuration() {
-#ifdef __linux__
-  struct timespec ts;
-  CHECK(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
-      << "Failed to get the thread cpu time.";
-  return absl::DurationFromTimespec(ts);
-#else
-  return absl::ZeroDuration();
-#endif
 }
 
 }  // namespace wfa::measurement::common::crypto

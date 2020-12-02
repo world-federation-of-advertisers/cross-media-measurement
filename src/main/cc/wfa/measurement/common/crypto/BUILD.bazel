@@ -55,6 +55,17 @@ cc_library(
 )
 
 cc_library(
+    name = "started_thread_cpu_timer",
+    hdrs = [
+        "started_thread_cpu_timer.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/time",
+    ],
+)
+
+cc_library(
     name = "protocol_cryptor",
     srcs = [
         "protocol_cryptor.cc",
@@ -89,6 +100,7 @@ cc_library(
         ":constants",
         ":encryption_utility_helper",
         ":protocol_cryptor",
+        ":started_thread_cpu_timer",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
@@ -113,6 +125,7 @@ cc_library(
         ":constants",
         ":encryption_utility_helper",
         ":protocol_cryptor",
+        ":started_thread_cpu_timer",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
         "@any_sketch//src/main/cc/estimation:estimators",

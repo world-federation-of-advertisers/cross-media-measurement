@@ -25,6 +25,7 @@
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
+#include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/common/string_block_sorter.h"
 
@@ -181,7 +182,7 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
 
 absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
     const BlindOneLayerRegisterIndexRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
       size_t register_count,
@@ -216,17 +217,15 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
         *response_sketch));
   }
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(*response_sketch));
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 };
 
 absl::StatusOr<BlindLastLayerIndexThenJoinRegistersResponse>
 BlindLastLayerIndexThenJoinRegisters(
     const BlindLastLayerIndexThenJoinRegistersRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
       size_t register_count,
@@ -264,16 +263,13 @@ BlindLastLayerIndexThenJoinRegisters(
       permutation, *response_data));
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 };
 
 absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
     const DecryptOneLayerFlagAndCountRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
       size_t ciphertext_count,
@@ -305,17 +301,14 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 2>(*response_data));
 
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 };
 
 absl::StatusOr<DecryptLastLayerFlagAndCountResponse>
 DecryptLastLayerFlagAndCount(
     const DecryptLastLayerFlagAndCountRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
       size_t flag_count_tuple_count,
@@ -378,16 +371,13 @@ DecryptLastLayerFlagAndCount(
     }
   }
 
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 };
 
 absl::StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
     const AddNoiseToSketchRequest& request) {
-  absl::Duration startCpuDuration = GetCurrentThreadCpuDuration();
+  StartedThreadCpuTimer timer;
 
   AddNoiseToSketchResponse response;
   *response.mutable_sketch() = request.sketch();
@@ -396,10 +386,7 @@ absl::StatusOr<AddNoiseToSketchResponse> AddNoiseToSketch(
   RETURN_IF_ERROR(
       SortStringByBlock<kBytesPerCipherRegister>(*response.mutable_sketch()));
 
-  absl::Duration elaspedDuration =
-      GetCurrentThreadCpuDuration() - startCpuDuration;
-  response.set_elapsed_cpu_time_millis(
-      absl::ToInt64Milliseconds(elaspedDuration));
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 
