@@ -43,9 +43,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 class CreateRequisition(
   private val requisition: Requisition
 ) : SpannerWriter<Requisition, Requisition>() {
-  data class ParentKey(
+  data class Parent(
     val dataProviderId: Long,
-    val campaignId: Long
+    val campaignId: Long,
+    val providedCampaignId: String
   )
 
   override suspend fun TransactionScope.runTransaction(): Requisition {
@@ -54,27 +55,33 @@ class CreateRequisition(
       return existing
     }
 
-    val parentKey = findParentKey(requisition.externalCampaignId)
+    val parent = findParent(requisition.externalCampaignId)
     val externalRequisitionId = idGenerator.generateExternalId()
     requisition
-      .toInsertMutation(parentKey, idGenerator.generateInternalId(), externalRequisitionId)
+      .toInsertMutation(parent, idGenerator.generateInternalId(), externalRequisitionId)
       .bufferTo(transactionContext)
 
-    return requisition.toBuilder().apply {
-      this.externalRequisitionId = externalRequisitionId.value
+    return requisition.toBuilder().also {
+      it.externalRequisitionId = externalRequisitionId.value
+      it.providedCampaignId = parent.providedCampaignId
     }.build()
   }
 
   override fun ResultScope<Requisition>.buildResult(): Requisition {
-    return checkNotNull(transactionResult).toBuilder().apply {
-      createTime = commitTimestamp.toProto()
-    }.build()
+    val requisition = checkNotNull(transactionResult)
+    return if (requisition.hasCreateTime()) {
+      requisition
+    } else {
+      requisition.toBuilder().apply {
+        createTime = commitTimestamp.toProto()
+      }.build()
+    }
   }
 
-  private suspend fun TransactionScope.findParentKey(externalCampaignId: Long): ParentKey {
+  private suspend fun TransactionScope.findParent(externalCampaignId: Long): Parent {
     val sql =
       """
-      SELECT Campaigns.DataProviderId, Campaigns.CampaignId
+      SELECT Campaigns.DataProviderId, Campaigns.CampaignId, Campaigns.ProvidedCampaignId
       FROM Campaigns
       WHERE Campaigns.ExternalCampaignId = @external_campaign_id
       """.trimIndent()
@@ -86,9 +93,10 @@ class CreateRequisition(
 
     val row: Struct = transactionContext.executeQuery(statement).single()
 
-    return ParentKey(
+    return Parent(
       row.getLong("DataProviderId"),
-      row.getLong("CampaignId")
+      row.getLong("CampaignId"),
+      row.getString("ProvidedCampaignId")
     )
   }
 
@@ -118,13 +126,13 @@ class CreateRequisition(
   }
 
   private fun Requisition.toInsertMutation(
-    parentKey: ParentKey,
+    parent: Parent,
     requisitionId: InternalId,
     externalRequisitionId: ExternalId
   ): Mutation =
     Mutation.newInsertBuilder("Requisitions")
-      .set("DataProviderId").to(parentKey.dataProviderId)
-      .set("CampaignId").to(parentKey.campaignId)
+      .set("DataProviderId").to(parent.dataProviderId)
+      .set("CampaignId").to(parent.campaignId)
       .set("RequisitionId").to(requisitionId.value)
       .set("ExternalRequisitionId").to(externalRequisitionId.value)
       .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)

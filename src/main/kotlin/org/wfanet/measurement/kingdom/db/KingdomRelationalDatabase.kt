@@ -44,6 +44,12 @@ interface KingdomRelationalDatabase {
   suspend fun createRequisition(requisition: Requisition): Requisition
 
   /**
+   * Returns the [Requisition] with the given ID from the database, or null if
+   * none can be found with that ID.
+   */
+  suspend fun getRequisition(externalRequisitionId: ExternalId): Requisition?
+
+  /**
    * Transitions the state of a [Requisition] to [RequisitionState.FULFILLED] if
    * its current state is [RequisitionState.UNFULFILLED].
    */

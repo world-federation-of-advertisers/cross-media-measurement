@@ -41,6 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamReadyR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamReadySchedules
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamReports
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmDuchyReadiness
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAdvertiser
@@ -64,6 +65,13 @@ class SpannerKingdomRelationalDatabase(
 
   override suspend fun createRequisition(requisition: Requisition): Requisition {
     return CreateRequisition(requisition).execute()
+  }
+
+  override suspend fun getRequisition(externalRequisitionId: ExternalId): Requisition? {
+    return RequisitionReader().readExternalIdOrNull(
+      client.singleUse(),
+      externalRequisitionId
+    )?.requisition
   }
 
   override suspend fun fulfillRequisition(

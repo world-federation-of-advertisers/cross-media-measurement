@@ -1,0 +1,18 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "testing",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+    ],
+)
