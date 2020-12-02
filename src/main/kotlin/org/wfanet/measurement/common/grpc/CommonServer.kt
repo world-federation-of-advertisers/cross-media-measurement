@@ -18,6 +18,8 @@ import io.grpc.BindableService
 import io.grpc.Server
 import io.grpc.ServerBuilder
 import io.grpc.ServerServiceDefinition
+import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import io.grpc.services.HealthStatusManager
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -29,19 +31,22 @@ class CommonServer private constructor(
   private val port: Int,
   services: Iterable<ServerServiceDefinition>
 ) {
-  private var server: Server
+  private val healthStatusManager = HealthStatusManager()
 
-  init {
-    val builder = ServerBuilder.forPort(port)
-    services.forEach {
-      builder.addService(it)
-    }
-    server = builder.build()
+  private val server: Server by lazy {
+    ServerBuilder.forPort(port).apply {
+      addService(healthStatusManager.healthService)
+      services.forEach { addService(it) }
+    }.build()
   }
 
   @Throws(IOException::class)
   fun start(): CommonServer {
     server.start()
+    server.services.forEach {
+      healthStatusManager.setStatus(it.serviceDescriptor.name, ServingStatus.SERVING)
+    }
+
     logger.log(
       Level.INFO,
       "$nameForLogging started, listening on $port"

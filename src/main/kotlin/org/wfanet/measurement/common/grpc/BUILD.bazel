@@ -10,6 +10,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/io/grpc:api",
+        "//imports/java/io/grpc/services:health",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
