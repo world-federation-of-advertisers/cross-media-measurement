@@ -24,6 +24,8 @@ inline constexpr int kBytesPerEcPoint = 33;
 inline constexpr int kBytesPerCipherText = kBytesPerEcPoint * 2;
 // A register contains 3 ciphertexts, i.e., (index, key, count)
 inline constexpr int kBytesPerCipherRegister = kBytesPerCipherText * 3;
+// A flags count tuple contains 3 ciphertexts, i.e., (flag_a, flag_b, count)
+inline constexpr int kBytesPerFlagsCountTuple = kBytesPerCipherText * 3;
 // The seed for flag value 0. We need such a value since ECPoint 0 is illegal.
 inline constexpr absl::string_view kFlagZeroBase = "flag_zero_base";
 // The seed for the unit ECPoint in addition.

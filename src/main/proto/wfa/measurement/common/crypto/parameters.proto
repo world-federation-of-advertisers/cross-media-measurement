@@ -45,3 +45,12 @@ message PolyaParameters {
   double r = 1;  // any real number.
   double p = 2;  // 0<p<1
 }
+
+// Parameters used for liquidLegions creation and estimation.
+message LiquidLegionsParameters {
+  // decay rate.
+  double decay_rate = 1;
+  // The size of the register space, i.e., the maximum possible number of
+  // registers in a sketch.
+  int64 size = 2;
+}

@@ -17,7 +17,9 @@
 #include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "src/main/cc/estimation/estimators.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
@@ -127,6 +129,23 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
       protocol_cryptor, response);
 }
 
+absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
+                                      int64_t liquid_legions_size,
+                                      size_t active_register_count) {
+  if (liquid_legions_decay_rate <= 1.0) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "The decay rate should be > 1, but is ", liquid_legions_decay_rate));
+  }
+  if (liquid_legions_size <= active_register_count) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "liquid legions size (", liquid_legions_size,
+        ") should be greater then the number of active registers (",
+        active_register_count, ")."));
+  }
+  return wfa::estimation::EstimateCardinalityLiquidLegions(
+      liquid_legions_decay_rate, liquid_legions_size, active_register_count);
+}
+
 }  // namespace
 
 absl::StatusOr<CompleteReachEstimationPhaseResponse>
@@ -214,6 +233,22 @@ CompleteReachEstimationPhaseAtAggregator(
       *protocol_cryptor, request.combined_register_vector(),
       blinded_register_indexes, permutation, *response_data));
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 3>(*response_data));
+
+  // Estimates reach.
+  ASSIGN_OR_RETURN(size_t active_register_count,
+                   GetNumberOfBlocks(response.flag_count_tuples(),
+                                     kBytesPerFlagsCountTuple));
+  ASSIGN_OR_RETURN(
+      int64_t reach,
+      EstimateReach(request.liquid_legions_parameters().decay_rate(),
+                    request.liquid_legions_parameters().size(),
+                    active_register_count));
+  response.set_reach(reach);
+
+  // Add noise (flag_a, flag_b, count) tuples if configured to.
+  if (request.has_noise_parameters()) {
+    // TODO: add noise
+  }
 
   absl::Duration elaspedDuration =
       GetCurrentThreadCpuDuration() - startCpuDuration;

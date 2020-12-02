@@ -127,6 +127,11 @@ message CompleteReachEstimationPhaseAtAggregatorRequest {
   ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
+  // LiquidLegions parameters used for reach estimation.
+  LiquidLegionsParameters liquid_legions_parameters = 5;
+  // The parameters required for generating noise flag count tuples.
+  // if unset, no noise would be added.
+  FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
 }
 
 // The response of the CompleteReachEstimationPhaseAtAggregator method.

@@ -115,6 +115,7 @@ cc_library(
         ":protocol_cryptor",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
+        "@any_sketch//src/main/cc/estimation:estimators",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_private_join_and_compute//util:status",
     ],
