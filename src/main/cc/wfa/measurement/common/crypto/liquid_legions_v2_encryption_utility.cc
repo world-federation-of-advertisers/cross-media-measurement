@@ -169,6 +169,25 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
 
 }  // namespace
 
+absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
+    const CompleteSetupPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+
+  CompleteSetupPhaseResponse response;
+  *response.mutable_combined_register_vector() =
+      request.combined_register_vector();
+
+  if (request.has_noise_parameters()) {
+    // TODO: add noise registers.
+  }
+
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(
+      *response.mutable_combined_register_vector()));
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  return response;
+}
+
 absl::StatusOr<CompleteReachEstimationPhaseResponse>
 CompleteReachEstimationPhase(
     const CompleteReachEstimationPhaseRequest& request) {
