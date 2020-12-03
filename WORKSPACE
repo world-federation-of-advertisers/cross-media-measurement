@@ -356,9 +356,9 @@ git_repository(
 # Public APIs for measurement system.
 git_repository(
     name = "wfa_measurement_proto",
-    commit = "46220513f9cc0b0bea9357ab5802d6cd359af63d",
+    commit = "9d234078de0f0ea11b62949d66638bb5db4976c4",
     remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
-    shallow_since = "1605824561 -0800",
+    shallow_since = "1606952246 +0000",
 )
 
 # AnySketch.

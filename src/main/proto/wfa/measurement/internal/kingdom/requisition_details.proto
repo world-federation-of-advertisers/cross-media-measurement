@@ -25,4 +25,39 @@ option java_multiple_files = true;
 // Requisition.
 message RequisitionDetails {
   MetricDefinition metric_definition = 1;
+
+  message Refusal {
+    enum Justification {
+      JUSTIFICATION_UNKNOWN = 0;
+
+      // The Campaign is not known to the DataProvider. This should only happen
+      // if the corresponding campaign in the DataProvider's system previously
+      // existed but has been deleted.
+      UNKNOWN_CAMPAIGN = 1;
+
+      // The MetricDefinition specifies a configuration that the DataProvider
+      // does not and will never support for this Campaign.
+      METRIC_DEFINITION_UNSUPPORTED = 2;
+
+      // The collection interval covers a range that is sufficiently long ago
+      // that the DataProvider no longer retains the underlying data.
+      COLLECTION_INTERVAL_TOO_DISTANT = 3;
+
+      // The data required to fulfill this MetricRequisition is permanently
+      // inaccessible or lost. This should only be used when there is no other
+      // Justification that is more specific.
+      DATA_UNAVAILABLE = 4;
+    }
+    Justification justification = 1;
+
+    // Human-readable string adding more context to the provided Justification.
+    // This should NOT include sensitive information.
+    //
+    // Example: "Data Provider X does not support Virtual ID model line Y".
+    string message = 2;
+  }
+  // Details on why the requisition is in the PERMANENTLY_UNFILLABLE state.
+  oneof unfillable_details {
+    Refusal refusal = 2;
+  }
 }

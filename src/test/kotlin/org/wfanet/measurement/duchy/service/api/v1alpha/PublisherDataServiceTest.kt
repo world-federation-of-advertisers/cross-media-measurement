@@ -134,8 +134,10 @@ class PublisherDataServiceTest {
 
     val request = RefuseMetricRequisitionRequest.newBuilder().apply {
       key = metricRequisitionKey
-      justification = RefuseMetricRequisitionRequest.Justification.DATA_UNAVAILABLE
-      justificationMessage = "Disk corrupted"
+      refusalBuilder.apply {
+        justification = MetricRequisition.Refusal.Justification.DATA_UNAVAILABLE
+        message = "Disk corrupted"
+      }
     }.build()
     val response = runBlocking { service.refuseMetricRequisition(request) }
 

@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
+import org.wfanet.measurement.api.v1alpha.MetricRequisition.Refusal
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -27,6 +28,7 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
@@ -50,7 +52,7 @@ class RequisitionService(private val internalRequisitionStub: RequisitionsCorout
           createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
         }
 
-        addAllStates(request.filter.statesList.map(MetricRequisition.State::toRequisitionState))
+        addAllStates(request.filter.statesList.map(MetricRequisition.State::toInternal))
 
         addExternalDataProviderIds(ApiId(request.parent.dataProviderId).externalId.value)
         addExternalCampaignIds(ApiId(request.parent.campaignId).externalId.value)
@@ -66,47 +68,63 @@ class RequisitionService(private val internalRequisitionStub: RequisitionsCorout
 
     return ListMetricRequisitionsResponse
       .newBuilder()
-      .addAllMetricRequisitions(results.map(Requisition::toV1Api))
+      .addAllMetricRequisitions(results.map(Requisition::toMetricRequisition))
       .setNextPageToken(results.last().createTime.toByteArray().base64UrlEncode())
       .build()
   }
 }
 
-/**
- * Converts internal [Requisition] into a V1 API proto.
- */
-private fun Requisition.toV1Api(): MetricRequisition =
-  MetricRequisition.newBuilder().apply {
-    keyBuilder.apply {
+/** Converts an internal [Requisition] to a [MetricRequisition]. */
+private fun Requisition.toMetricRequisition(): MetricRequisition {
+  return MetricRequisition.newBuilder().also {
+    it.keyBuilder.apply {
       dataProviderId = ExternalId(externalDataProviderId).apiId.value
       campaignId = ExternalId(externalCampaignId).apiId.value
       metricRequisitionId = ExternalId(externalRequisitionId).apiId.value
     }
-    campaignReferenceId = providedCampaignId
-    combinedPublicKeyBuilder.combinedPublicKeyId = combinedPublicKeyResourceId
-    state = this@toV1Api.state.toV1Api()
+    it.campaignReferenceId = providedCampaignId
+    it.combinedPublicKeyBuilder.combinedPublicKeyId = combinedPublicKeyResourceId
+    it.state = state.toMetricRequisitionState()
+
+    if (requisitionDetails.hasRefusal()) {
+      it.refusalBuilder.apply {
+        justification = requisitionDetails.refusal.justification.toRefusalJustification()
+        message = requisitionDetails.refusal.message
+      }
+    }
   }.build()
+}
 
-/**
- * Converts internal [RequisitionState] into a V1 API proto.
- */
-private fun RequisitionState.toV1Api(): MetricRequisition.State =
+/** Converts an [InternalRefusal.Justification] to a [Refusal.Justification]. */
+private fun InternalRefusal.Justification.toRefusalJustification(): Refusal.Justification =
   when (this) {
-    RequisitionState.UNFULFILLED -> MetricRequisition.State.UNFULFILLED
-    RequisitionState.FULFILLED -> MetricRequisition.State.FULFILLED
-    RequisitionState.PERMANENTLY_UNAVAILABLE -> MetricRequisition.State.PERMANENTLY_UNFILLABLE
-    RequisitionState.REQUISITION_STATE_UNKNOWN, RequisitionState.UNRECOGNIZED ->
-      MetricRequisition.State.STATE_UNSPECIFIED
+    InternalRefusal.Justification.JUSTIFICATION_UNKNOWN,
+    InternalRefusal.Justification.UNRECOGNIZED ->
+      Refusal.Justification.JUSTIFICATION_UNSPECIFIED
+    InternalRefusal.Justification.UNKNOWN_CAMPAIGN ->
+      Refusal.Justification.UNKNOWN_CAMPAIGN
+    InternalRefusal.Justification.METRIC_DEFINITION_UNSUPPORTED ->
+      Refusal.Justification.METRIC_DEFINITION_UNSUPPORTED
+    InternalRefusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT ->
+      Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
+    InternalRefusal.Justification.DATA_UNAVAILABLE ->
+      Refusal.Justification.DATA_UNAVAILABLE
   }
 
-/**
- * Converts V1 API proto enum [MetricRequisition.State] into an internal, API-agnostic enum.
- */
-private fun MetricRequisition.State.toRequisitionState(): RequisitionState =
-  when (this) {
-    MetricRequisition.State.UNFULFILLED -> RequisitionState.UNFULFILLED
-    MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
-    MetricRequisition.State.PERMANENTLY_UNFILLABLE -> RequisitionState.PERMANENTLY_UNAVAILABLE
-    MetricRequisition.State.STATE_UNSPECIFIED, MetricRequisition.State.UNRECOGNIZED ->
-      RequisitionState.REQUISITION_STATE_UNKNOWN
-  }
+/** Converts an internal [RequisitionState] to a [MetricRequisition.State]. */
+private fun RequisitionState.toMetricRequisitionState(): MetricRequisition.State = when (this) {
+  RequisitionState.UNFULFILLED -> MetricRequisition.State.UNFULFILLED
+  RequisitionState.FULFILLED -> MetricRequisition.State.FULFILLED
+  RequisitionState.PERMANENTLY_UNAVAILABLE -> MetricRequisition.State.PERMANENTLY_UNFILLABLE
+  RequisitionState.REQUISITION_STATE_UNKNOWN, RequisitionState.UNRECOGNIZED ->
+    MetricRequisition.State.STATE_UNSPECIFIED
+}
+
+/** Converts a [MetricRequisition.State] to an internal [RequisitionState]. */
+private fun MetricRequisition.State.toInternal(): RequisitionState = when (this) {
+  MetricRequisition.State.UNFULFILLED -> RequisitionState.UNFULFILLED
+  MetricRequisition.State.FULFILLED -> RequisitionState.FULFILLED
+  MetricRequisition.State.PERMANENTLY_UNFILLABLE -> RequisitionState.PERMANENTLY_UNAVAILABLE
+  MetricRequisition.State.STATE_UNSPECIFIED, MetricRequisition.State.UNRECOGNIZED ->
+    RequisitionState.REQUISITION_STATE_UNKNOWN
+}

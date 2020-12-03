@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v1alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.nhaarman.mockitokotlin2.UseConstructor
@@ -32,6 +33,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsResponse
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
+import org.wfanet.measurement.api.v1alpha.MetricRequisition.Refusal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.ExternalId
@@ -179,5 +181,37 @@ class RequisitionServiceTest {
           }
         }.build()
       )
+  }
+
+  @Test
+  fun `listRequisitions returns refused MetricRequisition`() = runBlocking {
+    val requisition = REQUISITION.toBuilder().apply {
+      state = RequisitionState.PERMANENTLY_UNAVAILABLE
+      requisitionDetailsBuilder.refusalBuilder.apply {
+        justification = RequisitionDetails.Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
+        message = "Too old"
+      }
+    }.build()
+    whenever(requisitionStorage.streamRequisitions(any())).thenReturn(flowOf(requisition))
+
+    val request = ListMetricRequisitionsRequest.newBuilder().apply {
+      parentBuilder.apply {
+        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+      }
+      filterBuilder.addStates(MetricRequisition.State.PERMANENTLY_UNFILLABLE)
+      pageSize = 10
+    }.build()
+    val response = service.listMetricRequisitions(request)
+
+    assertThat(response.metricRequisitionsList).hasSize(1)
+    val metricRequisition = response.metricRequisitionsList.first()
+    assertThat(metricRequisition.state).isEqualTo(MetricRequisition.State.PERMANENTLY_UNFILLABLE)
+    assertThat(metricRequisition.refusal).isEqualTo(
+      Refusal.newBuilder().apply {
+        justification = Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
+        message = requisition.requisitionDetails.refusal.message
+      }.build()
+    )
   }
 }
