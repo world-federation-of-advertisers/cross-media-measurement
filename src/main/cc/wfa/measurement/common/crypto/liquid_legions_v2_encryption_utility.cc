@@ -409,4 +409,39 @@ CompleteFilteringPhaseAtAggregator(
   return response;
 }
 
+absl::StatusOr<CompleteFrequencyEstimationPhaseResponse>
+CompleteFrequencyEstimationPhase(
+    const CompleteFrequencyEstimationPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
+          request.curve_id(),
+          std::make_pair(
+              request.local_el_gamal_key_pair().public_key().generator(),
+              request.local_el_gamal_key_pair().public_key().element()),
+          request.local_el_gamal_key_pair().secret_key(),
+          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
+
+  ASSIGN_OR_RETURN(size_t ciphertext_counts,
+                   GetNumberOfBlocks(request.same_key_aggregator_matrix(),
+                                     kBytesPerCipherText));
+
+  CompleteFrequencyEstimationPhaseResponse response;
+
+  for (size_t index = 0; index < ciphertext_counts; ++index) {
+    absl::string_view current_block =
+        absl::string_view(request.same_key_aggregator_matrix())
+            .substr(index * kBytesPerCipherText, kBytesPerCipherText);
+    RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
+        current_block, {kDecrypt},
+        *response.mutable_same_key_aggregator_matrix()));
+  }
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  return response;
+}
+
 }  // namespace wfa::measurement::common::crypto
