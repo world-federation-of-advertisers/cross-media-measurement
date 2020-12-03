@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionUpdate
@@ -54,6 +55,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRequis
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateSchedule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishReport
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FulfillRequisition
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RefuseRequisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateReportState
 
@@ -79,6 +81,13 @@ class SpannerKingdomRelationalDatabase(
     duchyId: String
   ): RequisitionUpdate {
     return FulfillRequisition(externalRequisitionId, duchyId).execute()
+  }
+
+  override suspend fun refuseRequisition(
+    externalRequisitionId: ExternalId,
+    refusal: RequisitionDetails.Refusal
+  ): RequisitionUpdate {
+    return RefuseRequisition(externalRequisitionId, refusal).execute()
   }
 
   override fun streamRequisitions(

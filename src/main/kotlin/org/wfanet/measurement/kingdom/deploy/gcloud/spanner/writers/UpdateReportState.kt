@@ -29,26 +29,7 @@ class UpdateReportState(
 ) : SpannerWriter<Report, Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {
     val reportReadResult = ReportReader().readExternalId(transactionContext, externalReportId)
-
-    if (reportReadResult.report.state == state) {
-      return reportReadResult.report
-    }
-
-    require(!reportReadResult.report.state.isTerminal) {
-      "Report $externalReportId is in a terminal state: ${reportReadResult.report}"
-    }
-
-    Mutation.newUpdateBuilder("Reports")
-      .set("AdvertiserId").to(reportReadResult.advertiserId)
-      .set("ReportConfigId").to(reportReadResult.reportConfigId)
-      .set("ScheduleId").to(reportReadResult.scheduleId)
-      .set("ReportId").to(reportReadResult.reportId)
-      .set("State").toProtoEnum(state)
-      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      .build()
-      .bufferTo(transactionContext)
-
-    return reportReadResult.report.toBuilder().setState(state).build()
+    return updateReportState(reportReadResult, state)
   }
 
   override fun ResultScope<Report>.buildResult(): Report {
@@ -56,6 +37,32 @@ class UpdateReportState(
       .setUpdateTime(commitTimestamp.toProto())
       .build()
   }
+}
+
+internal fun SpannerWriter.TransactionScope.updateReportState(
+  reportReadResult: ReportReader.Result,
+  state: ReportState
+): Report {
+  val report = reportReadResult.report
+  if (report.state == state) {
+    return report
+  }
+
+  require(!report.state.isTerminal) {
+    "Report ${report.externalReportId} is in a terminal state: $report"
+  }
+
+  Mutation.newUpdateBuilder("Reports")
+    .set("AdvertiserId").to(reportReadResult.advertiserId)
+    .set("ReportConfigId").to(reportReadResult.reportConfigId)
+    .set("ScheduleId").to(reportReadResult.scheduleId)
+    .set("ReportId").to(reportReadResult.reportId)
+    .set("State").toProtoEnum(state)
+    .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    .build()
+    .bufferTo(transactionContext)
+
+  return report.toBuilder().setState(state).build()
 }
 
 private val ReportState.isTerminal: Boolean

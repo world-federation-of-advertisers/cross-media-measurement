@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
+import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 
 /**
@@ -56,6 +57,17 @@ interface KingdomRelationalDatabase {
   suspend fun fulfillRequisition(
     externalRequisitionId: ExternalId,
     duchyId: String
+  ): RequisitionUpdate
+
+  /**
+   * Transitions the state of a [Requisition] to
+   * [RequisitionState.PERMANENTLY_UNAVAILABLE] if its current state is
+   * [RequisitionState.UNFULFILLED], setting
+   * [requisition_details.refusal][RequisitionDetails.getRefusal].
+   */
+  suspend fun refuseRequisition(
+    externalRequisitionId: ExternalId,
+    refusal: RequisitionDetails.Refusal
   ): RequisitionUpdate
 
   /**
