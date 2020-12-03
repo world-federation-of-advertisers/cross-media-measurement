@@ -53,6 +53,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
       const ElGamalCiphertext& ciphertext) override;
   absl::StatusOr<ElGamalCiphertext> EncryptPlaintextCompositeElGamal(
       absl::string_view plaintext) override;
+  absl::StatusOr<ElGamalEcPointPair> EncryptPlaintextToEcPointsCompositeElGamal(
+      absl::string_view plaintext) override;
   absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) override;
   absl::StatusOr<ElGamalCiphertext> ReRandomize(
@@ -121,6 +123,14 @@ ProtocolCryptorImpl::EncryptPlaintextCompositeElGamal(
     absl::string_view plaintext) {
   ASSIGN_OR_RETURN(std::string ec_point, MapToCurve(plaintext));
   return EncryptCompositeElGamal(ec_point);
+}
+
+absl::StatusOr<ElGamalEcPointPair>
+ProtocolCryptorImpl::EncryptPlaintextToEcPointsCompositeElGamal(
+    absl::string_view plaintext) {
+  ASSIGN_OR_RETURN(ElGamalCiphertext temp,
+                   EncryptPlaintextCompositeElGamal(plaintext));
+  return ToElGamalEcPoints(temp);
 }
 
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(

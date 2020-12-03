@@ -98,19 +98,14 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   if (sub_permutation.empty()) {
     return absl::InternalError("Empty sub permutation.");
   }
-  // Create a new ElGamal Encryption of the is_not_destroyed flag.
-  ASSIGN_OR_RETURN(std::string is_not_destroyed,
-                   protocol_cryptor.MapToCurve(kFlagZeroBase));
-  ASSIGN_OR_RETURN(ElGamalCiphertext is_not_destroyed_ciphertext,
-                   protocol_cryptor.EncryptCompositeElGamal(is_not_destroyed));
   ASSIGN_OR_RETURN(
       KeyCountPairCipherText key_count_0,
       ExtractKeyCountPairFromRegisters(sketch, sub_permutation[0]));
   // Initialize the flag and count.
-  ASSIGN_OR_RETURN(
-      ElGamalEcPointPair final_flag,
-      protocol_cryptor.ToElGamalEcPoints(is_not_destroyed_ciphertext));
-  ASSIGN_OR_RETURN(ElGamalEcPointPair final_count,
+  ASSIGN_OR_RETURN(ElGamalEcPointPair tuple_flag,
+                   protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
+                       kFlagZeroBase));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair tuple_count,
                    protocol_cryptor.ToElGamalEcPoints(key_count_0.count));
 
   // Aggregate other (key, count) pairs if any.
@@ -135,15 +130,15 @@ absl::Status MergeCountsUsingSameKeyAggregation(
           ElGamalEcPointPair destructor,
           protocol_cryptor.CalculateDestructor(key_0_inverse, key_i));
       // Update the (flag, count) using the destructor.
-      ASSIGN_OR_RETURN(final_flag, AddEcPointPairs(final_flag, destructor));
-      ASSIGN_OR_RETURN(final_count, AddEcPointPairs(final_count, count_i));
-      ASSIGN_OR_RETURN(final_count, AddEcPointPairs(final_count, destructor));
+      ASSIGN_OR_RETURN(tuple_flag, AddEcPointPairs(tuple_flag, destructor));
+      ASSIGN_OR_RETURN(tuple_count, AddEcPointPairs(tuple_count, count_i));
+      ASSIGN_OR_RETURN(tuple_count, AddEcPointPairs(tuple_count, destructor));
     }
   }
   // Append the (flag, count) result for this group of registers to the final
   // response.
-  RETURN_IF_ERROR(AppendEcPointPairToString(final_flag, response));
-  RETURN_IF_ERROR(AppendEcPointPairToString(final_count, response));
+  RETURN_IF_ERROR(AppendEcPointPairToString(tuple_flag, response));
+  RETURN_IF_ERROR(AppendEcPointPairToString(tuple_count, response));
   return absl::OkStatus();
 }
 

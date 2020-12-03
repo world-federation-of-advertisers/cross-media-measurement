@@ -42,24 +42,18 @@ absl::Status MergeCountsUsingSameKeyAggregation(
     return absl::InternalError("Empty sub permutation.");
   }
 
-  ASSIGN_OR_RETURN(
-      ElGamalCiphertext flag_zero_base_ciphertext,
-      protocol_cryptor.EncryptPlaintextCompositeElGamal(kFlagZeroBase));
-  ASSIGN_OR_RETURN(
-      ElGamalCiphertext destroyed_key_constant_ciphertext,
-      protocol_cryptor.EncryptPlaintextCompositeElGamal(KDestroyedRegisterKey));
-  ASSIGN_OR_RETURN(
-      ElGamalEcPointPair destroyed_key_constant_ec_pair,
-      protocol_cryptor.ToElGamalEcPoints(destroyed_key_constant_ciphertext));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair destroyed_key_constant_ec_pair,
+                   protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
+                       KDestroyedRegisterKey));
 
   ASSIGN_OR_RETURN(
       KeyCountPairCipherText key_count_0,
       ExtractKeyCountPairFromRegisters(registers, sub_permutation[0]));
   // Initialize flag_a, flag_b and group_count, which together make a 3-tuple
   // for this register group.
-  ASSIGN_OR_RETURN(
-      ElGamalEcPointPair flag_a,
-      protocol_cryptor.ToElGamalEcPoints(flag_zero_base_ciphertext));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair flag_a,
+                   protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
+                       kFlagZeroBase));
   ASSIGN_OR_RETURN(ElGamalEcPointPair group_count,
                    protocol_cryptor.ToElGamalEcPoints(key_count_0.count));
   // calculate the inverse of key_0. i.e., -K0
@@ -145,6 +139,32 @@ absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
   }
   return wfa::estimation::EstimateCardinalityLiquidLegions(
       liquid_legions_decay_rate, liquid_legions_size, active_register_count);
+}
+
+absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
+    ProtocolCryptor& protocol_cryptor, int64_t max_frequency) {
+  if (max_frequency < 1) {
+    return absl::InvalidArgumentError("max_frequency should be positive");
+  }
+  // Result[i] = encrypted_zero_offset - encrypted_one * (i+1)
+  std::vector<ElGamalEcPointPair> result;
+  ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
+                   protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
+                       KUnitECPointSeed));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair negative_one_ec,
+                   InvertEcPointPair(one_ec));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair zero_offset_ec,
+                   protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
+                       kFlagZeroBase));
+  ASSIGN_OR_RETURN(ElGamalEcPointPair negative_one_shifted_ec,
+                   AddEcPointPairs(zero_offset_ec, negative_one_ec));
+  result.push_back(std::move(negative_one_shifted_ec));
+  for (size_t i = 1; i < max_frequency; ++i) {
+    ASSIGN_OR_RETURN(ElGamalEcPointPair next,
+                     AddEcPointPairs(result.back(), negative_one_ec));
+    result.push_back(std::move(next));
+  }
+  return std::move(result);
 }
 
 }  // namespace
@@ -294,6 +314,77 @@ absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  return response;
+}
+
+absl::StatusOr<CompleteFilteringPhaseAtAggregatorResponse>
+CompleteFilteringPhaseAtAggregator(
+    const CompleteFilteringPhaseAtAggregatorRequest& request) {
+  StartedThreadCpuTimer timer;
+
+  ASSIGN_OR_RETURN_ERROR(
+      auto protocol_cryptor,
+      CreateProtocolCryptorWithKeys(
+          request.curve_id(),
+          std::make_pair(
+              request.local_el_gamal_key_pair().public_key().generator(),
+              request.local_el_gamal_key_pair().public_key().element()),
+          request.local_el_gamal_key_pair().secret_key(),
+          kGenerateWithNewPohligHellmanKey,
+          std::make_pair(request.composite_el_gamal_public_key().generator(),
+                         request.composite_el_gamal_public_key().element())),
+      "Failed to create the protocol cipher, invalid curveId or keys.");
+
+  ASSIGN_OR_RETURN(
+      size_t tuple_counts,
+      GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
+
+  ASSIGN_OR_RETURN(std::string flag_zero_base,
+                   protocol_cryptor->MapToCurve(kFlagZeroBase));
+
+  ASSIGN_OR_RETURN(std::vector<ElGamalEcPointPair> ska_bases,
+                   GetSameKeyAggregatorMatrixBase(*protocol_cryptor,
+                                                  request.maximum_frequency()));
+
+  CompleteFilteringPhaseAtAggregatorResponse response;
+  std::string* response_ska_matrix =
+      response.mutable_same_key_aggregator_matrix();
+
+  for (size_t index = 0; index < tuple_counts; ++index) {
+    absl::string_view current_block =
+        absl::string_view(request.flag_count_tuples())
+            .substr(index * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
+
+    ASSIGN_OR_RETURN(ElGamalCiphertext flag_1_ciphertext,
+                     ExtractElGamalCiphertextFromString(
+                         current_block.substr(0, kBytesPerCipherText)));
+    ASSIGN_OR_RETURN(ElGamalCiphertext flag_2_ciphertext,
+                     ExtractElGamalCiphertextFromString(current_block.substr(
+                         kBytesPerCipherText, kBytesPerCipherText)));
+    ASSIGN_OR_RETURN(std::string flag_1,
+                     protocol_cryptor->DecryptLocalElGamal(flag_1_ciphertext));
+    ASSIGN_OR_RETURN(std::string flag_2,
+                     protocol_cryptor->DecryptLocalElGamal(flag_1_ciphertext));
+
+    // Add a new row to the SameKeyAggregator Matrix if the register is not
+    // destroyed.
+    if (flag_1 == flag_zero_base && flag_2 != flag_zero_base) {
+      ASSIGN_OR_RETURN(ElGamalCiphertext current_count_ciphertext,
+                       ExtractElGamalCiphertextFromString(current_block.substr(
+                           kBytesPerCipherText * 2, kBytesPerCipherText)));
+      ASSIGN_OR_RETURN(
+          ElGamalEcPointPair current_count_ec_pair,
+          protocol_cryptor->ToElGamalEcPoints(current_count_ciphertext));
+      for (size_t i = 0; i < request.maximum_frequency(); ++i) {
+        ASSIGN_OR_RETURN(ElGamalEcPointPair diff,
+                         protocol_cryptor->CalculateDestructor(
+                             ska_bases[i], current_count_ec_pair));
+        RETURN_IF_ERROR(AppendEcPointPairToString(diff, *response_ska_matrix));
+      }
+    }
+  }
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;

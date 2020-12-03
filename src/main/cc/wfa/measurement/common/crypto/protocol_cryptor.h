@@ -48,6 +48,10 @@ class ProtocolCryptor {
   // composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptPlaintextCompositeElGamal(
       absl::string_view plaintext) = 0;
+  // Maps a plaintext onto the curve and then encrypts the EcPoint with the
+  // composite ElGamal Key, returns the result as an ElGamalEcPointPair.
+  virtual absl::StatusOr<ElGamalEcPointPair>
+  EncryptPlaintextToEcPointsCompositeElGamal(absl::string_view plaintext) = 0;
   // Encrypts the plain EcPoint using the composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) = 0;

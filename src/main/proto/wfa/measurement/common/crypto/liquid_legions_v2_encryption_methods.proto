@@ -181,17 +181,16 @@ message CompleteFilteringPhaseAtAggregatorRequest {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
+  // Key pair of the local ElGamal cipher. Required.
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Public key of the composite ElGamal cipher. Used to generate the 2-D same
   // key aggregator (SKA) matrix.
-  ElGamalPublicKey composite_el_gamal_public_key = 2;
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on for SKA generation.
-  int64 curve_id = 3;
+  int64 curve_id = 4;
   // Maximum frequency to measure. This is also the row dimension of the 2-D SKA
   // matrix.
-  int32 maximum_frequency = 4;
-  // The parameters required for generating noise flag count tuples.
-  // if unset, no noise would be added.
-  FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
+  int32 maximum_frequency = 5;
 }
 
 // The response of the CompleteFilteringPhaseAtAggregator method.
