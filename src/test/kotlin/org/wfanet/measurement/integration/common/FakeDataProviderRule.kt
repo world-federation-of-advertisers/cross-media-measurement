@@ -29,6 +29,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
+import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.CONFLICTING_KEYS
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
@@ -119,12 +120,19 @@ class FakeDataProviderRule : TestRule {
   private fun generateFakeEncryptedSketch(combinedElGamalKey: ElGamalPublicKey): ByteString {
     val sketch = Sketch.newBuilder().apply {
       config = sketchConfig
-      for (i in 1L..10L) {
+      // Adds nine normal registers.
+      for (i in 1L..9L) {
         addRegistersBuilder().apply {
           index = i
           addValues(i)
           addValues(1)
         }
+      }
+      // Adds another locally destroyed register.
+      addRegistersBuilder().apply {
+        index = 10
+        addValues(-1)
+        addValues(1)
       }
     }.build()
     val request = EncryptSketchRequest.newBuilder().apply {
@@ -135,6 +143,7 @@ class FakeDataProviderRule : TestRule {
         elGamalG = combinedElGamalKey.generator
         elGamalY = combinedElGamalKey.element
       }
+      destroyedRegisterStrategy = CONFLICTING_KEYS
     }.build()
     val response = EncryptSketchResponse.parseFrom(
       SketchEncrypterAdapter.EncryptSketch(request.toByteArray())

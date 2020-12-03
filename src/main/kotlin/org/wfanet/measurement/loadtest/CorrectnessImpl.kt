@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.transform
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
+import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.CONFLICTING_KEYS
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.estimation.Estimators
@@ -329,6 +330,7 @@ class CorrectnessImpl(
       curveId = combinedPublicKey.ellipticCurveId.toLong()
       elGamalKeysBuilder.elGamalG = combinedPublicKey.generator
       elGamalKeysBuilder.elGamalY = combinedPublicKey.element
+      destroyedRegisterStrategy = CONFLICTING_KEYS
     }.build()
     val response = EncryptSketchResponse.parseFrom(
       SketchEncrypterAdapter.EncryptSketch(request.toByteArray())

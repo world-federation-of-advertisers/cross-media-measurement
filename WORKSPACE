@@ -364,14 +364,14 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    commit = "5415eec38253c3bd3f250cb12fdc24242743e426",
+    commit = "2691dcd099b5f63a2eacd571b010d9dbe832f14d",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
     shallow_since = "1605572796 -0500",
 )
 
 git_repository(
     name = "any_sketch_java",
-    commit = "d4a8369630667880026b7bf927e405508fbee381",
+    commit = "9b430b5ab6dc21f89841eb22451b4c93811d1cb6",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
     shallow_since = "1605573394 -0500",
 )
