@@ -90,3 +90,10 @@ abstract class SpannerWriter<T, R> {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+/** A [SpannerWriter] whose result is the non-null transaction result. */
+abstract class SimpleSpannerWriter<T : Any> : SpannerWriter<T, T>() {
+  final override fun ResultScope<T>.buildResult(): T {
+    return checkNotNull(transactionResult)
+  }
+}

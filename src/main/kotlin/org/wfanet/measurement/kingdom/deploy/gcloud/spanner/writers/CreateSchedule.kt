@@ -24,9 +24,8 @@ import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportConfigReader
 
-class CreateSchedule(
-  private val schedule: ReportConfigSchedule
-) : SpannerWriter<ReportConfigSchedule, ReportConfigSchedule>() {
+class CreateSchedule(private val schedule: ReportConfigSchedule) :
+  SimpleSpannerWriter<ReportConfigSchedule>() {
 
   override suspend fun TransactionScope.runTransaction(): ReportConfigSchedule {
     val reportConfigReadResult =
@@ -43,10 +42,6 @@ class CreateSchedule(
       .bufferTo(transactionContext)
 
     return actualSchedule
-  }
-
-  override fun ResultScope<ReportConfigSchedule>.buildResult(): ReportConfigSchedule {
-    return checkNotNull(transactionResult)
   }
 }
 

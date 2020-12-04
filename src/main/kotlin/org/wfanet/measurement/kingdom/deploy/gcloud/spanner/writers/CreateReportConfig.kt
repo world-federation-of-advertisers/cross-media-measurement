@@ -35,7 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CampaignRead
 class CreateReportConfig(
   private val reportConfig: ReportConfig,
   private val campaigns: List<ExternalId>
-) : SpannerWriter<ReportConfig, ReportConfig>() {
+) : SimpleSpannerWriter<ReportConfig>() {
   override suspend fun TransactionScope.runTransaction(): ReportConfig {
     val advertiserId =
       AdvertiserReader()
@@ -62,10 +62,6 @@ class CreateReportConfig(
       .collect { addCampaignToReportConfig(reportConfigId, it) }
 
     return actualReportConfig
-  }
-
-  override fun ResultScope<ReportConfig>.buildResult(): ReportConfig {
-    return checkNotNull(transactionResult)
   }
 
   private fun TransactionScope.readCampaigns(): Flow<CampaignReader.Result> {

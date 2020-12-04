@@ -43,7 +43,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 class RefuseRequisition(
   private val externalRequisitionId: ExternalId,
   private val refusal: RequisitionDetails.Refusal
-) : SpannerWriter<RequisitionUpdate, RequisitionUpdate>() {
+) : SimpleSpannerWriter<RequisitionUpdate>() {
   override suspend fun TransactionScope.runTransaction(): RequisitionUpdate {
     val readResult = RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
     val requisition = readResult.requisition
@@ -79,10 +79,6 @@ class RefuseRequisition(
         it.requisitionDetails = requisitionDetails
         it.requisitionDetailsJson = requisitionDetails.toJson()
       }.build()
-  }
-
-  override fun ResultScope<RequisitionUpdate>.buildResult(): RequisitionUpdate {
-    return checkNotNull(transactionResult)
   }
 
   private fun TransactionScope.markReportFailed(reportReadResult: ReportReader.Result) =

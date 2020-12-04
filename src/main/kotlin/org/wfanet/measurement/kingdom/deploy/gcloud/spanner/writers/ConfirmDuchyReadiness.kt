@@ -39,7 +39,7 @@ class ConfirmDuchyReadiness(
   private val externalReportId: ExternalId,
   private val duchyId: String,
   private val externalRequisitionIds: Set<ExternalId>
-) : SpannerWriter<Report, Report>() {
+) : SimpleSpannerWriter<Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {
     require(duchyId in DuchyIds.ALL) {
       "Duchy id '$duchyId' not in list of valid duchies: ${DuchyIds.ALL}"
@@ -67,10 +67,6 @@ class ConfirmDuchyReadiness(
     updateReport(reportReadResult, newReport)
 
     return newReport
-  }
-
-  override fun ResultScope<Report>.buildResult(): Report {
-    return checkNotNull(transactionResult)
   }
 
   private fun TransactionScope.readRequisitionsForReportAndDuchy(

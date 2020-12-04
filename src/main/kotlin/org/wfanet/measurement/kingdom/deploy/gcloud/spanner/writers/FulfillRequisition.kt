@@ -41,7 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 class FulfillRequisition(
   private val externalRequisitionId: ExternalId,
   private val duchyId: String
-) : SpannerWriter<RequisitionUpdate, RequisitionUpdate>() {
+) : SimpleSpannerWriter<RequisitionUpdate>() {
   override suspend fun TransactionScope.runTransaction(): RequisitionUpdate {
     val readResult = RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
     val requisition = readResult.requisition
@@ -72,10 +72,6 @@ class FulfillRequisition(
         it.duchyId = duchyId
         it.state = RequisitionState.FULFILLED
       }.build()
-  }
-
-  override fun ResultScope<RequisitionUpdate>.buildResult(): RequisitionUpdate {
-    return checkNotNull(transactionResult)
   }
 
   private fun TransactionScope.updateReportDetails(reportReadResult: ReportReader.Result) {
