@@ -21,9 +21,9 @@
 #include "crypto/commutative_elgamal.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "gmock/gmock.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gtest/gtest.h"
 #include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
+#include "src/test/cc/testutil/matchers.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
 
@@ -46,37 +46,6 @@ constexpr int kBytesPerEcPoint = 33;
 constexpr int kBytesCipherText = kBytesPerEcPoint * 2;
 constexpr int kBytesPerEncryptedRegister = kBytesCipherText * 3;
 
-MATCHER_P2(StatusIs, code, message, "") {
-  if (arg.code() != code) {
-    *result_listener << "Expected code: " << code << " but got code "
-                     << arg.code();
-    return false;
-  }
-  return testing::ExplainMatchResult(
-      testing::HasSubstr(message), std::string(arg.message()), result_listener);
-}
-
-MATCHER_P(IsBlockSorted, block_size, "") {
-  if (arg.length() % block_size != 0) {
-    return false;
-  }
-  for (size_t i = block_size; i < arg.length(); i += block_size) {
-    if (arg.substr(i, block_size) < arg.substr(i - block_size, block_size)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Returns true if two proto messages are equal when ignoring the order of
-// repeated fields.
-MATCHER_P(EqualsProto, expected, "") {
-  ::google::protobuf::util::MessageDifferencer differencer;
-  differencer.set_repeated_field_comparison(
-      ::google::protobuf::util::MessageDifferencer::AS_SET);
-  return differencer.Compare(arg, expected);
-}
-
 ElGamalKeyPair GenerateRandomElGamalKeyPair(const int curve_id) {
   ElGamalKeyPair el_gamal_key_pair;
   auto el_gamal_cipher =
@@ -98,7 +67,7 @@ void AddRegister(Sketch* sketch, const int index, const int key,
   register_ptr->add_values(count);
 }
 
-Sketch CreateEmptyClceSketch() {
+Sketch CreateEmptyLiquidLegionsSketch() {
   Sketch plain_sketch;
   plain_sketch.mutable_config()->add_values()->set_aggregator(
       SketchConfig::ValueSpec::UNIQUE);
@@ -175,7 +144,7 @@ class TestData {
   }
   // Helper function to go through the entire MPC protocol using the input data.
   // The final (flag, count) lists are returned.
-  DecryptLastLayerFlagAndCountResponse GoThroughEntireMpcProtocol(
+  DecryptLastLayerFlagAndCountResponse GoThroughEntireMpcProtocolWithoutNoise(
       const std::string& encrypted_sketch) {
     // Duchy 1 add noise to the sketch
     AddNoiseToSketchRequest add_noise_to_sketch_request;
@@ -295,7 +264,7 @@ class TestData {
 
 TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
   TestData test_data;
-  Sketch plain_sketch = CreateEmptyClceSketch();
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
   std::string encrypted_sketch =
       test_data.EncryptWithConflictingKeys(plain_sketch).value();
@@ -396,7 +365,7 @@ TEST(DecryptLastLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
 
 TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   TestData test_data;
-  Sketch plain_sketch = CreateEmptyClceSketch();
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 3);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 4);
@@ -404,7 +373,7 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
       test_data.EncryptWithConflictingKeys(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
-      test_data.GoThroughEntireMpcProtocol(encrypted_sketch);
+      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch);
 
   DecryptLastLayerFlagAndCountResponse expected;
   *expected.add_flag_counts() = CreateFlagCount(true, 9);
@@ -416,7 +385,7 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
 
 TEST(EndToEnd, SumOfCoutsShouldBeCappedByMaximumFrequency) {
   TestData test_data;
-  Sketch plain_sketch = CreateEmptyClceSketch();
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111,
               /* count = */ kMaxFrequency - 2);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 3);
@@ -424,7 +393,7 @@ TEST(EndToEnd, SumOfCoutsShouldBeCappedByMaximumFrequency) {
       test_data.EncryptWithConflictingKeys(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
-      test_data.GoThroughEntireMpcProtocol(encrypted_sketch);
+      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch);
 
   DecryptLastLayerFlagAndCountResponse expected;
   *expected.add_flag_counts() = CreateFlagCount(true, kMaxFrequency);
@@ -436,14 +405,14 @@ TEST(EndToEnd, SumOfCoutsShouldBeCappedByMaximumFrequency) {
 
 TEST(EndToEnd, KeyCollisionShouldDestroyCount) {
   TestData test_data;
-  Sketch plain_sketch = CreateEmptyClceSketch();
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 222, /* count = */ 2);
   std::string encrypted_sketch =
       test_data.EncryptWithConflictingKeys(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
-      test_data.GoThroughEntireMpcProtocol(encrypted_sketch);
+      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch);
 
   DecryptLastLayerFlagAndCountResponse expected;
   *expected.add_flag_counts() = CreateFlagCount(false, kMaxFrequency);
@@ -455,13 +424,13 @@ TEST(EndToEnd, KeyCollisionShouldDestroyCount) {
 
 TEST(EndToEnd, ZeroCountShouldBeSkipped) {
   TestData test_data;
-  Sketch plain_sketch = CreateEmptyClceSketch();
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 222, /* count = */ 0);
   std::string encrypted_sketch =
       test_data.EncryptWithConflictingKeys(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
-      test_data.GoThroughEntireMpcProtocol(encrypted_sketch);
+      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch);
 
   DecryptLastLayerFlagAndCountResponse expected;
 
@@ -472,7 +441,7 @@ TEST(EndToEnd, ZeroCountShouldBeSkipped) {
 
 TEST(EndToEnd, CombinedCases) {
   TestData test_data;
-  Sketch plain_sketch = CreateEmptyClceSketch();
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
 
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 100, /* count = */ 1);
   AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 200, /* count = */ 2);
@@ -489,7 +458,7 @@ TEST(EndToEnd, CombinedCases) {
       test_data.EncryptWithConflictingKeys(plain_sketch).value();
 
   DecryptLastLayerFlagAndCountResponse final_response =
-      test_data.GoThroughEntireMpcProtocol(encrypted_sketch);
+      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch);
 
   DecryptLastLayerFlagAndCountResponse expected;
   // For index 1, key collisions, the counter is destroyed ( decrypted as

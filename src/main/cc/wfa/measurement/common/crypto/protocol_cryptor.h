@@ -55,6 +55,10 @@ class ProtocolCryptor {
   // Encrypts the plain EcPoint using the composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) = 0;
+  // Encrypts the Identity Element using the composite ElGamal Key, returns the
+  // result as an ElGamalEcPointPair.
+  virtual absl::StatusOr<ElGamalEcPointPair>
+  EncryptIdentityElementToEcPointsCompositeElGamal() = 0;
   // ReRandomizes the ciphertext by adding an encrypted Zero to it.
   virtual absl::StatusOr<ElGamalCiphertext> ReRandomize(
       const ElGamalCiphertext& ciphertext) = 0;
@@ -75,6 +79,10 @@ class ProtocolCryptor {
   virtual absl::Status BatchProcess(absl::string_view data,
                                     absl::Span<const Action> actions,
                                     std::string& result) = 0;
+  // Returns true if the result of DecryptLocalElGamal() is zero, i.e., Point at
+  // infinity.
+  virtual absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
+      const ElGamalCiphertext& ciphertext) = 0;
 
  protected:
   ProtocolCryptor() = default;

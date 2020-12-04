@@ -55,6 +55,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
       absl::string_view plaintext) override;
   absl::StatusOr<ElGamalEcPointPair> EncryptPlaintextToEcPointsCompositeElGamal(
       absl::string_view plaintext) override;
+  absl::StatusOr<ElGamalEcPointPair>
+  EncryptIdentityElementToEcPointsCompositeElGamal() override;
   absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
       absl::string_view plain_ec_point) override;
   absl::StatusOr<ElGamalCiphertext> ReRandomize(
@@ -68,6 +70,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   absl::Status BatchProcess(absl::string_view data,
                             absl::Span<const Action> actions,
                             std::string& result) override;
+  absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
+      const ElGamalCiphertext& ciphertext) override;
 
  private:
   // A CommutativeElGamal cipher created using local ElGamal Keys, used for
@@ -130,6 +134,13 @@ ProtocolCryptorImpl::EncryptPlaintextToEcPointsCompositeElGamal(
     absl::string_view plaintext) {
   ASSIGN_OR_RETURN(ElGamalCiphertext temp,
                    EncryptPlaintextCompositeElGamal(plaintext));
+  return ToElGamalEcPoints(temp);
+}
+
+absl::StatusOr<ElGamalEcPointPair>
+ProtocolCryptorImpl::EncryptIdentityElementToEcPointsCompositeElGamal() {
+  ASSIGN_OR_RETURN(ElGamalCiphertext temp,
+                   composite_el_gamal_cipher_->EncryptIdentityElement());
   return ToElGamalEcPoints(temp);
 }
 
@@ -235,6 +246,23 @@ absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
     }
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<bool> ProtocolCryptorImpl::IsDecryptLocalElGamalResultZero(
+    const ElGamalCiphertext& ciphertext) {
+  absl::StatusOr<std::string> decryption =
+      local_el_gamal_cipher_->Decrypt(ciphertext);
+  if (decryption.ok()) {
+    return false;
+  } else if (absl::IsInternal(decryption.status()) &&
+             decryption.status().message().find("POINT_AT_INFINITY") !=
+                 std::string::npos) {
+    // When the value is 0 (Point at Infinity), the decryption would
+    // fail with message "POINT_AT_INFINITY".
+    return true;
+  } else {
+    return decryption.status();
+  }
 }
 
 }  // namespace

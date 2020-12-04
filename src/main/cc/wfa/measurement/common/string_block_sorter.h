@@ -47,7 +47,8 @@ struct DataBlock {
 template <size_t kBlockSize>
 absl::Status SortStringByBlock(std::string& data) {
   if (data.length() % kBlockSize != 0) {
-    return absl::InternalError("Data size is not divisible by the block size.");
+    return absl::InvalidArgumentError(
+        "Data size is not divisible by the block size.");
   }
   std::sort(reinterpret_cast<internal::DataBlock<kBlockSize>*>(data.data()),
             reinterpret_cast<internal::DataBlock<kBlockSize>*>(data.data() +

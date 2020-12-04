@@ -1,0 +1,23 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(
+    default_visibility = [
+        "//src/test/cc:__subpackages__",
+    ],
+)
+
+cc_library(
+    name = "status_macros",
+    testonly = True,
+    hdrs = ["status_macros.h"],
+)
+
+cc_library(
+    name = "matchers",
+    testonly = True,
+    hdrs = ["matchers.h"],
+    deps = [
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
+    ],
+)
