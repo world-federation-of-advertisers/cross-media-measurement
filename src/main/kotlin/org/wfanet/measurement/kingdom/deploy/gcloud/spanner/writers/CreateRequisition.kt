@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -56,15 +55,16 @@ class CreateRequisition(
     }
 
     val parent = findParent(requisition.externalCampaignId)
-    val externalRequisitionId = idGenerator.generateExternalId()
-    requisition
-      .toInsertMutation(parent, idGenerator.generateInternalId(), externalRequisitionId)
+    val actualRequisition = requisition.toBuilder().apply {
+      externalRequisitionId = idGenerator.generateExternalId().value
+      providedCampaignId = parent.providedCampaignId
+      state = Requisition.RequisitionState.UNFULFILLED
+    }.build()
+    actualRequisition
+      .toInsertMutation(parent, idGenerator.generateInternalId())
       .bufferTo(transactionContext)
 
-    return requisition.toBuilder().also {
-      it.externalRequisitionId = externalRequisitionId.value
-      it.providedCampaignId = parent.providedCampaignId
-    }.build()
+    return actualRequisition
   }
 
   override fun ResultScope<Requisition>.buildResult(): Requisition {
@@ -125,16 +125,12 @@ class CreateRequisition(
       .singleOrNull()
   }
 
-  private fun Requisition.toInsertMutation(
-    parent: Parent,
-    requisitionId: InternalId,
-    externalRequisitionId: ExternalId
-  ): Mutation =
-    Mutation.newInsertBuilder("Requisitions")
+  private fun Requisition.toInsertMutation(parent: Parent, requisitionId: InternalId): Mutation {
+    return Mutation.newInsertBuilder("Requisitions")
       .set("DataProviderId").to(parent.dataProviderId)
       .set("CampaignId").to(parent.campaignId)
       .set("RequisitionId").to(requisitionId.value)
-      .set("ExternalRequisitionId").to(externalRequisitionId.value)
+      .set("ExternalRequisitionId").to(externalRequisitionId)
       .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
       .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
       .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
@@ -143,4 +139,5 @@ class CreateRequisition(
       .set("RequisitionDetails").toProtoBytes(requisitionDetails)
       .set("RequisitionDetailsJson").to(requisitionDetailsJson)
       .build()
+  }
 }

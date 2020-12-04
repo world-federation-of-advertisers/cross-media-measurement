@@ -76,7 +76,6 @@ abstract class AbstractKingdomRelationalDatabaseTest {
       externalDataProviderId = campaign.externalDataProviderId
       externalCampaignId = campaign.externalCampaignId
       combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
-      state = RequisitionState.UNFULFILLED
       windowStartTimeBuilder.seconds = 100
       windowEndTimeBuilder.seconds = 200
 
@@ -106,7 +105,6 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     val reportConfig = database.createReportConfig(
       ReportConfig.newBuilder().apply {
         externalAdvertiserId = advertiserId.value
-        state = ReportConfig.ReportConfigState.ACTIVE
         reportConfigDetailsBuilder.apply {
           reportDurationBuilder.apply {
             unit = TimePeriod.Unit.DAY
@@ -143,6 +141,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     assertThat(requisition.externalRequisitionId).isNotEqualTo(0L)
     assertThat(requisition.createTime.seconds).isNotEqualTo(0L)
     assertThat(requisition.providedCampaignId).isEqualTo(PROVIDED_CAMPAIGN_ID)
+    assertThat(requisition.state).isEqualTo(RequisitionState.UNFULFILLED)
   }
 
   @Test
