@@ -366,12 +366,12 @@ git_repository(
     name = "any_sketch",
     commit = "2691dcd099b5f63a2eacd571b010d9dbe832f14d",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
-    shallow_since = "1605572796 -0500",
+    shallow_since = "1606937330 -0500",
 )
 
 git_repository(
     name = "any_sketch_java",
     commit = "9b430b5ab6dc21f89841eb22451b4c93811d1cb6",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
-    shallow_since = "1605573394 -0500",
+    shallow_since = "1607031214 -0500",
 )
