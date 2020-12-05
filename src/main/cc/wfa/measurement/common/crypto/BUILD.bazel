@@ -144,8 +144,28 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":encryption_utility_helper",
         ":protocol_encryption_utility",
+        "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
+        "@com_google_private_join_and_compute//util:status",
+    ],
+)
+
+cc_library(
+    name = "liquid_legions_v2_encryption_utility_wrapper",
+    srcs = [
+        "liquid_legions_v2_encryption_utility_wrapper.cc",
+    ],
+    hdrs = [
+        "liquid_legions_v2_encryption_utility_wrapper.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":encryption_utility_helper",
+        ":liquid_legions_v2_encryption_utility",
+        "//src/main/cc/wfa/measurement/common:macros",
+        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status",
     ],
 )

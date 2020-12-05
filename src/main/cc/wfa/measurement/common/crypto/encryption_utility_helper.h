@@ -55,6 +55,15 @@ absl::StatusOr<KeyCountPairCipherText> ExtractKeyCountPairFromRegisters(
 absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
                                        std::string& result);
 
+template <typename T>
+absl::Status ParseRequestFromString(T& request_proto,
+                                    const std::string& serialized_request) {
+  return request_proto.ParseFromString(serialized_request)
+             ? absl::OkStatus()
+             : absl::InternalError(
+                   "failed to parse the serialized request proto.");
+}
+
 }  // namespace wfa::measurement::common::crypto
 
 #endif  // WFA_MEASUREMENT_COMMON_CRYPTO_ENCRYPTION_UTILITY_HELPER_H_

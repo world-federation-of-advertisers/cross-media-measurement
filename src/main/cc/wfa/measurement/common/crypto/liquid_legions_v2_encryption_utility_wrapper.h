@@ -12,33 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCAL_ENCRYPTION_UTILITY_WRAPPER_H_
-#define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCAL_ENCRYPTION_UTILITY_WRAPPER_H_
+#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
+#define WFA_MEASUREMENT_COMMON_CRYPTO_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
 
 #include "absl/status/statusor.h"
 
 // Wrapper methods used to generate the swig/JNI Java classes.
 // The only functionality of these methods are converting between proto messages
 // and their corresponding serialized strings, and then calling into the
-// protocol_encryption_utility methods.
+// liquid_legions_v2_encryption_utility methods.
 namespace wfa {
 namespace measurement {
 namespace common {
 namespace crypto {
 
-absl::StatusOr<std::string> AddNoiseToSketch(
+absl::StatusOr<std::string> CompleteSetupPhase(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> BlindOneLayerRegisterIndex(
+absl::StatusOr<std::string> CompleteReachEstimationPhase(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> BlindLastLayerIndexThenJoinRegisters(
+absl::StatusOr<std::string> CompleteReachEstimationPhaseAtAggregator(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> DecryptOneLayerFlagAndCount(
+absl::StatusOr<std::string> CompleteFilteringPhase(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> DecryptLastLayerFlagAndCount(
+absl::StatusOr<std::string> CompleteFilteringPhaseAtAggregator(
+    const std::string& serialized_request);
+
+absl::StatusOr<std::string> CompleteFrequencyEstimationPhase(
+    const std::string& serialized_request);
+
+absl::StatusOr<std::string> CompleteFrequencyEstimationPhaseAtAggregator(
     const std::string& serialized_request);
 
 }  // namespace crypto
@@ -46,4 +52,4 @@ absl::StatusOr<std::string> DecryptLastLayerFlagAndCount(
 }  // namespace measurement
 }  // namespace wfa
 
-#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCAL_ENCRYPTION_UTILITY_WRAPPER_H_
+#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
