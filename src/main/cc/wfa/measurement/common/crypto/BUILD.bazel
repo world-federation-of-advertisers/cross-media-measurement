@@ -88,12 +88,12 @@ cc_library(
 )
 
 cc_library(
-    name = "protocol_encryption_utility",
+    name = "liquid_legions_v1_encryption_utility",
     srcs = [
-        "protocol_encryption_utility.cc",
+        "liquid_legions_v1_encryption_utility.cc",
     ],
     hdrs = [
-        "protocol_encryption_utility.h",
+        "liquid_legions_v1_encryption_utility.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
@@ -135,17 +135,17 @@ cc_library(
 )
 
 cc_library(
-    name = "protocol_encryption_utility_wrapper",
+    name = "liquid_legions_v1_encryption_utility_wrapper",
     srcs = [
-        "protocol_encryption_utility_wrapper.cc",
+        "liquid_legions_v1_encryption_utility_wrapper.cc",
     ],
     hdrs = [
-        "protocol_encryption_utility_wrapper.h",
+        "liquid_legions_v1_encryption_utility_wrapper.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":encryption_utility_helper",
-        ":protocol_encryption_utility",
+        ":liquid_legions_v1_encryption_utility",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status",

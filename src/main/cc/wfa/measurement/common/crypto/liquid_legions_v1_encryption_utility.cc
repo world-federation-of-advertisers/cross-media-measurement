@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/common/crypto/protocol_encryption_utility.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_utility.h"
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"

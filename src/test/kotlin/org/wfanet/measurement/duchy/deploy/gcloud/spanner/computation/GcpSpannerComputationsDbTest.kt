@@ -173,17 +173,20 @@ class ProtocolStageDetailsHelper :
     FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails, FakeComputationDetails> {
 
   override fun setEndingState(
-    datails: FakeComputationDetails,
+    details: FakeComputationDetails,
     reason: EndComputationReason
   ): FakeComputationDetails {
-    return datails.toBuilder().setEndReason(reason.toString()).build()
+    return details.toBuilder().setEndReason(reason.toString()).build()
   }
 
   override fun parseComputationDetails(bytes: ByteArray): FakeComputationDetails {
     return FakeComputationDetails.parseFrom(bytes)
   }
 
-  override fun validateRoleForStage(stage: FakeProtocolStages, details: FakeComputationDetails):
+  override fun validateRoleForStage(
+    stage: FakeProtocolStages,
+    computationDetails: FakeComputationDetails
+  ):
     Boolean {
       return true // the value doesn't matter in this test
     }

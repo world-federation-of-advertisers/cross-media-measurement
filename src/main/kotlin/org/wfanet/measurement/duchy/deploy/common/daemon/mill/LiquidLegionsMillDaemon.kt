@@ -18,7 +18,7 @@ import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
-import org.wfanet.measurement.common.crypto.JniProtocolEncryption
+import org.wfanet.measurement.common.crypto.liquidlegionsv1.JniLiquidLegionsV1Encryption
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -84,7 +84,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       computationStatsClient = computationStatsClient,
       workerStubs = computationControlClientMap,
       cryptoKeySet = newCryptoKeySet(),
-      cryptoWorker = JniProtocolEncryption(),
+      cryptoWorker = JniLiquidLegionsV1Encryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       chunkSize = flags.chunkSize,
       liquidLegionsConfig = LiquidLegionsMill.LiquidLegionsConfig(

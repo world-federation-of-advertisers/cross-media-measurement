@@ -26,7 +26,7 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
-import org.wfanet.measurement.common.crypto.JniProtocolEncryption
+import org.wfanet.measurement.common.crypto.liquidlegionsv1.JniLiquidLegionsV1Encryption
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -174,7 +174,7 @@ class InProcessDuchy(
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = duchyDependencies.cryptoKeySet,
-        cryptoWorker = JniProtocolEncryption(),
+        cryptoWorker = JniLiquidLegionsV1Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         chunkSize = 2_000_000
       )

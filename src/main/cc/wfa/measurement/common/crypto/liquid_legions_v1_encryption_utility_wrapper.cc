@@ -16,7 +16,7 @@
 #include "util/status_macros.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
-#include "wfa/measurement/common/crypto/protocol_encryption_utility.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_utility.h"
 #include "wfa/measurement/common/macros.h"
 
 namespace wfa {

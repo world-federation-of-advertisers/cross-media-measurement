@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package org.wfanet.measurement.common.crypto
+package org.wfanet.measurement.common.crypto.liquidlegionsv1
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -21,11 +21,25 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
+import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.CONFLICTING_KEYS
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersResponse
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexResponse
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse.FlagCount
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.ElGamalKeyPair
+import org.wfanet.measurement.common.crypto.ElGamalPublicKey
+import org.wfanet.measurement.common.crypto.LiquidLegionsV1EncryptionUtility
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.loadLibrary
 
@@ -85,7 +99,7 @@ private val SKETCH_ENCRYPTER_KEY =
   }.build()
 
 @RunWith(JUnit4::class)
-class ProtocolEncryptionUtilityTest {
+class LiquidLegionsV1EncryptionUtilityTest {
   // Helper function to go through the entire MPC protocol using the input data.
   // The final (flag, count) lists are returned.
   private fun goThroughEntireMpcProtocol(
@@ -95,7 +109,7 @@ class ProtocolEncryptionUtilityTest {
     val addNoiseToSketchRequest =
       AddNoiseToSketchRequest.newBuilder().setSketch(encrypted_sketch).build()
     val addNoiseToSketchResponse = AddNoiseToSketchResponse.parseFrom(
-      ProtocolEncryptionUtility.addNoiseToSketch(addNoiseToSketchRequest.toByteArray())
+      LiquidLegionsV1EncryptionUtility.addNoiseToSketch(addNoiseToSketchRequest.toByteArray())
     )
 
     // Blind register indexes at duchy 1
@@ -106,7 +120,7 @@ class ProtocolEncryptionUtilityTest {
       .setSketch(addNoiseToSketchResponse.sketch)
       .build()
     val blindOneLayerRegisterIndexResponse1 = BlindOneLayerRegisterIndexResponse.parseFrom(
-      ProtocolEncryptionUtility.blindOneLayerRegisterIndex(
+      LiquidLegionsV1EncryptionUtility.blindOneLayerRegisterIndex(
         blindOneLayerRegisterIndexRequest1.toByteArray()
       )
     )
@@ -119,7 +133,7 @@ class ProtocolEncryptionUtilityTest {
       .setSketch(blindOneLayerRegisterIndexResponse1.sketch)
       .build()
     val blindOneLayerRegisterIndexResponse2 = BlindOneLayerRegisterIndexResponse.parseFrom(
-      ProtocolEncryptionUtility.blindOneLayerRegisterIndex(
+      LiquidLegionsV1EncryptionUtility.blindOneLayerRegisterIndex(
         blindOneLayerRegisterIndexRequest2.toByteArray()
       )
     )
@@ -134,7 +148,7 @@ class ProtocolEncryptionUtilityTest {
         .build()
     val blindLastLayerIndexThenJoinRegistersResponse =
       BlindLastLayerIndexThenJoinRegistersResponse.parseFrom(
-        ProtocolEncryptionUtility.blindLastLayerIndexThenJoinRegisters(
+        LiquidLegionsV1EncryptionUtility.blindLastLayerIndexThenJoinRegisters(
           blindLastLayerIndexThenJoinRegistersRequest.toByteArray()
         )
       )
@@ -146,7 +160,7 @@ class ProtocolEncryptionUtilityTest {
       .setLocalElGamalKeyPair(DUCHY_1_EL_GAMAL_KEYS)
       .build()
     val decryptOneLayerFlagAndCountResponse1 = DecryptOneLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(
+      LiquidLegionsV1EncryptionUtility.decryptOneLayerFlagAndCount(
         decryptOneLayerFlagAndCountRequest1.toByteArray()
       )
     )
@@ -158,7 +172,7 @@ class ProtocolEncryptionUtilityTest {
       .setLocalElGamalKeyPair(DUCHY_2_EL_GAMAL_KEYS)
       .build()
     val decryptOneLayerFlagAndCountResponse2 = DecryptOneLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(
+      LiquidLegionsV1EncryptionUtility.decryptOneLayerFlagAndCount(
         decryptOneLayerFlagAndCountRequest2.toByteArray()
       )
     )
@@ -171,7 +185,7 @@ class ProtocolEncryptionUtilityTest {
       .setMaximumFrequency(MAX_COUNTER_VALUE)
       .build()
     return DecryptLastLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.decryptLastLayerFlagAndCount(
+      LiquidLegionsV1EncryptionUtility.decryptLastLayerFlagAndCount(
         decryptLastLayerFlagAndCountRequest.toByteArray()
       )
     )
@@ -189,13 +203,13 @@ class ProtocolEncryptionUtilityTest {
       addRegister(index = 2L, key = 222L, count = 1L)
       addRegister(index = 2L, key = 333L, count = 3L)
       addRegister(index = 3L, key = 444L, count = 12L)
-      addRegister(index = 4L, key = 555L, count = 0L)
     }.build()
     val request = EncryptSketchRequest.newBuilder().apply {
       sketch = rawSketch
       curveId = CURVE_ID
       maximumValue = MAX_COUNTER_VALUE
       elGamalKeys = SKETCH_ENCRYPTER_KEY
+      destroyedRegisterStrategy = CONFLICTING_KEYS
     }.build()
     val response = EncryptSketchResponse.parseFrom(
       SketchEncrypterAdapter.EncryptSketch(request.toByteArray())
@@ -208,13 +222,12 @@ class ProtocolEncryptionUtilityTest {
         newFlagCount(true, 10), // key 444, capped by MAX_COUNTER_VALUE.
         newFlagCount(false, 10)
       ) // key 222 and key 333 collide.
-    // key 555 is ignored because the count is 0.
   }
 
   @Test
   fun `blindOneLayerRegisterIndex fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      ProtocolEncryptionUtility.blindOneLayerRegisterIndex(
+      LiquidLegionsV1EncryptionUtility.blindOneLayerRegisterIndex(
         "something not a proto".toByteArray()
       )
     }
@@ -224,7 +237,7 @@ class ProtocolEncryptionUtilityTest {
   @Test
   fun `blindLastLayerIndexThenJoinRegisters fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      ProtocolEncryptionUtility.blindLastLayerIndexThenJoinRegisters(
+      LiquidLegionsV1EncryptionUtility.blindLastLayerIndexThenJoinRegisters(
         "something not a proto".toByteArray()
       )
     }
@@ -234,7 +247,7 @@ class ProtocolEncryptionUtilityTest {
   @Test
   fun `decryptOneLayerFlagAndCount fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(
+      LiquidLegionsV1EncryptionUtility.decryptOneLayerFlagAndCount(
         "something not a proto".toByteArray()
       )
     }
@@ -244,7 +257,7 @@ class ProtocolEncryptionUtilityTest {
   @Test
   fun `decryptLastLayerFlagAndCount fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      ProtocolEncryptionUtility.decryptLastLayerFlagAndCount(
+      LiquidLegionsV1EncryptionUtility.decryptLastLayerFlagAndCount(
         "something not a proto".toByteArray()
       )
     }
@@ -254,8 +267,8 @@ class ProtocolEncryptionUtilityTest {
   companion object {
     init {
       loadLibrary(
-        "protocol_encryption_utility",
-        Paths.get("wfa_measurement_system/src/main/swig/common/crypto")
+        "liquid_legions_v1_encryption_utility",
+        Paths.get("wfa_measurement_system/src/main/swig/common/crypto/liquidlegionsv1")
       )
       loadLibrary(
         "sketch_encrypter_adapter",

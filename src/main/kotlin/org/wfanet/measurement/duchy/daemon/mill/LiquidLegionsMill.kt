@@ -48,7 +48,7 @@ import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
 import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
 import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
-import org.wfanet.measurement.common.crypto.ProtocolEncryption
+import org.wfanet.measurement.common.crypto.liquidlegionsv1.LiquidLegionsV1Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
@@ -115,7 +115,7 @@ class LiquidLegionsMill(
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
-  private val cryptoWorker: ProtocolEncryption,
+  private val cryptoWorker: LiquidLegionsV1Encryption,
   private val throttler: MinimumIntervalThrottler,
   chunkSize: Int = 1024 * 32, // 32 KiB
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(

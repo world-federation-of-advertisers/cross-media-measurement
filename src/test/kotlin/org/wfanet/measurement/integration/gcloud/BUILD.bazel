@@ -14,7 +14,7 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/storage/contrib/nio",
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/liquidlegionsv1",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",

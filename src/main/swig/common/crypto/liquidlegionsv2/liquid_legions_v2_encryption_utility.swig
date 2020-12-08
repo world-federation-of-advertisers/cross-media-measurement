@@ -14,7 +14,7 @@
 
 %include "exception.i"
 %{
-#include "wfa/measurement/common/crypto/protocol_encryption_utility_wrapper.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v2_encryption_utility_wrapper.h"
 %}
 
 // Convert C++ ::absl::StatusOr<std::string> to a Java byte
@@ -64,4 +64,4 @@
 // Follow Java style for function names.
 %rename("%(lowercamelcase)s",%$isfunction) "";
 
-%include "wfa/measurement/common/crypto/protocol_encryption_utility_wrapper.h"
+%include "wfa/measurement/common/crypto/liquid_legions_v2_encryption_utility_wrapper.h"

@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "liquid_legions_v2_encryption_utility",
+    src = "liquid_legions_v2_encryption_utility.swig",
+    module = "LiquidLegionsV2EncryptionUtility",
+    package = "org.wfanet.measurement.common.crypto",
+    deps = [
+        "//src/main/cc/wfa/measurement/common/crypto:liquid_legions_v2_encryption_utility_wrapper",
+    ],
+)

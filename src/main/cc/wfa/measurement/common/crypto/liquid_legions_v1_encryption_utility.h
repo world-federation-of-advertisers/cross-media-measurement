@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
-#define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
+#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_liquid_legions_v1_encryption_utility_H_
+#define WFA_MEASUREMENT_COMMON_CRYPTO_liquid_legions_v1_encryption_utility_H_
 
 #include "absl/status/statusor.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_methods.pb.h"
@@ -53,4 +53,4 @@ DecryptLastLayerFlagAndCount(
 }  // namespace measurement
 }  // namespace wfa
 
-#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_ENCRYPTION_UTILITY_H_
+#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_liquid_legions_v1_encryption_utility_H_

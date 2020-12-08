@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "ProtocolEncryptionUtilityTest",
-    srcs = ["ProtocolEncryptionUtilityTest.kt"],
-    test_class = "org.wfanet.measurement.common.crypto.ProtocolEncryptionUtilityTest",
+    name = "LiquidLegionsV1EncryptionUtilityTest",
+    srcs = ["LiquidLegionsV1EncryptionUtilityTest.kt"],
+    test_class = "org.wfanet.measurement.common.crypto.liquidlegionsv1.LiquidLegionsV1EncryptionUtilityTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/protobuf",
@@ -12,20 +12,20 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_java_proto",
-        "//src/main/swig/common/crypto:protocol_encryption_utility",
+        "//src/main/swig/common/crypto/liquidlegionsv1:liquid_legions_v1_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
     ],
 )
 
 kt_jvm_test(
-    name = "JniProtocolEncryptionTest",
-    srcs = ["JniProtocolEncryptionTest.kt"],
-    test_class = "org.wfanet.measurement.common.crypto.JniProtocolEncryptionTest",
+    name = "JniLiquidLegionsV1EncryptionTest",
+    srcs = ["JniLiquidLegionsV1EncryptionTest.kt"],
+    test_class = "org.wfanet.measurement.common.crypto.liquidlegionsv1.JniLiquidLegionsV1EncryptionTest",
     deps = [
         "//imports/java/com/google/common/truth",
         "//imports/kotlin/kotlin/test",
-        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/liquidlegionsv1",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_java_proto",
     ],
 )

@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.crypto
+package org.wfanet.measurement.common.crypto.liquidlegionsv2
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseRequest
 
-class JniProtocolEncryptionTest {
+class JniLiquidLegionsV2EncryptionTest {
 
   @Test
   fun `check JNI lib is loaded successfully`() {
     // Send an invalid request and check if we can get the error thrown inside JNI.
     val e = assertFailsWith(RuntimeException::class) {
-      JniProtocolEncryption().blindOneLayerRegisterIndex(
-        BlindOneLayerRegisterIndexRequest.getDefaultInstance()
+      JniLiquidLegionsV2Encryption().completeFilteringPhase(
+        CompleteFilteringPhaseRequest.getDefaultInstance()
       )
     }
     assertThat(e.message).contains("Input data is empty")

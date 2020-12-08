@@ -1,10 +1,10 @@
-# Protocol Encryption Utility Java Library
+# Liquid Legions V2 Encryption Utility Java Library
 
-The ProtocolEncryptionUtility java class is auto-generated from the
-protocol_encryption_utility.swig definition. The implementation of the methods
-is written in c++ and the source codes are under src/main/cc/measurement/crypto.
-We create a swig wrapper on the library and call into the library via JNI in our
-java code.
+The LiquidLegionsV2EncryptionUtility java class is auto-generated from the
+liquid_legions_v2_encryption_utility.swig definition. The implementation of the
+methods is written in c++ and the source codes are under
+src/main/cc/measurement/crypto. We create a swig wrapper on the library and call
+into the library via JNI in our java code.
 
 ## Possible errors when using the JNI java library.
 

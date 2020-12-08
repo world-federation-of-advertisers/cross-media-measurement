@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/common/crypto/protocol_encryption_utility.h"
+#include "wfa/measurement/common/crypto/liquid_legions_v1_encryption_utility.h"
 
 #include <openssl/obj_mac.h>
 
@@ -422,23 +422,6 @@ TEST(EndToEnd, KeyCollisionShouldDestroyCount) {
   EXPECT_THAT(final_response, EqualsProto(expected));
 }
 
-TEST(EndToEnd, ZeroCountShouldBeSkipped) {
-  TestData test_data;
-  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
-  AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 222, /* count = */ 0);
-  std::string encrypted_sketch =
-      test_data.EncryptWithConflictingKeys(plain_sketch).value();
-
-  DecryptLastLayerFlagAndCountResponse final_response =
-      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch);
-
-  DecryptLastLayerFlagAndCountResponse expected;
-
-  EXPECT_GE(final_response.elapsed_cpu_time_millis(), 0);
-  final_response.clear_elapsed_cpu_time_millis();
-  EXPECT_THAT(final_response, EqualsProto(expected));
-}
-
 TEST(EndToEnd, CombinedCases) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
@@ -447,12 +430,10 @@ TEST(EndToEnd, CombinedCases) {
   AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 200, /* count = */ 2);
   AddRegister(&plain_sketch, /* index = */ 3, /* key = */ 300, /* count = */ 3);
   AddRegister(&plain_sketch, /* index = */ 4, /* key = */ 400, /* count = */ 4);
-  AddRegister(&plain_sketch, /* index = */ 5, /* key = */ 500, /* count = */ 0);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 101, /* count = */ 3);
   AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 102, /* count = */ 1);
   AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 200, /* count = */ 3);
   AddRegister(&plain_sketch, /* index = */ 3, /* key = */ 300, /* count = */ 8);
-  AddRegister(&plain_sketch, /* index = */ 4, /* key = */ 400, /* count = */ 0);
 
   std::string encrypted_sketch =
       test_data.EncryptWithConflictingKeys(plain_sketch).value();

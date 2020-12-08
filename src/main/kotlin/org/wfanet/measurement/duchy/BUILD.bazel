@@ -23,7 +23,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/crypto",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/liquidlegionsv1",
         "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
     ],
 )

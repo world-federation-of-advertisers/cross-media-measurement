@@ -20,7 +20,7 @@
 // Wrapper methods used to generate the swig/JNI Java classes.
 // The only functionality of these methods are converting between proto messages
 // and their corresponding serialized strings, and then calling into the
-// protocol_encryption_utility methods.
+// liquid_legions_v1_encryption_utility methods.
 namespace wfa {
 namespace measurement {
 namespace common {

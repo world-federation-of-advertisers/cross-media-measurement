@@ -12,20 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.crypto
+package org.wfanet.measurement.common.crypto.liquidlegionsv1
 
 import java.nio.file.Paths
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
+import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersResponse
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexResponse
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
+import org.wfanet.measurement.common.crypto.LiquidLegionsV1EncryptionUtility
 import org.wfanet.measurement.common.loadLibrary
 
 /**
- * A [ProtocolEncryption] implementation using the JNI
- * [ProtocolEncryptionUtility].
+ * A [LiquidLegionsV1Encryption] implementation using the JNI [LiquidLegionsV1EncryptionUtility].
  */
-class JniProtocolEncryption : ProtocolEncryption {
+class JniLiquidLegionsV1Encryption : LiquidLegionsV1Encryption {
 
   override fun addNoiseToSketch(request: AddNoiseToSketchRequest): AddNoiseToSketchResponse {
     return AddNoiseToSketchResponse.parseFrom(
-      ProtocolEncryptionUtility.addNoiseToSketch(request.toByteArray())
+      LiquidLegionsV1EncryptionUtility.addNoiseToSketch(request.toByteArray())
     )
   }
 
@@ -33,7 +43,7 @@ class JniProtocolEncryption : ProtocolEncryption {
     request: BlindOneLayerRegisterIndexRequest
   ): BlindOneLayerRegisterIndexResponse {
     return BlindOneLayerRegisterIndexResponse.parseFrom(
-      ProtocolEncryptionUtility.blindOneLayerRegisterIndex(request.toByteArray())
+      LiquidLegionsV1EncryptionUtility.blindOneLayerRegisterIndex(request.toByteArray())
     )
   }
 
@@ -41,7 +51,7 @@ class JniProtocolEncryption : ProtocolEncryption {
     request: BlindLastLayerIndexThenJoinRegistersRequest
   ): BlindLastLayerIndexThenJoinRegistersResponse {
     return BlindLastLayerIndexThenJoinRegistersResponse.parseFrom(
-      ProtocolEncryptionUtility.blindLastLayerIndexThenJoinRegisters(request.toByteArray())
+      LiquidLegionsV1EncryptionUtility.blindLastLayerIndexThenJoinRegisters(request.toByteArray())
     )
   }
 
@@ -49,7 +59,7 @@ class JniProtocolEncryption : ProtocolEncryption {
     request: DecryptLastLayerFlagAndCountRequest
   ): DecryptLastLayerFlagAndCountResponse {
     return DecryptLastLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.decryptLastLayerFlagAndCount(request.toByteArray())
+      LiquidLegionsV1EncryptionUtility.decryptLastLayerFlagAndCount(request.toByteArray())
     )
   }
 
@@ -57,15 +67,17 @@ class JniProtocolEncryption : ProtocolEncryption {
     request: DecryptOneLayerFlagAndCountRequest
   ): DecryptOneLayerFlagAndCountResponse {
     return DecryptOneLayerFlagAndCountResponse.parseFrom(
-      ProtocolEncryptionUtility.decryptOneLayerFlagAndCount(request.toByteArray())
+      LiquidLegionsV1EncryptionUtility.decryptOneLayerFlagAndCount(request.toByteArray())
     )
   }
 
   companion object {
     init {
       loadLibrary(
-        name = "protocol_encryption_utility",
-        directoryPath = Paths.get("wfa_measurement_system/src/main/swig/common/crypto")
+        name = "liquid_legions_v1_encryption_utility",
+        directoryPath = Paths.get(
+          "wfa_measurement_system/src/main/swig/common/crypto/liquidlegionsv1"
+        )
       )
     }
   }
