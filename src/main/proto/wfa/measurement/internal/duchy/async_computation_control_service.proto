@@ -23,16 +23,22 @@ option java_multiple_files = true;
 
 // Internal ComputationControlService for all async protocols.
 service AsyncComputationControl {
-  // Advance a computation according to data received
+  // Records information about an already written BLOb which is an output for
+  // the current computation stage, and advances to a successor stage if the
+  // recorded output is the last output for the current stage. Metadata for
+  // the computation determines to which stage the computation is advance.
   rpc AdvanceComputation(AdvanceComputationRequest)
       returns (AdvanceComputationResponse) {}
 }
 
-// Request to advance a computation.
+// Request to record an expected output of the current computation stage and
+// then advance the stage if it was the last output for the current stage.
 message AdvanceComputationRequest {
   // The global identifier of the computation,
   string global_computation_id = 1;
-  // The expected stage of this computation.
+  // The expected stage of this computation. The request may return an error or
+  // succeed if the actual stage does not match, but there will not be any
+  // changes to the data for the computation in the database.
   ComputationStage computation_stage = 2;
   // The path of the blob newly added.
   string blob_path = 3;
