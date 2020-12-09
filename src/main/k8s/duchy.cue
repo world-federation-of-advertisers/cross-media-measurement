@@ -85,7 +85,7 @@ import ("strings")
 				"--polling-interval=1m",
 			]
 		}
-		"liquid-legions-mill-daemon-pod": #Pod & {
+		"liquid-legions-v1-mill-daemon-pod": #Pod & {
 			_args: [
 				_computations_service_target_flag,
 				_duchy_name_flag,

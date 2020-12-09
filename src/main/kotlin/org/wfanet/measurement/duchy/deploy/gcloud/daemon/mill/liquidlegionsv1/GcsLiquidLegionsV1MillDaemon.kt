@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill
+package org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.liquidlegionsv1
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.common.daemon.mill.LiquidLegionsMillDaemon
+import org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1.LiquidLegionsV1MillDaemon
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "GcsLiquidLegionsMillDaemon",
-  description = ["Mill daemon."],
+  name = "GcsLiquidLegionsV1MillDaemon",
+  description = ["Liquid Legions V1 Mill daemon."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class GcsLiquidLegionsMillDaemon : LiquidLegionsMillDaemon() {
+class GcsLiquidLegionsV1MillDaemon : LiquidLegionsV1MillDaemon() {
   @CommandLine.Mixin
   private lateinit var gcsFlags: GcsFromFlags.Flags
 
@@ -36,4 +36,4 @@ class GcsLiquidLegionsMillDaemon : LiquidLegionsMillDaemon() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(GcsLiquidLegionsMillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(GcsLiquidLegionsV1MillDaemon(), args)

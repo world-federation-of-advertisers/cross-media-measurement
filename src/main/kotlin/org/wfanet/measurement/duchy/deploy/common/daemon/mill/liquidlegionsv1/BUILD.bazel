@@ -3,10 +3,10 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
-    name = "liquid_legions_mill_daemon",
+    name = "liquid_legions_v1_mill_daemon",
     srcs = [
-        "LiquidLegionsMillDaemon.kt",
-        "MillFlags.kt",
+        "LiquidLegionsV1MillDaemon.kt",
+        "LiquidLegionsV1MillFlags.kt",
     ],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
@@ -20,7 +20,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:liquid_legions_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv1:liquid_legions_v1_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
@@ -32,10 +32,10 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "forwarded_storage_liquid_legions_mill_daemon",
-    srcs = ["ForwardedStorageLiquidLegionsMillDaemon.kt"],
+    name = "forwarded_storage_liquid_legions_v1_mill_daemon",
+    srcs = ["ForwardedStorageLiquidLegionsV1MillDaemon.kt"],
     deps = [
-        ":liquid_legions_mill_daemon",
+        ":liquid_legions_v1_mill_daemon",
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
@@ -43,15 +43,15 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "ForwardedStorageLiquidLegionsMillDaemon",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.ForwardedStorageLiquidLegionsMillDaemonKt",
-    runtime_deps = [":forwarded_storage_liquid_legions_mill_daemon"],
+    name = "ForwardedStorageLiquidLegionsV1MillDaemon",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1.ForwardedStorageLiquidLegionsV1MillDaemonKt",
+    runtime_deps = [":forwarded_storage_liquid_legions_v1_mill_daemon"],
 )
 
 java_image(
-    name = "forwarded_storage_liquid_legions_mill_daemon_image",
+    name = "forwarded_storage_liquid_legions_v1_mill_daemon_image",
     base = "@debian_java_base//image",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.ForwardedStorageLiquidLegionsMillDaemonKt",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1.ForwardedStorageLiquidLegionsv1MillDaemonKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":forwarded_storage_liquid_legions_mill_daemon"],
+    runtime_deps = [":forwarded_storage_liquid_legions_v1_mill_daemon"],
 )

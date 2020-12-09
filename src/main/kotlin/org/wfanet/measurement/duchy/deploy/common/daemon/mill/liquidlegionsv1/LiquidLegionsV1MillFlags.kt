@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill
+package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1
 
 import java.time.Duration
 import kotlin.properties.Delegates
@@ -20,7 +20,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import picocli.CommandLine
 
-class MillFlags {
+class LiquidLegionsV1MillFlags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
     private set

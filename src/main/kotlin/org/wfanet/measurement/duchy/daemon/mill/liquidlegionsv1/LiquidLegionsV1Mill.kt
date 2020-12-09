@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.mill
+package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1
 
 import com.google.protobuf.ByteString
 import io.grpc.Status
@@ -54,6 +54,7 @@ import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
@@ -107,7 +108,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
  * @param clock A clock
  */
-class LiquidLegionsMill(
+class LiquidLegionsV1Mill(
   private val millId: String,
   private val dataClients: ComputationDataClients,
   private val metricValuesClient: MetricValuesCoroutineStub,

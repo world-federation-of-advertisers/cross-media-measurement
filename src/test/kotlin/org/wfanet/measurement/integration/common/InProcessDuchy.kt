@@ -38,7 +38,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
@@ -166,7 +166,7 @@ class InProcessDuchy(
         otherDuchyId to stub
       }.toMap()
 
-      val mill = LiquidLegionsMill(
+      val mill = LiquidLegionsV1Mill(
         millId = "$duchyId mill",
         dataClients = computationDataClients,
         metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),

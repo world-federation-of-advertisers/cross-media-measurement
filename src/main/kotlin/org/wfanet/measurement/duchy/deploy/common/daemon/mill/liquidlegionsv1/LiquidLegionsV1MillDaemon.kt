@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill
+package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1
 
 import io.grpc.ManagedChannel
 import java.time.Clock
@@ -25,7 +25,7 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsMill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -35,9 +35,9 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
-abstract class LiquidLegionsMillDaemon : Runnable {
+abstract class LiquidLegionsV1MillDaemon : Runnable {
   @CommandLine.Mixin
-  protected lateinit var flags: MillFlags
+  protected lateinit var flags: LiquidLegionsV1MillFlags
     private set
 
   private val duchyPublicKeys: DuchyPublicKeys by lazy {
@@ -68,15 +68,16 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       }
 
     val globalComputationsClient =
-      GlobalComputationsCoroutineStub(buildChannel(flags.globalComputationsServiceTarget))
-        .withDuchyId(duchyName)
+      GlobalComputationsCoroutineStub(
+        buildChannel(flags.globalComputationsServiceTarget)
+      ).withDuchyId(duchyName)
     val computationStatsClient =
       ComputationStatsCoroutineStub(computationsServiceChannel)
     val metricValuesClient =
       MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
         .withDuchyId(duchyName)
 
-    val mill = LiquidLegionsMill(
+    val mill = LiquidLegionsV1Mill(
       millId = flags.millId,
       dataClients = dataClients,
       metricValuesClient = metricValuesClient,
@@ -87,7 +88,7 @@ abstract class LiquidLegionsMillDaemon : Runnable {
       cryptoWorker = JniLiquidLegionsV1Encryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       chunkSize = flags.chunkSize,
-      liquidLegionsConfig = LiquidLegionsMill.LiquidLegionsConfig(
+      liquidLegionsConfig = LiquidLegionsV1Mill.LiquidLegionsConfig(
         flags.liquidLegionsDecayRate,
         flags.liquidLegionsSize,
         flags.sketchMaxFrequency

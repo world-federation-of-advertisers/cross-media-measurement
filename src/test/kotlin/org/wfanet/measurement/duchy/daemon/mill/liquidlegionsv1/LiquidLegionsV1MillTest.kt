@@ -23,7 +23,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.mill
+package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -69,6 +69,9 @@ import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.daemon.mill.toElGamalKeyPair
+import org.wfanet.measurement.duchy.daemon.mill.toElGamalPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.name
@@ -119,7 +122,7 @@ import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchRequest
 import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchResponse
 
 @RunWith(JUnit4::class)
-class LiquidLegionsMillTest {
+class LiquidLegionsV1MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockMetricValues: MetricValuesCoroutineImplBase =
@@ -219,7 +222,7 @@ class LiquidLegionsMillTest {
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs = mapOf(DUCHY_ONE_NAME to workerStub, DUCHY_TWO_NAME to workerStub)
 
-  private lateinit var mill: LiquidLegionsMill
+  private lateinit var mill: LiquidLegionsV1Mill
 
   private fun String.toMetricChunkResponse() = ByteString.copyFromUtf8(this).toMetricChunkResponse()
 
@@ -255,7 +258,7 @@ class LiquidLegionsMillTest {
   fun initMill() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
     mill =
-      LiquidLegionsMill(
+      LiquidLegionsV1Mill(
         millId = MILL_ID,
         dataClients = computationDataClients,
         metricValuesClient = metricValuesStub,

@@ -228,7 +228,7 @@ git_repository(
     name = "com_google_private_join_and_compute",
     commit = "99fbcf79c5aded3694973086651f535d08a645c5",
     remote = "https://github.com/google/private-join-and-compute.git",
-    shallow_since = "1605559721 -0400",
+    shallow_since = "1606750182 +0000",
 )
 
 # glog

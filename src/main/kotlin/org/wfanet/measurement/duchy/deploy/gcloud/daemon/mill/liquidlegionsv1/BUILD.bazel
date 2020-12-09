@@ -10,27 +10,27 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "gcs_liquid_legions_mill_daemon",
-    srcs = ["GcsLiquidLegionsMillDaemon.kt"],
+    name = "gcs_liquid_legions_v1_mill_daemon",
+    srcs = ["GcsLiquidLegionsV1MillDaemon.kt"],
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill:liquid_legions_mill_daemon",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv1:liquid_legions_v1_mill_daemon",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],
 )
 
 java_binary(
-    name = "GcsLiquidLegionsMillDaemon",
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.GcsLiquidLegionsMillDaemonKt",
-    runtime_deps = [":gcs_liquid_legions_mill_daemon"],
+    name = "GcsLiquidLegionsV1MillDaemon",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.GcsLiquidLegionsV1MillDaemonKt",
+    runtime_deps = [":gcs_liquid_legions_v1_mill_daemon"],
 )
 
 java_image(
-    name = "gcs_liquid_legions_mill_daemon_image",
+    name = "gcs_liquid_legions_v1_mill_daemon_image",
     base = "@debian_java_base//image",
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.GcsLiquidLegionsMillDaemonKt",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.GcsLiquidLegionsV1MillDaemonKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":gcs_liquid_legions_mill_daemon"],
+    runtime_deps = [":gcs_liquid_legions_v1_mill_daemon"],
 )

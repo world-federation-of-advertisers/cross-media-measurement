@@ -87,7 +87,7 @@ When adding a new protocol, a new Mill will need to be created.
 
 Example:
 
-*   `src/main/kotlin/org/wfanet/measurement/duchy/mill/LiquidLegionsMill.kt`
+*   `src/main/kotlin/org/wfanet/measurement/duchy/mill/liquidlegionsv1/LiquidLegionsV1Mill.kt`
 
 ### Database Layers
 
