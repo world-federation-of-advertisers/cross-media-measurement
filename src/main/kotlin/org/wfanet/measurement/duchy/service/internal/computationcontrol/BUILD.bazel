@@ -11,7 +11,11 @@ package(
 
 kt_jvm_library(
     name = "async_computation_control_service",
-    srcs = ["AsyncComputationControlService.kt"],
+    srcs = [
+        "AsyncComputationControlService.kt",
+        "LiquidLegionsSketchAggregationV1Context.kt",
+        "SingleRequestContext.kt",
+    ],
     deps = [
         "//imports/java/com/google/protobuf",
         "//imports/java/io/grpc:api",

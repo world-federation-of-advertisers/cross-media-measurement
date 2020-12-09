@@ -11,6 +11,24 @@ kt_jvm_test(
         "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//imports/kotlin/kotlin/test",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
+    ],
+)
+
+kt_jvm_test(
+    name = "LiquidLegionsSketchAggregationV1ControlFnsKtTest",
+    srcs = ["LiquidLegionsSketchAggregationV1ContextTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.service.internal.computationcontrol.LiquidLegionsSketchAggregationV1ContextTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
     ],
