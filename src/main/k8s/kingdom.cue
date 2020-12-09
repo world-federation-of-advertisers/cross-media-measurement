@@ -45,7 +45,10 @@ import ("strings")
 	kingdom_job: "kingdom-push-spanner-schema-job": {
 		apiVersion: "batch/v1"
 		kind:       "Job"
-		metadata: name: "kingdom-push-spanner-schema-job"
+		metadata: {
+			name: "kingdom-push-spanner-schema-job"
+			labels: "app.kubernetes.io/name": #AppName
+		}
 		spec: template: spec: {
 			containers: [{
 				name:            "push-spanner-schema-container"

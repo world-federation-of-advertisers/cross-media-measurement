@@ -26,6 +26,8 @@ listObject: {
 
 objects: [ for objectSet in objectSets for object in objectSet {object}]
 
+#AppName: "measurement-system"
+
 #Target: {
 	name:   string
 	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
@@ -47,7 +49,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	kind:       "Service"
 	metadata: {
 		name: _name
-		annotations: system: _system
+		annotations: system:              _system
+		labels: "app.kubernetes.io/name": #AppName
 	}
 	spec: {
 		selector: app: _name + "-app"
@@ -74,7 +77,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	kind:             "Pod"
 	metadata: {
 		name: _name + "-pod"
-		labels: app:         _name + "-app"
+		labels: {
+			app:                      _name + "-app"
+			"app.kubernetes.io/name": #AppName
+		}
 		annotations: system: _system
 	}
 	spec: {

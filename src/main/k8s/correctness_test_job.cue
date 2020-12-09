@@ -21,7 +21,10 @@ package k8s
 
 	apiVersion: "batch/v1"
 	kind:       "Job"
-	metadata: name: "correctness-test-job"
+	metadata: {
+		name: "correctness-test-job"
+		labels: "app.kubernetes.io/name": #AppName
+	}
 	spec: template: spec: {
 		containers: [{
 			name:            "correctness-test-container"

@@ -145,7 +145,10 @@ import ("strings")
 	setup_job: "push-spanner-schema-job": {
 		apiVersion: "batch/v1"
 		kind:       "Job"
-		metadata: name: "\(_name)-push-spanner-schema-job"
+		metadata: {
+			name: "\(_name)-push-spanner-schema-job"
+			labels: "app.kubernetes.io/name": #AppName
+		}
 		spec: template: spec: {
 			containers: [{
 				name:            "push-spanner-schema-container"

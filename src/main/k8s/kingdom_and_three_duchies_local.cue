@@ -29,7 +29,10 @@ objectSets: [
 fake_service: "spanner-emulator": {
 	apiVersion: "v1"
 	kind:       "Service"
-	metadata: name: "spanner-emulator"
+	metadata: {
+		name: "spanner-emulator"
+		labels: "app.kubernetes.io/name": #AppName
+	}
 	spec: {
 		selector: app: "spanner-emulator-app"
 		type: "NodePort"
@@ -57,7 +60,10 @@ fake_pod: "spanner-emulator-pod": {
 	kind:       "Pod"
 	metadata: {
 		name: "spanner-emulator-pod"
-		labels: app: "spanner-emulator-app"
+		labels: {
+			app:                      "spanner-emulator-app"
+			"app.kubernetes.io/name": #AppName
+		}
 	}
 	spec: containers: [{
 		name:  "spanner-emulator-container"
