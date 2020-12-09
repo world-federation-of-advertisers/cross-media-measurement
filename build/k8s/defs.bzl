@@ -14,6 +14,8 @@
 
 """Build defs for Kubernetes (K8s)."""
 
+load("@bazel_skylib//lib:shell.bzl", "shell")
+
 ImageImportInfo = provider(
     doc = "Information about importing container images.",
     fields = ["image_ref", "k8s_environment"],
@@ -99,11 +101,13 @@ def _k8s_apply_impl(ctx):
         runfiles = runfiles.merge(import_target[DefaultInfo].default_runfiles)
 
     commands = [import_executable.short_path for import_executable in ctx.files.imports]
-    commands.append(
-        "{{ kubectl delete -f {manifest_file}; kubectl apply -f {manifest_file}; }}".format(
-            manifest_file = ctx.file.src.short_path,
-        ),
-    )
+    if ctx.attr.delete_selector:
+        commands.append("kubectl delete pods,jobs,services --selector={selector}".format(
+            selector = shell.quote(ctx.attr.delete_selector),
+        ))
+    commands.append("kubectl apply -f {manifest_file}".format(
+        manifest_file = shell.quote(ctx.file.src.short_path),
+    ))
 
     output = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.write(output, " && ".join(commands), is_executable = True)
@@ -123,6 +127,11 @@ k8s_apply = rule(
             doc = "k8s_import targets of images to import",
             providers = [DefaultInfo, ImageImportInfo],
             cfg = "target",
+        ),
+        # TODO(b/168034831): Consider splitting out separate k8s_delete rule
+        # with attribute to specify resources.
+        "delete_selector": attr.string(
+            doc = "Kubernetes label selector to pass to kubectl delete command",
         ),
     },
     executable = True,
