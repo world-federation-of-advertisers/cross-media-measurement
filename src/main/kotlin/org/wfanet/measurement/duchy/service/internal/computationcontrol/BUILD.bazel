@@ -14,6 +14,7 @@ kt_jvm_library(
     srcs = [
         "AsyncComputationControlService.kt",
         "LiquidLegionsSketchAggregationV1Context.kt",
+        "LiquidLegionsSketchAggregationV2Context.kt",
         "SingleRequestContext.kt",
     ],
     deps = [

@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.Async
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -52,6 +53,7 @@ class AsyncComputationControlService(
     )
     val context: SingleRequestContext = when (val type = request.computationStage.stageCase) {
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 -> LiquidLegionsSketchAggregationV1Context(request)
+      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsSketchAggregationV2Context(request)
       else -> failGrpc { "Unrecognized computation type: $type" }
     }
     val tokenForRecordingPath = getComputationToken(context).checkStageIn(context)

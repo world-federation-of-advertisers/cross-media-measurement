@@ -33,3 +33,19 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
     ],
 )
+
+kt_jvm_test(
+    name = "LiquidLegionsSketchAggregationV2ContextTest",
+    srcs = ["LiquidLegionsSketchAggregationV2ContextTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.service.internal.computationcontrol.LiquidLegionsSketchAggregationV2ContextTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/org/junit",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlin/test",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
+    ],
+)
