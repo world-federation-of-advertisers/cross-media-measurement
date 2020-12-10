@@ -88,7 +88,7 @@ abstract class LiquidLegionsV1MillDaemon : Runnable {
       cryptoKeySet = newCryptoKeySet(),
       cryptoWorker = JniLiquidLegionsV1Encryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
-      chunkSize = flags.chunkSize,
+      requestChunkSizeBytes = flags.requestChunkSizeBytes,
       liquidLegionsConfig = LiquidLegionsConfig(
         flags.liquidLegionsDecayRate,
         flags.liquidLegionsSize,

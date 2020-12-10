@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.db.computation
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
@@ -42,9 +41,6 @@ suspend fun ComputationsCoroutineStub.advanceComputationStage(
       ComputationStageDetails,
       ComputationDetails>
 ): ComputationToken {
-  require(computationToken.computationStage.stageCase == LIQUID_LEGIONS_SKETCH_AGGREGATION_V1) {
-    "Must be a token for a LIQUID_LEGIONS_SKETCH_AGGREGATION computation was $computationToken."
-  }
   require(
     computationProtocolStageDetails.validateRoleForStage(stage, computationToken.computationDetails)
   )

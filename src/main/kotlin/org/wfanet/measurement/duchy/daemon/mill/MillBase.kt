@@ -30,9 +30,11 @@ import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
@@ -62,11 +64,14 @@ import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
+import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.PERMANENT
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.TRANSIENT
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 
 /**
@@ -81,6 +86,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  *    computation table.
  * @param computationType The [ComputationType] this mill is working on.
+ * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
 */
 abstract class MillBase(
@@ -91,6 +97,7 @@ abstract class MillBase(
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
+  private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
   private val clock: Clock = Clock.systemUTC()
 ) {
   /**
@@ -298,6 +305,30 @@ abstract class MillBase(
           numOfBytes
         )
       }
+  }
+
+  /** Sends an AdvanceComputationRequest to the target duchy. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `merge`.
+  suspend fun sendAdvanceComputationRequest(
+    globalId: String,
+    content: Flow<ByteString>,
+    description: LiquidLegionsV2.Description,
+    stub: ComputationControlCoroutineStub
+  ) {
+    val head = flowOf(
+      AdvanceComputationRequest.newBuilder().apply {
+        headerBuilder.apply {
+          keyBuilder.globalComputationId = globalId
+          liquidLegionsV2Builder.description = description
+        }
+      }.build()
+    )
+    val body = content.asBufferedFlow(requestChunkSizeBytes).map {
+      AdvanceComputationRequest.newBuilder().apply {
+        bodyChunkBuilder.partialData = it
+      }.build()
+    }
+    stub.advanceComputation(merge(head, body))
   }
 
   /**

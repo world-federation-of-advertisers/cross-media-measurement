@@ -20,7 +20,6 @@ import java.time.Clock
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flattenConcat
-import kotlinx.coroutines.flow.map
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
@@ -43,7 +42,6 @@ import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
 import org.wfanet.measurement.duchy.toProtocolStage
@@ -74,7 +72,7 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  *    computation table.
- * @param chunkSize The size of data chunk when sending result to other duchies.
+ * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
  * @param clock A clock
  */
@@ -88,7 +86,7 @@ class LiquidLegionsV1Mill(
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsV1Encryption,
   private val throttler: MinimumIntervalThrottler,
-  chunkSize: Int = 1024 * 32, // 32 KiB
+  private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
     12.0,
     10_000_000L,
@@ -102,9 +100,11 @@ class LiquidLegionsV1Mill(
   globalComputationsClient,
   computationStatsClient,
   throttler,
-  ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+  ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
+  requestChunkSizeBytes,
+  clock
 ) {
-  private val controlRequests = ComputationControlRequests(chunkSize)
+  private val controlRequests = ComputationControlRequests(requestChunkSizeBytes)
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasLiquidLegionsV1()) {

@@ -176,7 +176,7 @@ class InProcessDuchy(
         cryptoKeySet = duchyDependencies.cryptoKeySet,
         cryptoWorker = JniLiquidLegionsV1Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        chunkSize = 2_000_000
+        requestChunkSizeBytes = 2_000_000
       )
 
       mill.continuallyProcessComputationQueue()

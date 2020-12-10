@@ -268,7 +268,7 @@ class LiquidLegionsV1MillTest {
         cryptoKeySet = cryptoKeySet,
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
-        chunkSize = 20
+        requestChunkSizeBytes = 20
       )
   }
 

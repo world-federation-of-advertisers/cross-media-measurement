@@ -100,10 +100,10 @@ class LiquidLegionsV1MillFlags {
 
   @set:CommandLine.Option(
     names = ["--bytes-per-chunk"],
-    description = ["The number of bytes in a chunk when sending result to other duchy."],
+    description = ["The number of bytes in a chunk when sending rpc result to other duchy."],
     defaultValue = "32768" // 32 KiB. See https://github.com/grpc/grpc.github.io/issues/371.
   )
-  var chunkSize by Delegates.notNull<Int>()
+  var requestChunkSizeBytes by Delegates.notNull<Int>()
     private set
 
   @set:CommandLine.Option(

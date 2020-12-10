@@ -92,20 +92,73 @@ object LiquidLegionsSketchAggregationV2Protocol {
         LiquidLegionsSketchAggregationV2.Stage,
         ComputationStageDetails,
         LiquidLegionsSketchAggregationV2.ComputationDetails> {
+
       override fun validateRoleForStage(
         stage: LiquidLegionsSketchAggregationV2.Stage,
         details: LiquidLegionsSketchAggregationV2.ComputationDetails
       ): Boolean {
-        TODO("Not yet implemented")
+        return when (stage) {
+          WAIT_TO_START ->
+            details.role ==
+              LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+          WAIT_SETUP_PHASE_INPUTS ->
+            details.role ==
+              LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
+          else ->
+            true /* Stage can be executed at either primary or non-primary */
+        }
       }
 
       override fun afterTransitionForStage(stage: LiquidLegionsSketchAggregationV2.Stage):
         AfterTransition {
-          TODO("Not yet implemented")
+          return when (stage) {
+            // Stages of computation mapping some number of inputs to single output.
+            SETUP_PHASE,
+            REACH_ESTIMATION_PHASE,
+            FILTERING_PHASE,
+            FREQUENCY_ESTIMATION_PHASE ->
+              AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+            WAIT_TO_START,
+            WAIT_SETUP_PHASE_INPUTS,
+            WAIT_REACH_ESTIMATION_PHASE_INPUTS,
+            WAIT_FILTERING_PHASE_INPUTS,
+            WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS ->
+              AfterTransition.DO_NOT_ADD_TO_QUEUE
+            COMPLETE -> error("Computation should be ended with call to endComputation(...)")
+            // Stages that we can't transition to ever.
+            UNRECOGNIZED,
+            LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+            CONFIRM_REQUISITIONS_PHASE ->
+              error("Cannot make transition function to stage $stage")
+          }
         }
 
       override fun outputBlobNumbersForStage(stage: LiquidLegionsSketchAggregationV2.Stage): Int {
-        TODO("Not yet implemented")
+        return when (stage) {
+          WAIT_TO_START ->
+            // There is no output in this stage, the input is forwarded to the next stage as input.
+            0
+          WAIT_REACH_ESTIMATION_PHASE_INPUTS,
+          WAIT_FILTERING_PHASE_INPUTS,
+          WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS,
+          SETUP_PHASE,
+          REACH_ESTIMATION_PHASE,
+          FILTERING_PHASE,
+          FREQUENCY_ESTIMATION_PHASE ->
+            // The output is the intermediate computation result either received from another duchy
+            // or computed locally.
+            1
+          WAIT_SETUP_PHASE_INPUTS ->
+            // The output contains otherDuchiesInComputation sketches from the other duchies.
+            otherDuchies.size
+          // Mill have nothing to do for this stage.
+          COMPLETE -> error("Computation should be ended with call to endComputation(...)")
+          // Stages that we can't transition to ever.
+          UNRECOGNIZED,
+          LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
+          CONFIRM_REQUISITIONS_PHASE ->
+            error("Cannot make transition function to stage $stage")
+        }
       }
 
       override fun detailsFor(stage: LiquidLegionsSketchAggregationV2.Stage):
@@ -159,15 +212,18 @@ object LiquidLegionsSketchAggregationV2Protocol {
       ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
       override fun validateRoleForStage(stage: ComputationStage, details: ComputationDetails):
         Boolean {
-          TODO("Not yet implemented")
+          return enumBasedDetails.validateRoleForStage(
+            stage.liquidLegionsSketchAggregationV2,
+            details.liquidLegionsV2
+          )
         }
 
       override fun afterTransitionForStage(stage: ComputationStage): AfterTransition {
-        TODO("Not yet implemented")
+        return enumBasedDetails.afterTransitionForStage(stage.liquidLegionsSketchAggregationV2)
       }
 
       override fun outputBlobNumbersForStage(stage: ComputationStage): Int {
-        TODO("Not yet implemented")
+        return enumBasedDetails.outputBlobNumbersForStage(stage.liquidLegionsSketchAggregationV2)
       }
 
       private val enumBasedDetails = EnumStages.Details(otherDuchies)

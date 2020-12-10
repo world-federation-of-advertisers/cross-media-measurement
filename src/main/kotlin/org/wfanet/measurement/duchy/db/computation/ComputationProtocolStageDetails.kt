@@ -55,7 +55,7 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
         LiquidLegionsSketchAggregationV1Protocol
           .ComputationStages.Details(otherDuchies).afterTransitionForStage(stage)
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV1Protocol
+        LiquidLegionsSketchAggregationV2Protocol
           .ComputationStages.Details(otherDuchies).afterTransitionForStage(stage)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -68,7 +68,7 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
         LiquidLegionsSketchAggregationV1Protocol
           .ComputationStages.Details(otherDuchies).outputBlobNumbersForStage(stage)
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV1Protocol
+        LiquidLegionsSketchAggregationV2Protocol
           .ComputationStages.Details(otherDuchies).outputBlobNumbersForStage(stage)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
@@ -94,7 +94,7 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
         LiquidLegionsSketchAggregationV1Protocol
           .ComputationStages.Details(otherDuchies).parseDetails(bytes)
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV1Protocol
+        LiquidLegionsSketchAggregationV2Protocol
           .ComputationStages.Details(otherDuchies).parseDetails(bytes)
       ComputationType.UNSPECIFIED, ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }
