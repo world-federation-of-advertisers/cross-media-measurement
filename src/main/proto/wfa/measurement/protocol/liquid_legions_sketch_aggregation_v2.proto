@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.protocol;
 
+import "src/main/proto/wfa/measurement/protocol/requisition.proto";
+
 option java_package = "org.wfanet.measurement.protocol";
 option java_multiple_files = true;
 
@@ -141,13 +143,6 @@ message LiquidLegionsSketchAggregationV2 {
 
   // The details used to run a TO_CONFIRM_REQUISITIONS stage.
   message ToConfirmRequisitionsStageDetails {
-    // The keys to identity a requisition in the MetricValue database
-    message RequisitionKey {
-      string data_provider_id = 1;
-      string campaign_id = 2;
-      string metric_requisition_id = 3;
-    }
-
     // list of local requisitions that are required for this computation.
     repeated RequisitionKey keys = 1;
   }

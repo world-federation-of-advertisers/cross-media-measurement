@@ -15,28 +15,12 @@
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
-import java.lang.management.ManagementFactory
-import java.lang.management.ThreadMXBean
 import java.nio.file.Paths
 import java.time.Clock
-import java.time.Duration
-import java.util.logging.Level
-import java.util.logging.Logger
-import kotlin.system.measureTimeMillis
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.flattenConcat
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.withContext
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
@@ -51,44 +35,29 @@ import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.common.crypto.liquidlegionsv1.LiquidLegionsV1Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
-import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_TIME
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.db.computation.BlobRef
+import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
+import org.wfanet.measurement.duchy.daemon.mill.MillBase
+import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
+import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
-import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
-import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
-import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
-import org.wfanet.measurement.internal.duchy.FinishComputationRequest
-import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
-import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
-import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ToConfirmRequisitionsStageDetails.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
-import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -97,7 +66,8 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param dataClients clients that have access to local computation storage, i.e., spanner
  *    table and blob store.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
- * @param globalComputationsClient client of the kingdom's GlobalComputations.
+ * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
+ * @param computationStatsClient client of the duchy's ComputationStatsService.
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
@@ -125,95 +95,37 @@ class LiquidLegionsV1Mill(
     10
   ),
   private val clock: Clock = Clock.systemUTC()
+) : MillBase(
+  millId,
+  dataClients,
+  metricValuesClient,
+  globalComputationsClient,
+  computationStatsClient,
+  throttler,
+  ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 ) {
   private val controlRequests = ComputationControlRequests(chunkSize)
 
-  suspend fun continuallyProcessComputationQueue() {
-    logger.info("Starting...")
-    withContext(CoroutineName("Mill $millId")) {
-      throttler.loopOnReady {
-        pollAndProcessNextComputation()
-      }
+  override suspend fun processComputationImpl(token: ComputationToken) {
+    require(token.computationDetails.hasLiquidLegionsV1()) {
+      "Only Liquid Legions V1 computation is supported in this mill."
     }
-  }
 
-  suspend fun pollAndProcessNextComputation() {
-    logger.info("@Mill $millId: Polling available computations...")
-    val claimWorkRequest = ClaimWorkRequest.newBuilder()
-      .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
-      .setOwner(millId)
-      .build()
-    val claimWorkResponse: ClaimWorkResponse =
-      dataClients.computationsClient.claimWork(claimWorkRequest)
-    if (claimWorkResponse.hasToken()) {
-      val cpuTimeElapsedMillis = measureKotlinCpuTimeMillis {
-        val wallTimeElapsedMills = measureTimeMillis {
-          processNextComputation(claimWorkResponse.token)
-        }
-        logStageMetric(claimWorkResponse.token, STAGE_WALL_CLOCK_TIME, wallTimeElapsedMills)
-      }
-      logStageMetric(claimWorkResponse.token, STAGE_CPU_TIME, cpuTimeElapsedMillis)
-    } else {
-      logger.info("@Mill $millId: No computation available, waiting for the next poll...")
-    }
-  }
-
-  // TODO: figure out if this is really the CPU time we want
-  private fun getCpuTimeMillis(): Long {
-    var cpuTime = Duration.ofNanos(threadBean.allThreadIds.map(threadBean::getThreadCpuTime).sum())
-    return cpuTime.toMillis()
-  }
-
-  private suspend fun processNextComputation(token: ComputationToken) {
-    // Log the current mill memory usage before processing.
-    logStageMetric(token, CURRENT_RUNTIME_MEMORY_MAXIMUM, Runtime.getRuntime().maxMemory())
-    logStageMetric(token, CURRENT_RUNTIME_MEMORY_TOTAL, Runtime.getRuntime().totalMemory())
-    logStageMetric(token, CURRENT_RUNTIME_MEMORY_FREE, Runtime.getRuntime().freeMemory())
-    val stage = token.computationStage.liquidLegionsSketchAggregationV1
-    val globalId = token.globalComputationId
-    logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
-
-    try {
-      when (token.computationStage.liquidLegionsSketchAggregationV1) {
-        Stage.TO_CONFIRM_REQUISITIONS ->
-          confirmRequisitions(token)
-        Stage.TO_ADD_NOISE,
-        Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
-          addNoise(token)
-        Stage.TO_BLIND_POSITIONS ->
-          blindPositions(token)
-        Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
-          blindPositionsAndJoinRegisters(token)
-        Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
-          decryptFlagCountsAndComputeMetrics(token)
-        Stage.TO_DECRYPT_FLAG_COUNTS ->
-          decryptFlagCounts(token)
-        else -> error("Unexpected stage: $stage")
-      }
-    } catch (e: Exception) {
-      // The token version may have already changed. We need the latest token in order to complete
-      // or enqueue the computation.
-      val latestToken = getLatestComputationToken(globalId)
-      when (e) {
-        is IllegalStateException,
-        is PermanentComputationError -> {
-          logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(latestToken, e.toString(), ErrorType.PERMANENT)
-          )
-          // Mark the computation FAILED for all permanent errors
-          completeComputation(latestToken, CompletedReason.FAILED)
-        }
-        else -> {
-          // Treat all other errors as transient.
-          logger.log(Level.SEVERE, "$globalId@$millId: TRANSIENT error", e)
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(latestToken, e.toString(), ErrorType.TRANSIENT)
-          )
-          // Enqueue the computation again for future retry
-          enqueueComputation(latestToken)
-        }
-      }
+    when (token.computationStage.liquidLegionsSketchAggregationV1) {
+      Stage.TO_CONFIRM_REQUISITIONS ->
+        confirmRequisitions(token)
+      Stage.TO_ADD_NOISE,
+      Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE ->
+        addNoise(token)
+      Stage.TO_BLIND_POSITIONS ->
+        blindPositions(token)
+      Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS ->
+        blindPositionsAndJoinRegisters(token)
+      Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS ->
+        decryptFlagCountsAndComputeMetrics(token)
+      Stage.TO_DECRYPT_FLAG_COUNTS ->
+        decryptFlagCounts(token)
+      else -> error("Unexpected stage: ${token.computationStage.liquidLegionsSketchAggregationV1}")
     }
   }
 
@@ -260,39 +172,6 @@ class LiquidLegionsV1Mill(
     )
   }
 
-  /**
-   * Returns whether a value exists for the requisition by calling the
-   * MetricValues service.
-   */
-  private suspend fun metricValueExists(key: RequisitionKey): Boolean {
-    return try {
-      metricValuesClient.getMetricValue(
-        GetMetricValueRequest.newBuilder()
-          .setResourceKey(key.toResourceKey())
-          .build()
-      )
-      true
-    } catch (e: StatusException) {
-      when (e.status.code) {
-        Status.Code.NOT_FOUND -> false
-        else -> throw e
-      }
-    }
-  }
-
-  private fun streamMetricValueContents(
-    availableRequisitions: Iterable<RequisitionKey>
-  ): Flow<Flow<ByteString>> = flow {
-    for (requisitionKey in availableRequisitions) {
-      val responses = metricValuesClient.streamMetricValue(
-        StreamMetricValueRequest.newBuilder()
-          .setResourceKey(requisitionKey.toResourceKey())
-          .build()
-      )
-      emit(responses.dropWhile { it.hasHeader() }.map { it.chunk.data })
-    }
-  }
-
   /** Processes computation in the TO_ADD_NOISE stage */
   private suspend fun addNoise(token: ComputationToken): ComputationToken {
     val (bytes, nextToken) = existingOutputOr(token) {
@@ -324,19 +203,6 @@ class LiquidLegionsV1Mill(
       inputsToNextStage = nextToken.outputPathList(),
       stage = Stage.WAIT_CONCATENATED.toProtocolStage()
     )
-  }
-
-  /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
-  private fun addLoggingHook(
-    token: ComputationToken,
-    bytes: Flow<ByteString>
-  ): Flow<ByteString> {
-    var numOfBytes = 0L
-    return bytes.onEach { numOfBytes += it.size() }
-      .onCompletion {
-        logStageMetric(token, BYTES_OF_DATA_IN_RPC, numOfBytes)
-      }
   }
 
   /** Sends the merged sketch to the next duchy to start MPC round 1. */
@@ -491,131 +357,6 @@ class LiquidLegionsV1Mill(
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
-  private suspend fun existingOutputOr(
-    token: ComputationToken,
-    block: suspend () -> ByteString
-  ): CachedResult {
-    if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
-      // Reuse cached result if it exists
-      return CachedResult(
-        checkNotNull(dataClients.readSingleOutputBlob(token)),
-        token
-      )
-    }
-    val newResult: ByteString =
-      try {
-        val (timeElapsedMills, result) = measureTimeMillisAndReturnResult {
-          block()
-        }
-        logStageMetric(token, JNI_WALL_CLOCK_TIME, timeElapsedMills)
-        result
-      } catch (error: Throwable) {
-        // All errors from block() are permanent and would cause the computation to FAIL
-        throw PermanentComputationError(error)
-      }
-    return CachedResult(flowOf(newResult), dataClients.writeSingleOutputBlob(token, newResult))
-  }
-
-  private suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
-    val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
-    if (blobMap.size != count) {
-      throw PermanentComputationError(
-        Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
-      )
-    }
-    return blobMap.values.flatten()
-  }
-
-  private suspend fun completeComputation(
-    token: ComputationToken,
-    reason: CompletedReason
-  ): ComputationToken {
-    val response = dataClients.computationsClient.finishComputation(
-      FinishComputationRequest.newBuilder()
-        .setToken(token)
-        .setEndingComputationStage(
-          ComputationStage.newBuilder()
-            .setLiquidLegionsSketchAggregationV1(Stage.COMPLETED)
-        )
-        .setReason(reason)
-        .build()
-    )
-    return response.token
-  }
-
-  private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
-    return dataClients.computationsClient.getComputationToken(
-      GetComputationTokenRequest.newBuilder().apply {
-        computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-        globalComputationId = globalId
-      }.build()
-    ).token
-  }
-
-  private suspend fun enqueueComputation(
-    token: ComputationToken
-  ) {
-    dataClients.computationsClient.enqueueComputation(
-      EnqueueComputationRequest.newBuilder()
-        .setToken(token)
-        .setDelaySecond(minOf(60, token.attempt * 5))
-        .build()
-    )
-  }
-
-  private suspend fun sendStatusUpdateToKingdom(
-    request: CreateGlobalComputationStatusUpdateRequest
-  ) {
-    try {
-      globalComputationsClient.createGlobalComputationStatusUpdate(request)
-    } catch (ignored: Exception) {
-      logger.warning("Failed to update status change to the kingdom. $ignored")
-    }
-  }
-
-  private fun RequisitionKey.toResourceKey(): ResourceKey {
-    return ResourceKey.newBuilder().apply {
-      dataProviderResourceId = dataProviderId
-      campaignResourceId = campaignId
-      metricRequisitionResourceId = metricRequisitionId
-    }.build()
-  }
-
-  private fun RequisitionKey.toMetricRequisitionKey(): MetricRequisitionKey {
-    return MetricRequisitionKey.newBuilder()
-      .setCampaignId(campaignId)
-      .setDataProviderId(dataProviderId)
-      .setMetricRequisitionId(metricRequisitionId)
-      .build()
-  }
-
-  private fun newErrorUpdateRequest(
-    token: ComputationToken,
-    message: String,
-    type: ErrorType
-  ): CreateGlobalComputationStatusUpdateRequest {
-    return CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-      parentBuilder.globalComputationId = token.globalComputationId
-      statusUpdateBuilder.apply {
-        selfReportedIdentifier = millId
-        stageDetailsBuilder.apply {
-          algorithm = token.computationStage.mpcAlgorithm
-          stageNumber = token.computationStage.number.toLong()
-          stageName = token.computationStage.name
-          start = clock.protoTimestamp()
-          attemptNumber = token.attempt.toLong()
-        }
-        updateMessage = "Computation ${token.globalComputationId} at stage " +
-          "${token.computationStage.name}, attempt ${token.attempt} failed."
-        errorDetailsBuilder.apply {
-          errorTime = clock.protoTimestamp()
-          errorType = type
-          errorMessage = "${token.globalComputationId}@$millId: $message"
-        }
-      }
-    }.build()
-  }
-
   private fun nextDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
     val nextDuchy = token.computationDetails.liquidLegionsV1.outgoingNodeId
     return workerStubs[nextDuchy]
@@ -632,71 +373,7 @@ class LiquidLegionsV1Mill(
       )
   }
 
-  private suspend fun logStageMetric(
-    token: ComputationToken,
-    metricName: String,
-    metricValue: Long
-  ) {
-    logger.info(
-      "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
-        " ${metricValue.toHumanFriendlyTime()}"
-    )
-    logAndSuppressExceptionSuspend {
-      computationStatsClient.createComputationStat(
-        CreateComputationStatRequest.newBuilder()
-          .setLocalComputationId(token.localComputationId)
-          .setAttempt(token.attempt)
-          .setComputationStage(token.computationStage)
-          .setMetricName(metricName)
-          .setMetricValue(metricValue)
-          .build()
-      )
-    }
-  }
-
-  private inline fun <T> measureKotlinCpuTimeMillis(block: () -> T): Long {
-    val startCpuTimeMillis = getCpuTimeMillis()
-    block()
-    return getCpuTimeMillis() - startCpuTimeMillis
-  }
-
-  private inline fun <T> measureTimeMillisAndReturnResult(block: () -> T): Pair<Long, T> {
-    val start = System.currentTimeMillis()
-    val res = block()
-    return Pair(System.currentTimeMillis() - start, res)
-  }
-
-  /**
-   * Convert a milliseconds to a human friendly string
-   */
-  private fun Long.toHumanFriendlyTime(): String {
-    val seconds = this / 1000
-    val ms = this % 1000
-    val hh = seconds / 3600
-    val mm = (seconds % 3600) / 60
-    val ss = seconds % 60
-    val hoursString = if (hh == 0L) "" else "$hh hours "
-    val minutesString = if (mm == 0L) "" else "$mm minutes "
-    val secondsString = if (ss == 0L) "" else "$ss seconds "
-    return "$hoursString$minutesString$secondsString$ms milliseconds"
-  }
-
-  private data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
-
-  data class LiquidLegionsConfig(val decayRate: Double, val size: Long, val maxFrequency: Int)
-
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val CRYPTO_LIB_CPU_TIME = "crypto_lib_cpu_time"
-    private const val JNI_WALL_CLOCK_TIME = "jni_wall_clock_time"
-    private const val STAGE_CPU_TIME = "stage_cpu_time"
-    private const val STAGE_WALL_CLOCK_TIME = "stage_wall_clock_time"
-    private const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
-    private const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
-    private const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
-    private const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
-    private val threadBean: ThreadMXBean = ManagementFactory.getThreadMXBean()
-
     init {
       loadLibrary(
         name = "estimators",
@@ -704,6 +381,4 @@ class LiquidLegionsV1Mill(
       )
     }
   }
-
-  class PermanentComputationError(cause: Throwable) : Exception(cause)
 }

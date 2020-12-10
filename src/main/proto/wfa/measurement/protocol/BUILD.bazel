@@ -4,8 +4,19 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_library(
+    name = "requisition",
+    srcs = ["requisition.proto"],
+)
+
+java_proto_library(
+    name = "requisition_java_proto",
+    deps = [":requisition"],
+)
+
+proto_library(
     name = "liquid_legions_v1_proto",
     srcs = ["liquid_legions_sketch_aggregation_v1.proto"],
+    deps = [":requisition"],
 )
 
 java_proto_library(
@@ -16,6 +27,7 @@ java_proto_library(
 proto_library(
     name = "liquid_legions_v2_proto",
     srcs = ["liquid_legions_sketch_aggregation_v2.proto"],
+    deps = [":requisition"],
 )
 
 java_proto_library(
