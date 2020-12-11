@@ -52,6 +52,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
+import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseRequest
+import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseResponse
+import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseRequest
+import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseResponse
+import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseRequest
+import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseResponse
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
 import org.wfanet.measurement.common.crypto.liquidlegionsv2.LiquidLegionsV2Encryption
@@ -70,6 +81,7 @@ import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -88,7 +100,12 @@ import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.FILTERING_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.FREQUENCY_ESTIMATION_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.REACH_ESTIMATION_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_FILTERING_PHASE_INPUTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
@@ -101,6 +118,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
+import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
@@ -108,6 +126,8 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAl
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.FILTERING_PHASE_INPUT
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.SETUP_PHASE_INPUT
 import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
@@ -210,6 +230,8 @@ class LiquidLegionsV2MillTest {
     MetricValuesCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private lateinit var computationControlRequests: List<AdvanceComputationRequest>
+
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
   private val workerStubs = mapOf(DUCHY_ONE_NAME to workerStub, DUCHY_TWO_NAME to workerStub)
 
@@ -245,7 +267,7 @@ class LiquidLegionsV2MillTest {
     globalComputationId: String,
     description: LiquidLegionsV2.Description,
     vararg chunkContents: String
-  ): Sequence<AdvanceComputationRequest> {
+  ): List<AdvanceComputationRequest> {
     val header = AdvanceComputationRequest.newBuilder().apply {
       headerBuilder.apply {
         keyBuilder.globalComputationId = globalComputationId
@@ -259,14 +281,11 @@ class LiquidLegionsV2MillTest {
         }
       }.build()
     }
-    return sequence {
-      yield(header)
-      yieldAll(body)
-    }
+    return listOf(header) + body
   }
 
   @Before
-  fun initMill() {
+  fun setup() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
     mill =
       LiquidLegionsV2Mill(
@@ -281,10 +300,18 @@ class LiquidLegionsV2MillTest {
         throttler = throttler,
         requestChunkSizeBytes = 20
       )
+
+    whenever(
+      runBlocking { mockLiquidLegionsComputationControl.advanceComputation(any()) }
+    ).thenAnswer {
+      val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      AdvanceComputationResponse.getDefaultInstance()
+    }
   }
 
   @Test
-  fun `to confirm requisition, no local requisitions required at aggregator`() = runBlocking<Unit> {
+  fun `confirm requisition, no local requisitions required at aggregator`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -344,7 +371,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `to confirm requisition, all local requisitions available non-aggregator`() = runBlocking {
+  fun `confirm requisition, all local requisitions available non-aggregator`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -428,7 +455,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `to confirm requisition, missing requisition at primary`() = runBlocking<Unit> {
+  fun `confirm requisition, missing requisition at primary`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val requisition1 = "1"
     val requisition2 = "2"
@@ -532,7 +559,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `to complete setup phase at non-aggregator using calculated result`() = runBlocking<Unit> {
+  fun `setup phase at non-aggregator using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -549,16 +576,10 @@ class LiquidLegionsV2MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<AdvanceComputationRequest>
-    whenever(mockLiquidLegionsComputationControl.advanceComputation(any())).thenAnswer {
-      val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      AdvanceComputationResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.completeSetupPhase(any()))
       .thenAnswer {
         val request: CompleteSetupPhaseRequest = it.getArgument(0)
-        val postFix = ByteString.copyFromUtf8("-AddedNoise")
+        val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
         CompleteSetupPhaseResponse.newBuilder()
           .setCombinedRegisterVector(request.combinedRegisterVector.concat(postFix)).build()
       }
@@ -589,20 +610,21 @@ class LiquidLegionsV2MillTest {
         .build()
     )
 
-    assertThat(computationStore.get(blobKey)?.readToString()).isEqualTo("sketch-AddedNoise")
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("sketch-completeSetupPhase-done")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
       buildAdvanceComputationRequests(
         GLOBAL_ID,
         SETUP_PHASE_INPUT,
-        "sketch-AddedNoise"
+        "sketch-completeSetup",
+        "Phase-done"
       )
-        .asIterable()
     ).inOrder()
   }
 
   @Test
-  fun `to complete setup phase at aggregator using calculated result`() = runBlocking<Unit> {
+  fun `setup phase at aggregator using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -623,16 +645,10 @@ class LiquidLegionsV2MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<AdvanceComputationRequest>
-    whenever(mockLiquidLegionsComputationControl.advanceComputation(any())).thenAnswer {
-      val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      AdvanceComputationResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.completeSetupPhase(any()))
       .thenAnswer {
         val request: CompleteSetupPhaseRequest = it.getArgument(0)
-        val postFix = ByteString.copyFromUtf8("-AddedNoise")
+        val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
         CompleteSetupPhaseResponse.newBuilder()
           .setCombinedRegisterVector(request.combinedRegisterVector.concat(postFix)).build()
       }
@@ -664,14 +680,448 @@ class LiquidLegionsV2MillTest {
     )
 
     assertThat(computationStore.get(blobKey)?.readToString())
-      .isEqualTo("sketch_1_sketch_2_sketch_3_-AddedNoise")
+      .isEqualTo("sketch_1_sketch_2_sketch_3_-completeSetupPhase-done")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
       buildAdvanceComputationRequests(
-        GLOBAL_ID, REACH_ESTIMATION_PHASE_INPUT, "sketch_1_sketch_2_sk",
-        "etch_3_-AddedNoise"
-      ).asIterable()
+        GLOBAL_ID, REACH_ESTIMATION_PHASE_INPUT,
+        "sketch_1_sketch_2_sk",
+        "etch_3_-completeSetu",
+        "pPhase-done"
+      )
     ).inOrder()
+  }
+
+  @Test
+  fun `reach estimation phase at non-aggregater using cached result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken = FakeComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = REACH_ESTIMATION_PHASE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "sketch")
+    computationStore.writeString(partialToken, "cached result")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = nonAggregatorComputationDetails,
+      blobs = listOf(
+        newInputBlobMetadata(0L, generatedBlobKeys[0]),
+        newOutputBlobMetadata(1L, generatedBlobKeys[1])
+      )
+    )
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FILTERING_PHASE_INPUTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(generatedBlobKeys.last())
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT)
+            .setBlobId(1)
+        )
+        .setVersion(2) // CreateComputation + transitionStage
+        .setComputationDetails(nonAggregatorComputationDetails)
+        .build()
+    )
+
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildAdvanceComputationRequests(
+        GLOBAL_ID, REACH_ESTIMATION_PHASE_INPUT, "cached result"
+      )
+    ).inOrder()
+  }
+
+  @Test
+  fun `reach estimation phase at non-aggregater using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken = FakeComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = REACH_ESTIMATION_PHASE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = nonAggregatorComputationDetails,
+      blobs = listOf(
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+
+    whenever(mockCryptoWorker.completeReachEstimationPhase(any()))
+      .thenAnswer {
+        val request: CompleteReachEstimationPhaseRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-completeReachEstimationPhase-done")
+        CompleteReachEstimationPhaseResponse.newBuilder()
+          .setCombinedRegisterVector(request.combinedRegisterVector.concat(postFix))
+          .build()
+      }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FILTERING_PHASE_INPUTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setComputationDetails(nonAggregatorComputationDetails)
+        .build()
+    )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-completeReachEstimationPhase-done")
+
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildAdvanceComputationRequests(
+        GLOBAL_ID,
+        REACH_ESTIMATION_PHASE_INPUT,
+        "data-completeReachEs", // Chunk 1, size 20
+        "timationPhase-done" // Chunk 2, the rest
+      )
+    ).inOrder()
+  }
+
+  @Test
+  fun `reach estimation phase at aggregater using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken = FakeComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = REACH_ESTIMATION_PHASE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = aggregatorComputationDetails,
+      blobs = listOf(
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+
+    whenever(mockCryptoWorker.completeReachEstimationPhaseAtAggregator(any()))
+      .thenAnswer {
+        val request: CompleteReachEstimationPhaseAtAggregatorRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-completeReachEstimationPhaseAtAggregator-done")
+        CompleteReachEstimationPhaseAtAggregatorResponse.newBuilder()
+          .setFlagCountTuples(request.combinedRegisterVector.concat(postFix))
+          .build()
+      }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FILTERING_PHASE_INPUTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setComputationDetails(aggregatorComputationDetails)
+        .build()
+    )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-completeReachEstimationPhaseAtAggregator-done")
+
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildAdvanceComputationRequests(
+        GLOBAL_ID,
+        FILTERING_PHASE_INPUT,
+        "data-completeReachEs", // Chunk 1, size 20
+        "timationPhaseAtAggre", // Chunk 2, size 20
+        "gator-done" // Chunk 3, the rest
+      )
+    ).inOrder()
+  }
+
+  @Test
+  fun `filtering phase at non-aggregater using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken = FakeComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = FILTERING_PHASE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = nonAggregatorComputationDetails,
+      blobs = listOf(
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+
+    whenever(mockCryptoWorker.completeFilteringPhase(any()))
+      .thenAnswer {
+        val request: CompleteFilteringPhaseRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-completeFilteringPhase-done")
+        CompleteFilteringPhaseResponse.newBuilder()
+          .setFlagCountTuples(request.flagCountTuples.concat(postFix))
+          .build()
+      }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setComputationDetails(nonAggregatorComputationDetails)
+        .build()
+    )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-completeFilteringPhase-done")
+
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildAdvanceComputationRequests(
+        GLOBAL_ID,
+        FILTERING_PHASE_INPUT,
+        "data-completeFilteri", // Chunk 1, size 20
+        "ngPhase-done" // Chunk 2, the rest
+      )
+    ).inOrder()
+  }
+
+  @Test
+  fun `filtering phase at aggregater using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken = FakeComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = FILTERING_PHASE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = aggregatorComputationDetails,
+      blobs = listOf(
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+
+    whenever(mockCryptoWorker.completeFilteringPhaseAtAggregator(any()))
+      .thenAnswer {
+        val request: CompleteFilteringPhaseAtAggregatorRequest = it.getArgument(0)
+        val postFix = ByteString.copyFromUtf8("-completeFilteringPhaseAtAggregator-done")
+        CompleteFilteringPhaseAtAggregatorResponse.newBuilder()
+          .setSameKeyAggregatorMatrix(request.flagCountTuples.concat(postFix))
+          .build()
+      }
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS.toProtocolStage())
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.INPUT)
+            .setBlobId(0)
+            .setPath(blobKey)
+        )
+        .addBlobs(
+          ComputationStageBlobMetadata.newBuilder()
+            .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
+        )
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setComputationDetails(aggregatorComputationDetails)
+        .build()
+    )
+    assertThat(computationStore.get(blobKey)?.readToString())
+      .isEqualTo("data-completeFilteringPhaseAtAggregator-done")
+
+    assertThat(computationControlRequests).containsExactlyElementsIn(
+      buildAdvanceComputationRequests(
+        GLOBAL_ID,
+        FREQUENCY_ESTIMATION_PHASE_INPUT,
+        "data-completeFilteri", // Chunk 1, size 20
+        "ngPhaseAtAggregator-", // Chunk 2, size 20
+        "done" // Chunk 3, the rest
+      )
+    ).inOrder()
+  }
+
+  @Test
+  fun `frequency estimation phase at non-aggregater using calculated result`() =
+    runBlocking<Unit> {
+      // Stage 0. preparing the storage and set up mock
+      val partialToken = FakeComputationDb.newPartialToken(
+        localId = LOCAL_ID,
+        stage = FREQUENCY_ESTIMATION_PHASE.toProtocolStage()
+      ).build()
+      computationStore.writeString(partialToken, "data")
+      fakeComputationDb.addComputation(
+        partialToken.localComputationId,
+        partialToken.computationStage,
+        computationDetails = nonAggregatorComputationDetails,
+        blobs = listOf(
+          newInputBlobMetadata(0L, generatedBlobKeys.last()),
+          newEmptyOutputBlobMetadata(1L)
+        )
+      )
+
+      whenever(mockCryptoWorker.completeFrequencyEstimationPhase(any()))
+        .thenAnswer {
+          val request: CompleteFrequencyEstimationPhaseRequest = it.getArgument(0)
+          val postFix = ByteString.copyFromUtf8("-completeFrequencyEstimationPhase-done")
+          CompleteFrequencyEstimationPhaseResponse.newBuilder()
+            .setSameKeyAggregatorMatrix(request.sameKeyAggregatorMatrix.concat(postFix))
+            .build()
+        }
+
+      // Stage 1. Process the above computation
+      mill.pollAndProcessNextComputation()
+
+      // Stage 2. Check the status of the computation
+      val blobKey = generatedBlobKeys.last()
+      assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+        ComputationToken.newBuilder()
+          .setGlobalComputationId(GLOBAL_ID)
+          .setLocalComputationId(LOCAL_ID)
+          .setAttempt(1)
+          .setComputationStage(COMPLETE.toProtocolStage())
+          .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+          .setComputationDetails(nonAggregatorComputationDetails)
+          .build()
+      )
+      assertThat(computationStore.get(blobKey)?.readToString())
+        .isEqualTo("data-completeFrequencyEstimationPhase-done")
+
+      assertThat(computationControlRequests).containsExactlyElementsIn(
+        buildAdvanceComputationRequests(
+          GLOBAL_ID,
+          FREQUENCY_ESTIMATION_PHASE_INPUT,
+          "data-completeFrequen", // Chunk 1, size 20
+          "cyEstimationPhase-do", // Chunk 1, size 20
+          "ne" // Chunk 3, the rest
+        )
+      ).inOrder()
+    }
+
+  @Test
+  fun `frequency estimation phase at aggregater using calculated result`() = runBlocking<Unit> {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken = FakeComputationDb.newPartialToken(
+      localId = LOCAL_ID,
+      stage = FREQUENCY_ESTIMATION_PHASE.toProtocolStage()
+    ).build()
+    computationStore.writeString(partialToken, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = aggregatorComputationDetails,
+      blobs = listOf(
+        newInputBlobMetadata(0L, generatedBlobKeys.last()),
+        newEmptyOutputBlobMetadata(1L)
+      )
+    )
+
+    whenever(mockCryptoWorker.completeFrequencyEstimationPhaseAtAggregator(any()))
+      .thenReturn(
+        CompleteFrequencyEstimationPhaseAtAggregatorResponse.newBuilder()
+          .putAllFrequencyDistribution(mapOf(1L to 0.3, 2L to 0.7))
+          .build()
+      )
+
+    // Stage 1. Process the above computation
+    mill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    val blobKey = generatedBlobKeys.last()
+    assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
+      ComputationToken.newBuilder()
+        .setGlobalComputationId(GLOBAL_ID)
+        .setLocalComputationId(LOCAL_ID)
+        .setAttempt(1)
+        .setComputationStage(COMPLETE.toProtocolStage())
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setComputationDetails(aggregatorComputationDetails)
+        .build()
+    )
+    assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
+
+    verifyProtoArgument(
+      mockGlobalComputations,
+      GlobalComputationsCoroutineImplBase::finishGlobalComputation
+    )
+      .isEqualTo(
+        FinishGlobalComputationRequest.newBuilder()
+          .setKey(
+            GlobalComputation.Key.newBuilder()
+              .setGlobalComputationId(GLOBAL_ID)
+          )
+          .setResult(
+            GlobalComputation.Result.newBuilder()
+              .putFrequency(1, 0.3)
+              .putFrequency(2, 0.7)
+          )
+          .build()
+      )
   }
 
   companion object {
