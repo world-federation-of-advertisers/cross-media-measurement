@@ -46,6 +46,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -106,6 +107,10 @@ class LiquidLegionsV2Mill(
   requestChunkSizeBytes,
   clock
 ) {
+  override val endingStage: ComputationStage = ComputationStage.newBuilder().apply {
+    liquidLegionsSketchAggregationV2 = Stage.COMPLETE
+  }.build()
+
   private val actions = mapOf(
     Pair(Stage.CONFIRM_REQUISITIONS_PHASE, AGGREGATOR)
       to ::confirmRequisitions,

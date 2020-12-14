@@ -61,8 +61,6 @@ import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -100,6 +98,8 @@ abstract class MillBase(
   private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
   private val clock: Clock = Clock.systemUTC()
 ) {
+  abstract val endingStage: ComputationStage
+
   /**
    * The main function of the mill.
    * Continually poll and work on available computations from the queue.
@@ -145,7 +145,7 @@ abstract class MillBase(
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_MAXIMUM, Runtime.getRuntime().maxMemory())
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_TOTAL, Runtime.getRuntime().totalMemory())
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_FREE, Runtime.getRuntime().freeMemory())
-    val stage = token.computationStage.liquidLegionsSketchAggregationV1
+    val stage = token.computationStage
     val globalId = token.globalComputationId
     logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
 
@@ -382,26 +382,12 @@ abstract class MillBase(
     token: ComputationToken,
     reason: CompletedReason
   ): ComputationToken {
-    val endingStage =
-      ComputationStage.newBuilder().apply {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (computationType) {
-          ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-            liquidLegionsSketchAggregationV1 = LiquidLegionsSketchAggregationV1.Stage.COMPLETED
-          ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-            liquidLegionsSketchAggregationV2 = LiquidLegionsSketchAggregationV2.Stage.COMPLETE
-          ComputationType.UNSPECIFIED, ComputationType.UNRECOGNIZED -> error("invalid protocol")
-        }
-      }.build()
-
     val response = dataClients.computationsClient.finishComputation(
-      FinishComputationRequest.newBuilder()
-        .setToken(token)
-        .setEndingComputationStage(
-          endingStage
-        )
-        .setReason(reason)
-        .build()
+      FinishComputationRequest.newBuilder().also {
+        it.token = token
+        it.endingComputationStage = endingStage
+        it.reason = reason
+      }.build()
     )
     return response.token
   }
@@ -411,9 +397,9 @@ abstract class MillBase(
    */
   private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     return dataClients.computationsClient.getComputationToken(
-      GetComputationTokenRequest.newBuilder().apply {
-        computationType = computationType
-        globalComputationId = globalId
+      GetComputationTokenRequest.newBuilder().also {
+        it.computationType = computationType
+        it.globalComputationId = globalId
       }.build()
     ).token
   }
@@ -421,9 +407,7 @@ abstract class MillBase(
   /**
    * Enqueue a computation with a delay.
    */
-  private suspend fun enqueueComputation(
-    token: ComputationToken
-  ) {
+  private suspend fun enqueueComputation(token: ComputationToken) {
     dataClients.computationsClient.enqueueComputation(
       EnqueueComputationRequest.newBuilder()
         .setToken(token)
@@ -448,7 +432,7 @@ abstract class MillBase(
   private fun wallTimeLogger(): TimeLogger = TimeLogger(System::currentTimeMillis)
 
   companion object {
-    val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val threadBean: ThreadMXBean = ManagementFactory.getThreadMXBean()
   }
 }
