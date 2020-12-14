@@ -80,8 +80,8 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param millId The identifier of this mill, used to claim a work.
  * @param dataClients clients that have access to local computation storage, i.e., spanner
  *    table and blob store.
- * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
+ * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  *    computation table.
@@ -90,10 +90,10 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param clock A clock
 */
 abstract class MillBase(
-  private val millId: String,
-  private val dataClients: ComputationDataClients,
+  protected val millId: String,
+  protected val dataClients: ComputationDataClients,
+  protected val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val metricValuesClient: MetricValuesGrpcKt.MetricValuesCoroutineStub,
-  private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
@@ -182,7 +182,7 @@ abstract class MillBase(
   /**
    * Actual implementation of processComputation().
    */
-  abstract suspend fun processComputationImpl(token: ComputationToken)
+  protected abstract suspend fun processComputationImpl(token: ComputationToken)
 
   /**
    * Returns whether a value exists for the requisition by calling the
@@ -208,7 +208,7 @@ abstract class MillBase(
    * Fetches all requisitions from the MetricValuesService, discards the headers and streams all
    * data payloads as a [Flow]
    */
-  fun streamMetricValueContents(
+  protected fun streamMetricValueContents(
     availableRequisitions: Iterable<RequisitionKey>
   ): Flow<Flow<ByteString>> = flow {
     for (requisitionKey in availableRequisitions) {
@@ -237,7 +237,7 @@ abstract class MillBase(
   /**
    * Writes stage metric to the [Logger] and also sends to the ComputationStatsService.
    */
-  suspend fun logStageMetric(
+  protected suspend fun logStageMetric(
     token: ComputationToken,
     metricName: String,
     metricValue: Long
@@ -292,7 +292,7 @@ abstract class MillBase(
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
-  fun addLoggingHook(
+  protected fun addLoggingHook(
     token: ComputationToken,
     bytes: Flow<ByteString>
   ): Flow<ByteString> {
@@ -309,7 +309,7 @@ abstract class MillBase(
 
   /** Sends an AdvanceComputationRequest to the target duchy. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `merge`.
-  suspend fun sendAdvanceComputationRequest(
+  protected suspend fun sendAdvanceComputationRequest(
     globalId: String,
     content: Flow<ByteString>,
     description: LiquidLegionsV2.Description,
@@ -334,7 +334,7 @@ abstract class MillBase(
   /**
    * Fetches the cached result if available, otherwise compute the new result by executing [block].
    */
-  suspend fun existingOutputOr(
+  protected suspend fun existingOutputOr(
     token: ComputationToken,
     block: suspend () -> ByteString
   ): CachedResult {
@@ -364,20 +364,21 @@ abstract class MillBase(
   /**
    * Reads all input blobs and combines all the bytes together.
    */
-  suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int): ByteString {
-    val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
-    if (blobMap.size != count) {
-      throw PermanentComputationError(
-        Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
-      )
+  protected suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int):
+    ByteString {
+      val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
+      if (blobMap.size != count) {
+        throw PermanentComputationError(
+          Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
+        )
+      }
+      return blobMap.values.flatten()
     }
-    return blobMap.values.flatten()
-  }
 
   /**
    * Completes a computation and records the [CompletedReason]
    */
-  suspend fun completeComputation(
+  protected suspend fun completeComputation(
     token: ComputationToken,
     reason: CompletedReason
   ): ComputationToken {
@@ -436,7 +437,7 @@ abstract class MillBase(
     return cpuTime.toMillis()
   }
 
-  inner class TimeLogger(private val getTimeMillis: () -> Long) {
+  private inner class TimeLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
     suspend fun logStageMetric(token: ComputationToken, metricName: String) {
       val time = getTimeMillis() - start

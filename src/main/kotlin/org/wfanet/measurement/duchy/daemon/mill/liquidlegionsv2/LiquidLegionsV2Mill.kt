@@ -68,62 +68,75 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
+ * @param throttler A throttler used to rate limit the frequency of the mill polling from the
+ *    computation table.
+ * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
+ * @param clock A clock
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
- * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *    computation table.
- * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
- * @param clock A clock
  */
 class LiquidLegionsV2Mill(
-  private val millId: String,
-  private val dataClients: ComputationDataClients,
-  private val metricValuesClient: MetricValuesCoroutineStub,
-  private val globalComputationsClient: GlobalComputationsCoroutineStub,
-  private val computationStatsClient: ComputationStatsCoroutineStub,
+  millId: String,
+  dataClients: ComputationDataClients,
+  metricValuesClient: MetricValuesCoroutineStub,
+  globalComputationsClient: GlobalComputationsCoroutineStub,
+  computationStatsClient: ComputationStatsCoroutineStub,
+  throttler: MinimumIntervalThrottler,
+  requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
+  clock: Clock = Clock.systemUTC(),
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsV2Encryption,
-  private val throttler: MinimumIntervalThrottler,
-  private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
     12.0,
     10_000_000L,
     10
-  ),
-  private val clock: Clock = Clock.systemUTC()
+  )
 ) : MillBase(
   millId,
   dataClients,
-  metricValuesClient,
   globalComputationsClient,
+  metricValuesClient,
   computationStatsClient,
   throttler,
   ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
   requestChunkSizeBytes,
   clock
 ) {
+  private val actions = mapOf(
+    Pair(Stage.CONFIRM_REQUISITIONS_PHASE, AGGREGATOR)
+      to ::confirmRequisitions,
+    Pair(Stage.CONFIRM_REQUISITIONS_PHASE, NON_AGGREGATOR)
+      to ::confirmRequisitions,
+    Pair(Stage.SETUP_PHASE, AGGREGATOR)
+      to ::completeSetupPhaseAtAggregator,
+    Pair(Stage.SETUP_PHASE, NON_AGGREGATOR)
+      to ::completeSetupPhaseAtNonAggregator,
+    Pair(Stage.REACH_ESTIMATION_PHASE, AGGREGATOR)
+      to ::completeReachEstimationPhaseAtAggregator,
+    Pair(Stage.REACH_ESTIMATION_PHASE, NON_AGGREGATOR)
+      to ::completeReachEstimationPhaseAtNonAggregator,
+    Pair(Stage.FILTERING_PHASE, AGGREGATOR)
+      to ::completeFilteringPhaseAtAggregator,
+    Pair(Stage.FILTERING_PHASE, NON_AGGREGATOR)
+      to ::completeFilteringPhaseAtNonAggregator,
+    Pair(Stage.FREQUENCY_ESTIMATION_PHASE, AGGREGATOR)
+      to ::completeFrequencyEstimationPhaseAtAggregator,
+    Pair(Stage.FREQUENCY_ESTIMATION_PHASE, NON_AGGREGATOR)
+      to ::completeFrequencyEstimationPhaseAtNonAggregator
+  )
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasLiquidLegionsV2()) {
       "Only Liquid Legions V2 computation is supported in this mill."
     }
-    when (token.computationStage.liquidLegionsSketchAggregationV2) {
-      Stage.CONFIRM_REQUISITIONS_PHASE ->
-        confirmRequisitions(token)
-      Stage.SETUP_PHASE ->
-        completeSetupPhase(token)
-      Stage.REACH_ESTIMATION_PHASE ->
-        completeReachEstimationPhase(token)
-      Stage.FILTERING_PHASE ->
-        completeFilteringPhase(token)
-      Stage.FREQUENCY_ESTIMATION_PHASE ->
-        completeFrequencyEstimationPhase(token)
-      else -> error("Unexpected stage: $token.computationStage.liquidLegionsSketchAggregationV2")
-    }
+    val stage = token.computationStage.liquidLegionsSketchAggregationV2
+    val role = token.computationDetails.liquidLegionsV2.role
+    val action = actions[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
+    action(token)
   }
 
   /** Process computation in the confirm requisitions phase*/
@@ -165,14 +178,6 @@ class LiquidLegionsV2Mill(
         else ->
           error("Unknown role: ${nextToken.computationDetails.liquidLegionsV2.role}")
       }
-    )
-  }
-
-  /** Processes computation in the setup phase. */
-  private suspend fun completeSetupPhase(token: ComputationToken): ComputationToken {
-    return token.executeByRole(
-      aggregator = ::completeSetupPhaseAtAggregator,
-      nonAggregator = ::completeSetupPhaseAtNonAggregator
     )
   }
 
@@ -237,14 +242,6 @@ class LiquidLegionsV2Mill(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
       stage = Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS.toProtocolStage()
-    )
-  }
-
-  /** Processes computation in the reach estimation phase. */
-  private suspend fun completeReachEstimationPhase(token: ComputationToken): ComputationToken {
-    return token.executeByRole(
-      aggregator = ::completeReachEstimationPhaseAtAggregator,
-      nonAggregator = ::completeReachEstimationPhaseAtNonAggregator
     )
   }
 
@@ -320,14 +317,6 @@ class LiquidLegionsV2Mill(
       )
     }
 
-  /** Processes computation in the filtering phase. */
-  private suspend fun completeFilteringPhase(token: ComputationToken): ComputationToken {
-    return token.executeByRole(
-      aggregator = ::completeFilteringPhaseAtAggregator,
-      nonAggregator = ::completeFilteringPhaseAtNonAggregator
-    )
-  }
-
   private suspend fun completeFilteringPhaseAtAggregator(token: ComputationToken):
     ComputationToken {
       require(AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
@@ -397,14 +386,6 @@ class LiquidLegionsV2Mill(
       )
     }
 
-  /** Processes computation in the frequency estimation phase. */
-  private suspend fun completeFrequencyEstimationPhase(token: ComputationToken): ComputationToken {
-    return token.executeByRole(
-      aggregator = ::completeFrequencyEstimationPhaseAtAggregator,
-      nonAggregator = ::completeFrequencyEstimationPhaseAtNonAggregator
-    )
-  }
-
   private suspend fun completeFrequencyEstimationPhaseAtAggregator(token: ComputationToken):
     ComputationToken {
       require(AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
@@ -469,15 +450,6 @@ class LiquidLegionsV2Mill(
       // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
-
-  private suspend fun ComputationToken.executeByRole(
-    aggregator: suspend (ComputationToken) -> ComputationToken,
-    nonAggregator: suspend (ComputationToken) -> ComputationToken
-  ) = when (val role = checkNotNull(this.computationDetails.liquidLegionsV2.role)) {
-    AGGREGATOR -> aggregator(this)
-    NON_AGGREGATOR -> nonAggregator(this)
-    else -> error("Unknown role: $role")
-  }
 
   private fun nextDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
     val nextDuchy = token.computationDetails.liquidLegionsV2.outgoingNodeId

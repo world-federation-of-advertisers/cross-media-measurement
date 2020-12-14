@@ -66,38 +66,38 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
+ * @param throttler A throttler used to rate limit the frequency of the mill polling from the
+ *    computation table.
+ * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
+ * @param clock A clock
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
- * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *    computation table.
- * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
- * @param clock A clock
  */
 class LiquidLegionsV1Mill(
-  private val millId: String,
-  private val dataClients: ComputationDataClients,
-  private val metricValuesClient: MetricValuesCoroutineStub,
-  private val globalComputationsClient: GlobalComputationsCoroutineStub,
-  private val computationStatsClient: ComputationStatsCoroutineStub,
+  millId: String,
+  dataClients: ComputationDataClients,
+  metricValuesClient: MetricValuesCoroutineStub,
+  globalComputationsClient: GlobalComputationsCoroutineStub,
+  computationStatsClient: ComputationStatsCoroutineStub,
+  throttler: MinimumIntervalThrottler,
+  requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
+  clock: Clock = Clock.systemUTC(),
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsV1Encryption,
-  private val throttler: MinimumIntervalThrottler,
-  private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
     12.0,
     10_000_000L,
     10
-  ),
-  private val clock: Clock = Clock.systemUTC()
+  )
 ) : MillBase(
   millId,
   dataClients,
-  metricValuesClient,
   globalComputationsClient,
+  metricValuesClient,
   computationStatsClient,
   throttler,
   ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
