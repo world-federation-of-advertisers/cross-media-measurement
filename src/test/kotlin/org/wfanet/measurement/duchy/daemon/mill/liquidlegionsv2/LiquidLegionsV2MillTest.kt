@@ -82,6 +82,7 @@ import org.wfanet.measurement.duchy.service.internal.computation.ComputationsSer
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -334,10 +335,7 @@ class LiquidLegionsV2MillTest {
           .setComputationStage(WAIT_SETUP_PHASE_INPUTS.toProtocolStage())
           .addAllBlobs(
             listOf(
-              ComputationStageBlobMetadata.newBuilder()
-                .setDependencyType(ComputationBlobDependency.INPUT)
-                .setBlobId(0)
-                .setPath(blobKey).build(),
+              newPassThroughBlobMetadata(0, blobKey),
               newEmptyOutputBlobMetadata(1),
               newEmptyOutputBlobMetadata(2)
             )
@@ -417,12 +415,7 @@ class LiquidLegionsV2MillTest {
         .setLocalComputationId(LOCAL_ID)
         .setAttempt(1)
         .setComputationStage(WAIT_TO_START.toProtocolStage())
-        .addBlobs(
-          ComputationStageBlobMetadata.newBuilder()
-            .setDependencyType(ComputationBlobDependency.INPUT)
-            .setBlobId(0)
-            .setPath(blobKey)
-        )
+        .addBlobs(newPassThroughBlobMetadata(0, blobKey))
         .setVersion(3) // CreateComputation + write blob + transitionStage
         .setComputationDetails(nonAggregatorComputationDetails)
         .build()

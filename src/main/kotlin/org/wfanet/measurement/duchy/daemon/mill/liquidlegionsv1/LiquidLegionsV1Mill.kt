@@ -166,7 +166,7 @@ class LiquidLegionsV1Mill(
     val nextToken = dataClients.writeSingleOutputBlob(token, concatenatedContents)
     return dataClients.transitionComputationToStage(
       nextToken,
-      inputsToNextStage = nextToken.outputPathList(),
+      passThroughBlobs = nextToken.outputPathList(),
       stage = when (checkNotNull(nextToken.computationDetails.liquidLegionsV1.role)) {
         RoleInComputation.PRIMARY -> Stage.WAIT_SKETCHES.toProtocolStage()
         RoleInComputation.SECONDARY -> Stage.WAIT_TO_START.toProtocolStage()

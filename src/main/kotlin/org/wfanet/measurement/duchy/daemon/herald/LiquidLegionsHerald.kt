@@ -28,9 +28,9 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
+import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.INPUT
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
@@ -212,9 +212,7 @@ class LiquidLegionsHerald(
       WAIT_TO_START -> {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
-          // The inputs of WAIT_TO_START are copies of the sketches stored locally. These are the very
-          // sketches required for the TO_ADD_NOISE step of the computation.
-          inputsToNextStage = token.blobsList.filter { it.dependencyType == INPUT }.map { it.path },
+          inputsToNextStage = token.outputPathList(),
           stage = TO_ADD_NOISE.toProtocolStage(),
           computationProtocolStageDetails = computationProtocolStageDetails
         )

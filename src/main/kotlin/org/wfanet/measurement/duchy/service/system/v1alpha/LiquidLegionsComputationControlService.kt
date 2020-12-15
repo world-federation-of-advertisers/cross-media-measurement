@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.db.computation.toNoisedSketchBlobMetadataFor
+import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -203,7 +204,7 @@ class LiquidLegionsComputationControlService(
       logger.info("[id=$id]: transitioning to $nextStage")
       clients.transitionComputationToStage(
         computationToken = token,
-        inputsToNextStage = token.blobsList.map { it.path }.toList(),
+        inputsToNextStage = token.outputPathList(),
         stage = nextStage.toProtocolStage()
       )
       logger.info("[id=$id]: Saved sketch and transitioned stage to $nextStage.")

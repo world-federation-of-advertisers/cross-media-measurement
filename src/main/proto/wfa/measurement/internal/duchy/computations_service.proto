@@ -103,6 +103,9 @@ message AdvanceComputationStageRequest {
   // Paths to blobs used as input to that new stage.
   repeated string input_blobs = 3;
 
+  // Paths to blobs used as both an input to the stage and an output.
+  repeated string pass_through_blobs = 7;
+
   // Number of outputs expected to be written by the computation stage.
   int32 outputBlobs = 4;
 

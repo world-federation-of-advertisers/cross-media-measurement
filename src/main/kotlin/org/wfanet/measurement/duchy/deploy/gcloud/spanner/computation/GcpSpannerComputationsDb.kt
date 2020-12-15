@@ -251,6 +251,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
     token: ComputationStorageEditToken<ProtocolT, StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
+    passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
     nextStageDetails: StageDT
@@ -279,6 +280,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
           token.localId,
           nextStage,
           inputBlobPaths,
+          passThroughBlobPaths,
           outputBlobs
         )
       )
@@ -476,6 +478,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
     localId: Long,
     stage: StageT,
     blobInputRefs: List<String>,
+    passThroughBlobRefs: List<String>,
     outputBlobs: Int
   ): List<Mutation> {
     val mutations = ArrayList<Mutation>()
@@ -489,11 +492,21 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
       )
     }
 
-    (0 until outputBlobs).mapTo(mutations) { index ->
+    passThroughBlobRefs.mapIndexedTo(mutations) { index, path ->
       computationMutations.insertComputationBlobReference(
         localId = localId,
         stage = stage,
         blobId = index.toLong() + blobInputRefs.size,
+        pathToBlob = path,
+        dependencyType = ComputationBlobDependency.PASS_THROUGH
+      )
+    }
+
+    (0 until outputBlobs).mapTo(mutations) { index ->
+      computationMutations.insertComputationBlobReference(
+        localId = localId,
+        stage = stage,
+        blobId = index.toLong() + blobInputRefs.size + passThroughBlobRefs.size,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
     }

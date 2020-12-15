@@ -47,6 +47,7 @@ import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildConcatenatedSketchRequests
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncryptedFlagsAndCountsRequests
@@ -181,7 +182,7 @@ class LiquidLegionsComputationControlServiceTest {
       partialToken.computationStage,
       computationDetails = primaryComputationDetails,
       blobs = listOf(
-        newInputBlobMetadata(id = 0, key = generatedBlobKeys.last()),
+        newPassThroughBlobMetadata(id = 0, key = generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(id = 1),
         newEmptyOutputBlobMetadata(id = 2)
       ),

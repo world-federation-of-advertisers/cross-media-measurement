@@ -149,6 +149,8 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
    * @param nextStage Stage this computation should transition to.
    * @param inputBlobPaths References to BLOBs that are inputs to this computation stage, all
    *    inputs should be written on transition and should not change.
+   * @param passThroughBlobPaths References to BLOBs that are outputs of this computation stage,
+   *    but were written before the start of the computation stage.
    * @param outputBlobs Number of BLOBs this computation outputs. These are created as
    *    part of the computation so they do not have a reference to the real storage location.
    * @param afterTransition The work to be do with the computation after a successful transition.
@@ -158,6 +160,7 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
     token: ComputationStorageEditToken<ProtocolT, StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
+    passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
     nextStageDetails: StageDetailsT

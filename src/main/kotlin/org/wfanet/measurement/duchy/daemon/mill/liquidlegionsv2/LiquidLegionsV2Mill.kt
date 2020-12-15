@@ -176,7 +176,7 @@ class LiquidLegionsV2Mill(
     val nextToken = dataClients.writeSingleOutputBlob(token, concatenatedContents)
     return dataClients.transitionComputationToStage(
       nextToken,
-      inputsToNextStage = nextToken.outputPathList(),
+      passThroughBlobs = nextToken.outputPathList(),
       stage = when (checkNotNull(nextToken.computationDetails.liquidLegionsV2.role)) {
         AGGREGATOR -> Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
         NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()

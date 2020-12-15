@@ -196,6 +196,7 @@ class ComputationsService(
       request.token.toDatabaseEditToken(),
       request.nextComputationStage,
       request.inputBlobsList,
+      request.passThroughBlobsList,
       request.outputBlobs,
       when (val it = request.afterTransition) {
         AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->

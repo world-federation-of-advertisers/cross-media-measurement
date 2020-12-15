@@ -19,6 +19,7 @@ import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.PASS_THROUGH
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
@@ -66,13 +67,23 @@ fun ComputationToken.toRecordOutputBlobPathResponse(): RecordOutputBlobPathRespo
 
 /** Extract the list of output blob paths from a [ComputationToken]. */
 fun ComputationToken.outputPathList(): List<String> =
-  this.blobsList.filter { it.dependencyType == OUTPUT }.map { it.path }
+  this.blobsList.filter {
+    it.dependencyType == OUTPUT || it.dependencyType == PASS_THROUGH
+  }.map { it.path }
 
 /** Creates a [ComputationStageBlobMetadata] for an input blob. */
 fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
   ComputationStageBlobMetadata.newBuilder().apply {
     blobId = id
     dependencyType = ComputationBlobDependency.INPUT
+    path = key
+  }.build()
+
+/** Creates a [ComputationStageBlobMetadata] for a pass through blob. */
+fun newPassThroughBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
+  ComputationStageBlobMetadata.newBuilder().apply {
+    blobId = id
+    dependencyType = ComputationBlobDependency.PASS_THROUGH
     path = key
   }.build()
 

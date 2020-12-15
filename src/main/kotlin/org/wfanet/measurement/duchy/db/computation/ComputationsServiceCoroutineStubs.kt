@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 suspend fun ComputationsCoroutineStub.advanceComputationStage(
   computationToken: ComputationToken,
   inputsToNextStage: List<String>,
+  passThroughBlobs: List<String> = listOf(),
   stage: ComputationStage,
   computationProtocolStageDetails:
     ComputationProtocolStageDetailsHelper<
@@ -44,23 +45,18 @@ suspend fun ComputationsCoroutineStub.advanceComputationStage(
   require(
     computationProtocolStageDetails.validateRoleForStage(stage, computationToken.computationDetails)
   )
-  requireNotEmpty(inputsToNextStage)
   val request: AdvanceComputationStageRequest =
     AdvanceComputationStageRequest.newBuilder().apply {
       token = computationToken
       nextComputationStage = stage
       addAllInputBlobs(inputsToNextStage)
+      addAllPassThroughBlobs(passThroughBlobs)
       stageDetails = computationProtocolStageDetails.detailsFor(stage)
       afterTransition = computationProtocolStageDetails
         .afterTransitionForStage(stage).toRequestProtoEnum()
       outputBlobs = computationProtocolStageDetails.outputBlobNumbersForStage(stage)
     }.build()
   return this.advanceComputationStage(request).token
-}
-
-private fun requireNotEmpty(paths: List<String>): List<String> {
-  require(paths.isNotEmpty()) { "Passed paths to input blobs is empty" }
-  return paths
 }
 
 private fun AfterTransition.toRequestProtoEnum(): AdvanceComputationStageRequest.AfterTransition {

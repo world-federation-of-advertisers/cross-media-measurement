@@ -25,6 +25,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -156,6 +157,7 @@ class FakeComputationDb private constructor(
     token: ComputationStorageEditToken<ComputationType, ComputationStage>,
     nextStage: ComputationStage,
     inputBlobPaths: List<String>,
+    passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
     nextStageDetails: ComputationStageDetails
@@ -182,11 +184,20 @@ class FakeComputationDb private constructor(
             )
           }
         )
+        // Add input blob metadata to token.
+        addAllBlobs(
+          passThroughBlobPaths.mapIndexed { idx, objectKey ->
+            newPassThroughBlobMetadata(
+              id = idx.toLong() + inputBlobPaths.size,
+              key = objectKey
+            )
+          }
+        )
         // Add output blob metadata to token.
         addAllBlobs(
           (0 until outputBlobs).map { idx ->
             newEmptyOutputBlobMetadata(
-              idx.toLong() + inputBlobPaths.size
+              idx.toLong() + inputBlobPaths.size + passThroughBlobPaths.size
             )
           }
         )

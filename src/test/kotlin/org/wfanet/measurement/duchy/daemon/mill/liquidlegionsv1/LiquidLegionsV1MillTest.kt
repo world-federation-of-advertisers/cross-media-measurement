@@ -79,6 +79,7 @@ import org.wfanet.measurement.duchy.service.internal.computation.ComputationsSer
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildConcatenatedSketchRequests
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncryptedFlagsAndCountsRequests
 import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSketchRequests
@@ -296,10 +297,7 @@ class LiquidLegionsV1MillTest {
           .setComputationStage(LiquidLegionsStage.WAIT_SKETCHES.toProtocolStage())
           .addAllBlobs(
             listOf(
-              ComputationStageBlobMetadata.newBuilder()
-                .setDependencyType(ComputationBlobDependency.INPUT)
-                .setBlobId(0)
-                .setPath(blobKey).build(),
+              newPassThroughBlobMetadata(0, blobKey),
               newEmptyOutputBlobMetadata(1),
               newEmptyOutputBlobMetadata(2)
             )
@@ -379,12 +377,7 @@ class LiquidLegionsV1MillTest {
         .setLocalComputationId(LOCAL_ID)
         .setAttempt(1)
         .setComputationStage(LiquidLegionsStage.WAIT_TO_START.toProtocolStage())
-        .addBlobs(
-          ComputationStageBlobMetadata.newBuilder()
-            .setDependencyType(ComputationBlobDependency.INPUT)
-            .setBlobId(0)
-            .setPath(blobKey)
-        )
+        .addBlobs(newPassThroughBlobMetadata(0, blobKey))
         .setVersion(3) // CreateComputation + write blob + transitionStage
         .setComputationDetails(secondComputationDetails)
         .build()

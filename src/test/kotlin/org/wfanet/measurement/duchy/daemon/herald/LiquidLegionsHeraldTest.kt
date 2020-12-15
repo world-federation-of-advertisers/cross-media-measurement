@@ -37,6 +37,7 @@ import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -173,7 +174,7 @@ internal class LiquidLegionsHeraldTest {
       stage = WAIT_TO_START.toProtocolStage(),
       computationDetails = secondComputationDetails,
       blobs = listOf(
-        newInputBlobMetadata(0L, "local-copy-of-sketches")
+        newPassThroughBlobMetadata(0L, "local-copy-of-sketches")
       )
     )
 
@@ -227,7 +228,7 @@ internal class LiquidLegionsHeraldTest {
       globalId = computation.globalId,
       stage = WAIT_TO_START.toProtocolStage(),
       computationDetails = secondComputationDetails,
-      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
     // Wait for the background retry to fix the state.

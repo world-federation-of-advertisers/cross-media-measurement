@@ -53,15 +53,17 @@ class ComputationDataClients private constructor(
    */
   suspend fun transitionComputationToStage(
     computationToken: ComputationToken,
-    inputsToNextStage: List<String>,
+    inputsToNextStage: List<String> = listOf(),
+    passThroughBlobs: List<String> = listOf(),
     stage: ComputationStage
   ): ComputationToken =
     computationsClient
       .advanceComputationStage(
-        computationToken,
-        inputsToNextStage,
-        stage,
-        computationProtocolStageDetails
+        computationToken = computationToken,
+        inputsToNextStage = inputsToNextStage,
+        passThroughBlobs = passThroughBlobs,
+        stage = stage,
+        computationProtocolStageDetails = computationProtocolStageDetails
       )
 
   /**
@@ -193,7 +195,19 @@ class ComputationDataClients private constructor(
  * case the path will be empty.
  */
 fun ComputationToken.singleOutputBlobMetadata(): ComputationStageBlobMetadata =
-  blobsList.single { it.dependencyType == ComputationBlobDependency.OUTPUT }
+  allOutputBlobMetadataList().single()
+
+/**
+ * Returns all [ComputationStageBlobMetadata]s which are of type output from a token.
+ *
+ * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
+ * case the path will be empty.
+ */
+fun ComputationToken.allOutputBlobMetadataList(): List<ComputationStageBlobMetadata> =
+  blobsList.filter {
+    it.dependencyType == ComputationBlobDependency.OUTPUT ||
+      it.dependencyType == ComputationBlobDependency.PASS_THROUGH
+  }
 
 /**
  * Returns the [ComputationStageBlobMetadata] for the output blob that should hold data sent by

@@ -26,6 +26,10 @@ enum ComputationBlobDependency {
   // BLOB is used as an input to the computation stage.
   INPUT = 1;
 
-  // BLOB is an output of the computation stage. */
+  // BLOB is an output of the computation stage.
   OUTPUT = 2;
+
+  // BLOB is an output to the computation stage, but was written
+  // before the computation stage began.
+  PASS_THROUGH = 3;
 }

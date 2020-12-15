@@ -273,7 +273,10 @@ class SingleLiquidLegionsComputation(
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed
     // they will be fetched.
     val inputsToCurrentStage = token.blobsList.ofType(ComputationBlobDependency.INPUT)
-    val outputsToCurrentStage = token.blobsList.ofType(ComputationBlobDependency.OUTPUT)
+    val outputsToCurrentStage = (
+      token.blobsList.ofType(ComputationBlobDependency.OUTPUT) +
+        token.blobsList.ofType(ComputationBlobDependency.PASS_THROUGH)
+      )
     val result = run(ComputationStep(token, inputsToCurrentStage, outputsToCurrentStage))
     ProtoTruth.assertThat(result)
       .isEqualTo(expected.toBuilder().setVersion(token.version + 1).build())
@@ -339,9 +342,9 @@ class SingleLiquidLegionsComputation(
             ).setAttempt(0).build()
         ) {
           dataClients.transitionComputationToStage(
-            it.token,
-            it.inputs.paths() + it.outputs.paths(),
-            TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+            computationToken = it.token,
+            inputsToNextStage = it.inputs.paths() + it.outputs.paths(),
+            stage = TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
           )
         }
       }
@@ -365,9 +368,9 @@ class SingleLiquidLegionsComputation(
           .build()
       ) {
         dataClients.transitionComputationToStage(
-          it.token,
-          it.outputs.paths(),
-          stage.toProtocolStage()
+          computationToken = it.token,
+          inputsToNextStage = it.outputs.paths(),
+          stage = stage.toProtocolStage()
         )
       }
     }
@@ -388,9 +391,9 @@ class SingleLiquidLegionsComputation(
           .setComputationStage(stage.toProtocolStage()).setAttempt(0).build()
       ) {
         dataClients.transitionComputationToStage(
-          it.token,
-          it.outputs.paths(),
-          stage.toProtocolStage()
+          computationToken = it.token,
+          inputsToNextStage = it.outputs.paths(),
+          stage = stage.toProtocolStage()
         )
       }
     }
@@ -408,7 +411,9 @@ class SingleLiquidLegionsComputation(
         .build()
     ) {
       dataClients.transitionComputationToStage(
-        it.token, it.outputs.paths(), WAIT_SKETCHES.toProtocolStage()
+        computationToken = it.token,
+        inputsToNextStage = it.outputs.paths(),
+        stage = WAIT_SKETCHES.toProtocolStage()
       )
     }
   }
@@ -423,7 +428,9 @@ class SingleLiquidLegionsComputation(
         .build()
     ) {
       dataClients.transitionComputationToStage(
-        it.token, it.inputs.paths(), TO_ADD_NOISE.toProtocolStage()
+        computationToken = it.token,
+        inputsToNextStage = it.inputs.paths(),
+        stage = TO_ADD_NOISE.toProtocolStage()
       )
     }
   }
@@ -438,7 +445,9 @@ class SingleLiquidLegionsComputation(
         .build()
     ) {
       dataClients.transitionComputationToStage(
-        it.token, it.outputs.paths(), stage.toProtocolStage()
+        computationToken = it.token,
+        inputsToNextStage = it.outputs.paths(),
+        stage = stage.toProtocolStage()
       )
     }
   }

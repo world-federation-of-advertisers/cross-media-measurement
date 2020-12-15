@@ -719,6 +719,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
       token = token,
       nextStage = D,
       inputBlobPaths = listOf(),
+      passThroughBlobPaths = listOf(),
       outputBlobs = 0,
       afterTransition = afterTransition,
       nextStageDetails = computationMutations.detailsFor(D)
@@ -917,6 +918,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         token = token,
         nextStage = D,
         inputBlobPaths = listOf(),
+        passThroughBlobPaths = listOf(),
         outputBlobs = 0,
         afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE,
         nextStageDetails = computationMutations.detailsFor(D)
