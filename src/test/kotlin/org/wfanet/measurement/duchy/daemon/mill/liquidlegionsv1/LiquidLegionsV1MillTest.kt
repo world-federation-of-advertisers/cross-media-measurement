@@ -80,9 +80,6 @@ import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputB
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
-import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildConcatenatedSketchRequests
-import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildEncryptedFlagsAndCountsRequests
-import org.wfanet.measurement.duchy.service.system.v1alpha.testing.buildNoisedSketchRequests
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -103,6 +100,8 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage as
 import org.wfanet.measurement.protocol.RequisitionKey
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
+import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
+import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
@@ -114,17 +113,12 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.Error
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV1
 import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
-import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchRequest
-import org.wfanet.measurement.system.v1alpha.ProcessConcatenatedSketchResponse
-import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsRequest
-import org.wfanet.measurement.system.v1alpha.ProcessEncryptedFlagsAndCountsResponse
-import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchRequest
-import org.wfanet.measurement.system.v1alpha.ProcessNoisedSketchResponse
 
 @RunWith(JUnit4::class)
 class LiquidLegionsV1MillTest {
-  private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
+  private val mockComputationControl: ComputationControlCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockMetricValues: MetricValuesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -186,7 +180,7 @@ class LiquidLegionsV1MillTest {
       computationStore,
       otherDuchyNames
     )
-    addService(mockLiquidLegionsComputationControl)
+    addService(mockComputationControl)
     addService(mockMetricValues)
     addService(mockGlobalComputations)
     addService(mockComputationStats)
@@ -218,6 +212,16 @@ class LiquidLegionsV1MillTest {
 
   private val metricValuesStub: MetricValuesCoroutineStub by lazy {
     MetricValuesCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  lateinit var computationControlRequests: List<AdvanceComputationRequest>
+  @Before
+  fun mockComputationControlServiceToCaptureRequests() = runBlocking<Unit> {
+    whenever(mockComputationControl.advanceComputation(any())).thenAnswer {
+      val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
+      computationControlRequests = runBlocking { request.toList() }
+      AdvanceComputationResponse.getDefaultInstance()
+    }
   }
 
   // Just use the same workerStub for all other duchies, since it is not relevant to this test.
@@ -531,12 +535,6 @@ class LiquidLegionsV1MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<ProcessNoisedSketchRequest>
-    whenever(mockLiquidLegionsComputationControl.processNoisedSketch(any())).thenAnswer {
-      val request: Flow<ProcessNoisedSketchRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      ProcessNoisedSketchResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.addNoiseToSketch(any()))
       .thenAnswer {
         val request: AddNoiseToSketchRequest = it.getArgument(0)
@@ -573,15 +571,14 @@ class LiquidLegionsV1MillTest {
     assertThat(computationStore.get(blobKey)?.readToString()).isEqualTo("sketch-AddedNoise")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
-      buildNoisedSketchRequests(
-        GLOBAL_ID,
-        "sketch-AddedNoise"
-      ).asIterable()
+      LiquidLegionsV1.Description.NOISED_SKETCH
+        .toAdvanceComputationHeader()
+        .withContent("sketch-AddedNoise")
     ).inOrder()
   }
 
   @Test
-  fun `to append sketches any add noise using calculated result`() = runBlocking<Unit> {
+  fun `to append sketches and add noise using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -602,12 +599,6 @@ class LiquidLegionsV1MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<ProcessConcatenatedSketchRequest>
-    whenever(mockLiquidLegionsComputationControl.processConcatenatedSketch(any())).thenAnswer {
-      val request: Flow<ProcessConcatenatedSketchRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      ProcessConcatenatedSketchResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.addNoiseToSketch(any()))
       .thenAnswer {
         val request: AddNoiseToSketchRequest = it.getArgument(0)
@@ -645,11 +636,9 @@ class LiquidLegionsV1MillTest {
       .isEqualTo("sketch_1_sketch_2_sketch_3_-AddedNoise")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
-      buildConcatenatedSketchRequests(
-        GLOBAL_ID,
-        "sketch_1_sketch_2_sk",
-        "etch_3_-AddedNoise"
-      ).asIterable()
+      LiquidLegionsV1.Description.CONCATENATED_SKETCH
+        .toAdvanceComputationHeader()
+        .withContent("sketch_1_sketch_2_sk", "etch_3_-AddedNoise")
     ).inOrder()
   }
 
@@ -671,13 +660,6 @@ class LiquidLegionsV1MillTest {
         newOutputBlobMetadata(1L, generatedBlobKeys[1])
       )
     )
-
-    lateinit var computationControlRequests: List<ProcessConcatenatedSketchRequest>
-    whenever(mockLiquidLegionsComputationControl.processConcatenatedSketch(any())).thenAnswer {
-      val request: Flow<ProcessConcatenatedSketchRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      ProcessConcatenatedSketchResponse.getDefaultInstance()
-    }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -706,10 +688,9 @@ class LiquidLegionsV1MillTest {
     )
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
-      buildConcatenatedSketchRequests(
-        GLOBAL_ID,
-        "cached result"
-      ).asIterable()
+      LiquidLegionsV1.Description.CONCATENATED_SKETCH
+        .toAdvanceComputationHeader()
+        .withContent("cached result")
     ).inOrder()
   }
 
@@ -731,12 +712,6 @@ class LiquidLegionsV1MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<ProcessConcatenatedSketchRequest>
-    whenever(mockLiquidLegionsComputationControl.processConcatenatedSketch(any())).thenAnswer {
-      val request: Flow<ProcessConcatenatedSketchRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      ProcessConcatenatedSketchResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.blindOneLayerRegisterIndex(any()))
       .thenAnswer {
         val request: BlindOneLayerRegisterIndexRequest = it.getArgument(0)
@@ -775,11 +750,12 @@ class LiquidLegionsV1MillTest {
       .isEqualTo("sketch-BlindedOneLayerRegisterIndex")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
-      buildConcatenatedSketchRequests(
-        GLOBAL_ID,
-        "sketch-BlindedOneLay", // Chunk 1, size 20
-        "erRegisterIndex" // Chunk 2, the rest
-      ).asIterable()
+      LiquidLegionsV1.Description.CONCATENATED_SKETCH
+        .toAdvanceComputationHeader()
+        .withContent(
+          "sketch-BlindedOneLay", // Chunk 1, size 20
+          "erRegisterIndex" // Chunk 2, the rest
+        )
     ).inOrder()
   }
 
@@ -801,12 +777,6 @@ class LiquidLegionsV1MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<ProcessEncryptedFlagsAndCountsRequest>
-    whenever(mockLiquidLegionsComputationControl.processEncryptedFlagsAndCounts(any())).thenAnswer {
-      val request: Flow<ProcessEncryptedFlagsAndCountsRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      ProcessEncryptedFlagsAndCountsResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.blindLastLayerIndexThenJoinRegisters(any()))
       .thenAnswer {
         val request: BlindLastLayerIndexThenJoinRegistersRequest = it.getArgument(0)
@@ -845,12 +815,13 @@ class LiquidLegionsV1MillTest {
       .isEqualTo("data-BlindedLastLayerIndexThenJoinRegisters")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
-      buildEncryptedFlagsAndCountsRequests(
-        GLOBAL_ID,
-        "data-BlindedLastLaye", // Chunk 1, size 20
-        "rIndexThenJoinRegist", // Chunk 2, size 20
-        "ers" // Chunk 3, the rest
-      ).asIterable()
+      LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS
+        .toAdvanceComputationHeader()
+        .withContent(
+          "data-BlindedLastLaye", // Chunk 1, size 20
+          "rIndexThenJoinRegist", // Chunk 2, size 20
+          "ers" // Chunk 3, the rest
+        )
     ).inOrder()
   }
 
@@ -872,12 +843,6 @@ class LiquidLegionsV1MillTest {
       )
     )
 
-    lateinit var computationControlRequests: List<ProcessEncryptedFlagsAndCountsRequest>
-    whenever(mockLiquidLegionsComputationControl.processEncryptedFlagsAndCounts(any())).thenAnswer {
-      val request: Flow<ProcessEncryptedFlagsAndCountsRequest> = it.getArgument(0)
-      computationControlRequests = runBlocking { request.toList() }
-      ProcessEncryptedFlagsAndCountsResponse.getDefaultInstance()
-    }
     whenever(mockCryptoWorker.decryptOneLayerFlagAndCount(any()))
       .thenAnswer {
         val request: DecryptOneLayerFlagAndCountRequest = it.getArgument(0)
@@ -906,11 +871,12 @@ class LiquidLegionsV1MillTest {
       .isEqualTo("data-DecryptedOneLayerFlagAndCount")
 
     assertThat(computationControlRequests).containsExactlyElementsIn(
-      buildEncryptedFlagsAndCountsRequests(
-        GLOBAL_ID,
-        "data-DecryptedOneLay", // Chunk 1, size 20
-        "erFlagAndCount" // Chunk 2, the rest
-      ).asIterable()
+      LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS
+        .toAdvanceComputationHeader()
+        .withContent(
+          "data-DecryptedOneLay", // Chunk 1, size 20
+          "erFlagAndCount" // Chunk 2, the rest
+        ).asIterable()
     ).inOrder()
   }
 
@@ -1071,7 +1037,7 @@ class LiquidLegionsV1MillTest {
       )
     )
 
-    whenever(mockLiquidLegionsComputationControl.processConcatenatedSketch(any()))
+    whenever(mockComputationControl.advanceComputation(any()))
       .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
     whenever(mockCryptoWorker.blindOneLayerRegisterIndex(any()))
       .thenAnswer {
@@ -1147,6 +1113,28 @@ class LiquidLegionsV1MillTest {
     }
   }
 
+  private fun LiquidLegionsV1.Description.toAdvanceComputationHeader():
+    AdvanceComputationRequest.Header =
+      AdvanceComputationRequest.Header.newBuilder().apply {
+        keyBuilder.globalComputationId = GLOBAL_ID
+        liquidLegionsV1Builder.description = this@toAdvanceComputationHeader
+      }.build()
+
+  private fun AdvanceComputationRequest.Header.withContent(
+    vararg bodyContent: String
+  ): Iterable<AdvanceComputationRequest> {
+    return (
+      sequenceOf(AdvanceComputationRequest.newBuilder().setHeader(this@withContent).build()) +
+        bodyContent.asSequence().map {
+          AdvanceComputationRequest.newBuilder().apply {
+            bodyChunkBuilder.apply {
+              partialData = ByteString.copyFromUtf8(it)
+            }
+          }.build()
+        }
+      ).asIterable()
+  }
+
   companion object {
     private const val MILL_ID = "a nice mill"
     private const val DUCHY_NAME = "THIS_WORKER"
@@ -1171,7 +1159,7 @@ class LiquidLegionsV1MillTest {
     private const val CLIENT_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
-    private const val CURVE_ID = 415; // NID_X9_62_prime256v1
+    private const val CURVE_ID = 415 // NID_X9_62_prime256v1
 
     private val cryptoKeySet =
       CryptoKeySet(

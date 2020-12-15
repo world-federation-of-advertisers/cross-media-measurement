@@ -46,7 +46,7 @@ class ComputationControlService(
         val header = consumed.item.header
         val id = header.key.globalComputationId
         logger.info("[id=$id]: Received request with header $header")
-        grpcRequire(id.isNotEmpty()) { "Missing computation ID" }
+        grpcRequire(id.isNotEmpty()) { "Cannot advance computation, missing computation ID" }
         grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
         if (header.isForAsyncComputation()) {
           handleAsyncRequest(header, consumed.remaining.map { it.bodyChunk.partialData }, id)

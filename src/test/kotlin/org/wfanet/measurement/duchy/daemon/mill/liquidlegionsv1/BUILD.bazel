@@ -13,7 +13,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",

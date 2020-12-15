@@ -30,9 +30,9 @@ import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.flatten
@@ -69,7 +69,6 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.PERMANENT
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.TRANSIENT
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 
 /**
@@ -308,27 +307,18 @@ abstract class MillBase(
   }
 
   /** Sends an AdvanceComputationRequest to the target duchy. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `merge`.
+  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   protected suspend fun sendAdvanceComputationRequest(
-    globalId: String,
+    header: AdvanceComputationRequest.Header,
     content: Flow<ByteString>,
-    description: LiquidLegionsV2.Description,
     stub: ComputationControlCoroutineStub
   ) {
-    val head = flowOf(
-      AdvanceComputationRequest.newBuilder().apply {
-        headerBuilder.apply {
-          keyBuilder.globalComputationId = globalId
-          liquidLegionsV2Builder.description = description
-        }
-      }.build()
-    )
-    val body = content.asBufferedFlow(requestChunkSizeBytes).map {
+    val requestFlow = content.asBufferedFlow(requestChunkSizeBytes).map {
       AdvanceComputationRequest.newBuilder().apply {
         bodyChunkBuilder.partialData = it
       }.build()
-    }
-    stub.advanceComputation(merge(head, body))
+    }.onStart { emit(AdvanceComputationRequest.newBuilder().setHeader(header).build()) }
+    stub.advanceComputation(requestFlow)
   }
 
   /**

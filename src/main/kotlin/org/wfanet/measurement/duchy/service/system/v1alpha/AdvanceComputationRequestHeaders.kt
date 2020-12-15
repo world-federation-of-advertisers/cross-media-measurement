@@ -63,3 +63,23 @@ private fun LiquidLegionsV2.stageExpectingInput(): ComputationStage =
       LiquidLegionsSketchAggregationV2.Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS
     else -> failGrpc { "Unknown LiquidLegionsV2 payload description '$description'." }
   }.toProtocolStage()
+
+/** Creates an [AdvanceComputationRequest.Header] for a liquid legions v1 computation. */
+fun advanceComputationHeader(
+  liquidLegionsV1ContentDescription: LiquidLegionsV1.Description,
+  globalComputationId: String
+): AdvanceComputationRequest.Header =
+  AdvanceComputationRequest.Header.newBuilder().apply {
+    keyBuilder.globalComputationId = globalComputationId
+    liquidLegionsV1Builder.description = liquidLegionsV1ContentDescription
+  }.build()
+
+/** Creates an [AdvanceComputationRequest.Header] for a liquid legions v2 computation. */
+fun advanceComputationHeader(
+  liquidLegionsV2ContentDescription: LiquidLegionsV2.Description,
+  globalComputationId: String
+): AdvanceComputationRequest.Header =
+  AdvanceComputationRequest.Header.newBuilder().apply {
+    keyBuilder.globalComputationId = globalComputationId
+    liquidLegionsV2Builder.description = liquidLegionsV2ContentDescription
+  }.build()

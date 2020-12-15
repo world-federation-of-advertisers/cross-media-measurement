@@ -51,7 +51,7 @@ class ComputationStore private constructor(
    */
   suspend fun write(token: ComputationToken, content: Flow<ByteString>): Blob {
     val blobKey = token.generateBlobKey()
-    val createdBlob = storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
+    val createdBlob = storageClient.createBlob(blobKey, content)
     return Blob(blobKey, createdBlob)
   }
 
@@ -64,7 +64,7 @@ class ComputationStore private constructor(
    * `null` if the computation isn't found.
    */
   fun get(blobKey: String): Blob? {
-    return storageClient.getBlob(blobKey.withBlobKeyPrefix())?.let {
+    return storageClient.getBlob(blobKey)?.let {
       Blob(blobKey, it)
     }
   }
@@ -86,13 +86,10 @@ class ComputationStore private constructor(
 /** Returns a unique blob key derived from this [ComputationToken]. */
 private fun ComputationToken.generateUniqueBlobKey(): String {
   return listOf(
+    "/computations",
     localComputationId,
     computationStage.name,
     version,
     UUID.randomUUID().toString()
   ).joinToString("/")
-}
-
-private fun String.withBlobKeyPrefix(): String {
-  return "/$BLOB_KEY_PREFIX/$this"
 }

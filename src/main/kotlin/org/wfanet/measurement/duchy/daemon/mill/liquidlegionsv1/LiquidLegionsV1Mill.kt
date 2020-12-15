@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1
 
-import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flattenConcat
 import org.wfanet.estimation.Estimators
 import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
@@ -43,7 +41,7 @@ import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
-import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlRequests
+import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -57,6 +55,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.LiquidLegionsV1
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -105,7 +104,6 @@ class LiquidLegionsV1Mill(
   requestChunkSizeBytes,
   clock
 ) {
-  private val controlRequests = ComputationControlRequests(requestChunkSizeBytes)
 
   override val endingStage: ComputationStage = ComputationStage.newBuilder().apply {
     liquidLegionsSketchAggregationV1 = Stage.COMPLETED
@@ -198,8 +196,24 @@ class LiquidLegionsV1Mill(
     }
 
     when (token.computationDetails.liquidLegionsV1.role) {
-      RoleInComputation.PRIMARY -> sendConcatenatedSketch(nextToken, bytes)
-      RoleInComputation.SECONDARY -> sendNoisedSketch(nextToken, bytes)
+      RoleInComputation.PRIMARY ->
+        sendAdvanceComputationRequest(
+          header = advanceComputationHeader(
+            LiquidLegionsV1.Description.CONCATENATED_SKETCH,
+            token.globalComputationId
+          ),
+          content = addLoggingHook(token, bytes),
+          stub = nextDuchyStub(token)
+        )
+      RoleInComputation.SECONDARY ->
+        sendAdvanceComputationRequest(
+          header = advanceComputationHeader(
+            LiquidLegionsV1.Description.NOISED_SKETCH,
+            token.globalComputationId
+          ),
+          content = addLoggingHook(token, bytes),
+          stub = primaryDuchyStub(token)
+        )
       else -> error("Unknown role: ${token.computationDetails.liquidLegionsV1.role}")
     }
 
@@ -208,35 +222,6 @@ class LiquidLegionsV1Mill(
       inputsToNextStage = nextToken.outputPathList(),
       stage = Stage.WAIT_CONCATENATED.toProtocolStage()
     )
-  }
-
-  /** Sends the merged sketch to the next duchy to start MPC round 1. */
-  private suspend fun sendConcatenatedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
-    val requests =
-      controlRequests.buildConcatenatedSketchRequests(
-        token.globalComputationId, addLoggingHook(token, bytes)
-      )
-    nextDuchyStub(token).processConcatenatedSketch(requests)
-  }
-
-  /** Sends the noised sketch to the primary duchy. */
-  private suspend fun sendNoisedSketch(token: ComputationToken, bytes: Flow<ByteString>) {
-    val requests = controlRequests.buildNoisedSketchRequests(
-      token.globalComputationId, addLoggingHook(token, bytes)
-    )
-    primaryDuchyStub(token).processNoisedSketch(requests)
-  }
-
-  /** Sends the encrypted flags and counts to the next Duchy. */
-  private suspend fun sendEncryptedFlagsAndCounts(
-    token: ComputationToken,
-    bytes: Flow<ByteString>
-  ) {
-    val requests =
-      controlRequests.buildEncryptedFlagsAndCountsRequests(
-        token.globalComputationId, addLoggingHook(token, bytes)
-      )
-    nextDuchyStub(token).processEncryptedFlagsAndCounts(requests)
   }
 
   /** Processes computation in the TO_BLIND_POSITIONS stage */
@@ -256,7 +241,14 @@ class LiquidLegionsV1Mill(
     }
 
     // Passes the computation to the next duchy.
-    sendConcatenatedSketch(nextToken, bytes)
+    sendAdvanceComputationRequest(
+      header = advanceComputationHeader(
+        LiquidLegionsV1.Description.CONCATENATED_SKETCH,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
+    )
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -282,7 +274,14 @@ class LiquidLegionsV1Mill(
     }
 
     // Passes the computation to the next duchy.
-    sendEncryptedFlagsAndCounts(nextToken, bytes)
+    sendAdvanceComputationRequest(
+      header = advanceComputationHeader(
+        LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
+    )
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -310,7 +309,14 @@ class LiquidLegionsV1Mill(
     }
 
     // Passes the computation to the next duchy.
-    sendEncryptedFlagsAndCounts(nextToken, bytes)
+    sendAdvanceComputationRequest(
+      header = advanceComputationHeader(
+        LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
+    )
 
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)

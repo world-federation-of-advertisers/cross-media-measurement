@@ -44,6 +44,7 @@ import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
+import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -205,10 +206,12 @@ class LiquidLegionsV2Mill(
     }
 
     sendAdvanceComputationRequest(
-      token.globalComputationId,
-      bytes,
-      LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT,
-      nextDuchyStub(token)
+      header = advanceComputationHeader(
+        LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
     )
 
     return dataClients.transitionComputationToStage(
@@ -237,10 +240,12 @@ class LiquidLegionsV2Mill(
     }
 
     sendAdvanceComputationRequest(
-      token.globalComputationId,
-      bytes,
-      LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-      aggregatorDuchyStub(token)
+      header = advanceComputationHeader(
+        LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = aggregatorDuchyStub(token)
     )
 
     return dataClients.transitionComputationToStage(
@@ -275,10 +280,12 @@ class LiquidLegionsV2Mill(
 
       // Passes the computation to the next duchy.
       sendAdvanceComputationRequest(
-        token.globalComputationId,
-        bytes,
-        LiquidLegionsV2.Description.FILTERING_PHASE_INPUT,
-        nextDuchyStub(token)
+        header = advanceComputationHeader(
+          LiquidLegionsV2.Description.FILTERING_PHASE_INPUT,
+          token.globalComputationId
+        ),
+        content = addLoggingHook(token, bytes),
+        stub = nextDuchyStub(token)
       )
 
       return dataClients.transitionComputationToStage(
@@ -310,10 +317,12 @@ class LiquidLegionsV2Mill(
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      token.globalComputationId,
-      bytes,
-      LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT,
-      nextDuchyStub(token)
+      header = advanceComputationHeader(
+        LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
     )
 
     return dataClients.transitionComputationToStage(
@@ -346,10 +355,12 @@ class LiquidLegionsV2Mill(
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      token.globalComputationId,
-      bytes,
-      LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT,
-      nextDuchyStub(token)
+      header = advanceComputationHeader(
+        LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
     )
 
     return dataClients.transitionComputationToStage(
@@ -381,10 +392,12 @@ class LiquidLegionsV2Mill(
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      token.globalComputationId,
-      bytes,
-      LiquidLegionsV2.Description.FILTERING_PHASE_INPUT,
-      nextDuchyStub(token)
+      header = advanceComputationHeader(
+        LiquidLegionsV2.Description.FILTERING_PHASE_INPUT,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
     )
 
     return dataClients.transitionComputationToStage(
@@ -451,10 +464,12 @@ class LiquidLegionsV2Mill(
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      token.globalComputationId,
-      bytes,
-      LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT,
-      nextDuchyStub(token)
+      header = advanceComputationHeader(
+        LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT,
+        token.globalComputationId
+      ),
+      content = addLoggingHook(token, bytes),
+      stub = nextDuchyStub(token)
     )
 
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.

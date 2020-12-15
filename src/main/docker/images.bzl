@@ -18,6 +18,11 @@
 # These are common to both local execution (e.g. in Kind) as well as on GKE.
 COMMON_IMAGES = [
     struct(
+        name = "duchy_async_computation_control_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:async_computation_control_server_image",
+        repository = "ads-open-measurement/duchy/async-computation-control",
+    ),
+    struct(
         name = "duchy_liquid_legions_herald_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:liquid_legions_herald_daemon_image",
         repository = "ads-open-measurement/duchy/liquid-legions-v1-herald",
@@ -83,9 +88,9 @@ COMMON_IMAGES = [
 # These are only used on GKE.
 GKE_IMAGES = [
     struct(
-        name = "duchy_liquid_legions_computation_control_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_liquid_legions_computation_control_server_image",
-        repository = "ads-open-measurement/duchy/liquid-legions-v1-computation-control",
+        name = "duchy_computation_control_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
+        repository = "ads-open-measurement/duchy/computation-control",
     ),
     struct(
         name = "gcs_correctness_test_runner_image",
@@ -106,8 +111,8 @@ LOCAL_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv1:forwarded_storage_liquid_legions_v1_mill_daemon_image",
     ),
     struct(
-        name = "forwarded_storage_liquid_legions_computation_control_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_liquid_legions_computation_control_server_image",
+        name = "forwarded_storage_computation_control_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image",
     ),
     struct(
         name = "spanner_forwarded_storage_server_image",

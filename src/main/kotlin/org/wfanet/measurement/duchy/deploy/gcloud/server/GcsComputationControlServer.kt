@@ -15,24 +15,23 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.duchy.deploy.common.server.LiquidLegionsComputationControlServer
+import org.wfanet.measurement.duchy.deploy.common.server.ComputationControlServer
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 /**
- * Implementation of [LiquidLegionsComputationControlServer] using Google Cloud
- * Storage (GCS).
+ * Implementation of [ComputationControlServer] using Google Cloud Storage (GCS).
  */
 @CommandLine.Command(
-  name = "GcsLiquidLegionsComputationControlServer",
+  name = "GcsComputationControlServer",
   description = [
-    "Server daemon for ${LiquidLegionsComputationControlServer.SERVICE_NAME} service."
+    "Server daemon for ${ComputationControlServer.SERVICE_NAME} service."
   ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class GcsLiquidLegionsComputationControlServer : LiquidLegionsComputationControlServer() {
+class GcsComputationControlServer : ComputationControlServer() {
   @CommandLine.Mixin
   private lateinit var gcsFlags: GcsFromFlags.Flags
 
@@ -43,4 +42,4 @@ class GcsLiquidLegionsComputationControlServer : LiquidLegionsComputationControl
 }
 
 fun main(args: Array<String>) =
-  commandLineMain(GcsLiquidLegionsComputationControlServer(), args)
+  commandLineMain(GcsComputationControlServer(), args)

@@ -19,17 +19,15 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
-import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
-import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
+import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
-abstract class LiquidLegionsComputationControlServer : Runnable {
+abstract class ComputationControlServer : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: Flags
     private set
@@ -47,18 +45,14 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
     DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
     require(latestDuchyPublicKeys.keys.toSet() == DuchyIds.ALL)
 
-    val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
-    val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
+    val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
 
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
-      LiquidLegionsComputationControlService(
-        ComputationDataClients(
-          ComputationsCoroutineStub(channel).withDuchyId(duchyName),
-          storageClient,
-          otherDuchyNames
-        )
+      ComputationControlService(
+        AsyncComputationControlCoroutineStub(channel),
+        storageClient
       ).withDuchyIdentities()
     ).start().blockUntilShutdown()
   }
@@ -77,11 +71,11 @@ abstract class LiquidLegionsComputationControlServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--computations-service-target"],
-      description = ["Address and port of the Computations service"],
+      names = ["--async-computation-control-service-target"],
+      description = ["Address and port of the internal Aysnc Computation Control service"],
       required = true
     )
-    lateinit var computationsServiceTarget: String
+    lateinit var asyncComputationControlServiceTarget: String
       private set
   }
 

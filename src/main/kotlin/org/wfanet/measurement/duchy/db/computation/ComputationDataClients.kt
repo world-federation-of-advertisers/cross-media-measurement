@@ -67,25 +67,6 @@ class ComputationDataClients private constructor(
       )
 
   /**
-   * Writes the encrypted sketch with added noise from another duchy as an output blob to the
-   * current stage.
-   *
-   * @return [ComputationToken] after updating blob reference. When the output already exists,
-   * no blob is written, but the returned token will have a path to the previously written blob.
-   */
-  // TODO: replace with something generic.
-  suspend fun writeReceivedNoisedSketch(
-    computationToken: ComputationToken,
-    content: Flow<ByteString>,
-    sender: String
-  ): ComputationToken {
-    val metadata = computationToken.toNoisedSketchBlobMetadataFor(sender)
-    return writeBlobIfNotPresent(computationToken, metadata) { token ->
-      computationStore.write(token, content)
-    }
-  }
-
-  /**
    * Writes the content as a single output blob to the current stage if no
    * output blob has yet been written.
    *

@@ -29,6 +29,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.toAdvanceComputationStageResponse
@@ -91,6 +92,7 @@ class AsyncComputationControlServiceTest {
   fun `record only output and advance`() = runBlocking<Unit> {
     val tokenToWrite = ComputationToken.newBuilder().apply {
       computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+      addBlobs(newInputBlobMetadata(0L, "input-to-the-stage"))
       addBlobs(newEmptyOutputBlobMetadata(1L))
       computationDetails = detailsFor(RoleInComputation.PRIMARY)
     }.build()

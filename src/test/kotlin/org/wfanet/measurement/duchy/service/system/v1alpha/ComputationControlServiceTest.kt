@@ -114,13 +114,13 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v1 send noised sketch`() = runBlocking<Unit> {
     val id = "21390"
-    val bavariaHeader = LiquidLegionsV1.Description.NOISED_SKETCH.toAdvanceComputationHeader(id)
+    val bavariaHeader = advanceComputationHeader(LiquidLegionsV1.Description.NOISED_SKETCH, id)
     withSender(bavaria) {
       advanceComputation(bavariaHeader.withContent("blob-contents"))
     }
     val bavariaBlobKey = ComputationControlService.generateBlobKey(bavariaHeader, BAVARIA)
 
-    val carinthiaHeader = LiquidLegionsV1.Description.NOISED_SKETCH.toAdvanceComputationHeader(id)
+    val carinthiaHeader = advanceComputationHeader(LiquidLegionsV1.Description.NOISED_SKETCH, id)
     withSender(carinthia) {
       advanceComputation(carinthiaHeader.withContent("part1_", "part2_", "part3"))
     }
@@ -149,8 +149,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v1 send concatenated sketch`() = runBlocking<Unit> {
     val id = "345667"
-    val bavariaHeader = LiquidLegionsV1.Description.CONCATENATED_SKETCH
-      .toAdvanceComputationHeader(id)
+    val bavariaHeader =
+      advanceComputationHeader(LiquidLegionsV1.Description.CONCATENATED_SKETCH, id)
     withSender(bavaria) {
       advanceComputation(bavariaHeader.withContent("contents"))
     }
@@ -172,8 +172,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v1 send flag counts`() = runBlocking<Unit> {
     val id = "45454545"
-    val carinthiaHeader = LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS
-      .toAdvanceComputationHeader(id)
+    val carinthiaHeader =
+      advanceComputationHeader(LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS, id)
     withSender(carinthia) {
       advanceComputation(carinthiaHeader.withContent("contents"))
     }
@@ -195,8 +195,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 send setup inputs`() = runBlocking<Unit> {
     val id = "311311"
-    val carinthiaHeader = LiquidLegionsV2.Description.SETUP_PHASE_INPUT
-      .toAdvanceComputationHeader(id)
+    val carinthiaHeader =
+      advanceComputationHeader(LiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
     withSender(carinthia) {
       advanceComputation(carinthiaHeader.withContent("contents"))
     }
@@ -218,8 +218,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 send reach phase inputs`() = runBlocking<Unit> {
     val id = "444444"
-    val carinthiaHeader = LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT
-      .toAdvanceComputationHeader(id)
+    val carinthiaHeader =
+      advanceComputationHeader(LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT, id)
     withSender(carinthia) {
       advanceComputation(carinthiaHeader.withContent("contents"))
     }
@@ -242,8 +242,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 resend reach phase inputs but already written`() = runBlocking<Unit> {
     val id = "444444"
-    val carinthiaHeader = LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT
-      .toAdvanceComputationHeader(id)
+    val carinthiaHeader =
+      advanceComputationHeader(LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT, id)
     val key = ComputationControlService.generateBlobKey(carinthiaHeader, CARINTHIA)
     storageClient.createBlob(key, flowOf(ByteString.copyFromUtf8("already-written-contents")))
     withSender(carinthia) {
@@ -267,8 +267,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 send filtering phase inputs`() = runBlocking<Unit> {
     val id = "55555"
-    val bavariaHeader = LiquidLegionsV2.Description.FILTERING_PHASE_INPUT
-      .toAdvanceComputationHeader(id)
+    val bavariaHeader =
+      advanceComputationHeader(LiquidLegionsV2.Description.FILTERING_PHASE_INPUT, id)
     withSender(bavaria) {
       advanceComputation(bavariaHeader.withContent("contents"))
     }
@@ -291,8 +291,8 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 send frequency phase inputs`() = runBlocking<Unit> {
     val id = "777777"
-    val bavariaHeader = LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT
-      .toAdvanceComputationHeader(id)
+    val bavariaHeader =
+      advanceComputationHeader(LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT, id)
     withSender(bavaria) {
       advanceComputation(bavariaHeader.withContent("contents"))
     }
@@ -322,7 +322,7 @@ class ComputationControlServiceTest {
         advanceComputation(
           flowOf(
             AdvanceComputationRequest.newBuilder().setHeader(
-              LiquidLegionsV2.Description.FILTERING_PHASE_INPUT.toAdvanceComputationHeader("1234")
+              advanceComputationHeader(LiquidLegionsV2.Description.FILTERING_PHASE_INPUT, "1234")
             ).build()
           )
         )
@@ -333,7 +333,7 @@ class ComputationControlServiceTest {
   @Test
   fun `malformed requests throw`() = runBlocking<Unit> {
     val goodHeader =
-      LiquidLegionsV2.Description.FILTERING_PHASE_INPUT.toAdvanceComputationHeader("1234")
+      advanceComputationHeader(LiquidLegionsV2.Description.FILTERING_PHASE_INPUT, "1234")
     assertFailsWith<StatusRuntimeException> {
       withSender(bavaria) { advanceComputation(flowOf()) }
     }
@@ -362,22 +362,6 @@ class ComputationControlServiceTest {
     }
   }
 }
-
-private fun LiquidLegionsV1.Description.toAdvanceComputationHeader(
-  id: String
-): AdvanceComputationRequest.Header =
-  AdvanceComputationRequest.Header.newBuilder().apply {
-    keyBuilder.globalComputationId = id
-    liquidLegionsV1Builder.description = this@toAdvanceComputationHeader
-  }.build()
-
-private fun LiquidLegionsV2.Description.toAdvanceComputationHeader(
-  id: String
-): AdvanceComputationRequest.Header =
-  AdvanceComputationRequest.Header.newBuilder().apply {
-    keyBuilder.globalComputationId = id
-    liquidLegionsV2Builder.description = this@toAdvanceComputationHeader
-  }.build()
 
 @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
 private fun AdvanceComputationRequest.Header.withContent(

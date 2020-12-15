@@ -40,14 +40,17 @@ import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
-import org.wfanet.measurement.duchy.service.system.v1alpha.LiquidLegionsComputationControlService
+import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.duchy.toDuchyOrder
+import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -133,13 +136,26 @@ class InProcessDuchy(
     )
   }
 
+  private val asyncComputationControlServer =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      addService(
+        AsyncComputationControlService(
+          ComputationsCoroutineStub(storageServer.channel),
+          ComputationProtocolStageDetails(otherDuchyIds)
+        )
+      )
+    }
+
   private val computationControlServer =
     GrpcTestServerRule(
       computationControlChannelName(duchyId),
       logAllRequests = verboseGrpcLogging
     ) {
       addService(
-        LiquidLegionsComputationControlService(computationDataClients).withDuchyIdentities()
+        ComputationControlService(
+          AsyncComputationControlCoroutineStub(asyncComputationControlServer.channel),
+          duchyDependencies.storageClient
+        ).withDuchyIdentities()
       )
       addService(
         ComputationStatsService(duchyDependencies.computationsDatabase)
@@ -210,6 +226,7 @@ class InProcessDuchy(
       metricValuesServer,
       heraldRule,
       millRule,
+      asyncComputationControlServer,
       computationControlServer,
       publisherDataServer,
       channelCloserRule

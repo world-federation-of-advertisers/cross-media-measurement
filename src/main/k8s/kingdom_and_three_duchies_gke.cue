@@ -55,7 +55,8 @@ objectSets: [
 		"--google-cloud-storage-project=ads-open-measurement",
 	]
 	_images: {
-		"liquid-legions-computation-control-server": "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-computation-control"
+		"async-computation-control-server":          "gcr.io/ads-open-measurement/duchy/async-computation-control"
+		"computation-control-server":                "gcr.io/ads-open-measurement/duchy/computation-control"
 		"liquid-legions-herald-daemon":              "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-herald"
 		"liquid-legions-v1-mill-daemon":             "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
 		"metric-values-storage-server":              "gcr.io/ads-open-measurement/duchy/metric-values"
