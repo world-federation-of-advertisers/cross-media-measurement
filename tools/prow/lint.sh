@@ -25,7 +25,7 @@ run_linter() {
 
   # We only lint the files that have been changed, so not to spam pull requests
   # with unrelated lint issues.
-  local -r modified_files="$(git diff --name-only HEAD~ \
+  local -r modified_files="$(git diff --name-only --diff-filter=ACMRTUXB HEAD~ \
     | grep -E "${pattern}" \
     | tr '\n' ' ' \
     || true)"
