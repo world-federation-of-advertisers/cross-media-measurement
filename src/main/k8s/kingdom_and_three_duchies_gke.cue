@@ -55,14 +55,14 @@ objectSets: [
 		"--google-cloud-storage-project=ads-open-measurement",
 	]
 	_images: {
-		"async-computation-control-server":          "gcr.io/ads-open-measurement/duchy/async-computation-control"
-		"computation-control-server":                "gcr.io/ads-open-measurement/duchy/computation-control"
-		"liquid-legions-herald-daemon":              "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-herald"
-		"liquid-legions-v1-mill-daemon":             "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
-		"metric-values-storage-server":              "gcr.io/ads-open-measurement/duchy/metric-values"
-		"publisher-data-server":                     "gcr.io/ads-open-measurement/duchy/publisher-data"
-		"push-spanner-schema-container":             "gcr.io/ads-open-measurement/setup/push-spanner-schema"
-		"spanner-computations-server":               "gcr.io/ads-open-measurement/duchy/spanner-computations"
+		"async-computation-control-server": "gcr.io/ads-open-measurement/duchy/async-computation-control"
+		"computation-control-server":       "gcr.io/ads-open-measurement/duchy/computation-control"
+		"herald-daemon":                    "gcr.io/ads-open-measurement/duchy/herald"
+		"liquid-legions-v1-mill-daemon":    "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
+		"metric-values-storage-server":     "gcr.io/ads-open-measurement/duchy/metric-values"
+		"publisher-data-server":            "gcr.io/ads-open-measurement/duchy/publisher-data"
+		"push-spanner-schema-container":    "gcr.io/ads-open-measurement/setup/push-spanner-schema"
+		"spanner-computations-server":      "gcr.io/ads-open-measurement/duchy/spanner-computations"
 	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"

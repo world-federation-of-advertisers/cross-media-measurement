@@ -82,10 +82,8 @@ message CreateComputationResponse {
 
 // Request for a ComputationToken for a specific computation.
 message GetComputationTokenRequest {
-  // The type of the computation.
-  ComputationTypeEnum.ComputationType computation_type = 1;
   // The global identifier of the computation.
-  string global_computation_id = 2;
+  string global_computation_id = 1;
 }
 message GetComputationTokenResponse {
   // Token for the computation.

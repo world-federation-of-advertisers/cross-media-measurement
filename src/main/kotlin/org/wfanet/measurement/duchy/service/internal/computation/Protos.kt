@@ -22,18 +22,14 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.OUTPUT
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency.PASS_THROUGH
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 
-fun String.toGetTokenRequest(
-  computationType: ComputationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-): GetComputationTokenRequest =
+fun String.toGetTokenRequest(): GetComputationTokenRequest =
   GetComputationTokenRequest.newBuilder()
-    .setComputationType(computationType)
     .setGlobalComputationId(this)
     .build()
 

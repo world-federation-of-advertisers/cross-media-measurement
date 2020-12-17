@@ -23,8 +23,8 @@ COMMON_IMAGES = [
         repository = "ads-open-measurement/duchy/async-computation-control",
     ),
     struct(
-        name = "duchy_liquid_legions_herald_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:liquid_legions_herald_daemon_image",
+        name = "duchy_herald_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image",
         repository = "ads-open-measurement/duchy/liquid-legions-v1-herald",
     ),
     struct(

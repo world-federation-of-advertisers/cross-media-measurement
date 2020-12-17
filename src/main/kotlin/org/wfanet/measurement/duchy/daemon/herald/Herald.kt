@@ -27,27 +27,9 @@ import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
-import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
-import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
-import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.CreateComputationRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.STAGE_UNKNOWN
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
 import org.wfanet.measurement.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -64,7 +46,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRespo
  * @param computationStorageClient manages interactions with computations storage service.
  * @param globalComputationsClient stub for communicating with the Global Computations Service
  */
-class LiquidLegionsHerald(
+class Herald(
   otherDuchiesInComputation: List<String>,
   private val computationStorageClient: ComputationsCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
@@ -155,15 +137,9 @@ class LiquidLegionsHerald(
   ) {
     logger.info("[id=$globalId] Creating Computation")
     try {
-      computationStorageClient.createComputation(
-        CreateComputationRequest.newBuilder().apply {
-          computationType = COMPUTATION_TYPE
-          globalComputationId = globalId
-          stageDetailsBuilder
-            .liquidLegionsV1Builder
-            .toConfirmRequisitionsStageDetailsBuilder
-            .addAllKeys(requisitionsAtThisDuchy)
-        }.build()
+      // TODO: get the protocol from the kingdom's response and create a corresponding computation.
+      LiquidLegionsV1Starter.createComputation(
+        globalId, computationStorageClient, requisitionsAtThisDuchy
       )
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: Exception) {
@@ -204,53 +180,22 @@ class LiquidLegionsHerald(
     logger.info("[id=$globalId]: Starting Computation")
     val token =
       computationStorageClient
-        .getComputationToken(globalId.toGetTokenRequest(COMPUTATION_TYPE))
+        .getComputationToken(globalId.toGetTokenRequest())
         .token
-
-    when (val stage = token.computationStage.liquidLegionsSketchAggregationV1) {
-      // We expect stage WAIT_TO_START.
-      WAIT_TO_START -> {
-        computationStorageClient.advanceComputationStage(
-          computationToken = token,
-          inputsToNextStage = token.outputPathList(),
-          stage = TO_ADD_NOISE.toProtocolStage(),
-          computationProtocolStageDetails = computationProtocolStageDetails
+    when (token.computationDetails.detailsCase) {
+      ComputationDetails.DetailsCase.LIQUID_LEGIONS_V1 ->
+        LiquidLegionsV1Starter.startComputation(
+          token, computationStorageClient, computationProtocolStageDetails, logger
         )
-        logger.info("[id=$globalId] Computation is now started")
-        return
-      }
-
-      // For past stages, we throw.
-      TO_CONFIRM_REQUISITIONS -> {
-        error("[id=$globalId]: cannot start a computation still in state TO_CONFIRM_REQUISITIONS")
-      }
-
-      // For future stages, we log and exit.
-      WAIT_SKETCHES,
-      TO_ADD_NOISE,
-      TO_APPEND_SKETCHES_AND_ADD_NOISE,
-      WAIT_CONCATENATED,
-      TO_BLIND_POSITIONS,
-      TO_BLIND_POSITIONS_AND_JOIN_REGISTERS,
-      WAIT_FLAG_COUNTS,
-      TO_DECRYPT_FLAG_COUNTS,
-      TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS,
-      COMPLETED -> {
-        logger.info("[id=$globalId]: not starting, stage '$stage' is after WAIT_TO_START")
-        return
-      }
-
-      // For weird stages, we throw.
-      UNRECOGNIZED,
-      STAGE_UNKNOWN,
-      null -> {
-        error("[id=$globalId]: Unrecognized stage '$stage'")
-      }
+      ComputationDetails.DetailsCase.LIQUID_LEGIONS_V2 ->
+        LiquidLegionsV2Starter.startComputation(
+          token, computationStorageClient, computationProtocolStageDetails, logger
+        )
+      else -> error { "Unknown or unsupported protocol." }
     }
   }
 
   companion object {
-    val COMPUTATION_TYPE = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

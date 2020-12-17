@@ -23,7 +23,7 @@ import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
+import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -74,7 +74,7 @@ private class Flags {
 }
 
 @CommandLine.Command(
-  name = "LiquidLegionsHeraldDaemon",
+  name = "HeraldDaemon",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
@@ -95,7 +95,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val storageChannel = buildChannel(flags.computationsServiceTarget)
 
-  val herald = LiquidLegionsHerald(
+  val herald = Herald(
     otherDuchiesInComputation = otherDuchyNames,
     computationStorageClient = ComputationsCoroutineStub(storageChannel),
     globalComputationsClient = globalComputationsClient

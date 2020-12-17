@@ -387,9 +387,8 @@ abstract class MillBase(
    */
   private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     return dataClients.computationsClient.getComputationToken(
-      GetComputationTokenRequest.newBuilder().also {
-        it.computationType = computationType
-        it.globalComputationId = globalId
+      GetComputationTokenRequest.newBuilder().apply {
+        globalComputationId = globalId
       }.build()
     ).token
   }

@@ -43,16 +43,15 @@ import ("strings")
 	]
 
 	_async_computations_control_service_target_flag: "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
-	_computations_service_target_flag:               "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
+	_computations_service_target_flag:               "--computations-service-target=" + (#Target & {name:              "\(_name)-spanner-computations-server"}).target
 	_duchy_name_flag:                                "--duchy-name=duchy-\(_name)"
 	_duchy_public_keys_config_flag:                  "--duchy-public-keys-config=" + #DuchyPublicKeysConfig
 	_global_computations_service_target_flag:        "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
 	_metric_values_service_target_flag:              "--metric-values-service-target=" + (#Target & {name:      "\(_name)-metric-values-storage-server"}).target
 	_requisition_service_target_flag:                "--requisition-service-target=" + (#Target & {name:        "requisition-server"}).target
 	_system_requisition_service_target_flag:         "--system-requisition-service-target=" + (#Target & {name: "system-requisition-server"}).target
-
-	_debug_verbose_grpc_client_logging_flag:        "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
-	_debug_verbose_grpc_server_logging_flag:        "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_client_logging_flag:         "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_server_logging_flag:         "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
 	duchy_service: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
@@ -77,7 +76,7 @@ import ("strings")
 	}
 
 	duchy_pod: {
-		"liquid-legions-herald-daemon-pod": #Pod & {
+		"herald-daemon-pod": #Pod & {
 			_args: [
 				_computations_service_target_flag,
 				_duchy_name_flag,
@@ -106,11 +105,11 @@ import ("strings")
 		}
 		"async-computation-control-server-pod": #ServerPod & {
 			_args: [
-			_computations_service_target_flag,
-			_duchy_name_flag,
-			_duchy_public_keys_config_flag,
-			_debug_verbose_grpc_server_logging_flag,
-			"--port=8080",
+				_computations_service_target_flag,
+				_duchy_name_flag,
+				_duchy_public_keys_config_flag,
+				_debug_verbose_grpc_server_logging_flag,
+				"--port=8080",
 			] + _duchy_id_flags
 		}
 		"computation-control-server-pod": #ServerPod & {

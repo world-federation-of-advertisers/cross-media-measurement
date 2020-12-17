@@ -54,7 +54,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
 
 @RunWith(JUnit4::class)
-internal class LiquidLegionsHeraldTest {
+internal class HeraldTest {
 
   private val globalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {}
@@ -108,10 +108,10 @@ internal class LiquidLegionsHeraldTest {
     GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var herald: LiquidLegionsHerald
+  private lateinit var herald: Herald
   @Before
   fun initHerald() {
-    herald = LiquidLegionsHerald(otherDuchyNames, storageServiceStub, globalComputationsStub)
+    herald = Herald(otherDuchyNames, storageServiceStub, globalComputationsStub)
   }
 
   @Test
@@ -246,7 +246,7 @@ internal class LiquidLegionsHeraldTest {
 
   @Test
   fun `syncStatuses gives up on starting computations`() = runBlocking<Unit> {
-    val heraldWithOneRetry = LiquidLegionsHerald(
+    val heraldWithOneRetry = Herald(
       otherDuchyNames,
       storageServiceStub,
       globalComputationsStub,

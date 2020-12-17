@@ -36,7 +36,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsHerald
+import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -118,7 +118,7 @@ class InProcessDuchy(
   private val heraldRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
-      val herald = LiquidLegionsHerald(
+      val herald = Herald(
         otherDuchyIds,
         computationStorageServiceStub,
         kingdomGlobalComputationsStub

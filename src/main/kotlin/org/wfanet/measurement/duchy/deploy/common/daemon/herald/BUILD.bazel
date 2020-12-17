@@ -3,8 +3,8 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
-    name = "liquid_legions_herald_daemon",
-    srcs = ["LiquidLegionsHeraldDaemon.kt"],
+    name = "herald_daemon",
+    srcs = ["HeraldDaemon.kt"],
     deps = [
         "//imports/java/io/grpc:api",
         "//imports/java/picocli",
@@ -12,7 +12,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald:liquid_legions_herald",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
@@ -20,14 +20,14 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "LiquidLegionsHeraldDaemon",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.LiquidLegionsHeraldDaemonKt",
-    runtime_deps = [":liquid_legions_herald_daemon"],
+    name = "HeraldDaemon",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
+    runtime_deps = [":herald_daemon"],
 )
 
 java_image(
-    name = "liquid_legions_herald_daemon_image",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.LiquidLegionsHeraldDaemonKt",
+    name = "herald_daemon_image",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":liquid_legions_herald_daemon"],
+    runtime_deps = [":herald_daemon"],
 )

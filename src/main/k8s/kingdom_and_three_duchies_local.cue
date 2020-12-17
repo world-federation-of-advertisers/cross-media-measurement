@@ -116,14 +116,14 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 	]
 	_images: {
-        "async-computation-control-server":          "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:async_computation_control_server_image"
-		"computation-control-server":                "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image"
-		"liquid-legions-herald-daemon":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:liquid_legions_herald_daemon_image"
-		"liquid-legions-v1-mill-daemon":             "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv1:forwarded_storage_liquid_legions_v1_mill_daemon_image"
-		"metric-values-storage-server":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image"
-		"publisher-data-server":                     "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:publisher_data_server_image"
-		"push-spanner-schema-container":             "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-		"spanner-computations-server":               "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image"
+		"async-computation-control-server": "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:async_computation_control_server_image"
+		"computation-control-server":       "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image"
+		"herald-daemon":                    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image"
+		"liquid-legions-v1-mill-daemon":    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv1:forwarded_storage_liquid_legions_v1_mill_daemon_image"
+		"metric-values-storage-server":     "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image"
+		"publisher-data-server":            "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:publisher_data_server_image"
+		"push-spanner-schema-container":    "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
+		"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image"
 	}
 	_duchy_image_pull_policy: "Never"
 	_verbose_grpc_logging:    "true"

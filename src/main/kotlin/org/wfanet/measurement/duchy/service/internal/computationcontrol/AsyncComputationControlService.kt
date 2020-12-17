@@ -77,7 +77,6 @@ class AsyncComputationControlService(
   ): ComputationToken = with(context) {
     val getTokenRequest = GetComputationTokenRequest.newBuilder()
       .setGlobalComputationId(request.globalComputationId)
-      .setComputationType(computationType)
       .build()
 
     val getTokenResponse = try {
