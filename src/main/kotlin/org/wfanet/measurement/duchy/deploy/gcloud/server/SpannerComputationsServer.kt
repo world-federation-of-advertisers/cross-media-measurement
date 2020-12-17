@@ -46,7 +46,9 @@ class SpannerComputationsServer : ComputationsServer() {
     get() = latestDuchyPublicKeys.keys.filter { it != flags.duchy.duchyName }
 
   override val protocolStageEnumHelper = ComputationProtocolStages
-  override val computationProtocolStageDetails = ComputationProtocolStageDetails(otherDuchyNames)
+  override val computationProtocolStageDetails by lazy {
+    ComputationProtocolStageDetails(otherDuchyNames)
+  }
 
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->
