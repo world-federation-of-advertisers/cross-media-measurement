@@ -42,10 +42,10 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
@@ -69,18 +69,18 @@ internal class HeraldTest {
     )
   )
   private val primaryComputationDetails = ComputationDetails.newBuilder().apply {
-    liquidLegionsV1Builder.apply {
-      role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
-      primaryNodeId = "BOHEMIA"
+    liquidLegionsV2Builder.apply {
+      role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
+      aggregatorNodeId = "BOHEMIA"
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "AUSTRIA"
     }
   }.build()
 
   private val secondComputationDetails = ComputationDetails.newBuilder().apply {
-    liquidLegionsV1Builder.apply {
-      role = LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
-      primaryNodeId = "BOHEMIA"
+    liquidLegionsV2Builder.apply {
+      role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+      aggregatorNodeId = "BOHEMIA"
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "BOHEMIA"
     }
@@ -135,7 +135,7 @@ internal class HeraldTest {
 
     fakeComputationStorage.addComputation(
       globalId = confirmingKnown.globalId,
-      stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
       computationDetails = primaryComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
@@ -146,15 +146,15 @@ internal class HeraldTest {
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
       confirmingKnown.globalId.toLong(),
-      TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
       confirmingUnknown.globalId.toLong(),
-      TO_CONFIRM_REQUISITIONS.toProtocolStage()
+      CONFIRM_REQUISITIONS_PHASE.toProtocolStage()
     )
 
     assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
       .isEqualTo(
         ComputationStageDetails.newBuilder().apply {
-          liquidLegionsV1Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
+          liquidLegionsV2Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
             addKeys(requisitionKey("alice", "a", "1234"))
             addKeys(requisitionKey("bob", "bb", "abc"))
             addKeys(requisitionKey("caroline", "ccc", "234567"))
@@ -180,7 +180,7 @@ internal class HeraldTest {
 
     fakeComputationStorage.addComputation(
       globalId = addingNoise.globalId,
-      stage = TO_ADD_NOISE.toProtocolStage(),
+      stage = SETUP_PHASE.toProtocolStage(),
       computationDetails = primaryComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, "inputs-to-add-noise"),
@@ -194,9 +194,9 @@ internal class HeraldTest {
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
       waitingToStart.globalId.toLong(),
-      TO_ADD_NOISE.toProtocolStage(),
+      SETUP_PHASE.toProtocolStage(),
       addingNoise.globalId.toLong(),
-      TO_ADD_NOISE.toProtocolStage()
+      SETUP_PHASE.toProtocolStage()
     )
   }
 
@@ -207,7 +207,7 @@ internal class HeraldTest {
 
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
-      stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
       computationDetails = secondComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
@@ -219,7 +219,7 @@ internal class HeraldTest {
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
     ).containsExactly(
       computation.globalId.toLong(),
-      TO_CONFIRM_REQUISITIONS.toProtocolStage()
+      CONFIRM_REQUISITIONS_PHASE.toProtocolStage()
     )
 
     // Update the state.
@@ -234,7 +234,7 @@ internal class HeraldTest {
     // Wait for the background retry to fix the state.
     val finalComputation = pollFor(timeoutMillis = 10_000L) {
       val c = fakeComputationStorage[computation.globalId.toLong()]
-      if (c?.computationStage == TO_ADD_NOISE.toProtocolStage()) {
+      if (c?.computationStage == SETUP_PHASE.toProtocolStage()) {
         c
       } else {
         null
@@ -258,7 +258,7 @@ internal class HeraldTest {
 
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
-      stage = TO_CONFIRM_REQUISITIONS.toProtocolStage(),
+      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
       computationDetails = secondComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )

@@ -33,6 +33,11 @@ COMMON_IMAGES = [
         repository = "ads-open-measurement/duchy/liquid-legions-v1-mill",
     ),
     struct(
+        name = "duchy_liquid_legions_v2_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv2:gcs_liquid_legions_v2_mill_daemon_image",
+        repository = "ads-open-measurement/duchy/liquid-legions-v2-mill",
+    ),
+    struct(
         name = "duchy_publisher_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:publisher_data_server_image",
         repository = "ads-open-measurement/duchy/publisher-data",
@@ -109,6 +114,10 @@ LOCAL_IMAGES = [
     struct(
         name = "forwarded_storage_liquid_legions_v1_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv1:forwarded_storage_liquid_legions_v1_mill_daemon_image",
+    ),
+    struct(
+        name = "forwarded_storage_liquid_legions_v2_mill_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image",
     ),
     struct(
         name = "forwarded_storage_computation_control_server_image",

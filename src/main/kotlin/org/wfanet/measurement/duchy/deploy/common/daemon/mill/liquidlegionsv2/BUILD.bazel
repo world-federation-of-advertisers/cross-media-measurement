@@ -1,0 +1,57 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+kt_jvm_library(
+    name = "liquid_legions_v2_mill_daemon",
+    srcs = [
+        "LiquidLegionsV2MillDaemon.kt",
+        "LiquidLegionsV2MillFlags.kt",
+    ],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//imports/java/com/google/protobuf",
+        "//imports/java/io/grpc:api",
+        "//imports/java/picocli",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/crypto/liquidlegionsv2",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "forwarded_storage_liquid_legions_v2_mill_daemon",
+    srcs = ["ForwardedStorageLiquidLegionsV2MillDaemon.kt"],
+    deps = [
+        ":liquid_legions_v2_mill_daemon",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+    ],
+)
+
+java_binary(
+    name = "ForwardedStorageLiquidLegionsV2MillDaemon",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2.ForwardedStorageLiquidLegionsV2MillDaemonKt",
+    runtime_deps = [":forwarded_storage_liquid_legions_v2_mill_daemon"],
+)
+
+java_image(
+    name = "forwarded_storage_liquid_legions_v2_mill_daemon_image",
+    base = "@debian_java_base//image",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2.ForwardedStorageLiquidLegionsV2MillDaemonKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":forwarded_storage_liquid_legions_v2_mill_daemon"],
+)

@@ -59,6 +59,7 @@ objectSets: [
 		"computation-control-server":       "gcr.io/ads-open-measurement/duchy/computation-control"
 		"herald-daemon":                    "gcr.io/ads-open-measurement/duchy/herald"
 		"liquid-legions-v1-mill-daemon":    "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
+		"liquid-legions-v2-mill-daemon":    "gcr.io/ads-open-measurement/duchy/liquid-legions-v2-mill"
 		"metric-values-storage-server":     "gcr.io/ads-open-measurement/duchy/metric-values"
 		"publisher-data-server":            "gcr.io/ads-open-measurement/duchy/publisher-data"
 		"push-spanner-schema-container":    "gcr.io/ads-open-measurement/setup/push-spanner-schema"

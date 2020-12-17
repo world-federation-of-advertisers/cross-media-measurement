@@ -12,25 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1
+package org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.liquidlegionsv2
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
+import org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2.LiquidLegionsV2MillDaemon
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "ForwardedStorageLiquidLegionsV1MillDaemon",
-  description = ["LiquidLegionsV1 Mill daemon."],
+  name = "GcsLiquidLegionsV2MillDaemon",
+  description = ["Liquid Legions V2 Mill daemon."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class ForwardedStorageLiquidLegionsV1MillDaemon : LiquidLegionsV1MillDaemon() {
+class GcsLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   @CommandLine.Mixin
-  private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+  private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
-    run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
+    val gcs = GcsFromFlags(gcsFlags)
+    run(GcsStorageClient.fromFlags(gcs))
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(ForwardedStorageLiquidLegionsV1MillDaemon(), args)
+fun main(args: Array<String>) = commandLineMain(GcsLiquidLegionsV2MillDaemon(), args)

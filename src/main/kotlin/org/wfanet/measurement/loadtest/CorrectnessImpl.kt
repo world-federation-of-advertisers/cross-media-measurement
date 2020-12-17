@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.transform
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
-import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.CONFLICTING_KEYS
+import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.estimation.Estimators
@@ -128,13 +128,14 @@ class CorrectnessImpl(
       encryptAndSend(it, testResult)
     }
 
+    // TODO: also setReach() when reach is reported to kingdom in the LL_V2 protocol.
     val expectedResult =
-      ReportDetails.Result.newBuilder().setReach(reach).putAllFrequency(frequency).build()
+      ReportDetails.Result.newBuilder().putAllFrequency(frequency).build()
     logger.info("Expected Result: $expectedResult")
 
-    // Start querying Spanner after 1 min.
-    logger.info("Waiting 1min...")
-    delay(Duration.ofMinutes(1).toMillis())
+    // Start querying Spanner after 2 min.
+    logger.info("Waiting 2 min...")
+    delay(Duration.ofMinutes(2).toMillis())
     val finishedReport =
       relationalDatabase.getFinishedReport(
         reportConfigAndScheduleId.reportConfig,
@@ -330,7 +331,7 @@ class CorrectnessImpl(
       curveId = combinedPublicKey.ellipticCurveId.toLong()
       elGamalKeysBuilder.elGamalG = combinedPublicKey.generator
       elGamalKeysBuilder.elGamalY = combinedPublicKey.element
-      destroyedRegisterStrategy = CONFLICTING_KEYS
+      destroyedRegisterStrategy = FLAGGED_KEY // for LL_V2 protocol
     }.build()
     val response = EncryptSketchResponse.parseFrom(
       SketchEncrypterAdapter.EncryptSketch(request.toByteArray())

@@ -138,7 +138,7 @@ class Herald(
     logger.info("[id=$globalId] Creating Computation")
     try {
       // TODO: get the protocol from the kingdom's response and create a corresponding computation.
-      LiquidLegionsV1Starter.createComputation(
+      LiquidLegionsV2Starter.createComputation(
         globalId, computationStorageClient, requisitionsAtThisDuchy
       )
       logger.info("[id=$globalId]: Created Computation")

@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataPro
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.crypto.liquidlegionsv1.JniLiquidLegionsV1Encryption
+import org.wfanet.measurement.common.crypto.liquidlegionsv2.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -39,6 +40,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -174,7 +176,7 @@ class InProcessDuchy(
     return channelCloserRule.register(channel).withVerboseLogging(verboseGrpcLogging)
   }
 
-  private val millRule = CloseableResource {
+  private val liquidLegionsV1millRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val workerStubs = otherDuchyIds.map { otherDuchyId ->
         val channel = computationControlChannel(otherDuchyId)
@@ -182,8 +184,8 @@ class InProcessDuchy(
         otherDuchyId to stub
       }.toMap()
 
-      val mill = LiquidLegionsV1Mill(
-        millId = "$duchyId mill",
+      val liquidLegionsV1mill = LiquidLegionsV1Mill(
+        millId = "$duchyId liquidLegionsV1mill",
         dataClients = computationDataClients,
         metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
         globalComputationsClient = kingdomGlobalComputationsStub,
@@ -194,8 +196,32 @@ class InProcessDuchy(
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         requestChunkSizeBytes = 2_000_000
       )
+      liquidLegionsV1mill.continuallyProcessComputationQueue()
+    }
+  }
 
-      mill.continuallyProcessComputationQueue()
+  private val liquidLegionsV2millRule = CloseableResource {
+    GlobalScope.launchAsAutoCloseable {
+      val workerStubs = otherDuchyIds.map { otherDuchyId ->
+        val channel = computationControlChannel(otherDuchyId)
+        val stub = ComputationControlCoroutineStub(channel).withDuchyId(duchyId)
+        otherDuchyId to stub
+      }.toMap()
+
+      val liquidLegionsV2mill = LiquidLegionsV2Mill(
+        millId = "$duchyId liquidLegionsV2mill",
+        dataClients = computationDataClients,
+        metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
+        globalComputationsClient = kingdomGlobalComputationsStub,
+        computationStatsClient = computationStatsStub,
+        workerStubs = workerStubs,
+        cryptoKeySet = duchyDependencies.cryptoKeySet,
+        cryptoWorker = JniLiquidLegionsV2Encryption(),
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        requestChunkSizeBytes = 2_000_000
+      )
+
+      liquidLegionsV2mill.continuallyProcessComputationQueue()
     }
   }
 
@@ -225,7 +251,8 @@ class InProcessDuchy(
       storageServer,
       metricValuesServer,
       heraldRule,
-      millRule,
+      liquidLegionsV1millRule,
+      liquidLegionsV2millRule,
       asyncComputationControlServer,
       computationControlServer,
       publisherDataServer,

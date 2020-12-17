@@ -88,7 +88,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   }
 
   @Test
-  fun `entire computation, 1 requisition per duchy`() = runBlocking<Unit> {
+  fun `LiquidLegionV2 computation, 1 requisition per duchy`() = runBlocking<Unit> {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
     logger.info("Starting first data provider")
@@ -113,7 +113,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 120_000) {
+    val doneReport: Report = pollFor(timeoutMillis = 300_000) {
       kingdomRelationalDatabase
         .streamReports(
           filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
@@ -132,8 +132,9 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
           reportDetailsBuilder.apply {
             addAllConfirmedDuchies(DUCHY_IDS)
             reportDetailsBuilder.resultBuilder.apply {
-              reach = 11L
-              putFrequency(3L, 1.0)
+              // TODO: check reach when it is reported back.
+              putFrequency(6L, 0.3)
+              putFrequency(3L, 0.7)
             }
           }
         }.build()
@@ -141,7 +142,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   }
 
   @Test
-  fun `entire computation, all requisitions at the same duchy`() = runBlocking<Unit> {
+  fun `LiquidLegionV2 computation, all requisitions at the same duchy`() = runBlocking<Unit> {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
     logger.info("Starting first data provider")
@@ -166,7 +167,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 120_000) {
+    val doneReport: Report = pollFor(timeoutMillis = 300_000) {
       kingdomRelationalDatabase
         .streamReports(
           filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
@@ -185,8 +186,9 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
           reportDetailsBuilder.apply {
             addAllConfirmedDuchies(DUCHY_IDS)
             reportDetailsBuilder.resultBuilder.apply {
-              reach = 11L
-              putFrequency(3L, 1.0)
+              // TODO: check reach when it is reported back.
+              putFrequency(6L, 0.3)
+              putFrequency(3L, 0.7)
             }
           }
         }.build()

@@ -39,7 +39,7 @@ class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
 
   override fun completeSetupPhase(request: CompleteSetupPhaseRequest): CompleteSetupPhaseResponse {
     return CompleteSetupPhaseResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeFilteringPhase(request.toByteArray())
+      LiquidLegionsV2EncryptionUtility.completeSetupPhase(request.toByteArray())
     )
   }
 

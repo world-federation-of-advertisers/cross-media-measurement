@@ -29,7 +29,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
-import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.CONFLICTING_KEYS
+import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.CombinedPublicKey
@@ -120,19 +120,27 @@ class FakeDataProviderRule : TestRule {
   private fun generateFakeEncryptedSketch(combinedElGamalKey: ElGamalPublicKey): ByteString {
     val sketch = Sketch.newBuilder().apply {
       config = sketchConfig
-      // Adds nine normal registers.
-      for (i in 1L..9L) {
+      // Adds 7 normal registers with count 1
+      for (i in 1L..7L) {
         addRegistersBuilder().apply {
           index = i
           addValues(i)
           addValues(1)
         }
       }
+      // Adds 3 normal registers with count 2
+      for (i in 11L..13L) {
+        addRegistersBuilder().apply {
+          index = i
+          addValues(i)
+          addValues(2)
+        }
+      }
       // Adds another locally destroyed register.
       addRegistersBuilder().apply {
         index = 10
         addValues(-1)
-        addValues(1)
+        addValues(1) // this value doesn't matter
       }
     }.build()
     val request = EncryptSketchRequest.newBuilder().apply {
@@ -143,7 +151,8 @@ class FakeDataProviderRule : TestRule {
         elGamalG = combinedElGamalKey.generator
         elGamalY = combinedElGamalKey.element
       }
-      destroyedRegisterStrategy = CONFLICTING_KEYS
+      // TODO: choose strategy according to the protocol type.
+      destroyedRegisterStrategy = FLAGGED_KEY
     }.build()
     val response = EncryptSketchResponse.parseFrom(
       SketchEncrypterAdapter.EncryptSketch(request.toByteArray())
