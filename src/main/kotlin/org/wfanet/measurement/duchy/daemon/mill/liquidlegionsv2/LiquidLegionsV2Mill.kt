@@ -36,7 +36,7 @@ import org.wfanet.measurement.common.crypto.liquidlegionsv2.LiquidLegionsV2Encry
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_TIME
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
@@ -201,7 +201,7 @@ class LiquidLegionsV2Mill(
             .setCombinedRegisterVector(readAndCombineAllInputBlobs(token, inputCount))
             .build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.combinedRegisterVector
     }
 
@@ -235,7 +235,7 @@ class LiquidLegionsV2Mill(
             .setCombinedRegisterVector(readAndCombineAllInputBlobs(token, inputCount))
             .build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.combinedRegisterVector
     }
 
@@ -274,7 +274,7 @@ class LiquidLegionsV2Mill(
               }
             }.build()
           )
-        logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.flagCountTuples
       }
 
@@ -311,7 +311,7 @@ class LiquidLegionsV2Mill(
             combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
           }.build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.combinedRegisterVector
     }
 
@@ -349,7 +349,7 @@ class LiquidLegionsV2Mill(
             maximumFrequency = liquidLegionsConfig.maxFrequency
           }.build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.sameKeyAggregatorMatrix
     }
 
@@ -386,7 +386,7 @@ class LiquidLegionsV2Mill(
             flagCountTuples = readAndCombineAllInputBlobs(token, 1)
           }.build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.flagCountTuples
     }
 
@@ -423,7 +423,7 @@ class LiquidLegionsV2Mill(
             maximumFrequency = liquidLegionsConfig.maxFrequency
           }.build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.toByteString()
     }
 
@@ -458,7 +458,7 @@ class LiquidLegionsV2Mill(
             sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
           }.build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.sameKeyAggregatorMatrix
     }
 

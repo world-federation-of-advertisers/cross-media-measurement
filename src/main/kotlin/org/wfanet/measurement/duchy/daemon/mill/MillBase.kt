@@ -125,12 +125,12 @@ abstract class MillBase(
     val claimWorkResponse: ClaimWorkResponse =
       dataClients.computationsClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
-      val wallTimeLogger = wallTimeLogger()
-      val cpuTimeLogger = cpuTimeLogger()
+      val wallDurationLogger = wallDurationLogger()
+      val cpuDurationLogger = cpuDurationLogger()
       val token = claimWorkResponse.token
       processComputation(token)
-      wallTimeLogger.logStageMetric(token, STAGE_WALL_CLOCK_TIME)
-      cpuTimeLogger.logStageMetric(token, STAGE_CPU_TIME)
+      wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
+      cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
     } else {
       logger.info("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -236,15 +236,41 @@ abstract class MillBase(
   /**
    * Writes stage metric to the [Logger] and also sends to the ComputationStatsService.
    */
-  protected suspend fun logStageMetric(
+  private suspend fun logStageMetric(
     token: ComputationToken,
     metricName: String,
     metricValue: Long
   ) {
     logger.info(
       "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
-        " ${metricValue.toHumanFriendlyTime()}"
+        " $metricValue"
     )
+    sendComputationStats(token, metricName, metricValue)
+  }
+
+  /**
+   * Writes stage duration metric to the [Logger] and also sends to the ComputationStatsService.
+   */
+  protected suspend fun logStageDurationMetric(
+    token: ComputationToken,
+    metricName: String,
+    metricValue: Long
+  ) {
+    logger.info(
+      "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
+        " ${metricValue.toHumanFriendlyDuration()}"
+    )
+    sendComputationStats(token, metricName, metricValue)
+  }
+
+  /**
+   * Sends state metric to the ComputationStatsService.
+   */
+  private suspend fun sendComputationStats(
+    token: ComputationToken,
+    metricName: String,
+    metricValue: Long
+  ) {
     logAndSuppressExceptionSuspend {
       computationStatsClient.createComputationStat(
         CreateComputationStatRequest.newBuilder()
@@ -337,9 +363,9 @@ abstract class MillBase(
     }
     val newResult: ByteString =
       try {
-        val wallTimeLogger = wallTimeLogger()
+        val wallDurationLogger = wallDurationLogger()
         val result = block()
-        wallTimeLogger.logStageMetric(token, JNI_WALL_CLOCK_TIME)
+        wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION)
         result
       } catch (error: Throwable) {
         // All errors from block() are permanent and would cause the computation to FAIL
@@ -410,15 +436,15 @@ abstract class MillBase(
     return cpuTime.toMillis()
   }
 
-  private inner class TimeLogger(private val getTimeMillis: () -> Long) {
+  private inner class DurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
-    suspend fun logStageMetric(token: ComputationToken, metricName: String) {
+    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String) {
       val time = getTimeMillis() - start
-      logStageMetric(token, metricName, time)
+      logStageDurationMetric(token, metricName, time)
     }
   }
-  private fun cpuTimeLogger(): TimeLogger = TimeLogger(this::getCpuTimeMillis)
-  private fun wallTimeLogger(): TimeLogger = TimeLogger(System::currentTimeMillis)
+  private fun cpuDurationLogger(): DurationLogger = DurationLogger(this::getCpuTimeMillis)
+  private fun wallDurationLogger(): DurationLogger = DurationLogger(System::currentTimeMillis)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
@@ -426,10 +452,10 @@ abstract class MillBase(
   }
 }
 
-const val CRYPTO_LIB_CPU_TIME = "crypto_lib_cpu_time"
-const val JNI_WALL_CLOCK_TIME = "jni_wall_clock_time"
-const val STAGE_CPU_TIME = "stage_cpu_time"
-const val STAGE_WALL_CLOCK_TIME = "stage_wall_clock_time"
+const val CRYPTO_LIB_CPU_DURATION = "crypto_lib_cpu_duration"
+const val JNI_WALL_CLOCK_DURATION = "jni_wall_clock_duration"
+const val STAGE_CPU_DURATION = "stage_cpu_duration"
+const val STAGE_WALL_CLOCK_DURATION = "stage_wall_clock_duration"
 const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
 const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
@@ -458,9 +484,9 @@ fun RequisitionKey.toMetricRequisitionKey(): MetricRequisitionKey {
 }
 
 /**
- * Converts a milliseconds to a human friendly string:wq:
+ * Converts a milliseconds to a human friendly string.
  */
-fun Long.toHumanFriendlyTime(): String {
+fun Long.toHumanFriendlyDuration(): String {
   val seconds = this / 1000
   val ms = this % 1000
   val hh = seconds / 3600

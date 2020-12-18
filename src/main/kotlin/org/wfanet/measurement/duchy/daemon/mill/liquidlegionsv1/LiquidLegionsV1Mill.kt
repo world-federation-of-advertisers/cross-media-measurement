@@ -33,7 +33,7 @@ import org.wfanet.measurement.common.crypto.liquidlegionsv1.LiquidLegionsV1Encry
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_TIME
+import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
@@ -191,7 +191,7 @@ class LiquidLegionsV1Mill(
             .setSketch(readAndCombineAllInputBlobs(token, inputCount))
             .build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.sketch
     }
 
@@ -236,7 +236,7 @@ class LiquidLegionsV1Mill(
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.sketch
     }
 
@@ -269,7 +269,7 @@ class LiquidLegionsV1Mill(
             .setSketch(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.flagCounts
     }
 
@@ -301,9 +301,9 @@ class LiquidLegionsV1Mill(
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
             .build()
         )
-      logStageMetric(
+      logStageDurationMetric(
         token,
-        CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis
+        CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis
       )
       cryptoResult.flagCounts
     }
@@ -336,7 +336,7 @@ class LiquidLegionsV1Mill(
             .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
             .build()
         )
-      logStageMetric(token, CRYPTO_LIB_CPU_TIME, cryptoResult.elapsedCpuTimeMillis)
+      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
       cryptoResult.toByteString()
     }
 

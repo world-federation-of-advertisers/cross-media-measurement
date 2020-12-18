@@ -52,7 +52,7 @@ object LiquidLegionsV2Starter : ProtocolStarter {
     logger: Logger
   ) {
     require(token.computationDetails.hasLiquidLegionsV2()) {
-      "Liquid Legions V1 computation required"
+      "Liquid Legions V2 computation required"
     }
 
     val stage = token.computationStage.liquidLegionsSketchAggregationV2
