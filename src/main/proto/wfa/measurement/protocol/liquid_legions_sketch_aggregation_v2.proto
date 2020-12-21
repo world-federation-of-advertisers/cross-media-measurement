@@ -113,6 +113,29 @@ message LiquidLegionsSketchAggregationV2 {
     string outgoing_node_id = 3;
     // The domain name of the aggregator duchy of this computation.
     string aggregator_node_id = 4;
+
+    message ReachEstimate {
+      int64 reach = 1;
+    }
+    // The cached reach estimation result.
+    // The reach value is calculated as part of the reach estimation phase by
+    // the aggregator. It is only set at the aggregator and is not shared with
+    // non-aggregator nodes. The value will be included in the result for the
+    // computation.
+    ReachEstimate reach_estimate = 5;
+
+    message FrequencyEstimate {
+      // Histogram: maps frequencies to ratios. For example, a map entry
+      // {key: 4 value: 0.333} means that 33.3% of all users were exposed 4
+      // times.
+      map<int64, double> frequency = 1;
+    }
+    // The cached frequency estimation result.
+    // The frequency distribution is calculated as part of the frequency
+    // estimation phase by the aggregator. It is only set at the aggregator and
+    // is not shared with non-aggregator nodes. The value will be included in
+    // the result for the computation.
+    FrequencyEstimate frequency_estimate = 6;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2

@@ -38,6 +38,11 @@ service Computations {
   rpc GetComputationToken(GetComputationTokenRequest)
       returns (GetComputationTokenResponse);
 
+  // Updates the ComputationDetails of a specific computation.
+  // Note that the protocol type can not be changed.
+  rpc UpdateComputationDetails(UpdateComputationDetailsRequest)
+      returns (UpdateComputationDetailsResponse);
+
   // Advances the stage of a computation to another non-terminal stage.
   // An path to a BLOb for each of the outputs must be written, before
   // this call will succeed.
@@ -86,6 +91,19 @@ message GetComputationTokenRequest {
   string global_computation_id = 1;
 }
 message GetComputationTokenResponse {
+  // Token for the computation.
+  ComputationToken token = 1;
+}
+
+// Request to update the ComputationDetails.
+message UpdateComputationDetailsRequest {
+  // Token for the computation being updated.
+  ComputationToken token = 1;
+  // New value of the computation_details.
+  // Note that the protocol type can not be changed in the details.
+  ComputationDetails details = 2;
+}
+message UpdateComputationDetailsResponse {
   // Token for the computation.
   ComputationToken token = 1;
 }
