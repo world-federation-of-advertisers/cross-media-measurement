@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 
 fun String.toGetTokenRequest(): GetComputationTokenRequest =
   GetComputationTokenRequest.newBuilder()
@@ -41,23 +42,27 @@ fun ComputationToken.toBlobPath(name: String) =
 fun ComputationToken.toAdvanceComputationStageResponse(): AdvanceComputationStageResponse =
   AdvanceComputationStageResponse.newBuilder().setToken(this).build()!!
 
-/** Wraps a [ComputationToken] in an [CreateComputationResponse]. */
+/** Wraps a [ComputationToken] in a [CreateComputationResponse]. */
 fun ComputationToken.toCreateComputationResponse(): CreateComputationResponse =
   CreateComputationResponse.newBuilder().setToken(this).build()!!
 
-/** Wraps a [ComputationToken] in an [ClaimWorkResponse]. */
+/** Wraps a [ComputationToken] in a [ClaimWorkResponse]. */
 fun ComputationToken.toClaimWorkResponse(): ClaimWorkResponse =
   ClaimWorkResponse.newBuilder().setToken(this).build()!!
 
-/** Wraps a [ComputationToken] in an [FinishComputationResponse]. */
+/** Wraps a [ComputationToken] in an [UpdateComputationDetailsResponse]. */
+fun ComputationToken.toUpdateComputationDetailsResponse(): UpdateComputationDetailsResponse =
+  UpdateComputationDetailsResponse.newBuilder().setToken(this).build()!!
+
+/** Wraps a [ComputationToken] in a [FinishComputationResponse]. */
 fun ComputationToken.toFinishComputationResponse(): FinishComputationResponse =
   FinishComputationResponse.newBuilder().setToken(this).build()!!
 
-/** Wraps a [ComputationToken] in an [GetComputationTokenResponse]. */
+/** Wraps a [ComputationToken] in a [GetComputationTokenResponse]. */
 fun ComputationToken.toGetComputationTokenResponse(): GetComputationTokenResponse =
   GetComputationTokenResponse.newBuilder().setToken(this).build()!!
 
-/** Wraps a [ComputationToken] in an [RecordOutputBlobPathResponse]. */
+/** Wraps a [ComputationToken] in a [RecordOutputBlobPathResponse]. */
 fun ComputationToken.toRecordOutputBlobPathResponse(): RecordOutputBlobPathResponse =
   RecordOutputBlobPathResponse.newBuilder().setToken(this).build()!!
 

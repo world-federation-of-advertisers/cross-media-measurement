@@ -366,6 +366,22 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
     }
   }
 
+  override suspend fun updateComputationDetails(
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    computationDetails: ComputationDT
+  ) {
+    runIfTokenFromLastUpdate(token) { ctx ->
+      val writeTime = clock.gcloudTimestamp()
+      ctx.buffer(
+        computationMutations.updateComputation(
+          localId = token.localId,
+          updateTime = writeTime,
+          details = computationDetails
+        )
+      )
+    }
+  }
+
   private suspend fun mutationsToChangeStages(
     ctx: AsyncDatabaseClient.TransactionContext,
     token: ComputationStorageEditToken<ProtocolT, StageT>,

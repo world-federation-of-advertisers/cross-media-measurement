@@ -51,6 +51,8 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
@@ -173,6 +175,20 @@ class ComputationsService(
     val computationToken = computationsDatabase.readComputationToken(request.globalComputationId)
       ?: throw Status.NOT_FOUND.asRuntimeException()
     return computationToken.toGetComputationTokenResponse()
+  }
+
+  override suspend fun updateComputationDetails(
+    request: UpdateComputationDetailsRequest
+  ): UpdateComputationDetailsResponse {
+    require(request.token.computationDetails.detailsCase == request.details.detailsCase) {
+      "The protocol type cannot change."
+    }
+    computationsDatabase.updateComputationDetails(
+      request.token.toDatabaseEditToken(),
+      request.details
+    )
+    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
+      .toUpdateComputationDetailsResponse()
   }
 
   override suspend fun recordOutputBlobPath(

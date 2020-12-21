@@ -173,6 +173,12 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
     endComputationReason: EndComputationReason
   )
 
+  /** Overrides the computationDetails of the computation using the given value. */
+  suspend fun updateComputationDetails(
+    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    computationDetails: ComputationDetailsT
+  )
+
   /** Writes the reference to a BLOB needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(
     token: ComputationStorageEditToken<ProtocolT, StageT>,

@@ -220,6 +220,15 @@ class FakeComputationDb private constructor(
     }
   }
 
+  override suspend fun updateComputationDetails(
+    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    computationDetails: ComputationDetails
+  ) {
+    updateToken(token) { existing ->
+      existing.toBuilder().setComputationDetails(computationDetails)
+    }
+  }
+
   override suspend fun endComputation(
     token: ComputationStorageEditToken<ComputationType, ComputationStage>,
     endingStage: ComputationStage,

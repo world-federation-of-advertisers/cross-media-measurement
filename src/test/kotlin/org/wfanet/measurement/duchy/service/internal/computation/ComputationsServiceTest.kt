@@ -18,6 +18,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.mock
 import java.time.Clock
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -38,7 +39,9 @@ import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
@@ -74,6 +77,15 @@ class ComputationsServiceTest {
         outgoingNodeId = "BOHEMIA"
       }
     }.build()
+
+    val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
+      liquidLegionsV2Builder.apply {
+        role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
+        aggregatorNodeId = "BOHEMIA"
+        incomingNodeId = "SALZBURG"
+        outgoingNodeId = "AUSTRIA"
+      }
+    }.build()
   }
 
   private val fakeDatabase = FakeComputationDb()
@@ -93,6 +105,52 @@ class ComputationsServiceTest {
       Clock.systemUTC(),
       duchyOrder
     )
+  }
+
+  @Test
+  fun `update computationDetails successfully`() = runBlocking {
+    val id = "1234"
+    fakeDatabase.addComputation(
+      id,
+      LiquidLegionsSketchAggregationV2.Stage.REACH_ESTIMATION_PHASE.toProtocolStage(),
+      aggregatorComputationDetails,
+      listOf()
+    )
+    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val newComputationDetails = aggregatorComputationDetails.toBuilder().apply {
+      liquidLegionsV2Builder.reachEstimateBuilder.reach = 123
+    }.build()
+    val request = UpdateComputationDetailsRequest.newBuilder().apply {
+      token = tokenAtStart
+      details = newComputationDetails
+    }.build()
+
+    assertThat(fakeService.updateComputationDetails(request))
+      .isEqualTo(
+        tokenAtStart.toBuilder().apply {
+          version = 1
+          computationDetails = newComputationDetails
+        }.build().toUpdateComputationDetailsResponse()
+      )
+  }
+
+  @Test
+  fun `update computationDetails, protocol doesn't match should fail`() = runBlocking<Unit> {
+    val id = "1234"
+    fakeDatabase.addComputation(
+      id,
+      LiquidLegionsSketchAggregationV2.Stage.REACH_ESTIMATION_PHASE.toProtocolStage(),
+      aggregatorComputationDetails,
+      listOf()
+    )
+
+    val request = UpdateComputationDetailsRequest.newBuilder().apply {
+      token = fakeService.getComputationToken(id.toGetTokenRequest()).token
+      details = primaryComputationDetails
+    }.build()
+    assertFailsWith<IllegalArgumentException> {
+      fakeService.updateComputationDetails(request)
+    }
   }
 
   @Test

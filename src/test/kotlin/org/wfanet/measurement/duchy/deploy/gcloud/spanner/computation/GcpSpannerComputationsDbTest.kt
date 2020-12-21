@@ -1010,6 +1010,55 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   }
 
   @Test
+  fun `update computation details`() = runBlocking<Unit> {
+    val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val lockExpires = Instant.now().plusSeconds(300)
+    val token = ComputationStorageEditToken(
+      localId = 4315,
+      protocol = FakeProtocol.ZERO,
+      stage = C,
+      attempt = 2,
+      editVersion = lastUpdated.toEpochMilli()
+    )
+    val computation = computationMutations.insertComputation(
+      localId = token.localId,
+      updateTime = lastUpdated.toGcloudTimestamp(),
+      protocol = token.protocol,
+      stage = token.stage,
+      globalId = "55",
+      lockOwner = "PeterSpacemen",
+      lockExpirationTime = lockExpires.toGcloudTimestamp(),
+      details = FAKE_COMPUTATION_DETAILS
+    )
+
+    testClock.tickSeconds("time-ended")
+    databaseClient.write(listOf(computation))
+    val newComputationDetails = FakeComputationDetails.newBuilder().apply {
+      role = "something different"
+    }.build()
+    database.updateComputationDetails(token, newComputationDetails)
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT ComputationId, ComputationStage, UpdateTime, GlobalComputationId, LockOwner,
+             LockExpirationTime, ComputationDetails, ComputationDetailsJSON
+      FROM Computations
+      ORDER BY ComputationId DESC
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId").to(token.localId)
+        .set("ComputationStage").toFakeStage(C)
+        .set("UpdateTime").to(testClock.last().toGcloudTimestamp())
+        .set("GlobalComputationId").to("55")
+        .set("LockOwner").to("PeterSpacemen")
+        .set("LockExpirationTime").to(lockExpires.toGcloudTimestamp())
+        .set("ComputationDetails").toProtoBytes(newComputationDetails)
+        .set("ComputationDetailsJSON").toProtoJson(newComputationDetails)
+        .build()
+    )
+  }
+
+  @Test
   fun `end successful computation`() = runBlocking<Unit> {
     val token = ComputationStorageEditToken(
       localId = 4315,
