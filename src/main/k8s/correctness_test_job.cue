@@ -44,6 +44,11 @@ package k8s
 				mountPath: "/cache"
 			}]
 		}]
+		initContainers: [{
+      name: "init-a-publisher-data-server"
+      image: "busybox:1.28"
+      command: ['sh', '-c', "until nslookup a-publisher-data-server; do echo waiting for a-publisher-data-server; sleep 2; done"]
+    }]
 		restartPolicy: "OnFailure"
 		volumes: [{
 			name: "cache-volume"

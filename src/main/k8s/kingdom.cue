@@ -80,7 +80,9 @@ import ("strings")
 				"--throttler-time-horizon=2m",
 				"--combined-public-key-id=combined-public-key-1",
 			]
-		}
+		} & {
+		  _dependencies: ["gcp-kingdom-data-server"]
+    }
 
 		"report-starter-daemon-pod": #Pod & {
 			_args: [
@@ -91,6 +93,8 @@ import ("strings")
 				"--throttler-poll-delay=1ms",
 				"--throttler-time-horizon=2m",
 			]
+		} & {
+		  _dependencies: ["gcp-kingdom-data-server"]
 		}
 
 		"requisition-linker-daemon-pod": #Pod & {
@@ -102,7 +106,9 @@ import ("strings")
 				"--throttler-poll-delay=1ms",
 				"--throttler-time-horizon=2m",
 			]
-		}
+		} & {
+		  _dependencies: ["gcp-kingdom-data-server"]
+    }
 
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
@@ -118,7 +124,9 @@ import ("strings")
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags
-		}
+		} & {
+		  _dependencies: ["gcp-kingdom-data-server"]
+    }
 
 		"requisition-server-pod": #ServerPod & {
 			_args: [
@@ -127,7 +135,9 @@ import ("strings")
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags
-		}
+		} & {
+		  _dependencies: ["gcp-kingdom-data-server"]
+    }
 
 		"system-requisition-server-pod": #ServerPod & {
 			_args: [
@@ -136,6 +146,8 @@ import ("strings")
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			] + _duchy_id_flags
-		}
+		} & {
+      _dependencies: ["gcp-kingdom-data-server"]
+    }
 	}
 }
