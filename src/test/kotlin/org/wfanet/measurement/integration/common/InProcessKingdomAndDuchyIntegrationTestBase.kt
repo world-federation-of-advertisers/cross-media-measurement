@@ -132,7 +132,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
           reportDetailsBuilder.apply {
             addAllConfirmedDuchies(DUCHY_IDS)
             reportDetailsBuilder.resultBuilder.apply {
-              // TODO: check reach when it is reported back.
+              reach = 13L
               putFrequency(6L, 0.3)
               putFrequency(3L, 0.7)
             }
@@ -186,7 +186,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
           reportDetailsBuilder.apply {
             addAllConfirmedDuchies(DUCHY_IDS)
             reportDetailsBuilder.resultBuilder.apply {
-              // TODO: check reach when it is reported back.
+              reach = 13L
               putFrequency(6L, 0.3)
               putFrequency(3L, 0.7)
             }

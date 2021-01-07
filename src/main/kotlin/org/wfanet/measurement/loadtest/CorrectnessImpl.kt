@@ -128,9 +128,8 @@ class CorrectnessImpl(
       encryptAndSend(it, testResult)
     }
 
-    // TODO: also setReach() when reach is reported to kingdom in the LL_V2 protocol.
     val expectedResult =
-      ReportDetails.Result.newBuilder().putAllFrequency(frequency).build()
+      ReportDetails.Result.newBuilder().setReach(reach).putAllFrequency(frequency).build()
     logger.info("Expected Result: $expectedResult")
 
     // Start querying Spanner after 2 min.

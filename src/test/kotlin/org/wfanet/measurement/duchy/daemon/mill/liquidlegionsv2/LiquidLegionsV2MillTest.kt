@@ -820,12 +820,14 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    val testReach = 123L
     whenever(mockCryptoWorker.completeReachEstimationPhaseAtAggregator(any()))
       .thenAnswer {
         val request: CompleteReachEstimationPhaseAtAggregatorRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeReachEstimationPhaseAtAggregator-done")
         CompleteReachEstimationPhaseAtAggregatorResponse.newBuilder()
           .setFlagCountTuples(request.combinedRegisterVector.concat(postFix))
+          .setReach(testReach)
           .build()
       }
 
@@ -850,8 +852,12 @@ class LiquidLegionsV2MillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setComputationDetails(aggregatorComputationDetails)
+        .setVersion(4) // CreateComputation + writeOutputBlob + ComputationDetails + transitionStage
+        .setComputationDetails(
+          aggregatorComputationDetails.toBuilder().apply {
+            liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach
+          }
+        )
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString())
@@ -1063,11 +1069,16 @@ class LiquidLegionsV2MillTest {
       localId = LOCAL_ID,
       stage = FREQUENCY_ESTIMATION_PHASE.toProtocolStage()
     ).build()
+    val computationDetailsWithReach = aggregatorComputationDetails.toBuilder().apply {
+      liquidLegionsV2Builder.apply {
+        reachEstimateBuilder.reach = 123
+      }
+    }.build()
     computationStore.writeString(partialToken, "data")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails = aggregatorComputationDetails,
+      computationDetails = computationDetailsWithReach,
       blobs = listOf(
         newInputBlobMetadata(0L, generatedBlobKeys.last()),
         newEmptyOutputBlobMetadata(1L)
@@ -1093,7 +1104,7 @@ class LiquidLegionsV2MillTest {
         .setAttempt(1)
         .setComputationStage(COMPLETE.toProtocolStage())
         .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setComputationDetails(aggregatorComputationDetails)
+        .setComputationDetails(computationDetailsWithReach)
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
@@ -1110,6 +1121,7 @@ class LiquidLegionsV2MillTest {
           )
           .setResult(
             GlobalComputation.Result.newBuilder()
+              .setReach(123L)
               .putFrequency(1, 0.3)
               .putFrequency(2, 0.7)
           )
