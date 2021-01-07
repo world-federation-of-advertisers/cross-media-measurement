@@ -345,6 +345,13 @@ http_file(
     urls = ["https://github.com/bazelbuild/bazel/releases/download/3.7.0/bazel-3.7.0-linux-x86_64"],
 )
 
+# Grpc Health Check Probe
+http_file(
+    name = "grpc_health_check_bin",
+    downloaded_file_path = "grpc_health_probe",
+    urls = ["https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.3.4/grpc_health_probe-linux-amd64"],
+)
+
 # Rules for swig wrapping.
 git_repository(
     name = "wfa_rules_swig",

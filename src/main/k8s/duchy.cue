@@ -62,9 +62,7 @@ import ("strings")
 		"computation-control-server": {}
 		"spanner-computations-server": {}
 		"metric-values-storage-server": {}
-		"publisher-data-server": {
-			_type: "NodePort"
-		}
+		"publisher-data-server": _type: "NodePort"
 	}
 
 	duchy_pod: [Name=_]: #Pod & {
@@ -85,8 +83,7 @@ import ("strings")
 				"--channel-shutdown-timeout=3s",
 				"--polling-interval=1m",
 			]
-		} & {
-      _dependencies: ["\(_name)-spanner-computations-server", "global-computation-server"]
+			_dependencies: ["\(_name)-spanner-computations-server", "global-computation-server"]
 		}
 		"liquid-legions-v1-mill-daemon-pod": #Pod & {
 			_args: [
@@ -119,9 +116,8 @@ import ("strings")
 				"--polling-interval=1s",
 			] + _computation_control_service_flags + _blob_storage_flags
 			_jvm_flags: "-Xmx1g -Xms256m"
-		} & {
-       _dependencies: ["\(_name)-spanner-computations-server", "global-computation-server", "\(_name)-metric-values-storage-server", "\(_name)-computation-control-server"]
-    }
+			_dependencies: ["\(_name)-spanner-computations-server", "global-computation-server", "\(_name)-metric-values-storage-server", "\(_name)-computation-control-server"]
+		}
 		"async-computation-control-server-pod": #ServerPod & {
 			_args: [
 				_computations_service_target_flag,
@@ -130,9 +126,8 @@ import ("strings")
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _duchy_id_flags
-		} & {
-      _dependencies: ["\(_name)-spanner-computations-server"]
-   }
+			_dependencies: ["\(_name)-spanner-computations-server"]
+		}
 		"computation-control-server-pod": #ServerPod & {
 			_args: [
 				_async_computations_control_service_target_flag,
@@ -141,9 +136,8 @@ import ("strings")
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _duchy_id_flags + _blob_storage_flags
-		} & {
-       _dependencies: ["\(_name)-async-computation-control-server"]
-    }
+			_dependencies: ["\(_name)-async-computation-control-server"]
+		}
 		"spanner-computations-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
@@ -154,18 +148,16 @@ import ("strings")
 				"--port=8080",
 				"--spanner-database=\(_name)_duchy_computations",
 			] + _spanner_flags
-		} & {
-		  _dependencies: ["global-computation-server"]
-    }
+			_dependencies: ["global-computation-server"]
+		}
 		"metric-values-storage-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 				"--spanner-database=\(_name)_duchy_metric_values",
 			] + _spanner_flags + _blob_storage_flags
-		} & {
-		  _dependencies: ["global-computation-server"]
-    }
+			_dependencies: ["global-computation-server"]
+		}
 		"publisher-data-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
@@ -177,9 +169,8 @@ import ("strings")
 				"--port=8080",
 				"--registration-service-target=127.0.0.1:9000", // TODO: change once implemented.
 			]
+			_dependencies: ["requisition-server", "system-requisition-server", "\(_name)-metric-values-storage-server"]
 		}
-	} & {
-	  _dependencies: ["requisition-server", "system-requisition-server", "\(_name)-metric-values-storage-server"]
 	}
 	setup_job: "push-spanner-schema-job": {
 		apiVersion: "batch/v1"

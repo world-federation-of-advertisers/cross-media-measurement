@@ -73,9 +73,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_imagePullPolicy: string | *"Never"
 	_system:          string
 	_jvm_flags:       string | *""
-	_dependencies:    [...string]
-	apiVersion:       "v1"
-	kind:             "Pod"
+	_dependencies: [...string]
+	apiVersion: "v1"
+	kind:       "Pod"
 	metadata: {
 		name: _name + "-pod"
 		labels: {
@@ -95,17 +95,25 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				name:  "JAVA_TOOL_OPTIONS"
 				value: _jvm_flags
 			}]
+			readinessProbe?: {
+				exec: command: [...string]
+				periodSeconds: uint32
+			}
 		}]
-		initContainers: [for ds in _dependencies
-		{
-      name:    "init-\(ds)"
-      image:   "busybox:1.28"
-      command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
-    }]
+		initContainers: [ for ds in _dependencies {
+			name:  "init-\(ds)"
+			image: "busybox:1.28"
+			command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
+		}]
 		restartPolicy: _restartPolicy
 	}
 }
 
 #ServerPod: #Pod & {
 	_ports: [{containerPort: 8080}]
+	spec: containers: [{
+		readinessProbe: {
+			exec: command: ["/app/grpc_health_check_bin/file/grpc_health_probe", "--addr=:8080"]
+			periodSeconds: 60
+		}}]
 }
