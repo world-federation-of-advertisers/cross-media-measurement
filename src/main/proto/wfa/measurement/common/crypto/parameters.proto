@@ -36,14 +36,17 @@ message ElGamalKeyPair {
   ElGamalPublicKey public_key = 2;
 }
 
-// Parameters of the polya distribution.
-// S. Goryczka and L. Xiong, "A Comprehensive Comparison of Multiparty Secure
-// Additions with Differential Privacy," in IEEE Transactions on Dependable and
-// Secure Computing, vol. 14, no. 5, pp. 463-477, 1 Sept.-Oct. 2017,
-// doi: 10.1109/TDSC.2015.2484326.
-message PolyaParameters {
-  double r = 1;  // any real number.
-  double p = 2;  // 0<p<1
+// Parameters used to generate the distributed components of a shifted two-sided
+// geometric distributed random variable.
+message DistributedGeometricDistributionParams {
+  // The number of contributors to the global random variable. At least 2.
+  int64 num = 1;
+  // The p (success ratio) parameter of the polya distribution. 0<p<1.
+  double p = 2;
+  // Offset to shift the generated PolyaDiff, It is also the threshold where we
+  // truncate the individual Polya random numbers.
+  // The result will be in the range of [0, shift_offset*2].
+  int64 shift_offset = 3;
 }
 
 // Parameters used for liquidLegions creation and estimation.
