@@ -50,9 +50,9 @@ class LiquidLegionsSketchAggregationV2Context(
           it.dependencyType == ComputationBlobDependency.OUTPUT && it.blobId == blobId
         }
       }
-      Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS,
-      Stage.WAIT_FILTERING_PHASE_INPUTS,
-      Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS -> token.singleOutputBlobMetadata()
+      Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
+      Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
+      Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> token.singleOutputBlobMetadata()
       else -> failGrpc {
         "Not expecting to advance computation in stage ${token.computationStage} through the " +
           "AsyncComputationControl Service"
@@ -65,9 +65,9 @@ class LiquidLegionsSketchAggregationV2Context(
   ): ComputationStage {
     return when (stage.liquidLegionsSketchAggregationV2) {
       Stage.WAIT_SETUP_PHASE_INPUTS -> Stage.SETUP_PHASE
-      Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS -> Stage.REACH_ESTIMATION_PHASE
-      Stage.WAIT_FILTERING_PHASE_INPUTS -> Stage.FILTERING_PHASE
-      Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS -> Stage.FREQUENCY_ESTIMATION_PHASE
+      Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS -> Stage.EXECUTION_PHASE_ONE
+      Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS -> Stage.EXECUTION_PHASE_TWO
+      Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> Stage.EXECUTION_PHASE_THREE
       else -> failGrpc {
         "Next liquid legions v2 stage unknown for ($computationDetails, stage: $stage)"
       }

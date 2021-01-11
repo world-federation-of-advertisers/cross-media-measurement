@@ -184,9 +184,8 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   return response;
 }
 
-absl::StatusOr<CompleteReachEstimationPhaseResponse>
-CompleteReachEstimationPhase(
-    const CompleteReachEstimationPhaseRequest& request) {
+absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
+    const CompleteExecutionPhaseOneRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t register_count,
@@ -205,7 +204,7 @@ CompleteReachEstimationPhase(
                          request.composite_el_gamal_public_key().element())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
-  CompleteReachEstimationPhaseResponse response;
+  CompleteExecutionPhaseOneResponse response;
   std::string* response_crv = response.mutable_combined_register_vector();
   // The output crv is the same size with the input crv.
   response_crv->reserve(request.combined_register_vector().size());
@@ -226,9 +225,9 @@ CompleteReachEstimationPhase(
   return response;
 }
 
-absl::StatusOr<CompleteReachEstimationPhaseAtAggregatorResponse>
-CompleteReachEstimationPhaseAtAggregator(
-    const CompleteReachEstimationPhaseAtAggregatorRequest& request) {
+absl::StatusOr<CompleteExecutionPhaseOneAtAggregatorResponse>
+CompleteExecutionPhaseOneAtAggregator(
+    const CompleteExecutionPhaseOneAtAggregatorRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t register_count,
@@ -260,7 +259,7 @@ CompleteReachEstimationPhaseAtAggregator(
     return blinded_register_indexes[a] < blinded_register_indexes[b];
   });
 
-  CompleteReachEstimationPhaseAtAggregatorResponse response;
+  CompleteExecutionPhaseOneAtAggregatorResponse response;
   std::string* response_data = response.mutable_flag_count_tuples();
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       *protocol_cryptor, request.combined_register_vector(),
@@ -287,8 +286,8 @@ CompleteReachEstimationPhaseAtAggregator(
   return response;
 }
 
-absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
-    const CompleteFilteringPhaseRequest& request) {
+absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
+    const CompleteExecutionPhaseTwoRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
@@ -307,7 +306,7 @@ absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
                          request.composite_el_gamal_public_key().element())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
-  CompleteFilteringPhaseResponse response;
+  CompleteExecutionPhaseTwoResponse response;
   std::string* response_data = response.mutable_flag_count_tuples();
   // Without noise, the output flag_count_tuples is the same size as the input
   // flag_count_tuples.
@@ -334,9 +333,9 @@ absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
   return response;
 }
 
-absl::StatusOr<CompleteFilteringPhaseAtAggregatorResponse>
-CompleteFilteringPhaseAtAggregator(
-    const CompleteFilteringPhaseAtAggregatorRequest& request) {
+absl::StatusOr<CompleteExecutionPhaseTwoAtAggregatorResponse>
+CompleteExecutionPhaseTwoAtAggregator(
+    const CompleteExecutionPhaseTwoAtAggregatorRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
@@ -360,7 +359,7 @@ CompleteFilteringPhaseAtAggregator(
                    GetSameKeyAggregatorMatrixBase(*protocol_cryptor,
                                                   request.maximum_frequency()));
 
-  CompleteFilteringPhaseAtAggregatorResponse response;
+  CompleteExecutionPhaseTwoAtAggregatorResponse response;
   std::string* response_ska_matrix =
       response.mutable_same_key_aggregator_matrix();
 
@@ -404,9 +403,8 @@ CompleteFilteringPhaseAtAggregator(
   return response;
 }
 
-absl::StatusOr<CompleteFrequencyEstimationPhaseResponse>
-CompleteFrequencyEstimationPhase(
-    const CompleteFrequencyEstimationPhaseRequest& request) {
+absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
+    const CompleteExecutionPhaseThreeRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
@@ -423,7 +421,7 @@ CompleteFrequencyEstimationPhase(
           kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
-  CompleteFrequencyEstimationPhaseResponse response;
+  CompleteExecutionPhaseThreeResponse response;
 
   for (size_t index = 0; index < ciphertext_counts; ++index) {
     absl::string_view current_block =
@@ -438,9 +436,9 @@ CompleteFrequencyEstimationPhase(
   return response;
 }
 
-absl::StatusOr<CompleteFrequencyEstimationPhaseAtAggregatorResponse>
-CompleteFrequencyEstimationPhaseAtAggregator(
-    const CompleteFrequencyEstimationPhaseAtAggregatorRequest& request) {
+absl::StatusOr<CompleteExecutionPhaseThreeAtAggregatorResponse>
+CompleteExecutionPhaseThreeAtAggregator(
+    const CompleteExecutionPhaseThreeAtAggregatorRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
@@ -499,7 +497,7 @@ CompleteFrequencyEstimationPhaseAtAggregator(
     }
   }
 
-  CompleteFrequencyEstimationPhaseAtAggregatorResponse response;
+  CompleteExecutionPhaseThreeAtAggregatorResponse response;
   google::protobuf::Map<int64_t, double>& distribution =
       *response.mutable_frequency_distribution();
   for (size_t i = 0; i <= maximum_frequency; ++i) {

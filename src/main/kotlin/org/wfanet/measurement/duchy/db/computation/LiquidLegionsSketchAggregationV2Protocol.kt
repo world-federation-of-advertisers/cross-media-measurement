@@ -22,14 +22,14 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.FILTERING_PHASE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.FREQUENCY_ESTIMATION_PHASE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.REACH_ESTIMATION_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_FILTERING_PHASE_INPUTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 
@@ -64,17 +64,17 @@ object LiquidLegionsSketchAggregationV2Protocol {
         ),
         WAIT_TO_START to setOf(SETUP_PHASE),
         WAIT_SETUP_PHASE_INPUTS to setOf(SETUP_PHASE),
-        SETUP_PHASE to setOf(WAIT_REACH_ESTIMATION_PHASE_INPUTS),
-        WAIT_REACH_ESTIMATION_PHASE_INPUTS to setOf(REACH_ESTIMATION_PHASE),
-        REACH_ESTIMATION_PHASE to setOf(
-          WAIT_FILTERING_PHASE_INPUTS
+        SETUP_PHASE to setOf(WAIT_EXECUTION_PHASE_ONE_INPUTS),
+        WAIT_EXECUTION_PHASE_ONE_INPUTS to setOf(EXECUTION_PHASE_ONE),
+        EXECUTION_PHASE_ONE to setOf(
+          WAIT_EXECUTION_PHASE_TWO_INPUTS
         ),
-        WAIT_FILTERING_PHASE_INPUTS to setOf(FILTERING_PHASE),
-        FILTERING_PHASE to setOf(WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS),
-        WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS to setOf(
-          FREQUENCY_ESTIMATION_PHASE
+        WAIT_EXECUTION_PHASE_TWO_INPUTS to setOf(EXECUTION_PHASE_TWO),
+        EXECUTION_PHASE_TWO to setOf(WAIT_EXECUTION_PHASE_THREE_INPUTS),
+        WAIT_EXECUTION_PHASE_THREE_INPUTS to setOf(
+          EXECUTION_PHASE_THREE
         ),
-        FREQUENCY_ESTIMATION_PHASE to setOf()
+        EXECUTION_PHASE_THREE to setOf()
       ).withDefault { setOf() }
 
     override fun enumToLong(value: LiquidLegionsSketchAggregationV2.Stage): Long {
@@ -114,15 +114,15 @@ object LiquidLegionsSketchAggregationV2Protocol {
           return when (stage) {
             // Stages of computation mapping some number of inputs to single output.
             SETUP_PHASE,
-            REACH_ESTIMATION_PHASE,
-            FILTERING_PHASE,
-            FREQUENCY_ESTIMATION_PHASE ->
+            EXECUTION_PHASE_ONE,
+            EXECUTION_PHASE_TWO,
+            EXECUTION_PHASE_THREE ->
               AfterTransition.ADD_UNCLAIMED_TO_QUEUE
             WAIT_TO_START,
             WAIT_SETUP_PHASE_INPUTS,
-            WAIT_REACH_ESTIMATION_PHASE_INPUTS,
-            WAIT_FILTERING_PHASE_INPUTS,
-            WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS ->
+            WAIT_EXECUTION_PHASE_ONE_INPUTS,
+            WAIT_EXECUTION_PHASE_TWO_INPUTS,
+            WAIT_EXECUTION_PHASE_THREE_INPUTS ->
               AfterTransition.DO_NOT_ADD_TO_QUEUE
             COMPLETE -> error("Computation should be ended with call to endComputation(...)")
             // Stages that we can't transition to ever.
@@ -138,13 +138,13 @@ object LiquidLegionsSketchAggregationV2Protocol {
           WAIT_TO_START ->
             // There is no output in this stage, the input is forwarded to the next stage as input.
             0
-          WAIT_REACH_ESTIMATION_PHASE_INPUTS,
-          WAIT_FILTERING_PHASE_INPUTS,
-          WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS,
+          WAIT_EXECUTION_PHASE_ONE_INPUTS,
+          WAIT_EXECUTION_PHASE_TWO_INPUTS,
+          WAIT_EXECUTION_PHASE_THREE_INPUTS,
           SETUP_PHASE,
-          REACH_ESTIMATION_PHASE,
-          FILTERING_PHASE,
-          FREQUENCY_ESTIMATION_PHASE ->
+          EXECUTION_PHASE_ONE,
+          EXECUTION_PHASE_TWO,
+          EXECUTION_PHASE_THREE ->
             // The output is the intermediate computation result either received from another duchy
             // or computed locally.
             1

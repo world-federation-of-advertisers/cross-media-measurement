@@ -53,9 +53,9 @@ class LiquidLegionsSketchAggregationV2ContextTest {
     for (stage in Stage.values()) {
       when (stage) {
         Stage.WAIT_SETUP_PHASE_INPUTS,
-        Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS,
-        Stage.WAIT_FILTERING_PHASE_INPUTS,
-        Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS -> {
+        Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
+        Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
+        Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> {
           val next =
             context
               .nextStage(ComputationDetails.getDefaultInstance(), stage.toProtocolStage())
@@ -104,7 +104,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
   @Test
   fun `output blob for wait reach estimation inputs`() {
     val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS.toProtocolStage()
+      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
       addBlobs(newEmptyOutputBlobMetadata(1L))
     }.build()
 
@@ -117,7 +117,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
   @Test
   fun `output blob for wait filtering phase inputs`() {
     val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_FILTERING_PHASE_INPUTS.toProtocolStage()
+      computationStage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
       addBlobs(newEmptyOutputBlobMetadata(100L))
     }.build()
 
@@ -130,7 +130,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
   @Test
   fun `output blob for wait frequency inputs`() {
     val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS.toProtocolStage()
+      computationStage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
       addBlobs(newEmptyOutputBlobMetadata(120L))
     }.build()
 
@@ -161,9 +161,9 @@ class LiquidLegionsSketchAggregationV2ContextTest {
       when (stage) {
         // Skip all the supported stages, they are tested elsewhere.
         Stage.WAIT_SETUP_PHASE_INPUTS,
-        Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS,
-        Stage.WAIT_FILTERING_PHASE_INPUTS,
-        Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS -> { }
+        Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
+        Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
+        Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> { }
         else -> assertContextThrowsErrorWhenGettingBlob(stage)
       }
     }

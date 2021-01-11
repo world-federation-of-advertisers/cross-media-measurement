@@ -15,18 +15,18 @@
 package org.wfanet.measurement.common.crypto.liquidlegionsv2
 
 import java.nio.file.Paths
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseResponse
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseResponse
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
 import org.wfanet.measurement.common.crypto.LiquidLegionsV2EncryptionUtility
@@ -43,50 +43,50 @@ class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
     )
   }
 
-  override fun completeReachEstimationPhase(request: CompleteReachEstimationPhaseRequest):
-    CompleteReachEstimationPhaseResponse {
-      return CompleteReachEstimationPhaseResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeReachEstimationPhase(request.toByteArray())
+  override fun completeExecutionPhaseOne(request: CompleteExecutionPhaseOneRequest):
+    CompleteExecutionPhaseOneResponse {
+      return CompleteExecutionPhaseOneResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(request.toByteArray())
       )
     }
 
-  override fun completeReachEstimationPhaseAtAggregator(
-    request: CompleteReachEstimationPhaseAtAggregatorRequest
-  ): CompleteReachEstimationPhaseAtAggregatorResponse {
-    return CompleteReachEstimationPhaseAtAggregatorResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeReachEstimationPhaseAtAggregator(
+  override fun completeExecutionPhaseOneAtAggregator(
+    request: CompleteExecutionPhaseOneAtAggregatorRequest
+  ): CompleteExecutionPhaseOneAtAggregatorResponse {
+    return CompleteExecutionPhaseOneAtAggregatorResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOneAtAggregator(
         request.toByteArray()
       )
     )
   }
 
-  override fun completeFilteringPhase(request: CompleteFilteringPhaseRequest):
-    CompleteFilteringPhaseResponse {
-      return CompleteFilteringPhaseResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeFilteringPhase(request.toByteArray())
+  override fun completeExecutionPhaseTwo(request: CompleteExecutionPhaseTwoRequest):
+    CompleteExecutionPhaseTwoResponse {
+      return CompleteExecutionPhaseTwoResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(request.toByteArray())
       )
     }
 
-  override fun completeFilteringPhaseAtAggregator(
-    request: CompleteFilteringPhaseAtAggregatorRequest
-  ): CompleteFilteringPhaseAtAggregatorResponse {
-    return CompleteFilteringPhaseAtAggregatorResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeFilteringPhaseAtAggregator(request.toByteArray())
+  override fun completeExecutionPhaseTwoAtAggregator(
+    request: CompleteExecutionPhaseTwoAtAggregatorRequest
+  ): CompleteExecutionPhaseTwoAtAggregatorResponse {
+    return CompleteExecutionPhaseTwoAtAggregatorResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwoAtAggregator(request.toByteArray())
     )
   }
 
-  override fun completeFrequencyEstimationPhase(request: CompleteFrequencyEstimationPhaseRequest):
-    CompleteFrequencyEstimationPhaseResponse {
-      return CompleteFrequencyEstimationPhaseResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhase(request.toByteArray())
+  override fun completeExecutionPhaseThree(request: CompleteExecutionPhaseThreeRequest):
+    CompleteExecutionPhaseThreeResponse {
+      return CompleteExecutionPhaseThreeResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(request.toByteArray())
       )
     }
 
-  override fun completeFrequencyEstimationPhaseAtAggregator(
-    request: CompleteFrequencyEstimationPhaseAtAggregatorRequest
-  ): CompleteFrequencyEstimationPhaseAtAggregatorResponse {
-    return CompleteFrequencyEstimationPhaseAtAggregatorResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhaseAtAggregator(
+  override fun completeExecutionPhaseThreeAtAggregator(
+    request: CompleteExecutionPhaseThreeAtAggregatorRequest
+  ): CompleteExecutionPhaseThreeAtAggregatorResponse {
+    return CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThreeAtAggregator(
         request.toByteArray()
       )
     )

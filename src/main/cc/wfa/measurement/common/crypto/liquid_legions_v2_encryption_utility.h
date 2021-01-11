@@ -27,28 +27,26 @@ namespace wfa::measurement::common::crypto {
 absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     const CompleteSetupPhaseRequest& request);
 
-//  Complete work in the reach estimation phase at a non-aggregator worker.
+//  Complete work in the execution phase one at a non-aggregator worker.
 //  More specifically, the worker would
 //    1. blind the positions (decrypt local ElGamal layer and then add another
 //       layer of deterministic pohlig_hellman encryption.
 //    2. re-randomize keys and counts.
 //    3. shuffle all registers.
-absl::StatusOr<CompleteReachEstimationPhaseResponse>
-CompleteReachEstimationPhase(
-    const CompleteReachEstimationPhaseRequest& request);
+absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
+    const CompleteExecutionPhaseOneRequest& request);
 
-//  Complete work in the reach estimation phase at the aggregator worker.
+//  Complete work in the execution phase one at the aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the local ElGamal encryption on the positions.
 //    2. join the registers by positions.
 //    3. run sameKeyAggregation on the keys and counts.
-//    4. estimate the reach.
-//    5. add local (flag, count) noises (if configured to).
-absl::StatusOr<CompleteReachEstimationPhaseAtAggregatorResponse>
-CompleteReachEstimationPhaseAtAggregator(
-    const CompleteReachEstimationPhaseAtAggregatorRequest& request);
+//    4. add local (flag, count) noises (if configured to).
+absl::StatusOr<CompleteExecutionPhaseOneAtAggregatorResponse>
+CompleteExecutionPhaseOneAtAggregator(
+    const CompleteExecutionPhaseOneAtAggregatorRequest& request);
 
-//  Complete work in the filtering phase at a non-aggregator worker.
+//  Complete work in the execution phase two at a non-aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the local ElGamal encryption on the flags.
 //    2. re-randomize the counts.
@@ -56,34 +54,34 @@ CompleteReachEstimationPhaseAtAggregator(
 //    flags are encrypted with a partial composite ElGamal public key and the
 //    counts are encrypted with the full composite ElGamal public key.
 //    4. shuffle all the (flag_a, flag_b, count) tuples.
-absl::StatusOr<CompleteFilteringPhaseResponse> CompleteFilteringPhase(
-    const CompleteFilteringPhaseRequest& request);
+absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
+    const CompleteExecutionPhaseTwoRequest& request);
 
-//  Complete work in the filtering phase at the aggregator worker.
+//  Complete work in the execution phase two at the aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the local ElGamal encryption on the flags.
-//    2. discard all destroyed (flag, count) tuples.
-//    3. create the 2-D SameKeyAggregator (SKA) matrix.
-absl::StatusOr<CompleteFilteringPhaseAtAggregatorResponse>
-CompleteFilteringPhaseAtAggregator(
-    const CompleteFilteringPhaseAtAggregatorRequest& request);
+//    2. filter out non-desired noise and estimate the reach.
+//    3. discard all destroyed (flag, count) tuples.
+//    4. create the 2-D SameKeyAggregator (SKA) matrix.
+absl::StatusOr<CompleteExecutionPhaseTwoAtAggregatorResponse>
+CompleteExecutionPhaseTwoAtAggregator(
+    const CompleteExecutionPhaseTwoAtAggregatorRequest& request);
 
-//  Complete work in the frequency estimation phase at a non-aggregator worker.
+//  Complete work in the execution phase three at a non-aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the the local ElGamal encryption on the SameKeyAggregator (SKA)
 //    matrix.
-absl::StatusOr<CompleteFrequencyEstimationPhaseResponse>
-CompleteFrequencyEstimationPhase(
-    const CompleteFrequencyEstimationPhaseRequest& request);
+absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
+    const CompleteExecutionPhaseThreeRequest& request);
 
-//  Complete work in the frequency estimation phase at the aggregator worker.
+//  Complete work in the execution phase three at the aggregator worker.
 //  More specifically, the worker would
 //    1. decrypt the the local ElGamal encryption on the SameKeyAggregator (SKA)
 //    matrix.
 //    2. estimate the frequency.
-absl::StatusOr<CompleteFrequencyEstimationPhaseAtAggregatorResponse>
-CompleteFrequencyEstimationPhaseAtAggregator(
-    const CompleteFrequencyEstimationPhaseAtAggregatorRequest& request);
+absl::StatusOr<CompleteExecutionPhaseThreeAtAggregatorResponse>
+CompleteExecutionPhaseThreeAtAggregator(
+    const CompleteExecutionPhaseThreeAtAggregatorRequest& request);
 
 }  // namespace wfa::measurement::common::crypto
 

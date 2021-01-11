@@ -112,7 +112,7 @@ class ComputationsServiceTest {
     val id = "1234"
     fakeDatabase.addComputation(
       id,
-      LiquidLegionsSketchAggregationV2.Stage.REACH_ESTIMATION_PHASE.toProtocolStage(),
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       aggregatorComputationDetails,
       listOf()
     )
@@ -139,7 +139,7 @@ class ComputationsServiceTest {
     val id = "1234"
     fakeDatabase.addComputation(
       id,
-      LiquidLegionsSketchAggregationV2.Stage.REACH_ESTIMATION_PHASE.toProtocolStage(),
+      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       aggregatorComputationDetails,
       listOf()
     )

@@ -82,9 +82,9 @@ message CompleteSetupPhaseResponse {
   int64 elapsed_cpu_time_millis = 2;
 }
 
-// The request to complete work in the reach estimation phase at a
+// The request to complete work in the execution phase one at a
 // non-aggregator worker.
-message CompleteReachEstimationPhaseRequest {
+message CompleteExecutionPhaseOneRequest {
   // The input combined register vector (CRV).
   // Each register contains a 3-tuple of (index, key, count), each of which is
   // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
@@ -99,8 +99,8 @@ message CompleteReachEstimationPhaseRequest {
   int64 curve_id = 4;
 }
 
-// Response of the CompleteReachEstimationPhase method.
-message CompleteReachEstimationPhaseResponse {
+// Response of the CompleteExecutionPhaseOne method.
+message CompleteExecutionPhaseOneResponse {
   // The output combined register vector (CRV), whose register indexes are
   // partially decrypted. Each register contains a 3-tuple of (index, key,
   // count), each of which is a 66 bytes ElGamal ciphertext. In other words, the
@@ -110,9 +110,9 @@ message CompleteReachEstimationPhaseResponse {
   int64 elapsed_cpu_time_millis = 2;
 }
 
-// The request to complete work in the reach estimation phase at the aggregator
+// The request to complete work in the execution phase one at the aggregator
 // worker.
-message CompleteReachEstimationPhaseAtAggregatorRequest {
+message CompleteExecutionPhaseOneAtAggregatorRequest {
   // The input combined register vector (CRV).
   // Each register contains a 3-tuple of (index, key, count), each of which is
   // a 66 bytes ElGamal ciphertext. In other words, the sketch size should be
@@ -134,8 +134,8 @@ message CompleteReachEstimationPhaseAtAggregatorRequest {
   FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
 }
 
-// The response of the CompleteReachEstimationPhaseAtAggregator method.
-message CompleteReachEstimationPhaseAtAggregatorResponse {
+// The response of the CompleteExecutionPhaseOneAtAggregator method.
+message CompleteExecutionPhaseOneAtAggregatorResponse {
   // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
@@ -146,9 +146,9 @@ message CompleteReachEstimationPhaseAtAggregatorResponse {
   int64 elapsed_cpu_time_millis = 3;
 }
 
-// The request to complete work in the filtering phase at a non-aggregator
+// The request to complete work in the execution phase two at a non-aggregator
 // worker.
-message CompleteFilteringPhaseRequest {
+message CompleteExecutionPhaseTwoRequest {
   // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
@@ -165,8 +165,8 @@ message CompleteFilteringPhaseRequest {
   FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
 }
 
-// The response of the CompleteFilteringPhase method.
-message CompleteFilteringPhaseResponse {
+// The response of the CompleteExecutionPhaseTwo method.
+message CompleteExecutionPhaseTwoResponse {
   // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
@@ -175,8 +175,9 @@ message CompleteFilteringPhaseResponse {
   int64 elapsed_cpu_time_millis = 2;
 }
 
-// The request to complete work in the filtering phase at the aggregator worker.
-message CompleteFilteringPhaseAtAggregatorRequest {
+// The request to complete work in the execution phase two at the aggregator
+// worker.
+message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
@@ -193,8 +194,8 @@ message CompleteFilteringPhaseAtAggregatorRequest {
   int32 maximum_frequency = 5;
 }
 
-// The response of the CompleteFilteringPhaseAtAggregator method.
-message CompleteFilteringPhaseAtAggregatorResponse {
+// The response of the CompleteExecutionPhaseTwoAtAggregator method.
+message CompleteExecutionPhaseTwoAtAggregatorResponse {
   // The 2-D same key aggregator (SKA) matrix.
   // Each element is a 66 bytes ciphertext. The row size of the matrix is equal
   // to the maximum_frequency, and the column size of the matrix is equal to the
@@ -204,9 +205,9 @@ message CompleteFilteringPhaseAtAggregatorResponse {
   int64 elapsed_cpu_time_millis = 2;
 }
 
-// The request to complete work in the frequency estimation phase at a
+// The request to complete work in the execution phase three at a
 // non-aggregator worker.
-message CompleteFrequencyEstimationPhaseRequest {
+message CompleteExecutionPhaseThreeRequest {
   // The 2-D same key aggregator matrix.
   // Each element is a partially decrypted ciphertext (66 bytes). The row size
   // of the matrix is equal to the maximum_frequency, and the column size of the
@@ -218,8 +219,8 @@ message CompleteFrequencyEstimationPhaseRequest {
   int64 curve_id = 3;
 }
 
-// The response of the CompleteFrequencyEstimationPhase method.
-message CompleteFrequencyEstimationPhaseResponse {
+// The response of the CompleteExecutionPhaseThree method.
+message CompleteExecutionPhaseThreeResponse {
   // The 2-D same key aggregator (SKA) matrix.
   // Each element is a partially decrypted ciphertext (66 bytes). The row size
   // of the matrix is equal to the maximum_frequency, and the column size of the
@@ -229,9 +230,9 @@ message CompleteFrequencyEstimationPhaseResponse {
   int64 elapsed_cpu_time_millis = 2;
 }
 
-// The request to complete work in the frequency estimation phase at the
+// The request to complete work in the execution phase three at the
 // aggregator worker.
-message CompleteFrequencyEstimationPhaseAtAggregatorRequest {
+message CompleteExecutionPhaseThreeAtAggregatorRequest {
   // The 2-D same key aggregator matrix.
   // Each element is a decrypted (66 bytes). The row size of the matrix is equal
   // to the maximum_frequency, and the column size of the matrix is equal to the
@@ -245,8 +246,8 @@ message CompleteFrequencyEstimationPhaseAtAggregatorRequest {
   int32 maximum_frequency = 4;
 }
 
-// The response of the CompleteFrequencyEstimationPhaseAtAggregator method.
-message CompleteFrequencyEstimationPhaseAtAggregatorResponse {
+// The response of the CompleteExecutionPhaseThreeAtAggregator method.
+message CompleteExecutionPhaseThreeAtAggregatorResponse {
   // The relative frequency distribution.
   // The map contains the frequency distribution for [1, max_frequency] and also
   // includes max_frequency+1 for the "max_freq+1+" reach. In other words, the

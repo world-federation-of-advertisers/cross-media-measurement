@@ -80,12 +80,12 @@ message LiquidLegionsV2 {
     DESCRIPTION_UNSPECIFIED = 0;
     // The input for the setup phase.
     SETUP_PHASE_INPUT = 1;
-    // The input for the reach estimation phase.
-    REACH_ESTIMATION_PHASE_INPUT = 2;
-    // The input for the filtering phase.
-    FILTERING_PHASE_INPUT = 3;
-    // The input for the frequency estimation phase.
-    FREQUENCY_ESTIMATION_PHASE_INPUT = 4;
+    // The input for the execution phase one.
+    EXECUTION_PHASE_ONE_INPUT = 2;
+    // The input for the execution phase two.
+    EXECUTION_PHASE_TWO_INPUT = 3;
+    // The input for the execution phase three.
+    EXECUTION_PHASE_THREE_INPUT = 4;
   }
   // Payload data description
   Description description = 1;

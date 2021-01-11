@@ -55,12 +55,12 @@ private fun LiquidLegionsV2.stageExpectingInput(): ComputationStage =
   when (description) {
     LiquidLegionsV2.Description.SETUP_PHASE_INPUT ->
       LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
-    LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT ->
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_REACH_ESTIMATION_PHASE_INPUTS
-    LiquidLegionsV2.Description.FILTERING_PHASE_INPUT ->
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_FILTERING_PHASE_INPUTS
-    LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT ->
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS
+    LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT ->
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+    LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT ->
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+    LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT ->
+      LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
     else -> failGrpc { "Unknown LiquidLegionsV2 payload description '$description'." }
   }.toProtocolStage()
 

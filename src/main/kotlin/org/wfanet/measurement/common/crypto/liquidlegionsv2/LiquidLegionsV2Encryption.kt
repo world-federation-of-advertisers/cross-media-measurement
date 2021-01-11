@@ -14,18 +14,18 @@
 
 package org.wfanet.measurement.common.crypto.liquidlegionsv2
 
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseResponse
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseResponse
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
 
@@ -38,25 +38,25 @@ interface LiquidLegionsV2Encryption {
 
   fun completeSetupPhase(request: CompleteSetupPhaseRequest): CompleteSetupPhaseResponse
 
-  fun completeReachEstimationPhase(request: CompleteReachEstimationPhaseRequest):
-    CompleteReachEstimationPhaseResponse
+  fun completeExecutionPhaseOne(request: CompleteExecutionPhaseOneRequest):
+    CompleteExecutionPhaseOneResponse
 
-  fun completeReachEstimationPhaseAtAggregator(
-    request: CompleteReachEstimationPhaseAtAggregatorRequest
+  fun completeExecutionPhaseOneAtAggregator(
+    request: CompleteExecutionPhaseOneAtAggregatorRequest
   ):
-    CompleteReachEstimationPhaseAtAggregatorResponse
+    CompleteExecutionPhaseOneAtAggregatorResponse
 
-  fun completeFilteringPhase(request: CompleteFilteringPhaseRequest):
-    CompleteFilteringPhaseResponse
+  fun completeExecutionPhaseTwo(request: CompleteExecutionPhaseTwoRequest):
+    CompleteExecutionPhaseTwoResponse
 
-  fun completeFilteringPhaseAtAggregator(request: CompleteFilteringPhaseAtAggregatorRequest):
-    CompleteFilteringPhaseAtAggregatorResponse
+  fun completeExecutionPhaseTwoAtAggregator(request: CompleteExecutionPhaseTwoAtAggregatorRequest):
+    CompleteExecutionPhaseTwoAtAggregatorResponse
 
-  fun completeFrequencyEstimationPhase(request: CompleteFrequencyEstimationPhaseRequest):
-    CompleteFrequencyEstimationPhaseResponse
+  fun completeExecutionPhaseThree(request: CompleteExecutionPhaseThreeRequest):
+    CompleteExecutionPhaseThreeResponse
 
-  fun completeFrequencyEstimationPhaseAtAggregator(
-    request: CompleteFrequencyEstimationPhaseAtAggregatorRequest
+  fun completeExecutionPhaseThreeAtAggregator(
+    request: CompleteExecutionPhaseThreeAtAggregatorRequest
   ):
-    CompleteFrequencyEstimationPhaseAtAggregatorResponse
+    CompleteExecutionPhaseThreeAtAggregatorResponse
 }

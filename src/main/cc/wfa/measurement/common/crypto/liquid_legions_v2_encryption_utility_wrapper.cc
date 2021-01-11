@@ -34,57 +34,57 @@ absl::StatusOr<std::string> CompleteSetupPhase(
   return result.SerializeAsString();
 };
 
-absl::StatusOr<std::string> CompleteReachEstimationPhase(
+absl::StatusOr<std::string> CompleteExecutionPhaseOne(
     const std::string& serialized_request) {
-  CompleteReachEstimationPhaseRequest request_proto;
+  CompleteExecutionPhaseOneRequest request_proto;
   RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteReachEstimationPhaseResponse result,
-                   CompleteReachEstimationPhase(request_proto));
+  ASSIGN_OR_RETURN(CompleteExecutionPhaseOneResponse result,
+                   CompleteExecutionPhaseOne(request_proto));
   return result.SerializeAsString();
 };
 
-absl::StatusOr<std::string> CompleteReachEstimationPhaseAtAggregator(
+absl::StatusOr<std::string> CompleteExecutionPhaseOneAtAggregator(
     const std::string& serialized_request) {
-  CompleteReachEstimationPhaseAtAggregatorRequest request_proto;
+  CompleteExecutionPhaseOneAtAggregatorRequest request_proto;
   RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteReachEstimationPhaseAtAggregatorResponse result,
-                   CompleteReachEstimationPhaseAtAggregator(request_proto));
+  ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse result,
+                   CompleteExecutionPhaseOneAtAggregator(request_proto));
   return result.SerializeAsString();
 };
 
-absl::StatusOr<std::string> CompleteFilteringPhase(
+absl::StatusOr<std::string> CompleteExecutionPhaseTwo(
     const std::string& serialized_request) {
-  CompleteFilteringPhaseRequest request_proto;
+  CompleteExecutionPhaseTwoRequest request_proto;
   RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteFilteringPhaseResponse result,
-                   CompleteFilteringPhase(request_proto));
+  ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoResponse result,
+                   CompleteExecutionPhaseTwo(request_proto));
   return result.SerializeAsString();
 };
 
-absl::StatusOr<std::string> CompleteFilteringPhaseAtAggregator(
+absl::StatusOr<std::string> CompleteExecutionPhaseTwoAtAggregator(
     const std::string& serialized_request) {
-  CompleteFilteringPhaseAtAggregatorRequest request_proto;
+  CompleteExecutionPhaseTwoAtAggregatorRequest request_proto;
   RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteFilteringPhaseAtAggregatorResponse result,
-                   CompleteFilteringPhaseAtAggregator(request_proto));
+  ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse result,
+                   CompleteExecutionPhaseTwoAtAggregator(request_proto));
   return result.SerializeAsString();
 };
 
-absl::StatusOr<std::string> CompleteFrequencyEstimationPhase(
+absl::StatusOr<std::string> CompleteExecutionPhaseThree(
     const std::string& serialized_request) {
-  CompleteFrequencyEstimationPhaseRequest request_proto;
+  CompleteExecutionPhaseThreeRequest request_proto;
   RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteFrequencyEstimationPhaseResponse result,
-                   CompleteFrequencyEstimationPhase(request_proto));
+  ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeResponse result,
+                   CompleteExecutionPhaseThree(request_proto));
   return result.SerializeAsString();
 };
 
-absl::StatusOr<std::string> CompleteFrequencyEstimationPhaseAtAggregator(
+absl::StatusOr<std::string> CompleteExecutionPhaseThreeAtAggregator(
     const std::string& serialized_request) {
-  CompleteFrequencyEstimationPhaseAtAggregatorRequest request_proto;
+  CompleteExecutionPhaseThreeAtAggregatorRequest request_proto;
   RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteFrequencyEstimationPhaseAtAggregatorResponse result,
-                   CompleteFrequencyEstimationPhaseAtAggregator(request_proto));
+  ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeAtAggregatorResponse result,
+                   CompleteExecutionPhaseThreeAtAggregator(request_proto));
   return result.SerializeAsString();
 };
 

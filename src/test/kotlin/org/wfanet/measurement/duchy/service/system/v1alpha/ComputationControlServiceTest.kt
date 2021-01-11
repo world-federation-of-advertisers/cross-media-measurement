@@ -219,7 +219,7 @@ class ComputationControlServiceTest {
   fun `liquid legions v2 send reach phase inputs`() = runBlocking<Unit> {
     val id = "444444"
     val carinthiaHeader =
-      advanceComputationHeader(LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT, id)
+      advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
     withSender(carinthia) {
       advanceComputation(carinthiaHeader.withContent("contents"))
     }
@@ -231,7 +231,7 @@ class ComputationControlServiceTest {
           globalComputationId = id
           computationStage =
             LiquidLegionsSketchAggregationV2.Stage
-              .WAIT_REACH_ESTIMATION_PHASE_INPUTS.toProtocolStage()
+              .WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
           dataOrigin = CARINTHIA
           blobPath = key
         }.build()
@@ -243,7 +243,7 @@ class ComputationControlServiceTest {
   fun `liquid legions v2 resend reach phase inputs but already written`() = runBlocking<Unit> {
     val id = "444444"
     val carinthiaHeader =
-      advanceComputationHeader(LiquidLegionsV2.Description.REACH_ESTIMATION_PHASE_INPUT, id)
+      advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
     val key = ComputationControlService.generateBlobKey(carinthiaHeader, CARINTHIA)
     storageClient.createBlob(key, flowOf(ByteString.copyFromUtf8("already-written-contents")))
     withSender(carinthia) {
@@ -256,7 +256,7 @@ class ComputationControlServiceTest {
           globalComputationId = id
           computationStage =
             LiquidLegionsSketchAggregationV2.Stage
-              .WAIT_REACH_ESTIMATION_PHASE_INPUTS.toProtocolStage()
+              .WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
           dataOrigin = CARINTHIA
           blobPath = key
         }.build()
@@ -268,7 +268,7 @@ class ComputationControlServiceTest {
   fun `liquid legions v2 send filtering phase inputs`() = runBlocking<Unit> {
     val id = "55555"
     val bavariaHeader =
-      advanceComputationHeader(LiquidLegionsV2.Description.FILTERING_PHASE_INPUT, id)
+      advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, id)
     withSender(bavaria) {
       advanceComputation(bavariaHeader.withContent("contents"))
     }
@@ -280,7 +280,7 @@ class ComputationControlServiceTest {
           globalComputationId = id
           computationStage =
             LiquidLegionsSketchAggregationV2.Stage
-              .WAIT_FILTERING_PHASE_INPUTS.toProtocolStage()
+              .WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
           dataOrigin = BAVARIA
           blobPath = key
         }.build()
@@ -292,7 +292,7 @@ class ComputationControlServiceTest {
   fun `liquid legions v2 send frequency phase inputs`() = runBlocking<Unit> {
     val id = "777777"
     val bavariaHeader =
-      advanceComputationHeader(LiquidLegionsV2.Description.FREQUENCY_ESTIMATION_PHASE_INPUT, id)
+      advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT, id)
     withSender(bavaria) {
       advanceComputation(bavariaHeader.withContent("contents"))
     }
@@ -304,7 +304,7 @@ class ComputationControlServiceTest {
           globalComputationId = id
           computationStage =
             LiquidLegionsSketchAggregationV2.Stage
-              .WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS.toProtocolStage()
+              .WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
           dataOrigin = BAVARIA
           blobPath = key
         }.build()
@@ -322,7 +322,9 @@ class ComputationControlServiceTest {
         advanceComputation(
           flowOf(
             AdvanceComputationRequest.newBuilder().setHeader(
-              advanceComputationHeader(LiquidLegionsV2.Description.FILTERING_PHASE_INPUT, "1234")
+              advanceComputationHeader(
+                LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, "1234"
+              )
             ).build()
           )
         )
@@ -333,7 +335,7 @@ class ComputationControlServiceTest {
   @Test
   fun `malformed requests throw`() = runBlocking<Unit> {
     val goodHeader =
-      advanceComputationHeader(LiquidLegionsV2.Description.FILTERING_PHASE_INPUT, "1234")
+      advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, "1234")
     assertFailsWith<StatusRuntimeException> {
       withSender(bavaria) { advanceComputation(flowOf()) }
     }

@@ -141,7 +141,7 @@ class TestData {
 
   // Helper function to go through the entire MPC protocol using the input data.
   // The final (flag, count) lists are returned.
-  absl::StatusOr<CompleteFrequencyEstimationPhaseAtAggregatorResponse>
+  absl::StatusOr<CompleteExecutionPhaseThreeAtAggregatorResponse>
   GoThroughEntireMpcProtocolWithoutNoise(const std::string& encrypted_sketch) {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test, so we ignore
@@ -153,169 +153,163 @@ class TestData {
     EXPECT_THAT(complete_setup_phase_response.combined_register_vector(),
                 IsBlockSorted(kBytesPerEncryptedRegister));
 
-    // Reach estimation phase at duchy 1 (non-aggregator).
-    CompleteReachEstimationPhaseRequest
-        complete_reach_estimation_phase_request_1;
-    *complete_reach_estimation_phase_request_1
-         .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
-    *complete_reach_estimation_phase_request_1
+    // Execution phase one at duchy 1 (non-aggregator).
+    CompleteExecutionPhaseOneRequest complete_execution_phase_one_request_1;
+    *complete_execution_phase_one_request_1.mutable_local_el_gamal_key_pair() =
+        duchy_1_el_gamal_key_pair_;
+    *complete_execution_phase_one_request_1
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
-    complete_reach_estimation_phase_request_1.set_curve_id(kTestCurveId);
-    complete_reach_estimation_phase_request_1.set_combined_register_vector(
+    complete_execution_phase_one_request_1.set_curve_id(kTestCurveId);
+    complete_execution_phase_one_request_1.set_combined_register_vector(
         complete_setup_phase_response.combined_register_vector());
-    ASSIGN_OR_RETURN(CompleteReachEstimationPhaseResponse
-                         complete_reach_estimation_phase_response_1,
-                     CompleteReachEstimationPhase(
-                         complete_reach_estimation_phase_request_1));
+    ASSIGN_OR_RETURN(
+        CompleteExecutionPhaseOneResponse
+            complete_execution_phase_one_response_1,
+        CompleteExecutionPhaseOne(complete_execution_phase_one_request_1));
     EXPECT_THAT(
-        complete_reach_estimation_phase_response_1.combined_register_vector(),
+        complete_execution_phase_one_response_1.combined_register_vector(),
         IsBlockSorted(kBytesPerEncryptedRegister));
 
-    // Reach estimation phase at duchy 2 (non-aggregator).
-    CompleteReachEstimationPhaseRequest
-        complete_reach_estimation_phase_request_2;
-    *complete_reach_estimation_phase_request_2
-         .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
-    *complete_reach_estimation_phase_request_2
+    // Execution phase onee at duchy 2 (non-aggregator).
+    CompleteExecutionPhaseOneRequest complete_execution_phase_one_request_2;
+    *complete_execution_phase_one_request_2.mutable_local_el_gamal_key_pair() =
+        duchy_2_el_gamal_key_pair_;
+    *complete_execution_phase_one_request_2
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
-    complete_reach_estimation_phase_request_2.set_curve_id(kTestCurveId);
-    complete_reach_estimation_phase_request_2.set_combined_register_vector(
-        complete_reach_estimation_phase_response_1.combined_register_vector());
-    ASSIGN_OR_RETURN(CompleteReachEstimationPhaseResponse
-                         complete_reach_estimation_phase_response_2,
-                     CompleteReachEstimationPhase(
-                         complete_reach_estimation_phase_request_2));
+    complete_execution_phase_one_request_2.set_curve_id(kTestCurveId);
+    complete_execution_phase_one_request_2.set_combined_register_vector(
+        complete_execution_phase_one_response_1.combined_register_vector());
+    ASSIGN_OR_RETURN(
+        CompleteExecutionPhaseOneResponse
+            complete_execution_phase_one_response_2,
+        CompleteExecutionPhaseOne(complete_execution_phase_one_request_2));
     EXPECT_THAT(
-        complete_reach_estimation_phase_response_2.combined_register_vector(),
+        complete_execution_phase_one_response_2.combined_register_vector(),
         IsBlockSorted(kBytesPerEncryptedRegister));
 
-    // Reach estimation phase at duchy 3 (aggregator).
-    CompleteReachEstimationPhaseAtAggregatorRequest
-        complete_reach_estimation_phase_at_aggregator_request;
-    *complete_reach_estimation_phase_at_aggregator_request
+    // Execution phase one at duchy 3 (aggregator).
+    CompleteExecutionPhaseOneAtAggregatorRequest
+        complete_execution_phase_one_at_aggregator_request;
+    *complete_execution_phase_one_at_aggregator_request
          .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
-    *complete_reach_estimation_phase_at_aggregator_request
+    *complete_execution_phase_one_at_aggregator_request
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
-    complete_reach_estimation_phase_at_aggregator_request.set_curve_id(
+    complete_execution_phase_one_at_aggregator_request.set_curve_id(
         kTestCurveId);
-    complete_reach_estimation_phase_at_aggregator_request
+    complete_execution_phase_one_at_aggregator_request
         .mutable_liquid_legions_parameters()
         ->set_decay_rate(kDecayRate);
-    complete_reach_estimation_phase_at_aggregator_request
+    complete_execution_phase_one_at_aggregator_request
         .mutable_liquid_legions_parameters()
         ->set_size(kLiquidLegionsSize);
-    complete_reach_estimation_phase_at_aggregator_request
-        .set_combined_register_vector(complete_reach_estimation_phase_response_2
-                                          .combined_register_vector());
-    ASSIGN_OR_RETURN(
-        CompleteReachEstimationPhaseAtAggregatorResponse
-            complete_reach_estimation_phase_at_aggregator_response,
-        CompleteReachEstimationPhaseAtAggregator(
-            complete_reach_estimation_phase_at_aggregator_request));
-    EXPECT_GT(complete_reach_estimation_phase_at_aggregator_response.reach(),
-              0);
-    EXPECT_THAT(complete_reach_estimation_phase_at_aggregator_response
-                    .flag_count_tuples(),
-                IsBlockSorted(kBytesPerFlagsCountTuple));
+    complete_execution_phase_one_at_aggregator_request
+        .set_combined_register_vector(
+            complete_execution_phase_one_response_2.combined_register_vector());
+    ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse
+                         complete_execution_phase_one_at_aggregator_response,
+                     CompleteExecutionPhaseOneAtAggregator(
+                         complete_execution_phase_one_at_aggregator_request));
+    EXPECT_GT(complete_execution_phase_one_at_aggregator_response.reach(), 0);
+    EXPECT_THAT(
+        complete_execution_phase_one_at_aggregator_response.flag_count_tuples(),
+        IsBlockSorted(kBytesPerFlagsCountTuple));
 
-    // Filtering phase at duchy 1 (non-aggregator).
-    CompleteFilteringPhaseRequest complete_filtering_phase_request_1;
-    *complete_filtering_phase_request_1.mutable_local_el_gamal_key_pair() =
+    // Execution phase two at duchy 1 (non-aggregator).
+    CompleteExecutionPhaseTwoRequest complete_execution_phase_two_request_1;
+    *complete_execution_phase_two_request_1.mutable_local_el_gamal_key_pair() =
         duchy_1_el_gamal_key_pair_;
-    *complete_filtering_phase_request_1
+    *complete_execution_phase_two_request_1
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
-    complete_filtering_phase_request_1.set_curve_id(kTestCurveId);
-    complete_filtering_phase_request_1.set_flag_count_tuples(
-        complete_reach_estimation_phase_at_aggregator_response
+    complete_execution_phase_two_request_1.set_curve_id(kTestCurveId);
+    complete_execution_phase_two_request_1.set_flag_count_tuples(
+        complete_execution_phase_one_at_aggregator_response
             .flag_count_tuples());
 
     ASSIGN_OR_RETURN(
-        CompleteFilteringPhaseResponse complete_filtering_phase_response_1,
-        CompleteFilteringPhase(complete_filtering_phase_request_1));
-    EXPECT_THAT(complete_filtering_phase_response_1.flag_count_tuples(),
+        CompleteExecutionPhaseTwoResponse
+            complete_execution_phase_two_response_1,
+        CompleteExecutionPhaseTwo(complete_execution_phase_two_request_1));
+    EXPECT_THAT(complete_execution_phase_two_response_1.flag_count_tuples(),
                 IsBlockSorted(kBytesPerFlagsCountTuple));
 
-    // Filtering phase at duchy 2 (non-aggregator).
-    CompleteFilteringPhaseRequest complete_filtering_phase_request_2;
-    *complete_filtering_phase_request_2.mutable_local_el_gamal_key_pair() =
+    // Execution phase two at duchy 2 (non-aggregator).
+    CompleteExecutionPhaseTwoRequest complete_execution_phase_two_request_2;
+    *complete_execution_phase_two_request_2.mutable_local_el_gamal_key_pair() =
         duchy_2_el_gamal_key_pair_;
-    *complete_filtering_phase_request_2
+    *complete_execution_phase_two_request_2
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
-    complete_filtering_phase_request_2.set_curve_id(kTestCurveId);
-    complete_filtering_phase_request_2.set_flag_count_tuples(
-        complete_filtering_phase_response_1.flag_count_tuples());
+    complete_execution_phase_two_request_2.set_curve_id(kTestCurveId);
+    complete_execution_phase_two_request_2.set_flag_count_tuples(
+        complete_execution_phase_two_response_1.flag_count_tuples());
 
     ASSIGN_OR_RETURN(
-        CompleteFilteringPhaseResponse complete_filtering_phase_response_2,
-        CompleteFilteringPhase(complete_filtering_phase_request_2));
-    EXPECT_THAT(complete_filtering_phase_response_2.flag_count_tuples(),
+        CompleteExecutionPhaseTwoResponse
+            complete_execution_phase_two_response_2,
+        CompleteExecutionPhaseTwo(complete_execution_phase_two_request_2));
+    EXPECT_THAT(complete_execution_phase_two_response_2.flag_count_tuples(),
                 IsBlockSorted(kBytesPerFlagsCountTuple));
 
-    // Filtering phase at duchy 3 (aggregator).
-    CompleteFilteringPhaseAtAggregatorRequest
-        complete_filtering_phase_at_aggregator_request;
-    *complete_filtering_phase_at_aggregator_request
+    // Execution phase two at duchy 3 (aggregator).
+    CompleteExecutionPhaseTwoAtAggregatorRequest
+        complete_execution_phase_two_at_aggregator_request;
+    *complete_execution_phase_two_at_aggregator_request
          .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
-    *complete_filtering_phase_at_aggregator_request
+    *complete_execution_phase_two_at_aggregator_request
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
-    complete_filtering_phase_at_aggregator_request.set_curve_id(kTestCurveId);
-    complete_filtering_phase_at_aggregator_request.set_maximum_frequency(
-        kMaxFrequency);
-    complete_filtering_phase_at_aggregator_request.set_flag_count_tuples(
-        complete_filtering_phase_response_2.flag_count_tuples());
-    ASSIGN_OR_RETURN(CompleteFilteringPhaseAtAggregatorResponse
-                         complete_filtering_phase_at_aggregator_response,
-                     CompleteFilteringPhaseAtAggregator(
-                         complete_filtering_phase_at_aggregator_request));
-
-    // Frequency estimation phase at duchy 1 (non-aggregator).
-    CompleteFrequencyEstimationPhaseRequest
-        complete_frequency_estimation_phase_request_1;
-    *complete_frequency_estimation_phase_request_1
-         .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
-    complete_frequency_estimation_phase_request_1.set_curve_id(kTestCurveId);
-    complete_frequency_estimation_phase_request_1
-        .set_same_key_aggregator_matrix(
-            complete_filtering_phase_at_aggregator_response
-                .same_key_aggregator_matrix());
-
-    ASSIGN_OR_RETURN(CompleteFrequencyEstimationPhaseResponse
-                         complete_frequency_estimation_phase_response_1,
-                     CompleteFrequencyEstimationPhase(
-                         complete_frequency_estimation_phase_request_1));
-
-    // Frequency estimation phase at duchy 2 (non-aggregator).
-    CompleteFrequencyEstimationPhaseRequest
-        complete_frequency_estimation_phase_request_2;
-    *complete_frequency_estimation_phase_request_2
-         .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
-    complete_frequency_estimation_phase_request_2.set_curve_id(kTestCurveId);
-    complete_frequency_estimation_phase_request_2
-        .set_same_key_aggregator_matrix(
-            complete_frequency_estimation_phase_response_1
-                .same_key_aggregator_matrix());
-
-    ASSIGN_OR_RETURN(CompleteFrequencyEstimationPhaseResponse
-                         complete_frequency_estimation_phase_response_2,
-                     CompleteFrequencyEstimationPhase(
-                         complete_frequency_estimation_phase_request_2));
-
-    // Frequency estimation phase at duchy 3 (aggregator).
-    CompleteFrequencyEstimationPhaseAtAggregatorRequest
-        complete_frequency_estimation_phase_at_aggregator_request;
-    *complete_frequency_estimation_phase_at_aggregator_request
-         .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
-    complete_frequency_estimation_phase_at_aggregator_request.set_curve_id(
+    complete_execution_phase_two_at_aggregator_request.set_curve_id(
         kTestCurveId);
-    complete_frequency_estimation_phase_at_aggregator_request
-        .set_maximum_frequency(kMaxFrequency);
-    complete_frequency_estimation_phase_at_aggregator_request
+    complete_execution_phase_two_at_aggregator_request.set_maximum_frequency(
+        kMaxFrequency);
+    complete_execution_phase_two_at_aggregator_request.set_flag_count_tuples(
+        complete_execution_phase_two_response_2.flag_count_tuples());
+    ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse
+                         complete_execution_phase_two_at_aggregator_response,
+                     CompleteExecutionPhaseTwoAtAggregator(
+                         complete_execution_phase_two_at_aggregator_request));
+
+    // Execution phase three at duchy 1 (non-aggregator).
+    CompleteExecutionPhaseThreeRequest complete_execution_phase_three_request_1;
+    *complete_execution_phase_three_request_1
+         .mutable_local_el_gamal_key_pair() = duchy_1_el_gamal_key_pair_;
+    complete_execution_phase_three_request_1.set_curve_id(kTestCurveId);
+    complete_execution_phase_three_request_1.set_same_key_aggregator_matrix(
+        complete_execution_phase_two_at_aggregator_response
+            .same_key_aggregator_matrix());
+
+    ASSIGN_OR_RETURN(
+        CompleteExecutionPhaseThreeResponse
+            complete_execution_phase_three_response_1,
+        CompleteExecutionPhaseThree(complete_execution_phase_three_request_1));
+
+    // Execution phase three at duchy 2 (non-aggregator).
+    CompleteExecutionPhaseThreeRequest complete_execution_phase_three_request_2;
+    *complete_execution_phase_three_request_2
+         .mutable_local_el_gamal_key_pair() = duchy_2_el_gamal_key_pair_;
+    complete_execution_phase_three_request_2.set_curve_id(kTestCurveId);
+    complete_execution_phase_three_request_2.set_same_key_aggregator_matrix(
+        complete_execution_phase_three_response_1.same_key_aggregator_matrix());
+
+    ASSIGN_OR_RETURN(
+        CompleteExecutionPhaseThreeResponse
+            complete_execution_phase_three_response_2,
+        CompleteExecutionPhaseThree(complete_execution_phase_three_request_2));
+
+    // Execution phase three at duchy 3 (aggregator).
+    CompleteExecutionPhaseThreeAtAggregatorRequest
+        complete_execution_phase_three_at_aggregator_request;
+    *complete_execution_phase_three_at_aggregator_request
+         .mutable_local_el_gamal_key_pair() = duchy_3_el_gamal_key_pair_;
+    complete_execution_phase_three_at_aggregator_request.set_curve_id(
+        kTestCurveId);
+    complete_execution_phase_three_at_aggregator_request.set_maximum_frequency(
+        kMaxFrequency);
+    complete_execution_phase_three_at_aggregator_request
         .set_same_key_aggregator_matrix(
-            complete_frequency_estimation_phase_response_2
+            complete_execution_phase_three_response_2
                 .same_key_aggregator_matrix());
 
-    return CompleteFrequencyEstimationPhaseAtAggregator(
-        complete_frequency_estimation_phase_at_aggregator_request);
+    return CompleteExecutionPhaseThreeAtAggregator(
+        complete_execution_phase_three_at_aggregator_request);
   }
 };
 
@@ -330,93 +324,91 @@ TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(CompleteReachEstimationPhase, WrongInputSketchSizeShouldThrow) {
-  CompleteReachEstimationPhaseRequest request;
+TEST(CompleteExecutionPhaseOne, WrongInputSketchSizeShouldThrow) {
+  CompleteExecutionPhaseOneRequest request;
 
-  auto result = CompleteReachEstimationPhase(request);
+  auto result = CompleteExecutionPhaseOne(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   request.set_combined_register_vector("1234");
-  result = CompleteReachEstimationPhase(request);
+  result = CompleteExecutionPhaseOne(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(CompleteReachEstimationPhaseAtAggregator,
-     WrongInputSketchSizeShouldThrow) {
-  CompleteReachEstimationPhaseAtAggregatorRequest request;
+TEST(CompleteExecutionPhaseOneAtAggregator, WrongInputSketchSizeShouldThrow) {
+  CompleteExecutionPhaseOneAtAggregatorRequest request;
 
-  auto result = CompleteReachEstimationPhaseAtAggregator(request);
+  auto result = CompleteExecutionPhaseOneAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   request.set_combined_register_vector("1234");
-  result = CompleteReachEstimationPhaseAtAggregator(request);
+  result = CompleteExecutionPhaseOneAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(CompleteFilteringPhase, WrongInputSketchSizeShouldThrow) {
-  CompleteFilteringPhaseRequest request;
+TEST(CompleteExecutionPhaseTwo, WrongInputSketchSizeShouldThrow) {
+  CompleteExecutionPhaseTwoRequest request;
 
-  auto result = CompleteFilteringPhase(request);
+  auto result = CompleteExecutionPhaseTwo(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   request.set_flag_count_tuples("1234");
-  result = CompleteFilteringPhase(request);
+  result = CompleteExecutionPhaseTwo(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(CompleteFilteringPhaseAtAggregator, WrongInputSketchSizeShouldThrow) {
-  CompleteFilteringPhaseAtAggregatorRequest request;
+TEST(CompleteExecutionPhaseTwoAtAggregator, WrongInputSketchSizeShouldThrow) {
+  CompleteExecutionPhaseTwoAtAggregatorRequest request;
 
-  auto result = CompleteFilteringPhaseAtAggregator(request);
+  auto result = CompleteExecutionPhaseTwoAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   request.set_flag_count_tuples("1234");
-  result = CompleteFilteringPhaseAtAggregator(request);
+  result = CompleteExecutionPhaseTwoAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(CompleteFrequencyEstimationPhase, WrongInputSketchSizeShouldThrow) {
-  CompleteFrequencyEstimationPhaseRequest request;
+TEST(CompleteExecutionPhaseThree, WrongInputSketchSizeShouldThrow) {
+  CompleteExecutionPhaseThreeRequest request;
 
-  auto result = CompleteFrequencyEstimationPhase(request);
+  auto result = CompleteExecutionPhaseThree(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   request.set_same_key_aggregator_matrix("1234");
-  result = CompleteFrequencyEstimationPhase(request);
+  result = CompleteExecutionPhaseThree(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
-TEST(CompleteFrequencyEstimationPhaseAtAggregator,
-     WrongInputSketchSizeShouldThrow) {
-  CompleteFrequencyEstimationPhaseAtAggregatorRequest request;
+TEST(CompleteExecutionPhaseThreeAtAggregator, WrongInputSketchSizeShouldThrow) {
+  CompleteExecutionPhaseThreeAtAggregatorRequest request;
 
-  auto result = CompleteFrequencyEstimationPhaseAtAggregator(request);
+  auto result = CompleteExecutionPhaseThreeAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
 
   request.set_same_key_aggregator_matrix("1234");
-  result = CompleteFrequencyEstimationPhaseAtAggregator(request);
+  result = CompleteExecutionPhaseThreeAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -433,7 +425,7 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
   ASSERT_OK_AND_ASSIGN(
-      CompleteFrequencyEstimationPhaseAtAggregatorResponse final_response,
+      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
       test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
 
   auto frequency_distribution = final_response.frequency_distribution();
@@ -452,7 +444,7 @@ TEST(EndToEnd, LocallyDistroyedRegisterShouldBeIgnored) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
   ASSERT_OK_AND_ASSIGN(
-      CompleteFrequencyEstimationPhaseAtAggregatorResponse final_response,
+      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
       test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
 
   auto frequency_distribution = final_response.frequency_distribution();
@@ -470,7 +462,7 @@ TEST(EndToEnd, CrossPublisherDistroyedRegistersShouldBeIgnored) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
   ASSERT_OK_AND_ASSIGN(
-      CompleteFrequencyEstimationPhaseAtAggregatorResponse final_response,
+      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
       test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
 
   auto frequency_distribution = final_response.frequency_distribution();
@@ -489,7 +481,7 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
   ASSERT_OK_AND_ASSIGN(
-      CompleteFrequencyEstimationPhaseAtAggregatorResponse final_response,
+      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
       test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
 
   auto frequency_distribution = final_response.frequency_distribution();
@@ -528,7 +520,7 @@ TEST(EndToEnd, ComnbinedCases) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
   ASSERT_OK_AND_ASSIGN(
-      CompleteFrequencyEstimationPhaseAtAggregatorResponse final_response,
+      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
       test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
 
   auto frequency_distribution = final_response.frequency_distribution();

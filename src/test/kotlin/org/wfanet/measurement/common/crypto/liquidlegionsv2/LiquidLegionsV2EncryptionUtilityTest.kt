@@ -26,18 +26,18 @@ import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteFilteringPhaseResponse
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteFrequencyEstimationPhaseResponse
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteReachEstimationPhaseResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
@@ -70,7 +70,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
   //  The final relative_frequency_distribution map are returned.
   private fun goThroughEntireMpcProtocol(
     encrypted_sketch: ByteString
-  ): CompleteFrequencyEstimationPhaseAtAggregatorResponse {
+  ): CompleteExecutionPhaseThreeAtAggregatorResponse {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test, so we ignore setup phase of Duchy 2
     // and 3.
@@ -83,135 +83,136 @@ class LiquidLegionsV2EncryptionUtilityTest {
     )
 
     // Reach estimation phase at duchy 1 (non-aggregator).
-    val completeReachEstimationPhaseRequest1 =
-      CompleteReachEstimationPhaseRequest.newBuilder().apply {
+    val completeExecutionPhaseOneRequest1 =
+      CompleteExecutionPhaseOneRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
         combinedRegisterVector = completeSetupPhaseResponse.combinedRegisterVector
       }.build()
-    val completeReachEstimationPhaseResponse1 = CompleteReachEstimationPhaseResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeReachEstimationPhase(
-        completeReachEstimationPhaseRequest1.toByteArray()
+    val completeExecutionPhaseOneResponse1 = CompleteExecutionPhaseOneResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(
+        completeExecutionPhaseOneRequest1.toByteArray()
       )
     )
 
     // Reach estimation phase at duchy 2 (non-aggregator).
-    val completeReachEstimationPhaseRequest2 =
-      CompleteReachEstimationPhaseRequest.newBuilder().apply {
+    val completeExecutionPhaseOneRequest2 =
+      CompleteExecutionPhaseOneRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        combinedRegisterVector = completeReachEstimationPhaseResponse1.combinedRegisterVector
+        combinedRegisterVector = completeExecutionPhaseOneResponse1.combinedRegisterVector
       }.build()
-    val completeReachEstimationPhaseResponse2 = CompleteReachEstimationPhaseResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeReachEstimationPhase(
-        completeReachEstimationPhaseRequest2.toByteArray()
+    val completeExecutionPhaseOneResponse2 = CompleteExecutionPhaseOneResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(
+        completeExecutionPhaseOneRequest2.toByteArray()
       )
     )
 
     // Reach estimation phase at duchy 3 (aggregator).
-    val completeReachEstimationPhaseAtAggregatorRequest =
-      CompleteReachEstimationPhaseAtAggregatorRequest.newBuilder().apply {
+    val completeExecutionPhaseOneAtAggregatorRequest =
+      CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        combinedRegisterVector = completeReachEstimationPhaseResponse2.combinedRegisterVector
+        combinedRegisterVector = completeExecutionPhaseOneResponse2.combinedRegisterVector
         liquidLegionsParametersBuilder.apply {
           decayRate = DECAY_RATE
           size = LIQUID_LEGIONS_SIZE
         }
       }.build()
-    val completeReachEstimationPhaseAtAggregatorResponse =
-      CompleteReachEstimationPhaseAtAggregatorResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeReachEstimationPhaseAtAggregator(
-          completeReachEstimationPhaseAtAggregatorRequest.toByteArray()
+    val completeExecutionPhaseOneAtAggregatorResponse =
+      CompleteExecutionPhaseOneAtAggregatorResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOneAtAggregator(
+          completeExecutionPhaseOneAtAggregatorRequest.toByteArray()
         )
       )
 
     // Filtering phase at duchy 1 (non-aggregator).
-    val completeFilteringPhaseRequest1 =
-      CompleteFilteringPhaseRequest.newBuilder().apply {
+    val completeExecutionPhaseTwoRequest1 =
+      CompleteExecutionPhaseTwoRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        flagCountTuples = completeReachEstimationPhaseAtAggregatorResponse.flagCountTuples
+        flagCountTuples = completeExecutionPhaseOneAtAggregatorResponse.flagCountTuples
       }.build()
-    val CompleteFilteringPhaseResponse1 = CompleteFilteringPhaseResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeFilteringPhase(
-        completeFilteringPhaseRequest1.toByteArray()
+    val CompleteExecutionPhaseTwoResponse1 = CompleteExecutionPhaseTwoResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(
+        completeExecutionPhaseTwoRequest1.toByteArray()
       )
     )
 
     // Filtering phase at duchy 2 (non-aggregator).
-    val completeFilteringPhaseRequest2 =
-      CompleteFilteringPhaseRequest.newBuilder().apply {
+    val completeExecutionPhaseTwoRequest2 =
+      CompleteExecutionPhaseTwoRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        flagCountTuples = CompleteFilteringPhaseResponse1.flagCountTuples
+        flagCountTuples = CompleteExecutionPhaseTwoResponse1.flagCountTuples
       }.build()
-    val completeFilteringPhaseResponse2 = CompleteFilteringPhaseResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeFilteringPhase(
-        completeFilteringPhaseRequest2.toByteArray()
+    val completeExecutionPhaseTwoResponse2 = CompleteExecutionPhaseTwoResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(
+        completeExecutionPhaseTwoRequest2.toByteArray()
       )
     )
 
     // Filtering phase at duchy 3 (aggregator).
-    val completeFilteringPhaseAtAggregatorRequest =
-      CompleteFilteringPhaseAtAggregatorRequest.newBuilder().apply {
+    val completeExecutionPhaseTwoAtAggregatorRequest =
+      CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        flagCountTuples = completeFilteringPhaseResponse2.flagCountTuples
+        flagCountTuples = completeExecutionPhaseTwoResponse2.flagCountTuples
         maximumFrequency = MAXIMUM_FREQUENCY
       }.build()
-    val completeFilteringPhaseAtAggregatorResponse =
-      CompleteFilteringPhaseAtAggregatorResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeFilteringPhaseAtAggregator(
-          completeFilteringPhaseAtAggregatorRequest.toByteArray()
+    val completeExecutionPhaseTwoAtAggregatorResponse =
+      CompleteExecutionPhaseTwoAtAggregatorResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwoAtAggregator(
+          completeExecutionPhaseTwoAtAggregatorRequest.toByteArray()
         )
       )
 
     // Frequency estimation phase at duchy 1 (non-aggregator).
-    val completeFrequencyEstimationPhaseRequest1 =
-      CompleteFrequencyEstimationPhaseRequest.newBuilder().apply {
+    val completeExecutionPhaseThreeRequest1 =
+      CompleteExecutionPhaseThreeRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_1_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        sameKeyAggregatorMatrix = completeFilteringPhaseAtAggregatorResponse.sameKeyAggregatorMatrix
+        sameKeyAggregatorMatrix =
+          completeExecutionPhaseTwoAtAggregatorResponse.sameKeyAggregatorMatrix
       }.build()
-    val completeFrequencyEstimationPhaseResponse1 =
-      CompleteFrequencyEstimationPhaseResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhase(
-          completeFrequencyEstimationPhaseRequest1.toByteArray()
+    val completeExecutionPhaseThreeResponse1 =
+      CompleteExecutionPhaseThreeResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(
+          completeExecutionPhaseThreeRequest1.toByteArray()
         )
       )
 
     // Frequency estimation phase at duchy 2 (non-aggregator).
-    val completeFrequencyEstimationPhaseRequest2 =
-      CompleteFrequencyEstimationPhaseRequest.newBuilder().apply {
+    val completeExecutionPhaseThreeRequest2 =
+      CompleteExecutionPhaseThreeRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        sameKeyAggregatorMatrix = completeFrequencyEstimationPhaseResponse1.sameKeyAggregatorMatrix
+        sameKeyAggregatorMatrix = completeExecutionPhaseThreeResponse1.sameKeyAggregatorMatrix
       }.build()
-    val completeFrequencyEstimationPhaseResponse2 =
-      CompleteFrequencyEstimationPhaseResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhase(
-          completeFrequencyEstimationPhaseRequest2.toByteArray()
+    val completeExecutionPhaseThreeResponse2 =
+      CompleteExecutionPhaseThreeResponse.parseFrom(
+        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(
+          completeExecutionPhaseThreeRequest2.toByteArray()
         )
       )
 
     // Frequency estimation phase at duchy 3 (aggregator).
-    val completeFrequencyEstimationPhaseAtAggregatorRequest =
-      CompleteFrequencyEstimationPhaseAtAggregatorRequest.newBuilder().apply {
+    val completeExecutionPhaseThreeAtAggregatorRequest =
+      CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
         localElGamalKeyPair = DUCHY_3_EL_GAMAL_KEYS
         curveId = CURVE_ID
         maximumFrequency = MAXIMUM_FREQUENCY
-        sameKeyAggregatorMatrix = completeFrequencyEstimationPhaseResponse2.sameKeyAggregatorMatrix
+        sameKeyAggregatorMatrix = completeExecutionPhaseThreeResponse2.sameKeyAggregatorMatrix
       }.build()
-    return CompleteFrequencyEstimationPhaseAtAggregatorResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhaseAtAggregator(
-        completeFrequencyEstimationPhaseAtAggregatorRequest.toByteArray()
+    return CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThreeAtAggregator(
+        completeExecutionPhaseThreeAtAggregatorRequest.toByteArray()
       )
     )
   }
@@ -256,9 +257,9 @@ class LiquidLegionsV2EncryptionUtilityTest {
   }
 
   @Test
-  fun `completeReachEstimationPhase fails with invalid request message`() {
+  fun `completeExecutionPhaseOne fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsV2EncryptionUtility.completeReachEstimationPhase(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(
         "something not a proto".toByteArray()
       )
     }
@@ -266,9 +267,9 @@ class LiquidLegionsV2EncryptionUtilityTest {
   }
 
   @Test
-  fun `completeReachEstimationPhaseAtAggregator fails with invalid request message`() {
+  fun `completeExecutionPhaseOneAtAggregator fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsV2EncryptionUtility.completeReachEstimationPhaseAtAggregator(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOneAtAggregator(
         "something not a proto".toByteArray()
       )
     }
@@ -276,9 +277,9 @@ class LiquidLegionsV2EncryptionUtilityTest {
   }
 
   @Test
-  fun `completeFilteringPhase fails with invalid request message`() {
+  fun `completeExecutionPhaseTwo fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsV2EncryptionUtility.completeFilteringPhase(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(
         "something not a proto".toByteArray()
       )
     }
@@ -286,9 +287,9 @@ class LiquidLegionsV2EncryptionUtilityTest {
   }
 
   @Test
-  fun `completeFilteringPhaseAtAggregator fails with invalid request message`() {
+  fun `completeExecutionPhaseTwoAtAggregator fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsV2EncryptionUtility.completeFilteringPhaseAtAggregator(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwoAtAggregator(
         "something not a proto".toByteArray()
       )
     }
@@ -296,9 +297,9 @@ class LiquidLegionsV2EncryptionUtilityTest {
   }
 
   @Test
-  fun `completeFrequencyEstimationPhase fails with invalid request message`() {
+  fun `completeExecutionPhaseThree fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhase(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(
         "something not a proto".toByteArray()
       )
     }
@@ -306,9 +307,9 @@ class LiquidLegionsV2EncryptionUtilityTest {
   }
 
   @Test
-  fun `completeFrequencyEstimationPhaseAtAggregator fails with invalid request message`() {
+  fun `completeExecutionPhaseThreeAtAggregator fails with invalid request message`() {
     val exception = assertFailsWith(RuntimeException::class) {
-      LiquidLegionsV2EncryptionUtility.completeFrequencyEstimationPhaseAtAggregator(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThreeAtAggregator(
         "something not a proto".toByteArray()
       )
     }

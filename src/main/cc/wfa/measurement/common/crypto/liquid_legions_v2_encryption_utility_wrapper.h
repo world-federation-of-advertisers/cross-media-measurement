@@ -29,22 +29,22 @@ namespace crypto {
 absl::StatusOr<std::string> CompleteSetupPhase(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteReachEstimationPhase(
+absl::StatusOr<std::string> CompleteExecutionPhaseOne(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteReachEstimationPhaseAtAggregator(
+absl::StatusOr<std::string> CompleteExecutionPhaseOneAtAggregator(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteFilteringPhase(
+absl::StatusOr<std::string> CompleteExecutionPhaseTwo(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteFilteringPhaseAtAggregator(
+absl::StatusOr<std::string> CompleteExecutionPhaseTwoAtAggregator(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteFrequencyEstimationPhase(
+absl::StatusOr<std::string> CompleteExecutionPhaseThree(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> CompleteFrequencyEstimationPhaseAtAggregator(
+absl::StatusOr<std::string> CompleteExecutionPhaseThreeAtAggregator(
     const std::string& serialized_request);
 
 }  // namespace crypto

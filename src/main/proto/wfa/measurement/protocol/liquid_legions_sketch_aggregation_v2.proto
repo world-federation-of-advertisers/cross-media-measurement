@@ -49,43 +49,43 @@ message LiquidLegionsSketchAggregationV2 {
     SETUP_PHASE = 4;
 
     // The worker is waiting to receive a copy of global CRV from the previous
-    // worker in the ring of workers to start working on the reach estimation
-    // phase.
-    WAIT_REACH_ESTIMATION_PHASE_INPUTS = 5;
+    // worker in the ring of workers to start working on the execution phase
+    // one.
+    WAIT_EXECUTION_PHASE_ONE_INPUTS = 5;
 
-    // The worker is in the reach estimation phase.
+    // The worker is in the execution phase one.
     // More specifically, a non-aggregator worker will re-encrypt its positional
     // values and re-randomized all other field and shuffle the CRV and then
     // pass the CRV to the next worker. The aggregator worker will re-encrypt
     // the position values of the sketch and joins them based on their
     // re-encrypted positional values. Combining is via the same key aggregation
     // method to create the encrypted flag and count tuples. Then, the
-    // aggregator adds noise to the flag count tuples. Reach is also estimated
-    // at this stage.
-    REACH_ESTIMATION_PHASE = 6;
+    // aggregator adds noise to the flag count tuples.
+    EXECUTION_PHASE_ONE = 6;
 
     // The worker is waiting to receive a copy of the flag and count tuples from
     // the previous worker in the ring of workers to start working on the
-    // filtering phase.
-    WAIT_FILTERING_PHASE_INPUTS = 7;
+    // execution phase two.
+    WAIT_EXECUTION_PHASE_TWO_INPUTS = 7;
 
-    // The worker is in the filtering phase.
+    // The worker is in the execution phase two.
     // More specifically, a non-aggregator worker decrypts the flag and add
     // additional encrypted noisy (flag, count) pairs. The aggregator worker
-    // decrypts the flags and discards the destroyed registers, then creates a
-    // 2-D SameKeyAggregator (SKA) matrix for the un-destroyed counters.
-    FILTERING_PHASE = 8;
+    // decrypts the flags and filters out non-DP noises and then estimates the
+    // reach, then discards the destroyed registers and creates a 2-D
+    // SameKeyAggregator (SKA) matrix for the un-destroyed counters.
+    EXECUTION_PHASE_TWO = 8;
 
     // The worker is waiting to receive a copy of the SKA matrix from the
-    // previous worker in the ring of workers to start working on the frequency
-    // estimation phase.
-    WAIT_FREQUENCY_ESTIMATION_PHASE_INPUTS = 9;
+    // previous worker in the ring of workers to start working on the execution
+    // phase three.
+    WAIT_EXECUTION_PHASE_THREE_INPUTS = 9;
 
-    // The worker is in the frequency estimation phase.
+    // The worker is in the execution phase three.
     // More specifically, a non-aggregator worker decrypts the SKA matrix, and
     // the aggregator worker decrypts the SKA matrix and computes the final
     // frequency histogram.
-    FREQUENCY_ESTIMATION_PHASE = 10;
+    EXECUTION_PHASE_THREE = 10;
 
     // The computation is done the worker can remove BLOBs that are no longer
     // needed.
