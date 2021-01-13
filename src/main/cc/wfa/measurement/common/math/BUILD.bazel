@@ -10,15 +10,18 @@ package(default_visibility = [
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
-    name = "polya_distribution",
+    name = "distributions",
     srcs = [
-        "polya_distribution.cc",
+        "distributions.cc",
     ],
     hdrs = [
-        "polya_distribution.h",
+        "distributions.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_private_join_and_compute//util:status",
     ],
 )

@@ -1,13 +1,15 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
-    name = "polya_distribution_test",
+    name = "distributions_test",
     size = "small",
     srcs = [
-        "polya_distribution_test.cc",
+        "distributions_test.cc",
     ],
     deps = [
-        "//src/main/cc/wfa/measurement/common/math:polya_distribution",
+        "//src/main/cc/wfa/measurement/common/math:distributions",
+        "//src/test/cc/testutil:status_macros",
+        "@com_google_private_join_and_compute//util:status",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
