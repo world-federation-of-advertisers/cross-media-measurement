@@ -64,6 +64,7 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   absl::StatusOr<ElGamalEcPointPair> CalculateDestructor(
       const ElGamalEcPointPair& base, const ElGamalEcPointPair& key) override;
   absl::StatusOr<std::string> MapToCurve(absl::string_view str) override;
+  absl::StatusOr<std::string> MapToCurve(int64_t x) override;
   absl::StatusOr<ElGamalEcPointPair> ToElGamalEcPoints(
       const ElGamalCiphertext& cipher_text) override;
   std::string GetLocalPohligHellmanKey() override;
@@ -72,6 +73,7 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
                             std::string& result) override;
   absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
       const ElGamalCiphertext& ciphertext) override;
+  std::string NextRandomBigNum() override;
 
  private:
   // A CommutativeElGamal cipher created using local ElGamal Keys, used for
@@ -185,6 +187,10 @@ absl::StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(
   return temp_ec_point.ToBytesCompressed();
 }
 
+absl::StatusOr<std::string> ProtocolCryptorImpl::MapToCurve(int64_t x) {
+  return MapToCurve(std::to_string(x));
+}
+
 absl::StatusOr<ElGamalEcPointPair> ProtocolCryptorImpl::ToElGamalEcPoints(
     const ElGamalCiphertext& cipher_text) {
   absl::WriterMutexLock l(&mutex_);
@@ -265,6 +271,10 @@ absl::StatusOr<bool> ProtocolCryptorImpl::IsDecryptLocalElGamalResultZero(
   }
 }
 
+std::string ProtocolCryptorImpl::NextRandomBigNum() {
+  return ec_group_.GeneratePrivateKey().ToDecimalString();
+}
+
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
@@ -274,13 +284,16 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
     const ElGamalCiphertext& composite_el_gamal_public_key) {
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, ctx.get()));
-  ASSIGN_OR_RETURN(auto local_el_gamal_cipher,
-                   local_el_gamal_private_key.empty()
-                       ? CommutativeElGamal::CreateFromPublicKey(
-                             curve_id, local_el_gamal_public_key)
-                       : CommutativeElGamal::CreateFromPublicAndPrivateKeys(
-                             curve_id, local_el_gamal_public_key,
-                             local_el_gamal_private_key));
+  ASSIGN_OR_RETURN(
+      auto local_el_gamal_cipher,
+      local_el_gamal_public_key.first.empty()
+          ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
+          : (local_el_gamal_private_key.empty()
+                 ? CommutativeElGamal::CreateFromPublicKey(
+                       curve_id, local_el_gamal_public_key)
+                 : CommutativeElGamal::CreateFromPublicAndPrivateKeys(
+                       curve_id, local_el_gamal_public_key,
+                       local_el_gamal_private_key)));
   ASSIGN_OR_RETURN(auto client_el_gamal_cipher,
                    composite_el_gamal_public_key.first.empty()
                        ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)

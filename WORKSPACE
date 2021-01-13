@@ -226,9 +226,9 @@ http_file(
 # @com_google_private_join_and_compute
 git_repository(
     name = "com_google_private_join_and_compute",
-    commit = "99fbcf79c5aded3694973086651f535d08a645c5",
+    commit = "842f43b08cecba36f8e6c2d94d7467c3b7338397",
     remote = "https://github.com/google/private-join-and-compute.git",
-    shallow_since = "1606750182 +0000",
+    shallow_since = "1610640414 +0000",
 )
 
 # glog
@@ -371,14 +371,14 @@ git_repository(
 # AnySketch.
 git_repository(
     name = "any_sketch",
-    commit = "450bf2edae40f53a87f7c765a417302d3eaad2cb",
+    commit = "852b063e2b579ceb647271e9e86f0a79ade5757e",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
-    shallow_since = "1607130905 -0500",
+    shallow_since = "1610762283 -0500",
 )
 
 git_repository(
     name = "any_sketch_java",
-    commit = "acfccc1da308f11b5fea5b54c291f41990c04a86",
+    commit = "936e51255b1c97c9bf344c341c15dcb7302853e0",
     remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
-    shallow_since = "1607465429 -0500",
+    shallow_since = "1611091486 -0500",
 )

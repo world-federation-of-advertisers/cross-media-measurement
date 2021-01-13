@@ -25,6 +25,7 @@
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/measurement/common/macros.h"
+#include "wfa/measurement/common/math/distributions.h"
 #include "wfa/measurement/common/string_block_sorter.h"
 
 namespace wfa::measurement::common::crypto {
@@ -44,7 +45,7 @@ absl::Status MergeCountsUsingSameKeyAggregation(
 
   ASSIGN_OR_RETURN(ElGamalEcPointPair destroyed_key_constant_ec_pair,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
-                       KDestroyedRegisterKey));
+                       kDestroyedRegisterKey));
 
   ASSIGN_OR_RETURN(
       KeyCountPairCipherText key_count_0,
@@ -151,7 +152,7 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
   std::vector<ElGamalEcPointPair> result;
   ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
-                       KUnitECPointSeed));
+                       kUnitECPointSeed));
   ASSIGN_OR_RETURN(ElGamalEcPointPair negative_one_ec,
                    InvertEcPointPair(one_ec));
   result.push_back(std::move(negative_one_ec));
@@ -163,6 +164,181 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
   return std::move(result);
 }
 
+absl::Status EncryptCompositeElGamalAndAppendToString(
+    ProtocolCryptor& protocol_cryptor, absl::string_view plaintext_ec,
+    std::string& data) {
+  ASSIGN_OR_RETURN(ElGamalCiphertext key,
+                   protocol_cryptor.EncryptCompositeElGamal(plaintext_ec));
+  data.append(key.first);
+  data.append(key.second);
+  return absl::OkStatus();
+}
+
+math::DistributedGeometricRandomComponentOptions ToOptions(
+    const DistributedGeometricDistributionParams& params) {
+  return {.num = params.num(),
+          .p = params.p(),
+          .truncate_threshold = params.shift_offset(),
+          .shift_offset = params.shift_offset()};
+}
+
+// Adds encrypted blinded-histogram-noise registers to the end of data.
+// returns the number of such noise registers added.
+absl::StatusOr<int64_t> AddBlindedHistogramNoise(
+    ProtocolCryptor& protocol_cryptor, int total_sketches_count,
+    const DistributedGeometricDistributionParams& params, std::string& data) {
+  ASSIGN_OR_RETURN(
+      std::string blinded_histogram_noise_key_ec,
+      protocol_cryptor.MapToCurve(kBlindedHistogramNoiseRegisterKey));
+
+  int64_t noise_register_added = 0;
+  for (int k = 1; k <= total_sketches_count; ++k) {
+    // The random number of distinct register_ids that should appear k times.
+    ASSIGN_OR_RETURN(
+        int64_t noise_register_count_for_bucket_k,
+        math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+    // Add noise_register_count_for_bucket_k such distinct register ids.
+    for (int i = 0; i < noise_register_count_for_bucket_k; ++i) {
+      // The prefix is to ensure the value is not in the regular id space.
+      std::string register_id = absl::StrCat(
+          "blinded_histogram_noise", protocol_cryptor.NextRandomBigNum());
+      ASSIGN_OR_RETURN(std::string register_id_ec,
+                       protocol_cryptor.MapToCurve(register_id));
+      // Add k registers with the same register_id but different keys and
+      // counts.
+      for (int j = 0; j < k; ++j) {
+        // Add register_id
+        RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+            protocol_cryptor, register_id_ec, data));
+        // Add register key, which is the constant blinded_histogram_noise_key.
+        RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+            protocol_cryptor, blinded_histogram_noise_key_ec, data));
+        // Add register count, which can be arbitrary value. use the same value
+        // as key here.
+        RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+            protocol_cryptor, blinded_histogram_noise_key_ec, data));
+        ++noise_register_added;
+      }
+    }
+  }
+  return noise_register_added;
+}
+
+// Adds encrypted noise-for-publisher-noise registers to the end of data.
+// returns the number of such noise registers added.
+absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
+    ProtocolCryptor& protocol_cryptor,
+    const DistributedGeometricDistributionParams& params, std::string& data) {
+  ASSIGN_OR_RETURN(std::string publisher_noise_register_id_ec,
+                   protocol_cryptor.MapToCurve(kPublisherNoiseRegisterId));
+
+  ASSIGN_OR_RETURN(
+      int64_t noise_registers_count,
+      math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+  for (int i = 0; i < noise_registers_count; ++i) {
+    // Add register id, a predefined constant.
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, publisher_noise_register_id_ec, data));
+    // Add register key, a random number.
+    ASSIGN_OR_RETURN(
+        std::string random_key_ec,
+        protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, random_key_ec, data));
+    // Add register count, which can be of arbitrary value. Use the same value
+    // as key here.
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, random_key_ec, data));
+  }
+  return noise_registers_count;
+}
+
+// Adds encrypted global-reach-DP-noise registers to the end of data.
+// returns the number of such noise registers added.
+absl::StatusOr<int64_t> AddGlobalReachDpNoise(
+    ProtocolCryptor& protocol_cryptor,
+    const DistributedGeometricDistributionParams& params, std::string& data) {
+  ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
+                   protocol_cryptor.MapToCurve(kDestroyedRegisterKey));
+
+  ASSIGN_OR_RETURN(
+      int64_t noise_registers_count,
+      math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+  for (int i = 0; i < noise_registers_count; ++i) {
+    // Add register id, a random number.
+    // The prefix is to ensure the value is not in the regular id space.
+    std::string register_id =
+        absl::StrCat("reach_dp_noise", protocol_cryptor.NextRandomBigNum());
+    ASSIGN_OR_RETURN(std::string register_id_ec,
+                     protocol_cryptor.MapToCurve(register_id));
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, register_id_ec, data));
+    // Add register key, a predefined constant denoting destroyed registers.
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, destroyed_register_key_ec, data));
+    // Add register count, which can be of arbitrary value. use the same value
+    // as key here.
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, destroyed_register_key_ec, data));
+  }
+  return noise_registers_count;
+}
+
+// Adds encrypted padding-noise registers to the end of data.
+absl::Status AddPaddingNoise(ProtocolCryptor& protocol_cryptor, int64_t count,
+                             std::string& data) {
+  if (count < 0) {
+    return absl::InvalidArgumentError("Count should >= 0.");
+  }
+
+  ASSIGN_OR_RETURN(std::string padding_noise_register_id_ec,
+                   protocol_cryptor.MapToCurve(kPaddingNoiseRegisterId));
+  for (int64_t i = 0; i < count; ++i) {
+    // Add register_id, a predefined constant
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, padding_noise_register_id_ec, data));
+    ASSIGN_OR_RETURN(
+        std::string random_key_ec,
+        protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
+    // Add register key, random number
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, random_key_ec, data));
+    // Add register count, which can be arbitrary value. use the same value
+    // as key here.
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        protocol_cryptor, random_key_ec, data));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateSetupNoiseParameters(
+    const RegisterNoiseGenerationParameters& parameters) {
+  int64_t total_register_count = parameters.total_noise_registers_count();
+  int64_t sketch_count = parameters.total_sketches_count();
+  int64_t blind_histogram_noise_offset =
+      parameters.blind_histogram_noise_parameters().shift_offset();
+  int64_t reach_dp_noise_offset =
+      parameters.global_reach_dp_noise_parameters().shift_offset();
+  int64_t publisher_noise_offset =
+      parameters.publisher_noise_parameters().shift_offset();
+
+  if (sketch_count < 1) {
+    return absl::InvalidArgumentError("sketch count should be positive.");
+  }
+  if (blind_histogram_noise_offset < 1 || reach_dp_noise_offset < 1 ||
+      publisher_noise_offset < 1) {
+    return absl::InvalidArgumentError("shift_offset should be positive.");
+  }
+  int64_t min_register_count =
+      publisher_noise_offset * 2 + reach_dp_noise_offset * 2 +
+      blind_histogram_noise_offset * sketch_count * (sketch_count + 1);
+  if (total_register_count < min_register_count) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "total_noise_registers_count should be at least ", min_register_count));
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
@@ -170,11 +346,49 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   StartedThreadCpuTimer timer;
 
   CompleteSetupPhaseResponse response;
-  *response.mutable_combined_register_vector() =
-      request.combined_register_vector();
+  std::string* response_crv = response.mutable_combined_register_vector();
+  *response_crv = request.combined_register_vector();
 
   if (request.has_noise_parameters()) {
-    // TODO: add noise registers.
+    RegisterNoiseGenerationParameters noise_parameters =
+        request.noise_parameters();
+    RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
+    ASSIGN_OR_RETURN_ERROR(
+        auto protocol_cryptor,
+        CreateProtocolCryptorWithKeys(
+            noise_parameters.curve_id(), kGenerateWithNewElGamalPublicKey,
+            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
+            std::make_pair(
+                noise_parameters.composite_el_gamal_public_key().generator(),
+                noise_parameters.composite_el_gamal_public_key().element())),
+        "Failed to create the protocol cipher, invalid curveId or keys.");
+
+    // 1. Add blinded histogram noise.
+    ASSIGN_OR_RETURN(
+        int64_t blinded_histogram_noise_count,
+        AddBlindedHistogramNoise(
+            *protocol_cryptor, noise_parameters.total_sketches_count(),
+            noise_parameters.blind_histogram_noise_parameters(),
+            *response_crv));
+    // 2. Add noise for publisher noise.
+    ASSIGN_OR_RETURN(
+        int64_t publisher_noise_count,
+        AddNoiseForPublisherNoise(*protocol_cryptor,
+                                  noise_parameters.publisher_noise_parameters(),
+                                  *response_crv));
+    // 3. Add reach DP noise.
+    ASSIGN_OR_RETURN(int64_t reach_dp_noise_count,
+                     AddGlobalReachDpNoise(
+                         *protocol_cryptor,
+                         noise_parameters.global_reach_dp_noise_parameters(),
+                         *response_crv));
+    // 4. Add padding noise.
+    int64_t padding_noise_count =
+        noise_parameters.total_noise_registers_count() -
+        blinded_histogram_noise_count - publisher_noise_count -
+        reach_dp_noise_count;
+    RETURN_IF_ERROR(
+        AddPaddingNoise(*protocol_cryptor, padding_noise_count, *response_crv));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(
@@ -418,7 +632,7 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
+          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalPublicKey),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseThreeResponse response;
@@ -467,7 +681,7 @@ CompleteExecutionPhaseThreeAtAggregator(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
+          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalPublicKey),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   // histogram[i-1] = the number of times value i (1...maximum_frequency-1)

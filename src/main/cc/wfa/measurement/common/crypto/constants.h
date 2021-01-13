@@ -29,14 +29,25 @@ inline constexpr int kBytesPerFlagsCountTuple = kBytesPerCipherText * 3;
 // The seed for flag value 0. We need such a value since ECPoint 0 is illegal.
 inline constexpr absl::string_view kFlagZeroBase = "flag_zero_base";
 // The seed for the unit ECPoint in addition.
-inline constexpr absl::string_view KUnitECPointSeed = "unit_ec_point";
+inline constexpr absl::string_view kUnitECPointSeed = "unit_ec_point";
 // The seed for the EcPoint denoting the DestroyedRegisterKey constant.
-inline constexpr absl::string_view KDestroyedRegisterKey =
+inline constexpr absl::string_view kDestroyedRegisterKey =
     "destroyed_register_key";
+// The seed for the EcPoint denoting the BlindedHistogramNoiseRegisterKey
+// constant.
+inline constexpr absl::string_view kBlindedHistogramNoiseRegisterKey =
+    "blinded_histogram_noise_register_key";
+// The seed for the EcPoint denoting the publisher noise register id.
+inline constexpr absl::string_view kPublisherNoiseRegisterId =
+    "publisher_noise_register_id";
+// The seed for the EcPoint denoting the padding noise register id.
+inline constexpr absl::string_view kPaddingNoiseRegisterId =
+    "padding_noise_register_id";
 
 inline constexpr absl::string_view kGenerateWithNewPohligHellmanKey = "";
-inline const std::pair<std::string, std::string> kGenerateWithNewElGamalKey = {
-    "", ""};
+inline constexpr absl::string_view kGenerateWithNewElGamalPrivateKey = "";
+inline const std::pair<std::string, std::string>
+    kGenerateWithNewElGamalPublicKey = {"", ""};
 
 }  // namespace wfa::measurement::common::crypto
 

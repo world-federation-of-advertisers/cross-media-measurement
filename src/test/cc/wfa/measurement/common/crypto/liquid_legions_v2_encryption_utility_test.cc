@@ -26,11 +26,14 @@
 #include "src/test/cc/testutil/matchers.h"
 #include "src/test/cc/testutil/status_macros.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
+#include "wfa/measurement/common/crypto/constants.h"
+#include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::common::crypto {
 namespace {
 
+using ::private_join_and_compute::BigNum;
 using ::private_join_and_compute::CommutativeElGamal;
 using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
@@ -77,6 +80,80 @@ Sketch CreateEmptyLiquidLegionsSketch() {
   plain_sketch.mutable_config()->add_values()->set_aggregator(
       SketchConfig::ValueSpec::SUM);
   return plain_sketch;
+}
+
+DistributedGeometricDistributionParams DistributedGeoParams(int64_t num,
+                                                            double p,
+                                                            int64_t offset) {
+  DistributedGeometricDistributionParams params;
+  params.set_num(num);
+  params.set_p(p);
+  params.set_shift_offset(offset);
+  return params;
+}
+
+// Partition the char vector 33 by 33, and convert the results to strings
+std::vector<std::string> GetCipherStrings(absl::string_view bytes) {
+  ABSL_ASSERT(bytes.size() % 66 == 0);
+  std::vector<std::string> result;
+  int word_cnt = bytes.size() / 33;
+  result.reserve(word_cnt);
+  for (int i = 0; i < word_cnt; ++i) {
+    result.emplace_back(bytes.substr(i * 33, 33));
+  }
+  return result;
+}
+
+absl::StatusOr<bool> IsEncryptionOf(CommutativeElGamal& cipher,
+                                    ECGroup& ec_group,
+                                    absl::string_view raw_text,
+                                    ElGamalCiphertext ciphertext) {
+  ASSIGN_OR_RETURN(std::string decrypted_plaintext, cipher.Decrypt(ciphertext));
+  ASSIGN_OR_RETURN(ECPoint expected_plaintext_ec,
+                   ec_group.GetPointByHashingToCurveSha256(raw_text));
+  ASSIGN_OR_RETURN(std::string expected_plaintext,
+                   expected_plaintext_ec.ToBytesCompressed());
+  return decrypted_plaintext == expected_plaintext;
+}
+
+absl::StatusOr<bool> IsBlindedHistogramNoise(CommutativeElGamal& cipher,
+                                             ECGroup& ec_group,
+                                             absl::string_view register_bytes) {
+  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
+  // check if the key is kBlindedHistogramNoiseRegisterKey
+  return IsEncryptionOf(cipher, ec_group, kBlindedHistogramNoiseRegisterKey,
+                        std::make_pair(ciphertexts[2], ciphertexts[3]));
+}
+
+absl::StatusOr<bool> IsNoiseForPublisherNoiseRegister(
+    CommutativeElGamal& cipher, ECGroup& ec_group,
+    absl::string_view register_bytes) {
+  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
+  // check if the register id is kPublisherNoiseRegisterId
+  return IsEncryptionOf(cipher, ec_group, kPublisherNoiseRegisterId,
+                        std::make_pair(ciphertexts[0], ciphertexts[1]));
+}
+
+absl::StatusOr<bool> IsReachDpNoiseRegister(CommutativeElGamal& cipher,
+                                            ECGroup& ec_group,
+                                            absl::string_view register_bytes) {
+  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
+  // check if the key is kDestroyedRegisterKey
+  return IsEncryptionOf(cipher, ec_group, kDestroyedRegisterKey,
+                        std::make_pair(ciphertexts[2], ciphertexts[3]));
+}
+
+absl::StatusOr<bool> IsPaddingNoiseRegister(CommutativeElGamal& cipher,
+                                            ECGroup& ec_group,
+                                            absl::string_view register_bytes) {
+  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
+  // check if the register id is kPaddingNoiseRegisterId
+  return IsEncryptionOf(cipher, ec_group, kPaddingNoiseRegisterId,
+                        std::make_pair(ciphertexts[0], ciphertexts[1]));
 }
 
 // The TestData generates cipher keys for 3 duchies, and the combined public
@@ -128,7 +205,7 @@ class TestData {
         .e = client_el_gamal_public_key_.element(),
     };
 
-    // Create a sketch_encryter for encrypting plaintext any_sketch data.
+    // Create a sketch_encrypter for encrypting plaintext any_sketch data.
     sketch_encrypter_ = any_sketch::crypto::CreateWithPublicKey(
                             kTestCurveId, kMaxFrequency, client_public_key)
                             .value();
@@ -312,6 +389,93 @@ class TestData {
         complete_execution_phase_three_at_aggregator_request);
   }
 };
+
+TEST(CompleteSetupPhase, NoiseSumAndMeanShouldBeCorrect) {
+  Context ctx;
+  ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+                       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId));
+  ASSERT_OK_AND_ASSIGN(auto public_key_pair,
+                       el_gamal_cipher->GetPublicKeyBytes());
+  ElGamalPublicKey public_key;
+  public_key.set_generator(public_key_pair.first);
+  public_key.set_element(public_key_pair.second);
+
+  int64_t num = 3;
+  // Set p to ~0, such that the shifted truncated diff would be equal to the
+  // shift_offset in the test.
+  double p = 0.000001;
+  int64_t blinded_histogram_noise_offset = 5;
+  int64_t publisher_noise_offset = 6;
+  int64_t reach_dp_noise_offset = 7;
+  int64_t total_sketch_count = 5;
+  int64_t total_register_count = 200;
+
+  CompleteSetupPhaseRequest request;
+  auto noise_parameters = request.mutable_noise_parameters();
+  noise_parameters->set_curve_id(kTestCurveId);
+  noise_parameters->set_total_sketches_count(total_sketch_count);
+  noise_parameters->set_total_noise_registers_count(total_register_count);
+  *noise_parameters->mutable_blind_histogram_noise_parameters() =
+      DistributedGeoParams(num, p, blinded_histogram_noise_offset);
+  *noise_parameters->mutable_publisher_noise_parameters() =
+      DistributedGeoParams(num, p, publisher_noise_offset);
+  *noise_parameters->mutable_global_reach_dp_noise_parameters() =
+      DistributedGeoParams(num, p, reach_dp_noise_offset);
+  *noise_parameters->mutable_composite_el_gamal_public_key() = public_key;
+
+  ASSERT_OK_AND_ASSIGN(auto response, CompleteSetupPhase(request));
+  // There was no data in the request, so all registers in the response are
+  // noise.
+  std::string noises = response.combined_register_vector();
+  ASSERT_THAT(noises,
+              SizeIs(total_register_count * kBytesPerEncryptedRegister));
+
+  int64_t blinded_histogram_noise_count = 0;
+  int64_t publisher_noise_count = 0;
+  int64_t reach_dp_noise_count = 0;
+  int64_t padding_noise_count = 0;
+
+  for (int i = 0; i < total_register_count; ++i) {
+    ASSERT_OK_AND_ASSIGN(
+        bool is_blinded_histogram_noise,
+        IsBlindedHistogramNoise(*el_gamal_cipher, ec_group,
+                                noises.substr(i * kBytesPerEncryptedRegister,
+                                              kBytesPerEncryptedRegister)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_reach_dp_noise,
+        IsReachDpNoiseRegister(*el_gamal_cipher, ec_group,
+                               noises.substr(i * kBytesPerEncryptedRegister,
+                                             kBytesPerEncryptedRegister)));
+    ASSERT_OK_AND_ASSIGN(bool is_publisher_noise,
+                         IsNoiseForPublisherNoiseRegister(
+                             *el_gamal_cipher, ec_group,
+                             noises.substr(i * kBytesPerEncryptedRegister,
+                                           kBytesPerEncryptedRegister)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_padding_noise,
+        IsPaddingNoiseRegister(*el_gamal_cipher, ec_group,
+                               noises.substr(i * kBytesPerEncryptedRegister,
+                                             kBytesPerEncryptedRegister)));
+    blinded_histogram_noise_count += is_blinded_histogram_noise;
+    reach_dp_noise_count += is_reach_dp_noise;
+    publisher_noise_count += is_publisher_noise;
+    padding_noise_count += is_padding_noise;
+    // Assert exact 1 boolean is true.
+    EXPECT_EQ(is_blinded_histogram_noise + is_reach_dp_noise +
+                  is_publisher_noise + is_padding_noise,
+              1);
+  }
+
+  EXPECT_EQ(publisher_noise_count, publisher_noise_offset);
+  EXPECT_EQ(blinded_histogram_noise_count, blinded_histogram_noise_offset *
+                                               total_sketch_count *
+                                               (total_sketch_count + 1) / 2);
+  EXPECT_EQ(reach_dp_noise_count, reach_dp_noise_offset);
+  EXPECT_EQ(padding_noise_count, total_register_count - publisher_noise_count -
+                                     blinded_histogram_noise_count -
+                                     reach_dp_noise_count);
+}
 
 TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
   CompleteSetupPhaseRequest request;

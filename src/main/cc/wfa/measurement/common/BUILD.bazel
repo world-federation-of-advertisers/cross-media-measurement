@@ -23,6 +23,6 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )

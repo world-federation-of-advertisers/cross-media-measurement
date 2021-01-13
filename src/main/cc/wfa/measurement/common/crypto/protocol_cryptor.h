@@ -69,6 +69,9 @@ class ProtocolCryptor {
   // Hashes a string to the elliptical curve and return the string
   // representation of the obtained ECPoint.
   virtual absl::StatusOr<std::string> MapToCurve(absl::string_view str) = 0;
+  // Hashes an integer to the elliptical curve and return the string
+  // representation of the obtained ECPoint.
+  virtual absl::StatusOr<std::string> MapToCurve(int64_t x) = 0;
   // Gets the equivalent ECPoint depiction of a ElGamalCiphertext
   virtual absl::StatusOr<ElGamalEcPointPair> ToElGamalEcPoints(
       const ElGamalCiphertext& cipher_text) = 0;
@@ -83,6 +86,8 @@ class ProtocolCryptor {
   // infinity.
   virtual absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
       const ElGamalCiphertext& ciphertext) = 0;
+  // Returns a random BigNum as string.
+  virtual std::string NextRandomBigNum() = 0;
 
  protected:
   ProtocolCryptor() = default;

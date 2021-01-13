@@ -51,7 +51,7 @@ ElGamalCiphertext GetPublicKeyStringPair(const ElGamalPublicKey& public_keys) {
 // Create a lookup table mapping the ECPoint strings to real world frequency
 // integers.
 // During encryption, the way we map frequency to ECPoint is that:
-//   1. Pre-determine a seed, i.e., KUnitECPointSeed,  for integer 1.
+//   1. Pre-determine a seed, i.e., kUnitECPointSeed,  for integer 1.
 //   2. Map the seed onto the Elliptical curve. The obtained ECPoint will be the
 //      the unit integer, denoted as EC_1.
 //   3. For EC_n, it is obtained via calculateing EC_1.mul(n) on the curve.
@@ -63,9 +63,9 @@ absl::StatusOr<absl::flat_hash_map<std::string, int>> CreateCountLookUpTable(
   ASSIGN_OR_RETURN(auto ec_group, ECGroup::Create(curve_id, ctx.get()));
 
   // The ECPoint corresponding to count value 1 is defined by the mapping of
-  // KUnitECPointSeed;
+  // kUnitECPointSeed;
   ASSIGN_OR_RETURN(ECPoint count_1_ec,
-                   ec_group.GetPointByHashingToCurveSha256(KUnitECPointSeed));
+                   ec_group.GetPointByHashingToCurveSha256(kUnitECPointSeed));
   ASSIGN_OR_RETURN(std::string count_1, count_1_ec.ToBytesCompressed());
   count_lookup_table[count_1] = 1;
 
@@ -277,7 +277,7 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
+          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalPublicKey),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   DecryptOneLayerFlagAndCountResponse response;

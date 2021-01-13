@@ -9,7 +9,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/measurement/common/math:distributions",
         "//src/test/cc/testutil:status_macros",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

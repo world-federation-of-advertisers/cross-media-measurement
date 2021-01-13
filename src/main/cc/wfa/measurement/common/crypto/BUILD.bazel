@@ -35,7 +35,7 @@ cc_library(
         ":protocol_cryptor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )
 
@@ -83,7 +83,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )
 
@@ -108,7 +108,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )
 
@@ -127,10 +127,11 @@ cc_library(
         ":protocol_cryptor",
         ":started_thread_cpu_timer",
         "//src/main/cc/wfa/measurement/common:macros",
+        "//src/main/cc/wfa/measurement/common/math:distributions",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )
 
@@ -148,7 +149,7 @@ cc_library(
         ":liquid_legions_v1_encryption_utility",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )
 
@@ -166,6 +167,6 @@ cc_library(
         ":liquid_legions_v2_encryption_utility",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
-        "@com_google_private_join_and_compute//util:status",
+        "@com_google_private_join_and_compute//util:status_includes",
     ],
 )

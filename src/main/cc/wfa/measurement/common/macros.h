@@ -15,16 +15,12 @@
 #ifndef WFA_MEASUREMENT_COMMON_MACROS_H_
 #define WFA_MEASUREMENT_COMMON_MACROS_H_
 
-#define RETURN_IF_ERROR(status)        \
-  do {                                 \
-    absl::Status _status = (status);   \
-    if (!_status.ok()) return _status; \
-  } while (0)
-
+#ifndef ASSIGN_OR_RETURN_ERROR
 #define ASSIGN_OR_RETURN_ERROR(lhs, rexpr, message)                          \
   WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_IMPL_(                            \
       WFA_MEASUREMENT_COMMON_MACROS_IMPL_CONCAT_(status_or_value, __LINE__), \
       lhs, rexpr, message)
+#endif
 
 // Internal helper.
 #define WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_IMPL_(statusor, lhs, rexpr, \
