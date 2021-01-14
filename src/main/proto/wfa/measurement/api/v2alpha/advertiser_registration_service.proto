@@ -14,24 +14,23 @@
 
 syntax = "proto3";
 
-package wfa.measurement.api.v1alpha;
+package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v1alpha/encrypted_sketch.proto";
-import "wfa/measurement/api/v1alpha/requisition.proto";
+import "wfa/measurement/api/v2alpha/advertiser.proto";
 
-option java_package = "org.wfanet.measurement.api.v1alpha";
+option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "MetricProto";
+option java_outer_classname = "AdvertiserRegistrationServiceProto";
 
-// The value for a metric.
-message MetricValue {
-  // Resource key. This is a singleton resource of a MetricRequisition.
-  MetricRequisition.Key key = 1;
+// Kingdom service for registration of advertisers.
+service AdvertiserRegistration {
+  // Creates (registers) an Advertiser.
+  rpc CreateAdvertiser(CreateAdvertiserRequest) returns (Advertiser) {}
+}
 
-  // The value type. This must match the corresponding field in the
-  // MetricDefinition from the parent MetricRequisition.
-  oneof value {
-    // A sketch.
-    EncryptedSketch sketch = 2;
-  }
+// Request message for CreateAdvertiser method.
+message CreateAdvertiserRequest {
+  // The Advertiser to create. Required. The `key field will be ignored, and the
+  // system will assign an ID.
+  Advertiser advertiser = 1;
 }
