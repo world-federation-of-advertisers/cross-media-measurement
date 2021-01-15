@@ -34,14 +34,24 @@ proto_library(
 )
 
 proto_library(
-    name = "requisition_proto",
-    srcs = ["requisition.proto"],
+    name = "requisition_spec_proto",
+    srcs = ["requisition_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
         ":data_provider_proto",
         ":sketch_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "requisition_proto",
+    srcs = ["requisition.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":measurement_proto",
+        ":requisition_spec_proto",
     ],
 )
 
@@ -56,8 +66,8 @@ proto_library(
 )
 
 proto_library(
-    name = "advertiser_proto",
-    srcs = ["advertiser.proto"],
+    name = "measurement_consumer_proto",
+    srcs = ["measurement_consumer.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
@@ -65,7 +75,7 @@ proto_library(
     name = "data_provider_proto",
     srcs = ["data_provider.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":advertiser_proto"],
+    deps = [":measurement_consumer_proto"],
 )
 
 proto_library(
@@ -73,8 +83,8 @@ proto_library(
     srcs = ["requisition_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":advertiser_proto",
         ":data_provider_proto",
+        ":measurement_consumer_proto",
         ":requisition_proto",
     ],
 )
@@ -93,11 +103,11 @@ proto_library(
 )
 
 proto_library(
-    name = "advertiser_registration_service_proto",
-    srcs = ["advertiser_registration_service.proto"],
+    name = "measurement_consumer_registration_service_proto",
+    srcs = ["measurement_consumer_registration_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":advertiser_proto",
+        ":measurement_consumer_proto",
     ],
 )
 
@@ -111,11 +121,21 @@ proto_library(
 )
 
 proto_library(
-    name = "campaign_search_service_proto",
-    srcs = ["campaign_search_service.proto"],
+    name = "event_group_search_service_proto",
+    srcs = ["event_group_search_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":advertiser_proto",
         ":data_provider_proto",
+        ":measurement_consumer_proto",
+    ],
+)
+
+proto_library(
+    name = "measurement_proto",
+    srcs = ["measurement.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_provider_proto",
+        ":requisition_spec_proto",
     ],
 )

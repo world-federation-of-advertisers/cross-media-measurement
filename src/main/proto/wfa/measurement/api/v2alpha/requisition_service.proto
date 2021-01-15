@@ -23,34 +23,37 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionServiceProto";
 
-// Service for interacting with metric requisitions.
+// Service for interacting with `MetricRequisition`s.
 //
-// Requisitions are created on behalf of advertisers to instruct data providers
-// to collect and upload the metric values necessary to generate a report.
+// `MetricRequisition`s are created on behalf of `MeasurementConsumer`s to
+// instruct `DataProvider`s to collect and upload the `MetricValue`s necessary
+// to compute a `Measurement` result.
 service Requisition {
-  // Returns the metric requisitions for the specified Campaign.
+  // Returns the metric requisitions for the specified `EventGroup`.
   rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
       returns (ListMetricRequisitionsResponse);
 
-  // Transitions the MetricRequisition to the PERMANENTLY_UNFILLABLE state. This
-  // is a terminal state for the MetricRequisition and all computations that
-  // rely on the MetricRequisition will fail. Consequently, this should only be
-  // used for permanent failures, not transient errors.
+  // Marks a `MetricRequisition` as unfulfillable, transitioning it to the
+  // `UNFULFILLABLE` state. This is a terminal state for the `MetricRequisition`
+  // and all computations that rely on the `MetricRequisition` will fail.
+  // Consequently, this should only be used for permanent failures and not
+  // transient errors.
   //
   // This is a state transition method (see https://aip.dev/216).
   rpc RefuseMetricRequisition(RefuseMetricRequisitionRequest)
       returns (MetricRequisition);
 }
 
-// Request message for ListMetricRequisitions method.
+// Request message for `ListMetricRequisitions` method.
 message ListMetricRequisitionsRequest {
-  // Resource key of the parent Campaign. Required. The campaign ID may be
-  // omitted to list across all campaigns for the specified data provider.
+  // Resource key of the parent `EventGroup`. Required. `event_group_id` may be
+  // omitted to list across all `EventGroup`s for the specified `DataProvider`.
   //
-  // Results in a PERMISSION_DENIED error if any key segment does not match for
-  // the authenticated user. For example, attempting to list requisitions for
-  // other data providers or for campaigns belonging to other advertisers.
-  Campaign.Key parent = 1;
+  // Results in a `PERMISSION_DENIED` error if any key segment does not match
+  // for the authenticated user. For example, attempting to list
+  // `MetricRequisition`s for other `DataProvider`s or for `EventGroup`s
+  // belonging to other `MeasurementConsumer`s.
+  EventGroup.Key parent = 1;
 
   // The maximum number of resources to return. See https://aip.dev/158.
   int32 page_size = 2;
@@ -68,9 +71,9 @@ message ListMetricRequisitionsRequest {
   Filter filter = 4;
 }
 
-// Response message for ListMetricRequisitions method.
+// Response message for `ListMetricRequisitions` method.
 message ListMetricRequisitionsResponse {
-  // The MetricRequisition resources.
+  // The `MetricRequisition` resources.
   repeated MetricRequisition metric_requisitions = 1;
 
   // A token that can be specified in a subsequent call to retrieve the next
@@ -78,10 +81,10 @@ message ListMetricRequisitionsResponse {
   string next_page_token = 2;
 }
 
-// Request message for RefuseMetricRequisition method.
+// Request message for `RefuseMetricRequisition` method.
 message RefuseMetricRequisitionRequest {
-  // Resource key of the MetricRequisition to mark as permanently unfulfillable.
-  // Required.
+  // Resource key of the `MetricRequisition` to mark as
+  // `PERMANENTLY_UNFILLABLE`. Required.
   MetricRequisition.Key key = 1;
 
   // Details about the refusal.

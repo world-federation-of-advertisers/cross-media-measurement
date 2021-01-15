@@ -22,13 +22,14 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DataProviderRegistrationServiceProto";
 
-// Kingdom service for registration of data providers.
+// Kingdom service for registration of `DataProvider`s.
 service DataProviderRegistration {
-  // Creates (registers) a DataProvider.
+  // Creates (registers) a `DataProvider`.
   rpc CreateDataProvider(CreateDataProviderRequest) returns (DataProvider) {}
 
-  // Creates (registers) a Campaign in the specified DataProvider's system.
-  rpc CreateCampaign(CreateCampaignRequest) returns (Campaign) {}
+  // Creates (registers) a `EventGroup` defined in the specified
+  // `DataProvider`'s system.
+  rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup) {}
 }
 
 // Request message for CreateDataProvider method.
@@ -38,15 +39,15 @@ message CreateDataProviderRequest {
   DataProvider data_provider = 1;
 }
 
-// Request message for CreateCampaign method.
-message CreateCampaignRequest {
-  // Resource key of the parent DataProvider. Required.
+// Request message for CreateEventGroup method.
+message CreateEventGroupRequest {
+  // Resource key of the parent `DataProvider`. Required.
   DataProvider.Key parent = 1;
 
-  // The Campaign to create. Required.
+  // The `EventGroup` to create. Required.
   //
   // The `key` field will be ignored, and the system will assign an ID. Results
-  // in an ALREADY_EXISTS error if there is already a child Campaign with the
-  // same `campaign_reference_id`.
-  Campaign campaign = 2;
+  // in an ALREADY_EXISTS error if there is already a child `EventGroup` with
+  // the same `event_group_reference_id`.
+  EventGroup event_group = 2;
 }

@@ -1,0 +1,85 @@
+// Copyright 2020 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "wfa/measurement/api/v2alpha/requisition_spec.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "MeasurementProto";
+
+message Measurement {
+  message Key {
+    // ID of the parent `MeasurementConsumer`.
+    string measurement_consumer_id = 1;
+    // ID of this `Measurement`.
+    string measurement_id = 2;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // Metric definition for requisitions. Required. Immutable.
+  MetricDefinition metric_definition = 2;
+
+  message DataProviderEntry {
+    // Resource key of the `DataProvider` that this entry is for. Required.
+    // Immutable.
+    DataProvider.Key data_provider = 1;
+
+    // The `RequisitionSpec` for this `DataProvider`.
+    repeated RequisitionSpec requisition_spec = 2;
+  }
+  // The measurement entry for each `DataProvider`. This can be logically
+  // represented as a map uniquely keyed by `DataProvider.Key`. Required.
+  // Immutable.
+  repeated DataProviderEntry data_provider_entries = 3;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Waiting for all linked metric requisitions to be fulfilled.
+    AWAITING_REQUISITION_FULFILLMENT = 1;
+    // Computation is running.
+    COMPUTING = 2;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 3;
+    // Completed with failure. Terminal state.
+    FAILED = 4;
+  }
+  State state = 4;
+
+  // The result of a `Measurement` computation.
+  message Result {
+    message Reach {
+      // Number of unique users exposed.
+      int64 value = 1;
+    }
+    Reach reach = 1;
+
+    message Frequency {
+      // Map of frequency to reach ratio. For example, an entry
+      // {key: 4 value: 0.333} means that 33.3% of users were exposed exactly 4
+      // times, unless 4 is the largest key (maximum frequency) in which case it
+      // means that 33.3% of users were exposed at least 4 times.
+      map<int64, double> relative_frequency_distribution = 1;
+    }
+    Frequency frequency = 2;
+  }
+  // Result of this `Measurement` computation. Output-only. Only set if `state`
+  // is `SUCCEEDED`.
+  Result result = 5;
+}

@@ -15,7 +15,7 @@ skinparam default {
 
 resource(DataProvider) {
 }
-resource(Advertiser) {
+resource(MeasurementConsumer) {
 }
 resource(SketchConfig) {
 }
@@ -23,10 +23,16 @@ resource(CombinedPublicKey) {
   encryption_key
   Get()
 }
+resource(Measurement) {
+  metric_definition
+  data_provider_entries
+  state
+  result
+}
 
 together {
-  collection(advertisers, Advertiser) {
-    Create(advertiser)
+  collection(measurementConsumers, MeasurementConsumer) {
+    Create(measurementConsumer)
   }
   collection(dataProviders, DataProvider) {
     Create(data_provider)
@@ -38,35 +44,42 @@ together {
 }
 
 collection(metricRequisitions, MetricRequisition) {
-  Create(metric_requisition)
   List([states])
 }
-collection(campaigns, Campaign) {
-  Create(campaign)
-  List([advertisers])
+collection(eventGroups, EventGroup) {
+  Create(event_group)
+  List([measurement_consumers])
+}
+collection(measurements, Measurement) {
+  Create(measurement)
+  List([states])
 }
 
 resource(MetricRequisition) {
-  collection_interval
-  metric_definition
+  measurement
+  requisition_spec
   state
-  combined_public_key
+  Get()
   Refuse()
 }
-resource(Campaign) {
-  advertiser
+resource(EventGroup) {
+  measurement_consumer
 }
 resource(MetricValue) {
   sketch
   Upload()
 }
 
-DataProvider *-- campaigns
-Campaign "many" ..> "1" Advertiser
-Campaign *-- metricRequisitions
+DataProvider *-- eventGroups
+DataProvider *-- metricRequisitions
+EventGroup "many" ..> "1" MeasurementConsumer
 
+MetricRequisition "many" .> "many" EventGroup
 MetricRequisition *-- "0..1" MetricValue
-MetricRequisition "many" .> " 1" SketchConfig
-MetricRequisition "many" .> "1" CombinedPublicKey
+MetricRequisition "many" .> "1" Measurement
+
+MeasurementConsumer *-- measurements
+Measurement "many" .> "1" CombinedPublicKey
+Measurement "many" .> "0..1" SketchConfig
 
 @enduml

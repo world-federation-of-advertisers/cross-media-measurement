@@ -16,13 +16,14 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/advertiser.proto";
+import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DataProviderProto";
 
-// Representation of a data provider.
+// A provider of event (e.g. impression) data. For example, a publisher or panel
+// provider.
 message DataProvider {
   message Key {
     string data_provider_id = 1;
@@ -34,22 +35,24 @@ message DataProvider {
   string display_name = 2;
 }
 
-// Representation of a campaign within a data provider's system.
-message Campaign {
+// A grouping of events defined by a DataProvider. For example, a single
+// campaign or creative defined in a publisher's ad system.
+message EventGroup {
   message Key {
     string data_provider_id = 1;
-    string campaign_id = 2;
+    string event_group_id = 2;
   }
   // Resource key.
   Key key = 1;
 
-  // Resource key of the Advertiser associated with this Campaign.
-  Advertiser.Key advertiser = 2;
+  // Resource key of the `MeasurementConsumer` associated with this
+  // `EventGroup`.
+  MeasurementConsumer.Key measurement_consumer = 2;
 
   // Display name.
   string display_name = 3;
 
-  // ID referencing the campaign in an external system, provided by the data
+  // ID referencing the `EventGroup` in an external system, provided by the data
   // provider.
-  string campaign_reference_id = 4;
+  string event_group_reference_id = 4;
 }

@@ -16,23 +16,25 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/advertiser.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "CampaignSearchServiceProto";
+option java_outer_classname = "EventGroupSearchServiceProto";
 
-// Kingdom service for searching Campaigns and DataProviders.
-service CampaignSearch {
-  // Lists Campaigns. Results in a PERMISSION_DENIED error if attempting to list
-  // Campaigns that the authenticated user does not have access to.
-  rpc ListCampaigns(ListCampaignsRequest) returns (ListCampaignsResponse) {}
+// Kingdom service for searching `EventGroup`s and `DataProvider`s.
+service EventGroupSearch {
+  // Lists `EventGroup`s. Results in a PERMISSION_DENIED error if attempting to
+  // list `EventGroup`s that the authenticated user does not have access to.
+  rpc ListEventGroups(ListEventGroupsRequest)
+      returns (ListEventGroupsResponse) {}
 }
 
-message ListCampaignsRequest {
-  // Resource key of the parent DataProvider. The DataProvider ID may be omitted
-  // to list across DataProviders, in which case a filter should be specified.
+message ListEventGroupsRequest {
+  // Resource key of the parent `DataProvider`. The `DataProvider` ID may be
+  // omitted to list across `DataProvider`s, in which case a filter should be
+  // specified.
   DataProvider.Key parent = 1;
 
   // The maximum number of resources to return. See https://aip.dev/158.
@@ -44,16 +46,15 @@ message ListCampaignsRequest {
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
   // fields specified as logical ANDs.
   message Filter {
-    repeated Advertiser.Key advertisers = 1;
+    repeated MeasurementConsumer.Key measurement_consumers = 1;
   }
-  // Result filter. If a page token is specified, then this will be ignored and
-  // the filter for the first page will be applied.
+  // Result filter.
   Filter filter = 4;
 }
 
-message ListCampaignsResponse {
-  // The Campaign resources.
-  repeated Campaign campaigns = 1;
+message ListEventGroupsResponse {
+  // The `EventGroup` resources.
+  repeated EventGroup event_groups = 1;
 
   // A token that can be specified in a subsequent call to retrieve the next
   // page. See https://aip.dev/158.

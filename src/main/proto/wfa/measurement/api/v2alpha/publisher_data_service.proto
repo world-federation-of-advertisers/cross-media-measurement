@@ -32,19 +32,20 @@ service PublisherData {
   rpc GetCombinedPublicKey(GetCombinedPublicKeyRequest)
       returns (CombinedPublicKey) {}
 
-  // Returns the metric requisitions for the specified campaign.
+  // Returns the `MetricRequisition`s for the specified `EventGroup`.
   //
-  // This delegates to the Requisition service.
+  // This delegates to the `Requisition` service.
   rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
       returns (ListMetricRequisitionsResponse) {}
 
-  // Marks a MetricRequisition as permanently unfulfillable. This is a terminal
-  // state for the MetricRequisition and all computations that rely on the
-  // MetricRequisition will fail. Consequently, this should only be used for
-  // permanent failures, not transient errors.
+  // Marks a `MetricRequisition` as unfulfillable, transitioning it to the
+  // `UNFULFILLABLE` state. This is a terminal state for the `MetricRequisition`
+  // and all computations that rely on the `MetricRequisition` will fail.
+  // Consequently, this should only be used for permanent failures and not
+  // transient errors.
   //
   // This is a state transition method (see https://aip.dev/216). It delegates
-  // to the Requisition service.
+  // to the `Requisition` service.
   rpc RefuseMetricRequisition(RefuseMetricRequisitionRequest)
       returns (MetricRequisition) {}
 
@@ -52,10 +53,11 @@ service PublisherData {
   rpc UploadMetricValue(stream UploadMetricValueRequest)
       returns (UploadMetricValueResponse) {}
 
-  // Creates (registers) a Campaign in the specified DataProvider's system.
+  // Creates (registers) a `EventGroup` defined in the specified
+  // `DataProvider`'s system.
   //
-  // This delegates to the DataProviderRegistration service.
-  rpc CreateCampaign(CreateCampaignRequest) returns (Campaign) {}
+  // This delegates to the `DataProviderRegistration` service.
+  rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup) {}
 }
 
 // Request message for GetCombinedPublicKey method.
@@ -97,8 +99,8 @@ message UploadMetricValueRequest {
   }
 }
 
-// Response message for UploadMetricValue method.
+// Response message for `UploadMetricValue` method.
 message UploadMetricValueResponse {
-  // Resulting state of the CampaignMetricRequisition.
+  // Resulting state of the `MetricRequisition`.
   MetricRequisition.State state = 1;
 }
