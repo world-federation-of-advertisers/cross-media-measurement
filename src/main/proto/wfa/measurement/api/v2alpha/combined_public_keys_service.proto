@@ -1,0 +1,60 @@
+// Copyright 2021 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/crypto.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "CombinedPublicKeysServiceProto";
+
+// Service for interacting with `CombinedPublicKey` resources.
+service CombinedPublicKeys {
+  // Returns the `CombinedPublicKey` with the specified resource key.
+  rpc GetCombinedPublicKey(GetCombinedPublicKeyRequest)
+      returns (CombinedPublicKey) {}
+
+  // Lists the `CombinedPublicKey`s.
+  rpc ListCombinedPublicKeys(ListCombinedPublicKeysRequest)
+      returns (ListCombinedPublicKeysResponse);
+}
+
+// Request message for `GetCombinedPublicKey` method.
+message GetCombinedPublicKeyRequest {
+  // Resource key.
+  CombinedPublicKey.Key key = 1;
+}
+
+// Request message for `ListCombinedPublicKeys` method.
+message ListCombinedPublicKeysRequest {
+  // The maximum number of resources to return. See https://aip.dev/158.
+  int32 page_size = 1;
+
+  // A token from a previous call, specified to retrieve the next page. See
+  // https://aip.dev/158.
+  string page_token = 2;
+}
+
+// Response message for `ListCombinedPublicKeys` method.
+message ListCombinedPublicKeysResponse {
+  // The `CombinedPublicKey` resources.
+  repeated CombinedPublicKey combined_public_keys = 1;
+
+  // A token that can be specified in a subsequent call to retrieve the next
+  // page. See https://aip.dev/158.
+  string next_page_token = 2;
+}

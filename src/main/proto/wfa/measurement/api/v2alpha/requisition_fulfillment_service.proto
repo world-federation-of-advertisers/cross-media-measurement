@@ -1,0 +1,71 @@
+// Copyright 2020 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/requisition.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionFulfillmentServiceProto";
+
+// Duchy service for fulfilling `MetricRequisition`s.
+service RequisitionFulfillment {
+  // Fulfills a `MetricRequisition`.
+  rpc FulfillMetricRequisition(stream FulfillMetricRequisitionRequest)
+      returns (FulfillMetricRequisitionResponse) {}
+}
+
+// Request message for `FulfillMetricRequisition` method.
+message FulfillMetricRequisitionRequest {
+  // The header message for this streaming request.
+  message Header {
+    // Resource key of the `MetricRequisition`. Required.
+    MetricRequisition.Key key = 1;
+  }
+
+  // The chunk message for this streaming request.
+  message BodyChunk {
+    // The portion of the data for this `Chunk`. Required.
+    //
+    // If the corresponding `MetricDefinition` is a sketch, this is the register
+    // data as documented in the `Sketch` message (sketch.proto). The only
+    // alignment requirement is by bytes: a chunk might begin or end in the
+    // middle of a single register.
+    //
+    // The optimal size of this field is one that would result in the
+    // `FulfillMetricRequisitionRequest` message being between 16KiB and 64KiB.
+    // See https://github.com/grpc/grpc.github.io/issues/371
+    bytes data = 1;
+  }
+
+  // Request message payload. Exactly one of these must be specified.
+  oneof payload {
+    // The header for this streaming request, specified as the payload for the
+    // first request message.
+    Header header = 1;
+
+    // The body chunk for this streaming request, specified on subsequent
+    // request messages to the first one containing the header.
+    BodyChunk body_chunk = 2;
+  }
+}
+
+// Response message for `FulfillMetricRequisition` method.
+message FulfillMetricRequisitionResponse {
+  // Resulting state of the `MetricRequisition`.
+  MetricRequisition.State state = 1;
+}

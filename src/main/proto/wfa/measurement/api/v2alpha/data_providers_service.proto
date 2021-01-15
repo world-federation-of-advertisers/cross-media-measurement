@@ -20,34 +20,26 @@ import "wfa/measurement/api/v2alpha/data_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "DataProviderRegistrationServiceProto";
+option java_outer_classname = "DataProvidersServiceProto";
 
-// Kingdom service for registration of `DataProvider`s.
-service DataProviderRegistration {
+// Service for interacting with `DataProvider` resources.
+service DataProviders {
+  // Returns the `DataProvider` with the specified resource key.
+  rpc GetDataProvider(GetDataProviderRequest) returns (DataProvider) {}
+
   // Creates (registers) a `DataProvider`.
   rpc CreateDataProvider(CreateDataProviderRequest) returns (DataProvider) {}
-
-  // Creates (registers) a `EventGroup` defined in the specified
-  // `DataProvider`'s system.
-  rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup) {}
 }
 
-// Request message for CreateDataProvider method.
+// Request message for `GetDataProvider` method.
+message GetDataProviderRequest {
+  // Resource key.
+  DataProvider.Key key = 1;
+}
+
+// Request message for `CreateDataProvider` method.
 message CreateDataProviderRequest {
-  // The DataProvider to create. Required. The `key` field will be ignored, and
-  // the system will assign an ID.
+  // The `DataProvider` to create. Required. The `key` field will be ignored,
+  // and the system will assign an ID.
   DataProvider data_provider = 1;
-}
-
-// Request message for CreateEventGroup method.
-message CreateEventGroupRequest {
-  // Resource key of the parent `DataProvider`. Required.
-  DataProvider.Key parent = 1;
-
-  // The `EventGroup` to create. Required.
-  //
-  // The `key` field will be ignored, and the system will assign an ID. Results
-  // in an ALREADY_EXISTS error if there is already a child `EventGroup` with
-  // the same `event_group_reference_id`.
-  EventGroup event_group = 2;
 }

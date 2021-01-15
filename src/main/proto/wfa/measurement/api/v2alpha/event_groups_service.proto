@@ -21,14 +21,40 @@ import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "EventGroupSearchServiceProto";
+option java_outer_classname = "EventGroupsServiceProto";
 
-// Kingdom service for searching `EventGroup`s and `DataProvider`s.
-service EventGroupSearch {
-  // Lists `EventGroup`s. Results in a PERMISSION_DENIED error if attempting to
-  // list `EventGroup`s that the authenticated user does not have access to.
+// Service for interacting with `EventGroup` resources.
+service EventGroups {
+  // Returns the `EventGroup` with the specified resource key.
+  rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup) {}
+
+  // Creates (registers) a `EventGroup` defined in the specified
+  // `DataProvider`'s system.
+  rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup) {}
+
+  // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
+  // to list `EventGroup`s that the authenticated user does not have access to.
   rpc ListEventGroups(ListEventGroupsRequest)
       returns (ListEventGroupsResponse) {}
+}
+
+// Request message for `GetEventGroup` method.
+message GetEventGroupRequest {
+  // Resource key.
+  EventGroup.Key key = 1;
+}
+
+// Request message for `CreateEventGroup` method.
+message CreateEventGroupRequest {
+  // Resource key of the parent `DataProvider`. Required.
+  DataProvider.Key parent = 1;
+
+  // The `EventGroup` to create. Required.
+  //
+  // The `key` field will be ignored, and the system will assign an ID. Results
+  // in an `ALREADY_EXISTS` error if there is already a child `EventGroup` with
+  // the same `event_group_reference_id`.
+  EventGroup event_group = 2;
 }
 
 message ListEventGroupsRequest {

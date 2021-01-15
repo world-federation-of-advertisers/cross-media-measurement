@@ -21,14 +21,14 @@ import "wfa/measurement/api/v2alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "RequisitionServiceProto";
+option java_outer_classname = "RequisitionsServiceProto";
 
 // Service for interacting with `MetricRequisition`s.
 //
 // `MetricRequisition`s are created on behalf of `MeasurementConsumer`s to
-// instruct `DataProvider`s to collect and upload the `MetricValue`s necessary
+// instruct `DataProvider`s to collect and upload the metric value necessary
 // to compute a `Measurement` result.
-service Requisition {
+service Requisitions {
   // Returns the metric requisitions for the specified `EventGroup`.
   rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
       returns (ListMetricRequisitionsResponse);

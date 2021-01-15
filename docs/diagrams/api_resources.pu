@@ -14,8 +14,10 @@ skinparam default {
 }
 
 resource(DataProvider) {
+  Get()
 }
 resource(MeasurementConsumer) {
+  Get()
 }
 resource(SketchConfig) {
 }
@@ -38,8 +40,10 @@ together {
     Create(data_provider)
   }
   collection(sketchConfigs, SketchConfig) {
+    List()
   }
   collection(combinedPublicKeys, CombinedPublicKey) {
+    List()
   }
 }
 
@@ -60,14 +64,12 @@ resource(MetricRequisition) {
   requisition_spec
   state
   Get()
-  Refuse()
+  Refuse(refusal)
+  Fulfill(metric_value)
 }
 resource(EventGroup) {
   measurement_consumer
-}
-resource(MetricValue) {
-  sketch
-  Upload()
+  Get()
 }
 
 DataProvider *-- eventGroups
@@ -75,7 +77,6 @@ DataProvider *-- metricRequisitions
 EventGroup "many" ..> "1" MeasurementConsumer
 
 MetricRequisition "many" .> "many" EventGroup
-MetricRequisition *-- "0..1" MetricValue
 MetricRequisition "many" .> "1" Measurement
 
 MeasurementConsumer *-- measurements

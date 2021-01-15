@@ -56,16 +56,6 @@ proto_library(
 )
 
 proto_library(
-    name = "metric_proto",
-    srcs = ["metric.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":encrypted_sketch_proto",
-        ":requisition_proto",
-    ],
-)
-
-proto_library(
     name = "measurement_consumer_proto",
     srcs = ["measurement_consumer.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -79,8 +69,8 @@ proto_library(
 )
 
 proto_library(
-    name = "requisition_service_proto",
-    srcs = ["requisition_service.proto"],
+    name = "requisitions_service_proto",
+    srcs = ["requisitions_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":data_provider_proto",
@@ -90,44 +80,56 @@ proto_library(
 )
 
 proto_library(
-    name = "publisher_data_service_proto",
-    srcs = ["publisher_data_service.proto"],
+    name = "requisition_fulfillment_service_proto",
+    srcs = ["requisition_fulfillment_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":requisition_proto",
+    ],
+)
+
+proto_library(
+    name = "measurement_consumers_service_proto",
+    srcs = ["measurement_consumers_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":measurement_consumer_proto",
+    ],
+)
+
+proto_library(
+    name = "data_providers_service_proto",
+    srcs = ["data_providers_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_provider_proto",
+    ],
+)
+
+proto_library(
+    name = "event_groups_service_proto",
+    srcs = ["event_groups_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_provider_proto",
+        ":measurement_consumer_proto",
+    ],
+)
+
+proto_library(
+    name = "combined_public_keys_service_proto",
+    srcs = ["combined_public_keys_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
-        ":data_provider_proto",
-        ":data_provider_registration_service_proto",
-        ":requisition_proto",
-        ":requisition_service_proto",
     ],
 )
 
 proto_library(
-    name = "measurement_consumer_registration_service_proto",
-    srcs = ["measurement_consumer_registration_service.proto"],
+    name = "sketch_configs_service_proto",
+    srcs = ["sketch_configs_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":measurement_consumer_proto",
-    ],
-)
-
-proto_library(
-    name = "data_provider_registration_service_proto",
-    srcs = ["data_provider_registration_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":data_provider_proto",
-    ],
-)
-
-proto_library(
-    name = "event_group_search_service_proto",
-    srcs = ["event_group_search_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":data_provider_proto",
-        ":measurement_consumer_proto",
-    ],
+    deps = [":sketch_proto"],
 )
 
 proto_library(
