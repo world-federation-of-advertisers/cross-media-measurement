@@ -144,8 +144,8 @@ absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
 
 absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
     ProtocolCryptor& protocol_cryptor, int64_t max_frequency) {
-  if (max_frequency < 1) {
-    return absl::InvalidArgumentError("max_frequency should be positive");
+  if (max_frequency < 2) {
+    return absl::InvalidArgumentError("max_frequency should be at least 2");
   }
   // Result[i] =  - encrypted_one * (i+1)
   std::vector<ElGamalEcPointPair> result;
@@ -155,7 +155,7 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
   ASSIGN_OR_RETURN(ElGamalEcPointPair negative_one_ec,
                    InvertEcPointPair(one_ec));
   result.push_back(std::move(negative_one_ec));
-  for (size_t i = 1; i < max_frequency; ++i) {
+  for (size_t i = 1; i < max_frequency - 1; ++i) {
     ASSIGN_OR_RETURN(ElGamalEcPointPair next,
                      AddEcPointPairs(result.back(), result[0]));
     result.push_back(std::move(next));
@@ -390,7 +390,7 @@ CompleteExecutionPhaseTwoAtAggregator(
       ASSIGN_OR_RETURN(
           ElGamalEcPointPair current_count_ec_pair,
           protocol_cryptor->ToElGamalEcPoints(current_count_ciphertext));
-      for (size_t i = 0; i < request.maximum_frequency(); ++i) {
+      for (int i = 0; i < request.maximum_frequency() - 1; ++i) {
         ASSIGN_OR_RETURN(ElGamalEcPointPair diff,
                          protocol_cryptor->CalculateDestructor(
                              ska_bases[i], current_count_ec_pair));
@@ -445,16 +445,19 @@ CompleteExecutionPhaseThreeAtAggregator(
                    GetNumberOfBlocks(request.same_key_aggregator_matrix(),
                                      kBytesPerCipherText));
 
-  size_t maximum_frequency = request.maximum_frequency();
-
-  if (maximum_frequency < 1) {
-    return absl::InvalidArgumentError("maximum_frequency should be positive.");
-  }
-  if (ciphertext_counts % maximum_frequency != 0) {
+  int maximum_frequency = request.maximum_frequency();
+  if (maximum_frequency < 2) {
     return absl::InvalidArgumentError(
-        "The size of the SameKeyAggregator matrix is not divisible by the "
-        "maximum_frequency.");
+        "maximum_frequency should be at least 2.");
   }
+
+  int row_size = maximum_frequency - 1;
+  if (ciphertext_counts % row_size != 0) {
+    return absl::InvalidArgumentError(
+        "The size of the SameKeyAggregator matrix is not divisible by "
+        "maximum_frequency-1.");
+  }
+  int column_size = ciphertext_counts / row_size;
 
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
@@ -467,19 +470,17 @@ CompleteExecutionPhaseThreeAtAggregator(
           kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalKey),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
-  size_t total_counts = ciphertext_counts / maximum_frequency;
-
-  // histogram[i-1] = the number of times value i (1...maximum_frequency)
-  // occurs. histogram[maximum_frequency] = the number of times all values
-  // greater than maximum_frequency occurs.
-  std::vector<size_t> histogram(maximum_frequency + 1);
-  histogram[maximum_frequency] = total_counts;
+  // histogram[i-1] = the number of times value i (1...maximum_frequency-1)
+  // occurs. histogram[maximum_frequency-1] = the number of times all values
+  // greater than maximum_frequency-1 occurs.
+  std::vector<size_t> histogram(maximum_frequency);
+  histogram[maximum_frequency - 1] = column_size;
 
   absl::string_view same_key_aggregator_matrix =
       absl::string_view(request.same_key_aggregator_matrix());
-  for (size_t row = 0; row < total_counts; ++row) {
-    for (size_t column = 0; column < maximum_frequency; ++column) {
-      size_t offset = (row * maximum_frequency + column) * kBytesPerCipherText;
+  for (int column = 0; column < column_size; ++column) {
+    for (int row = 0; row < row_size; ++row) {
+      size_t offset = (column * row_size + row) * kBytesPerCipherText;
       absl::string_view current_block =
           same_key_aggregator_matrix.substr(offset, kBytesPerCipherText);
       ASSIGN_OR_RETURN(ElGamalCiphertext ciphertext,
@@ -488,10 +489,10 @@ CompleteExecutionPhaseThreeAtAggregator(
           bool is_decryption_zero,
           protocol_cryptor->IsDecryptLocalElGamalResultZero(ciphertext));
       if (is_decryption_zero) {
-        // This count is equal to column+1.
-        ++histogram[column];
-        --histogram[maximum_frequency];
-        // No need to check other columns of this row.
+        // This count is equal to row+1.
+        ++histogram[row];
+        --histogram[maximum_frequency - 1];
+        // No need to check other rows of this column.
         break;
       }
     }
@@ -500,9 +501,9 @@ CompleteExecutionPhaseThreeAtAggregator(
   CompleteExecutionPhaseThreeAtAggregatorResponse response;
   google::protobuf::Map<int64_t, double>& distribution =
       *response.mutable_frequency_distribution();
-  for (size_t i = 0; i <= maximum_frequency; ++i) {
+  for (size_t i = 0; i < maximum_frequency; ++i) {
     if (histogram[i] != 0) {
-      distribution[i + 1] = static_cast<double>(histogram[i]) / total_counts;
+      distribution[i + 1] = static_cast<double>(histogram[i]) / column_size;
     }
   }
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());

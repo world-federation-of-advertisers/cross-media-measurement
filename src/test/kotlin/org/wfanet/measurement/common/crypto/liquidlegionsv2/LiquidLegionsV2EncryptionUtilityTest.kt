@@ -242,7 +242,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
     val result = goThroughEntireMpcProtocol(encryptedSketch).frequencyDistributionMap
     assertThat(result).containsExactly(
       5L, 2.0 / 3, // register 1 and 5 : 5
-      11L, 1.0 / 3 // register 4  : MAXIMUM_FREQUENCY+1
+      10L, 1.0 / 3 // register 4  : MAXIMUM_FREQUENCY
     )
   }
 

@@ -214,8 +214,8 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on for SKA generation.
   int64 curve_id = 4;
-  // Maximum frequency to measure. This is also the row dimension of the 2-D SKA
-  // matrix.
+  // Maximum frequency to measure. At least 2.
+  // (maximum_frequency-1) will is the row dimension of the 2-D SKA matrix.
   int32 maximum_frequency = 5;
 }
 
@@ -223,7 +223,7 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
 message CompleteExecutionPhaseTwoAtAggregatorResponse {
   // The 2-D same key aggregator (SKA) matrix.
   // Each element is a 66 bytes ciphertext. The row size of the matrix is equal
-  // to the maximum_frequency, and the column size of the matrix is equal to the
+  // to (maximum_frequency-1), and the column size of the matrix is equal to the
   // number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
   // The CPU time of processing the request.
@@ -235,7 +235,7 @@ message CompleteExecutionPhaseTwoAtAggregatorResponse {
 message CompleteExecutionPhaseThreeRequest {
   // The 2-D same key aggregator matrix.
   // Each element is a partially decrypted ciphertext (66 bytes). The row size
-  // of the matrix is equal to the maximum_frequency, and the column size of the
+  // of the matrix is equal to (maximum_frequency-1), and the column size of the
   // matrix is equal to the number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
   // Key pair of the local ElGamal cipher. Required.
@@ -248,7 +248,7 @@ message CompleteExecutionPhaseThreeRequest {
 message CompleteExecutionPhaseThreeResponse {
   // The 2-D same key aggregator (SKA) matrix.
   // Each element is a partially decrypted ciphertext (66 bytes). The row size
-  // of the matrix is equal to the maximum_frequency, and the column size of the
+  // of the matrix is equal to (maximum_frequency-1), and the column size of the
   // matrix is equal to the number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
   // The CPU time of processing the request.
@@ -260,23 +260,23 @@ message CompleteExecutionPhaseThreeResponse {
 message CompleteExecutionPhaseThreeAtAggregatorRequest {
   // The 2-D same key aggregator matrix.
   // Each element is a decrypted (66 bytes). The row size of the matrix is equal
-  // to the maximum_frequency, and the column size of the matrix is equal to the
-  // number of un-destroyed flags.
+  // to (maximum_frequency-1), and the column size of the matrix is equal to
+  // the number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
-  // Maximum frequency to measure.
+  // Maximum frequency to output in the result. At least 2.
   int32 maximum_frequency = 4;
 }
 
 // The response of the CompleteExecutionPhaseThreeAtAggregator method.
 message CompleteExecutionPhaseThreeAtAggregatorResponse {
   // The relative frequency distribution.
-  // The map contains the frequency distribution for [1, max_frequency] and also
-  // includes max_frequency+1 for the "max_freq+1+" reach. In other words, the
-  // map contains max_frequency+1 entries.
+  // The map contains the frequency distribution for [1, max_frequency-1] and
+  // also includes max_frequency for the "max_frequency+" reach. In other words,
+  // the map contains max_frequency entries.
   map<int64, double> frequency_distribution = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;

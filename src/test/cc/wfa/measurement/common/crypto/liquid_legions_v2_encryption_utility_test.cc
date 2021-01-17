@@ -487,7 +487,7 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
   auto frequency_distribution = final_response.frequency_distribution();
   ASSERT_THAT(frequency_distribution, SizeIs(2));
   EXPECT_NEAR(frequency_distribution[3], 0.5, 0.001);
-  EXPECT_NEAR(frequency_distribution[kMaxFrequency + 1], 0.5, 0.001);
+  EXPECT_NEAR(frequency_distribution[kMaxFrequency], 0.5, 0.001);
 }
 
 TEST(EndToEnd, ComnbinedCases) {
@@ -527,7 +527,7 @@ TEST(EndToEnd, ComnbinedCases) {
   ASSERT_THAT(frequency_distribution, SizeIs(3));
   EXPECT_NEAR(frequency_distribution[3], 0.25, 0.001);
   EXPECT_NEAR(frequency_distribution[6], 0.5, 0.001);
-  EXPECT_NEAR(frequency_distribution[kMaxFrequency + 1], 0.25, 0.001);
+  EXPECT_NEAR(frequency_distribution[kMaxFrequency], 0.25, 0.001);
 }
 
 }  // namespace
