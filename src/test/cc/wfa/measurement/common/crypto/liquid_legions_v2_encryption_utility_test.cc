@@ -16,6 +16,7 @@
 
 #include <openssl/obj_mac.h>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "crypto/commutative_elgamal.h"
@@ -23,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
+#include "src/main/cc/estimation/estimators.h"
 #include "src/test/cc/testutil/matchers.h"
 #include "src/test/cc/testutil/status_macros.h"
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
@@ -48,9 +50,14 @@ constexpr int kTestCurveId = NID_X9_62_prime256v1;
 constexpr int kBytesPerEcPoint = 33;
 constexpr int kBytesCipherText = kBytesPerEcPoint * 2;
 constexpr int kBytesPerEncryptedRegister = kBytesCipherText * 3;
-constexpr int kBytesPerFlagsCountTuple = kBytesCipherText * 3;
+constexpr int kBytesPerFlagsCountTuple = kBytesCipherText * 4;
 constexpr int kDecayRate = 12;
 constexpr int kLiquidLegionsSize = 100 * 1000;
+
+struct MpcResult {
+  int64_t reach;
+  absl::flat_hash_map<int64_t, double> frequency_distribution;
+};
 
 ElGamalKeyPair GenerateRandomElGamalKeyPair(const int curve_id) {
   ElGamalKeyPair el_gamal_key_pair;
@@ -217,18 +224,59 @@ class TestData {
   }
 
   // Helper function to go through the entire MPC protocol using the input data.
-  // The final (flag, count) lists are returned.
-  absl::StatusOr<CompleteExecutionPhaseThreeAtAggregatorResponse>
-  GoThroughEntireMpcProtocolWithoutNoise(const std::string& encrypted_sketch) {
+  // The final MpcResult are returned.
+  absl::StatusOr<MpcResult> GoThroughEntireMpcProtocol(
+      const std::string& encrypted_sketch,
+      RegisterNoiseGenerationParameters* reach_noise_parameters) {
     // Setup phase at Duchy 1.
-    // We assume all test data comes from duchy 1 in the test, so we ignore
-    // setup phase of Duchy 2 and 3.
-    CompleteSetupPhaseRequest complete_setup_phase_request;
-    complete_setup_phase_request.set_combined_register_vector(encrypted_sketch);
-    ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response,
-                     CompleteSetupPhase(complete_setup_phase_request));
-    EXPECT_THAT(complete_setup_phase_response.combined_register_vector(),
+    // We assume all test data comes from duchy 1 in the test.
+    CompleteSetupPhaseRequest complete_setup_phase_request_1;
+    complete_setup_phase_request_1.set_combined_register_vector(
+        encrypted_sketch);
+
+    if (reach_noise_parameters != nullptr) {
+      *complete_setup_phase_request_1.mutable_noise_parameters() =
+          *reach_noise_parameters;
+    }
+
+    ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_1,
+                     CompleteSetupPhase(complete_setup_phase_request_1));
+    EXPECT_THAT(complete_setup_phase_response_1.combined_register_vector(),
                 IsBlockSorted(kBytesPerEncryptedRegister));
+
+    // Setup phase at Duchy 2.
+    // We assume all test data comes from duchy 1 in the test, so there is only
+    // noise from duchy 2 (if configured)
+    CompleteSetupPhaseRequest complete_setup_phase_request_2;
+    if (reach_noise_parameters != nullptr) {
+      *complete_setup_phase_request_2.mutable_noise_parameters() =
+          *reach_noise_parameters;
+    }
+
+    ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_2,
+                     CompleteSetupPhase(complete_setup_phase_request_2));
+    EXPECT_THAT(complete_setup_phase_response_2.combined_register_vector(),
+                IsBlockSorted(kBytesPerEncryptedRegister));
+
+    // Setup phase at Duchy 3.
+    // We assume all test data comes from duchy 1 in the test, so there is only
+    // noise from duchy 3 (if configured)
+    CompleteSetupPhaseRequest complete_setup_phase_request_3;
+    if (reach_noise_parameters != nullptr) {
+      *complete_setup_phase_request_3.mutable_noise_parameters() =
+          *reach_noise_parameters;
+    }
+
+    ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_3,
+                     CompleteSetupPhase(complete_setup_phase_request_3));
+    EXPECT_THAT(complete_setup_phase_response_3.combined_register_vector(),
+                IsBlockSorted(kBytesPerEncryptedRegister));
+
+    // Combine all CRVs.
+    std::string combine_data = absl::StrCat(
+        complete_setup_phase_response_1.combined_register_vector(),
+        complete_setup_phase_response_2.combined_register_vector(),
+        complete_setup_phase_response_3.combined_register_vector());
 
     // Execution phase one at duchy 1 (non-aggregator).
     CompleteExecutionPhaseOneRequest complete_execution_phase_one_request_1;
@@ -238,7 +286,7 @@ class TestData {
          .mutable_composite_el_gamal_public_key() = client_el_gamal_public_key_;
     complete_execution_phase_one_request_1.set_curve_id(kTestCurveId);
     complete_execution_phase_one_request_1.set_combined_register_vector(
-        complete_setup_phase_response.combined_register_vector());
+        combine_data);
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseOneResponse
             complete_execution_phase_one_response_1,
@@ -247,7 +295,7 @@ class TestData {
         complete_execution_phase_one_response_1.combined_register_vector(),
         IsBlockSorted(kBytesPerEncryptedRegister));
 
-    // Execution phase onee at duchy 2 (non-aggregator).
+    // Execution phase one at duchy 2 (non-aggregator).
     CompleteExecutionPhaseOneRequest complete_execution_phase_one_request_2;
     *complete_execution_phase_one_request_2.mutable_local_el_gamal_key_pair() =
         duchy_2_el_gamal_key_pair_;
@@ -274,19 +322,12 @@ class TestData {
     complete_execution_phase_one_at_aggregator_request.set_curve_id(
         kTestCurveId);
     complete_execution_phase_one_at_aggregator_request
-        .mutable_liquid_legions_parameters()
-        ->set_decay_rate(kDecayRate);
-    complete_execution_phase_one_at_aggregator_request
-        .mutable_liquid_legions_parameters()
-        ->set_size(kLiquidLegionsSize);
-    complete_execution_phase_one_at_aggregator_request
         .set_combined_register_vector(
             complete_execution_phase_one_response_2.combined_register_vector());
     ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse
                          complete_execution_phase_one_at_aggregator_response,
                      CompleteExecutionPhaseOneAtAggregator(
                          complete_execution_phase_one_at_aggregator_request));
-    EXPECT_GT(complete_execution_phase_one_at_aggregator_response.reach(), 0);
     EXPECT_THAT(
         complete_execution_phase_one_at_aggregator_response.flag_count_tuples(),
         IsBlockSorted(kBytesPerFlagsCountTuple));
@@ -337,6 +378,19 @@ class TestData {
         kTestCurveId);
     complete_execution_phase_two_at_aggregator_request.set_maximum_frequency(
         kMaxFrequency);
+    complete_execution_phase_two_at_aggregator_request
+        .mutable_liquid_legions_parameters()
+        ->set_decay_rate(kDecayRate);
+    complete_execution_phase_two_at_aggregator_request
+        .mutable_liquid_legions_parameters()
+        ->set_size(kLiquidLegionsSize);
+    if (reach_noise_parameters != nullptr) {
+      complete_execution_phase_two_at_aggregator_request
+          .set_global_reach_dp_noise_baseline(
+              reach_noise_parameters->global_reach_dp_noise_parameters()
+                  .shift_offset() *
+              3);
+    }
     complete_execution_phase_two_at_aggregator_request.set_flag_count_tuples(
         complete_execution_phase_two_response_2.flag_count_tuples());
     ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse
@@ -385,8 +439,18 @@ class TestData {
             complete_execution_phase_three_response_2
                 .same_key_aggregator_matrix());
 
-    return CompleteExecutionPhaseThreeAtAggregator(
-        complete_execution_phase_three_at_aggregator_request);
+    ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeAtAggregatorResponse
+                         complete_execution_phase_three_at_aggregator_response,
+                     CompleteExecutionPhaseThreeAtAggregator(
+                         complete_execution_phase_three_at_aggregator_request));
+
+    MpcResult result;
+    result.reach = complete_execution_phase_two_at_aggregator_response.reach();
+    for (auto pair : complete_execution_phase_three_at_aggregator_response
+                         .frequency_distribution()) {
+      result.frequency_distribution[pair.first] = pair.second;
+    }
+    return result;
   }
 };
 
@@ -588,13 +652,12 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
-      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
+  ASSERT_OK_AND_ASSIGN(MpcResult result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr));
 
-  auto frequency_distribution = final_response.frequency_distribution();
-  ASSERT_THAT(frequency_distribution, SizeIs(1));
-  EXPECT_NEAR(frequency_distribution[6], 1.0, 0.001);
+  ASSERT_THAT(result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(result.frequency_distribution[6], 1.0, 0.001);
 }
 
 TEST(EndToEnd, LocallyDistroyedRegisterShouldBeIgnored) {
@@ -607,13 +670,12 @@ TEST(EndToEnd, LocallyDistroyedRegisterShouldBeIgnored) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
-      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
+  ASSERT_OK_AND_ASSIGN(MpcResult result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr));
 
-  auto frequency_distribution = final_response.frequency_distribution();
-  ASSERT_THAT(frequency_distribution, SizeIs(1));
-  EXPECT_NEAR(frequency_distribution[3], 1.0, 0.001);
+  ASSERT_THAT(result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
 }
 
 TEST(EndToEnd, CrossPublisherDistroyedRegistersShouldBeIgnored) {
@@ -625,13 +687,12 @@ TEST(EndToEnd, CrossPublisherDistroyedRegistersShouldBeIgnored) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
-      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
+  ASSERT_OK_AND_ASSIGN(MpcResult result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr));
 
-  auto frequency_distribution = final_response.frequency_distribution();
-  ASSERT_THAT(frequency_distribution, SizeIs(1));
-  EXPECT_NEAR(frequency_distribution[3], 1.0, 0.001);
+  ASSERT_THAT(result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
 }
 
 TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
@@ -644,14 +705,13 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(
-      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
-      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
+  ASSERT_OK_AND_ASSIGN(MpcResult result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr));
 
-  auto frequency_distribution = final_response.frequency_distribution();
-  ASSERT_THAT(frequency_distribution, SizeIs(2));
-  EXPECT_NEAR(frequency_distribution[3], 0.5, 0.001);
-  EXPECT_NEAR(frequency_distribution[kMaxFrequency], 0.5, 0.001);
+  ASSERT_THAT(result.frequency_distribution, SizeIs(2));
+  EXPECT_NEAR(result.frequency_distribution[3], 0.5, 0.001);
+  EXPECT_NEAR(result.frequency_distribution[kMaxFrequency], 0.5, 0.001);
 }
 
 TEST(EndToEnd, ComnbinedCases) {
@@ -682,16 +742,63 @@ TEST(EndToEnd, ComnbinedCases) {
 
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
+  ASSERT_OK_AND_ASSIGN(MpcResult result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, /*reach_noise=*/nullptr));
 
-  ASSERT_OK_AND_ASSIGN(
-      CompleteExecutionPhaseThreeAtAggregatorResponse final_response,
-      test_data.GoThroughEntireMpcProtocolWithoutNoise(encrypted_sketch));
+  int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
+      kDecayRate, kLiquidLegionsSize, 7);
 
-  auto frequency_distribution = final_response.frequency_distribution();
-  ASSERT_THAT(frequency_distribution, SizeIs(3));
-  EXPECT_NEAR(frequency_distribution[3], 0.25, 0.001);
-  EXPECT_NEAR(frequency_distribution[6], 0.5, 0.001);
-  EXPECT_NEAR(frequency_distribution[kMaxFrequency], 0.25, 0.001);
+  EXPECT_EQ(result.reach, expected_reach);
+
+  ASSERT_THAT(result.frequency_distribution, SizeIs(3));
+  EXPECT_NEAR(result.frequency_distribution[3], 0.25, 0.001);
+  EXPECT_NEAR(result.frequency_distribution[6], 0.5, 0.001);
+  EXPECT_NEAR(result.frequency_distribution[kMaxFrequency], 0.25, 0.001);
+}
+
+TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
+  TestData test_data;
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
+  int valid_register_count = 30;
+  for (int i = 1; i <= valid_register_count; ++i) {
+    AddRegister(&plain_sketch, /*index =*/i, /*key=*/i, /*count=*/1);
+  }
+
+  int64_t num = 3;
+  // Set p to ~0, such that the number of reach DP noise is almost a constant,
+  // and thus the result is deterministic.
+  double reach_dp_noise_p = 0.000001;
+  // P for all other noises.
+  double other_p = 0.6;
+  int64_t blinded_histogram_noise_offset = 5;
+  int64_t publisher_noise_offset = 6;
+  int64_t reach_dp_noise_offset = 7;
+  int64_t total_sketch_count = 5;
+  int64_t total_register_count = 200;
+
+  RegisterNoiseGenerationParameters reach_noise_parameters;
+  reach_noise_parameters.set_curve_id(kTestCurveId);
+  reach_noise_parameters.set_total_sketches_count(total_sketch_count);
+  reach_noise_parameters.set_total_noise_registers_count(total_register_count);
+  *reach_noise_parameters.mutable_blind_histogram_noise_parameters() =
+      DistributedGeoParams(num, other_p, blinded_histogram_noise_offset);
+  *reach_noise_parameters.mutable_publisher_noise_parameters() =
+      DistributedGeoParams(num, other_p, publisher_noise_offset);
+  *reach_noise_parameters.mutable_global_reach_dp_noise_parameters() =
+      DistributedGeoParams(num, reach_dp_noise_p, reach_dp_noise_offset);
+  *reach_noise_parameters.mutable_composite_el_gamal_public_key() =
+      test_data.client_el_gamal_public_key_;
+
+  std::string encrypted_sketch =
+      test_data.EncryptWithFlaggedKey(plain_sketch).value();
+  ASSERT_OK_AND_ASSIGN(MpcResult result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, &reach_noise_parameters));
+  int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
+      kDecayRate, kLiquidLegionsSize, valid_register_count);
+
+  EXPECT_EQ(result.reach, expected_reach);
 }
 
 }  // namespace

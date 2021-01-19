@@ -262,8 +262,7 @@ class LiquidLegionsV2Mill(
     require(AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    var reach = 0L
-    val (bytes, tempToken) = existingOutputOr(token) {
+    val (bytes, nextToken) = existingOutputOr(token) {
       val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
         cryptoWorker.completeExecutionPhaseOneAtAggregator(
           CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
@@ -271,30 +270,10 @@ class LiquidLegionsV2Mill(
             compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
             curveId = cryptoKeySet.curveId.toLong()
             combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
-            liquidLegionsParametersBuilder.apply {
-              decayRate = liquidLegionsConfig.decayRate
-              size = liquidLegionsConfig.size
-            }
           }.build()
         )
       logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      reach = cryptoResult.reach
       cryptoResult.flagCountTuples
-    }
-
-    val nextToken = if (token.computationDetails.liquidLegionsV2.hasReachEstimate()) {
-      // Do nothing if the token has already contained the ReachEstimate
-      tempToken
-    } else {
-      // Update the newly calculated reach to the ComputationDetails.
-      dataClients.computationsClient.updateComputationDetails(
-        UpdateComputationDetailsRequest.newBuilder().also {
-          it.token = tempToken
-          it.details = token.computationDetails.toBuilder().apply {
-            liquidLegionsV2Builder.reachEstimateBuilder.reach = reach
-          }.build()
-        }.build()
-      ).token
     }
 
     // Passes the computation to the next duchy.
@@ -357,7 +336,8 @@ class LiquidLegionsV2Mill(
     require(AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
+    var reach = 0L
+    val (bytes, tempToken) = existingOutputOr(token) {
       val cryptoResult: CompleteExecutionPhaseTwoAtAggregatorResponse =
         cryptoWorker.completeExecutionPhaseTwoAtAggregator(
           CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
@@ -366,10 +346,30 @@ class LiquidLegionsV2Mill(
             curveId = cryptoKeySet.curveId.toLong()
             flagCountTuples = readAndCombineAllInputBlobs(token, 1)
             maximumFrequency = liquidLegionsConfig.maxFrequency
+            liquidLegionsParametersBuilder.apply {
+              decayRate = liquidLegionsConfig.decayRate
+              size = liquidLegionsConfig.size
+            }
           }.build()
         )
       logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+      reach = cryptoResult.reach
       cryptoResult.sameKeyAggregatorMatrix
+    }
+
+    val nextToken = if (token.computationDetails.liquidLegionsV2.hasReachEstimate()) {
+      // Do nothing if the token has already contained the ReachEstimate
+      tempToken
+    } else {
+      // Update the newly calculated reach to the ComputationDetails.
+      dataClients.computationsClient.updateComputationDetails(
+        UpdateComputationDetailsRequest.newBuilder().also {
+          it.token = tempToken
+          it.details = token.computationDetails.toBuilder().apply {
+            liquidLegionsV2Builder.reachEstimateBuilder.reach = reach
+          }.build()
+        }.build()
+      ).token
     }
 
     // Passes the computation to the next duchy.

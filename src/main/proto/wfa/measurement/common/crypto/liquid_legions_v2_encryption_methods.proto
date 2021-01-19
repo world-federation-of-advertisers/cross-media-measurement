@@ -151,12 +151,9 @@ message CompleteExecutionPhaseOneAtAggregatorRequest {
   ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
-
-  // LiquidLegions parameters used for reach estimation.
-  LiquidLegionsParameters liquid_legions_parameters = 5;
   // The parameters required for generating noise flag count tuples.
   // if unset, no noise would be added.
-  FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
+  FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
 }
 
 // The response of the CompleteExecutionPhaseOneAtAggregator method.
@@ -165,10 +162,8 @@ message CompleteExecutionPhaseOneAtAggregatorResponse {
   // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
   // flag_count_lists should be divisible by 198.
   bytes flag_count_tuples = 1;
-  // The estimated reach.
-  int64 reach = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 3;
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to complete work in the execution phase two at a non-aggregator
@@ -217,6 +212,14 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // Maximum frequency to measure. At least 2.
   // (maximum_frequency-1) will is the row dimension of the 2-D SKA matrix.
   int32 maximum_frequency = 5;
+  // LiquidLegions parameters used for reach estimation.
+  LiquidLegionsParameters liquid_legions_parameters = 6;
+  // Global Reach DP noise baseline. i.e. the mean of the global two-sided
+  // distributed random variable. non-negative.
+  // If =0, it means no noise (including non-DP noises) was added.
+  // If >0, the value should be equal to
+  // global_reach_dp_noise_parameters.shift_offset*num used in the setup phase.
+  int64 global_reach_dp_noise_baseline = 7;
 }
 
 // The response of the CompleteExecutionPhaseTwoAtAggregator method.
@@ -226,8 +229,10 @@ message CompleteExecutionPhaseTwoAtAggregatorResponse {
   // to (maximum_frequency-1), and the column size of the matrix is equal to the
   // number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
+  // The estimated reach.
+  int64 reach = 2;
   // The CPU time of processing the request.
-  int64 elapsed_cpu_time_millis = 2;
+  int64 elapsed_cpu_time_millis = 3;
 }
 
 // The request to complete work in the execution phase three at a

@@ -33,9 +33,9 @@ namespace wfa::measurement::common::crypto {
 namespace {
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
-// The calculated (flag_1, flag_2, count) tuple is appended to the response.
-// 'sub_permutation' contains the locations of the registers belonging to this
-// group, i.e., having the same blinded register index.
+// The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
+// response. 'sub_permutation' contains the locations of the registers belonging
+// to this group, i.e., having the same blinded register index.
 absl::Status MergeCountsUsingSameKeyAggregation(
     absl::Span<const size_t> sub_permutation, absl::string_view registers,
     ProtocolCryptor& protocol_cryptor, std::string& response) {
@@ -46,6 +46,10 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   ASSIGN_OR_RETURN(ElGamalEcPointPair destroyed_key_constant_ec_pair,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
                        kDestroyedRegisterKey));
+  ASSIGN_OR_RETURN(
+      ElGamalEcPointPair blinded_histogram_noise_key_constant_ec_pair,
+      protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
+          kBlindedHistogramNoiseRegisterKey));
 
   ASSIGN_OR_RETURN(
       KeyCountPairCipherText key_count_0,
@@ -87,10 +91,17 @@ absl::Status MergeCountsUsingSameKeyAggregation(
                    AddEcPointPairs(destroyed_key_constant_ec_pair, flag_a));
   ASSIGN_OR_RETURN(flag_b,
                    protocol_cryptor.CalculateDestructor(key_0_inverse, flag_b));
-  // Append the (flag_a,  flag_b, count) tuple for this group of registers to
-  // the final response.
+  // flag_c =  r*(blinded_histogram_noise_key_constant + flag_a - Key[0])
+  ASSIGN_OR_RETURN(
+      ElGamalEcPointPair flag_c,
+      AddEcPointPairs(blinded_histogram_noise_key_constant_ec_pair, flag_a));
+  ASSIGN_OR_RETURN(flag_c,
+                   protocol_cryptor.CalculateDestructor(key_0_inverse, flag_c));
+  // Append the (flag_a, flag_b, flag_c, count) tuple for this group of
+  // registers to the final response.
   RETURN_IF_ERROR(AppendEcPointPairToString(flag_a, response));
   RETURN_IF_ERROR(AppendEcPointPairToString(flag_b, response));
+  RETURN_IF_ERROR(AppendEcPointPairToString(flag_c, response));
   RETURN_IF_ERROR(AppendEcPointPairToString(group_count, response));
   return absl::OkStatus();
 }
@@ -352,6 +363,11 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   if (request.has_noise_parameters()) {
     RegisterNoiseGenerationParameters noise_parameters =
         request.noise_parameters();
+    // reserve the space to hold all output data.
+    response_crv->reserve(request.combined_register_vector().size() +
+                          noise_parameters.total_noise_registers_count() *
+                              kBytesPerCipherRegister);
+
     RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
     ASSIGN_OR_RETURN_ERROR(
         auto protocol_cryptor,
@@ -478,18 +494,7 @@ CompleteExecutionPhaseOneAtAggregator(
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       *protocol_cryptor, request.combined_register_vector(),
       blinded_register_indexes, permutation, *response_data));
-  RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherText * 3>(*response_data));
-
-  // Estimates reach.
-  ASSIGN_OR_RETURN(size_t active_register_count,
-                   GetNumberOfBlocks(response.flag_count_tuples(),
-                                     kBytesPerFlagsCountTuple));
-  ASSIGN_OR_RETURN(
-      int64_t reach,
-      EstimateReach(request.liquid_legions_parameters().decay_rate(),
-                    request.liquid_legions_parameters().size(),
-                    active_register_count));
-  response.set_reach(reach);
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
 
   // Add noise (flag_a, flag_b, count) tuples if configured to.
   if (request.has_noise_parameters()) {
@@ -532,11 +537,11 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
     RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
         current_block,
         {Action::kPartialDecrypt, Action::kPartialDecrypt,
-         Action::kReRandomize},
+         Action::kPartialDecrypt, Action::kReRandomize},
         *response_data));
   }
 
-  // Add noise (flag_a, flag_b, count) tuples if configured to.
+  // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
     // TODO: add noise
   }
@@ -577,30 +582,27 @@ CompleteExecutionPhaseTwoAtAggregator(
   std::string* response_ska_matrix =
       response.mutable_same_key_aggregator_matrix();
 
+  int64_t blinded_histogram_noise_count = 0;
+
   for (size_t index = 0; index < tuple_counts; ++index) {
     absl::string_view current_block =
         absl::string_view(request.flag_count_tuples())
             .substr(index * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
-
-    ASSIGN_OR_RETURN(ElGamalCiphertext flag_1_ciphertext,
-                     ExtractElGamalCiphertextFromString(
-                         current_block.substr(0, kBytesPerCipherText)));
-    ASSIGN_OR_RETURN(ElGamalCiphertext flag_2_ciphertext,
-                     ExtractElGamalCiphertextFromString(current_block.substr(
-                         kBytesPerCipherText, kBytesPerCipherText)));
-    ASSIGN_OR_RETURN(
-        bool flag_1,
-        protocol_cryptor->IsDecryptLocalElGamalResultZero(flag_1_ciphertext));
-    ASSIGN_OR_RETURN(
-        bool flag_2,
-        protocol_cryptor->IsDecryptLocalElGamalResultZero(flag_2_ciphertext));
-
+    std::array<bool, 3> flags;
+    for (int i = 0; i < 3; ++i) {
+      ASSIGN_OR_RETURN(ElGamalCiphertext flag_ciphertext,
+                       ExtractElGamalCiphertextFromString(current_block.substr(
+                           i * kBytesPerCipherText, kBytesPerCipherText)));
+      ASSIGN_OR_RETURN(
+          flags[i],
+          protocol_cryptor->IsDecryptLocalElGamalResultZero(flag_ciphertext));
+    }
     // Add a new row to the SameKeyAggregator Matrix if the register is not
-    // destroyed.
-    if (flag_1 && !flag_2) {
+    // destroyed or blinded histogram noise.
+    if (flags[0] && !flags[1] && !flags[2]) {
       ASSIGN_OR_RETURN(ElGamalCiphertext current_count_ciphertext,
                        ExtractElGamalCiphertextFromString(current_block.substr(
-                           kBytesPerCipherText * 2, kBytesPerCipherText)));
+                           kBytesPerCipherText * 3, kBytesPerCipherText)));
       ASSIGN_OR_RETURN(
           ElGamalEcPointPair current_count_ec_pair,
           protocol_cryptor->ToElGamalEcPoints(current_count_ciphertext));
@@ -611,7 +613,30 @@ CompleteExecutionPhaseTwoAtAggregator(
         RETURN_IF_ERROR(AppendEcPointPairToString(diff, *response_ska_matrix));
       }
     }
+    if (flags[2]) {
+      ++blinded_histogram_noise_count;
+    }
   }
+
+  // Estimates reach.
+  int64_t active_register_count = tuple_counts - blinded_histogram_noise_count -
+                                  request.global_reach_dp_noise_baseline();
+  if (request.global_reach_dp_noise_baseline() > 0) {
+    // Publisher noise and padding noise each contribute 1 additional destroyed
+    // register, which shouldn't be included when estimating reach.
+    // Deletes 2 from the active_register_count if noises exist.
+    active_register_count -= 2;
+  }
+  // Ensures that active_register_count is at least 0.
+  // active_register_count could be negative if there is too few registers in
+  // the sketch and the number of noise registers is smaller than the baseline.
+  active_register_count = std::max(active_register_count, 0L);
+  ASSIGN_OR_RETURN(
+      int64_t reach,
+      EstimateReach(request.liquid_legions_parameters().decay_rate(),
+                    request.liquid_legions_parameters().size(),
+                    active_register_count));
+  response.set_reach(reach);
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
@@ -636,7 +661,9 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseThreeResponse response;
-
+  // The SKA matrix has the same size in the response as in the request.
+  response.mutable_same_key_aggregator_matrix()->reserve(
+      request.same_key_aggregator_matrix().size());
   for (size_t index = 0; index < ciphertext_counts; ++index) {
     absl::string_view current_block =
         absl::string_view(request.same_key_aggregator_matrix())

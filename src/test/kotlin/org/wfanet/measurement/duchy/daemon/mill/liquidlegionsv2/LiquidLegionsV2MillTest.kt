@@ -686,7 +686,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `reach estimation phase at non-aggregater using cached result`() = runBlocking<Unit> {
+  fun `execution phase one at non-aggregater using cached result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -738,7 +738,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `reach estimation phase at non-aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase one at non-aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -803,7 +803,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `reach estimation phase at aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase one at aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -820,14 +820,12 @@ class LiquidLegionsV2MillTest {
       )
     )
 
-    val testReach = 123L
     whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any()))
       .thenAnswer {
         val request: CompleteExecutionPhaseOneAtAggregatorRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOneAtAggregator-done")
         CompleteExecutionPhaseOneAtAggregatorResponse.newBuilder()
           .setFlagCountTuples(request.combinedRegisterVector.concat(postFix))
-          .setReach(testReach)
           .build()
       }
 
@@ -852,12 +850,8 @@ class LiquidLegionsV2MillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setVersion(4) // CreateComputation + writeOutputBlob + ComputationDetails + transitionStage
-        .setComputationDetails(
-          aggregatorComputationDetails.toBuilder().apply {
-            liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach
-          }
-        )
+        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
+        .setComputationDetails(aggregatorComputationDetails)
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString())
@@ -875,7 +869,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `filtering phase at non-aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase two at non-aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -940,7 +934,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `filtering phase at aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase two at aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
@@ -957,12 +951,14 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    val testReach = 123L
     whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any()))
       .thenAnswer {
         val request: CompleteExecutionPhaseTwoAtAggregatorRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwoAtAggregator-done")
         CompleteExecutionPhaseTwoAtAggregatorResponse.newBuilder()
           .setSameKeyAggregatorMatrix(request.flagCountTuples.concat(postFix))
+          .setReach(testReach)
           .build()
       }
 
@@ -987,8 +983,12 @@ class LiquidLegionsV2MillTest {
           ComputationStageBlobMetadata.newBuilder()
             .setDependencyType(ComputationBlobDependency.OUTPUT).setBlobId(1)
         )
-        .setVersion(3) // CreateComputation + writeOutputBlob + transitionStage
-        .setComputationDetails(aggregatorComputationDetails)
+        .setVersion(4) // CreateComputation + writeOutputBlob + ComputationDetails + transitionStage
+        .setComputationDetails(
+          aggregatorComputationDetails.toBuilder().apply {
+            liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach
+          }
+        )
         .build()
     )
     assertThat(computationStore.get(blobKey)?.readToString())
@@ -1006,7 +1006,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `frequency estimation phase at non-aggregater using calculated result`() =
+  fun `execution phase three at non-aggregater using calculated result`() =
     runBlocking<Unit> {
       // Stage 0. preparing the storage and set up mock
       val partialToken = FakeComputationDb.newPartialToken(
@@ -1062,7 +1062,7 @@ class LiquidLegionsV2MillTest {
     }
 
   @Test
-  fun `frequency estimation phase at aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase three at aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationDb.newPartialToken(
       localId = LOCAL_ID,
