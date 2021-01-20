@@ -64,6 +64,10 @@ absl::Status ParseRequestFromString(T& request_proto,
                    "failed to parse the serialized request proto.");
 }
 
+// Returns the vector of ECPoints for count values from 1 to maximum_value.
+absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
+    int maximum_value, int curve_id);
+
 }  // namespace wfa::measurement::common::crypto
 
 #endif  // WFA_MEASUREMENT_COMMON_CRYPTO_ENCRYPTION_UTILITY_HELPER_H_

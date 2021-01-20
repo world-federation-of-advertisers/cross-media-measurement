@@ -22,6 +22,7 @@
 namespace wfa::measurement::common::crypto {
 
 using ::private_join_and_compute::BigNum;
+using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
 

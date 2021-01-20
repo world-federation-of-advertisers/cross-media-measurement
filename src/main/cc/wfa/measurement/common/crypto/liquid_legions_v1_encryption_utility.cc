@@ -150,6 +150,10 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
     const std::vector<std::string>& blinded_register_indexes,
     absl::Span<const size_t> permutation, std::string& response) {
   const size_t num_registers = sketch.size() / kBytesPerCipherRegister;
+  if (num_registers == 0) {
+    return absl::OkStatus();
+  }
+
   int start = 0;
   for (size_t i = 0; i < num_registers; ++i) {
     if (blinded_register_indexes[permutation[i]] ==

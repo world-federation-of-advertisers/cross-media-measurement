@@ -61,26 +61,18 @@ message RegisterNoiseGenerationParameters {
 }
 
 message FlagCountTupleNoiseGenerationParameters {
-  // Public keys of the composite ElGamal cipher. Used to encrypt the added
-  // counts.
-  ElGamalPublicKey composite_el_gamal_public_key = 1;
-  // Public key of the partial composite ElGamal cipher. Used to encrypt the
-  // added flags.
-  ElGamalPublicKey partial_composite_el_gamal_public_key = 2;
-  // The elliptical curve to work on.
-  int64 curve_id = 3;
   // Maximum frequency to measure.
-  int32 maximum_frequency = 4;
+  int32 maximum_frequency = 1;
   // The total number of noise tuples to be added.
   // The value should be at least equal to
   //   non_destroyed_noise_parameters.offset*2*maximum_frequency
   //     + destroyed_noise_parameters.offset*2
-  int32 total_noise_tuples_count = 5;
+  int32 total_noise_tuples_count = 2;
   // The distribution of the number of noise tuples with flag (0, R, R) in each
   // bucket. In total, there are maximum_frequency such buckets.
-  DistributedGeometricDistributionParams non_destroyed_noise_parameters = 6;
+  DistributedGeometricDistributionParams non_destroyed_noise_parameters = 3;
   // The distribution of the number of noise tuples with flag (R, R, R).
-  DistributedGeometricDistributionParams destroyed_noise_parameters = 7;
+  DistributedGeometricDistributionParams destroyed_noise_parameters = 4;
 }
 
 // The request to complete work in the setup phase.
@@ -158,9 +150,9 @@ message CompleteExecutionPhaseOneAtAggregatorRequest {
 
 // The response of the CompleteExecutionPhaseOneAtAggregator method.
 message CompleteExecutionPhaseOneAtAggregatorResponse {
-  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
-  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 198.
+  // A concatenation of a list of (flag_1, flag_2, flag_3, count) tuples in
+  // bytes. Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_tuples should be divisible by 264.
   bytes flag_count_tuples = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;
@@ -169,9 +161,9 @@ message CompleteExecutionPhaseOneAtAggregatorResponse {
 // The request to complete work in the execution phase two at a non-aggregator
 // worker.
 message CompleteExecutionPhaseTwoRequest {
-  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
-  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 198.
+  // A concatenation of a list of (flag_1, flag_2, flag_3, count) tuples in
+  // bytes. Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_tuples should be divisible by 264.
   bytes flag_count_tuples = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
@@ -180,16 +172,19 @@ message CompleteExecutionPhaseTwoRequest {
   // Public Key of the composite ElGamal cipher. Used to re-randomize the
   // counts.
   ElGamalPublicKey composite_el_gamal_public_key = 4;
+  // Public key of the partial composite ElGamal cipher. Used to encrypt the
+  // added noise flags.
+  ElGamalPublicKey partial_composite_el_gamal_public_key = 5;
   // The parameters required for generating noise flag count tuples.
   // if unset, no noise would be added.
-  FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
+  FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
 }
 
 // The response of the CompleteExecutionPhaseTwo method.
 message CompleteExecutionPhaseTwoResponse {
-  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
-  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 198.
+  // A concatenation of a list of (flag_1, flag_2, flag_3, count) tuples in
+  // bytes. Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_tuples should be divisible by 264.
   bytes flag_count_tuples = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;
@@ -198,9 +193,9 @@ message CompleteExecutionPhaseTwoResponse {
 // The request to complete work in the execution phase two at the aggregator
 // worker.
 message CompleteExecutionPhaseTwoAtAggregatorRequest {
-  // A concatenation of a list of (flag_1, flag_2, count) tuples in bytes.
-  // Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
-  // flag_count_lists should be divisible by 198.
+  // A concatenation of a list of (flag_1, flag_2, flag_3, count) tuples in
+  // bytes. Each flag or count is a 66 bytes ElGamal ciphertext, and the size of
+  // flag_count_tuples should be divisible by 264.
   bytes flag_count_tuples = 1;
   // Key pair of the local ElGamal cipher. Required.
   ElGamalKeyPair local_el_gamal_key_pair = 2;
@@ -274,6 +269,11 @@ message CompleteExecutionPhaseThreeAtAggregatorRequest {
   int64 curve_id = 3;
   // Maximum frequency to output in the result. At least 2.
   int32 maximum_frequency = 4;
+  // Global frequency noise baseline for each bucket. i.e. the mean of the
+  // global two-sided distributed random variable. non-negative.
+  // If noise was added, the value should be equal to
+  // #(workers)*non_destroyed_noise_parameters.shift_offset used by all workers.
+  int64 global_frequency_dp_noise_baseline_per_bucket = 5;
 }
 
 // The response of the CompleteExecutionPhaseThreeAtAggregator method.

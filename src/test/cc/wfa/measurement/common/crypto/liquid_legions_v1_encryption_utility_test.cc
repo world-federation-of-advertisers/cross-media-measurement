@@ -308,14 +308,9 @@ TEST(BlindOneLayerRegisterIndex, keyAndCountShouldBeReRandomized) {
 
 TEST(BlindOneLayerRegisterIndex, WrongInputSketchSizeShouldThrow) {
   BlindOneLayerRegisterIndexRequest request;
-  auto result = BlindOneLayerRegisterIndex(request);
-
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
   *request.mutable_sketch() = "1234";
-  result = BlindOneLayerRegisterIndex(request);
+
+  auto result = BlindOneLayerRegisterIndex(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -323,13 +318,9 @@ TEST(BlindOneLayerRegisterIndex, WrongInputSketchSizeShouldThrow) {
 
 TEST(BlindLastLayerIndexThenJoinRegisters, WrongInputSketchSizeShouldThrow) {
   BlindLastLayerIndexThenJoinRegistersRequest request;
-  auto result = BlindLastLayerIndexThenJoinRegisters(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
   *request.mutable_sketch() = "1234";
-  result = BlindLastLayerIndexThenJoinRegisters(request);
+
+  auto result = BlindLastLayerIndexThenJoinRegisters(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -337,13 +328,9 @@ TEST(BlindLastLayerIndexThenJoinRegisters, WrongInputSketchSizeShouldThrow) {
 
 TEST(DecryptOneLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
   DecryptOneLayerFlagAndCountRequest request;
-  auto result = DecryptOneLayerFlagAndCount(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
   *request.mutable_flag_counts() = "1234";
-  result = DecryptOneLayerFlagAndCount(request);
+
+  auto result = DecryptOneLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -351,13 +338,9 @@ TEST(DecryptOneLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
 
 TEST(DecryptLastLayerFlagAndCount, WrongInputSketchSizeShouldThrow) {
   DecryptLastLayerFlagAndCountRequest request;
-  auto result = DecryptLastLayerFlagAndCount(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
   *request.mutable_flag_counts() = "1234";
-  result = DecryptLastLayerFlagAndCount(request);
+
+  auto result = DecryptLastLayerFlagAndCount(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));

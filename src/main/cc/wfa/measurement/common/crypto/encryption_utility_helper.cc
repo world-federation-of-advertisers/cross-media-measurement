@@ -24,13 +24,10 @@ namespace wfa::measurement::common::crypto {
 
 absl::StatusOr<size_t> GetNumberOfBlocks(absl::string_view data,
                                          size_t block_size) {
-  if (data.empty()) {
-    return absl::InvalidArgumentError("Input data is empty");
-  }
   if (block_size == 0) {
     return absl::InvalidArgumentError("block_size is zero");
   }
-  if (data.size() % block_size) {
+  if (data.size() % block_size != 0) {
     return absl::InvalidArgumentError(absl::StrCat(
         "The size of byte array is not divisible by the row_size: ",
         block_size));
@@ -104,6 +101,24 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
   ASSIGN_OR_RETURN(temp, ec_point_pair.e.ToBytesCompressed());
   result.append(temp);
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
+    int maximum_value, int curve_id) {
+  auto ctx = absl::make_unique<Context>();
+  ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, ctx.get()));
+  ASSIGN_OR_RETURN(ECPoint count_1,
+                   ec_group.GetPointByHashingToCurveSha256(kUnitECPointSeed));
+  ASSIGN_OR_RETURN(std::string count_1_str, count_1.ToBytesCompressed());
+
+  std::vector<std::string> result;
+  result.push_back(count_1_str);
+  for (size_t i = 2; i <= maximum_value; ++i) {
+    ASSIGN_OR_RETURN(ECPoint count_i, count_1.Mul(ctx->CreateBigNum(i)));
+    ASSIGN_OR_RETURN(std::string count_i_str, count_i.ToBytesCompressed());
+    result.push_back(count_i_str);
+  }
+  return result;
 }
 
 }  // namespace wfa::measurement::common::crypto

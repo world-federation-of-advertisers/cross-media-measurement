@@ -115,6 +115,11 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
     absl::Span<const size_t> permutation, std::string& response) {
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(registers, kBytesPerCipherRegister));
+
+  if (register_count == 0) {
+    return absl::OkStatus();
+  }
+
   int start = 0;
   for (size_t i = 0; i < register_count; ++i) {
     if (blinded_register_indexes[permutation[i]] ==
@@ -296,8 +301,8 @@ absl::StatusOr<int64_t> AddGlobalReachDpNoise(
 }
 
 // Adds encrypted padding-noise registers to the end of data.
-absl::Status AddPaddingNoise(ProtocolCryptor& protocol_cryptor, int64_t count,
-                             std::string& data) {
+absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
+                                  int64_t count, std::string& data) {
   if (count < 0) {
     return absl::InvalidArgumentError("Count should >= 0.");
   }
@@ -318,6 +323,109 @@ absl::Status AddPaddingNoise(ProtocolCryptor& protocol_cryptor, int64_t count,
     // as key here.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
         protocol_cryptor, random_key_ec, data));
+  }
+  return absl::OkStatus();
+}
+
+// Adds 4 tuples with flag values equal to (0,R_1,R_2) to the end of data for
+// each count value in [1, maximum_frequency], where R_i are random numbers.
+absl::StatusOr<int64_t> AddFrequencyDpNoise(
+    ProtocolCryptor& full_protocol_cryptor,
+    ProtocolCryptor& partial_protocol_cryptor, int maximum_frequency,
+    int curve_id, const DistributedGeometricDistributionParams& params,
+    std::string& data) {
+  ASSIGN_OR_RETURN(std::vector<std::string> count_values_plaintext,
+                   GetCountValuesPlaintext(maximum_frequency, curve_id));
+
+  int total_noise_tuples_added = 0;
+  for (int frequency = 1; frequency <= maximum_frequency; ++frequency) {
+    ASSIGN_OR_RETURN(
+        int64_t noise_tuples_count,
+        math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+    for (int i = 0; i < noise_tuples_count; ++i) {
+      // Adds flag_1, which is 0 encrypted by the partial_protocol_cryptor.
+      ASSIGN_OR_RETURN(ElGamalEcPointPair zero,
+                       partial_protocol_cryptor
+                           .EncryptIdentityElementToEcPointsCompositeElGamal());
+      RETURN_IF_ERROR(AppendEcPointPairToString(zero, data));
+      // Adds flag_2 and flag_3, which are random numbers encrypted by the
+      // partial_protocol_cryptor.
+      for (int i = 0; i < 2; ++i) {
+        ASSIGN_OR_RETURN(std::string random_values,
+                         partial_protocol_cryptor.MapToCurve(
+                             partial_protocol_cryptor.NextRandomBigNum()));
+        RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+            partial_protocol_cryptor, random_values, data));
+      }
+      // Adds the count value.
+      ASSIGN_OR_RETURN(ElGamalCiphertext count,
+                       full_protocol_cryptor.EncryptCompositeElGamal(
+                           count_values_plaintext[frequency - 1]));
+      data.append(count.first);
+      data.append(count.second);
+    }
+    total_noise_tuples_added += noise_tuples_count;
+  }
+  return total_noise_tuples_added;
+}
+
+// Adds 4 tuples with flag values equal to (R1,R2,R3) and count value equal to
+// R4 to the end of data, where Ri are random numbers.
+absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
+    ProtocolCryptor& full_protocol_cryptor,
+    ProtocolCryptor& partial_protocol_cryptor,
+    const DistributedGeometricDistributionParams& params, std::string& data) {
+  ASSIGN_OR_RETURN(
+      int64_t noise_tuples_count,
+      math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+  for (int i = 0; i < noise_tuples_count; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      // Add three random flags encrypted using the partial_protocol_cryptor.
+      ASSIGN_OR_RETURN(std::string random_values,
+                       partial_protocol_cryptor.MapToCurve(
+                           partial_protocol_cryptor.NextRandomBigNum()));
+      RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+          partial_protocol_cryptor, random_values, data));
+    }
+    // Add a random count encrypted using the full_protocol_cryptor.
+    ASSIGN_OR_RETURN(std::string random_values,
+                     full_protocol_cryptor.MapToCurve(
+                         full_protocol_cryptor.NextRandomBigNum()));
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        full_protocol_cryptor, random_values, data));
+  }
+  return noise_tuples_count;
+}
+
+// Adds 4 tuples with flag values equal to (0,0,R1) and count value equal to R2
+// to the end of data, where Ri are random numbers.
+absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& full_protocol_cryptor,
+                                      ProtocolCryptor& partial_protocol_cryptor,
+                                      int noise_tuples_count,
+                                      std::string& data) {
+  if (noise_tuples_count < 0) {
+    return absl::InvalidArgumentError("Count should >= 0.");
+  }
+  for (int i = 0; i < noise_tuples_count; ++i) {
+    // Adds flag_1 and flag _2, which are 0 encrypted by the
+    // partial_protocol_cryptor.
+    for (int j = 0; j < 2; ++j) {
+      ASSIGN_OR_RETURN(ElGamalEcPointPair zero,
+                       partial_protocol_cryptor
+                           .EncryptIdentityElementToEcPointsCompositeElGamal());
+      RETURN_IF_ERROR(AppendEcPointPairToString(zero, data));
+    }
+    // Adds flag_3 and count, which are random numbers encrypted by the
+    // partial_protocol_cryptor and full_protocol_cryptor respectively. We use a
+    // same random number here since the count value is not used and can be of
+    // arbitrary value.
+    ASSIGN_OR_RETURN(std::string random_values,
+                     partial_protocol_cryptor.MapToCurve(
+                         partial_protocol_cryptor.NextRandomBigNum()));
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        partial_protocol_cryptor, random_values, data));
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        full_protocol_cryptor, random_values, data));
   }
   return absl::OkStatus();
 }
@@ -347,6 +455,46 @@ absl::Status ValidateSetupNoiseParameters(
     return absl::InvalidArgumentError(absl::StrCat(
         "total_noise_registers_count should be at least ", min_register_count));
   }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateFrequencyNoiseParameters(
+    const FlagCountTupleNoiseGenerationParameters& parameters) {
+  int total_tuple_count = parameters.total_noise_tuples_count();
+  int min_tuple_count =
+      parameters.non_destroyed_noise_parameters().shift_offset() * 2 *
+          parameters.maximum_frequency() +
+      parameters.destroyed_noise_parameters().shift_offset() * 2;
+
+  if (total_tuple_count < min_tuple_count) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "total_noise_tuples_count should be at least ", min_tuple_count));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status AddAllFrequencyNoise(
+    ProtocolCryptor& full_protocol_cryptor,
+    ProtocolCryptor& partial_protocol_cryptor, int curve_id,
+    const FlagCountTupleNoiseGenerationParameters& noise_parameters,
+    std::string& data) {
+  RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
+  ASSIGN_OR_RETURN(
+      int frequency_dp_noise_tuples_count,
+      AddFrequencyDpNoise(full_protocol_cryptor, partial_protocol_cryptor,
+                          noise_parameters.maximum_frequency(), curve_id,
+                          noise_parameters.non_destroyed_noise_parameters(),
+                          data));
+  ASSIGN_OR_RETURN(int destroyed_noise_tuples_count,
+                   AddDestroyedFrequencyNoise(
+                       full_protocol_cryptor, partial_protocol_cryptor,
+                       noise_parameters.destroyed_noise_parameters(), data));
+  int padding_noise_tuples_count = noise_parameters.total_noise_tuples_count() -
+                                   frequency_dp_noise_tuples_count -
+                                   destroyed_noise_tuples_count;
+  RETURN_IF_ERROR(AddPaddingFrequencyNoise(full_protocol_cryptor,
+                                           partial_protocol_cryptor,
+                                           padding_noise_tuples_count, data));
   return absl::OkStatus();
 }
 
@@ -403,8 +551,8 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
         noise_parameters.total_noise_registers_count() -
         blinded_histogram_noise_count - publisher_noise_count -
         reach_dp_noise_count;
-    RETURN_IF_ERROR(
-        AddPaddingNoise(*protocol_cryptor, padding_noise_count, *response_crv));
+    RETURN_IF_ERROR(AddPaddingReachNoise(*protocol_cryptor, padding_noise_count,
+                                         *response_crv));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerCipherRegister>(
@@ -494,12 +642,17 @@ CompleteExecutionPhaseOneAtAggregator(
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       *protocol_cryptor, request.combined_register_vector(),
       blinded_register_indexes, permutation, *response_data));
-  RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
 
-  // Add noise (flag_a, flag_b, count) tuples if configured to.
+  // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    // TODO: add noise
+    FlagCountTupleNoiseGenerationParameters noise_parameters =
+        request.noise_parameters();
+    RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, *protocol_cryptor,
+                                         request.curve_id(), noise_parameters,
+                                         *response_data));
   }
+
+  RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
@@ -543,7 +696,20 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    // TODO: add noise
+    FlagCountTupleNoiseGenerationParameters noise_parameters =
+        request.noise_parameters();
+    ASSIGN_OR_RETURN_ERROR(
+        auto partial_protocol_cryptor,
+        CreateProtocolCryptorWithKeys(
+            request.curve_id(), kGenerateWithNewElGamalPublicKey,
+            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
+            std::make_pair(
+                request.partial_composite_el_gamal_public_key().generator(),
+                request.partial_composite_el_gamal_public_key().element())),
+        "Failed to create the protocol cipher, invalid curveId or keys.");
+    RETURN_IF_ERROR(AddAllFrequencyNoise(
+        *protocol_cryptor, *partial_protocol_cryptor, request.curve_id(),
+        noise_parameters, *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -714,7 +880,7 @@ CompleteExecutionPhaseThreeAtAggregator(
   // histogram[i-1] = the number of times value i (1...maximum_frequency-1)
   // occurs. histogram[maximum_frequency-1] = the number of times all values
   // greater than maximum_frequency-1 occurs.
-  std::vector<size_t> histogram(maximum_frequency);
+  std::vector<int> histogram(maximum_frequency);
   histogram[maximum_frequency - 1] = column_size;
 
   absl::string_view same_key_aggregator_matrix =
@@ -739,12 +905,27 @@ CompleteExecutionPhaseThreeAtAggregator(
     }
   }
 
+  // Adjusts the histogram according the noise baseline.
+  int noise_baseline_per_bucket =
+      request.global_frequency_dp_noise_baseline_per_bucket();
+
+  int actual_total = 0;
+  for (int i = 0; i < maximum_frequency; ++i) {
+    histogram[i] = std::max(0, histogram[i] - noise_baseline_per_bucket);
+    actual_total += histogram[i];
+  }
+
+  if (actual_total == 0) {
+    return absl::InvalidArgumentError(
+        "There is neither acutal data nor effective noise in the request.");
+  }
+
   CompleteExecutionPhaseThreeAtAggregatorResponse response;
   google::protobuf::Map<int64_t, double>& distribution =
       *response.mutable_frequency_distribution();
-  for (size_t i = 0; i < maximum_frequency; ++i) {
+  for (int i = 0; i < maximum_frequency; ++i) {
     if (histogram[i] != 0) {
-      distribution[i + 1] = static_cast<double>(histogram[i]) / column_size;
+      distribution[i + 1] = static_cast<double>(histogram[i]) / actual_total;
     }
   }
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());

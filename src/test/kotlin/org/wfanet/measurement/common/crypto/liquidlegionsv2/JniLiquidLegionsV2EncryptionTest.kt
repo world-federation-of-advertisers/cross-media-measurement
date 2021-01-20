@@ -29,6 +29,6 @@ class JniLiquidLegionsV2EncryptionTest {
         CompleteExecutionPhaseTwoRequest.getDefaultInstance()
       )
     }
-    assertThat(e.message).contains("Input data is empty")
+    assertThat(e.message).contains("Failed to create the protocol cipher")
   }
 }

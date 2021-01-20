@@ -30,6 +30,7 @@
 #include "wfa/measurement/api/v1alpha/sketch.pb.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
+#include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::common::crypto {
@@ -111,56 +112,120 @@ std::vector<std::string> GetCipherStrings(absl::string_view bytes) {
   return result;
 }
 
-absl::StatusOr<bool> IsEncryptionOf(CommutativeElGamal& cipher,
-                                    ECGroup& ec_group,
-                                    absl::string_view raw_text,
-                                    ElGamalCiphertext ciphertext) {
+absl::StatusOr<bool> IsEncryptionOfPlaintext(CommutativeElGamal& cipher,
+                                             absl::string_view plaintext,
+                                             ElGamalCiphertext ciphertext) {
   ASSIGN_OR_RETURN(std::string decrypted_plaintext, cipher.Decrypt(ciphertext));
+  return decrypted_plaintext == plaintext;
+}
+
+absl::StatusOr<bool> IsEncryptionOfRawText(CommutativeElGamal& cipher,
+                                           ECGroup& ec_group,
+                                           absl::string_view raw_text,
+                                           ElGamalCiphertext ciphertext) {
   ASSIGN_OR_RETURN(ECPoint expected_plaintext_ec,
                    ec_group.GetPointByHashingToCurveSha256(raw_text));
   ASSIGN_OR_RETURN(std::string expected_plaintext,
                    expected_plaintext_ec.ToBytesCompressed());
-  return decrypted_plaintext == expected_plaintext;
+  return IsEncryptionOfPlaintext(cipher, expected_plaintext, ciphertext);
 }
 
 absl::StatusOr<bool> IsBlindedHistogramNoise(CommutativeElGamal& cipher,
                                              ECGroup& ec_group,
                                              absl::string_view register_bytes) {
-  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  ABSL_ASSERT(register_bytes.size() % kBytesPerCipherRegister == 0);
   std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
   // check if the key is kBlindedHistogramNoiseRegisterKey
-  return IsEncryptionOf(cipher, ec_group, kBlindedHistogramNoiseRegisterKey,
-                        std::make_pair(ciphertexts[2], ciphertexts[3]));
+  return IsEncryptionOfRawText(cipher, ec_group,
+                               kBlindedHistogramNoiseRegisterKey,
+                               std::make_pair(ciphertexts[2], ciphertexts[3]));
 }
 
 absl::StatusOr<bool> IsNoiseForPublisherNoiseRegister(
     CommutativeElGamal& cipher, ECGroup& ec_group,
     absl::string_view register_bytes) {
-  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  ABSL_ASSERT(register_bytes.size() % kBytesPerCipherRegister == 0);
   std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
   // check if the register id is kPublisherNoiseRegisterId
-  return IsEncryptionOf(cipher, ec_group, kPublisherNoiseRegisterId,
-                        std::make_pair(ciphertexts[0], ciphertexts[1]));
+  return IsEncryptionOfRawText(cipher, ec_group, kPublisherNoiseRegisterId,
+                               std::make_pair(ciphertexts[0], ciphertexts[1]));
 }
 
 absl::StatusOr<bool> IsReachDpNoiseRegister(CommutativeElGamal& cipher,
                                             ECGroup& ec_group,
                                             absl::string_view register_bytes) {
-  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  ABSL_ASSERT(register_bytes.size() % kBytesPerCipherRegister == 0);
   std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
   // check if the key is kDestroyedRegisterKey
-  return IsEncryptionOf(cipher, ec_group, kDestroyedRegisterKey,
-                        std::make_pair(ciphertexts[2], ciphertexts[3]));
+  return IsEncryptionOfRawText(cipher, ec_group, kDestroyedRegisterKey,
+                               std::make_pair(ciphertexts[2], ciphertexts[3]));
 }
 
 absl::StatusOr<bool> IsPaddingNoiseRegister(CommutativeElGamal& cipher,
                                             ECGroup& ec_group,
                                             absl::string_view register_bytes) {
-  ABSL_ASSERT(register_bytes.size() % (66 * 3) == 0);
+  ABSL_ASSERT(register_bytes.size() % kBytesPerCipherRegister == 0);
   std::vector<std::string> ciphertexts = GetCipherStrings(register_bytes);
   // check if the register id is kPaddingNoiseRegisterId
-  return IsEncryptionOf(cipher, ec_group, kPaddingNoiseRegisterId,
-                        std::make_pair(ciphertexts[0], ciphertexts[1]));
+  return IsEncryptionOfRawText(cipher, ec_group, kPaddingNoiseRegisterId,
+                               std::make_pair(ciphertexts[0], ciphertexts[1]));
+}
+
+absl::StatusOr<bool> IsDecryptionNonZero(CommutativeElGamal& cipher,
+                                         const ElGamalCiphertext& ciphertext) {
+  absl::StatusOr<std::string> decryption = cipher.Decrypt(ciphertext);
+  if (decryption.ok()) {
+    return true;
+  } else if (absl::IsInternal(decryption.status()) &&
+             decryption.status().message().find("POINT_AT_INFINITY") !=
+                 std::string::npos) {
+    // When the value is 0 (Point at Infinity), the decryption would
+    // fail with message "POINT_AT_INFINITY".
+    return false;
+  } else {
+    return decryption.status();
+  }
+}
+
+absl::StatusOr<std::array<bool, 3>> GetFlagsFromFourTuples(
+    CommutativeElGamal& cipher, absl::string_view four_tuples_bytes) {
+  ABSL_ASSERT(four_tuples_bytes.size() % kBytesPerFlagsCountTuple == 0);
+  std::vector<std::string> ciphertexts = GetCipherStrings(four_tuples_bytes);
+  std::array<bool, 3> flags;
+  ASSIGN_OR_RETURN(flags[0],
+                   IsDecryptionNonZero(
+                       cipher, std::make_pair(ciphertexts[0], ciphertexts[1])));
+  ASSIGN_OR_RETURN(flags[1],
+                   IsDecryptionNonZero(
+                       cipher, std::make_pair(ciphertexts[2], ciphertexts[3])));
+  ASSIGN_OR_RETURN(flags[2],
+                   IsDecryptionNonZero(
+                       cipher, std::make_pair(ciphertexts[4], ciphertexts[5])));
+  return flags;
+}
+
+absl::StatusOr<bool> IsFrequencyDpNoiseTuples(
+    CommutativeElGamal& cipher, absl::string_view four_tuples_bytes) {
+  ASSIGN_OR_RETURN(auto flags,
+                   GetFlagsFromFourTuples(cipher, four_tuples_bytes));
+  // (0, R, R)
+  return !flags[0] && flags[1] && flags[2];
+}
+
+absl::StatusOr<bool> IsDestroyedFrequencyNoiseTuples(
+    CommutativeElGamal& cipher, absl::string_view four_tuples_bytes) {
+  ASSIGN_OR_RETURN(auto flags,
+                   GetFlagsFromFourTuples(cipher, four_tuples_bytes));
+  // (R, R, R)
+  return flags[0] && flags[1] && flags[2];
+}
+
+absl::StatusOr<bool> IsPaddingFrequencyNoiseTuples(
+    CommutativeElGamal& cipher, absl::string_view four_tuples_bytes) {
+  ASSIGN_OR_RETURN(auto flags,
+                   GetFlagsFromFourTuples(cipher, four_tuples_bytes));
+  // (0, 0, R)
+  return !flags[0] && !flags[1] && flags[2];
 }
 
 // The TestData generates cipher keys for 3 duchies, and the combined public
@@ -174,6 +239,8 @@ class TestData {
   ElGamalKeyPair duchy_3_el_gamal_key_pair_;
   std::string duchy_3_p_h_key_;
   ElGamalPublicKey client_el_gamal_public_key_;  // combined from 3 duchy keys;
+  ElGamalPublicKey duchy_2_3_composite_public_key_;  // combined from duchy 2
+                                                     // and duchy_3 public keys;
   std::unique_ptr<any_sketch::crypto::SketchEncrypter> sketch_encrypter_;
 
   TestData() {
@@ -202,10 +269,16 @@ class TestData {
             .value()
             .Add(duchy_3_public_el_gamal_y_ec)
             .value();
-    client_el_gamal_public_key_.set_generator(
-        duchy_1_el_gamal_key_pair_.public_key().generator());
+    std::string common_generator =
+        duchy_1_el_gamal_key_pair_.public_key().generator();
+    client_el_gamal_public_key_.set_generator(common_generator);
     client_el_gamal_public_key_.set_element(
         client_public_el_gamal_y_ec.ToBytesCompressed().value());
+    ECPoint duchy_2_3_composite_public_el_gamal_y_ec =
+        duchy_2_public_el_gamal_y_ec.Add(duchy_3_public_el_gamal_y_ec).value();
+    duchy_2_3_composite_public_key_.set_generator(common_generator);
+    duchy_2_3_composite_public_key_.set_element(
+        duchy_2_3_composite_public_el_gamal_y_ec.ToBytesCompressed().value());
 
     any_sketch::crypto::CiphertextString client_public_key = {
         .u = client_el_gamal_public_key_.generator(),
@@ -227,7 +300,8 @@ class TestData {
   // The final MpcResult are returned.
   absl::StatusOr<MpcResult> GoThroughEntireMpcProtocol(
       const std::string& encrypted_sketch,
-      RegisterNoiseGenerationParameters* reach_noise_parameters) {
+      RegisterNoiseGenerationParameters* reach_noise_parameters,
+      FlagCountTupleNoiseGenerationParameters* frequency_noise_paraters) {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test.
     CompleteSetupPhaseRequest complete_setup_phase_request_1;
@@ -324,6 +398,11 @@ class TestData {
     complete_execution_phase_one_at_aggregator_request
         .set_combined_register_vector(
             complete_execution_phase_one_response_2.combined_register_vector());
+    if (frequency_noise_paraters != nullptr) {
+      *complete_execution_phase_one_at_aggregator_request
+           .mutable_noise_parameters() = *frequency_noise_paraters;
+    }
+
     ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse
                          complete_execution_phase_one_at_aggregator_response,
                      CompleteExecutionPhaseOneAtAggregator(
@@ -342,6 +421,13 @@ class TestData {
     complete_execution_phase_two_request_1.set_flag_count_tuples(
         complete_execution_phase_one_at_aggregator_response
             .flag_count_tuples());
+    if (frequency_noise_paraters != nullptr) {
+      *complete_execution_phase_two_request_1.mutable_noise_parameters() =
+          *frequency_noise_paraters;
+      *complete_execution_phase_two_request_1
+           .mutable_partial_composite_el_gamal_public_key() =
+          duchy_2_3_composite_public_key_;
+    }
 
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseTwoResponse
@@ -359,6 +445,13 @@ class TestData {
     complete_execution_phase_two_request_2.set_curve_id(kTestCurveId);
     complete_execution_phase_two_request_2.set_flag_count_tuples(
         complete_execution_phase_two_response_1.flag_count_tuples());
+    if (frequency_noise_paraters != nullptr) {
+      *complete_execution_phase_two_request_2.mutable_noise_parameters() =
+          *frequency_noise_paraters;
+      *complete_execution_phase_two_request_2
+           .mutable_partial_composite_el_gamal_public_key() =
+          duchy_3_el_gamal_key_pair_.public_key();
+    }
 
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseTwoResponse
@@ -438,6 +531,13 @@ class TestData {
         .set_same_key_aggregator_matrix(
             complete_execution_phase_three_response_2
                 .same_key_aggregator_matrix());
+    if (frequency_noise_paraters != nullptr) {
+      DistributedGeometricDistributionParams non_destroyed =
+          frequency_noise_paraters->non_destroyed_noise_parameters();
+      complete_execution_phase_three_at_aggregator_request
+          .set_global_frequency_dp_noise_baseline_per_bucket(
+              non_destroyed.shift_offset() * non_destroyed.num());
+    }
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeAtAggregatorResponse
                          complete_execution_phase_three_at_aggregator_response,
@@ -546,7 +646,6 @@ TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
   request.set_combined_register_vector("1234");
 
   auto result = CompleteSetupPhase(request);
-
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -554,14 +653,9 @@ TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteExecutionPhaseOne, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseOneRequest request;
+  request.set_combined_register_vector("1234");
 
   auto result = CompleteExecutionPhaseOne(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
-  request.set_combined_register_vector("1234");
-  result = CompleteExecutionPhaseOne(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -569,14 +663,9 @@ TEST(CompleteExecutionPhaseOne, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteExecutionPhaseOneAtAggregator, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseOneAtAggregatorRequest request;
+  request.set_combined_register_vector("1234");
 
   auto result = CompleteExecutionPhaseOneAtAggregator(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
-  request.set_combined_register_vector("1234");
-  result = CompleteExecutionPhaseOneAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -584,14 +673,9 @@ TEST(CompleteExecutionPhaseOneAtAggregator, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteExecutionPhaseTwo, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseTwoRequest request;
+  request.set_flag_count_tuples("1234");
 
   auto result = CompleteExecutionPhaseTwo(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
-  request.set_flag_count_tuples("1234");
-  result = CompleteExecutionPhaseTwo(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -599,14 +683,9 @@ TEST(CompleteExecutionPhaseTwo, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteExecutionPhaseTwoAtAggregator, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseTwoAtAggregatorRequest request;
+  request.set_flag_count_tuples("1234");
 
   auto result = CompleteExecutionPhaseTwoAtAggregator(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
-  request.set_flag_count_tuples("1234");
-  result = CompleteExecutionPhaseTwoAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -614,14 +693,9 @@ TEST(CompleteExecutionPhaseTwoAtAggregator, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteExecutionPhaseThree, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseThreeRequest request;
+  request.set_same_key_aggregator_matrix("1234");
 
   auto result = CompleteExecutionPhaseThree(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
-  request.set_same_key_aggregator_matrix("1234");
-  result = CompleteExecutionPhaseThree(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -629,14 +703,9 @@ TEST(CompleteExecutionPhaseThree, WrongInputSketchSizeShouldThrow) {
 
 TEST(CompleteExecutionPhaseThreeAtAggregator, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseThreeAtAggregatorRequest request;
+  request.set_same_key_aggregator_matrix("1234");
 
   auto result = CompleteExecutionPhaseThreeAtAggregator(request);
-  ASSERT_FALSE(result.ok());
-  EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, "empty"));
-
-  request.set_same_key_aggregator_matrix("1234");
-  result = CompleteExecutionPhaseThreeAtAggregator(request);
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
@@ -654,7 +723,8 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, /*reach_noise=*/nullptr));
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr));
 
   ASSERT_THAT(result.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result.frequency_distribution[6], 1.0, 0.001);
@@ -672,7 +742,8 @@ TEST(EndToEnd, LocallyDistroyedRegisterShouldBeIgnored) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, /*reach_noise=*/nullptr));
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr));
 
   ASSERT_THAT(result.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
@@ -689,7 +760,8 @@ TEST(EndToEnd, CrossPublisherDistroyedRegistersShouldBeIgnored) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, /*reach_noise=*/nullptr));
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr));
 
   ASSERT_THAT(result.frequency_distribution, SizeIs(1));
   EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
@@ -707,7 +779,8 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
 
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, /*reach_noise=*/nullptr));
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr));
 
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
   EXPECT_NEAR(result.frequency_distribution[3], 0.5, 0.001);
@@ -744,7 +817,8 @@ TEST(EndToEnd, ComnbinedCases) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, /*reach_noise=*/nullptr));
+                           encrypted_sketch, /*reach_noise=*/nullptr,
+                           /*frequency_noise=*/nullptr));
 
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
       kDecayRate, kLiquidLegionsSize, 7);
@@ -794,11 +868,249 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
   ASSERT_OK_AND_ASSIGN(MpcResult result,
                        test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, &reach_noise_parameters));
+                           encrypted_sketch, &reach_noise_parameters,
+                           /*frequency_noise=*/nullptr));
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
       kDecayRate, kLiquidLegionsSize, valid_register_count);
 
   EXPECT_EQ(result.reach, expected_reach);
+}
+
+TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
+  Context ctx;
+  ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+                       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId));
+  ASSERT_OK_AND_ASSIGN(auto public_key_pair,
+                       el_gamal_cipher->GetPublicKeyBytes());
+  ASSERT_OK_AND_ASSIGN(std::string private_key,
+                       el_gamal_cipher->GetPrivateKeyBytes());
+  ElGamalPublicKey public_key;
+  public_key.set_generator(public_key_pair.first);
+  public_key.set_element(public_key_pair.second);
+
+  int64_t num = 3;
+  double p = 0.6;
+  int64_t non_destroyed_noise_offset = 4;
+  int64_t destroyed_noise_offset = 4;
+  int64_t total_noise_tuple_count = 100;  // should be > 10*4*2+4*2
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_total_noise_tuples_count(total_noise_tuple_count);
+  *frequency_noise_params.mutable_non_destroyed_noise_parameters() =
+      DistributedGeoParams(num, p, non_destroyed_noise_offset);
+  *frequency_noise_params.mutable_destroyed_noise_parameters() =
+      DistributedGeoParams(num, p, destroyed_noise_offset);
+
+  CompleteExecutionPhaseTwoRequest request;
+  request.set_curve_id(kTestCurveId);
+  *request.mutable_local_el_gamal_key_pair()->mutable_public_key() = public_key;
+  *request.mutable_local_el_gamal_key_pair()->mutable_secret_key() =
+      private_key;
+  *request.mutable_composite_el_gamal_public_key() = public_key;
+  *request.mutable_partial_composite_el_gamal_public_key() = public_key;
+  *request.mutable_noise_parameters() = frequency_noise_params;
+
+  ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
+                       CompleteExecutionPhaseTwo(request));
+  ASSERT_THAT(Response.flag_count_tuples(),
+              SizeIs(total_noise_tuple_count * kBytesPerFlagsCountTuple));
+
+  int frequency_dp_noise_tuples_count = 0;
+  int idestroyed_frequency_noise_tuples_count = 0;
+  int padding_frequency_noise_tuples_count = 0;
+
+  for (int i = 0; i < total_noise_tuple_count; ++i) {
+    ASSERT_OK_AND_ASSIGN(
+        bool is_frequency_dp_noise_tuples,
+        IsFrequencyDpNoiseTuples(
+            *el_gamal_cipher,
+            Response.flag_count_tuples().substr(i * kBytesPerFlagsCountTuple,
+                                                kBytesPerFlagsCountTuple)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_destroyed_frequency_noise_tuples,
+        IsDestroyedFrequencyNoiseTuples(
+            *el_gamal_cipher,
+            Response.flag_count_tuples().substr(i * kBytesPerFlagsCountTuple,
+                                                kBytesPerFlagsCountTuple)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_padding_frequency_noise_tuples,
+        IsPaddingFrequencyNoiseTuples(
+            *el_gamal_cipher,
+            Response.flag_count_tuples().substr(i * kBytesPerFlagsCountTuple,
+                                                kBytesPerFlagsCountTuple)));
+
+    frequency_dp_noise_tuples_count += is_frequency_dp_noise_tuples;
+    idestroyed_frequency_noise_tuples_count +=
+        is_destroyed_frequency_noise_tuples;
+    padding_frequency_noise_tuples_count += is_padding_frequency_noise_tuples;
+    // Assert exact 1 boolean is true.
+    EXPECT_EQ(is_frequency_dp_noise_tuples +
+                  is_destroyed_frequency_noise_tuples +
+                  is_padding_frequency_noise_tuples,
+              1);
+  }
+  EXPECT_EQ(total_noise_tuple_count,
+            frequency_dp_noise_tuples_count +
+                idestroyed_frequency_noise_tuples_count +
+                padding_frequency_noise_tuples_count);
+}
+
+TEST(FrequencyNoise, AllFrequencyBucketsShouldHaveNoise) {
+  Context ctx;
+  ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+                       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId));
+  ASSERT_OK_AND_ASSIGN(auto public_key_pair,
+                       el_gamal_cipher->GetPublicKeyBytes());
+  ASSERT_OK_AND_ASSIGN(std::string private_key,
+                       el_gamal_cipher->GetPrivateKeyBytes());
+  ElGamalPublicKey public_key;
+  public_key.set_generator(public_key_pair.first);
+  public_key.set_element(public_key_pair.second);
+
+  int64_t num = 3;
+  double p = 0.7;
+  int64_t non_destroyed_noise_offset = 10;
+  int64_t destroyed_noise_offset = 5;
+  int64_t total_noise_tuple_count = 220;  // should be > 10*10*2+5*2
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_total_noise_tuples_count(total_noise_tuple_count);
+  *frequency_noise_params.mutable_non_destroyed_noise_parameters() =
+      DistributedGeoParams(num, p, non_destroyed_noise_offset);
+  *frequency_noise_params.mutable_destroyed_noise_parameters() =
+      DistributedGeoParams(num, p, destroyed_noise_offset);
+
+  CompleteExecutionPhaseTwoRequest request;
+  request.set_curve_id(kTestCurveId);
+  *request.mutable_local_el_gamal_key_pair()->mutable_public_key() = public_key;
+  *request.mutable_local_el_gamal_key_pair()->mutable_secret_key() =
+      private_key;
+  *request.mutable_composite_el_gamal_public_key() = public_key;
+  *request.mutable_partial_composite_el_gamal_public_key() = public_key;
+  *request.mutable_noise_parameters() = frequency_noise_params;
+
+  ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
+                       CompleteExecutionPhaseTwo(request));
+  ASSERT_THAT(Response.flag_count_tuples(),
+              SizeIs(total_noise_tuple_count * kBytesPerFlagsCountTuple));
+
+  ASSERT_OK_AND_ASSIGN(std::vector<std::string> count_values_plaintext,
+                       GetCountValuesPlaintext(kMaxFrequency, kTestCurveId));
+
+  std::array<int, kMaxFrequency> noise_count_per_bucket = {};
+  for (int i = 0; i < total_noise_tuple_count; ++i) {
+    absl::string_view current_tuples =
+        absl::string_view(Response.flag_count_tuples())
+            .substr(i * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
+    ASSERT_OK_AND_ASSIGN(
+        bool is_frequency_dp_noise_tuples,
+        IsFrequencyDpNoiseTuples(*el_gamal_cipher, current_tuples));
+    if (is_frequency_dp_noise_tuples) {
+      ASSERT_OK_AND_ASSIGN(
+          ElGamalCiphertext count,
+          ExtractElGamalCiphertextFromString(
+              current_tuples.substr(kBytesCipherText * 3, kBytesCipherText)));
+      for (int j = 0; j < kMaxFrequency; ++j) {
+        ASSERT_OK_AND_ASSIGN(
+            bool is_count_j,
+            IsEncryptionOfPlaintext(*el_gamal_cipher, count_values_plaintext[j],
+                                    count));
+        if (is_count_j) {
+          ++noise_count_per_bucket[j];
+          break;
+        }
+      }
+    }
+  }
+
+  for (int i = 0; i < kMaxFrequency; ++i) {
+    EXPECT_GT(noise_count_per_bucket[i], 0);
+  }
+}
+
+TEST(FrequencyNoise, DeterministicNoiseShouldHaveNoImpact) {
+  TestData test_data;
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
+  AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
+  AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 222, /* count = */ 3);
+  AddRegister(&plain_sketch, /* index = */ 3, /* key = */ 333, /* count = */ 3);
+  AddRegister(&plain_sketch, /* index = */ 4, /* key = */ 444, /* count = */ 3);
+  std::string encrypted_sketch =
+      test_data.EncryptWithFlaggedKey(plain_sketch).value();
+
+  int64_t num = 3;
+  // Set p to ~0, such that the number of frequency DP noise is almost a
+  // constant, and thus the result is deterministic.
+  double frequency_dp_noise_p = 0.000001;
+  // P for all other noises.
+  double other_p = 0.6;
+  int64_t non_destroyed_noise_offset = 5;
+  int64_t destroyed_noise_offset = 6;
+  int64_t total_noise_tuple_count = 200;  // should be > 10*5*2+6*2*2
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_total_noise_tuples_count(total_noise_tuple_count);
+  *frequency_noise_params.mutable_non_destroyed_noise_parameters() =
+      DistributedGeoParams(num, frequency_dp_noise_p,
+                           non_destroyed_noise_offset);
+  *frequency_noise_params.mutable_destroyed_noise_parameters() =
+      DistributedGeoParams(num, other_p, destroyed_noise_offset);
+
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params));
+
+  ASSERT_THAT(result.frequency_distribution, SizeIs(2));
+  // All noises are compensated since the p is ~=0.
+  EXPECT_EQ(result.frequency_distribution[2], 0.25);
+  EXPECT_EQ(result.frequency_distribution[3], 0.75);
+}
+
+TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
+  TestData test_data;
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
+  AddRegister(&plain_sketch, /* index = */ 1, /* key = */ 111, /* count = */ 2);
+  AddRegister(&plain_sketch, /* index = */ 2, /* key = */ 222, /* count = */ 3);
+  AddRegister(&plain_sketch, /* index = */ 3, /* key = */ 333, /* count = */ 3);
+  AddRegister(&plain_sketch, /* index = */ 4, /* key = */ 444, /* count = */ 3);
+  std::string encrypted_sketch =
+      test_data.EncryptWithFlaggedKey(plain_sketch).value();
+
+  int64_t num = 3;
+  double p = 0.6;
+  int64_t non_destroyed_noise_offset = 5;
+  int64_t destroyed_noise_offset = 6;
+  int64_t total_noise_tuple_count = 200;  // should be > 10*5*2+6*2*2
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_total_noise_tuples_count(total_noise_tuple_count);
+  *frequency_noise_params.mutable_non_destroyed_noise_parameters() =
+      DistributedGeoParams(num, p, non_destroyed_noise_offset);
+  *frequency_noise_params.mutable_destroyed_noise_parameters() =
+      DistributedGeoParams(num, p, destroyed_noise_offset);
+
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params));
+
+  // Since there are noise, there should be other entries in the histogram.
+  ASSERT_THAT(result.frequency_distribution, testing::Not(SizeIs(2)));
+  EXPECT_NE(result.frequency_distribution[2], 0.25);
+  EXPECT_NE(result.frequency_distribution[3], 0.75);
+
+  double total_p = 0;
+  for (auto x : result.frequency_distribution) {
+    total_p += x.second;
+  }
+  EXPECT_NEAR(total_p, 1, 0.0001);
 }
 
 }  // namespace
