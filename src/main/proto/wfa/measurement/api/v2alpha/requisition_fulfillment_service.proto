@@ -35,11 +35,22 @@ message FulfillMetricRequisitionRequest {
   message Header {
     // Resource key of the `MetricRequisition`. Required.
     MetricRequisition.Key key = 1;
+
+    // Cryptographic digital signature of the "requisition fingerprint" which
+    // can be verified using the `DataProvider`'s certificate. Required.
+    //
+    // The requisition fingerprint is defined as the concatenation of:
+    // 1. The SHA256 hash of `encrypted_requisition_spec` from the
+    //    `MetricRequisition`.
+    // 2. `data_provider_list_hash` from the `MetricRequisition`.
+    // 3. The `data` in `metric_definition` from the `MetricRequisition`.
+    bytes data_provider_participation_signature = 2;
   }
 
   // The chunk message for this streaming request.
   message BodyChunk {
-    // The portion of the data for this `Chunk`. Required.
+    // The portion of the data for this `BodyChunk`, encrypted using the
+    // `CombinedPublicKey` specified in the `MetricRequisition`. Required.
     //
     // If the corresponding `MetricDefinition` is a sketch, this is the register
     // data as documented in the `Sketch` message (sketch.proto). The only

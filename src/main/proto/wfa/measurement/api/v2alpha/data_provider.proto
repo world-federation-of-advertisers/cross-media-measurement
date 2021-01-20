@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -31,8 +32,49 @@ message DataProvider {
   // Resource key.
   Key key = 1;
 
+  // X.509 certificate in DER format which can be verified using the
+  // `DataProvider`'s root certificate. Required.
+  bytes certificate = 2;
+
+  // Resource key of the `DataProviderCertificate` that matches `certificate`.
+  // Output-only.
+  DataProviderCertificate.Key data_provider_certificate = 3;
+
+  // Encryption public key for this `DataProvider` in DER format, which can be
+  // verified using `certificate`. Required.
+  SignedData public_key = 4;
+
   // Display name of the data provider.
-  string display_name = 2;
+  string display_name = 5;
+}
+
+message DataProviderCertificate {
+  message Key {
+    // ID of the parent `DataProvider`.
+    string data_provider_id = 1;
+    // ID of this `DataProviderCertificate`.
+    string data_provider_certificate_id = 2;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // X.509 certificate in DER format which can be verified using the
+  // `DataProvider`'s root certificate. Required. Immutable.
+  bytes certificate = 2;
+}
+
+// Encryption public key for the `DataProvider`. Singleton resource.
+message DataProviderPublicKey {
+  // Resource key.
+  DataProvider.Key key = 1;
+
+  // Encryption public key for this `DataProvider`, which can be verified using
+  // `data_provider_certificate`. Required.
+  SignedData public_key = 2;
+
+  // Resource key of the `DataProviderCertificate` that can be used to verify
+  // `public_key`.
+  DataProviderCertificate.Key data_provider_certificate = 3;
 }
 
 // A grouping of events defined by a DataProvider. For example, a single

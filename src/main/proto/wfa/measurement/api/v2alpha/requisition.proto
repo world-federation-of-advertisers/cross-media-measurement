@@ -16,8 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
-import "wfa/measurement/api/v2alpha/requisition_spec.proto";
+import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -37,13 +38,21 @@ message MetricRequisition {
   // with. Required. Immutable.
   Measurement.Key measurement = 2;
 
+  // Denormalized dereferenced `measurement_consumer_certificate` field from
+  // `measurement`. Required. Immutable.
+  MeasurementConsumerCertificate measurement_consumer_certificate = 3;
+
   // Denormalized `metric_definition` field from `measurement`. Required.
   // Immutable.
-  MetricDefinition metric_definition = 3;
+  SignedData metric_definition = 4;
 
-  // Denormalized `requisition_spec` field from the corresponding
+  // Denormalized `data_provider_public_key` field from the corresponding
   // `DataProviderEntry` in `measurement`.  Required. Immutable.
-  RequisitionSpec requisition_spec = 4;
+  SignedData data_provider_public_key = 5;
+
+  // Denormalized `encrypted_requisition_spec` field from the corresponding
+  // `DataProviderEntry` in `measurement`.  Required. Immutable.
+  bytes encrypted_requisition_spec = 6;
 
   // State of a metrics requisition.
   enum State {
@@ -58,7 +67,7 @@ message MetricRequisition {
     UNFULFILLABLE = 3;
   }
   // The state of this requisition.
-  State state = 5;
+  State state = 7;
 
   message Refusal {
     enum Justification {
@@ -77,10 +86,21 @@ message MetricRequisition {
       // that the DataProvider no longer retains the underlying data.
       COLLECTION_INTERVAL_TOO_DISTANT = 3;
 
+      // Validation of the `MetricRequisition.Spec` signature failed.
+      SIGNATURE_INVALID = 4;
+
+      // There is insufficient remaining privacy budget to fulfill this
+      // `MetricRequisition`.
+      INSUFFICIENT_PRIVACY_BUDGET = 5;
+
+      // The `DataProvider` has declined to fulfill this `MetricRequisition`.
+      // The data required to fulfill this request may or may not be available.
+      DECLINED = 6;
+
       // The data required to fulfill this MetricRequisition is inaccessible or
       // lost. This should only be used when there is no other Justification
       // that is more specific.
-      DATA_UNAVAILABLE = 4;
+      DATA_UNAVAILABLE = 7;
     }
     Justification justification = 1;
 
@@ -92,6 +112,6 @@ message MetricRequisition {
   }
   // Details on why the requisition is in the `UNFULFILLABLE` state.
   oneof unfulfillable_details {
-    Refusal refusal = 6;
+    Refusal refusal = 8;
   }
 }

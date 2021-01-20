@@ -16,8 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
-import "wfa/measurement/api/v2alpha/requisition_spec.proto";
+import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -33,21 +34,69 @@ message Measurement {
   // Resource key.
   Key key = 1;
 
-  // Metric definition for requisitions. Required. Immutable.
-  MetricDefinition metric_definition = 2;
+  // Resource key of the `MeasurementConsumerCertificate`. Required. Immutable.
+  MeasurementConsumerCertificate.Key measurement_consumer_certificate = 2;
+
+  // Serialized `MetricDefinition` for requisitions, which can be verified using
+  // `measurement_consumer_certificate`. Required. Immutable.
+  SignedData metric_definition = 3;
+
+  // Concatenation of the serialized `DataProvider` resource keys in
+  // `data_provider_entries`. Required. Immutable.
+  //
+  // This is included as a separate field to provide a canonical serialization
+  // for hashing, as the protocol buffer binary encoding specification does not
+  // provide a deterministic serialization. The order of the serialized elements
+  // does not matter.
+  bytes serialized_data_provider_list = 4;
+
+  // A cryptographic salt for this `Measurement` that's used when computing the
+  // SHA256 hash of `serialized_data_provider_list`. Required. Immutable.
+  //
+  // A randomly-generated 32-byte value should be ample.
+  bytes data_provider_list_salt = 5;
+
+  // TODO(b/175707034): Consider adding a field to hold the private keys which
+  // is encrypted with some private/symmetric key belonging to the
+  // `MeasurementConsumer`. This way the `MeasurementConsumer` need not store
+  // the private keys for each `Measurement`.
 
   message DataProviderEntry {
     // Resource key of the `DataProvider` that this entry is for. Required.
     // Immutable.
     DataProvider.Key data_provider = 1;
 
-    // The `RequisitionSpec` for this `DataProvider`.
-    repeated RequisitionSpec requisition_spec = 2;
+    // Resource key of the DataProviderCertificate. Required. Immutable.
+    DataProviderCertificate.Key data_provider_certificate = 2;
+
+    // Pre-shared encryption public key, which can be verified using
+    // `data_provider_certificate`. Required. Immutable.
+    SignedData data_provider_public_key = 3;
+
+    // Encrypted `SignedData` containing the serialized `RequisitionSpec` for
+    // this entry, which can be verified using
+    // `measurement_consumer_certificate`. Required. Immutable.
+    //
+    // The symmetric encryption key is derived using a key-agreement protocol
+    // between `measurement_public_key` in `metric_definition` and
+    // `data_provider_public_key`.
+    bytes encrypted_requisition_spec = 4;
+
+    // Cryptographic digital signature of the "requisition fingerprint" which
+    // can be verified using the `DataProvider`'s certificate. Output-only. Only
+    // set if the corresponding `MetricRequisition` has been fulfilled.
+    //
+    // The requisition fingerprint is defined as the concatenation of:
+    // 1. The SHA256 hash of `encrypted_requisition_spec`.
+    // 2. The SHA256 hash of the concatenation of
+    //    `serialized_data_provider_list` and `data_provider_list_salt`.
+    // 3. The `data` in `metric_definition`.
+    bytes data_provider_participation_signature = 5;
   }
   // The measurement entry for each `DataProvider`. This can be logically
   // represented as a map uniquely keyed by `DataProvider.Key`. Required.
   // Immutable.
-  repeated DataProviderEntry data_provider_entries = 3;
+  repeated DataProviderEntry data_provider_entries = 6;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -60,7 +109,7 @@ message Measurement {
     // Completed with failure. Terminal state.
     FAILED = 4;
   }
-  State state = 4;
+  State state = 8;
 
   // The result of a `Measurement` computation.
   message Result {
@@ -79,7 +128,22 @@ message Measurement {
     }
     Frequency frequency = 2;
   }
-  // Result of this `Measurement` computation. Output-only. Only set if `state`
+
+  // X.509 certificate in DER format which can be verified using the
+  // Aggregator's root certificate. Output-only. Only set if `state` is
+  // `SUCCEEDED`.
+  bytes aggregator_certificate = 9;
+
+  // Encryption public key for the `Result`, which can be verified using
+  // `aggregator_certificate`. Output-only. Only set if `state` is `SUCCEEDED`.
+  SignedData result_public_key = 10;
+
+  // Encrypted `SignedData` containing the serialized `Result`, which can be
+  // verified using `aggregator_certificate`. Output-only. Only set if `state`
   // is `SUCCEEDED`.
-  Result result = 5;
+  //
+  // The symmetric encryption key is derived using a key-agreement protocol
+  // between `measurement_public_key` in `metric_definition` and
+  // `result_public_key`.
+  bytes encrypted_result = 11;
 }

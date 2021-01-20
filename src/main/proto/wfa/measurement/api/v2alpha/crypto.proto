@@ -50,3 +50,11 @@ message ElGamalPublicKey {
   // secret key.
   bytes element = 3;
 }
+
+message SignedData {
+  // Arbitrary data to sign.
+  bytes data = 1;
+
+  // Cryptographic digital signature of `data`.
+  bytes signature = 2;
+}

@@ -31,3 +31,18 @@ message MeasurementConsumer {
   // Official name of the `MeasurementConsumer`.
   string title = 2;
 }
+
+message MeasurementConsumerCertificate {
+  message Key {
+    // ID of the parent `MeasurementConsumer`.
+    string measurement_consumer_id = 1;
+    // ID of this `MeasurementConsumerCertificate`.
+    string measurement_consumer_certificate_id = 2;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // X.509 certificate in DER format which can be verified using the
+  // `MeasurementConsumer`'s root certificate. Required. Immutable.
+  bytes certificate = 2;
+}
