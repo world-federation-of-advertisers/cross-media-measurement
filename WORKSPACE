@@ -18,6 +18,14 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 
 bazel_skylib_workspace()
 
+# @com_google_protobuf
+http_archive(
+    name = "com_google_protobuf",
+    sha256 = "d0f5f605d0d656007ce6c8b5a82df3037e1d8fe8b121ed42e536f569dec16113",
+    strip_prefix = "protobuf-3.14.0",
+    urls = ["https://github.com/google/protobuf/archive/v3.14.0.tar.gz"],
+)
+
 http_archive(
     name = "googletest",
     sha256 = "94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91",
@@ -144,8 +152,8 @@ load("//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
 rules_docker_repo(
     name = "io_bazel_rules_docker",
-    sha256 = "1698624e878b0607052ae6131aa216d45ebb63871ec497f26c67455b34119c80",
-    version = "0.15.0",
+    commit = "7da0de3d094aae5601c45ae0855b64fb2771cd72",
+    sha256 = "c15ef66698f5d2122a3e875c327d9ecd34a231a9dc4753b9500e70518464cc21",
 )
 
 load(
@@ -158,10 +166,6 @@ container_repositories()
 load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
 
 container_deps()
-
-load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "io_bazel_rules_docker_pip_deps")
-
-io_bazel_rules_docker_pip_deps()
 
 load("//build/io_bazel_rules_docker:base_images.bzl", "base_java_images")
 
@@ -231,6 +235,18 @@ git_repository(
     shallow_since = "1610640414 +0000",
 )
 
+# gflags
+# Needed for glog
+http_archive(
+    name = "com_github_gflags_gflags",
+    sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+    strip_prefix = "gflags-2.2.2",
+    urls = [
+        "https://mirror.bazel.build/github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+        "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+    ],
+)
+
 # glog
 # Needed for private-join-and-compute
 http_archive(
@@ -244,10 +260,10 @@ http_archive(
 # Needed for private-join-and-compute
 http_archive(
     name = "com_github_grpc_grpc",
-    sha256 = "2060769f2d4b0d3535ba594b2ab614d7f68a492f786ab94b4318788d45e3278a",
-    strip_prefix = "grpc-1.33.2",
+    sha256 = "27dd2fc5c9809ddcde8eb6fa1fa278a3486566dfc28335fca13eb8df8bd3b958",
+    strip_prefix = "grpc-1.35.0",
     urls = [
-        "https://github.com/grpc/grpc/archive/v1.33.2.tar.gz",
+        "https://github.com/grpc/grpc/archive/v1.35.0.tar.gz",
     ],
 )
 
