@@ -60,11 +60,15 @@ message GlobalComputation {
   // Current state of the computation. Output only.
   State state = 2;
 
-  // Which MetricRequisitions are used in this computation.
+  // Which MetricRequisitions from this duchy are used in this computation.
   repeated MetricRequisitionKey metric_requisitions = 3;
 
+  // Total number of MetricRequisitions across all duchies used in this
+  // computation.
+  int32 total_requisition_count = 4;
+
   // Set if and only if the `state` is `SUCCEEDED`.
-  Result result = 4;
+  Result result = 5;
 
   // Individual result values are set only if they are required to be computed
   // by `metric_definition`.
