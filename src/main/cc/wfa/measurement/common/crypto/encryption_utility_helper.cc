@@ -29,7 +29,7 @@ absl::StatusOr<size_t> GetNumberOfBlocks(absl::string_view data,
   }
   if (data.size() % block_size != 0) {
     return absl::InvalidArgumentError(absl::StrCat(
-        "The size of byte array is not divisible by the row_size: ",
+        "The size of byte array is not divisible by the block_size: ",
         block_size));
   }
   return data.size() / block_size;
@@ -105,6 +105,9 @@ absl::Status AppendEcPointPairToString(const ElGamalEcPointPair& ec_point_pair,
 
 absl::StatusOr<std::vector<std::string>> GetCountValuesPlaintext(
     int maximum_value, int curve_id) {
+  if (maximum_value < 1) {
+    return absl::InvalidArgumentError("maximum_value should be at least 1.");
+  }
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, ctx.get()));
   ASSIGN_OR_RETURN(ECPoint count_1,

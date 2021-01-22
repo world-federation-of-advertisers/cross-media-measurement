@@ -208,11 +208,11 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
       protocol_cryptor.MapToCurve(kBlindedHistogramNoiseRegisterKey));
 
   int64_t noise_register_added = 0;
+  math::DistributedGeometricRandomComponentOptions options = ToOptions(params);
   for (int k = 1; k <= total_sketches_count; ++k) {
     // The random number of distinct register_ids that should appear k times.
-    ASSIGN_OR_RETURN(
-        int64_t noise_register_count_for_bucket_k,
-        math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+    ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
+                     math::GetDistributedGeometricRandomComponent(options));
     // Add noise_register_count_for_bucket_k such distinct register ids.
     for (int i = 0; i < noise_register_count_for_bucket_k; ++i) {
       // The prefix is to ensure the value is not in the regular id space.
@@ -337,11 +337,11 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
   ASSIGN_OR_RETURN(std::vector<std::string> count_values_plaintext,
                    GetCountValuesPlaintext(maximum_frequency, curve_id));
 
+  math::DistributedGeometricRandomComponentOptions options = ToOptions(params);
   int total_noise_tuples_added = 0;
   for (int frequency = 1; frequency <= maximum_frequency; ++frequency) {
-    ASSIGN_OR_RETURN(
-        int64_t noise_tuples_count,
-        math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+    ASSIGN_OR_RETURN(int64_t noise_tuples_count,
+                     math::GetDistributedGeometricRandomComponent(options));
     for (int i = 0; i < noise_tuples_count; ++i) {
       // Adds flag_1, which is 0 encrypted by the partial_protocol_cryptor.
       ASSIGN_OR_RETURN(ElGamalEcPointPair zero,
@@ -407,7 +407,7 @@ absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& full_protocol_cryptor,
     return absl::InvalidArgumentError("Count should >= 0.");
   }
   for (int i = 0; i < noise_tuples_count; ++i) {
-    // Adds flag_1 and flag _2, which are 0 encrypted by the
+    // Adds flag_1 and flag_2, which are 0 encrypted by the
     // partial_protocol_cryptor.
     for (int j = 0; j < 2; ++j) {
       ASSIGN_OR_RETURN(ElGamalEcPointPair zero,
