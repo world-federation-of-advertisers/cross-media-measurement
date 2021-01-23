@@ -123,6 +123,10 @@ message LiquidLegionsSketchAggregationV2 {
     // non-aggregator nodes. The value will be included in the result for the
     // computation.
     ReachEstimate reach_estimate = 5;
+
+    // Total number of MetricRequisitions across all duchies used in this
+    // computation.
+    int32 total_requisition_count = 6;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2
