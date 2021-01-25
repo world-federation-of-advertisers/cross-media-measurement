@@ -91,6 +91,10 @@ def _cue_export_impl(ctx):
         args.add("--expression", ctx.attr.expression)
     args.add_all(ctx.files.srcs)
 
+    tags = ctx.attr.cue_tags or {}
+    for k, v in tags.items():
+        args.add("-t", "%s=%s" % (k, v))
+
     ctx.actions.run(
         outputs = [outfile],
         inputs = ctx.files.srcs,
@@ -115,6 +119,7 @@ cue_export = rule(
             mandatory = True,
         ),
         "expression": attr.string(),
+        "cue_tags": attr.string_dict(),
         "_cue_cli": attr.label(
             default = "@cue_binaries//:cue_cli",
             executable = True,
