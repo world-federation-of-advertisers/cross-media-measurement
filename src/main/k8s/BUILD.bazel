@@ -1,7 +1,8 @@
-load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
 load("//build/cue:defs.bzl", "cue_string_field")
-load(":macros.bzl", "cue_dump")
+load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
+load(":macros.bzl", "cue_dump")
 
 exports_files(["duchy_public_key_config.textproto"])
 
@@ -28,6 +29,14 @@ cue_dump(
 cue_dump(
     name = "kingdom_and_three_duchies_from_cue_gke",
     srcs = CUE_LIBRARIES + ["kingdom_and_three_duchies_gke.cue"],
+    cue_tags = {
+        "cloud_storage_bucket": TEST_GOOGLE_CLOUD_SETTINGS.cloud_storage_bucket,
+        "cloud_storage_project": TEST_GOOGLE_CLOUD_SETTINGS.cloud_storage_project,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "repository_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "spanner_instance": TEST_GOOGLE_CLOUD_SETTINGS.spanner_instance,
+        "spanner_project": TEST_GOOGLE_CLOUD_SETTINGS.spanner_project,
+    },
 )
 
 ALL_LOCAL_IMAGE_ARCHIVES = [

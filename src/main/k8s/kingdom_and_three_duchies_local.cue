@@ -105,12 +105,12 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"--instance-display-name=EmulatorInstance",
 		"--instance-name=emulator-instance",
 		"--instance-node-count=1",
-		"--project-name=ads-open-measurement",
+		"--project-name=cross-media-measurement-system",
 	]
 	_spanner_flags: [
 		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 		"--spanner-instance=emulator-instance",
-		"--spanner-project=ads-open-measurement",
+		"--spanner-project=cross-media-measurement-system",
 	]
 	_blob_storage_flags: [
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
@@ -141,13 +141,13 @@ kingdom: #Kingdom & {
 		"--instance-display-name=EmulatorInstance",
 		"--instance-name=emulator-instance",
 		"--instance-node-count=1",
-		"--project-name=ads-open-measurement",
+		"--project-name=cross-media-measurement-system",
 	]
 	_spanner_flags: [
 		"--spanner-database=kingdom",
 		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 		"--spanner-instance=emulator-instance",
-		"--spanner-project=ads-open-measurement",
+		"--spanner-project=cross-media-measurement-system",
 	]
 	_images: {
 		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
@@ -171,6 +171,6 @@ setup_job: "correctness-test-job": #CorrectnessTest & {
 		"--spanner-database=kingdom",
 		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 		"--spanner-instance=emulator-instance",
-		"--spanner-project=ads-open-measurement",
+		"--spanner-project=cross-media-measurement-system",
 	]
 }

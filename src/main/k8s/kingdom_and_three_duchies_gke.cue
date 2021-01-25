@@ -17,6 +17,14 @@
 
 package k8s
 
+_spanner_project:           string @tag("spanner_project")
+_spanner_instance:          string @tag("spanner_instance")
+_cloud_storage_project:     string @tag("cloud_storage_project")
+_cloud_storage_bucket:      string @tag("cloud_storage_bucket")
+_container_registry:        string @tag("container_registry")
+_repository_prefix:         string @tag("image_prefix")
+_container_registry_prefix: _container_registry + "/" + _repository_prefix
+
 objectSets: [
 		setup_job,
 		kingdom.kingdom_service,
@@ -43,27 +51,27 @@ objectSets: [
 	_duchy_names: [ for d in #Duchies {d.name}]
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
-		"--instance-name=qa-instance",
-		"--project-name=ads-open-measurement",
+		"--instance-name=\(_spanner_instance)",
+		"--project-name=\(_spanner_project)",
 	]
 	_spanner_flags: [
-		"--spanner-instance=qa-instance",
-		"--spanner-project=ads-open-measurement",
+		"--spanner-instance=\(_spanner_instance)",
+		"--spanner-project=\(_spanner_project)",
 	]
 	_blob_storage_flags: [
-		"--google-cloud-storage-bucket=local-measurement-providers",
-		"--google-cloud-storage-project=ads-open-measurement",
+		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
+		"--google-cloud-storage-project=\(_cloud_storage_project)",
 	]
 	_images: {
-		"async-computation-control-server": "gcr.io/ads-open-measurement/duchy/async-computation-control"
-		"computation-control-server":       "gcr.io/ads-open-measurement/duchy/computation-control"
-		"herald-daemon":                    "gcr.io/ads-open-measurement/duchy/herald"
-		"liquid-legions-v1-mill-daemon":    "gcr.io/ads-open-measurement/duchy/liquid-legions-v1-mill"
-		"liquid-legions-v2-mill-daemon":    "gcr.io/ads-open-measurement/duchy/liquid-legions-v2-mill"
-		"metric-values-storage-server":     "gcr.io/ads-open-measurement/duchy/metric-values"
-		"publisher-data-server":            "gcr.io/ads-open-measurement/duchy/publisher-data"
-		"push-spanner-schema-container":    "gcr.io/ads-open-measurement/setup/push-spanner-schema"
-		"spanner-computations-server":      "gcr.io/ads-open-measurement/duchy/spanner-computations"
+		"async-computation-control-server": "\(_container_registry_prefix)/duchy/async-computation-control"
+		"computation-control-server":       "\(_container_registry_prefix)/duchy/computation-control"
+		"herald-daemon":                    "\(_container_registry_prefix)/duchy/herald"
+		"liquid-legions-v1-mill-daemon":    "\(_container_registry_prefix)/duchy/liquid-legions-v1-mill"
+		"liquid-legions-v2-mill-daemon":    "\(_container_registry_prefix)/duchy/liquid-legions-v2-mill"
+		"metric-values-storage-server":     "\(_container_registry_prefix)/duchy/metric-values"
+		"publisher-data-server":            "\(_container_registry_prefix)/duchy/publisher-data"
+		"push-spanner-schema-container":    "\(_container_registry_prefix)/setup/push-spanner-schema"
+		"spanner-computations-server":      "\(_container_registry_prefix)/duchy/spanner-computations"
 	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"
@@ -75,36 +83,36 @@ kingdom: #Kingdom & {
 	_duchy_ids: [ for d in #Duchies {"duchy-\(d.name)"}]
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
-		"--instance-name=qa-instance",
-		"--project-name=ads-open-measurement",
+		"--instance-name=\(_spanner_instance)",
+		"--project-name=\(_spanner_project)",
 	]
 	_spanner_flags: [
 		"--spanner-database=kingdom",
-		"--spanner-instance=qa-instance",
-		"--spanner-project=ads-open-measurement",
+		"--spanner-instance=\(_spanner_instance)",
+		"--spanner-project=\(_spanner_project)",
 	]
 	_images: {
-		"push-spanner-schema-container": "gcr.io/ads-open-measurement/setup/push-spanner-schema"
-		"report-maker-daemon":           "gcr.io/ads-open-measurement/kingdom/report-maker"
-		"report-starter-daemon":         "gcr.io/ads-open-measurement/kingdom/report-starter"
-		"requisition-linker-daemon":     "gcr.io/ads-open-measurement/kingdom/requisition-linker"
-		"gcp-kingdom-data-server":       "gcr.io/ads-open-measurement/kingdom/data-server"
-		"global-computation-server":     "gcr.io/ads-open-measurement/kingdom/global-computation"
-		"requisition-server":            "gcr.io/ads-open-measurement/kingdom/requisition"
-		"system-requisition-server":     "gcr.io/ads-open-measurement/kingdom/system-requisition"
+		"push-spanner-schema-container": "\(_container_registry_prefix)/setup/push-spanner-schema"
+		"report-maker-daemon":           "\(_container_registry_prefix)/kingdom/report-maker"
+		"report-starter-daemon":         "\(_container_registry_prefix)/kingdom/report-starter"
+		"requisition-linker-daemon":     "\(_container_registry_prefix)/kingdom/requisition-linker"
+		"gcp-kingdom-data-server":       "\(_container_registry_prefix)/kingdom/data-server"
+		"global-computation-server":     "\(_container_registry_prefix)/kingdom/global-computation"
+		"requisition-server":            "\(_container_registry_prefix)/kingdom/requisition"
+		"system-requisition-server":     "\(_container_registry_prefix)/kingdom/system-requisition"
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"
 }
 
 setup_job: "correctness-test-job": #CorrectnessTest & {
-	_image:           "gcr.io/ads-open-measurement/loadtest/correctness-test"
+	_image:           "\(_container_registry_prefix)/loadtest/correctness-test"
 	_imagePullPolicy: "Always"
 	_args: [
+		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
+		"--google-cloud-storage-project=\(_cloud_storage_project)",
 		"--spanner-database=kingdom",
-		"--spanner-instance=qa-instance",
-		"--spanner-project=ads-open-measurement",
-		"--google-cloud-storage-bucket=local-measurement-providers",
-		"--google-cloud-storage-project=ads-open-measurement",
+		"--spanner-instance=\(_spanner_instance)",
+		"--spanner-project=\(_spanner_project)",
 	]
 }
