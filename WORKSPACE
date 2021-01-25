@@ -369,32 +369,25 @@ http_file(
 )
 
 # Rules for swig wrapping.
-git_repository(
+local_repository(
     name = "wfa_rules_swig",
-    commit = "c207f4e6517bc9491df17d407b561a3916739c1c",
-    remote = "sso://team/ads-xmedia-open-measurement-team/rules_swig",
-    shallow_since = "1603481983 -0700",
+    path = "../rules-swig",
 )
 
 # Public APIs for measurement system.
-git_repository(
+local_repository(
     name = "wfa_measurement_proto",
-    commit = "9d234078de0f0ea11b62949d66638bb5db4976c4",
-    remote = "sso://team/ads-xmedia-open-measurement-team/wfa-measurement-proto",
-    shallow_since = "1606952246 +0000",
+    path = "../cross-media-measurement-api",
 )
 
 # AnySketch.
-git_repository(
+local_repository(
     name = "any_sketch",
-    commit = "852b063e2b579ceb647271e9e86f0a79ade5757e",
-    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch",
-    shallow_since = "1610762283 -0500",
+    path = "../any-sketch",
 )
 
-git_repository(
+local_repository(
     name = "any_sketch_java",
-    commit = "936e51255b1c97c9bf344c341c15dcb7302853e0",
-    remote = "sso://team/ads-xmedia-open-measurement-team/any-sketch-java",
-    shallow_since = "1611091486 -0500",
+    path = "../any-sketch-java",
 )
+
