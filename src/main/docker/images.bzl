@@ -14,78 +14,82 @@
 
 """Container image specs."""
 
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+
+_PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
+
 # List of specs for all Docker containers to push to a container registry.
 # These are common to both local execution (e.g. in Kind) as well as on GKE.
 COMMON_IMAGES = [
     struct(
         name = "duchy_async_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:async_computation_control_server_image",
-        repository = "ads-open-measurement/duchy/async-computation-control",
+        repository = _PREFIX + "/duchy/async-computation-control",
     ),
     struct(
         name = "duchy_herald_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image",
-        repository = "ads-open-measurement/duchy/herald",
+        repository = _PREFIX + "/duchy/herald",
     ),
     struct(
         name = "duchy_liquid_legions_v1_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv1:gcs_liquid_legions_v1_mill_daemon_image",
-        repository = "ads-open-measurement/duchy/liquid-legions-v1-mill",
+        repository = _PREFIX + "/duchy/liquid-legions-v1-mill",
     ),
     struct(
         name = "duchy_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv2:gcs_liquid_legions_v2_mill_daemon_image",
-        repository = "ads-open-measurement/duchy/liquid-legions-v2-mill",
+        repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
         name = "duchy_publisher_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:publisher_data_server_image",
-        repository = "ads-open-measurement/duchy/publisher-data",
+        repository = _PREFIX + "/duchy/publisher-data",
     ),
     struct(
         name = "duchy_spanner_computations_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image",
-        repository = "ads-open-measurement/duchy/spanner-computations",
+        repository = _PREFIX + "/duchy/spanner-computations",
     ),
     struct(
         name = "kingdom_global_computation_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:global_computation_server_image",
-        repository = "ads-open-measurement/kingdom/global-computation",
+        repository = _PREFIX + "/kingdom/global-computation",
     ),
     struct(
         name = "kingdom_report_maker_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image",
-        repository = "ads-open-measurement/kingdom/report-maker",
+        repository = _PREFIX + "/kingdom/report-maker",
     ),
     struct(
         name = "kingdom_report_starter_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image",
-        repository = "ads-open-measurement/kingdom/report-starter",
+        repository = _PREFIX + "/kingdom/report-starter",
     ),
     struct(
         name = "kingdom_requisition_linker_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image",
-        repository = "ads-open-measurement/kingdom/requisition-linker",
+        repository = _PREFIX + "/kingdom/requisition-linker",
     ),
     struct(
         name = "kingdom_requisition_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image",
-        repository = "ads-open-measurement/kingdom/requisition",
+        repository = _PREFIX + "/kingdom/requisition",
     ),
     struct(
         name = "kingdom_system_requisition_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_requisition_server_image",
-        repository = "ads-open-measurement/kingdom/system-requisition",
+        repository = _PREFIX + "/kingdom/system-requisition",
     ),
     struct(
         name = "kingdom_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image",
-        repository = "ads-open-measurement/kingdom/data-server",
+        repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(
         name = "setup_spanner_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
-        repository = "ads-open-measurement/setup/push-spanner-schema",
+        repository = _PREFIX + "/setup/push-spanner-schema",
     ),
 ]
 
@@ -95,17 +99,17 @@ GKE_IMAGES = [
     struct(
         name = "duchy_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
-        repository = "ads-open-measurement/duchy/computation-control",
+        repository = _PREFIX + "/duchy/computation-control",
     ),
     struct(
         name = "gcs_correctness_test_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest:gcs_correctness_runner_image",
-        repository = "ads-open-measurement/loadtest/correctness-test",
+        repository = _PREFIX + "/loadtest/correctness-test",
     ),
     struct(
         name = "duchy_metric_values_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcp_server_image",
-        repository = "ads-open-measurement/duchy/metric-values",
+        repository = _PREFIX + "/duchy/metric-values",
     ),
 ]
 
