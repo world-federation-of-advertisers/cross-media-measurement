@@ -1,6 +1,6 @@
-# Open Measurement External API
+# Cross-Media Measurement External API
 
-External API definitions for the Open Measurement system.
+External API definitions for the Cross-Media Measurement system.
 
 The API is defined as a set of [gRPC](https://grpc.io/) services using
 [Protocol Buffers](https://developers.google.com/protocol-buffers/docs/overview).
