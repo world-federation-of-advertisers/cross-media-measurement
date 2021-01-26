@@ -22,7 +22,7 @@ java_binary(
 
 java_image(
     name = "gcp_kingdom_data_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.SpannerKingdomDataServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":spanner_kingdom_data_server"],

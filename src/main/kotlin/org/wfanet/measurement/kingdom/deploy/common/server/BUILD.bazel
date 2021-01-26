@@ -48,7 +48,7 @@ java_binary(
 
 java_image(
     name = "global_computation_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.GlobalComputationServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":global_computation_server"],
@@ -76,7 +76,7 @@ java_binary(
 
 java_image(
     name = "requisition_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.RequisitionServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":requisition_server"],
@@ -104,7 +104,7 @@ java_binary(
 
 java_image(
     name = "system_requisition_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.SystemRequisitionServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":system_requisition_server"],

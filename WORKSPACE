@@ -363,9 +363,13 @@ http_file(
 
 # Grpc Health Check Probe
 http_file(
-    name = "grpc_health_check_bin",
-    downloaded_file_path = "grpc_health_probe",
-    urls = ["https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.3.4/grpc_health_probe-linux-amd64"],
+    name = "grpc_health_probe",
+    downloaded_file_path = "grpc-health-probe",
+    executable = True,
+    sha256 = "c78e988a4aad5e9e599c6a69e681ac68579c000b8f0571593325ccbc0c1638b7",
+    urls = [
+        "https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.3.6/grpc_health_probe-linux-amd64",
+    ],
 )
 
 # Rules for swig wrapping.

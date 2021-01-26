@@ -113,7 +113,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_ports: [{containerPort: 8080}]
 	spec: containers: [{
 		readinessProbe: {
-			exec: command: ["/app/grpc_health_check_bin/file/grpc_health_probe", "--addr=:8080"]
+			exec: command: ["/app/grpc_health_probe/file/grpc-health-probe", "--addr=:8080"]
 			periodSeconds: 60
 		}}]
 }

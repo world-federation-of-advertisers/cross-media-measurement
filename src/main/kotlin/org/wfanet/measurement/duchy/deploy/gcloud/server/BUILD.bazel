@@ -55,7 +55,7 @@ java_binary(
 
 java_image(
     name = "gcs_computation_control_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsComputationControlServerKt",
     visibility = [
         "//src:docker_image_deployment",
@@ -65,7 +65,7 @@ java_image(
 
 java_image(
     name = "gcp_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcpMetricValuesServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":gcp_server"],
@@ -73,7 +73,7 @@ java_image(
 
 java_image(
     name = "spanner_forwarded_storage_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerForwardedStorageMetricValuesServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":spanner_forwarded_storage_server"],
@@ -100,7 +100,7 @@ java_binary(
 
 java_image(
     name = "spanner_computations_server_image",
-    data = ["@grpc_health_check_bin//file"],
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerComputationsServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":spanner_computations_server"],
