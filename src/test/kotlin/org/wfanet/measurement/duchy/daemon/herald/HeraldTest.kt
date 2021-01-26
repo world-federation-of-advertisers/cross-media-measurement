@@ -43,6 +43,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
@@ -94,8 +95,7 @@ internal class HeraldTest {
         fakeComputationStorage,
         globalComputationsStub,
         duchyName,
-        Clock.systemUTC(),
-        duchyOrder
+        Clock.systemUTC()
       )
     )
   }
@@ -111,7 +111,9 @@ internal class HeraldTest {
   private lateinit var herald: Herald
   @Before
   fun initHerald() {
-    herald = Herald(otherDuchyNames, storageServiceStub, globalComputationsStub)
+    herald = Herald(
+      otherDuchyNames, storageServiceStub, globalComputationsStub, duchyName, duchyOrder
+    )
   }
 
   @Test
@@ -159,6 +161,19 @@ internal class HeraldTest {
             addKeys(requisitionKey("bob", "bb", "abc"))
             addKeys(requisitionKey("caroline", "ccc", "234567"))
           }
+        }.build()
+      )
+    assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.computationDetails)
+      .isEqualTo(
+        ComputationDetails.newBuilder().apply {
+          liquidLegionsV2Builder.apply {
+            role = NON_AGGREGATOR
+            incomingNodeId = "AUSTRIA"
+            outgoingNodeId = "SALZBURG"
+            aggregatorNodeId = "SALZBURG"
+            totalRequisitionCount = 10
+          }
+          blobsStoragePrefix = "computation-blob-storage/321"
         }.build()
       )
   }
@@ -250,6 +265,8 @@ internal class HeraldTest {
       otherDuchyNames,
       storageServiceStub,
       globalComputationsStub,
+      duchyName,
+      duchyOrder,
       maxStartAttempts = 2
     )
 
@@ -283,7 +300,8 @@ internal class HeraldTest {
 data class ComputationAtKingdom(
   val globalId: String,
   val stateAtKingdom: GlobalComputation.State,
-  val requisitionResourceKeys: List<String> = listOf()
+  val requisitionResourceKeys: List<String> = listOf(),
+  val totalRequisitionCount: Int = 10
 ) {
   private fun parseResourceKey(stringKey: String): MetricRequisitionKey {
     val (provider, campaign, requisition) = stringKey.split("/")
@@ -301,6 +319,7 @@ data class ComputationAtKingdom(
         keyBuilder.apply { globalComputationId = globalId }
         state = stateAtKingdom
         addAllMetricRequisitions(requisitionResourceKeys.map { parseResourceKey(it) })
+        totalRequisitionCount = this@ComputationAtKingdom.totalRequisitionCount
       }
       continuationToken = this@ComputationAtKingdom.continuationToken
     }.build()

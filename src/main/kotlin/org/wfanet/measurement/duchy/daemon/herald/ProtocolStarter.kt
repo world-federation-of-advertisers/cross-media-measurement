@@ -15,10 +15,11 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
+import org.wfanet.measurement.common.DuchyPosition
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 /**
  * Helper functions to create/start a protocol specific computation.
@@ -27,9 +28,10 @@ interface ProtocolStarter {
 
   /** Creates an new computation. */
   suspend fun createComputation(
-    globalId: String,
     computationStorageClient: ComputationsCoroutineStub,
-    requisitionKeys: List<RequisitionKey>
+    globalComputation: GlobalComputation,
+    duchyPosition: DuchyPosition,
+    blobStorageBucket: String
   )
 
   /** Starts a computation if possible. */

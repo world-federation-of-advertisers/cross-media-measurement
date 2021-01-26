@@ -25,8 +25,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
@@ -52,13 +50,6 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 class ComputationsServiceTest {
 
   companion object {
-    val duchyOrder = DuchyOrder(
-      setOf(
-        Duchy("BOHEMIA", 10L.toBigInteger()),
-        Duchy("SALZBURG", 200L.toBigInteger()),
-        Duchy("AUSTRIA", 303L.toBigInteger())
-      )
-    )
 
     val primaryComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV1Builder.apply {
@@ -102,8 +93,7 @@ class ComputationsServiceTest {
       fakeDatabase,
       GlobalComputationsCoroutineStub(grpcTestServerRule.channel),
       "BOHEMIA",
-      Clock.systemUTC(),
-      duchyOrder
+      Clock.systemUTC()
     )
   }
 

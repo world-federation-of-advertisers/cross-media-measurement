@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
@@ -97,8 +98,7 @@ class ComputationDataClientsTest {
         fakeDatabase,
         globalComputationClient,
         ALSACE,
-        Clock.systemUTC(),
-        duchyOrder
+        Clock.systemUTC()
       )
     )
   }
@@ -126,7 +126,7 @@ class ComputationDataClientsTest {
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleLiquidLegionsComputation(
+    val computation = SingleLiquidLegionsV1Computation(
       ComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
@@ -135,6 +135,7 @@ class ComputationDataClientsTest {
         otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_NOT_PRIMARY,
+      RoleInComputation.SECONDARY,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
@@ -164,7 +165,7 @@ class ComputationDataClientsTest {
   @Test
   fun runProtocolAtPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleLiquidLegionsComputation(
+    val computation = SingleLiquidLegionsV1Computation(
       ComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
@@ -173,6 +174,7 @@ class ComputationDataClientsTest {
         otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
+      RoleInComputation.PRIMARY,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
@@ -230,9 +232,10 @@ data class ComputationStep(
  * Because it is a view of a single computation, the computation token is saved after each
  * operation.
  */
-class SingleLiquidLegionsComputation(
+class SingleLiquidLegionsV1Computation(
   private val dataClients: ComputationDataClients,
   globalId: String,
+  roleInComputation: RoleInComputation,
   private val testClock: TestClockWithNamedInstants
 ) {
 
@@ -241,6 +244,10 @@ class SingleLiquidLegionsComputation(
       CreateComputationRequest.newBuilder().apply {
         globalComputationId = globalId
         computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+        // For the purpose of this test, only set role in the computationDetails.
+        computationDetailsBuilder.liquidLegionsV1Builder.apply {
+          role = roleInComputation
+        }
       }.build()
     ).token
   }

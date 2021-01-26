@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
@@ -98,7 +99,9 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val herald = Herald(
     otherDuchiesInComputation = otherDuchyNames,
     computationStorageClient = ComputationsCoroutineStub(storageChannel),
-    globalComputationsClient = globalComputationsClient
+    globalComputationsClient = globalComputationsClient,
+    duchyName = duchyName,
+    duchyOrder = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest.toDuchyOrder()
   )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }

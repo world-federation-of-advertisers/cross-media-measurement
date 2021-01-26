@@ -15,24 +15,46 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
+import org.wfanet.measurement.common.DuchyPosition
+import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
-import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 object LiquidLegionsV2Starter : ProtocolStarter {
 
   override suspend fun createComputation(
-    globalId: String,
     computationStorageClient: ComputationsCoroutineStub,
-    requisitionKeys: List<RequisitionKey>
+    globalComputation: GlobalComputation,
+    duchyPosition: DuchyPosition,
+    blobStorageBucket: String
   ) {
+    val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
+    val initialComputationDetails = ComputationDetails.newBuilder().apply {
+      // TODO: use fixed role for all computations in this duchy.
+      liquidLegionsV2Builder.apply {
+        role = when (duchyPosition.role) {
+          DuchyRole.PRIMARY -> AGGREGATOR
+          else -> NON_AGGREGATOR
+        }
+        incomingNodeId = duchyPosition.prev
+        outgoingNodeId = duchyPosition.next
+        aggregatorNodeId = duchyPosition.primary
+        totalRequisitionCount = globalComputation.totalRequisitionCount
+      }
+      blobsStoragePrefix = "$blobStorageBucket/$globalId"
+    }.build()
+
     computationStorageClient.createComputation(
       CreateComputationRequest.newBuilder().apply {
         computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
@@ -40,7 +62,8 @@ object LiquidLegionsV2Starter : ProtocolStarter {
         stageDetailsBuilder
           .liquidLegionsV2Builder
           .toConfirmRequisitionsStageDetailsBuilder
-          .addAllKeys(requisitionKeys)
+          .addAllKeys(globalComputation.toRequisitionKeys())
+        computationDetails = initialComputationDetails
       }.build()
     )
   }

@@ -78,6 +78,9 @@ message CreateComputationRequest {
   string global_computation_id = 2;
   // Details specific to the computation stage.
   ComputationStageDetails stage_details = 3;
+  // Initial computation details.
+  // If set, the protocol should match computation_type.
+  ComputationDetails computation_details = 4;
 }
 
 message CreateComputationResponse {

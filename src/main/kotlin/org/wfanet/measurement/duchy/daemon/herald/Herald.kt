@@ -23,6 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
@@ -31,6 +32,7 @@ import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenReque
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
@@ -50,6 +52,9 @@ class Herald(
   otherDuchiesInComputation: List<String>,
   private val computationStorageClient: ComputationsCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
+  private val duchyName: String,
+  private val duchyOrder: DuchyOrder,
+  private val blobStorageBucket: String = "computation-blob-storage",
   private val maxStartAttempts: Int = 10
 ) {
   private val computationProtocolStageDetails =
@@ -118,7 +123,7 @@ class Herald(
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = response.globalComputation.state) {
       // Create a new computation if it is not already present in the database.
-      State.CONFIRMING -> create(globalId, response.toRequisitionKeys())
+      State.CONFIRMING -> create(response.globalComputation)
       // Start the computation if it is in WAIT_TO_START.
       // TODO: Resume a computation that was once SUSPENDED.
       State.RUNNING -> start(globalId)
@@ -131,15 +136,14 @@ class Herald(
 
   /** Creates a new computation. */
   // TODO: create Computation of type mapping the protocol specified by the kingdom.
-  private suspend fun create(
-    globalId: String,
-    requisitionsAtThisDuchy: List<RequisitionKey>
-  ) {
+  private suspend fun create(globalComputation: GlobalComputation) {
+    val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
     logger.info("[id=$globalId] Creating Computation")
+    val computationAtThisDuchy = duchyOrder.positionFor(globalId, duchyName)
     try {
       // TODO: get the protocol from the kingdom's response and create a corresponding computation.
       LiquidLegionsV2Starter.createComputation(
-        globalId, computationStorageClient, requisitionsAtThisDuchy
+        computationStorageClient, globalComputation, computationAtThisDuchy, blobStorageBucket
       )
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: Exception) {
@@ -200,16 +204,14 @@ class Herald(
   }
 }
 
-private fun StreamActiveGlobalComputationsResponse.toRequisitionKeys(): List<RequisitionKey> =
-  globalComputation
-    .metricRequisitionsList
-    .map {
-      RequisitionKey.newBuilder().apply {
-        dataProviderId = it.dataProviderId
-        campaignId = it.campaignId
-        metricRequisitionId = it.metricRequisitionId
-      }.build()
-    }
+fun GlobalComputation.toRequisitionKeys(): List<RequisitionKey> =
+  metricRequisitionsList.map {
+    RequisitionKey.newBuilder().apply {
+      dataProviderId = it.dataProviderId
+      campaignId = it.campaignId
+      metricRequisitionId = it.metricRequisitionId
+    }.build()
+  }
 
 /** Returns true if the error may be transient, i.e. retrying the request may succeed. */
 fun mayBeTransientGrpcError(error: Throwable): Boolean {

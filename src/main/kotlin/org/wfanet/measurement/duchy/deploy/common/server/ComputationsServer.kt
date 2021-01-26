@@ -27,7 +27,6 @@ import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationa
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -75,8 +74,7 @@ abstract class ComputationsServer : Runnable {
       ComputationsService(
         computationsDatabase = computationsDatabase,
         globalComputationsClient = globalComputationsClient,
-        duchyName = flags.duchy.duchyName,
-        duchyOrder = duchyPublicKeys.latest.toDuchyOrder()
+        duchyName = flags.duchy.duchyName
       ),
       ComputationStatsService(computationsDatabase)
     ).start().blockUntilShutdown()

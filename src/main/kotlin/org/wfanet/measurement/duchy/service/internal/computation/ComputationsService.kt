@@ -17,8 +17,6 @@ package org.wfanet.measurement.duchy.service.internal.computation
 import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
-import org.wfanet.measurement.common.DuchyOrder
-import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
@@ -53,10 +51,6 @@ import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.SECONDARY
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -65,43 +59,8 @@ class ComputationsService(
   private val computationsDatabase: ComputationsDatabase,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val duchyName: String,
-  private val clock: Clock = Clock.systemUTC(),
-  private val duchyOrder: DuchyOrder,
-  private val blobStorageBucket: String = "computation-blob-storage"
+  private val clock: Clock = Clock.systemUTC()
 ) : ComputationsCoroutineImplBase() {
-
-  private fun getComputationDetails(protocol: ComputationType, globalId: String):
-    ComputationDetails {
-      val computationAtThisDuchy = duchyOrder.positionFor(globalId, duchyName)
-      return ComputationDetails.newBuilder().apply {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (protocol) {
-          ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-            liquidLegionsV1Builder.apply {
-              role = when (computationAtThisDuchy.role) {
-                DuchyRole.PRIMARY -> PRIMARY
-                else -> SECONDARY
-              }
-              incomingNodeId = computationAtThisDuchy.prev
-              outgoingNodeId = computationAtThisDuchy.next
-              primaryNodeId = computationAtThisDuchy.primary
-            }
-          ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-            // TODO: get role from flag, i.e., using fixed role for all computations in this duchy.
-            liquidLegionsV2Builder.apply {
-              role = when (computationAtThisDuchy.role) {
-                DuchyRole.PRIMARY -> AGGREGATOR
-                else -> NON_AGGREGATOR
-              }
-              incomingNodeId = computationAtThisDuchy.prev
-              outgoingNodeId = computationAtThisDuchy.next
-              aggregatorNodeId = computationAtThisDuchy.primary
-            }
-          ComputationType.UNSPECIFIED, ComputationType.UNRECOGNIZED -> error("invalid protocol")
-        }
-        blobsStoragePrefix = "$blobStorageBucket/$globalId"
-      }.build()
-    }
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
     val claimed = computationsDatabase.claimTask(request.computationType, request.owner)
@@ -121,6 +80,8 @@ class ComputationsService(
   override suspend fun createComputation(
     request: CreateComputationRequest
   ): CreateComputationResponse {
+    // TODO: validate CreateComputationRequest
+
     if (computationsDatabase.readComputationToken(request.globalComputationId) != null) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
     }
@@ -130,7 +91,7 @@ class ComputationsService(
       request.computationType,
       computationsDatabase.getValidInitialStage(request.computationType).first(),
       request.stageDetails,
-      getComputationDetails(request.computationType, request.globalComputationId)
+      request.computationDetails
     )
 
     sendStatusUpdateToKingdom(

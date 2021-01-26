@@ -101,8 +101,7 @@ class InProcessDuchy(
         duchyDependencies.computationsDatabase,
         kingdomGlobalComputationsStub,
         duchyId,
-        Clock.systemUTC(),
-        duchyDependencies.duchyPublicKeys.latest.toDuchyOrder()
+        Clock.systemUTC()
       )
     )
   }
@@ -123,7 +122,9 @@ class InProcessDuchy(
       val herald = Herald(
         otherDuchyIds,
         computationStorageServiceStub,
-        kingdomGlobalComputationsStub
+        kingdomGlobalComputationsStub,
+        duchyId,
+        duchyDependencies.duchyPublicKeys.latest.toDuchyOrder()
       )
 
       herald.continuallySyncStatuses(throttler)

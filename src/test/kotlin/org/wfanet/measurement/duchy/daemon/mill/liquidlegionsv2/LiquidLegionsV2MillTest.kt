@@ -206,8 +206,7 @@ class LiquidLegionsV2MillTest {
         fakeComputationDb,
         globalComputationStub,
         DUCHY_NAME,
-        Clock.systemUTC(),
-        duchyOrder
+        Clock.systemUTC()
       )
     )
   }
