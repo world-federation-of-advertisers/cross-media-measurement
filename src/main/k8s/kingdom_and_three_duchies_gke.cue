@@ -22,7 +22,7 @@ _spanner_instance:          string @tag("spanner_instance")
 _cloud_storage_project:     string @tag("cloud_storage_project")
 _cloud_storage_bucket:      string @tag("cloud_storage_bucket")
 _container_registry:        string @tag("container_registry")
-_repository_prefix:         string @tag("image_prefix")
+_repository_prefix:         string @tag("repository_prefix")
 _container_registry_prefix: _container_registry + "/" + _repository_prefix
 
 objectSets: [
