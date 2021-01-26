@@ -32,19 +32,9 @@ configure_auth() {
   gcloud auth configure-docker
 }
 
-# Configure access for Google-hosted Git.
-configure_google_git() {
-  # Use gcloud for Git auth.
-  git config --global credential.helper gcloud.sh
-
-  # Change sso:// references in the WORKSPACE file to https://
-  sed -i -e 's%sso://team/%https://team.googlesource.com/%' WORKSPACE
-}
-
 main() {
   local -i failed=0
   configure_auth
-  configure_google_git
 
   # Build all targets.
   $BAZEL --nohome_rc build --keep_going //... || failed=1
