@@ -179,6 +179,7 @@ class GlobalComputationService(
     return GlobalComputation.newBuilder().apply {
       keyBuilder.globalComputationId = ExternalId(externalReportId).apiId.value
       state = translateState(this@toGlobalComputation.state)
+      totalRequisitionCount = reportDetails.requisitionsList.size
       if (state == State.SUCCEEDED) {
         resultBuilder.apply {
           reach = reportDetails.result.reach

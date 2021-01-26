@@ -309,8 +309,9 @@ class GlobalComputationServiceTest {
     whenever(reportStorage.confirmDuchyReadiness(any()))
       .thenReturn(REPORT)
 
+    val expectedComputation = GLOBAL_COMPUTATION.toBuilder().setTotalRequisitionCount(2).build()
     assertThat(service.confirmGlobalComputation(request))
-      .isEqualTo(GLOBAL_COMPUTATION)
+      .isEqualTo(expectedComputation)
 
     val expectedConfirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
       externalReportId = ExternalId(1111).value
@@ -354,6 +355,7 @@ class GlobalComputationServiceTest {
             putFrequency(1, 0.2)
             putFrequency(3, 0.8)
           }
+          totalRequisitionCount = 2
         }.build()
       )
 
