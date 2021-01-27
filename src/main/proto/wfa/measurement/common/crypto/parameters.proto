@@ -49,6 +49,14 @@ message DistributedGeometricDistributionParams {
   int64 shift_offset = 3;
 }
 
+// For detail of the parameters, refer to "Dwork, C. and Roth, A., 2014. The
+// algorithmic foundations of differential privacy. Foundations and Trends in
+// Theoretical Computer Science, 9(3-4), pp.211-407."
+message DifferentialPrivacyParams {
+  double epsilon = 1;
+  double delta = 2;
+}
+
 // Parameters used for liquidLegions creation and estimation.
 message LiquidLegionsParameters {
   // decay rate.

@@ -21,6 +21,21 @@ cc_library(
 )
 
 cc_library(
+    name = "noise_parameters_computation",
+    srcs = [
+        "noise_parameters_computation.cc",
+    ],
+    hdrs = [
+        "noise_parameters_computation.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/cc/wfa/measurement/common/math:distributions",
+        "//src/main/proto/wfa/measurement/common/crypto:parameters_cc_proto",
+    ],
+)
+
+cc_library(
     name = "encryption_utility_helper",
     srcs = [
         "encryption_utility_helper.cc",

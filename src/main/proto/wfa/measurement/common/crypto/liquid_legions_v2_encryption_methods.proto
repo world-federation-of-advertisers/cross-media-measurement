@@ -27,6 +27,23 @@ option java_multiple_files = true;
 // e.g., private keys used in the ciphers. So they SHOULD NOT be written into
 // any logs or leave the running process.
 
+message ReachNoiseDifferentialPrivacyParams {
+  // DP params for the blind histogram noise register.
+  // Each of these registers contains a random register id, the same constant
+  // key indicating that the register is destroyed, and an arbitrary count
+  // value.
+  DifferentialPrivacyParams blind_histogram = 1;
+  // DP params for the noise for the publisher noise registers.
+  // Each of these registers contains a well-known constant register id, and
+  // arbitrary key and count values.
+  DifferentialPrivacyParams noise_for_publisher_noise = 2;
+  // DP params for the global reach DP noise registers.
+  // Each of these registers contains a random register id which is out of
+  // bounds of the normal id space, the same constant key indicating that the
+  // register is destroyed, and an arbitrary count value.
+  DifferentialPrivacyParams global_reach_dp_noise = 3;
+}
+
 message RegisterNoiseGenerationParameters {
   // Public keys of the composite ElGamal cipher. Used to encrypt the added
   // noise.
@@ -43,20 +60,9 @@ message RegisterNoiseGenerationParameters {
   int32 total_noise_registers_count = 3;
   // The total number of sketches across all workers for this computation.
   int32 total_sketches_count = 4;
-  // The parameters used to generate the blind histogram noise registers.
-  // Each of these registers contains a random register id, the same constant
-  // key indicating that the register is destroyed, and an arbitrary count
-  // value.
+  // TODO: replace the following 3 using ReachNoiseDifferentialPrivacyParams
   DistributedGeometricDistributionParams blind_histogram_noise_parameters = 5;
-  // The parameters used to generate the noise for publisher noise registers.
-  // Each of these registers contains a well-known constant register id, and
-  // arbitrary key and count values.
   DistributedGeometricDistributionParams publisher_noise_parameters = 6;
-  // The parameters used to generate the global differential privacy noise
-  // registers for reach.
-  // Each of these registers contains a random register id which is out of
-  // bounds of the normal id space, the same constant key indicating that the
-  // register is destroyed, and an arbitrary count value.
   DistributedGeometricDistributionParams global_reach_dp_noise_parameters = 7;
 }
 
@@ -68,6 +74,7 @@ message FlagCountTupleNoiseGenerationParameters {
   //   non_destroyed_noise_parameters.offset*2*maximum_frequency
   //     + destroyed_noise_parameters.offset*2
   int32 total_noise_tuples_count = 2;
+  // TODO: replace the following 2 using a same DifferentialPrivacyParams
   // The distribution of the number of noise tuples with flag (0, R, R) in each
   // bucket. In total, there are maximum_frequency such buckets.
   DistributedGeometricDistributionParams non_destroyed_noise_parameters = 3;
