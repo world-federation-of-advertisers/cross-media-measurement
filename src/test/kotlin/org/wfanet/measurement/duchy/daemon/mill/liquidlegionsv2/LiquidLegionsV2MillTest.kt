@@ -76,7 +76,7 @@ import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.toElGamalKeyPair
 import org.wfanet.measurement.duchy.daemon.mill.toElGamalPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
@@ -145,7 +145,7 @@ class LiquidLegionsV2MillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockCryptoWorker: LiquidLegionsV2Encryption =
     mock(useConstructor = UseConstructor.parameterless())
-  private val fakeComputationDb = FakeComputationDb()
+  private val fakeComputationDb = FakeComputationsDatabase()
 
   private lateinit var computationDataClients:
     ComputationDataClients
@@ -553,7 +553,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `setup phase at non-aggregator using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = SETUP_PHASE.toProtocolStage()
     ).build()
@@ -618,7 +618,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `setup phase at aggregator using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = SETUP_PHASE.toProtocolStage()
     ).build()
@@ -687,7 +687,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `execution phase one at non-aggregater using cached result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = EXECUTION_PHASE_ONE.toProtocolStage()
     ).build()
@@ -739,7 +739,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `execution phase one at non-aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = EXECUTION_PHASE_ONE.toProtocolStage()
     ).build()
@@ -804,7 +804,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `execution phase one at aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = EXECUTION_PHASE_ONE.toProtocolStage()
     ).build()
@@ -870,7 +870,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `execution phase two at non-aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = EXECUTION_PHASE_TWO.toProtocolStage()
     ).build()
@@ -935,7 +935,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `execution phase two at aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = EXECUTION_PHASE_TWO.toProtocolStage()
     ).build()
@@ -1008,7 +1008,7 @@ class LiquidLegionsV2MillTest {
   fun `execution phase three at non-aggregater using calculated result`() =
     runBlocking<Unit> {
       // Stage 0. preparing the storage and set up mock
-      val partialToken = FakeComputationDb.newPartialToken(
+      val partialToken = FakeComputationsDatabase.newPartialToken(
         localId = LOCAL_ID,
         stage = EXECUTION_PHASE_THREE.toProtocolStage()
       ).build()
@@ -1063,7 +1063,7 @@ class LiquidLegionsV2MillTest {
   @Test
   fun `execution phase three at aggregater using calculated result`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
-    val partialToken = FakeComputationDb.newPartialToken(
+    val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
       stage = EXECUTION_PHASE_THREE.toProtocolStage()
     ).build()

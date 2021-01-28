@@ -20,8 +20,9 @@ import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
-import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -41,7 +42,7 @@ private const val PRIMARY_WORKER = "PRIMARY_WORKER"
 /**
  * In-memory [ComputationsDatabase]
  */
-class FakeComputationDb private constructor(
+class FakeComputationsDatabase private constructor(
   /** Map of local computation ID to [ComputationToken]. */
   private val tokens: MutableMap<Long, ComputationToken>
 ) : Map<Long, ComputationToken> by tokens,
@@ -130,7 +131,7 @@ class FakeComputationDb private constructor(
    *   replace the [tokenToUpdate]. The version of the token is always incremented.
    */
   private fun updateToken(
-    tokenToUpdate: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
     changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder
   ) {
     val current = requireTokenFromCurrent(tokenToUpdate)
@@ -139,7 +140,7 @@ class FakeComputationDb private constructor(
   }
 
   private fun requireTokenFromCurrent(
-    token: ComputationStorageEditToken<ComputationType, ComputationStage>
+    token: ComputationEditToken<ComputationType, ComputationStage>
   ): ComputationToken {
     val current = getNonNull(token.localId)
     // Just the last update time is checked because it mimics the way in which a relational database
@@ -154,7 +155,7 @@ class FakeComputationDb private constructor(
     tokens[globalId] ?: error("No computation for $globalId")
 
   override suspend fun updateComputationStage(
-    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    token: ComputationEditToken<ComputationType, ComputationStage>,
     nextStage: ComputationStage,
     inputBlobPaths: List<String>,
     passThroughBlobPaths: List<String>,
@@ -221,7 +222,7 @@ class FakeComputationDb private constructor(
   }
 
   override suspend fun updateComputationDetails(
-    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    token: ComputationEditToken<ComputationType, ComputationStage>,
     computationDetails: ComputationDetails
   ) {
     updateToken(token) { existing ->
@@ -230,7 +231,7 @@ class FakeComputationDb private constructor(
   }
 
   override suspend fun endComputation(
-    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    token: ComputationEditToken<ComputationType, ComputationStage>,
     endingStage: ComputationStage,
     endComputationReason: EndComputationReason
   ) {
@@ -242,7 +243,7 @@ class FakeComputationDb private constructor(
   }
 
   override suspend fun writeOutputBlobReference(
-    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    token: ComputationEditToken<ComputationType, ComputationStage>,
     blobRef: BlobRef
   ) {
     updateToken(token) { existing ->
@@ -262,7 +263,7 @@ class FakeComputationDb private constructor(
   }
 
   override suspend fun enqueue(
-    token: ComputationStorageEditToken<ComputationType, ComputationStage>,
+    token: ComputationEditToken<ComputationType, ComputationStage>,
     delaySecond: Int
   ) {
     // ignore the delaySecond in the fake
@@ -276,7 +277,7 @@ class FakeComputationDb private constructor(
     val claimed = tokens.values.asSequence()
       .filter { it.globalComputationId !in claimedComputationIds }
       .map {
-        ComputationStorageEditToken(
+        ComputationsDatabaseTransactor.ComputationEditToken(
           localId = it.localComputationId,
           protocol = when (it.computationStage.stageCase) {
             ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->

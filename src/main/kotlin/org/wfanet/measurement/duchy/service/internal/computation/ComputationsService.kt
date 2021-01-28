@@ -22,7 +22,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
-import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.mpcAlgorithm
@@ -253,8 +253,8 @@ class ComputationsService(
 }
 
 private fun ComputationToken.toDatabaseEditToken():
-  ComputationStorageEditToken<ComputationType, ComputationStage> =
-    ComputationStorageEditToken(
+  ComputationEditToken<ComputationType, ComputationStage> =
+    ComputationEditToken(
       localId = localComputationId,
       protocol = computationStage.toComputationType(),
       stage = computationStage,

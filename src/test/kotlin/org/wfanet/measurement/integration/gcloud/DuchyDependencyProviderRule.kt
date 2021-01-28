@@ -29,13 +29,13 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.SpannerMetricValueDatabase
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.METRIC_VALUES_SCHEMA
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
@@ -52,7 +52,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.storage.StorageClient
 
 private typealias ComputationsDb =
-  ComputationsRelationalDb<
+  ComputationsDatabaseTransactor<
     ComputationType,
     ComputationStage,
     ComputationStageDetails,
@@ -101,12 +101,12 @@ class DuchyDependencyProviderRule(
     val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
     val protocolStageEnumHelper = ComputationProtocolStages
     val stageDetails = ComputationProtocolStageDetails(otherDuchyNames)
-    val readOnlyDb = GcpSpannerReadOnlyComputationsRelationalDb(
+    val readOnlyDb = GcpSpannerComputationsDatabaseReader(
       computationsDatabaseClient,
       protocolStageEnumHelper
     )
     val computationsDb: ComputationsDb =
-      GcpSpannerComputationsDb(
+      GcpSpannerComputationsDatabaseTransactor(
         databaseClient = computationsDatabaseClient,
         computationMutations = ComputationMutations(
           ComputationTypes, protocolStageEnumHelper, stageDetails
@@ -116,7 +116,7 @@ class DuchyDependencyProviderRule(
 
     return object :
       ComputationsDatabase,
-      ReadOnlyComputationsRelationalDb by readOnlyDb,
+      ComputationsDatabaseReader by readOnlyDb,
       ComputationsDb by computationsDb,
       ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
       by protocolStageEnumHelper {

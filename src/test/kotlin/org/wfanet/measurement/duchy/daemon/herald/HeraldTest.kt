@@ -33,7 +33,7 @@ import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
-import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -61,7 +61,7 @@ internal class HeraldTest {
     mock(useConstructor = UseConstructor.parameterless()) {}
   private val duchyName = "BOHEMIA"
   private val otherDuchyNames = listOf("SALZBURG", "AUSTRIA")
-  private val fakeComputationStorage = FakeComputationDb()
+  private val fakeComputationStorage = FakeComputationsDatabase()
   private val duchyOrder = DuchyOrder(
     setOf(
       Duchy("BOHEMIA", 10L.toBigInteger()),

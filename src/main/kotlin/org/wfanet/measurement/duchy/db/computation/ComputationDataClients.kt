@@ -190,22 +190,4 @@ fun ComputationToken.allOutputBlobMetadataList(): List<ComputationStageBlobMetad
       it.dependencyType == ComputationBlobDependency.PASS_THROUGH
   }
 
-/**
- * Returns the [ComputationStageBlobMetadata] for the output blob that should hold data sent by
- * the [sender].
- *
- * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
- * case the path will be empty.
- */
-// TODO: replace with something generic.
-fun ComputationToken.toNoisedSketchBlobMetadataFor(
-  sender: String
-): ComputationStageBlobMetadata {
-  // Get the blob id by looking up the sender in the stage specific details.
-  val stageDetails = stageSpecificDetails.liquidLegionsV1.waitSketchStageDetails
-  val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
-  return blobsList.single {
-    it.dependencyType == ComputationBlobDependency.OUTPUT &&
-      it.blobId == blobId
-  }
-}
+private fun ComputationStageBlobMetadata.toBlobRef() = BlobRef(blobId, path)

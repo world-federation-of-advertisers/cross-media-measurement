@@ -33,7 +33,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding
 import org.wfanet.measurement.duchy.DuchyPublicKeyMap
-import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationDb
+import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
@@ -88,7 +88,7 @@ val duchyOrder = DuchyOrder(
 
 @RunWith(JUnit4::class)
 class ComputationDataClientsTest {
-  private val fakeDatabase = FakeComputationDb()
+  private val fakeDatabase = FakeComputationsDatabase()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

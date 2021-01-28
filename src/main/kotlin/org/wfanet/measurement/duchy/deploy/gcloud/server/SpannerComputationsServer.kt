@@ -22,8 +22,8 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDb
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
@@ -54,8 +54,8 @@ class SpannerComputationsServer : ComputationsServer() {
     spannerFlags.usingSpanner { spanner ->
       val databaseClient = spanner.databaseClient
       run(
-        GcpSpannerReadOnlyComputationsRelationalDb(databaseClient, protocolStageEnumHelper),
-        GcpSpannerComputationsDb(
+        GcpSpannerComputationsDatabaseReader(databaseClient, protocolStageEnumHelper),
+        GcpSpannerComputationsDatabaseTransactor(
           databaseClient = databaseClient,
           computationMutations = ComputationMutations(
             ComputationTypes, protocolStageEnumHelper, computationProtocolStageDetails

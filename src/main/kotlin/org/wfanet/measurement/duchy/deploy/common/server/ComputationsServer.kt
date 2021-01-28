@@ -22,8 +22,8 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
-import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
@@ -35,7 +35,7 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 import picocli.CommandLine
 
 private typealias ComputationsDb =
-  ComputationsRelationalDb<
+  ComputationsDatabaseTransactor<
     ComputationType,
     ComputationStage,
     ComputationStageDetails,
@@ -59,7 +59,7 @@ abstract class ComputationsServer : Runnable {
       ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
 
   protected fun run(
-    readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
+    computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb
   ) {
     val channel = buildChannel(flags.globalComputationsServiceTarget, flags.channelShutdownTimeout)
@@ -67,7 +67,7 @@ abstract class ComputationsServer : Runnable {
     val globalComputationsClient = GlobalComputationsCoroutineStub(channel)
       .withDuchyId(flags.duchy.duchyName)
 
-    val computationsDatabase = newComputationsDatabase(readOnlyComputationDb, computationDb)
+    val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
     CommonServer.fromFlags(
       flags.server,
       javaClass.name,
@@ -81,12 +81,12 @@ abstract class ComputationsServer : Runnable {
   }
 
   private fun newComputationsDatabase(
-    readOnlyComputationDb: ReadOnlyComputationsRelationalDb,
+    computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb
   ): ComputationsDatabase {
     return object :
       ComputationsDatabase,
-      ReadOnlyComputationsRelationalDb by readOnlyComputationDb,
+      ComputationsDatabaseReader by computationsDatabaseReader,
       ComputationsDb by computationDb,
       ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
       by protocolStageEnumHelper {

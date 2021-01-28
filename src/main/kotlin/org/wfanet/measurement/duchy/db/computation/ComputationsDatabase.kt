@@ -16,78 +16,27 @@ package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
- * Information about a computation needed to edit a computation.
+ * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer
+ * ([ComputationsDatabaseTransactor]) to interact with a database for all types of computations.
  */
-data class ComputationStorageEditToken<ProtocolT, StageT>(
-  /** The identifier for the computation used locally. */
-  val localId: Long,
-  /** The protocol used for the computation. */
-  val protocol: ProtocolT,
-  /** The stage of the computation when the token was created. */
-  val stage: StageT,
-  /** The number of the current attempt of this stage for this computation. */
-  val attempt: Int,
-  /**
-   * The version number of the last known edit to the computation.
-   * The version is a monotonically increasing number used as a guardrail to protect against
-   * concurrent edits to the same computation.
-   */
-  val editVersion: Long
-)
-
-/**
- * Specifies what to do with the lock on a computation after transitioning to a new stage.
- *
- * @see[ComputationsRelationalDb.updateComputationStage]
- */
-enum class AfterTransition {
-  /** Retain and extend the lock for the current owner. */
-  CONTINUE_WORKING,
-
-  /**
-   * Add the computation to the work queue, but in an unclaimed stage for some
-   * worker to claim at a later time.
-   */
-  ADD_UNCLAIMED_TO_QUEUE,
-
-  /**
-   * Do not add to the work queue, and release any lock on the computation.
-   * There is no work to be done on the computation at this time.
-   * Examples for when to set this include the computation finished or
-   * input from another source is required before continuing.
-   */
-  DO_NOT_ADD_TO_QUEUE
-}
-
-/**
- * Specifies why a computation has ended.
- *
- * @see[ComputationsRelationalDb.endComputation]
- */
-enum class EndComputationReason {
-  /** Computation went the expected execution and succeeded. */
-  SUCCEEDED,
-
-  /** Computation failed and will not be retried again. */
-  FAILED,
-
-  /**
-   * The computation was canceled. There were not known issues when it was ended, but results
-   * will not be obtained.
-   */
-  CANCELED
-}
+interface ComputationsDatabase :
+  ComputationsDatabaseReader,
+  ComputationsDatabaseTransactor<
+    ComputationType,
+    ComputationStage,
+    ComputationStageDetails,
+    ComputationDetails>,
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
 /**
  * Performs read operations on a relational database of computations.
  */
-interface ReadOnlyComputationsRelationalDb {
+interface ComputationsDatabaseReader {
 
   /** Gets a [ComputationToken] for the current state of a computation if it exists. */
   suspend fun readComputationToken(globalId: String): ComputationToken?
@@ -111,7 +60,7 @@ interface ReadOnlyComputationsRelationalDb {
  * @param StageDetailsT Object representing details specific to a stage of a computation.
  * @param ComputationDetailsT Object representing details specific to a computation.
  */
-interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, ComputationDetailsT> {
+interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, ComputationDetailsT> {
 
   /**
    * Inserts a new computation for the global identifier.
@@ -131,7 +80,7 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
    *
    * This will release any ownership and locks associated with the computation after delaySecond.
    */
-  suspend fun enqueue(token: ComputationStorageEditToken<ProtocolT, StageT>, delaySecond: Int)
+  suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int)
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.
@@ -157,7 +106,7 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
    * @param nextStageDetails Details specific to the next stage.
    */
   suspend fun updateComputationStage(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
     passThroughBlobPaths: List<String>,
@@ -168,20 +117,20 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
   suspend fun endComputation(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   )
 
   /** Overrides the computationDetails of the computation using the given value. */
   suspend fun updateComputationDetails(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDetailsT
   )
 
   /** Writes the reference to a BLOB needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     blobRef: BlobRef
   )
 
@@ -192,25 +141,32 @@ interface ComputationsRelationalDb<ProtocolT, StageT, StageDetailsT, Computation
     attempt: Long,
     metric: ComputationStatMetric
   )
-}
 
-/**
- * Grouping of a database reader and writer to interact with a database for all types of
- * computations.
- */
-interface ComputationsDatabase :
-  ReadOnlyComputationsRelationalDb,
-  ComputationsRelationalDb<
-    ComputationType,
-    ComputationStage,
-    ComputationStageDetails,
-    ComputationDetails>,
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  /**
+   * Information about a computation needed to edit a computation.
+   */
+  data class ComputationEditToken<ProtocolT, StageT>(
+    /** The identifier for the computation used locally. */
+    val localId: Long,
+    /** The protocol used for the computation. */
+    val protocol: ProtocolT,
+    /** The stage of the computation when the token was created. */
+    val stage: StageT,
+    /** The number of the current attempt of this stage for this computation. */
+    val attempt: Int,
+    /**
+     * The version number of the last known edit to the computation.
+     * The version is a monotonically increasing number used as a guardrail to protect against
+     * concurrent edits to the same computation.
+     */
+    val editVersion: Long
+  )
+}
 
 /**
  * Reference to a BLOB's storage location (key).
  *
- * @param idInRelationalDatabase identifier of the blob as stored in the [ComputationsRelationalDb]
+ * @param idInRelationalDatabase identifier of the blob as stored in the [ComputationsDatabaseTransactor]
  * @param key object key of the the blob which can be used to retrieve it from the BLOB storage.
  */
 data class BlobRef(val idInRelationalDatabase: Long, val key: String)
@@ -223,4 +179,45 @@ data class BlobRef(val idInRelationalDatabase: Long, val key: String)
  */
 data class ComputationStatMetric(val name: String, val value: Long)
 
-fun ComputationStageBlobMetadata.toBlobRef() = BlobRef(blobId, path)
+/**
+ * Specifies what to do with the lock on a computation after transitioning to a new stage.
+ *
+ * @see[ComputationsDatabaseTransactor.updateComputationStage]
+ */
+enum class AfterTransition {
+  /** Retain and extend the lock for the current owner. */
+  CONTINUE_WORKING,
+
+  /**
+   * Add the computation to the work queue, but in an unclaimed stage for some
+   * worker to claim at a later time.
+   */
+  ADD_UNCLAIMED_TO_QUEUE,
+
+  /**
+   * Do not add to the work queue, and release any lock on the computation.
+   * There is no work to be done on the computation at this time.
+   * Examples for when to set this include the computation finished or
+   * input from another source is required before continuing.
+   */
+  DO_NOT_ADD_TO_QUEUE
+}
+
+/**
+ * Specifies why a computation has ended.
+ *
+ * @see[ComputationsDatabaseTransactor.endComputation]
+ */
+enum class EndComputationReason {
+  /** Computation went the expected execution and succeeded. */
+  SUCCEEDED,
+
+  /** Computation failed and will not be retried again. */
+  FAILED,
+
+  /**
+   * The computation was canceled. There were not known issues when it was ended, but results
+   * will not be obtained.
+   */
+  CANCELED
+}

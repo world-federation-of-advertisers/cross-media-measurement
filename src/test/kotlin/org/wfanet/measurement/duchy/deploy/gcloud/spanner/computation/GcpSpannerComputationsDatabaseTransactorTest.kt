@@ -34,7 +34,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetai
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
-import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.A
@@ -210,7 +210,7 @@ class ProtocolStageDetailsHelper :
 }
 
 @RunWith(JUnit4::class)
-class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
+class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   companion object {
     val FAKE_COMPUTATION_DETAILS = FakeComputationDetails.newBuilder().apply {
@@ -229,7 +229,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     )
 
   private lateinit var database:
-    GcpSpannerComputationsDb<
+    GcpSpannerComputationsDatabaseTransactor<
       FakeProtocol,
       FakeProtocolStages,
       FakeProtocolStageDetails,
@@ -238,7 +238,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Before
   fun initDatabase() {
-    database = GcpSpannerComputationsDb(
+    database = GcpSpannerComputationsDatabaseTransactor(
       databaseClient,
       clock = testClock,
       computationMutations = computationMutations
@@ -377,7 +377,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun enqueue() = runBlocking<Unit> {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 1,
       protocol = FakeProtocol.ZERO,
       stage = C,
@@ -440,7 +440,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun `enqueue deleted computation fails`() = runBlocking<Unit> {
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 1,
       protocol = FakeProtocol.ZERO,
       stage = C,
@@ -454,7 +454,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun `enqueue with old token fails`() = runBlocking<Unit> {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = lastUpdated.plusSeconds(1)
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 1,
       protocol = FakeProtocol.ZERO,
       stage = C,
@@ -676,12 +676,12 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   private fun testTransitionOfStageWhere(
     afterTransition: AfterTransition
-  ): ComputationStorageEditToken<FakeProtocol, FakeProtocolStages> = runBlocking {
+  ): ComputationEditToken<FakeProtocol, FakeProtocolStages> = runBlocking {
     testClock.tickSeconds("stage_b_created")
     testClock.tickSeconds("last_updated")
     testClock.tickSeconds("lock_expires", 100)
     val globalId = "55"
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ONE,
       stage = B,
@@ -732,7 +732,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   }
 
   private suspend fun assertStageTransitioned(
-    token: ComputationStorageEditToken<FakeProtocol, FakeProtocolStages>
+    token: ComputationEditToken<FakeProtocol, FakeProtocolStages>
   ) {
     assertQueryReturns(
       databaseClient,
@@ -906,7 +906,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun `updateComputationStage illegal stage transition fails`() = runBlocking<Unit> {
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 1,
       attempt = 1,
       protocol = FakeProtocol.ZERO,
@@ -928,7 +928,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun writeOutputBlobReference() = runBlocking<Unit> {
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ZERO,
       stage = B,
@@ -1013,7 +1013,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun `update computation details`() = runBlocking<Unit> {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ZERO,
       stage = C,
@@ -1060,7 +1060,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun `end successful computation`() = runBlocking<Unit> {
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ZERO,
       stage = C,
@@ -1161,7 +1161,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   @Test
   fun `end failed computation`() = runBlocking<Unit> {
     val globalId = "474747"
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ZERO,
       stage = C,
@@ -1241,7 +1241,7 @@ class GcpSpannerComputationsDbTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   @Test
   fun `endComputation throws for non-ending state`() = runBlocking<Unit> {
-    val token = ComputationStorageEditToken(
+    val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ZERO,
       stage = C,

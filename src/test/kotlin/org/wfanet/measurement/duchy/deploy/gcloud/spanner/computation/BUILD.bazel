@@ -40,8 +40,8 @@ spanner_emulator_test(
 
 spanner_emulator_test(
     name = "GcpSpannerComputationDbTest",
-    srcs = ["GcpSpannerComputationsDbTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDbTest",
+    srcs = ["GcpSpannerComputationsDatabaseTransactorTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactorTest",
     deps = [
         ":fake_protocol_stage_details_java_proto",
         "//imports/java/com/google/cloud/spanner",
@@ -57,8 +57,8 @@ spanner_emulator_test(
 
 spanner_emulator_test(
     name = "GcpSpannerReadOnlyComputationsRelationalDbTest",
-    srcs = ["GcpSpannerReadOnlyComputationsRelationalDbTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerReadOnlyComputationsRelationalDbTest",
+    srcs = ["GcpSpannerComputationsDatabaseReaderTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReaderTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/common/truth/extensions/proto",

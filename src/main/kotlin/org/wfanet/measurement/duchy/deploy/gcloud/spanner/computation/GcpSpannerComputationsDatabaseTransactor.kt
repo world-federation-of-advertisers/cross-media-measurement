@@ -30,8 +30,8 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
-import org.wfanet.measurement.duchy.db.computation.ComputationStorageEditToken
-import org.wfanet.measurement.duchy.db.computation.ComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -46,14 +46,14 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /**
- * Implementation of [ComputationsRelationalDb] using GCP Spanner Database.
+ * Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database.
  */
-class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+class GcpSpannerComputationsDatabaseTransactor<ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC(),
   private val lockDuration: Duration = Duration.ofMinutes(5)
-) : ComputationsRelationalDb<ProtocolT, StageT, StageDT, ComputationDT> {
+) : ComputationsDatabaseTransactor<ProtocolT, StageT, StageDT, ComputationDT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
     GlobalBitsPlusTimeStampIdGenerator(clock)
@@ -109,7 +109,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
   }
 
   override suspend fun enqueue(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     delaySecond: Int
   ) {
     runIfTokenFromLastUpdate(token) { ctx ->
@@ -248,7 +248,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
     clock.instant().plus(lockDuration).toGcloudTimestamp()
 
   override suspend fun updateComputationStage(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     nextStage: StageT,
     inputBlobPaths: List<String>,
     passThroughBlobPaths: List<String>,
@@ -288,7 +288,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
   }
 
   override suspend fun endComputation(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
     endComputationReason: EndComputationReason
   ) {
@@ -367,7 +367,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
   }
 
   override suspend fun updateComputationDetails(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDT
   ) {
     runIfTokenFromLastUpdate(token) { ctx ->
@@ -384,7 +384,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
 
   private suspend fun mutationsToChangeStages(
     ctx: AsyncDatabaseClient.TransactionContext,
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     newStage: StageT,
     writeTime: Timestamp,
     afterTransition: AfterTransition,
@@ -553,7 +553,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
   }
 
   override suspend fun writeOutputBlobReference(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     blobRef: BlobRef
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
@@ -617,7 +617,7 @@ class GcpSpannerComputationsDb<ProtocolT, StageT, StageDT : Message, Computation
    *     update
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
-    token: ComputationStorageEditToken<ProtocolT, StageT>,
+    token: ComputationEditToken<ProtocolT, StageT>,
     readWriteTransactionBlock: TransactionWork<R>
   ): R {
     return databaseClient.readWriteTransaction().execute { ctx ->

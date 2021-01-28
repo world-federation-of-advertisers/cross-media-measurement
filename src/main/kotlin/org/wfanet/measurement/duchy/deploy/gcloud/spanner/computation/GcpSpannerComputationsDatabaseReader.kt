@@ -20,20 +20,20 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
-import org.wfanet.measurement.duchy.db.computation.ReadOnlyComputationsRelationalDb
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
- * Implementation of [ReadOnlyComputationsRelationalDb] using GCP Spanner Database.
+ * Implementation of [ComputationsDatabaseReader] using GCP Spanner Database.
  */
-class GcpSpannerReadOnlyComputationsRelationalDb(
+class GcpSpannerComputationsDatabaseReader(
   private val databaseClient: AsyncDatabaseClient,
   private val computationProtocolStagesHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
-) : ReadOnlyComputationsRelationalDb {
+) : ComputationsDatabaseReader {
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? =
     ComputationTokenProtoQuery(

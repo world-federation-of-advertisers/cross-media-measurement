@@ -40,7 +40,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 
 @RunWith(JUnit4::class)
-class GcpSpannerReadOnlyComputationsRelationalDbTest :
+class GcpSpannerComputationsDatabaseReaderTest :
   UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   companion object {
@@ -70,12 +70,12 @@ class GcpSpannerReadOnlyComputationsRelationalDbTest :
     )
 
   private lateinit var liquidLegionsSketchAggregationSpannerReader:
-    GcpSpannerReadOnlyComputationsRelationalDb
+    GcpSpannerComputationsDatabaseReader
 
   @Before
   fun initDatabase() {
     liquidLegionsSketchAggregationSpannerReader =
-      GcpSpannerReadOnlyComputationsRelationalDb(
+      GcpSpannerComputationsDatabaseReader(
         databaseClient,
         ComputationProtocolStages
       )
