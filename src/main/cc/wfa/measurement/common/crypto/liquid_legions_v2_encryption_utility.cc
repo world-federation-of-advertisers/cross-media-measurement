@@ -22,6 +22,7 @@
 #include "src/main/cc/estimation/estimators.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
+#include "wfa/measurement/common/crypto/noise_parameters_computation.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 #include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/measurement/common/macros.h"
@@ -190,25 +191,17 @@ absl::Status EncryptCompositeElGamalAndAppendToString(
   return absl::OkStatus();
 }
 
-math::DistributedGeometricRandomComponentOptions ToOptions(
-    const DistributedGeometricDistributionParams& params) {
-  return {.num = params.num(),
-          .p = params.p(),
-          .truncate_threshold = params.shift_offset(),
-          .shift_offset = params.shift_offset()};
-}
-
 // Adds encrypted blinded-histogram-noise registers to the end of data.
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddBlindedHistogramNoise(
     ProtocolCryptor& protocol_cryptor, int total_sketches_count,
-    const DistributedGeometricDistributionParams& params, std::string& data) {
+    const math::DistributedGeometricRandomComponentOptions& options,
+    std::string& data) {
   ASSIGN_OR_RETURN(
       std::string blinded_histogram_noise_key_ec,
       protocol_cryptor.MapToCurve(kBlindedHistogramNoiseRegisterKey));
 
   int64_t noise_register_added = 0;
-  math::DistributedGeometricRandomComponentOptions options = ToOptions(params);
   for (int k = 1; k <= total_sketches_count; ++k) {
     // The random number of distinct register_ids that should appear k times.
     ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
@@ -244,13 +237,13 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
     ProtocolCryptor& protocol_cryptor,
-    const DistributedGeometricDistributionParams& params, std::string& data) {
+    const math::DistributedGeometricRandomComponentOptions& options,
+    std::string& data) {
   ASSIGN_OR_RETURN(std::string publisher_noise_register_id_ec,
                    protocol_cryptor.MapToCurve(kPublisherNoiseRegisterId));
 
-  ASSIGN_OR_RETURN(
-      int64_t noise_registers_count,
-      math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+  ASSIGN_OR_RETURN(int64_t noise_registers_count,
+                   math::GetDistributedGeometricRandomComponent(options));
   for (int i = 0; i < noise_registers_count; ++i) {
     // Add register id, a predefined constant.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
@@ -273,13 +266,13 @@ absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddGlobalReachDpNoise(
     ProtocolCryptor& protocol_cryptor,
-    const DistributedGeometricDistributionParams& params, std::string& data) {
+    const math::DistributedGeometricRandomComponentOptions& options,
+    std::string& data) {
   ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
                    protocol_cryptor.MapToCurve(kDestroyedRegisterKey));
 
-  ASSIGN_OR_RETURN(
-      int64_t noise_registers_count,
-      math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+  ASSIGN_OR_RETURN(int64_t noise_registers_count,
+                   math::GetDistributedGeometricRandomComponent(options));
   for (int i = 0; i < noise_registers_count; ++i) {
     // Add register id, a random number.
     // The prefix is to ensure the value is not in the regular id space.
@@ -332,12 +325,11 @@ absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
 absl::StatusOr<int64_t> AddFrequencyDpNoise(
     ProtocolCryptor& full_protocol_cryptor,
     ProtocolCryptor& partial_protocol_cryptor, int maximum_frequency,
-    int curve_id, const DistributedGeometricDistributionParams& params,
+    int curve_id,
+    const math::DistributedGeometricRandomComponentOptions& options,
     std::string& data) {
   ASSIGN_OR_RETURN(std::vector<std::string> count_values_plaintext,
                    GetCountValuesPlaintext(maximum_frequency, curve_id));
-
-  math::DistributedGeometricRandomComponentOptions options = ToOptions(params);
   int total_noise_tuples_added = 0;
   for (int frequency = 1; frequency <= maximum_frequency; ++frequency) {
     ASSIGN_OR_RETURN(int64_t noise_tuples_count,
@@ -374,10 +366,10 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
 absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
     ProtocolCryptor& full_protocol_cryptor,
     ProtocolCryptor& partial_protocol_cryptor,
-    const DistributedGeometricDistributionParams& params, std::string& data) {
-  ASSIGN_OR_RETURN(
-      int64_t noise_tuples_count,
-      math::GetDistributedGeometricRandomComponent(ToOptions(params)));
+    const math::DistributedGeometricRandomComponentOptions& options,
+    std::string& data) {
+  ASSIGN_OR_RETURN(int64_t noise_tuples_count,
+                   math::GetDistributedGeometricRandomComponent(options));
   for (int i = 0; i < noise_tuples_count; ++i) {
     for (int j = 0; j < 3; ++j) {
       // Add three random flags encrypted using the partial_protocol_cryptor.
@@ -432,43 +424,48 @@ absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& full_protocol_cryptor,
 
 absl::Status ValidateSetupNoiseParameters(
     const RegisterNoiseGenerationParameters& parameters) {
-  int64_t total_register_count = parameters.total_noise_registers_count();
-  int64_t sketch_count = parameters.total_sketches_count();
-  int64_t blind_histogram_noise_offset =
-      parameters.blind_histogram_noise_parameters().shift_offset();
-  int64_t reach_dp_noise_offset =
-      parameters.global_reach_dp_noise_parameters().shift_offset();
-  int64_t publisher_noise_offset =
-      parameters.publisher_noise_parameters().shift_offset();
-
-  if (sketch_count < 1) {
-    return absl::InvalidArgumentError("sketch count should be positive.");
+  if (parameters.contributors_count() < 1) {
+    return absl::InvalidArgumentError("contributors_count should be positive.");
   }
-  if (blind_histogram_noise_offset < 1 || reach_dp_noise_offset < 1 ||
-      publisher_noise_offset < 1) {
-    return absl::InvalidArgumentError("shift_offset should be positive.");
+  if (parameters.total_sketches_count() < 1) {
+    return absl::InvalidArgumentError(
+        "total_sketches_count should be positive.");
   }
-  int64_t min_register_count =
-      publisher_noise_offset * 2 + reach_dp_noise_offset * 2 +
-      blind_histogram_noise_offset * sketch_count * (sketch_count + 1);
-  if (total_register_count < min_register_count) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "total_noise_registers_count should be at least ", min_register_count));
+  if (parameters.dp_params().blind_histogram().epsilon() <= 0 ||
+      parameters.dp_params().blind_histogram().delta() <= 0) {
+    return absl::InvalidArgumentError(
+        "Invalid blind_histogram dp parameter. epsilon/delta should be "
+        "positive.");
+  }
+  if (parameters.dp_params().noise_for_publisher_noise().epsilon() <= 0 ||
+      parameters.dp_params().noise_for_publisher_noise().delta() <= 0) {
+    return absl::InvalidArgumentError(
+        "Invalid noise_for_publisher_noise dp parameter. epsilon/delta should "
+        "be positive.");
+  }
+  if (parameters.dp_params().global_reach_dp_noise().epsilon() <= 0 ||
+      parameters.dp_params().global_reach_dp_noise().delta() <= 0) {
+    return absl::InvalidArgumentError(
+        "Invalid global_reach_dp_noise dp parameter. epsilon/delta should be "
+        "positive.");
   }
   return absl::OkStatus();
 }
 
 absl::Status ValidateFrequencyNoiseParameters(
     const FlagCountTupleNoiseGenerationParameters& parameters) {
-  int total_tuple_count = parameters.total_noise_tuples_count();
-  int min_tuple_count =
-      parameters.non_destroyed_noise_parameters().shift_offset() * 2 *
-          parameters.maximum_frequency() +
-      parameters.destroyed_noise_parameters().shift_offset() * 2;
-
-  if (total_tuple_count < min_tuple_count) {
-    return absl::InvalidArgumentError(absl::StrCat(
-        "total_noise_tuples_count should be at least ", min_tuple_count));
+  if (parameters.contributors_count() < 1) {
+    return absl::InvalidArgumentError("contributors_count should be positive.");
+  }
+  if (parameters.maximum_frequency() < 2) {
+    return absl::InvalidArgumentError(
+        "maximum_frequency should be at least 2.");
+  }
+  if (parameters.dp_params().epsilon() <= 0 ||
+      parameters.dp_params().delta() <= 0) {
+    return absl::InvalidArgumentError(
+        "Invalid frequency noise dp parameter. epsilon/delta should be "
+        "positive.");
   }
   return absl::OkStatus();
 }
@@ -479,17 +476,22 @@ absl::Status AddAllFrequencyNoise(
     const FlagCountTupleNoiseGenerationParameters& noise_parameters,
     std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
+
+  auto options = GetFrequencyNoiseOptions(
+      noise_parameters.dp_params(), noise_parameters.maximum_frequency(),
+      noise_parameters.contributors_count());
+  int total_noise_tuples_count =
+      options.shift_offset * 2 * (noise_parameters.maximum_frequency() + 1);
   ASSIGN_OR_RETURN(
       int frequency_dp_noise_tuples_count,
       AddFrequencyDpNoise(full_protocol_cryptor, partial_protocol_cryptor,
                           noise_parameters.maximum_frequency(), curve_id,
-                          noise_parameters.non_destroyed_noise_parameters(),
-                          data));
-  ASSIGN_OR_RETURN(int destroyed_noise_tuples_count,
-                   AddDestroyedFrequencyNoise(
-                       full_protocol_cryptor, partial_protocol_cryptor,
-                       noise_parameters.destroyed_noise_parameters(), data));
-  int padding_noise_tuples_count = noise_parameters.total_noise_tuples_count() -
+                          options, data));
+  ASSIGN_OR_RETURN(
+      int destroyed_noise_tuples_count,
+      AddDestroyedFrequencyNoise(full_protocol_cryptor,
+                                 partial_protocol_cryptor, options, data));
+  int padding_noise_tuples_count = total_noise_tuples_count -
                                    frequency_dp_noise_tuples_count -
                                    destroyed_noise_tuples_count;
   RETURN_IF_ERROR(AddPaddingFrequencyNoise(full_protocol_cryptor,
@@ -511,9 +513,27 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   if (request.has_noise_parameters()) {
     RegisterNoiseGenerationParameters noise_parameters =
         request.noise_parameters();
+    auto blind_histogram_noise_options = GetBlindHistogramNoiseOptions(
+        noise_parameters.dp_params().blind_histogram(),
+        noise_parameters.total_sketches_count(),
+        noise_parameters.contributors_count());
+    auto noise_for_publisher_noise_options = GetNoiseForPublisherNoiseOptions(
+        noise_parameters.dp_params().noise_for_publisher_noise(),
+        noise_parameters.total_sketches_count(),
+        noise_parameters.contributors_count());
+    auto global_reach_dp_noise_options = GetGlobalReachDpNoiseOptions(
+        noise_parameters.dp_params().global_reach_dp_noise(),
+        noise_parameters.contributors_count());
+    int total_noise_registers_count =
+        noise_for_publisher_noise_options.shift_offset * 2 +
+        global_reach_dp_noise_options.shift_offset * 2 +
+        blind_histogram_noise_options.shift_offset *
+            noise_parameters.total_sketches_count() *
+            (noise_parameters.total_sketches_count() + 1);
+
     // reserve the space to hold all output data.
     response_crv->reserve(request.combined_register_vector().size() +
-                          noise_parameters.total_noise_registers_count() *
+                          total_noise_registers_count *
                               kBytesPerCipherRegister);
 
     RETURN_IF_ERROR(ValidateSetupNoiseParameters(noise_parameters));
@@ -530,27 +550,23 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     // 1. Add blinded histogram noise.
     ASSIGN_OR_RETURN(
         int64_t blinded_histogram_noise_count,
-        AddBlindedHistogramNoise(
-            *protocol_cryptor, noise_parameters.total_sketches_count(),
-            noise_parameters.blind_histogram_noise_parameters(),
-            *response_crv));
+        AddBlindedHistogramNoise(*protocol_cryptor,
+                                 noise_parameters.total_sketches_count(),
+                                 blind_histogram_noise_options, *response_crv));
     // 2. Add noise for publisher noise.
-    ASSIGN_OR_RETURN(
-        int64_t publisher_noise_count,
-        AddNoiseForPublisherNoise(*protocol_cryptor,
-                                  noise_parameters.publisher_noise_parameters(),
-                                  *response_crv));
-    // 3. Add reach DP noise.
-    ASSIGN_OR_RETURN(int64_t reach_dp_noise_count,
-                     AddGlobalReachDpNoise(
-                         *protocol_cryptor,
-                         noise_parameters.global_reach_dp_noise_parameters(),
+    ASSIGN_OR_RETURN(int64_t publisher_noise_count,
+                     AddNoiseForPublisherNoise(
+                         *protocol_cryptor, noise_for_publisher_noise_options,
                          *response_crv));
+    // 3. Add reach DP noise.
+    ASSIGN_OR_RETURN(
+        int64_t reach_dp_noise_count,
+        AddGlobalReachDpNoise(*protocol_cryptor, global_reach_dp_noise_options,
+                              *response_crv));
     // 4. Add padding noise.
-    int64_t padding_noise_count =
-        noise_parameters.total_noise_registers_count() -
-        blinded_histogram_noise_count - publisher_noise_count -
-        reach_dp_noise_count;
+    int64_t padding_noise_count = total_noise_registers_count -
+                                  blinded_histogram_noise_count -
+                                  publisher_noise_count - reach_dp_noise_count;
     RETURN_IF_ERROR(AddPaddingReachNoise(*protocol_cryptor, padding_noise_count,
                                          *response_crv));
   }
@@ -785,12 +801,16 @@ CompleteExecutionPhaseTwoAtAggregator(
   }
 
   // Estimates reach.
-  int64_t active_register_count = tuple_counts - blinded_histogram_noise_count -
-                                  request.global_reach_dp_noise_baseline();
-  if (request.global_reach_dp_noise_baseline() > 0) {
+  int64_t active_register_count = tuple_counts - blinded_histogram_noise_count;
+  if (request.has_noise_baseline()) {
+    auto options = GetGlobalReachDpNoiseOptions(
+        request.noise_baseline().global_reach_dp_noise(),
+        request.noise_baseline().contributors_count());
+    int global_reach_dp_noise_baseline = options.shift_offset * options.num;
+    active_register_count -= global_reach_dp_noise_baseline;
     // Publisher noise and padding noise each contribute 1 additional destroyed
     // register, which shouldn't be included when estimating reach.
-    // Deletes 2 from the active_register_count if noises exist.
+    // Subtracts 2 from the active_register_count if noises exist.
     active_register_count -= 2;
   }
   // Ensures that active_register_count is at least 0.
@@ -905,19 +925,24 @@ CompleteExecutionPhaseThreeAtAggregator(
     }
   }
 
+  int actual_total = column_size;
   // Adjusts the histogram according the noise baseline.
-  int noise_baseline_per_bucket =
-      request.global_frequency_dp_noise_baseline_per_bucket();
-
-  int actual_total = 0;
-  for (int i = 0; i < maximum_frequency; ++i) {
-    histogram[i] = std::max(0, histogram[i] - noise_baseline_per_bucket);
-    actual_total += histogram[i];
+  if (request.has_global_frequency_dp_noise_per_bucket()) {
+    auto options = GetFrequencyNoiseOptions(
+        request.global_frequency_dp_noise_per_bucket().dp_params(),
+        request.maximum_frequency(),
+        request.global_frequency_dp_noise_per_bucket().contributors_count());
+    int noise_baseline_per_bucket = options.shift_offset * options.num;
+    actual_total = 0;
+    for (int i = 0; i < maximum_frequency; ++i) {
+      histogram[i] = std::max(0, histogram[i] - noise_baseline_per_bucket);
+      actual_total += histogram[i];
+    }
   }
 
   if (actual_total == 0) {
     return absl::InvalidArgumentError(
-        "There is neither acutal data nor effective noise in the request.");
+        "There is neither actual data nor effective noise in the request.");
   }
 
   CompleteExecutionPhaseThreeAtAggregatorResponse response;

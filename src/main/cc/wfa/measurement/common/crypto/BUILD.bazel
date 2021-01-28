@@ -139,6 +139,7 @@ cc_library(
     deps = [
         ":constants",
         ":encryption_utility_helper",
+        ":noise_parameters_computation",
         ":protocol_cryptor",
         ":started_thread_cpu_timer",
         "//src/main/cc/wfa/measurement/common:macros",

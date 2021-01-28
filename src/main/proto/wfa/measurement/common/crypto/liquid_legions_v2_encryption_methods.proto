@@ -50,36 +50,36 @@ message RegisterNoiseGenerationParameters {
   ElGamalPublicKey composite_el_gamal_public_key = 1;
   // The elliptical curve to work on.
   int64 curve_id = 2;
-  // The total number of noise registers to be added.
-  // The value should be at least equal to
-  //   publisher_noise_parameters.offset * 2
-  //   + global_reach_dp_noise_parameters.offset * 2
-  //   + blind_histogram_noise_parameters.offset * total_sketches_count
-  //   * (total_sketches_count + 1).
-  // TODO: add link to the external paper.
-  int32 total_noise_registers_count = 3;
+  // The number of honest parties contributing their noise.
+  int32 contributors_count = 3;
   // The total number of sketches across all workers for this computation.
   int32 total_sketches_count = 4;
-  // TODO: replace the following 3 using ReachNoiseDifferentialPrivacyParams
-  DistributedGeometricDistributionParams blind_histogram_noise_parameters = 5;
-  DistributedGeometricDistributionParams publisher_noise_parameters = 6;
-  DistributedGeometricDistributionParams global_reach_dp_noise_parameters = 7;
+  // Differential privacy parameters for all noise types.
+  ReachNoiseDifferentialPrivacyParams dp_params = 5;
 }
 
 message FlagCountTupleNoiseGenerationParameters {
   // Maximum frequency to measure.
   int32 maximum_frequency = 1;
-  // The total number of noise tuples to be added.
-  // The value should be at least equal to
-  //   non_destroyed_noise_parameters.offset*2*maximum_frequency
-  //     + destroyed_noise_parameters.offset*2
-  int32 total_noise_tuples_count = 2;
-  // TODO: replace the following 2 using a same DifferentialPrivacyParams
-  // The distribution of the number of noise tuples with flag (0, R, R) in each
-  // bucket. In total, there are maximum_frequency such buckets.
-  DistributedGeometricDistributionParams non_destroyed_noise_parameters = 3;
-  // The distribution of the number of noise tuples with flag (R, R, R).
-  DistributedGeometricDistributionParams destroyed_noise_parameters = 4;
+  // The number of honest parties contributing their noise.
+  int32 contributors_count = 2;
+  // Differential privacy parameters for noise tuples.
+  // Same value is used for both (0, R, R) and (R, R, R) tuples.
+  DifferentialPrivacyParams dp_params = 3;
+}
+
+message GlobalReachDpNoiseBaseline {
+  // The number of honest parties contributing their noise.
+  int32 contributors_count = 1;
+  // DP parameters used when adding the global reach DP noise registers.
+  DifferentialPrivacyParams global_reach_dp_noise = 2;
+}
+
+message PerBucketFrequencyDpNoiseBaseline {
+  // The number of honest parties contributing their noise.
+  int32 contributors_count = 1;
+  // DP parameters used when adding noise.
+  DifferentialPrivacyParams dp_params = 2;
 }
 
 // The request to complete work in the setup phase.
@@ -216,12 +216,10 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   int32 maximum_frequency = 5;
   // LiquidLegions parameters used for reach estimation.
   LiquidLegionsParameters liquid_legions_parameters = 6;
-  // Global Reach DP noise baseline. i.e. the mean of the global two-sided
-  // distributed random variable. non-negative.
-  // If =0, it means no noise (including non-DP noises) was added.
-  // If >0, the value should be equal to
-  // global_reach_dp_noise_parameters.shift_offset*num used in the setup phase.
-  int64 global_reach_dp_noise_baseline = 7;
+  // Parameters for computing the noise baseline of the global reach DP noise
+  // registers added in the setup phase.
+  // The baseline is subtracted before reach is estimated.
+  GlobalReachDpNoiseBaseline noise_baseline = 7;
 }
 
 // The response of the CompleteExecutionPhaseTwoAtAggregator method.
@@ -276,11 +274,9 @@ message CompleteExecutionPhaseThreeAtAggregatorRequest {
   int64 curve_id = 3;
   // Maximum frequency to output in the result. At least 2.
   int32 maximum_frequency = 4;
-  // Global frequency noise baseline for each bucket. i.e. the mean of the
-  // global two-sided distributed random variable. non-negative.
-  // If noise was added, the value should be equal to
-  // #(workers)*non_destroyed_noise_parameters.shift_offset used by all workers.
-  int64 global_frequency_dp_noise_baseline_per_bucket = 5;
+  // Parameters for computing the noise baseline of the frequency DP noise
+  // added. The baseline is subtracted before frequency is estimated.
+  PerBucketFrequencyDpNoiseBaseline global_frequency_dp_noise_per_bucket = 5;
 }
 
 // The response of the CompleteExecutionPhaseThreeAtAggregator method.
