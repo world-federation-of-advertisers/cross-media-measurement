@@ -24,7 +24,7 @@ import org.wfanet.measurement.common.hexAsByteString
 data class CryptoKeySet(
   // The public and private ElGamal keys of the duchy that owns the mill.
   val ownPublicAndPrivateKeys: ElGamalKeyPair,
-  // A map from other duchies' name and their public ElGamal keys.
+  // A map of other duchies' name and their public ElGamal keys.
   val otherDuchyPublicKeys: Map<String, ElGamalPublicKey>,
   // The client ElGamal public keys combined from all duchies' public keys.
   val clientPublicKey: ElGamalPublicKey,
@@ -39,7 +39,7 @@ const val BYTES_OF_EL_GAMAL_PUBLIC_KEYS = BYTES_PER_PUBLIC_KEY * 2
 const val BYTES_OF_EL_GAMAL_KEYS = BYTES_OF_EL_GAMAL_PUBLIC_KEYS + BYTES_PER_PRIVATE_KEY
 
 /**
- * Convert a hexString to its equivalent ElGamalKeyPair proto object.
+ * Converts a hexString to its equivalent ElGamalKeyPair proto object.
  */
 fun String.toElGamalKeyPair(): ElGamalKeyPair {
   require(length == BYTES_OF_EL_GAMAL_KEYS * 2) {
@@ -52,7 +52,7 @@ fun String.toElGamalKeyPair(): ElGamalKeyPair {
 }
 
 /**
- * Convert a hexString to its equivalent ElGamalPublicKey proto object.
+ * Converts a hexString to its equivalent ElGamalPublicKey proto object.
  */
 fun String.toElGamalPublicKey(): ElGamalPublicKey {
   require(length == BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2) {

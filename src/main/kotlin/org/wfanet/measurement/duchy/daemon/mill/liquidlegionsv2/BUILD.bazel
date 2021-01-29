@@ -33,6 +33,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
         "//src/main/swig/common/crypto/liquidlegionsv2:liquid_legions_v2_encryption_utility",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
     ],
 )

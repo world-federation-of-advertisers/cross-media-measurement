@@ -28,6 +28,7 @@ import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
+import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -86,6 +87,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       computationStatsClient = computationStatsClient,
       workerStubs = computationControlClientMap,
       cryptoKeySet = newCryptoKeySet(),
+      duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
       cryptoWorker = JniLiquidLegionsV2Encryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       requestChunkSizeBytes = flags.requestChunkSizeBytes,

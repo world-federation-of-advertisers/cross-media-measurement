@@ -18,6 +18,11 @@ import java.nio.file.Paths
 import java.time.Clock
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.flattenConcat
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
+import org.wfanet.anysketch.crypto.ElGamalPublicKeys
+import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
+import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
@@ -32,6 +37,7 @@ import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
+import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.crypto.liquidlegionsv2.LiquidLegionsV2Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
@@ -78,6 +84,7 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
+ * @param duchyOrder The DuchyOrder that determines ordering of duchies for computations.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
  */
@@ -90,8 +97,10 @@ class LiquidLegionsV2Mill(
   throttler: MinimumIntervalThrottler,
   requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
   clock: Clock = Clock.systemUTC(),
+
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
+  private val duchyOrder: DuchyOrder,
   private val cryptoWorker: LiquidLegionsV2Encryption,
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
     12.0,
@@ -135,6 +144,9 @@ class LiquidLegionsV2Mill(
     Pair(Stage.EXECUTION_PHASE_THREE, NON_AGGREGATOR)
       to ::completeExecutionPhaseThreeAtNonAggregator
   )
+
+  // The key is the concatenation of the sorted duchy ids.
+  private var partiallyCombinedPublicKeyMap = HashMap<String, ElGamalPublicKey>()
 
   override suspend fun processComputationImpl(token: ComputationToken) {
     require(token.computationDetails.hasLiquidLegionsV2()) {
@@ -516,11 +528,55 @@ class LiquidLegionsV2Mill(
       )
   }
 
+  // Combines the public keys from the duchies after this duchy in the ring and the primary duchy.
+  fun getPartiallyCombinedPublicKey(globalId: String, nextDuchy: String): ElGamalPublicKey {
+    val order = duchyOrder.computationOrder(globalId)
+    require(order.contains(nextDuchy)) { "$nextDuchy doesn't exist in the duchy ring." }
+    val aggregatorId = order[0]
+    if (nextDuchy == aggregatorId) {
+      // Return the aggregator's key if next duchy is the aggregator.
+      return cryptoKeySet.otherDuchyPublicKeys[nextDuchy] ?: error(
+        "$nextDuchy is not in the key set."
+      )
+    }
+
+    val partialList = order.subList(order.indexOf(nextDuchy), order.size) + aggregatorId
+    val lookupKey = partialList.sorted().joinToString()
+
+    return partiallyCombinedPublicKeyMap.computeIfAbsent(lookupKey) {
+      val request = CombineElGamalPublicKeysRequest.newBuilder().apply {
+        curveId = cryptoKeySet.curveId.toLong()
+        addAllElGamalKeys(
+          partialList.map {
+            val key = cryptoKeySet.otherDuchyPublicKeys[it] ?: error(
+              "$it is not in the key set."
+            )
+            ElGamalPublicKeys.newBuilder().apply {
+              elGamalG = key.generator
+              elGamalY = key.element
+            }.build()
+          }
+        )
+      }.build()
+      val response = CombineElGamalPublicKeysResponse.parseFrom(
+        SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
+      )
+      ElGamalPublicKey.newBuilder().apply {
+        generator = response.elGamalKeys.elGamalG
+        element = response.elGamalKeys.elGamalY
+      }.build()
+    }
+  }
+
   companion object {
     init {
       loadLibrary(
         name = "estimators",
         directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/estimation")
+      )
+      loadLibrary(
+        name = "sketch_encrypter_adapter",
+        directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
   }

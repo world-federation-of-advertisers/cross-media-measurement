@@ -165,7 +165,7 @@ class LiquidLegionsV2MillTest {
 
   private val duchyOrder = DuchyOrder(
     setOf(
-      Duchy(DUCHY_NAME, 10L.toBigInteger()),
+      Duchy(DUCHY_THREE_NAME, 10L.toBigInteger()),
       Duchy(DUCHY_ONE_NAME, 200L.toBigInteger()),
       Duchy(DUCHY_TWO_NAME, 303L.toBigInteger())
     )
@@ -174,7 +174,7 @@ class LiquidLegionsV2MillTest {
   private val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
     liquidLegionsV2Builder.apply {
       role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-      aggregatorNodeId = DUCHY_NAME
+      aggregatorNodeId = DUCHY_THREE_NAME
       incomingNodeId = DUCHY_ONE_NAME
       outgoingNodeId = DUCHY_TWO_NAME
     }
@@ -184,8 +184,8 @@ class LiquidLegionsV2MillTest {
     liquidLegionsV2Builder.apply {
       role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
       aggregatorNodeId = DUCHY_ONE_NAME
-      incomingNodeId = DUCHY_NAME
-      outgoingNodeId = DUCHY_TWO_NAME
+      incomingNodeId = DUCHY_TWO_NAME
+      outgoingNodeId = DUCHY_ONE_NAME
     }
   }.build()
 
@@ -205,7 +205,7 @@ class LiquidLegionsV2MillTest {
       ComputationsService(
         fakeComputationDb,
         globalComputationStub,
-        DUCHY_NAME,
+        DUCHY_THREE_NAME,
         Clock.systemUTC()
       )
     )
@@ -296,6 +296,7 @@ class LiquidLegionsV2MillTest {
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = cryptoKeySet,
+        duchyOrder = duchyOrder,
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         requestChunkSizeBytes = 20
@@ -342,8 +343,8 @@ class LiquidLegionsV2MillTest {
           .setStageSpecificDetails(
             ComputationStageDetails.newBuilder().apply {
               liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
-                putExternalDuchyLocalBlobId("NEXT_WORKER", 1L)
-                putExternalDuchyLocalBlobId("AGGREGATOR_WORKER", 2L)
+                putExternalDuchyLocalBlobId("DUCHY_ONE", 1L)
+                putExternalDuchyLocalBlobId("DUCHY_TWO", 2L)
               }
             }
           )
@@ -1127,30 +1128,53 @@ class LiquidLegionsV2MillTest {
       )
   }
 
+  @Test
+  fun `getPartiallyCombinedPublicKey should be correct`() {
+    // This id would result in a duchy ring of "DUCHY_ONE_NAME -> DUCHY_TWO_NAME -> DUCHY_THREE_NAME"
+    val globalId = "1234"
+
+    assertThat(mill.getPartiallyCombinedPublicKey(globalId, DUCHY_ONE_NAME)).isEqualTo(
+      DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey()
+    )
+    assertThat(mill.getPartiallyCombinedPublicKey(globalId, DUCHY_TWO_NAME)).isEqualTo(
+      cryptoKeySet.clientPublicKey
+    )
+    assertThat(mill.getPartiallyCombinedPublicKey(globalId, DUCHY_THREE_NAME)).isEqualTo(
+      DUCHY_ONE_THREE_COMBINED_PUBLIC_KEY.toElGamalPublicKey()
+    )
+  }
+
   companion object {
     private const val MILL_ID = "a nice mill"
-    private const val DUCHY_NAME = "THIS_WORKER"
-    private const val DUCHY_ONE_NAME = "NEXT_WORKER"
-    private const val DUCHY_TWO_NAME = "AGGREGATOR_WORKER"
+    private const val DUCHY_ONE_NAME = "DUCHY_ONE"
+    private const val DUCHY_TWO_NAME = "DUCHY_TWO"
+    private const val DUCHY_THREE_NAME = "DUCHY_THREE"
+
     private val otherDuchyNames = listOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME)
     private const val LOCAL_ID = 1111L
     private const val GLOBAL_ID = LOCAL_ID.toString()
 
     // These keys are valid keys obtained from the crypto library tests, i.e.,
     // create a cipher using random keys and then get these keys.
-    private const val OWN_EL_GAMAL_KEY =
-      "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
-        "02d1432ca007a6c6d739fce2d21feb56d9a2c35cf968265f9093c4b691e11386b3" +
-        "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
     private const val DUCHY_ONE_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "039ef370ff4d216225401781d88a03f5a670a5040e6333492cb4e0cd991abbd5a3"
     private const val DUCHY_TWO_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
+        "02d1432ca007a6c6d739fce2d21feb56d9a2c35cf968265f9093c4b691e11386b3"
+    private const val DUCHY_THREE_PUBLIC_KEY =
+      "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "02d0f25ab445fc9c29e7e2509adc93308430f432522ffa93c2ae737ceb480b66d7"
+    private const val OWN_EL_GAMAL_KEY = DUCHY_THREE_PUBLIC_KEY +
+      "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
+    // combined from DUCHY_ONE_PUBLIC_KEY + DUCHY_TWO_PUBLIC_KEY + DUCHY_THREE_PUBLIC_KEY
     private const val CLIENT_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
+    // combine from DUCHY_ONE_PUBLIC_KEY + DUCHY_THREE_PUBLIC_KEY
+    private const val DUCHY_ONE_THREE_COMBINED_PUBLIC_KEY =
+      "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
+        "031887eb8e4d4290fa97601c1ef6cda80ab3d2fe82da39ef8ed2e846cc7866a3b0"
     private const val CURVE_ID = 415; // NID_X9_62_prime256v1
 
     private val cryptoKeySet =
@@ -1158,7 +1182,8 @@ class LiquidLegionsV2MillTest {
         ownPublicAndPrivateKeys = OWN_EL_GAMAL_KEY.toElGamalKeyPair(),
         otherDuchyPublicKeys = mapOf(
           DUCHY_ONE_NAME to DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey(),
-          DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKey()
+          DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKey(),
+          DUCHY_THREE_NAME to DUCHY_THREE_PUBLIC_KEY.toElGamalPublicKey()
         ),
         clientPublicKey = CLIENT_PUBLIC_KEY.toElGamalPublicKey(),
         curveId = CURVE_ID
