@@ -1,0 +1,20 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "security_provider",
+    srcs = ["SecurityProvider.kt"],
+    deps = [
+        "//imports/java/org/conscrypt",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "signing_certs",
+    srcs = ["SigningCerts.kt"],
+    deps = [
+        ":security_provider",
+    ],
+)

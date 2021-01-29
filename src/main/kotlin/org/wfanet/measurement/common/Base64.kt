@@ -23,3 +23,6 @@ fun ByteArray.base64UrlEncode(): String =
 /** Decodes a [String] encoded with RFC 7515's Base64url into a [ByteArray]. */
 fun String.base64UrlDecode(): ByteArray =
   Base64.getUrlDecoder().decode(this)
+
+/** Decodes this base64-encoded [String] to a [ByteArray]. */
+fun String.base64Decode(): ByteArray = Base64.getDecoder().decode(this)

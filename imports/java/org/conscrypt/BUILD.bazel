@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "conscrypt",
+    actual = "@maven//:org_conscrypt_conscrypt_openjdk_uber",
+)

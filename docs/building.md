@@ -16,6 +16,7 @@ tests, your build environment must meet the following:
 *   [Clang](https://clang.llvm.org/)
 *   [SWIG](http://swig.org/)
 *   Bash
+*   OpenSSL 1.1.1+
 
 The executable dependencies must be in your `$PATH`.
 
