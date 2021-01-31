@@ -18,6 +18,7 @@ import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.ElGamalKeyPair
+import org.wfanet.measurement.common.crypto.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.common.crypto.liquidlegionsv2.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
@@ -91,11 +92,13 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       cryptoWorker = JniLiquidLegionsV2Encryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       requestChunkSizeBytes = flags.requestChunkSizeBytes,
+      maxFrequency = flags.sketchMaxFrequency,
       liquidLegionsConfig = LiquidLegionsConfig(
         flags.liquidLegionsDecayRate,
-        flags.liquidLegionsSize,
-        flags.sketchMaxFrequency
-      )
+        flags.liquidLegionsSize
+      ),
+      // TODO: read the noise config from config file.
+      noiseConfig = LiquidLegionsV2NoiseConfig.getDefaultInstance()
     )
 
     runBlocking { mill.continuallyProcessComputationQueue() }

@@ -58,3 +58,16 @@ java_proto_library(
     name = "liquid_legions_v2_encryption_methods_java_proto",
     deps = [":liquid_legions_v2_encryption_methods_proto"],
 )
+
+proto_library(
+    name = "liquid_legions_v2_noise_config_proto",
+    srcs = ["liquid_legions_v2_noise_config.proto"],
+    strip_import_prefix = "/src/main/proto",
+    visibility = ["//visibility:private"],
+    deps = [":parameters_proto"],
+)
+
+java_proto_library(
+    name = "liquid_legions_v2_noise_config_java_proto",
+    deps = [":liquid_legions_v2_noise_config_proto"],
+)

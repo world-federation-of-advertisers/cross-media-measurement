@@ -1,0 +1,48 @@
+// Copyright 2020 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.common.crypto;
+
+import "wfa/measurement/common/crypto/parameters.proto";
+
+option java_package = "org.wfanet.measurement.common.crypto";
+option java_multiple_files = true;
+
+// Noise parameters selected for the LiquidLegionV2 MPC protocol.
+// Only used as the configuration file consumed by the LiquidLegionV2Mill.
+message LiquidLegionsV2NoiseConfig {
+  message ReachNoiseConfig {
+    // DP params for the blind histogram noise register.
+    // Each of these registers contains a random register id, the same constant
+    // key indicating that the register is destroyed, and an arbitrary count
+    // value.
+    DifferentialPrivacyParams blind_histogram_noise = 1;
+    // DP params for the noise for the publisher noise registers.
+    // Each of these registers contains a well-known constant register id, and
+    // arbitrary key and count values.
+    DifferentialPrivacyParams noise_for_publisher_noise = 2;
+    // DP params for the global reach DP noise registers.
+    // Each of these registers contains a random register id which is out of
+    // bounds of the normal id space, the same constant key indicating that the
+    // register is destroyed, and an arbitrary count value.
+    DifferentialPrivacyParams global_reach_dp_noise = 3;
+  }
+  ReachNoiseConfig reach_noise_config = 1;
+
+  // Differential privacy parameters for noise tuples.
+  // Same value is used for both (0, R, R) and (R, R, R) tuples.
+  DifferentialPrivacyParams frequency_noise_config = 2;
+}

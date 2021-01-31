@@ -28,6 +28,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:advance_computation_request_headers",
         "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_java_proto",
+        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_noise_config_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",

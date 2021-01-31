@@ -56,6 +56,7 @@ import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregato
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorRequest
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorResponse
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeRequest
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeResponse
@@ -65,6 +66,7 @@ import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
 import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
+import org.wfanet.measurement.common.crypto.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.common.crypto.liquidlegionsv2.LiquidLegionsV2Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -177,6 +179,7 @@ class LiquidLegionsV2MillTest {
       aggregatorNodeId = DUCHY_THREE_NAME
       incomingNodeId = DUCHY_ONE_NAME
       outgoingNodeId = DUCHY_TWO_NAME
+      totalRequisitionCount = PUBLISHER_COUNT
     }
   }.build()
 
@@ -186,6 +189,28 @@ class LiquidLegionsV2MillTest {
       aggregatorNodeId = DUCHY_ONE_NAME
       incomingNodeId = DUCHY_TWO_NAME
       outgoingNodeId = DUCHY_ONE_NAME
+      totalRequisitionCount = PUBLISHER_COUNT
+    }
+  }.build()
+
+  private val testNoiseConfig = LiquidLegionsV2NoiseConfig.newBuilder().apply {
+    reachNoiseConfigBuilder.apply {
+      blindHistogramNoiseBuilder.apply {
+        epsilon = 1.0
+        delta = 2.0
+      }
+      noiseForPublisherNoiseBuilder.apply {
+        epsilon = 3.0
+        delta = 4.0
+      }
+      globalReachDpNoiseBuilder.apply {
+        epsilon = 5.0
+        delta = 6.0
+      }
+    }
+    frequencyNoiseConfigBuilder.apply {
+      epsilon = 7.0
+      delta = 8.0
     }
   }.build()
 
@@ -299,7 +324,9 @@ class LiquidLegionsV2MillTest {
         duchyOrder = duchyOrder,
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
-        requestChunkSizeBytes = 20
+        requestChunkSizeBytes = 20,
+        maxFrequency = MAX_FREQUENCY,
+        noiseConfig = testNoiseConfig
       )
 
     whenever(
@@ -569,12 +596,13 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeSetupPhase(any()))
       .thenAnswer {
-        val request: CompleteSetupPhaseRequest = it.getArgument(0)
+        cryptoRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
         CompleteSetupPhaseResponse.newBuilder()
-          .setCombinedRegisterVector(request.combinedRegisterVector.concat(postFix)).build()
+          .setCombinedRegisterVector(cryptoRequest.combinedRegisterVector.concat(postFix)).build()
       }
 
     // Stage 1. Process the above computation
@@ -614,6 +642,23 @@ class LiquidLegionsV2MillTest {
         "Phase-done"
       )
     ).inOrder()
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteSetupPhaseRequest.newBuilder().apply {
+        combinedRegisterVector = ByteString.copyFromUtf8("sketch")
+        noiseParametersBuilder.apply {
+          compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+          curveId = cryptoKeySet.curveId.toLong()
+          contributorsCount = WORKER_COUNT
+          totalSketchesCount = PUBLISHER_COUNT
+          dpParamsBuilder.apply {
+            blindHistogram = testNoiseConfig.reachNoiseConfig.blindHistogramNoise
+            noiseForPublisherNoise = testNoiseConfig.reachNoiseConfig.noiseForPublisherNoise
+            globalReachDpNoise = testNoiseConfig.reachNoiseConfig.globalReachDpNoise
+          }
+        }
+      }.build()
+    )
   }
 
   @Test
@@ -638,12 +683,13 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeSetupPhase(any()))
       .thenAnswer {
-        val request: CompleteSetupPhaseRequest = it.getArgument(0)
+        cryptoRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeSetupPhase-done")
         CompleteSetupPhaseResponse.newBuilder()
-          .setCombinedRegisterVector(request.combinedRegisterVector.concat(postFix)).build()
+          .setCombinedRegisterVector(cryptoRequest.combinedRegisterVector.concat(postFix)).build()
       }
 
     // Stage 1. Process the above computation
@@ -683,6 +729,23 @@ class LiquidLegionsV2MillTest {
         "pPhase-done"
       )
     ).inOrder()
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteSetupPhaseRequest.newBuilder().apply {
+        combinedRegisterVector = ByteString.copyFromUtf8("sketch_1_sketch_2_sketch_3_")
+        noiseParametersBuilder.apply {
+          compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+          curveId = cryptoKeySet.curveId.toLong()
+          contributorsCount = WORKER_COUNT
+          totalSketchesCount = PUBLISHER_COUNT
+          dpParamsBuilder.apply {
+            blindHistogram = testNoiseConfig.reachNoiseConfig.blindHistogramNoise
+            noiseForPublisherNoise = testNoiseConfig.reachNoiseConfig.noiseForPublisherNoise
+            globalReachDpNoise = testNoiseConfig.reachNoiseConfig.globalReachDpNoise
+          }
+        }
+      }.build()
+    )
   }
 
   @Test
@@ -755,12 +818,13 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    var cryptoRequest = CompleteExecutionPhaseOneRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseOne(any()))
       .thenAnswer {
-        val request: CompleteExecutionPhaseOneRequest = it.getArgument(0)
+        cryptoRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOne-done")
         CompleteExecutionPhaseOneResponse.newBuilder()
-          .setCombinedRegisterVector(request.combinedRegisterVector.concat(postFix))
+          .setCombinedRegisterVector(cryptoRequest.combinedRegisterVector.concat(postFix))
           .build()
       }
 
@@ -800,6 +864,15 @@ class LiquidLegionsV2MillTest {
         "onPhaseOne-done" // Chunk 2, the rest
       )
     ).inOrder()
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteExecutionPhaseOneRequest.newBuilder().apply {
+        combinedRegisterVector = ByteString.copyFromUtf8("data")
+        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+        curveId = cryptoKeySet.curveId.toLong()
+      }.build()
+    )
   }
 
   @Test
@@ -820,12 +893,13 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any()))
       .thenAnswer {
-        val request: CompleteExecutionPhaseOneAtAggregatorRequest = it.getArgument(0)
+        cryptoRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOneAtAggregator-done")
         CompleteExecutionPhaseOneAtAggregatorResponse.newBuilder()
-          .setFlagCountTuples(request.combinedRegisterVector.concat(postFix))
+          .setFlagCountTuples(cryptoRequest.combinedRegisterVector.concat(postFix))
           .build()
       }
 
@@ -866,6 +940,20 @@ class LiquidLegionsV2MillTest {
         "or-done" // Chunk 3, the rest
       )
     ).inOrder()
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
+        combinedRegisterVector = ByteString.copyFromUtf8("data")
+        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+        curveId = cryptoKeySet.curveId.toLong()
+        noiseParametersBuilder.apply {
+          maximumFrequency = MAX_FREQUENCY
+          contributorsCount = WORKER_COUNT
+          dpParams = testNoiseConfig.frequencyNoiseConfig
+        }
+      }.build()
+    )
   }
 
   @Test
@@ -886,12 +974,13 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    var cryptoRequest = CompleteExecutionPhaseTwoRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseTwo(any()))
       .thenAnswer {
-        val request: CompleteExecutionPhaseTwoRequest = it.getArgument(0)
+        cryptoRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwo-done")
         CompleteExecutionPhaseTwoResponse.newBuilder()
-          .setFlagCountTuples(request.flagCountTuples.concat(postFix))
+          .setFlagCountTuples(cryptoRequest.flagCountTuples.concat(postFix))
           .build()
       }
 
@@ -931,6 +1020,21 @@ class LiquidLegionsV2MillTest {
         "onPhaseTwo-done" // Chunk 2, the rest
       )
     ).inOrder()
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteExecutionPhaseTwoRequest.newBuilder().apply {
+        flagCountTuples = ByteString.copyFromUtf8("data")
+        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+        partialCompositeElGamalPublicKey = DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey()
+        curveId = cryptoKeySet.curveId.toLong()
+        noiseParametersBuilder.apply {
+          maximumFrequency = MAX_FREQUENCY
+          contributorsCount = WORKER_COUNT
+          dpParams = testNoiseConfig.frequencyNoiseConfig
+        }
+      }.build()
+    )
   }
 
   @Test
@@ -952,12 +1056,13 @@ class LiquidLegionsV2MillTest {
     )
 
     val testReach = 123L
+    var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any()))
       .thenAnswer {
-        val request: CompleteExecutionPhaseTwoAtAggregatorRequest = it.getArgument(0)
+        cryptoRequest = it.getArgument(0)
         val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwoAtAggregator-done")
         CompleteExecutionPhaseTwoAtAggregatorResponse.newBuilder()
-          .setSameKeyAggregatorMatrix(request.flagCountTuples.concat(postFix))
+          .setSameKeyAggregatorMatrix(cryptoRequest.flagCountTuples.concat(postFix))
           .setReach(testReach)
           .build()
       }
@@ -1003,6 +1108,24 @@ class LiquidLegionsV2MillTest {
         "or-done" // Chunk 3, the rest
       )
     ).inOrder()
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
+        flagCountTuples = ByteString.copyFromUtf8("data")
+        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+        curveId = cryptoKeySet.curveId.toLong()
+        maximumFrequency = MAX_FREQUENCY
+        liquidLegionsParametersBuilder.apply {
+          decayRate = 12.0
+          size = 10_000_000L
+        }
+        noiseBaselineBuilder.apply {
+          contributorsCount = WORKER_COUNT
+          globalReachDpNoise = testNoiseConfig.reachNoiseConfig.globalReachDpNoise
+        }
+      }.build()
+    )
   }
 
   @Test
@@ -1024,12 +1147,13 @@ class LiquidLegionsV2MillTest {
         )
       )
 
+      var cryptoRequest = CompleteExecutionPhaseThreeRequest.getDefaultInstance()
       whenever(mockCryptoWorker.completeExecutionPhaseThree(any()))
         .thenAnswer {
-          val request: CompleteExecutionPhaseThreeRequest = it.getArgument(0)
+          cryptoRequest = it.getArgument(0)
           val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseThree-done")
           CompleteExecutionPhaseThreeResponse.newBuilder()
-            .setSameKeyAggregatorMatrix(request.sameKeyAggregatorMatrix.concat(postFix))
+            .setSameKeyAggregatorMatrix(cryptoRequest.sameKeyAggregatorMatrix.concat(postFix))
             .build()
         }
 
@@ -1059,6 +1183,14 @@ class LiquidLegionsV2MillTest {
           "onPhaseThree-done" // Chunk 2, the rest
         )
       ).inOrder()
+
+      assertThat(cryptoRequest).isEqualTo(
+        CompleteExecutionPhaseThreeRequest.newBuilder().apply {
+          sameKeyAggregatorMatrix = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+          curveId = cryptoKeySet.curveId.toLong()
+        }.build()
+      )
     }
 
   @Test
@@ -1084,12 +1216,14 @@ class LiquidLegionsV2MillTest {
       )
     )
 
+    var cryptoRequest = CompleteExecutionPhaseThreeAtAggregatorRequest.getDefaultInstance()
     whenever(mockCryptoWorker.completeExecutionPhaseThreeAtAggregator(any()))
-      .thenReturn(
+      .thenAnswer {
+        cryptoRequest = it.getArgument(0)
         CompleteExecutionPhaseThreeAtAggregatorResponse.newBuilder()
           .putAllFrequencyDistribution(mapOf(1L to 0.3, 2L to 0.7))
           .build()
-      )
+      }
 
     // Stage 1. Process the above computation
     mill.pollAndProcessNextComputation()
@@ -1126,6 +1260,19 @@ class LiquidLegionsV2MillTest {
           )
           .build()
       )
+
+    assertThat(cryptoRequest).isEqualTo(
+      CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
+        sameKeyAggregatorMatrix = ByteString.copyFromUtf8("data")
+        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+        curveId = cryptoKeySet.curveId.toLong()
+        maximumFrequency = MAX_FREQUENCY
+        globalFrequencyDpNoisePerBucketBuilder.apply {
+          contributorsCount = WORKER_COUNT
+          dpParams = testNoiseConfig.frequencyNoiseConfig
+        }
+      }.build()
+    )
   }
 
   @Test
@@ -1145,13 +1292,16 @@ class LiquidLegionsV2MillTest {
   }
 
   companion object {
+    private const val PUBLISHER_COUNT = 10
+    private const val WORKER_COUNT = 3
     private const val MILL_ID = "a nice mill"
     private const val DUCHY_ONE_NAME = "DUCHY_ONE"
     private const val DUCHY_TWO_NAME = "DUCHY_TWO"
     private const val DUCHY_THREE_NAME = "DUCHY_THREE"
+    private const val MAX_FREQUENCY = 15
 
     private val otherDuchyNames = listOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME)
-    private const val LOCAL_ID = 1111L
+    private const val LOCAL_ID = 1234L
     private const val GLOBAL_ID = LOCAL_ID.toString()
 
     // These keys are valid keys obtained from the crypto library tests, i.e.,

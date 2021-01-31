@@ -74,6 +74,7 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV1
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
+ * @param maxFrequency The maximum frequency to reveal in the frequency histogram.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
  */
 class LiquidLegionsV1Mill(
@@ -88,10 +89,10 @@ class LiquidLegionsV1Mill(
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsV1Encryption,
+  private val maxFrequency: Int = 10,
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
     12.0,
-    10_000_000L,
-    10
+    10_000_000L
   )
 ) : MillBase(
   millId,
@@ -333,7 +334,7 @@ class LiquidLegionsV1Mill(
             .setCurveId(cryptoKeySet.curveId.toLong())
             .setLocalElGamalKeyPair(cryptoKeySet.ownPublicAndPrivateKeys)
             .setFlagCounts(readAndCombineAllInputBlobs(token, 1))
-            .setMaximumFrequency(liquidLegionsConfig.maxFrequency)
+            .setMaximumFrequency(maxFrequency)
             .build()
         )
       logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)

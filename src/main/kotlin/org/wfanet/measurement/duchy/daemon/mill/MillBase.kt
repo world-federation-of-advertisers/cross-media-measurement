@@ -463,7 +463,7 @@ const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
 
 data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
 
-data class LiquidLegionsConfig(val decayRate: Double, val size: Long, val maxFrequency: Int)
+data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
 
 class PermanentComputationError(cause: Throwable) : Exception(cause)
 

@@ -26,6 +26,7 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
 import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
+import org.wfanet.measurement.common.crypto.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.common.crypto.liquidlegionsv1.JniLiquidLegionsV1Encryption
 import org.wfanet.measurement.common.crypto.liquidlegionsv2.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -220,7 +221,8 @@ class InProcessDuchy(
         duchyOrder = duchyDependencies.duchyPublicKeys.latest.toDuchyOrder(),
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        requestChunkSizeBytes = 2_000_000
+        requestChunkSizeBytes = 2_000_000,
+        noiseConfig = LiquidLegionsV2NoiseConfig.getDefaultInstance()
       )
 
       liquidLegionsV2mill.continuallyProcessComputationQueue()
