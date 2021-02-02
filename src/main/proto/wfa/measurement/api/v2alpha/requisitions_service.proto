@@ -23,35 +23,29 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionsServiceProto";
 
-// Service for interacting with `MetricRequisition`s.
-//
-// `MetricRequisition`s are created on behalf of `MeasurementConsumer`s to
-// instruct `DataProvider`s to collect and upload the metric value necessary
-// to compute a `Measurement` result.
+// Service for interacting with `Requisition` resources.
 service Requisitions {
-  // Returns the metric requisitions for the specified `EventGroup`.
-  rpc ListMetricRequisitions(ListMetricRequisitionsRequest)
-      returns (ListMetricRequisitionsResponse);
+  // Returns the `Requisition`s for the specified `EventGroup`.
+  rpc ListRequisitions(ListRequisitionsRequest)
+      returns (ListRequisitionsResponse);
 
-  // Marks a `MetricRequisition` as unfulfillable, transitioning it to the
-  // `UNFULFILLABLE` state. This is a terminal state for the `MetricRequisition`
-  // and all computations that rely on the `MetricRequisition` will fail.
-  // Consequently, this should only be used for permanent failures and not
-  // transient errors.
+  // Marks a `Requisition` as unfulfillable, transitioning it to the
+  // `UNFULFILLABLE` state. This is a terminal state for the `Requisition` and
+  // all computations that rely on the `Requisition` will fail. Consequently,
+  // this should only be used for permanent failures and not transient errors.
   //
   // This is a state transition method (see https://aip.dev/216).
-  rpc RefuseMetricRequisition(RefuseMetricRequisitionRequest)
-      returns (MetricRequisition);
+  rpc RefuseRequisition(RefuseRequisitionRequest) returns (Requisition);
 }
 
-// Request message for `ListMetricRequisitions` method.
-message ListMetricRequisitionsRequest {
+// Request message for `ListRequisitions` method.
+message ListRequisitionsRequest {
   // Resource key of the parent `EventGroup`. Required. `event_group_id` may be
   // omitted to list across all `EventGroup`s for the specified `DataProvider`.
   //
   // Results in a `PERMISSION_DENIED` error if any key segment does not match
   // for the authenticated user. For example, attempting to list
-  // `MetricRequisition`s for other `DataProvider`s or for `EventGroup`s
+  // `Requisition`s for other `DataProvider`s or for `EventGroup`s
   // belonging to other `MeasurementConsumer`s.
   EventGroup.Key parent = 1;
 
@@ -64,28 +58,28 @@ message ListMetricRequisitionsRequest {
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
   // fields specified as logical ANDs.
   message Filter {
-    repeated MetricRequisition.State states = 1;
+    repeated Requisition.State states = 1;
   }
   // Result filter. If a page token is specified, then this will be ignored and
   // the filter for the first page will be applied.
   Filter filter = 4;
 }
 
-// Response message for `ListMetricRequisitions` method.
-message ListMetricRequisitionsResponse {
-  // The `MetricRequisition` resources.
-  repeated MetricRequisition metric_requisitions = 1;
+// Response message for `ListRequisitions` method.
+message ListRequisitionsResponse {
+  // The `Requisition` resources.
+  repeated Requisition requisitions = 1;
 
   // A token that can be specified in a subsequent call to retrieve the next
   // page. See https://aip.dev/158.
   string next_page_token = 2;
 }
 
-// Request message for `RefuseMetricRequisition` method.
-message RefuseMetricRequisitionRequest {
-  // Resource key of the `MetricRequisition` to mark as `UNFILLABLE`. Required.
-  MetricRequisition.Key key = 1;
+// Request message for `RefuseRequisition` method.
+message RefuseRequisitionRequest {
+  // Resource key of the `Requisition` to mark as `UNFILLABLE`. Required.
+  Requisition.Key key = 1;
 
   // Details about the refusal.
-  MetricRequisition.Refusal refusal = 2;
+  Requisition.Refusal refusal = 2;
 }

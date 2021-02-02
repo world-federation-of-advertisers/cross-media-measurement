@@ -38,9 +38,7 @@ proto_library(
     srcs = ["requisition_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":crypto_proto",
         ":data_provider_proto",
-        ":sketch_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -153,5 +151,6 @@ proto_library(
         ":crypto_proto",
         ":data_provider_proto",
         ":measurement_consumer_proto",
+        ":sketch_proto",
     ],
 )

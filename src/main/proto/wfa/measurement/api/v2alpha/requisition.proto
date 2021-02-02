@@ -24,27 +24,31 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionProto";
 
-// A requisition for a single metric across a set of `EventGroup`s from a single
-// `DataProvider`. Output-only.
-message MetricRequisition {
+// A requisition for data across `EventGroup`s from a single `DataProvider`.
+// Output-only.
+//
+// A `Requisition` is created on behalf of a `MeasurementConsumer` to instruct a
+// `DataProvider` to collect and upload data necessary to compute a
+// `Measurement` result.
+message Requisition {
   message Key {
     string data_provider_id = 1;
-    string metric_requisition_id = 2;
+    string requisition_id = 2;
   }
   // Resource key.
   Key key = 1;
 
-  // Resource key of `Measurement` that this `MetricRequisition` is associated
-  // with. Required. Immutable.
+  // Resource key of `Measurement` that this `Requisition` is associated with.
+  // Required. Immutable.
   Measurement.Key measurement = 2;
 
   // Denormalized dereferenced `measurement_consumer_certificate` field from
   // `measurement`. Required. Immutable.
   MeasurementConsumerCertificate measurement_consumer_certificate = 3;
 
-  // Denormalized `metric_definition` field from `measurement`. Required.
+  // Denormalized `measurement_spec` field from `measurement`. Required.
   // Immutable.
-  SignedData metric_definition = 4;
+  SignedData measurement_spec = 4;
 
   // Denormalized `data_provider_public_key` field from the corresponding
   // `DataProviderEntry` in `measurement`.  Required. Immutable.
@@ -54,19 +58,19 @@ message MetricRequisition {
   // `DataProviderEntry` in `measurement`.  Required. Immutable.
   bytes encrypted_requisition_spec = 6;
 
-  // State of a metrics requisition.
+  // State of a `Requisition`.
   enum State {
     // Default value if state is omitted. Should never be used.
     STATE_UNSPECIFIED = 0;
-    // No metric value has been sent to fulfill this requisition.
+    // The `Requisition` has not yet been fulfilled.
     UNFULFILLED = 1;
-    // A metric value has been sent to fulfill this requisition. Terminal state.
+    // The `Requisition` has been fulfilled. Terminal state.
     FULFILLED = 2;
-    // The requisition cannot be fulfilled. Terminal state. Any Measurements
-    // using this requisition will be put into the FAILED state.
+    // The `Requisition` cannot be fulfilled. Terminal state. Any `Measurement`s
+    // using this `Requisition` will be put into the `FAILED` state.
     UNFULFILLABLE = 3;
   }
-  // The state of this requisition.
+  // The state of this `Requisition`.
   State state = 7;
 
   message Refusal {
@@ -78,34 +82,35 @@ message MetricRequisition {
       // previously existed but has been deleted.
       UNKNOWN_EVENT_GROUP = 1;
 
-      // The `MetricDefinition` specifies a configuration that the
+      // The `MeasurementSpec` specifies a configuration that the
       // `DataProvider` does not and will never support for this `EventGroup`.
-      METRIC_DEFINITION_UNSUPPORTED = 2;
+      MEASUREMENT_SPEC_UNSUPPORTED = 2;
 
       // The collection interval covers a range that is sufficiently long ago
       // that the DataProvider no longer retains the underlying data.
       COLLECTION_INTERVAL_TOO_DISTANT = 3;
 
-      // Validation of the `MetricRequisition.Spec` signature failed.
+      // Validation of the `measurement_spec` or `encrypted_requisition_spec`
+      // signature failed.
       SIGNATURE_INVALID = 4;
 
       // There is insufficient remaining privacy budget to fulfill this
-      // `MetricRequisition`.
+      // `Requisition`.
       INSUFFICIENT_PRIVACY_BUDGET = 5;
 
-      // The `DataProvider` has declined to fulfill this `MetricRequisition`.
-      // The data required to fulfill this request may or may not be available.
+      // The `DataProvider` has declined to fulfill this `Requisition`. The data
+      // required to fulfill this request may or may not be available.
       DECLINED = 6;
 
-      // The data required to fulfill this MetricRequisition is inaccessible or
-      // lost. This should only be used when there is no other Justification
+      // The data required to fulfill this `Requisition` is inaccessible or
+      // lost. This should only be used when there is no other `Justification`
       // that is more specific.
       DATA_UNAVAILABLE = 7;
     }
     Justification justification = 1;
 
-    // Human-readable string adding more context to the provided Justification.
-    // This should NOT include sensitive information.
+    // Human-readable string adding more context to the provided
+    // `Justification`. This should NOT include sensitive information.
     //
     // Example: "Data Provider X does not support Virtual ID model line Y".
     string message = 2;

@@ -22,43 +22,43 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionFulfillmentServiceProto";
 
-// Duchy service for fulfilling `MetricRequisition`s.
+// Duchy service for fulfilling `Requisition`s.
 service RequisitionFulfillment {
-  // Fulfills a `MetricRequisition`.
-  rpc FulfillMetricRequisition(stream FulfillMetricRequisitionRequest)
-      returns (FulfillMetricRequisitionResponse) {}
+  // Fulfills a `Requisition`.
+  rpc FulfillRequisition(stream FulfillRequisitionRequest)
+      returns (FulfillRequisitionResponse) {}
 }
 
-// Request message for `FulfillMetricRequisition` method.
-message FulfillMetricRequisitionRequest {
+// Request message for `FulfillRequisition` method.
+message FulfillRequisitionRequest {
   // The header message for this streaming request.
   message Header {
-    // Resource key of the `MetricRequisition`. Required.
-    MetricRequisition.Key key = 1;
+    // Resource key of the `Requisition`. Required.
+    Requisition.Key key = 1;
 
     // Cryptographic digital signature of the "requisition fingerprint" which
     // can be verified using the `DataProvider`'s certificate. Required.
     //
     // The requisition fingerprint is defined as the concatenation of:
     // 1. The SHA256 hash of `encrypted_requisition_spec` from the
-    //    `MetricRequisition`.
-    // 2. `data_provider_list_hash` from the `MetricRequisition`.
-    // 3. The `data` in `metric_definition` from the `MetricRequisition`.
+    //    `Requisition`.
+    // 2. `data_provider_list_hash` from the `Requisition`.
+    // 3. The `data` in `measurement_spec` from the `Requisition`.
     bytes data_provider_participation_signature = 2;
   }
 
   // The chunk message for this streaming request.
   message BodyChunk {
-    // The portion of the data for this `BodyChunk`, encrypted using the
-    // `CombinedPublicKey` specified in the `MetricRequisition`. Required.
+    // The portion of the data for this `BodyChunk`. Required.
     //
-    // If the corresponding `MetricDefinition` is a sketch, this is the register
-    // data as documented in the `Sketch` message (sketch.proto). The only
-    // alignment requirement is by bytes: a chunk might begin or end in the
-    // middle of a single register.
+    // The format of the data depends on the corresponding `MeasurementSpec`. If
+    // the `Requisition` is for an encrypted sketch, this is the register
+    // data as documented in the `Sketch` message (sketch.proto) encrypted using
+    // the specified `CombinedPublicKey`. The only alignment requirement is by
+    // bytes: a chunk might begin or end in the middle of a single register.
     //
     // The optimal size of this field is one that would result in the
-    // `FulfillMetricRequisitionRequest` message being between 16KiB and 64KiB.
+    // `FulfillRequisitionRequest` message being between 16KiB and 64KiB.
     // See https://github.com/grpc/grpc.github.io/issues/371
     bytes data = 1;
   }
@@ -75,8 +75,8 @@ message FulfillMetricRequisitionRequest {
   }
 }
 
-// Response message for `FulfillMetricRequisition` method.
-message FulfillMetricRequisitionResponse {
-  // Resulting state of the `MetricRequisition`.
-  MetricRequisition.State state = 1;
+// Response message for `FulfillRequisition` method.
+message FulfillRequisitionResponse {
+  // Resulting state of the `Requisition`.
+  Requisition.State state = 1;
 }

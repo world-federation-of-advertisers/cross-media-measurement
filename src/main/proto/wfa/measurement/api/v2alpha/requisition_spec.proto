@@ -17,18 +17,15 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
-import "wfa/measurement/api/v2alpha/sketch.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionSpecProto";
 
-// Specification for a `MetricRequisition` which can be cryptographically
-// signed.
+// Specification for a `Requisition` which can be cryptographically signed.
 message RequisitionSpec {
-  // Filter to apply to metric events.
+  // Filter to apply to events.
   message EventFilter {
     // Age, gender identity, viewable duration, etc.
     // TODO: Design and add filter predicates.
@@ -63,10 +60,10 @@ message RequisitionSpec {
     // Resource key of the `EventGroup` that this entry is for. Required.
     EventGroup.Key event_group = 1;
 
-    // Time interval over which the metric should be collected. Required.
+    // Time interval over which the event data should be collected. Required.
     TimeInterval collection_interval = 2;
 
-    // Optional filter to apply to metric events.
+    // Optional filter to apply to events.
     EventFilter filter = 3;
   }
   // The requisition entry for each `EventGroup`. This can be logically
@@ -74,7 +71,7 @@ message RequisitionSpec {
   // Immutable.
   //
   // All of the `EventGroup`s must belong to the same parent `DataProvider`
-  // as this `MetricRequisition`.
+  // as this `Requisition`.
   repeated EventGroupEntry event_group_entries = 1;
 
   // Encryption public key for the `Measurement` that this `RequisitionSpec` is
@@ -85,29 +82,6 @@ message RequisitionSpec {
   // `data_provider_list_salt` from the `Measurement` that this
   // `RequistionSpec` is associated with. Required. Immutable.
   bytes data_provider_list_hash = 3;
-}
-
-// Representation of a metric to be collected.
-message MetricDefinition {
-  // Representation of a metric to be collected as a sketch.
-  message Sketch {
-    // Resource key of the sketch configuration. Required.
-    SketchConfig.Key sketch_config = 1;
-  }
-
-  // Exactly one of these must be specified.
-  oneof definition {
-    // A metric to be collected as a sketch.
-    Sketch sketch = 1;
-  }
-
-  // The resource key of the CombinedPublicKey that is used to encrypt the
-  // metric value. Required. Immutable.
-  CombinedPublicKey.Key combined_public_key = 2;
-
-  // Encryption public key for the `Measurement` that this `MetricDefinition` is
-  // associated with. Required. Immutable.
-  bytes measurement_public_key = 3;
 }
 
 // A time interval.

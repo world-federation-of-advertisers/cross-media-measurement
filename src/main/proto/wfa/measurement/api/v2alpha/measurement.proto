@@ -19,6 +19,7 @@ package wfa.measurement.api.v2alpha;
 import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
+import "wfa/measurement/api/v2alpha/sketch.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -37,9 +38,9 @@ message Measurement {
   // Resource key of the `MeasurementConsumerCertificate`. Required. Immutable.
   MeasurementConsumerCertificate.Key measurement_consumer_certificate = 2;
 
-  // Serialized `MetricDefinition` for requisitions, which can be verified using
+  // Serialized `MeasurementSpec` for requisitions, which can be verified using
   // `measurement_consumer_certificate`. Required. Immutable.
-  SignedData metric_definition = 3;
+  SignedData measurement_spec = 3;
 
   // Concatenation of the serialized `DataProvider` resource keys in
   // `data_provider_entries`. Required. Immutable.
@@ -78,19 +79,19 @@ message Measurement {
     // `measurement_consumer_certificate`. Required. Immutable.
     //
     // The symmetric encryption key is derived using a key-agreement protocol
-    // between `measurement_public_key` in `metric_definition` and
+    // between `measurement_public_key` in `measurement_spec` and
     // `data_provider_public_key`.
     bytes encrypted_requisition_spec = 4;
 
     // Cryptographic digital signature of the "requisition fingerprint" which
     // can be verified using the `DataProvider`'s certificate. Output-only. Only
-    // set if the corresponding `MetricRequisition` has been fulfilled.
+    // set if the corresponding `Requisition` has been fulfilled.
     //
     // The requisition fingerprint is defined as the concatenation of:
     // 1. The SHA256 hash of `encrypted_requisition_spec`.
     // 2. The SHA256 hash of the concatenation of
     //    `serialized_data_provider_list` and `data_provider_list_salt`.
-    // 3. The `data` in `metric_definition`.
+    // 3. The `data` in `measurement_spec`.
     bytes data_provider_participation_signature = 5;
   }
   // The measurement entry for each `DataProvider`. This can be logically
@@ -100,7 +101,7 @@ message Measurement {
 
   enum State {
     STATE_UNSPECIFIED = 0;
-    // Waiting for all linked metric requisitions to be fulfilled.
+    // Waiting for all linked `Requisition`s to be fulfilled.
     AWAITING_REQUISITION_FULFILLMENT = 1;
     // Computation is running.
     COMPUTING = 2;
@@ -143,7 +144,30 @@ message Measurement {
   // is `SUCCEEDED`.
   //
   // The symmetric encryption key is derived using a key-agreement protocol
-  // between `measurement_public_key` in `metric_definition` and
+  // between `measurement_public_key` in `measurement_spec` and
   // `result_public_key`.
   bytes encrypted_result = 11;
+}
+
+// Specification for a `Measurement`. Immutable.
+message MeasurementSpec {
+  // Encryption public key for the `Measurement` that this `MeasurementSpec` is
+  // associated with. Required.
+  bytes measurement_public_key = 1;
+
+  message EncryptedSketch {
+    // Resource key of the sketch configuration. Required.
+    SketchConfig.Key sketch_config = 1;
+
+    // The resource key of the `CombinedPublicKey` that is used to encrypt the
+    // sketch. Required.
+    CombinedPublicKey.Key combined_public_key = 2;
+  }
+
+  // What data the requisition is for, i.e. what data is being requisitioned.
+  // Required.
+  oneof for {
+    // The data being requisitioned is an encrypted sketch.
+    EncryptedSketch encrypted_sketch = 2;
+  }
 }
