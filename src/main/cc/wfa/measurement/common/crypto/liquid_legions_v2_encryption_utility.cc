@@ -145,19 +145,19 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
 
 absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
                                       int64_t liquid_legions_size,
-                                      size_t active_register_count) {
+                                      size_t non_empty_register_count) {
   if (liquid_legions_decay_rate <= 1.0) {
     return absl::InvalidArgumentError(absl::StrCat(
         "The decay rate should be > 1, but is ", liquid_legions_decay_rate));
   }
-  if (liquid_legions_size <= active_register_count) {
+  if (liquid_legions_size <= non_empty_register_count) {
     return absl::InvalidArgumentError(absl::StrCat(
         "liquid legions size (", liquid_legions_size,
-        ") should be greater then the number of active registers (",
-        active_register_count, ")."));
+        ") should be greater then the number of non empty registers (",
+        non_empty_register_count, ")."));
   }
   return wfa::estimation::EstimateCardinalityLiquidLegions(
-      liquid_legions_decay_rate, liquid_legions_size, active_register_count);
+      liquid_legions_decay_rate, liquid_legions_size, non_empty_register_count);
 }
 
 absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
@@ -342,7 +342,7 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
       RETURN_IF_ERROR(AppendEcPointPairToString(zero, data));
       // Adds flag_2 and flag_3, which are random numbers encrypted by the
       // partial_protocol_cryptor.
-      for (int i = 0; i < 2; ++i) {
+      for (int j = 0; j < 2; ++j) {
         ASSIGN_OR_RETURN(std::string random_values,
                          partial_protocol_cryptor.MapToCurve(
                              partial_protocol_cryptor.NextRandomBigNum()));
@@ -480,7 +480,7 @@ absl::Status AddAllFrequencyNoise(
   auto options = GetFrequencyNoiseOptions(
       noise_parameters.dp_params(), noise_parameters.maximum_frequency(),
       noise_parameters.contributors_count());
-  int total_noise_tuples_count =
+  int64_t total_noise_tuples_count =
       options.shift_offset * 2 * (noise_parameters.maximum_frequency() + 1);
   ASSIGN_OR_RETURN(
       int frequency_dp_noise_tuples_count,
@@ -491,9 +491,9 @@ absl::Status AddAllFrequencyNoise(
       int destroyed_noise_tuples_count,
       AddDestroyedFrequencyNoise(full_protocol_cryptor,
                                  partial_protocol_cryptor, options, data));
-  int padding_noise_tuples_count = total_noise_tuples_count -
-                                   frequency_dp_noise_tuples_count -
-                                   destroyed_noise_tuples_count;
+  int64_t padding_noise_tuples_count = total_noise_tuples_count -
+                                       frequency_dp_noise_tuples_count -
+                                       destroyed_noise_tuples_count;
   RETURN_IF_ERROR(AddPaddingFrequencyNoise(full_protocol_cryptor,
                                            partial_protocol_cryptor,
                                            padding_noise_tuples_count, data));
@@ -511,7 +511,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   *response_crv = request.combined_register_vector();
 
   if (request.has_noise_parameters()) {
-    RegisterNoiseGenerationParameters noise_parameters =
+    const RegisterNoiseGenerationParameters& noise_parameters =
         request.noise_parameters();
     auto blind_histogram_noise_options = GetBlindHistogramNoiseOptions(
         noise_parameters.dp_params().blind_histogram(),
@@ -524,7 +524,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     auto global_reach_dp_noise_options = GetGlobalReachDpNoiseOptions(
         noise_parameters.dp_params().global_reach_dp_noise(),
         noise_parameters.contributors_count());
-    int total_noise_registers_count =
+    int64_t total_noise_registers_count =
         noise_for_publisher_noise_options.shift_offset * 2 +
         global_reach_dp_noise_options.shift_offset * 2 +
         blind_histogram_noise_options.shift_offset *
@@ -661,11 +661,9 @@ CompleteExecutionPhaseOneAtAggregator(
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    FlagCountTupleNoiseGenerationParameters noise_parameters =
-        request.noise_parameters();
-    RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, *protocol_cryptor,
-                                         request.curve_id(), noise_parameters,
-                                         *response_data));
+    RETURN_IF_ERROR(AddAllFrequencyNoise(
+        *protocol_cryptor, *protocol_cryptor, request.curve_id(),
+        request.noise_parameters(), *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -712,8 +710,6 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    FlagCountTupleNoiseGenerationParameters noise_parameters =
-        request.noise_parameters();
     ASSIGN_OR_RETURN_ERROR(
         auto partial_protocol_cryptor,
         CreateProtocolCryptorWithKeys(
@@ -725,7 +721,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
         "Failed to create the protocol cipher, invalid curveId or keys.");
     RETURN_IF_ERROR(AddAllFrequencyNoise(
         *protocol_cryptor, *partial_protocol_cryptor, request.curve_id(),
-        noise_parameters, *response_data));
+        request.noise_parameters(), *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -770,7 +766,7 @@ CompleteExecutionPhaseTwoAtAggregator(
     absl::string_view current_block =
         absl::string_view(request.flag_count_tuples())
             .substr(index * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
-    std::array<bool, 3> flags;
+    std::array<bool, 3> flags = {};
     for (int i = 0; i < 3; ++i) {
       ASSIGN_OR_RETURN(ElGamalCiphertext flag_ciphertext,
                        ExtractElGamalCiphertextFromString(current_block.substr(
@@ -801,27 +797,41 @@ CompleteExecutionPhaseTwoAtAggregator(
   }
 
   // Estimates reach.
-  int64_t active_register_count = tuple_counts - blinded_histogram_noise_count;
-  if (request.has_noise_baseline()) {
+  int64_t non_empty_register_count =
+      tuple_counts - blinded_histogram_noise_count;
+  if (request.has_reach_dp_noise_baseline()) {
     auto options = GetGlobalReachDpNoiseOptions(
-        request.noise_baseline().global_reach_dp_noise(),
-        request.noise_baseline().contributors_count());
-    int global_reach_dp_noise_baseline = options.shift_offset * options.num;
-    active_register_count -= global_reach_dp_noise_baseline;
+        request.reach_dp_noise_baseline().global_reach_dp_noise(),
+        request.reach_dp_noise_baseline().contributors_count());
+    int64_t global_reach_dp_noise_baseline = options.shift_offset * options.num;
+    non_empty_register_count -= global_reach_dp_noise_baseline;
     // Publisher noise and padding noise each contribute 1 additional destroyed
     // register, which shouldn't be included when estimating reach.
-    // Subtracts 2 from the active_register_count if noises exist.
-    active_register_count -= 2;
+    // Subtracts 2 from the non_empty_register_count if noises exist.
+    non_empty_register_count -= 2;
   }
-  // Ensures that active_register_count is at least 0.
-  // active_register_count could be negative if there is too few registers in
+  if (request.has_frequency_noise_parameters()) {
+    const FlagCountTupleNoiseGenerationParameters& noise_parameters =
+        request.frequency_noise_parameters();
+    auto options = GetFrequencyNoiseOptions(
+        noise_parameters.dp_params(), noise_parameters.maximum_frequency(),
+        noise_parameters.contributors_count());
+    int64_t total_noise_tuples_count =
+        options.num * options.shift_offset * 2 *
+        (noise_parameters.maximum_frequency() + 1);
+    // Subtract all frequency noises before estimating reach.
+    non_empty_register_count -= total_noise_tuples_count;
+  }
+
+  // Ensures that non_empty_register_count is at least 0.
+  // non_empty_register_count could be negative if there is too few registers in
   // the sketch and the number of noise registers is smaller than the baseline.
-  active_register_count = std::max(active_register_count, 0L);
+  non_empty_register_count = std::max(non_empty_register_count, 0L);
   ASSIGN_OR_RETURN(
       int64_t reach,
       EstimateReach(request.liquid_legions_parameters().decay_rate(),
                     request.liquid_legions_parameters().size(),
-                    active_register_count));
+                    non_empty_register_count));
   response.set_reach(reach);
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
@@ -878,13 +888,13 @@ CompleteExecutionPhaseThreeAtAggregator(
         "maximum_frequency should be at least 2.");
   }
 
-  int row_size = maximum_frequency - 1;
+  int64_t row_size = maximum_frequency - 1;
   if (ciphertext_counts % row_size != 0) {
     return absl::InvalidArgumentError(
         "The size of the SameKeyAggregator matrix is not divisible by "
         "maximum_frequency-1.");
   }
-  int column_size = ciphertext_counts / row_size;
+  int64_t column_size = ciphertext_counts / row_size;
 
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
@@ -903,7 +913,7 @@ CompleteExecutionPhaseThreeAtAggregator(
   std::vector<int> histogram(maximum_frequency);
   histogram[maximum_frequency - 1] = column_size;
 
-  absl::string_view same_key_aggregator_matrix =
+  auto same_key_aggregator_matrix =
       absl::string_view(request.same_key_aggregator_matrix());
   for (int column = 0; column < column_size; ++column) {
     for (int row = 0; row < row_size; ++row) {
@@ -932,10 +942,10 @@ CompleteExecutionPhaseThreeAtAggregator(
         request.global_frequency_dp_noise_per_bucket().dp_params(),
         request.maximum_frequency(),
         request.global_frequency_dp_noise_per_bucket().contributors_count());
-    int noise_baseline_per_bucket = options.shift_offset * options.num;
+    int64_t noise_baseline_per_bucket = options.shift_offset * options.num;
     actual_total = 0;
     for (int i = 0; i < maximum_frequency; ++i) {
-      histogram[i] = std::max(0, histogram[i] - noise_baseline_per_bucket);
+      histogram[i] = std::max(0L, histogram[i] - noise_baseline_per_bucket);
       actual_total += histogram[i];
     }
   }

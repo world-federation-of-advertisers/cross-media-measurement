@@ -212,14 +212,18 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // The elliptical curve to work on for SKA generation.
   int64 curve_id = 4;
   // Maximum frequency to measure. At least 2.
-  // (maximum_frequency-1) will is the row dimension of the 2-D SKA matrix.
+  // (maximum_frequency-1) will be the row dimension of the 2-D SKA matrix.
   int32 maximum_frequency = 5;
   // LiquidLegions parameters used for reach estimation.
   LiquidLegionsParameters liquid_legions_parameters = 6;
   // Parameters for computing the noise baseline of the global reach DP noise
   // registers added in the setup phase.
   // The baseline is subtracted before reach is estimated.
-  GlobalReachDpNoiseBaseline noise_baseline = 7;
+  GlobalReachDpNoiseBaseline reach_dp_noise_baseline = 7;
+  // Parameters used to generate frequency noise tuples.
+  // The total number of frequency noise tuples should be subtracted from the
+  // number of active registers before estimating reach.
+  FlagCountTupleNoiseGenerationParameters frequency_noise_parameters = 8;
 }
 
 // The response of the CompleteExecutionPhaseTwoAtAggregator method.

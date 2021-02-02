@@ -19,6 +19,7 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
 import java.time.Clock
 import java.time.Duration
+import kotlin.math.exp
 import kotlinx.coroutines.GlobalScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -210,6 +211,21 @@ class InProcessDuchy(
         otherDuchyId to stub
       }.toMap()
 
+      val noiseConfig = LiquidLegionsV2NoiseConfig.newBuilder().apply {
+        reachNoiseConfigBuilder.apply {
+          blindHistogramNoiseBuilder.epsilon = 1.0
+          blindHistogramNoiseBuilder.delta = 1.0
+          noiseForPublisherNoiseBuilder.epsilon = 1.0
+          noiseForPublisherNoiseBuilder.delta = 1.0
+          globalReachDpNoiseBuilder.epsilon = 40.0
+          globalReachDpNoiseBuilder.delta = exp(-80.0)
+        }
+        frequencyNoiseConfigBuilder.apply {
+          epsilon = 40.0
+          delta = exp(-80.0)
+        }
+      }.build()
+
       val liquidLegionsV2mill = LiquidLegionsV2Mill(
         millId = "$duchyId liquidLegionsV2mill",
         dataClients = computationDataClients,
@@ -222,7 +238,7 @@ class InProcessDuchy(
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         requestChunkSizeBytes = 2_000_000,
-        noiseConfig = LiquidLegionsV2NoiseConfig.getDefaultInstance()
+        noiseConfig = noiseConfig
       )
 
       liquidLegionsV2mill.continuallyProcessComputationQueue()

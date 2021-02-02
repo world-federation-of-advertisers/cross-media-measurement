@@ -359,9 +359,16 @@ class LiquidLegionsV2Mill(
         }
       }
       if (noiseConfig.hasReachNoiseConfig()) {
-        requestBuilder.noiseBaselineBuilder.apply {
+        requestBuilder.reachDpNoiseBaselineBuilder.apply {
           contributorsCount = workerStubs.size + 1
           globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+        }
+      }
+      if (noiseConfig.hasFrequencyNoiseConfig()) {
+        requestBuilder.frequencyNoiseParametersBuilder.apply {
+          contributorsCount = workerStubs.size + 1
+          maximumFrequency = maxFrequency
+          dpParams = noiseConfig.frequencyNoiseConfig
         }
       }
 

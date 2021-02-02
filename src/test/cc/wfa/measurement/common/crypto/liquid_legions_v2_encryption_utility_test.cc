@@ -42,7 +42,10 @@ using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
 using ::private_join_and_compute::ECGroup;
 using ::private_join_and_compute::ECPoint;
+using ::testing::DoubleNear;
+using ::testing::Pair;
 using ::testing::SizeIs;
+using ::testing::UnorderedElementsAre;
 using ::wfa::measurement::api::v1alpha::Sketch;
 using ::wfa::measurement::api::v1alpha::SketchConfig;
 
@@ -91,8 +94,8 @@ Sketch CreateEmptyLiquidLegionsSketch() {
   return plain_sketch;
 }
 
-DifferentialPrivacyParams NewDifferentialPrivacyParams(double epsilon,
-                                                       double delta) {
+DifferentialPrivacyParams MakeDifferentialPrivacyParams(double epsilon,
+                                                        double delta) {
   DifferentialPrivacyParams params;
   params.set_epsilon(epsilon);
   params.set_delta(delta);
@@ -300,7 +303,7 @@ class TestData {
   absl::StatusOr<MpcResult> GoThroughEntireMpcProtocol(
       const std::string& encrypted_sketch,
       RegisterNoiseGenerationParameters* reach_noise_parameters,
-      FlagCountTupleNoiseGenerationParameters* frequency_noise_paraters) {
+      FlagCountTupleNoiseGenerationParameters* frequency_noise_parameters) {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test.
     CompleteSetupPhaseRequest complete_setup_phase_request_1;
@@ -397,9 +400,9 @@ class TestData {
     complete_execution_phase_one_at_aggregator_request
         .set_combined_register_vector(
             complete_execution_phase_one_response_2.combined_register_vector());
-    if (frequency_noise_paraters != nullptr) {
+    if (frequency_noise_parameters != nullptr) {
       *complete_execution_phase_one_at_aggregator_request
-           .mutable_noise_parameters() = *frequency_noise_paraters;
+           .mutable_noise_parameters() = *frequency_noise_parameters;
     }
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse
@@ -420,9 +423,9 @@ class TestData {
     complete_execution_phase_two_request_1.set_flag_count_tuples(
         complete_execution_phase_one_at_aggregator_response
             .flag_count_tuples());
-    if (frequency_noise_paraters != nullptr) {
+    if (frequency_noise_parameters != nullptr) {
       *complete_execution_phase_two_request_1.mutable_noise_parameters() =
-          *frequency_noise_paraters;
+          *frequency_noise_parameters;
       *complete_execution_phase_two_request_1
            .mutable_partial_composite_el_gamal_public_key() =
           duchy_2_3_composite_public_key_;
@@ -444,9 +447,9 @@ class TestData {
     complete_execution_phase_two_request_2.set_curve_id(kTestCurveId);
     complete_execution_phase_two_request_2.set_flag_count_tuples(
         complete_execution_phase_two_response_1.flag_count_tuples());
-    if (frequency_noise_paraters != nullptr) {
+    if (frequency_noise_parameters != nullptr) {
       *complete_execution_phase_two_request_2.mutable_noise_parameters() =
-          *frequency_noise_paraters;
+          *frequency_noise_parameters;
       *complete_execution_phase_two_request_2
            .mutable_partial_composite_el_gamal_public_key() =
           duchy_3_el_gamal_key_pair_.public_key();
@@ -478,12 +481,16 @@ class TestData {
         ->set_size(kLiquidLegionsSize);
     if (reach_noise_parameters != nullptr) {
       complete_execution_phase_two_at_aggregator_request
-          .mutable_noise_baseline()
+          .mutable_reach_dp_noise_baseline()
           ->set_contributors_count(3);
       *complete_execution_phase_two_at_aggregator_request
-           .mutable_noise_baseline()
+           .mutable_reach_dp_noise_baseline()
            ->mutable_global_reach_dp_noise() =
           reach_noise_parameters->dp_params().global_reach_dp_noise();
+    }
+    if (frequency_noise_parameters != nullptr) {
+      *complete_execution_phase_two_at_aggregator_request
+           .mutable_frequency_noise_parameters() = *frequency_noise_parameters;
     }
     complete_execution_phase_two_at_aggregator_request.set_flag_count_tuples(
         complete_execution_phase_two_response_2.flag_count_tuples());
@@ -532,10 +539,10 @@ class TestData {
         .set_same_key_aggregator_matrix(
             complete_execution_phase_three_response_2
                 .same_key_aggregator_matrix());
-    if (frequency_noise_paraters != nullptr) {
+    if (frequency_noise_parameters != nullptr) {
       *complete_execution_phase_three_at_aggregator_request
            .mutable_global_frequency_dp_noise_per_bucket()
-           ->mutable_dp_params() = frequency_noise_paraters->dp_params();
+           ->mutable_dp_params() = frequency_noise_parameters->dp_params();
       complete_execution_phase_three_at_aggregator_request
           .mutable_global_frequency_dp_noise_per_bucket()
           ->set_contributors_count(3);
@@ -586,13 +593,13 @@ TEST(CompleteSetupPhase, NoiseSumAndMeanShouldBeCorrect) {
   *noise_parameters->mutable_composite_el_gamal_public_key() = public_key;
   // resulted p ~= 0 , offset = 7
   *noise_parameters->mutable_dp_params()->mutable_blind_histogram() =
-      NewDifferentialPrivacyParams(40, std::exp(-80));
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
   // resulted p ~= 0 , offset = 4
   *noise_parameters->mutable_dp_params()->mutable_noise_for_publisher_noise() =
-      NewDifferentialPrivacyParams(40, std::exp(-40));
+      MakeDifferentialPrivacyParams(40, std::exp(-40));
   // resulted p ~= 0 , offset = 3
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
-      NewDifferentialPrivacyParams(40, std::exp(-80));
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
@@ -793,50 +800,6 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
   EXPECT_NEAR(result.frequency_distribution[kMaxFrequency], 0.5, 0.001);
 }
 
-TEST(EndToEnd, ComnbinedCases) {
-  TestData test_data;
-  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
-  // register 1: count = 6
-  // register 2: count = 3
-  // register 3: count = 1+2+3 = 6
-  // register 4: count = 3+4+5 = 12 (capped as kMaxFrequency+1, i.e. 11
-  // register 5: locally destroyed (key=-1), ignored
-  // register 6: destroyed by conflicting keys (601 and 602), ignored
-  // register 7: locally destroyed (key=-1) + normal register, ignored
-  //
-  // final result should be { 3->1/4, 6->2/4, 11->1/4 }
-  AddRegister(&plain_sketch, /*index=*/1, /*key=*/111, /*count=*/6);
-  AddRegister(&plain_sketch, /*index=*/2, /*key=*/222, /*count=*/3);
-  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/1);
-  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/2);
-  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/3);
-  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/3);
-  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/4);
-  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/5);
-  AddRegister(&plain_sketch, /*index=*/5, /*key=*/-1, /*count=*/2);
-  AddRegister(&plain_sketch, /*index=*/6, /*key=*/601, /*count=*/2);
-  AddRegister(&plain_sketch, /*index=*/6, /*key=*/602, /*count=*/2);
-  AddRegister(&plain_sketch, /*index=*/7, /*key=*/-1, /*count=*/2);
-  AddRegister(&plain_sketch, /*index=*/7, /*key=*/777, /*count=*/2);
-
-  std::string encrypted_sketch =
-      test_data.EncryptWithFlaggedKey(plain_sketch).value();
-  ASSERT_OK_AND_ASSIGN(MpcResult result,
-                       test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, /*reach_noise=*/nullptr,
-                           /*frequency_noise=*/nullptr));
-
-  int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
-      kDecayRate, kLiquidLegionsSize, 7);
-
-  EXPECT_EQ(result.reach, expected_reach);
-
-  ASSERT_THAT(result.frequency_distribution, SizeIs(3));
-  EXPECT_NEAR(result.frequency_distribution[3], 0.25, 0.001);
-  EXPECT_NEAR(result.frequency_distribution[6], 0.5, 0.001);
-  EXPECT_NEAR(result.frequency_distribution[kMaxFrequency], 0.25, 0.001);
-}
-
 TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
@@ -854,16 +817,16 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
   // resulted p = 0.716531, offset = 15.
   // Random blind histogram noise.
   *reach_noise_parameters.mutable_dp_params()->mutable_blind_histogram() =
-      NewDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 1);
   // resulted p = 0.716531, offset = 10.
   // Random noise for publisher noise.
   *reach_noise_parameters.mutable_dp_params()
        ->mutable_noise_for_publisher_noise() =
-      NewDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 1);
   // resulted p ~= 0 , offset = 3.
   // Deterministic reach dp noise.
   *reach_noise_parameters.mutable_dp_params()->mutable_global_reach_dp_noise() =
-      NewDifferentialPrivacyParams(40, std::exp(-80));
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
   *reach_noise_parameters.mutable_composite_el_gamal_public_key() =
       test_data.client_el_gamal_public_key_;
 
@@ -897,7 +860,7 @@ TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
   frequency_noise_params.set_contributors_count(kNumOfWorkers);
   // resulted p = 0.606531, offset = 4
   *frequency_noise_params.mutable_dp_params() =
-      NewDifferentialPrivacyParams(1, 50);
+      MakeDifferentialPrivacyParams(1, 50);
 
   int computed_offset = 4;
   int64_t expected_total_noise_tuple_count =
@@ -976,7 +939,7 @@ TEST(FrequencyNoise, AllFrequencyBucketsShouldHaveNoise) {
   frequency_noise_params.set_contributors_count(kNumOfWorkers);
   // resulted p = 0.606531, offset = 12
   *frequency_noise_params.mutable_dp_params() =
-      NewDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 1);
 
   int computed_offset = 12;
   int64_t expected_total_noise_tuple_count =
@@ -1047,7 +1010,7 @@ TEST(FrequencyNoise, DeterministicNoiseShouldHaveNoImpact) {
   // resulted p ~= 0, offset = 5, such that the number of frequency DP noise is
   // almost a constant, and thus the result is deterministic.
   *frequency_noise_params.mutable_dp_params() =
-      NewDifferentialPrivacyParams(40, std::exp(-80));
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
 
   ASSERT_OK_AND_ASSIGN(
       MpcResult result,
@@ -1075,7 +1038,7 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
   frequency_noise_params.set_contributors_count(kNumOfWorkers);
   // resulted p = 0.606531, offset = 12
   *frequency_noise_params.mutable_dp_params() =
-      NewDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 1);
 
   ASSERT_OK_AND_ASSIGN(
       MpcResult result,
@@ -1092,6 +1055,80 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
     total_p += x.second;
   }
   EXPECT_NEAR(total_p, 1, 0.0001);
+}
+
+TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
+  TestData test_data;
+  Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
+  // register 1: count = 6
+  // register 2: count = 3
+  // register 3: count = 1+2+3 = 6
+  // register 4: count = 3+4+5 = 12 (capped as kMaxFrequency+1, i.e. 11
+  // register 5: locally destroyed (key=-1), ignored
+  // register 6: destroyed by conflicting keys (601 and 602), ignored
+  // register 7: locally destroyed (key=-1) + normal register, ignored
+  //
+  // final result should be { 3->1/4, 6->2/4, 11->1/4 }
+  AddRegister(&plain_sketch, /*index=*/1, /*key=*/111, /*count=*/6);
+  AddRegister(&plain_sketch, /*index=*/2, /*key=*/222, /*count=*/3);
+  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/1);
+  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/2);
+  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/3);
+  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/3);
+  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/4);
+  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/5);
+  AddRegister(&plain_sketch, /*index=*/5, /*key=*/-1, /*count=*/2);
+  AddRegister(&plain_sketch, /*index=*/6, /*key=*/601, /*count=*/2);
+  AddRegister(&plain_sketch, /*index=*/6, /*key=*/602, /*count=*/2);
+  AddRegister(&plain_sketch, /*index=*/7, /*key=*/-1, /*count=*/2);
+  AddRegister(&plain_sketch, /*index=*/7, /*key=*/777, /*count=*/2);
+
+  std::string encrypted_sketch =
+      test_data.EncryptWithFlaggedKey(plain_sketch).value();
+
+  RegisterNoiseGenerationParameters reach_noise_parameters;
+  reach_noise_parameters.set_curve_id(kTestCurveId);
+  reach_noise_parameters.set_total_sketches_count(3);
+  reach_noise_parameters.set_contributors_count(kNumOfWorkers);
+  // resulted p = 0.716531, offset = 15.
+  // Random blind histogram noise.
+  *reach_noise_parameters.mutable_dp_params()->mutable_blind_histogram() =
+      MakeDifferentialPrivacyParams(1, 1);
+  // resulted p = 0.716531, offset = 10.
+  // Random noise for publisher noise.
+  *reach_noise_parameters.mutable_dp_params()
+       ->mutable_noise_for_publisher_noise() =
+      MakeDifferentialPrivacyParams(1, 1);
+  // resulted p ~= 0 , offset = 3.
+  // Deterministic reach dp noise.
+  *reach_noise_parameters.mutable_dp_params()->mutable_global_reach_dp_noise() =
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
+  *reach_noise_parameters.mutable_composite_el_gamal_public_key() =
+      test_data.client_el_gamal_public_key_;
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_contributors_count(kNumOfWorkers);
+  // resulted p ~= 0, offset = 5, such that the number of frequency DP noise is
+  // almost a constant, and thus the result is deterministic.
+  *frequency_noise_params.mutable_dp_params() =
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
+
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, &reach_noise_parameters, &frequency_noise_params));
+
+  int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
+      kDecayRate, kLiquidLegionsSize, 7);
+
+  EXPECT_EQ(result.reach, expected_reach);
+
+  EXPECT_THAT(
+      result.frequency_distribution,
+      UnorderedElementsAre(Pair(3, DoubleNear(0.25, 0.001)),
+                           Pair(6, DoubleNear(0.5, 0.001)),
+                           Pair(kMaxFrequency, DoubleNear(0.25, 0.001))));
 }
 
 }  // namespace

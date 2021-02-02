@@ -1120,9 +1120,14 @@ class LiquidLegionsV2MillTest {
           decayRate = 12.0
           size = 10_000_000L
         }
-        noiseBaselineBuilder.apply {
+        reachDpNoiseBaselineBuilder.apply {
           contributorsCount = WORKER_COUNT
           globalReachDpNoise = testNoiseConfig.reachNoiseConfig.globalReachDpNoise
+        }
+        frequencyNoiseParametersBuilder.apply {
+          contributorsCount = WORKER_COUNT
+          maximumFrequency = MAX_FREQUENCY
+          dpParams = testNoiseConfig.frequencyNoiseConfig
         }
       }.build()
     )
