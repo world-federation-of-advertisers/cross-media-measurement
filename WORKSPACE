@@ -190,7 +190,7 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
 # docker.io/debian:bullseye-slim
 container_pull(
     name = "debian_bullseye",
-    digest = "sha256:d92a89b71e6adc50535710f53c78bb5bc84f80549e48342856bb2cc6c87e4f2a",
+    digest = "sha256:8ab4e348f60ebd18b891593a531ded31cbbc3878f6e476116f3b49b15c199110",
     registry = "docker.io",
     repository = "debian",
 )
@@ -214,9 +214,9 @@ container_pull(
 # See //src/main/docker/base:push_java_base
 container_pull(
     name = "debian_java_base",
-    digest = "sha256:e2d6a9216a49e4c909690a1f98d4670aa503d6a3fe5d6f1f9a171eadb45e23e5",
-    registry = "gcr.io",
-    repository = "ads-open-measurement/java-base",
+    digest = "sha256:c6746729103a1a306a1ed572012562496512a691b3b23c3abacd64ad503cebc2",
+    registry = "docker.io",
+    repository = "wfameasurement/java-base",
 )
 
 # APT key for Google cloud.

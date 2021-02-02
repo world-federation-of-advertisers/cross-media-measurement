@@ -1,43 +1,53 @@
 # Base images.
 load("//src/main/docker:constants.bzl", "DEBIAN_JAVA_11")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
-load("@io_bazel_rules_docker//docker/package_managers:download_pkgs.bzl", "download_pkgs")
-load("@io_bazel_rules_docker//docker/package_managers:install_pkgs.bzl", "install_pkgs")
+load(
+    "//src/main/docker:defs.bzl",
+    "container_commit_install_apt_packages",
+)
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_image",
+    "container_layer",
+    "container_push",
+)
 
 JAVA = DEBIAN_JAVA_11
 
-download_pkgs(
-    name = "packages",
-    image_tar = "@debian_bullseye//image",
-    packages = [
-        "openjdk-11-jre-headless",
+BASE_IMAGE = "@debian_bullseye//image"
+
+container_layer(
+    name = "man_directories",
+    empty_dirs = [
+        "/usr/share/man/man1",
+        "/usr/share/man/man2",
     ],
-    tags = [
-        "manual",
-        "no-remote-exec",
-        "requires-network",
-    ],
+    tags = ["manual"],
 )
 
-install_pkgs(
-    name = "packages_image",
-    image_tar = "@debian_bullseye//image",
-    installables_tar = ":packages.tar",
-    output_image_name = "packages_image",
-    tags = [
-        "manual",
-        "no-remote-exec",
-    ],
+container_image(
+    name = "man_directories_image",
+    base = BASE_IMAGE,
+    layers = [":man_directories"],
+    tags = ["manual"],
+)
+
+container_commit_install_apt_packages(
+    name = "apt_packages",
+    image = ":man_directories_image.tar",
+    packages = ["openjdk-11-jre-headless"],
+    tags = ["manual"],
+    upgrade = True,
 )
 
 container_image(
     name = "java_base",
-    base = ":packages_image.tar",
+    base = BASE_IMAGE,
     entrypoint = [
         JAVA.bin + "/java",
         "-jar",
     ],
     env = JAVA.env,
+    layers = [":apt_packages"],
     symlinks = {"/usr/bin/java": JAVA.bin + "/java"},
     tags = ["manual"],
 )
@@ -46,7 +56,7 @@ container_push(
     name = "push_java_base",
     format = "Docker",
     image = ":java_base",
-    registry = "gcr.io",
-    repository = "ads-open-measurement/java-base",
+    registry = "docker.io",
+    repository = "wfameasurement/java-base",
     tags = ["manual"],
 )
