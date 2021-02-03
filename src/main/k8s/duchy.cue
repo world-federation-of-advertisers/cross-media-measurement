@@ -114,6 +114,7 @@ import ("strings")
 				"--liquid-legions-size=330000",
 				"--mill-id=\(_name)-liquid-legions-v2-mill-1",
 				"--polling-interval=1s",
+				"--noise-config=" + #LiquidLegionsV2NoiseConfig,
 			] + _computation_control_service_flags + _blob_storage_flags
 			_jvm_flags: "-Xmx1g -Xms256m"
 			_dependencies: ["\(_name)-spanner-computations-server", "global-computation-server", "\(_name)-metric-values-storage-server", "\(_name)-computation-control-server"]

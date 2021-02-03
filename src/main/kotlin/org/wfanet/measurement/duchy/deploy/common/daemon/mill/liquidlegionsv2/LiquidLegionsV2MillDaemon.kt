@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.crypto.liquidlegionsv2.JniLiquidLegionsV2En
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
@@ -97,8 +98,9 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         flags.liquidLegionsDecayRate,
         flags.liquidLegionsSize
       ),
-      // TODO: read the noise config from config file.
-      noiseConfig = LiquidLegionsV2NoiseConfig.getDefaultInstance()
+      noiseConfig = flags.noiseConfig.reader().use {
+        parseTextProto(it, LiquidLegionsV2NoiseConfig.getDefaultInstance())
+      }
     )
 
     runBlocking { mill.continuallyProcessComputationQueue() }

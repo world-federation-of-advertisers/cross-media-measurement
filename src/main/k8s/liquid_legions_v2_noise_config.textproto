@@ -1,0 +1,20 @@
+# proto-file: src/main/proto/wfa/measurement/common/crypto/liquid_legions_v2_noise_config.proto
+# proto-message: LiquidLegionsV2NoiseConfig
+reach_noise_config {
+  blind_histogram_noise {
+    epsilon: 1.0
+    delta: 1.0
+  }
+  noise_for_publisher_noise {
+    epsilon: 1.0
+    delta: 1.0
+  }
+  global_reach_dp_noise {
+    epsilon: 40.0
+    delta: 1.0
+  }
+}
+frequency_noise_config {
+  epsilon: 40.0
+  delta: 1.0
+}

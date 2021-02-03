@@ -5,6 +5,7 @@ load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load(":macros.bzl", "cue_dump")
 
 exports_files(["duchy_public_key_config.textproto"])
+exports_files(["liquid_legions_v2_noise_config.textproto"])
 
 cue_string_field(
     name = "duchy_public_key_config",
@@ -13,8 +14,16 @@ cue_string_field(
     package = "k8s",
 )
 
+cue_string_field(
+    name = "liquid_legions_v2_noise_config",
+    src = "liquid_legions_v2_noise_config.textproto",
+    identifier = "#LiquidLegionsV2NoiseConfig",
+    package = "k8s",
+)
+
 CUE_LIBRARIES = [
     ":duchy_public_key_config.cue",
+    ":liquid_legions_v2_noise_config.cue",
     "base.cue",
     "correctness_test_job.cue",
     "duchy.cue",

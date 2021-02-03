@@ -129,4 +129,12 @@ class LiquidLegionsV2MillFlags {
   )
   var sketchMaxFrequency by Delegates.notNull<Int>()
     private set
+
+  @CommandLine.Option(
+    names = ["--noise-config"],
+    description = ["LiquidLegionsV2NoiseConfig proto message in text format."],
+    required = true
+  )
+  lateinit var noiseConfig: String
+    private set
 }
