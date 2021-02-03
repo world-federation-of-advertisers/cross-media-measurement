@@ -42,13 +42,13 @@ message Measurement {
   // `measurement_consumer_certificate`. Required. Immutable.
   SignedData measurement_spec = 3;
 
-  // Concatenation of the serialized `DataProvider` resource keys in
-  // `data_provider_entries`. Required. Immutable.
+  // Serialized `DataProviderList` message containing the same `DataProvider`
+  // resource keys as `data_provider_entries`. The order of the entries does not
+  // matter. Required. Immutable.
   //
   // This is included as a separate field to provide a canonical serialization
   // for hashing, as the protocol buffer binary encoding specification does not
-  // provide a deterministic serialization. The order of the serialized elements
-  // does not matter.
+  // provide a deterministic serialization.
   bytes serialized_data_provider_list = 4;
 
   // A cryptographic salt for this `Measurement` that's used when computing the

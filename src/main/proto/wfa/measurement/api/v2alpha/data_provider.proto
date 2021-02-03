@@ -98,3 +98,8 @@ message EventGroup {
   // provider.
   string event_group_reference_id = 4;
 }
+
+// Wrapper for a list of `DataProvider` resource keys.
+message DataProviderList {
+  repeated DataProvider.Key data_provider = 1;
+}
