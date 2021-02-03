@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "wfa/measurement/api/v2alpha/measurement.proto";
+import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -31,6 +32,10 @@ service Measurements {
   // Creates (registers) a `Measurement`.
   rpc CreateMeasurement(CreateMeasurementRequest)
       returns (Measurement) {}
+
+  // Lists `Measurement`s for the parent `MeasurementConsumer`.
+  rpc ListMeasurements(ListMeasurementsRequest)
+      returns (ListMeasurementsResponse) {}
 }
 
 // Request message for `GetMeasurement` method.
@@ -45,4 +50,42 @@ message CreateMeasurementRequest {
   // ignored, and the system will assign an ID.
   Measurement measurement = 1;
 }
+
+// Request message for `ListMeasurements` method.
+message ListMeasurementsRequest {
+  // Resource key of the parent `MeasurementConsumer`.
+  MeasurementConsumer.Key parent = 1;
+
+  // The maximum number of `Measurement`s to return.
+  // The service may return fewer than this value.
+  // If unspecified, at most 50 `Measurement`s will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 2;
+
+  // A page token, received from a previous `ListMeasurementsRequest` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListMeasurementsRequest`
+  // must match the call that provided the page token.
+  string page_token = 3;
+
+  message Filter {
+    // Map of key value pair tags to retrieve `Measurement`s by.
+    // `Measurement`s with tags that have all of the tags specified here
+    // are retrieved.
+    map<string, string> tags = 1;
+  }
+
+  Filter filter = 4;
+}
+
+message ListMeasurementsResponse {
+  // List of `Measurement`s that has all of the tags in the
+  // ListMeasurementsRequest
+  repeated Measurement measurement = 1;
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
 

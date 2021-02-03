@@ -147,6 +147,12 @@ message Measurement {
   // between `measurement_public_key` in `measurement_spec` and
   // `result_public_key`.
   bytes encrypted_result = 11;
+
+  // Map of caller-defined tag keys to values for this `Measurement`.
+  // These are to enable `MeasurementConsumer`s to apply labels to the
+  // `Measurement` to aid in filtering and identifying later on.
+  // Do not put sensitive data in this field.
+  map<string, string> tags = 12;
 }
 
 // Specification for a `Measurement`. Immutable.
