@@ -1034,11 +1034,12 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
   FlagCountTupleNoiseGenerationParameters frequency_noise_params;
-  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  // Add 30 buckets to reduce flakiness.
+  frequency_noise_params.set_maximum_frequency(30);
   frequency_noise_params.set_contributors_count(kNumOfWorkers);
-  // resulted p = 0.606531, offset = 12
+  // resulted p = 0.606531, offset = 6
   *frequency_noise_params.mutable_dp_params() =
-      MakeDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 50);
 
   ASSERT_OK_AND_ASSIGN(
       MpcResult result,

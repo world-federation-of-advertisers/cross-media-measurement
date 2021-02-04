@@ -23,6 +23,7 @@ import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.launch
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
@@ -124,8 +126,12 @@ class CorrectnessImpl(
     logger.info("Estimation Results saved with blob key: $storedResultsPath")
 
     // Finally, we are sending encrypted sketches to the PublisherDataService.
-    generatedCampaigns.forEach {
-      encryptAndSend(it, testResult)
+    coroutineScope {
+      generatedCampaigns.forEach {
+        launch {
+          encryptAndSend(it, testResult)
+        }
+      }
     }
 
     val expectedResult =
