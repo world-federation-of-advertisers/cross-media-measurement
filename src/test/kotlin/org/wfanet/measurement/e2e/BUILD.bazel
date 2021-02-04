@@ -5,6 +5,7 @@ kt_jvm_library(
     testonly = True,
     srcs = ["KindRule.kt"],
     data = ["//src/main/k8s:k8s_deployment_config"],
+    tags = ["manual"],
     deps = [
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/tools:deploy_to_kind_impl",

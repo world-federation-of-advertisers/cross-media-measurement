@@ -56,6 +56,7 @@ ALL_LOCAL_IMAGE_ARCHIVES = [
 filegroup(
     name = "all_archives",
     srcs = ALL_LOCAL_IMAGE_ARCHIVES,
+    tags = ["manual"],
 )
 
 filegroup(
@@ -67,6 +68,7 @@ filegroup(
     data = [
         ":all_archives",
     ],
+    tags = ["manual"],
     visibility = [":k8s_deployer"],
 )
 
@@ -84,12 +86,14 @@ SELECTOR = "app.kubernetes.io/name=measurement-system"
     name = "import_" + image.name + "_kind",
     image_archive = image.image + ".tar",
     k8s_environment = "kind",
+    tags = ["manual"],
 ) for image in ALL_LOCAL_IMAGES]
 
 [k8s_import(
     name = "import_" + image.name + "_u7s",
     image_archive = image.image + ".tar",
     k8s_environment = "usernetes-containerd",
+    tags = ["manual"],
 ) for image in ALL_LOCAL_IMAGES]
 
 k8s_apply(
@@ -97,6 +101,7 @@ k8s_apply(
     src = ":kingdom_and_three_duchies_from_cue_local.yaml",
     delete_selector = SELECTOR,
     imports = [":import_" + image.name + "_kind" for image in ALL_LOCAL_IMAGES],
+    tags = ["manual"],
 )
 
 k8s_apply(
@@ -104,4 +109,5 @@ k8s_apply(
     src = ":kingdom_and_three_duchies_from_cue_local.yaml",
     delete_selector = SELECTOR,
     imports = [":import_" + image.name + "_u7s" for image in ALL_LOCAL_IMAGES],
+    tags = ["manual"],
 )

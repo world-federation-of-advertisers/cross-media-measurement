@@ -29,6 +29,7 @@ kt_jvm_library(
     name = "deploy_to_kind_impl",
     srcs = ["DeployToKind.kt"],
     data = ["//src/main/k8s:k8s_deployment_config"],
+    tags = ["manual"],
     deps = [
         ":run_subprocess",
         "//imports/java/picocli",
@@ -41,6 +42,7 @@ kt_jvm_library(
     name = "deploy_to_gke_impl",
     srcs = ["DeployToGke.kt"],
     data = ["//src/main/k8s:k8s_deployment_config"],
+    tags = ["manual"],
     deps = [
         ":run_subprocess",
         "//imports/java/picocli",
@@ -51,12 +53,14 @@ kt_jvm_library(
 java_binary(
     name = "deploy_to_kind",
     main_class = "org.wfanet.measurement.tools.DeployToKindKt",
+    tags = ["manual"],
     runtime_deps = ["deploy_to_kind_impl"],
 )
 
 java_binary(
     name = "deploy_to_gke",
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
+    tags = ["manual"],
     runtime_deps = ["deploy_to_gke_impl"],
 )
 

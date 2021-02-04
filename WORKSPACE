@@ -215,7 +215,7 @@ container_pull(
 container_pull(
     name = "debian_java_base",
     digest = "sha256:c6746729103a1a306a1ed572012562496512a691b3b23c3abacd64ad503cebc2",
-    registry = "docker.io",
+    registry = "index.docker.io",
     repository = "wfameasurement/java-base",
 )
 
@@ -394,4 +394,3 @@ local_repository(
     name = "any_sketch_java",
     path = "../any-sketch-java",
 )
-
