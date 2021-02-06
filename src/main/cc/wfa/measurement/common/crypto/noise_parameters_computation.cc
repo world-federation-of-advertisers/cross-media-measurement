@@ -26,6 +26,12 @@ int ComputateMuPolya(double epsilon, double delta, int n) {
                    epsilon);
 }
 
+int ComputateMuDlap(double epsilon, double delta) {
+  ABSL_ASSERT(epsilon > 0);
+  ABSL_ASSERT(delta > 0);
+  return std::ceil(std::log(2.0 / delta) / epsilon);
+}
+
 }  // namespace
 
 math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
@@ -88,6 +94,16 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
+  };
+}
+
+math::TruncatedDiscreteLaplaceDistributedOptions GetPublisherNoiseOptions(
+    const DifferentialPrivacyParams& params, int publisher_count) {
+  ABSL_ASSERT(publisher_count > 0);
+  return {
+      .mu = ComputateMuDlap(params.epsilon() / publisher_count,
+                            params.delta() / publisher_count),
+      .s = params.epsilon() / publisher_count,
   };
 }
 

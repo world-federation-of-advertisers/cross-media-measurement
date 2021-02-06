@@ -29,6 +29,7 @@ cc_library(
         "noise_parameters_computation.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
+    visibility = ["//visibility:public"],
     deps = [
         "//src/main/cc/wfa/measurement/common/math:distributions",
         "//src/main/proto/wfa/measurement/common/crypto:parameters_cc_proto",

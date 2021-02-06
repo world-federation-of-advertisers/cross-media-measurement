@@ -36,6 +36,9 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
     const DifferentialPrivacyParams& params, int max_frequency,
     int uncorrupted_party_count);
 
+math::TruncatedDiscreteLaplaceDistributedOptions GetPublisherNoiseOptions(
+    const DifferentialPrivacyParams& params, int publisher_count);
+
 }  // namespace wfa::measurement::common::crypto
 
 #endif  // WFA_MEASUREMENT_COMMON_CRYPTO_NOISE_PARAMETERS_COMPUTATION_H_

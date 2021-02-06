@@ -97,5 +97,41 @@ TEST(GlobalSummation, ProbabilityMassFunctionShouldBeCorrect) {
   }
 }
 
+TEST(GetTruncatedDiscreteLaplaceDistributedRandomNumber,
+     ProbabilityMassFunctionShouldBeCorrect) {
+  const int64_t mu = 10;
+  const double s = 0.6;
+
+  size_t num_trials = 1000000;
+  std::unordered_map<int64_t, size_t> frequency_distribution;
+  for (size_t i = 0; i < num_trials; ++i) {
+    ASSERT_OK_AND_ASSIGN(int64_t temp,
+                         GetTruncatedDiscreteLaplaceDistributedRandomNumber({
+                             .mu = mu,
+                             .s = s,
+                         }));
+    ASSERT_GE(temp, 0);
+    ASSERT_LE(temp, mu * 2);
+    ++frequency_distribution[temp];
+  }
+
+  std::array<double, 2 * mu> expected_probabilities = {};
+  double total_p = 0;
+  for (int64_t i = 0; i <= mu * 2; ++i) {
+    expected_probabilities[i] = 0.5 * s * std::exp(-std::abs(i - mu) * s);
+    total_p += expected_probabilities[i];
+  }
+  // normalize the probabilities.
+  for (int64_t i = 0; i <= mu * 2; ++i) {
+    expected_probabilities[i] /= total_p;
+  }
+
+  for (int64_t i = 0; i <= mu * 2; ++i) {
+    double probability =
+        static_cast<double>(frequency_distribution[i]) / num_trials;
+    EXPECT_NEAR(probability, expected_probabilities[i], 0.001);
+  }
+}
+
 }  // namespace
 }  // namespace wfa::measurement::common::math

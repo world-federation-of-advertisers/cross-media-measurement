@@ -33,11 +33,20 @@ struct DistributedGeometricRandomComponentOptions {
   int64_t shift_offset = 0;
 };
 
+// TODO: add link to the paper. Definition 2.
+struct TruncatedDiscreteLaplaceDistributedOptions {
+  int64_t mu;
+  double s;
+};
+
 // Gets one component of a truncatedShiftedTwoSidedGeometricDistributed random
 // variable using the decentralized mechanism, i.e., a truncated shifted
 // PolyaDiff.
 absl::StatusOr<int64_t> GetDistributedGeometricRandomComponent(
     DistributedGeometricRandomComponentOptions options);
+
+absl::StatusOr<int64_t> GetTruncatedDiscreteLaplaceDistributedRandomNumber(
+    TruncatedDiscreteLaplaceDistributedOptions options);
 
 }  // namespace wfa::measurement::common::math
 

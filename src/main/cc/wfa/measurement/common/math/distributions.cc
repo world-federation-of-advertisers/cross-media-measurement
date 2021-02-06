@@ -19,6 +19,7 @@
 
 #include "absl/random/poisson_distribution.h"
 #include "absl/random/random.h"
+#include "absl/random/bit_gen_ref.h"
 #include "util/status_macros.h"
 
 namespace wfa::measurement::common::math {
@@ -33,7 +34,7 @@ constexpr int kMaximumAttempts = 20;
 // Secure Computing, vol. 14, no. 5, pp. 463-477, 1 Sept.-Oct. 2017,
 // doi: 10.1109/TDSC.2015.2484326.
 absl::StatusOr<int64_t> GetPolyaRandomVariable(double r, double p,
-                                               absl::BitGen& rnd) {
+                                               absl::BitGenRef rnd) {
   if (p <= 0 || p >= 1) {
     return absl::InvalidArgumentError("Probability p should be in (0,1).");
   }
@@ -43,7 +44,7 @@ absl::StatusOr<int64_t> GetPolyaRandomVariable(double r, double p,
 }
 
 absl::StatusOr<int64_t> GetTruncatedPolyaRandomVariable(
-    int64_t truncate_threshold, double r, double p, absl::BitGen& rnd) {
+    int64_t truncate_threshold, double r, double p, absl::BitGenRef rnd) {
   if (truncate_threshold < 0) {
     // Negative truncate_threshold means no truncation.
     return GetPolyaRandomVariable(r, p, rnd);
@@ -58,12 +59,19 @@ absl::StatusOr<int64_t> GetTruncatedPolyaRandomVariable(
       "Failed to create the polya random variable within the attempt limit.");
 }
 
+absl::StatusOr<int64_t> GetDlapVariable(double s, absl::BitGenRef rnd) {
+  double p = std::exp(-s);
+  ASSIGN_OR_RETURN(int64_t a, GetPolyaRandomVariable(1, p, rnd));
+  ASSIGN_OR_RETURN(int64_t b, GetPolyaRandomVariable(1, p, rnd));
+  return a - b;
+}
+
 }  // namespace
 
 absl::StatusOr<int64_t> GetDistributedGeometricRandomComponent(
     DistributedGeometricRandomComponentOptions options) {
-  if (options.num <= 1) {
-    return absl::InvalidArgumentError("The num should be greater than 1.");
+  if (options.num < 1) {
+    return absl::InvalidArgumentError("The num should be positive.");
   }
 
   // TODO: switch to an OpenSSL-based random number generator
@@ -75,6 +83,20 @@ absl::StatusOr<int64_t> GetDistributedGeometricRandomComponent(
                                         options.truncate_threshold,
                                         1.0 / options.num, options.p, rnd));
   return options.shift_offset + polya_a - polya_b;
+}
+
+absl::StatusOr<int64_t> GetTruncatedDiscreteLaplaceDistributedRandomNumber(
+    TruncatedDiscreteLaplaceDistributedOptions options) {
+  // TODO: switch to an OpenSSL-based random number generator
+  absl::BitGen rnd;
+  for (int i = 0; i < kMaximumAttempts; ++i) {
+    ASSIGN_OR_RETURN(int64_t dlap, GetDlapVariable(options.s, rnd));
+    if (dlap <= options.mu && dlap >= -options.mu) {
+      return dlap + options.mu;
+    }
+  }
+  return absl::InternalError(
+      "Failed to create the polya random variable within the attempt limit.");
 }
 
 }  // namespace wfa::measurement::common::math

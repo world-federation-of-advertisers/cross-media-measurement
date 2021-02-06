@@ -1,12 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("//build:defs.bzl", "test_target")
 
-package(default_visibility = [
-    ":__pkg__",
-    test_target(":__pkg__"),
-    "//src/main/cc/wfa/measurement/common:__subpackages__",
-    "//src/main/swig/common:__subpackages__",
-])
+package(default_visibility = ["//visibility:public"])
 
 _INCLUDE_PREFIX = "/src/main/cc"
 
@@ -22,6 +16,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:distributions",
+        "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/status:statusor",
         "@com_google_private_join_and_compute//util:status_includes",
     ],

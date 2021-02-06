@@ -82,5 +82,17 @@ TEST(GetFrequencyNoiseOptions, ExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.truncate_threshold, 75);
 }
 
+TEST(GetPublisherNoiseOptions, ExampleResultShouldBeCorrect) {
+  DifferentialPrivacyParams test_params;
+  test_params.set_epsilon(std::log(3) / 30);
+  test_params.set_delta(0.2 / 100000);
+  int publisher_count = 3;
+
+  auto options = GetPublisherNoiseOptions(test_params, publisher_count);
+
+  EXPECT_EQ(options.mu, 1222);
+  EXPECT_NEAR(options.s, 0.0122, 0.0001);
+}
+
 }  // namespace
 }  // namespace wfa::measurement::common::crypto
