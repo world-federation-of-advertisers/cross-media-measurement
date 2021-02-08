@@ -275,6 +275,7 @@ class LiquidLegionsV2Mill(
         compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
         curveId = cryptoKeySet.curveId.toLong()
         combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
+        totalSketchesCount = token.computationDetails.liquidLegionsV2.totalRequisitionCount
       }
       if (noiseConfig.hasFrequencyNoiseConfig()) {
         requestBuilder.noiseParameters = GetFrequencyNoiseParams()

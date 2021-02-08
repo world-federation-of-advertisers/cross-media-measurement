@@ -153,6 +153,8 @@ message CompleteExecutionPhaseOneAtAggregatorRequest {
   // The parameters required for generating noise flag count tuples.
   // if unset, no noise would be added.
   FlagCountTupleNoiseGenerationParameters noise_parameters = 5;
+  // The total number of sketches across all workers for this computation.
+  int32 total_sketches_count = 6;
 }
 
 // The response of the CompleteExecutionPhaseOneAtAggregator method.

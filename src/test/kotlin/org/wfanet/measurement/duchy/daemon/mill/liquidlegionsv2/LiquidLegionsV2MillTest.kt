@@ -952,6 +952,7 @@ class LiquidLegionsV2MillTest {
           contributorsCount = WORKER_COUNT
           dpParams = testNoiseConfig.frequencyNoiseConfig
         }
+        totalSketchesCount = PUBLISHER_COUNT
       }.build()
     )
   }

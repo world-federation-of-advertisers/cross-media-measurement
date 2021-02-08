@@ -36,14 +36,21 @@ namespace {
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
 // response. 'sub_permutation' contains the locations of the registers belonging
-// to this group, i.e., having the same blinded register index.
+// to this group, i.e., having the same blinded register index. If there are
+// more than total_sketches_count registers in this sub_permutation, these
+// registers would be either publisher noise or padding reach noise, and this
+// sub_permutation would be ignored during SameKeyAggregation.
 absl::Status MergeCountsUsingSameKeyAggregation(
     absl::Span<const size_t> sub_permutation, absl::string_view registers,
-    ProtocolCryptor& protocol_cryptor, std::string& response) {
+    ProtocolCryptor& protocol_cryptor, int total_sketches_count,
+    std::string& response) {
   if (sub_permutation.empty()) {
     return absl::InternalError("Empty sub permutation.");
   }
-
+  if (sub_permutation.size() > total_sketches_count) {
+    // These are publisher noises or padding noises, skip all of them.
+    return absl::OkStatus();
+  }
   ASSIGN_OR_RETURN(ElGamalEcPointPair destroyed_key_constant_ec_pair,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
                        kDestroyedRegisterKey));
@@ -113,7 +120,8 @@ absl::Status MergeCountsUsingSameKeyAggregation(
 absl::Status JoinRegistersByIndexAndMergeCounts(
     ProtocolCryptor& protocol_cryptor, absl::string_view registers,
     const std::vector<std::string>& blinded_register_indexes,
-    absl::Span<const size_t> permutation, std::string& response) {
+    absl::Span<const size_t> permutation, int total_sketches_count,
+    std::string& response) {
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(registers, kBytesPerCipherRegister));
 
@@ -132,7 +140,7 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
       // append the result to the response.
       RETURN_IF_ERROR(MergeCountsUsingSameKeyAggregation(
           permutation.subspan(start, i - start), registers, protocol_cryptor,
-          response));
+          total_sketches_count, response));
       // Reset the starting point.
       start = i;
     }
@@ -140,7 +148,7 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
   // Process the last group and append the result to the response.
   return MergeCountsUsingSameKeyAggregation(
       permutation.subspan(start, register_count - start), registers,
-      protocol_cryptor, response);
+      protocol_cryptor, total_sketches_count, response);
 }
 
 absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
@@ -657,7 +665,8 @@ CompleteExecutionPhaseOneAtAggregator(
   std::string* response_data = response.mutable_flag_count_tuples();
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       *protocol_cryptor, request.combined_register_vector(),
-      blinded_register_indexes, permutation, *response_data));
+      blinded_register_indexes, permutation, request.total_sketches_count(),
+      *response_data));
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
@@ -805,10 +814,6 @@ CompleteExecutionPhaseTwoAtAggregator(
         request.reach_dp_noise_baseline().contributors_count());
     int64_t global_reach_dp_noise_baseline = options.shift_offset * options.num;
     non_empty_register_count -= global_reach_dp_noise_baseline;
-    // Publisher noise and padding noise each contribute 1 additional destroyed
-    // register, which shouldn't be included when estimating reach.
-    // Subtracts 2 from the non_empty_register_count if noises exist.
-    non_empty_register_count -= 2;
   }
   if (request.has_frequency_noise_parameters()) {
     const FlagCountTupleNoiseGenerationParameters& noise_parameters =

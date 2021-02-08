@@ -117,6 +117,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
         combinedRegisterVector = completeExecutionPhaseOneResponse2.combinedRegisterVector
+        totalSketchesCount = 3
       }.build()
     val completeExecutionPhaseOneAtAggregatorResponse =
       CompleteExecutionPhaseOneAtAggregatorResponse.parseFrom(
