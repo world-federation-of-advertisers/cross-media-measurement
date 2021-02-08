@@ -39,9 +39,9 @@ math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
     int uncorrupted_party_count) {
   ABSL_ASSERT(publisher_count > 0);
   ABSL_ASSERT(uncorrupted_party_count > 0);
-  double success_ratio = std::exp(-params.epsilon() / 3);
-  int offset = ComputateMuPolya(params.epsilon() / 3, params.delta(),
-                                2 * uncorrupted_party_count * publisher_count);
+  double success_ratio = std::exp(-params.epsilon() / 2);
+  int offset = ComputateMuPolya(params.epsilon() / 2, params.delta(),
+                                uncorrupted_party_count * publisher_count);
   return {
       .num = uncorrupted_party_count,
       .p = success_ratio,

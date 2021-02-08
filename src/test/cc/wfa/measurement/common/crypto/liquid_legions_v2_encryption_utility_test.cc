@@ -576,7 +576,7 @@ TEST(CompleteSetupPhase, NoiseSumAndMeanShouldBeCorrect) {
 
   int publisher_count = 3;
 
-  int64_t computed_blinded_histogram_noise_offset = 7;
+  int64_t computed_blinded_histogram_noise_offset = 5;
   int64_t computed_publisher_noise_offset = 4;
   int64_t computed_reach_dp_noise_offset = 3;
   int64_t expected_total_register_count =
@@ -591,7 +591,7 @@ TEST(CompleteSetupPhase, NoiseSumAndMeanShouldBeCorrect) {
   noise_parameters->set_total_sketches_count(publisher_count);
   noise_parameters->set_contributors_count(kNumOfWorkers);
   *noise_parameters->mutable_composite_el_gamal_public_key() = public_key;
-  // resulted p ~= 0 , offset = 7
+  // resulted p ~= 0 , offset = 5
   *noise_parameters->mutable_dp_params()->mutable_blind_histogram() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
   // resulted p ~= 0 , offset = 4

@@ -30,9 +30,9 @@ TEST(GetBlindHistogramNoiseOptions, ExampleResultShouldBeCorrect) {
                                                uncorrupted_party_count);
 
   EXPECT_EQ(options.num, uncorrupted_party_count);
-  EXPECT_NEAR(options.p, 0.988, 0.001);
-  EXPECT_EQ(options.shift_offset, 1697);
-  EXPECT_EQ(options.truncate_threshold, 1697);
+  EXPECT_NEAR(options.p, 0.982, 0.001);
+  EXPECT_EQ(options.shift_offset, 1072);
+  EXPECT_EQ(options.truncate_threshold, 1072);
 }
 
 TEST(GetNoiseForPublisherNoiseOptions, ExampleResultShouldBeCorrect) {
