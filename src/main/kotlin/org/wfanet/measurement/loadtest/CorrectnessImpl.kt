@@ -27,13 +27,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.SketchProtos
@@ -102,15 +100,9 @@ class CorrectnessImpl(
     logger.info("Created an Advertiser: $advertiser")
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
 
-    val generatedCampaigns: List<GeneratedCampaign> =
-      (1..dataProviderCount)
-        .asFlow()
-        .transform {
-          emitAll(
-            relationalDatabase.createDataProvider(externalAdvertiserId)
-          )
-        }
-        .toList()
+    val generatedCampaigns = List(dataProviderCount) {
+      relationalDatabase.createDataProvider(externalAdvertiserId).toList()
+    }.flatten()
 
     // Schedule a report before loading the metric requisitions.
     val campaignIds = generatedCampaigns.map { it.campaignId }
