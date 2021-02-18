@@ -1,0 +1,31 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "LiquidLegionsV1EncryptionUtilityTest",
+    srcs = ["LiquidLegionsV1EncryptionUtilityTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.crypto.LiquidLegionsV1EncryptionUtilityTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/protobuf",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",
+        "//src/main/proto/wfa/measurement/protocol/crypto:liquid_legions_v1_encryption_methods_java_proto",
+        "//src/main/swig/protocol/liquidlegionsv1:liquid_legions_v1_encryption_utility",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniLiquidLegionsV1EncryptionTest",
+    srcs = ["JniLiquidLegionsV1EncryptionTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.crypto.JniLiquidLegionsV1EncryptionTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv1/crypto:liquidlegionsv1encryption",
+        "//src/main/proto/wfa/measurement/protocol/crypto:liquid_legions_v1_encryption_methods_java_proto",
+    ],
+)

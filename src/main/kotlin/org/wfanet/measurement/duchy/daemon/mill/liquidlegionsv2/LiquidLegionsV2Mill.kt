@@ -21,27 +21,9 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.flattenConcat
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
-import org.wfanet.anysketch.crypto.ElGamalPublicKeys
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
+import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.DuchyOrder
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
-import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
-import org.wfanet.measurement.common.crypto.ElGamalPublicKey
-import org.wfanet.measurement.common.crypto.FlagCountTupleNoiseGenerationParameters
-import org.wfanet.measurement.common.crypto.LiquidLegionsV2NoiseConfig
-import org.wfanet.measurement.common.crypto.liquidlegionsv2.LiquidLegionsV2Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -50,6 +32,7 @@ import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
@@ -62,9 +45,25 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
+import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
+import org.wfanet.measurement.protocol.FlagCountTupleNoiseGenerationParameters
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
@@ -278,7 +277,7 @@ class LiquidLegionsV2Mill(
         totalSketchesCount = token.computationDetails.liquidLegionsV2.totalRequisitionCount
       }
       if (noiseConfig.hasFrequencyNoiseConfig()) {
-        requestBuilder.noiseParameters = GetFrequencyNoiseParams()
+        requestBuilder.noiseParameters = getFrequencyNoiseParams()
       }
       val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
         cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
@@ -430,7 +429,7 @@ class LiquidLegionsV2Mill(
           partialCompositeElGamalPublicKey = getPartiallyCombinedPublicKey(
             token.globalComputationId, token.computationDetails.liquidLegionsV2.outgoingNodeId
           )
-          noiseParameters = GetFrequencyNoiseParams()
+          noiseParameters = getFrequencyNoiseParams()
         }
       }
 
@@ -572,23 +571,16 @@ class LiquidLegionsV2Mill(
         curveId = cryptoKeySet.curveId.toLong()
         addAllElGamalKeys(
           partialList.map {
-            val key = cryptoKeySet.otherDuchyPublicKeys[it] ?: error(
+            cryptoKeySet.otherDuchyPublicKeys[it] ?: error(
               "$it is not in the key set."
             )
-            ElGamalPublicKeys.newBuilder().apply {
-              elGamalG = key.generator
-              elGamalY = key.element
-            }.build()
           }
         )
       }.build()
       val response = CombineElGamalPublicKeysResponse.parseFrom(
         SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
       )
-      ElGamalPublicKey.newBuilder().apply {
-        generator = response.elGamalKeys.elGamalG
-        element = response.elGamalKeys.elGamalY
-      }.build()
+      response.elGamalKeys
     }
   }
 
@@ -613,7 +605,7 @@ class LiquidLegionsV2Mill(
     return requestBuilder.build()
   }
 
-  private fun GetFrequencyNoiseParams(): FlagCountTupleNoiseGenerationParameters {
+  private fun getFrequencyNoiseParams(): FlagCountTupleNoiseGenerationParameters {
     return FlagCountTupleNoiseGenerationParameters.newBuilder().apply {
       maximumFrequency = maxFrequency
       contributorsCount = workerStubs.size + 1

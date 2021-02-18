@@ -1,11 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("//build:defs.bzl", "test_target")
 
-package(default_visibility = [
-    ":__pkg__",
-    test_target(":__pkg__"),
-    "//src/main/swig/common/crypto:__subpackages__",
-])
+package(default_visibility = ["//visibility:public"])
 
 _INCLUDE_PREFIX = "/src/main/cc"
 
@@ -17,22 +12,6 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_library(
-    name = "noise_parameters_computation",
-    srcs = [
-        "noise_parameters_computation.cc",
-    ],
-    hdrs = [
-        "noise_parameters_computation.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    visibility = ["//visibility:public"],
-    deps = [
-        "//src/main/cc/wfa/measurement/common/math:distributions",
-        "//src/main/proto/wfa/measurement/common/crypto:parameters_cc_proto",
     ],
 )
 
@@ -99,91 +78,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
-        "@com_google_private_join_and_compute//util:status_includes",
-    ],
-)
-
-cc_library(
-    name = "liquid_legions_v1_encryption_utility",
-    srcs = [
-        "liquid_legions_v1_encryption_utility.cc",
-    ],
-    hdrs = [
-        "liquid_legions_v1_encryption_utility.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        ":constants",
-        ":encryption_utility_helper",
-        ":protocol_cryptor",
-        ":started_thread_cpu_timer",
-        "//src/main/cc/wfa/measurement/common:macros",
-        "//src/main/cc/wfa/measurement/common:string_block_sorter",
-        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_private_join_and_compute//crypto:commutative_elgamal",
-        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
-        "@com_google_private_join_and_compute//util:status_includes",
-    ],
-)
-
-cc_library(
-    name = "liquid_legions_v2_encryption_utility",
-    srcs = [
-        "liquid_legions_v2_encryption_utility.cc",
-    ],
-    hdrs = [
-        "liquid_legions_v2_encryption_utility.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        ":constants",
-        ":encryption_utility_helper",
-        ":noise_parameters_computation",
-        ":protocol_cryptor",
-        ":started_thread_cpu_timer",
-        "//src/main/cc/wfa/measurement/common:macros",
-        "//src/main/cc/wfa/measurement/common/math:distributions",
-        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
-        "@any_sketch//src/main/cc/estimation:estimators",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_private_join_and_compute//util:status_includes",
-    ],
-)
-
-cc_library(
-    name = "liquid_legions_v1_encryption_utility_wrapper",
-    srcs = [
-        "liquid_legions_v1_encryption_utility_wrapper.cc",
-    ],
-    hdrs = [
-        "liquid_legions_v1_encryption_utility_wrapper.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        ":encryption_utility_helper",
-        ":liquid_legions_v1_encryption_utility",
-        "//src/main/cc/wfa/measurement/common:macros",
-        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v1_encryption_methods_cc_proto",
-        "@com_google_private_join_and_compute//util:status_includes",
-    ],
-)
-
-cc_library(
-    name = "liquid_legions_v2_encryption_utility_wrapper",
-    srcs = [
-        "liquid_legions_v2_encryption_utility_wrapper.cc",
-    ],
-    hdrs = [
-        "liquid_legions_v2_encryption_utility_wrapper.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        ":encryption_utility_helper",
-        ":liquid_legions_v2_encryption_utility",
-        "//src/main/cc/wfa/measurement/common:macros",
-        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status_includes",
     ],
 )

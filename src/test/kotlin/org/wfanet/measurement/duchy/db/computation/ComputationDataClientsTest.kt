@@ -25,10 +25,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.byteStringOf
-import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.withPadding

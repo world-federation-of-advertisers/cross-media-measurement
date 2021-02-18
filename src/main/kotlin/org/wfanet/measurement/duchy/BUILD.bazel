@@ -12,7 +12,6 @@ kt_jvm_library(
     srcs = ["ComputationStage.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_java_proto",
-        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_status_update_java_proto",
     ],
 )
@@ -23,7 +22,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/crypto/liquidlegionsv1",
         "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
+        "@any_sketch_java//src/main/proto/wfa/common:el_gamal_key_java_proto",
     ],
 )

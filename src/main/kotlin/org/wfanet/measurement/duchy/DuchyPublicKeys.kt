@@ -15,9 +15,9 @@
 package org.wfanet.measurement.duchy
 
 import java.math.BigInteger
+import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
-import org.wfanet.measurement.common.crypto.ElGamalPublicKey
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
 import picocli.CommandLine

@@ -23,7 +23,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
+package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -52,22 +52,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoRequest
-import org.wfanet.measurement.common.crypto.CompleteExecutionPhaseTwoResponse
-import org.wfanet.measurement.common.crypto.CompleteSetupPhaseRequest
-import org.wfanet.measurement.common.crypto.CompleteSetupPhaseResponse
-import org.wfanet.measurement.common.crypto.LiquidLegionsV2NoiseConfig
-import org.wfanet.measurement.common.crypto.liquidlegionsv2.LiquidLegionsV2Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
@@ -75,6 +59,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.toElGamalKeyPair
 import org.wfanet.measurement.duchy.daemon.mill.toElGamalPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -100,6 +85,20 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
+import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
@@ -112,6 +111,7 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WA
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+import org.wfanet.measurement.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.protocol.RequisitionKey
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
@@ -1323,14 +1323,17 @@ class LiquidLegionsV2MillTest {
         "02d0f25ab445fc9c29e7e2509adc93308430f432522ffa93c2ae737ceb480b66d7"
     private const val OWN_EL_GAMAL_KEY = DUCHY_THREE_PUBLIC_KEY +
       "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
+
     // combined from DUCHY_ONE_PUBLIC_KEY + DUCHY_TWO_PUBLIC_KEY + DUCHY_THREE_PUBLIC_KEY
     private const val CLIENT_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
+
     // combine from DUCHY_ONE_PUBLIC_KEY + DUCHY_THREE_PUBLIC_KEY
     private const val DUCHY_ONE_THREE_COMBINED_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "031887eb8e4d4290fa97601c1ef6cda80ab3d2fe82da39ef8ed2e846cc7866a3b0"
+
     private const val CURVE_ID = 415; // NID_X9_62_prime256v1
 
     private val cryptoKeySet =

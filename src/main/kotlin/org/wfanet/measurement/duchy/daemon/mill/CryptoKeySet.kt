@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.duchy.daemon.mill
 
-import org.wfanet.measurement.common.crypto.ElGamalKeyPair
-import org.wfanet.measurement.common.crypto.ElGamalPublicKey
+import org.wfanet.common.ElGamalKeyPair
+import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.hexAsByteString
 
 /**

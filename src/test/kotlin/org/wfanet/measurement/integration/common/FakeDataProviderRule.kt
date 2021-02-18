@@ -148,8 +148,8 @@ class FakeDataProviderRule : TestRule {
       curveId = combinedElGamalKey.ellipticCurveId.toLong()
       maximumValue = 10
       elGamalKeysBuilder.apply {
-        elGamalG = combinedElGamalKey.generator
-        elGamalY = combinedElGamalKey.element
+        generator = combinedElGamalKey.generator
+        element = combinedElGamalKey.element
       }
       // TODO: choose strategy according to the protocol type.
       destroyedRegisterStrategy = FLAGGED_KEY

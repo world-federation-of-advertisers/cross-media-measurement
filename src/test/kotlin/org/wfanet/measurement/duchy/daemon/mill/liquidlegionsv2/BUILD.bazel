@@ -3,7 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "LiquidLegionsV2MillTest",
     srcs = ["LiquidLegionsV2MillTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2MillTest",
+    test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2MillTest",
     deps = [
         "//imports/kotlin/com/nhaarman/mockitokotlin2",
         "//imports/kotlin/kotlin/test",
@@ -16,7 +16,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
-        "//src/main/proto/wfa/measurement/common/crypto:liquid_legions_v2_encryption_methods_java_proto",
-        "//src/main/swig/common/crypto/liquidlegionsv2:liquid_legions_v2_encryption_utility",
+        "//src/main/proto/wfa/measurement/protocol/crypto:liquid_legions_v2_encryption_methods_java_proto",
+        "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
     ],
 )

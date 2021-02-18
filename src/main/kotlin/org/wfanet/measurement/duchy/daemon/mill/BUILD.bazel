@@ -13,7 +13,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/proto/wfa/measurement/common/crypto:parameters_java_proto",
+        "@any_sketch_java//src/main/proto/wfa/common:el_gamal_key_java_proto",
     ],
 )
 

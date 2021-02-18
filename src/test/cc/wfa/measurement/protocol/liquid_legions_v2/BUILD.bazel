@@ -1,0 +1,20 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "liquid_legions_v2_encryption_utility_test",
+    size = "small",
+    timeout = "moderate",
+    srcs = [
+        "liquid_legions_v2_encryption_utility_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility",
+        "//src/test/cc/testutil:matchers",
+        "//src/test/cc/testutil:status_macros",
+        "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
+        "@any_sketch//src/main/cc/estimation:estimators",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_cc_proto",
+    ],
+)

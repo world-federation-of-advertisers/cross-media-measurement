@@ -326,8 +326,8 @@ class CorrectnessImpl(
       this.sketch = sketch
       maximumValue = MAX_COUNTER_VALUE
       curveId = combinedPublicKey.ellipticCurveId.toLong()
-      elGamalKeysBuilder.elGamalG = combinedPublicKey.generator
-      elGamalKeysBuilder.elGamalY = combinedPublicKey.element
+      elGamalKeysBuilder.generator = combinedPublicKey.generator
+      elGamalKeysBuilder.element = combinedPublicKey.element
       destroyedRegisterStrategy = FLAGGED_KEY // for LL_V2 protocol
     }.build()
     val response = EncryptSketchResponse.parseFrom(

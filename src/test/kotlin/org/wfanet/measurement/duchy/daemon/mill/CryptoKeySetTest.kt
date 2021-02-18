@@ -17,7 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.common.crypto.ElGamalKeyPair
+import org.wfanet.common.ElGamalKeyPair
 
 class CryptoKeySetTest {
 

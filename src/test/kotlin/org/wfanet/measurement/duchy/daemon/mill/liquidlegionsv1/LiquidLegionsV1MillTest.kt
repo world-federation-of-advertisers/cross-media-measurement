@@ -23,7 +23,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1
+package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.crypto
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -52,17 +52,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.DuchyOrder
-import org.wfanet.measurement.common.crypto.AddNoiseToSketchRequest
-import org.wfanet.measurement.common.crypto.AddNoiseToSketchResponse
-import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersRequest
-import org.wfanet.measurement.common.crypto.BlindLastLayerIndexThenJoinRegistersResponse
-import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexRequest
-import org.wfanet.measurement.common.crypto.BlindOneLayerRegisterIndexResponse
-import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse
-import org.wfanet.measurement.common.crypto.DecryptLastLayerFlagAndCountResponse.FlagCount
-import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountRequest
-import org.wfanet.measurement.common.crypto.DecryptOneLayerFlagAndCountResponse
-import org.wfanet.measurement.common.crypto.liquidlegionsv1.LiquidLegionsV1Encryption
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
@@ -70,6 +59,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
 import org.wfanet.measurement.duchy.daemon.mill.toElGamalKeyPair
 import org.wfanet.measurement.duchy.daemon.mill.toElGamalPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -95,6 +85,16 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
+import org.wfanet.measurement.protocol.AddNoiseToSketchRequest
+import org.wfanet.measurement.protocol.AddNoiseToSketchResponse
+import org.wfanet.measurement.protocol.BlindLastLayerIndexThenJoinRegistersRequest
+import org.wfanet.measurement.protocol.BlindLastLayerIndexThenJoinRegistersResponse
+import org.wfanet.measurement.protocol.BlindOneLayerRegisterIndexRequest
+import org.wfanet.measurement.protocol.BlindOneLayerRegisterIndexResponse
+import org.wfanet.measurement.protocol.DecryptLastLayerFlagAndCountResponse
+import org.wfanet.measurement.protocol.DecryptLastLayerFlagAndCountResponse.FlagCount
+import org.wfanet.measurement.protocol.DecryptOneLayerFlagAndCountRequest
+import org.wfanet.measurement.protocol.DecryptOneLayerFlagAndCountResponse
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage as LiquidLegionsStage
 import org.wfanet.measurement.protocol.RequisitionKey
@@ -214,6 +214,7 @@ class LiquidLegionsV1MillTest {
   }
 
   lateinit var computationControlRequests: List<AdvanceComputationRequest>
+
   @Before
   fun mockComputationControlServiceToCaptureRequests() = runBlocking<Unit> {
     whenever(mockComputationControl.advanceComputation(any())).thenAnswer {
@@ -1158,6 +1159,7 @@ class LiquidLegionsV1MillTest {
     private const val CLIENT_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
+
     private const val CURVE_ID = 415 // NID_X9_62_prime256v1
 
     private val cryptoKeySet =

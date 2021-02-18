@@ -14,7 +14,6 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/storage/contrib/nio",
         "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/crypto/liquidlegionsv1",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
@@ -24,7 +23,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
-        "//src/main/proto/wfa/measurement/common/crypto:parameters_java_proto",
         "//src/test/kotlin/org/wfanet/measurement/integration/common",
     ],
 )

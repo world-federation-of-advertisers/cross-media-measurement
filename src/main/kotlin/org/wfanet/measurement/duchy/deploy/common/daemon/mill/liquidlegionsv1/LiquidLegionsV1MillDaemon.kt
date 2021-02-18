@@ -17,8 +17,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv1
 import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.crypto.ElGamalKeyPair
-import org.wfanet.measurement.common.crypto.liquidlegionsv1.JniLiquidLegionsV1Encryption
+import org.wfanet.common.ElGamalKeyPair
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -27,6 +26,7 @@ import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
+import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.crypto.JniLiquidLegionsV1Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
