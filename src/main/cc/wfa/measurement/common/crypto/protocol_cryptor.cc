@@ -31,6 +31,7 @@
 namespace wfa::measurement::common::crypto {
 
 namespace {
+using ::private_join_and_compute::BigNum;
 using ::private_join_and_compute::CommutativeElGamal;
 using ::private_join_and_compute::Context;
 using ::private_join_and_compute::ECCommutativeCipher;
@@ -79,7 +80,8 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
                             std::string& result) override;
   absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
       const ElGamalCiphertext& ciphertext) override;
-  std::string NextRandomBigNum() override;
+  BigNum NextRandomBigNum() override;
+  std::string NextRandomBigNumAsString() override;
 
  private:
   // A CommutativeElGamal cipher created using local ElGamal Keys, used for
@@ -301,8 +303,12 @@ absl::StatusOr<bool> ProtocolCryptorImpl::IsDecryptLocalElGamalResultZero(
   }
 }
 
-std::string ProtocolCryptorImpl::NextRandomBigNum() {
-  return ec_group_.GeneratePrivateKey().ToDecimalString();
+BigNum ProtocolCryptorImpl::NextRandomBigNum() {
+  return ec_group_.GeneratePrivateKey();
+}
+
+std::string ProtocolCryptorImpl::NextRandomBigNumAsString() {
+  return NextRandomBigNum().ToDecimalString();
 }
 
 }  // namespace

@@ -100,8 +100,10 @@ class ProtocolCryptor {
   // infinity.
   virtual absl::StatusOr<bool> IsDecryptLocalElGamalResultZero(
       const ElGamalCiphertext& ciphertext) = 0;
+  // Returns a random BigNum.
+  virtual private_join_and_compute::BigNum NextRandomBigNum() = 0;
   // Returns a random BigNum as string.
-  virtual std::string NextRandomBigNum() = 0;
+  virtual std::string NextRandomBigNumAsString() = 0;
 
  protected:
   ProtocolCryptor() = default;
