@@ -437,12 +437,12 @@ class TestData {
     complete_execution_phase_two_request_1.set_flag_count_tuples(
         complete_execution_phase_one_at_aggregator_response
             .flag_count_tuples());
+    *complete_execution_phase_two_request_1
+         .mutable_partial_composite_el_gamal_public_key() =
+        duchy_2_3_composite_public_key_;
     if (frequency_noise_parameters != nullptr) {
       *complete_execution_phase_two_request_1.mutable_noise_parameters() =
           *frequency_noise_parameters;
-      *complete_execution_phase_two_request_1
-           .mutable_partial_composite_el_gamal_public_key() =
-          duchy_2_3_composite_public_key_;
     }
 
     ASSIGN_OR_RETURN(
@@ -461,12 +461,12 @@ class TestData {
     complete_execution_phase_two_request_2.set_curve_id(kTestCurveId);
     complete_execution_phase_two_request_2.set_flag_count_tuples(
         complete_execution_phase_two_response_1.flag_count_tuples());
+    *complete_execution_phase_two_request_2
+         .mutable_partial_composite_el_gamal_public_key() =
+        duchy_3_el_gamal_key_pair_.public_key();
     if (frequency_noise_parameters != nullptr) {
       *complete_execution_phase_two_request_2.mutable_noise_parameters() =
           *frequency_noise_parameters;
-      *complete_execution_phase_two_request_2
-           .mutable_partial_composite_el_gamal_public_key() =
-          duchy_3_el_gamal_key_pair_.public_key();
     }
 
     ASSIGN_OR_RETURN(
@@ -756,7 +756,7 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   EXPECT_NEAR(result.frequency_distribution[6], 1.0, 0.001);
 }
 
-TEST(EndToEnd, LocallyDistroyedRegisterShouldBeIgnored) {
+TEST(EndToEnd, LocallyDestroyedRegisterShouldBeIgnored) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /*index=*/1, /*key=*/111, /*count=*/3);
@@ -775,7 +775,7 @@ TEST(EndToEnd, LocallyDistroyedRegisterShouldBeIgnored) {
   EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
 }
 
-TEST(EndToEnd, CrossPublisherDistroyedRegistersShouldBeIgnored) {
+TEST(EndToEnd, CrossPublisherDestroyedRegistersShouldBeIgnored) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
   AddRegister(&plain_sketch, /*index=*/1, /*key=*/111, /*count=*/3);

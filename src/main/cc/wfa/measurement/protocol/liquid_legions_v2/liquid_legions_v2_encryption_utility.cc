@@ -45,6 +45,7 @@ using ::wfa::math::GetGlobalReachDpNoiseOptions;
 using ::wfa::math::GetNoiseForPublisherNoiseOptions;
 using ::wfa::measurement::common::SortStringByBlock;
 using ::wfa::measurement::common::crypto::Action;
+using ::wfa::measurement::common::crypto::CompositeType;
 using ::wfa::measurement::common::crypto::CreateProtocolCryptorWithKeys;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ElGamalEcPointPair;
@@ -59,6 +60,8 @@ using ::wfa::measurement::common::crypto::kBytesPerFlagsCountTuple;
 using ::wfa::measurement::common::crypto::kDestroyedRegisterKey;
 using ::wfa::measurement::common::crypto::KeyCountPairCipherText;
 using ::wfa::measurement::common::crypto::kFlagZeroBase;
+using ::wfa::measurement::common::crypto::kGenerateNewCompositeCipher;
+using ::wfa::measurement::common::crypto::kGenerateNewParitialCompositeCipher;
 using ::wfa::measurement::common::crypto::kGenerateWithNewElGamalPrivateKey;
 using ::wfa::measurement::common::crypto::kGenerateWithNewElGamalPublicKey;
 using ::wfa::measurement::common::crypto::kGenerateWithNewPohligHellmanKey;
@@ -88,11 +91,11 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   }
   ASSIGN_OR_RETURN(ElGamalEcPointPair destroyed_key_constant_ec_pair,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
-                       kDestroyedRegisterKey));
+                       kDestroyedRegisterKey, CompositeType::kFull));
   ASSIGN_OR_RETURN(
       ElGamalEcPointPair blinded_histogram_noise_key_constant_ec_pair,
       protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
-          kBlindedHistogramNoiseRegisterKey));
+          kBlindedHistogramNoiseRegisterKey, CompositeType::kFull));
 
   ASSIGN_OR_RETURN(
       KeyCountPairCipherText key_count_0,
@@ -101,7 +104,8 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   // Initialize flag_a as 0
   ASSIGN_OR_RETURN(
       ElGamalEcPointPair flag_a,
-      protocol_cryptor.EncryptIdentityElementToEcPointsCompositeElGamal());
+      protocol_cryptor.EncryptIdentityElementToEcPointsCompositeElGamal(
+          CompositeType::kFull));
   ASSIGN_OR_RETURN(ElGamalEcPointPair total_count,
                    protocol_cryptor.ToElGamalEcPoints(key_count_0.count));
   // calculate the inverse of key_0. i.e., -K0
@@ -212,7 +216,7 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
   std::vector<ElGamalEcPointPair> result;
   ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
-                       kUnitECPointSeed));
+                       kUnitECPointSeed, CompositeType::kFull));
   ASSIGN_OR_RETURN(ElGamalEcPointPair negative_one_ec,
                    InvertEcPointPair(one_ec));
   result.push_back(std::move(negative_one_ec));
@@ -225,10 +229,11 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
 }
 
 absl::Status EncryptCompositeElGamalAndAppendToString(
-    ProtocolCryptor& protocol_cryptor, absl::string_view plaintext_ec,
-    std::string& data) {
-  ASSIGN_OR_RETURN(ElGamalCiphertext key,
-                   protocol_cryptor.EncryptCompositeElGamal(plaintext_ec));
+    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
+    absl::string_view plaintext_ec, std::string& data) {
+  ASSIGN_OR_RETURN(
+      ElGamalCiphertext key,
+      protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
   data.append(key.first);
   data.append(key.second);
   return absl::OkStatus();
@@ -261,14 +266,16 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
       for (int j = 0; j < k; ++j) {
         // Add register_id
         RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-            protocol_cryptor, register_id_ec, data));
+            protocol_cryptor, CompositeType::kFull, register_id_ec, data));
         // Add register key, which is the constant blinded_histogram_noise_key.
         RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-            protocol_cryptor, blinded_histogram_noise_key_ec, data));
+            protocol_cryptor, CompositeType::kFull,
+            blinded_histogram_noise_key_ec, data));
         // Add register count, which can be arbitrary value. use the same value
         // as key here.
         RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-            protocol_cryptor, blinded_histogram_noise_key_ec, data));
+            protocol_cryptor, CompositeType::kFull,
+            blinded_histogram_noise_key_ec, data));
         ++noise_register_added;
       }
     }
@@ -290,17 +297,18 @@ absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
   for (int i = 0; i < noise_registers_count; ++i) {
     // Add register id, a predefined constant.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, publisher_noise_register_id_ec, data));
+        protocol_cryptor, CompositeType::kFull, publisher_noise_register_id_ec,
+        data));
     // Add register key, a random number.
     ASSIGN_OR_RETURN(
         std::string random_key_ec,
         protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, random_key_ec, data));
+        protocol_cryptor, CompositeType::kFull, random_key_ec, data));
     // Add register count, which can be of arbitrary value. Use the same value
     // as key here.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, random_key_ec, data));
+        protocol_cryptor, CompositeType::kFull, random_key_ec, data));
   }
   return noise_registers_count;
 }
@@ -324,14 +332,16 @@ absl::StatusOr<int64_t> AddGlobalReachDpNoise(
     ASSIGN_OR_RETURN(std::string register_id_ec,
                      protocol_cryptor.MapToCurve(register_id));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, register_id_ec, data));
+        protocol_cryptor, CompositeType::kFull, register_id_ec, data));
     // Add register key, a predefined constant denoting destroyed registers.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, destroyed_register_key_ec, data));
+        protocol_cryptor, CompositeType::kFull, destroyed_register_key_ec,
+        data));
     // Add register count, which can be of arbitrary value. use the same value
     // as key here.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, destroyed_register_key_ec, data));
+        protocol_cryptor, CompositeType::kFull, destroyed_register_key_ec,
+        data));
   }
   return noise_registers_count;
 }
@@ -348,17 +358,18 @@ absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
   for (int64_t i = 0; i < count; ++i) {
     // Add register_id, a predefined constant
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, padding_noise_register_id_ec, data));
+        protocol_cryptor, CompositeType::kFull, padding_noise_register_id_ec,
+        data));
     ASSIGN_OR_RETURN(
         std::string random_key_ec,
         protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
     // Add register key, random number
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, random_key_ec, data));
+        protocol_cryptor, CompositeType::kFull, random_key_ec, data));
     // Add register count, which can be arbitrary value. use the same value
     // as key here.
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        protocol_cryptor, random_key_ec, data));
+        protocol_cryptor, CompositeType::kFull, random_key_ec, data));
   }
   return absl::OkStatus();
 }
@@ -366,9 +377,7 @@ absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
 // Adds 4 tuples with flag values equal to (0,R_1,R_2) to the end of data for
 // each count value in [1, maximum_frequency], where R_i are random numbers.
 absl::StatusOr<int64_t> AddFrequencyDpNoise(
-    ProtocolCryptor& full_protocol_cryptor,
-    ProtocolCryptor& partial_protocol_cryptor, int maximum_frequency,
-    int curve_id,
+    ProtocolCryptor& protocol_cryptor, int maximum_frequency, int curve_id,
     const math::DistributedGeometricRandomComponentOptions& options,
     std::string& data) {
   ASSIGN_OR_RETURN(std::vector<std::string> count_values_plaintext,
@@ -378,24 +387,26 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
     ASSIGN_OR_RETURN(int64_t noise_tuples_count,
                      math::GetDistributedGeometricRandomComponent(options));
     for (int i = 0; i < noise_tuples_count; ++i) {
-      // Adds flag_1, which is 0 encrypted by the partial_protocol_cryptor.
-      ASSIGN_OR_RETURN(ElGamalEcPointPair zero,
-                       partial_protocol_cryptor
-                           .EncryptIdentityElementToEcPointsCompositeElGamal());
+      // Adds flag_1, which is 0 encrypted using the partial composite key.
+      ASSIGN_OR_RETURN(
+          ElGamalEcPointPair zero,
+          protocol_cryptor.EncryptIdentityElementToEcPointsCompositeElGamal(
+              CompositeType::kPartial));
       RETURN_IF_ERROR(AppendEcPointPairToString(zero, data));
-      // Adds flag_2 and flag_3, which are random numbers encrypted by the
-      // partial_protocol_cryptor.
+      // Adds flag_2 and flag_3, which are random numbers encrypted using the
+      // partial composite key.
       for (int j = 0; j < 2; ++j) {
-        ASSIGN_OR_RETURN(std::string random_values,
-                         partial_protocol_cryptor.MapToCurve(
-                             partial_protocol_cryptor.NextRandomBigNum()));
+        ASSIGN_OR_RETURN(
+            std::string random_values,
+            protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
         RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-            partial_protocol_cryptor, random_values, data));
+            protocol_cryptor, CompositeType::kPartial, random_values, data));
       }
       // Adds the count value.
-      ASSIGN_OR_RETURN(ElGamalCiphertext count,
-                       full_protocol_cryptor.EncryptCompositeElGamal(
-                           count_values_plaintext[frequency - 1]));
+      ASSIGN_OR_RETURN(
+          ElGamalCiphertext count,
+          protocol_cryptor.EncryptCompositeElGamal(
+              count_values_plaintext[frequency - 1], CompositeType::kFull));
       data.append(count.first);
       data.append(count.second);
     }
@@ -407,60 +418,60 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
 // Adds 4 tuples with flag values equal to (R1,R2,R3) and count value equal to
 // R4 to the end of data, where Ri are random numbers.
 absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
-    ProtocolCryptor& full_protocol_cryptor,
-    ProtocolCryptor& partial_protocol_cryptor,
+    ProtocolCryptor& protocol_cryptor,
     const math::DistributedGeometricRandomComponentOptions& options,
     std::string& data) {
   ASSIGN_OR_RETURN(int64_t noise_tuples_count,
                    math::GetDistributedGeometricRandomComponent(options));
   for (int i = 0; i < noise_tuples_count; ++i) {
     for (int j = 0; j < 3; ++j) {
-      // Add three random flags encrypted using the partial_protocol_cryptor.
-      ASSIGN_OR_RETURN(std::string random_values,
-                       partial_protocol_cryptor.MapToCurve(
-                           partial_protocol_cryptor.NextRandomBigNum()));
+      // Add three random flags encrypted using the partial composite ElGamal
+      // Key.
+      ASSIGN_OR_RETURN(
+          std::string random_values,
+          protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
       RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-          partial_protocol_cryptor, random_values, data));
+          protocol_cryptor, CompositeType::kPartial, random_values, data));
     }
-    // Add a random count encrypted using the full_protocol_cryptor.
-    ASSIGN_OR_RETURN(std::string random_values,
-                     full_protocol_cryptor.MapToCurve(
-                         full_protocol_cryptor.NextRandomBigNum()));
+    // Add a random count encrypted using the full composite ElGamal Key.
+    ASSIGN_OR_RETURN(
+        std::string random_values,
+        protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        full_protocol_cryptor, random_values, data));
+        protocol_cryptor, CompositeType::kFull, random_values, data));
   }
   return noise_tuples_count;
 }
 
 // Adds 4 tuples with flag values equal to (0,0,R1) and count value equal to R2
 // to the end of data, where Ri are random numbers.
-absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& full_protocol_cryptor,
-                                      ProtocolCryptor& partial_protocol_cryptor,
+absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& protocol_cryptor,
                                       int noise_tuples_count,
                                       std::string& data) {
   if (noise_tuples_count < 0) {
     return absl::InvalidArgumentError("Count should >= 0.");
   }
   for (int i = 0; i < noise_tuples_count; ++i) {
-    // Adds flag_1 and flag_2, which are 0 encrypted by the
-    // partial_protocol_cryptor.
+    // Adds flag_1 and flag_2, which are 0 encrypted using the partial composite
+    // ElGamal Key.
     for (int j = 0; j < 2; ++j) {
-      ASSIGN_OR_RETURN(ElGamalEcPointPair zero,
-                       partial_protocol_cryptor
-                           .EncryptIdentityElementToEcPointsCompositeElGamal());
+      ASSIGN_OR_RETURN(
+          ElGamalEcPointPair zero,
+          protocol_cryptor.EncryptIdentityElementToEcPointsCompositeElGamal(
+              CompositeType::kPartial));
       RETURN_IF_ERROR(AppendEcPointPairToString(zero, data));
     }
-    // Adds flag_3 and count, which are random numbers encrypted by the
-    // partial_protocol_cryptor and full_protocol_cryptor respectively. We use a
+    // Adds flag_3 and count, which are random numbers encrypted using the
+    // partial and full composite ElGamal Keys respectively. We use a
     // same random number here since the count value is not used and can be of
     // arbitrary value.
-    ASSIGN_OR_RETURN(std::string random_values,
-                     partial_protocol_cryptor.MapToCurve(
-                         partial_protocol_cryptor.NextRandomBigNum()));
+    ASSIGN_OR_RETURN(
+        std::string random_values,
+        protocol_cryptor.MapToCurve(protocol_cryptor.NextRandomBigNum()));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        partial_protocol_cryptor, random_values, data));
+        protocol_cryptor, CompositeType::kPartial, random_values, data));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        full_protocol_cryptor, random_values, data));
+        protocol_cryptor, CompositeType::kFull, random_values, data));
   }
   return absl::OkStatus();
 }
@@ -514,8 +525,7 @@ absl::Status ValidateFrequencyNoiseParameters(
 }
 
 absl::Status AddAllFrequencyNoise(
-    ProtocolCryptor& full_protocol_cryptor,
-    ProtocolCryptor& partial_protocol_cryptor, int curve_id,
+    ProtocolCryptor& protocol_cryptor, int curve_id,
     const FlagCountTupleNoiseGenerationParameters& noise_parameters,
     std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
@@ -525,20 +535,16 @@ absl::Status AddAllFrequencyNoise(
       noise_parameters.contributors_count());
   int64_t total_noise_tuples_count =
       options.shift_offset * 2 * (noise_parameters.maximum_frequency() + 1);
-  ASSIGN_OR_RETURN(
-      int frequency_dp_noise_tuples_count,
-      AddFrequencyDpNoise(full_protocol_cryptor, partial_protocol_cryptor,
-                          noise_parameters.maximum_frequency(), curve_id,
-                          options, data));
-  ASSIGN_OR_RETURN(
-      int destroyed_noise_tuples_count,
-      AddDestroyedFrequencyNoise(full_protocol_cryptor,
-                                 partial_protocol_cryptor, options, data));
+  ASSIGN_OR_RETURN(int frequency_dp_noise_tuples_count,
+                   AddFrequencyDpNoise(protocol_cryptor,
+                                       noise_parameters.maximum_frequency(),
+                                       curve_id, options, data));
+  ASSIGN_OR_RETURN(int destroyed_noise_tuples_count,
+                   AddDestroyedFrequencyNoise(protocol_cryptor, options, data));
   int64_t padding_noise_tuples_count = total_noise_tuples_count -
                                        frequency_dp_noise_tuples_count -
                                        destroyed_noise_tuples_count;
-  RETURN_IF_ERROR(AddPaddingFrequencyNoise(full_protocol_cryptor,
-                                           partial_protocol_cryptor,
+  RETURN_IF_ERROR(AddPaddingFrequencyNoise(protocol_cryptor,
                                            padding_noise_tuples_count, data));
   return absl::OkStatus();
 }
@@ -587,7 +593,8 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
             kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
             std::make_pair(
                 noise_parameters.composite_el_gamal_public_key().generator(),
-                noise_parameters.composite_el_gamal_public_key().element())),
+                noise_parameters.composite_el_gamal_public_key().element()),
+            kGenerateNewParitialCompositeCipher),
         "Failed to create the protocol cipher, invalid curveId or keys.");
 
     // 1. Add blinded histogram noise.
@@ -638,7 +645,8 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
           request.local_el_gamal_key_pair().secret_key(),
           kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
-                         request.composite_el_gamal_public_key().element())),
+                         request.composite_el_gamal_public_key().element()),
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseOneResponse response;
@@ -680,6 +688,8 @@ CompleteExecutionPhaseOneAtAggregator(
           request.local_el_gamal_key_pair().secret_key(),
           kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
+                         request.composite_el_gamal_public_key().element()),
+          std::make_pair(request.composite_el_gamal_public_key().generator(),
                          request.composite_el_gamal_public_key().element())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
@@ -705,9 +715,9 @@ CompleteExecutionPhaseOneAtAggregator(
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    RETURN_IF_ERROR(AddAllFrequencyNoise(
-        *protocol_cryptor, *protocol_cryptor, request.curve_id(),
-        request.noise_parameters(), *response_data));
+    RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, request.curve_id(),
+                                         request.noise_parameters(),
+                                         *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -733,7 +743,10 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
           request.local_el_gamal_key_pair().secret_key(),
           kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
-                         request.composite_el_gamal_public_key().element())),
+                         request.composite_el_gamal_public_key().element()),
+          std::make_pair(
+              request.partial_composite_el_gamal_public_key().generator(),
+              request.partial_composite_el_gamal_public_key().element())),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseTwoResponse response;
@@ -747,25 +760,17 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
             .substr(index * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
     RETURN_IF_ERROR(protocol_cryptor->BatchProcess(
         current_block,
-        {Action::kPartialDecrypt, Action::kPartialDecrypt,
-         Action::kPartialDecrypt, Action::kReRandomize},
+        {Action::kPartialDecryptAndReRandomize,
+         Action::kPartialDecryptAndReRandomize,
+         Action::kPartialDecryptAndReRandomize, Action::kReRandomize},
         *response_data));
   }
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    ASSIGN_OR_RETURN_ERROR(
-        auto partial_protocol_cryptor,
-        CreateProtocolCryptorWithKeys(
-            request.curve_id(), kGenerateWithNewElGamalPublicKey,
-            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-            std::make_pair(
-                request.partial_composite_el_gamal_public_key().generator(),
-                request.partial_composite_el_gamal_public_key().element())),
-        "Failed to create the protocol cipher, invalid curveId or keys.");
-    RETURN_IF_ERROR(AddAllFrequencyNoise(
-        *protocol_cryptor, *partial_protocol_cryptor, request.curve_id(),
-        request.noise_parameters(), *response_data));
+    RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, request.curve_id(),
+                                         request.noise_parameters(),
+                                         *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -793,7 +798,8 @@ CompleteExecutionPhaseTwoAtAggregator(
           request.local_el_gamal_key_pair().secret_key(),
           kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
-                         request.composite_el_gamal_public_key().element())),
+                         request.composite_el_gamal_public_key().element()),
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(std::vector<ElGamalEcPointPair> ska_bases,
@@ -893,7 +899,8 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalPublicKey),
+          kGenerateWithNewPohligHellmanKey, kGenerateNewCompositeCipher,
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseThreeResponse response;
@@ -944,7 +951,8 @@ CompleteExecutionPhaseThreeAtAggregator(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalPublicKey),
+          kGenerateWithNewPohligHellmanKey, kGenerateNewCompositeCipher,
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   // histogram[i-1] = the number of times value i (1...maximum_frequency-1)

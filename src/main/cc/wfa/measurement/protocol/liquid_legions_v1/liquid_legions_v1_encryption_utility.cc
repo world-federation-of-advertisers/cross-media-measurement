@@ -47,6 +47,7 @@ using ::private_join_and_compute::ECPoint;
 using ::wfa::common::ElGamalPublicKey;
 using ::wfa::measurement::common::SortStringByBlock;
 using ::wfa::measurement::common::crypto::Action;
+using ::wfa::measurement::common::crypto::CompositeType;
 using ::wfa::measurement::common::crypto::CreateProtocolCryptorWithKeys;
 using ::wfa::measurement::common::crypto::ElGamalEcPointPair;
 using ::wfa::measurement::common::crypto::ExtractElGamalCiphertextFromString;
@@ -56,6 +57,8 @@ using ::wfa::measurement::common::crypto::kBytesPerCipherRegister;
 using ::wfa::measurement::common::crypto::kBytesPerCipherText;
 using ::wfa::measurement::common::crypto::KeyCountPairCipherText;
 using ::wfa::measurement::common::crypto::kFlagZeroBase;
+using ::wfa::measurement::common::crypto::kGenerateNewCompositeCipher;
+using ::wfa::measurement::common::crypto::kGenerateNewParitialCompositeCipher;
 using ::wfa::measurement::common::crypto::kGenerateWithNewElGamalPublicKey;
 using ::wfa::measurement::common::crypto::kGenerateWithNewPohligHellmanKey;
 using ::wfa::measurement::common::crypto::kUnitECPointSeed;
@@ -122,7 +125,7 @@ absl::Status MergeCountsUsingSameKeyAggregation(
   // Initialize the flag and count.
   ASSIGN_OR_RETURN(ElGamalEcPointPair tuple_flag,
                    protocol_cryptor.EncryptPlaintextToEcPointsCompositeElGamal(
-                       kFlagZeroBase));
+                       kFlagZeroBase, CompositeType::kFull));
   ASSIGN_OR_RETURN(ElGamalEcPointPair tuple_count,
                    protocol_cryptor.ToElGamalEcPoints(key_count_0.count));
 
@@ -215,7 +218,8 @@ absl::StatusOr<BlindOneLayerRegisterIndexResponse> BlindOneLayerRegisterIndex(
           request.local_el_gamal_key_pair().secret_key(),
           kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
-                         request.composite_el_gamal_public_key().element())),
+                         request.composite_el_gamal_public_key().element()),
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   BlindOneLayerRegisterIndexResponse response;
@@ -257,7 +261,8 @@ BlindLastLayerIndexThenJoinRegisters(
           request.local_el_gamal_key_pair().secret_key(),
           kGenerateWithNewPohligHellmanKey,
           std::make_pair(request.composite_el_gamal_public_key().generator(),
-                         request.composite_el_gamal_public_key().element())),
+                         request.composite_el_gamal_public_key().element()),
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   ASSIGN_OR_RETURN(
@@ -299,7 +304,8 @@ absl::StatusOr<DecryptOneLayerFlagAndCountResponse> DecryptOneLayerFlagAndCount(
               request.local_el_gamal_key_pair().public_key().generator(),
               request.local_el_gamal_key_pair().public_key().element()),
           request.local_el_gamal_key_pair().secret_key(),
-          kGenerateWithNewPohligHellmanKey, kGenerateWithNewElGamalPublicKey),
+          kGenerateWithNewPohligHellmanKey, kGenerateNewCompositeCipher,
+          kGenerateNewParitialCompositeCipher),
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   DecryptOneLayerFlagAndCountResponse response;

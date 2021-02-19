@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
-#define WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
+
+#include <string>
+#include <utility>
 
 #include "absl/strings/string_view.h"
 
@@ -49,7 +52,11 @@ inline constexpr absl::string_view kGenerateWithNewPohligHellmanKey = "";
 inline constexpr absl::string_view kGenerateWithNewElGamalPrivateKey = "";
 inline const std::pair<std::string, std::string>
     kGenerateWithNewElGamalPublicKey = {"", ""};
+inline const std::pair<std::string, std::string> kGenerateNewCompositeCipher = {
+    "", ""};
+inline const std::pair<std::string, std::string>
+    kGenerateNewParitialCompositeCipher = {"", ""};
 
 }  // namespace wfa::measurement::common::crypto
 
-#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_CONSTANTS_H_

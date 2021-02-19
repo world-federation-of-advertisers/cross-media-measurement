@@ -14,6 +14,9 @@
 
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
 
+#include <string>
+#include <utility>
+
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -39,6 +42,7 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   ProtocolCryptorImpl(
       std::unique_ptr<CommutativeElGamal> local_el_gamal_cipher,
       std::unique_ptr<CommutativeElGamal> client_el_gamal_cipher,
+      std::unique_ptr<CommutativeElGamal> partial_composite_el_gamal_cipher,
       std::unique_ptr<ECCommutativeCipher> local_pohlig_hellman_cipher,
       std::unique_ptr<Context> ctx, ECGroup ec_group);
   ~ProtocolCryptorImpl() override = default;
@@ -52,15 +56,17 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   absl::StatusOr<std::string> DecryptLocalElGamal(
       const ElGamalCiphertext& ciphertext) override;
   absl::StatusOr<ElGamalCiphertext> EncryptPlaintextCompositeElGamal(
-      absl::string_view plaintext) override;
+      absl::string_view plaintext, CompositeType composite_type) override;
   absl::StatusOr<ElGamalEcPointPair> EncryptPlaintextToEcPointsCompositeElGamal(
-      absl::string_view plaintext) override;
+      absl::string_view plaintext, CompositeType composite_type) override;
   absl::StatusOr<ElGamalEcPointPair>
-  EncryptIdentityElementToEcPointsCompositeElGamal() override;
+  EncryptIdentityElementToEcPointsCompositeElGamal(
+      CompositeType composite_type) override;
   absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
-      absl::string_view plain_ec_point) override;
+      absl::string_view plain_ec_point, CompositeType composite_type) override;
   absl::StatusOr<ElGamalCiphertext> ReRandomize(
-      const ElGamalCiphertext& ciphertext) override;
+      const ElGamalCiphertext& ciphertext,
+      CompositeType composite_type) override;
   absl::StatusOr<ElGamalEcPointPair> CalculateDestructor(
       const ElGamalEcPointPair& base, const ElGamalEcPointPair& key) override;
   absl::StatusOr<std::string> MapToCurve(absl::string_view str) override;
@@ -82,6 +88,9 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
   // A CommutativeElGamal cipher created using the combined public key, used
   // for re-randomizing ciphertext and sameKeyAggregation, etc.
   const std::unique_ptr<CommutativeElGamal> composite_el_gamal_cipher_;
+  // A CommutativeElGamal cipher created using the partially combined public
+  // key, used for re-randomizing partially decrypted ciphertexts.
+  const std::unique_ptr<CommutativeElGamal> partial_composite_el_gamal_cipher_;
   // An ECCommutativeCipher used for blinding a ciphertext.
   const std::unique_ptr<ECCommutativeCipher> local_pohlig_hellman_cipher_;
 
@@ -99,10 +108,13 @@ class ProtocolCryptorImpl : public ProtocolCryptor {
 ProtocolCryptorImpl::ProtocolCryptorImpl(
     std::unique_ptr<CommutativeElGamal> local_el_gamal_cipher,
     std::unique_ptr<CommutativeElGamal> client_el_gamal_cipher,
+    std::unique_ptr<CommutativeElGamal> partial_composite_el_gamal_cipher,
     std::unique_ptr<ECCommutativeCipher> local_pohlig_hellman_cipher,
     std::unique_ptr<Context> ctx, ECGroup ec_group)
     : local_el_gamal_cipher_(std::move(local_el_gamal_cipher)),
       composite_el_gamal_cipher_(std::move(client_el_gamal_cipher)),
+      partial_composite_el_gamal_cipher_(
+          std::move(partial_composite_el_gamal_cipher)),
       local_pohlig_hellman_cipher_(std::move(local_pohlig_hellman_cipher)),
       ctx_(std::move(ctx)),
       ec_group_(std::move(ec_group)) {}
@@ -126,39 +138,43 @@ absl::StatusOr<std::string> ProtocolCryptorImpl::DecryptLocalElGamal(
 
 absl::StatusOr<ElGamalCiphertext>
 ProtocolCryptorImpl::EncryptPlaintextCompositeElGamal(
-    absl::string_view plaintext) {
+    absl::string_view plaintext, CompositeType composite_type) {
   ASSIGN_OR_RETURN(std::string ec_point, MapToCurve(plaintext));
-  return EncryptCompositeElGamal(ec_point);
+  return EncryptCompositeElGamal(ec_point, composite_type);
 }
 
 absl::StatusOr<ElGamalEcPointPair>
 ProtocolCryptorImpl::EncryptPlaintextToEcPointsCompositeElGamal(
-    absl::string_view plaintext) {
+    absl::string_view plaintext, CompositeType composite_type) {
   ASSIGN_OR_RETURN(ElGamalCiphertext temp,
-                   EncryptPlaintextCompositeElGamal(plaintext));
+                   EncryptPlaintextCompositeElGamal(plaintext, composite_type));
   return ToElGamalEcPoints(temp);
 }
 
 absl::StatusOr<ElGamalEcPointPair>
-ProtocolCryptorImpl::EncryptIdentityElementToEcPointsCompositeElGamal() {
-  ASSIGN_OR_RETURN(ElGamalCiphertext temp,
-                   composite_el_gamal_cipher_->EncryptIdentityElement());
+ProtocolCryptorImpl::EncryptIdentityElementToEcPointsCompositeElGamal(
+    CompositeType composite_type) {
+  ASSIGN_OR_RETURN(
+      ElGamalCiphertext temp,
+      composite_type == CompositeType::kFull
+          ? composite_el_gamal_cipher_->EncryptIdentityElement()
+          : partial_composite_el_gamal_cipher_->EncryptIdentityElement());
   return ToElGamalEcPoints(temp);
 }
 
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::EncryptCompositeElGamal(
-    absl::string_view plain_ec_point) {
+    absl::string_view plain_ec_point, CompositeType composite_type) {
   absl::WriterMutexLock l(&mutex_);
-  return composite_el_gamal_cipher_->Encrypt(plain_ec_point);
+  return composite_type == CompositeType::kFull
+             ? composite_el_gamal_cipher_->Encrypt(plain_ec_point)
+             : partial_composite_el_gamal_cipher_->Encrypt(plain_ec_point);
 }
 
 absl::StatusOr<ElGamalCiphertext> ProtocolCryptorImpl::ReRandomize(
-    const ElGamalCiphertext& ciphertext) {
-  absl::WriterMutexLock l(&mutex_);
-  ASSIGN_OR_RETURN(ElGamalCiphertext zero,
-                   composite_el_gamal_cipher_->EncryptIdentityElement());
-  ASSIGN_OR_RETURN(ElGamalEcPointPair zero_ec,
-                   GetElGamalEcPoints(zero, ec_group_));
+    const ElGamalCiphertext& ciphertext, CompositeType composite_type) {
+  ASSIGN_OR_RETURN(
+      ElGamalEcPointPair zero_ec,
+      EncryptIdentityElementToEcPointsCompositeElGamal(composite_type));
   ASSIGN_OR_RETURN(ElGamalEcPointPair ciphertext_ec,
                    GetElGamalEcPoints(ciphertext, ec_group_));
   ASSIGN_OR_RETURN(ElGamalEcPointPair result_ec,
@@ -231,13 +247,27 @@ absl::Status ProtocolCryptorImpl::BatchProcess(absl::string_view data,
         result.append(temp);
         break;
       }
+      case Action::kPartialDecryptAndReRandomize: {
+        ASSIGN_OR_RETURN(std::string decrypted,
+                         DecryptLocalElGamal(ciphertext));
+        // Rerandomize the decrypted ciphertext such that it couldn't be
+        // distinguished by the first element.
+        ASSIGN_OR_RETURN(
+            ElGamalCiphertext temp,
+            ReRandomize(std::make_pair(ciphertext.first, decrypted),
+                        CompositeType::kPartial));
+        result.append(temp.first);
+        result.append(temp.second);
+        break;
+      }
       case Action::kDecrypt: {
         ASSIGN_OR_RETURN(std::string temp, DecryptLocalElGamal(ciphertext));
         result.append(temp);
         break;
       }
       case Action::kReRandomize: {
-        ASSIGN_OR_RETURN(ElGamalCiphertext temp, ReRandomize(ciphertext));
+        ASSIGN_OR_RETURN(ElGamalCiphertext temp,
+                         ReRandomize(ciphertext, CompositeType::kFull));
         result.append(temp.first);
         result.append(temp.second);
         break;
@@ -281,7 +311,8 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
     int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
     absl::string_view local_el_gamal_private_key,
     absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key) {
+    const ElGamalCiphertext& composite_el_gamal_public_key,
+    const ElGamalCiphertext& partial_composite_el_gamal_public_key) {
   auto ctx = absl::make_unique<Context>();
   ASSIGN_OR_RETURN(ECGroup ec_group, ECGroup::Create(curve_id, ctx.get()));
   ASSIGN_OR_RETURN(
@@ -299,6 +330,11 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
                        ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
                        : CommutativeElGamal::CreateFromPublicKey(
                              curve_id, composite_el_gamal_public_key));
+  ASSIGN_OR_RETURN(auto partial_composite_el_gamal_cipher,
+                   partial_composite_el_gamal_public_key.first.empty()
+                       ? CommutativeElGamal::CreateWithNewKeyPair(curve_id)
+                       : CommutativeElGamal::CreateFromPublicKey(
+                             curve_id, partial_composite_el_gamal_public_key));
   ASSIGN_OR_RETURN(auto local_pohlig_hellman_cipher,
                    local_pohlig_hellman_private_key.empty()
                        ? ECCommutativeCipher::CreateWithNewKey(
@@ -310,6 +346,7 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
   std::unique_ptr<ProtocolCryptor> result =
       absl::make_unique<ProtocolCryptorImpl>(
           std::move(local_el_gamal_cipher), std::move(client_el_gamal_cipher),
+          std::move(partial_composite_el_gamal_cipher),
           std::move(local_pohlig_hellman_cipher), std::move(ctx),
           std::move(ec_group));
   return {std::move(result)};

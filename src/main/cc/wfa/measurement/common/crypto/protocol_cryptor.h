@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_CRYPTOR_H_
-#define WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_CRYPTOR_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_CRYPTOR_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_CRYPTOR_H_
 
 #include <memory>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -25,7 +26,16 @@
 
 namespace wfa::measurement::common::crypto {
 
-enum Action { kBlind, kPartialDecrypt, kDecrypt, kReRandomize, kNoop };
+enum Action {
+  kBlind,
+  kPartialDecrypt,
+  kPartialDecryptAndReRandomize,
+  kDecrypt,
+  kReRandomize,
+  kNoop
+};
+
+enum CompositeType { kFull, kPartial };
 
 // A cryptor dealing with basic operations in various MPC protocols.
 class ProtocolCryptor {
@@ -44,24 +54,28 @@ class ProtocolCryptor {
   // Decrypts one layer of ElGamal encryption.
   virtual absl::StatusOr<std::string> DecryptLocalElGamal(
       const ElGamalCiphertext& ciphertext) = 0;
-  // Maps a plaintext onto the curve and then encrypts the EcPoint with the
-  // composite ElGamal Key.
+  // Maps a plaintext onto the curve and then encrypts the EcPoint with the full
+  // or partial composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptPlaintextCompositeElGamal(
-      absl::string_view plaintext) = 0;
-  // Maps a plaintext onto the curve and then encrypts the EcPoint with the
-  // composite ElGamal Key, returns the result as an ElGamalEcPointPair.
+      absl::string_view plaintext, CompositeType composite_type) = 0;
+  // Maps a plaintext onto the curve and then encrypts the EcPoint with the full
+  // or partial composite ElGamal Key, returns the result as an
+  // ElGamalEcPointPair.
   virtual absl::StatusOr<ElGamalEcPointPair>
-  EncryptPlaintextToEcPointsCompositeElGamal(absl::string_view plaintext) = 0;
-  // Encrypts the plain EcPoint using the composite ElGamal Key.
+  EncryptPlaintextToEcPointsCompositeElGamal(absl::string_view plaintext,
+                                             CompositeType composite_type) = 0;
+  // Encrypts the plain EcPoint using the full or partial composite ElGamal Key.
   virtual absl::StatusOr<ElGamalCiphertext> EncryptCompositeElGamal(
-      absl::string_view plain_ec_point) = 0;
-  // Encrypts the Identity Element using the composite ElGamal Key, returns the
-  // result as an ElGamalEcPointPair.
+      absl::string_view plain_ec_point, CompositeType composite_type) = 0;
+  // Encrypts the Identity Element using the full or partial composite ElGamal
+  // Key, returns the result as an ElGamalEcPointPair.
   virtual absl::StatusOr<ElGamalEcPointPair>
-  EncryptIdentityElementToEcPointsCompositeElGamal() = 0;
-  // ReRandomizes the ciphertext by adding an encrypted Zero to it.
+  EncryptIdentityElementToEcPointsCompositeElGamal(
+      CompositeType composite_type) = 0;
+  // ReRandomizes the ciphertext by adding an encrypted Zero to it. The
+  // encryption is done by the full or partial composite ElGamal Cipher.
   virtual absl::StatusOr<ElGamalCiphertext> ReRandomize(
-      const ElGamalCiphertext& ciphertext) = 0;
+      const ElGamalCiphertext& ciphertext, CompositeType composite_type) = 0;
   // Calculates the SameKeyAggregation destructor using the provided base and
   // key
   virtual absl::StatusOr<ElGamalEcPointPair> CalculateDestructor(
@@ -98,8 +112,9 @@ absl::StatusOr<std::unique_ptr<ProtocolCryptor>> CreateProtocolCryptorWithKeys(
     int curve_id, const ElGamalCiphertext& local_el_gamal_public_key,
     absl::string_view local_el_gamal_private_key,
     absl::string_view local_pohlig_hellman_private_key,
-    const ElGamalCiphertext& composite_el_gamal_public_key);
+    const ElGamalCiphertext& composite_el_gamal_public_key,
+    const ElGamalCiphertext& partial_composite_el_gamal_public_key);
 
 }  // namespace wfa::measurement::common::crypto
 
-#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_CRYPTOR_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_PROTOCOL_CRYPTOR_H_
