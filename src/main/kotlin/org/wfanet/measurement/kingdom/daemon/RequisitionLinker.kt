@@ -33,10 +33,12 @@ suspend fun Daemon.runRequisitionLinker() {
     .pairAll { report -> daemonDatabaseServicesClient.buildRequisitionsForReport(report).asFlow() }
     .mapConcurrently(this, maxConcurrency) { (report, requisition) ->
       throttleAndLog {
-        logger.info("Creating requisition: $requisition")
         val actualRequisition = daemonDatabaseServicesClient.createRequisition(requisition)
 
-        logger.info("Associating requisition $actualRequisition to report $report")
+        logger.info(
+          "Associating requisition ${actualRequisition.externalRequisitionId} to report " +
+            report.externalReportId
+        )
         daemonDatabaseServicesClient.associateRequisitionToReport(actualRequisition, report)
       }
     }
