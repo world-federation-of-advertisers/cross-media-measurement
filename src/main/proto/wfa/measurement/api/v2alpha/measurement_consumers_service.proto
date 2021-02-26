@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/account.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -31,6 +32,14 @@ service MeasurementConsumers {
   // Creates (registers) a `MeasurementConsumer`.
   rpc CreateMeasurementConsumer(CreateMeasurementConsumerRequest)
       returns (MeasurementConsumer) {}
+
+  // Adds an owner to the specified `MeasurementConsumer`.
+  rpc AddMeasurementConsumerOwner(AddMeasurementConsumerOwnerRequest)
+      returns (MeasurementConsumer) {}
+
+  // Removes an owner from the specified `MeasurementConsumer`.
+  rpc RemoveMeasurementConsumerOwner(RemoveMeasurementConsumerOwnerRequest)
+      returns (MeasurementConsumer) {}
 }
 
 // Request message for `GetMeasurementConsumer` method.
@@ -44,4 +53,24 @@ message CreateMeasurementConsumerRequest {
   // The `MeasurementConsumer` to create. Required. The `key` field will be
   // ignored, and the system will assign an ID.
   MeasurementConsumer measurement_consumer = 1;
+}
+
+// Request message for `AddMeasurementConsumerOwner` method.
+message AddMeasurementConsumerOwnerRequest {
+  // Resource key.
+  MeasurementConsumer.Key key = 1;
+
+  // Resource key of the `Account` to add as an owner of this
+  // `MeasurementConsumer`. Required.
+  Account.Key account = 2;
+}
+
+// Request message for `RemoveMeasurementConsumerOwner` method.
+message RemoveMeasurementConsumerOwnerRequest {
+  // Resource key.
+  MeasurementConsumer.Key key = 1;
+
+  // Resource key of the `Account` to remove as an owner of this
+  // `MeasurementConsumer`. Required.
+  Account.Key account = 2;
 }

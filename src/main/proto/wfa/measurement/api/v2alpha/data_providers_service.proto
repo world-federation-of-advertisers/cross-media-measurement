@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/account.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -29,6 +30,14 @@ service DataProviders {
 
   // Creates (registers) a `DataProvider`.
   rpc CreateDataProvider(CreateDataProviderRequest) returns (DataProvider) {}
+
+  // Adds an owner to the specified `DataProvider`.
+  rpc AddDataProviderOwner(AddDataProviderOwnerRequest) returns (DataProvider) {
+  }
+
+  // Removes an owner from the specified `DataProvider`.
+  rpc RemoveDataProviderOwner(RemoveDataProviderOwnerRequest)
+      returns (DataProvider) {}
 }
 
 // Request message for `GetDataProvider` method.
@@ -42,4 +51,24 @@ message CreateDataProviderRequest {
   // The `DataProvider` to create. Required. The `key` field will be ignored,
   // and the system will assign an ID.
   DataProvider data_provider = 1;
+}
+
+// Request message for `AddDataProviderOwner` method.
+message AddDataProviderOwnerRequest {
+  // Resource key.
+  DataProvider.Key key = 1;
+
+  // Resource key of the `Account` to add as an owner of this
+  // `DataProvider`. Required.
+  Account.Key account = 2;
+}
+
+// Request message for `RemoveDataProviderOwner` method.
+message RemoveDataProviderOwnerRequest {
+  // Resource key.
+  DataProvider.Key key = 1;
+
+  // Resource key of the `Account` to remove as an owner of this
+  // `DataProvider`. Required.
+  Account.Key account = 2;
 }

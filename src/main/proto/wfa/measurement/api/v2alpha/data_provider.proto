@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/account.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
@@ -46,6 +47,9 @@ message DataProvider {
 
   // Display name of the data provider.
   string display_name = 5;
+
+  // Resource keys of owner `Account`s. Output-only.
+  repeated Account.Key owners = 6;
 }
 
 message DataProviderCertificate {

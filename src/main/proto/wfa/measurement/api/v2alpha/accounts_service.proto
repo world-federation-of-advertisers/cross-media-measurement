@@ -1,0 +1,76 @@
+// Copyright 2021 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/account.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "AccountsServiceProto";
+
+// Service for interacting with `Account` resources.
+service Accounts {
+  // Creates (registers) an `Account`.
+  rpc CreateAccount(CreateAccountRequest) returns (Account) {}
+
+  // Updates an existing `Account`.
+  rpc UpdateAccount(UpdateAccountRequest) returns (Account) {}
+
+  // Logs the user in.
+  rpc LogIn(LogInRequest) returns (LogInResponse) {}
+
+  // Exchanges a login token for a bearer token.
+  rpc ExchangeLoginToken(ExchangeLoginTokenRequest)
+      returns (ExchangeLoginTokenResponse) {}
+}
+
+// Request message for `CreateAccount` method.
+message CreateAccountRequest {
+  // The `Account` to create. Required. The `key` field will be
+  // ignored, and the system will assign an ID.
+  Account account = 1;
+}
+
+// Request message for `UpdateAccount` method.
+message UpdateAccountRequest {
+  // The `Account` to update. Required.
+  Account account = 1;
+
+  // Encoded JSON Web Token (JWT) matching the updated identity. Required.
+  string identity_bearer_token = 2;
+}
+
+message LogInRequest {}
+
+message LogInResponse {
+  // Single-use token that can be exchanged for a bearer JWT.
+  string login_token = 1;
+
+  // URI to navigate to in user agent for completing login process.
+  string authorization_uri = 2;
+}
+
+message ExchangeLoginTokenRequest {
+  // Single-use token that can be exchanged for a bearer JWT.
+  bytes login_token = 1;
+}
+
+message ExchangeLoginTokenResponse {
+  // Encoded JSON Web Token that can be used as a bearer token for call
+  // authentication.
+  string bearer_token = 1;
+}

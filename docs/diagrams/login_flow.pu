@@ -1,0 +1,60 @@
+@startuml
+ 
+skinparam default {
+  fontName "Roboto"
+  fontSize 13
+  defaultMonospacedFontName "Roboto Mono"
+}
+ 
+autonumber
+actor User
+boundary "API Server" as Server
+database "Database" as DB
+participant "OpenID Provider" as OP
+ 
+User->Server: ""LogIn"" request
+activate Server
+Server->Server: Generate login token & nonce
+Server->DB: Store login token & nonce
+activate DB
+autonumber stop
+return
+autonumber resume
+Server->Server: Build authentication request URI
+return ""LogIn"" response
+ 
+User->OP: Authentication request
+activate OP
+autonumber stop
+return Authentication response
+autonumber resume
+User->Server: Authentication redirect
+activate Server
+Server->DB: Store auth code for login token
+activate DB
+autonumber stop
+return
+return
+autonumber resume
+ 
+User->Server: ""ExchangeLoginToken"" request
+activate Server
+Server->DB: Get entry for login token
+activate DB
+autonumber stop
+return Auth code & nonce
+autonumber resume
+Server->OP: ID Token request
+activate OP
+autonumber stop
+return ID Token
+autonumber resume
+Server->Server: Verify ID Token
+Server->DB: Delete entry for login token
+activate DB
+autonumber stop
+return
+autonumber resume
+return ""ExchangeLoginToken"" response
+ 
+@enduml

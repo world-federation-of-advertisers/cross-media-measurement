@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "wfa/measurement/api/v2alpha/account.proto";
+
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MeasurementConsumerProto";
@@ -30,6 +32,9 @@ message MeasurementConsumer {
 
   // Official name of the `MeasurementConsumer`.
   string title = 2;
+
+  // Resource keys of owner `Account`s. Output-only.
+  repeated Account.Key owners = 3;
 }
 
 message MeasurementConsumerCertificate {

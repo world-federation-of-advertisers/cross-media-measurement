@@ -55,9 +55,22 @@ proto_library(
 )
 
 proto_library(
+    name = "account_proto",
+    srcs = ["account.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
+    name = "api_key_proto",
+    srcs = ["api_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "measurement_consumer_proto",
     srcs = ["measurement_consumer.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [":account_proto"],
 )
 
 proto_library(
@@ -65,9 +78,16 @@ proto_library(
     srcs = ["data_provider.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":account_proto",
         ":crypto_proto",
         ":measurement_consumer_proto",
     ],
+)
+
+proto_library(
+    name = "accounts_service_proto",
+    srcs = ["accounts_service.proto"],
+    deps = [":account_proto"],
 )
 
 proto_library(
@@ -95,6 +115,7 @@ proto_library(
     srcs = ["measurement_consumers_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":account_proto",
         ":measurement_consumer_proto",
     ],
 )
@@ -104,8 +125,8 @@ proto_library(
     srcs = ["measurements_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":measurement_proto",
         ":measurement_consumer_proto",
+        ":measurement_proto",
     ],
 )
 
@@ -114,6 +135,7 @@ proto_library(
     srcs = ["data_providers_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":account_proto",
         ":data_provider_proto",
     ],
 )

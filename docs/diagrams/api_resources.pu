@@ -14,9 +14,11 @@ skinparam default {
 }
 
 resource(DataProvider) {
+  owners
   Get()
 }
 resource(MeasurementConsumer) {
+  owners
   Get()
 }
 resource(SketchConfig) {
@@ -30,6 +32,10 @@ resource(Measurement) {
   data_provider_entries
   state
   result
+}
+resource(Account) {
+  identity
+  Update(account)
 }
 
 together {
@@ -45,6 +51,9 @@ together {
   collection(combinedPublicKeys, CombinedPublicKey) {
     List()
   }
+  collection(accounts, Account) {
+    Create(account)
+  }
 }
 
 collection(requisitions, Requisition) {
@@ -57,6 +66,9 @@ collection(eventGroups, EventGroup) {
 collection(measurements, Measurement) {
   Create(measurement)
   List([states])
+}
+collection(apiKeys, ApiKey) {
+  Create(api_key)
 }
 
 resource(Requisition) {
@@ -71,16 +83,28 @@ resource(EventGroup) {
   measurement_consumer
   Get()
 }
+resource(ApiKey) {
+  nickname
+  description
+  authentication_key
+  Delete()
+}
 
 DataProvider *-- eventGroups
 DataProvider *-- requisitions
-EventGroup "many" ..> "1" MeasurementConsumer
+EventGroup "many" .> "1" MeasurementConsumer
 
 Requisition "many" .> "many" EventGroup
 Requisition "many" .> "1" Measurement
 
 MeasurementConsumer *-- measurements
-Measurement "many" .> "1" CombinedPublicKey
-Measurement "many" .> "0..1" SketchConfig
+Measurement "many" ..> "1" CombinedPublicKey
+Measurement "many" ..> "0..1" SketchConfig
+
+Account *-- apiKeys
+MeasurementConsumer "many" .> "many" Account
+DataProvider "many" .> "many" Account
+'Account "many" <. "many" MeasurementConsumer
+'Account "many" <. "many" DataProvider
 
 @enduml
