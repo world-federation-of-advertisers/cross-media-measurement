@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+set -eEu -o pipefail
+
+readonly IMAGE='docker.io/wfameasurement/bazel@sha256:8ebf11a0db12c0c252c51518cc1f372f44ef978d01bafd7ff738b644fc49808c'
+readonly DOCKER="${DOCKER:-docker}"
+
+is_podman() {
+  $DOCKER -v | grep --quiet podman
+}
+
+is_rootless() {
+  if is_podman; then
+    [[ "$($DOCKER info --format '{{.Host.Rootless}}')" == 'true' ]]
+  else
+    $DOCKER info --format '{{.SecurityOptions}}' | grep --quiet rootless
+  fi
+}
+
+command_exists() {
+  hash "$1" 2>/dev/null
+}
+
+# Outputs the local Bazel output user root.
+# See https://docs.bazel.build/versions/4.0.0/output_directories.html
+get_output_user_root() {
+  if ! command_exists bazel; then
+    echo "${HOME}/.cache/bazel/_bazel_${USER}"
+  fi
+
+  local install_base
+  install_base="$(bazel info install_base)"
+  readonly install_base
+
+  dirname "$(dirname "${install_base}")"
+}
+
+main() {
+  local output_user_root
+  output_user_root="$(get_output_user_root)"
+  readonly output_user_root
+
+  mkdir -p "${output_user_root}"
+
+  local -a docker_options=(
+    '-it'
+    '--network=host'
+    '--entrypoint=/usr/bin/bazel'
+    "--volume=${PWD}:${PWD}"
+    "--volume=${output_user_root}:${output_user_root}"
+    "--workdir=${PWD}"
+  )
+
+  if ! is_rootless; then
+    docker_options+=(
+      "--user=${EUID}"
+      "--env=USER=${USER}"
+    )
+  fi
+
+  local -a startup_options=(
+    "--output_user_root=${output_user_root}"
+  )
+  while [[ "$1" =~ [[:space:]]*-.* ]]; do
+    startup_options+=("$1")
+    shift 1
+  done
+
+  local command="$1"
+  shift 1
+
+  exec "${DOCKER}" run "${docker_options[@]}" \
+    "${IMAGE}" \
+    "${startup_options[@]}" \
+    "${command}" \
+    --config=container \
+    "$@"
+}
+
+main "$@"

@@ -12,3 +12,4 @@ build --java_toolchain=@bazel_tools//tools/jdk:toolchain_java8
 
 import %workspace%/remote.bazelrc
 import %workspace%/results.bazelrc
+import %workspace%/container.bazelrc
