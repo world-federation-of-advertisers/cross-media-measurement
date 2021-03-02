@@ -286,31 +286,8 @@ load("//build/bazel_toolchains:repo.bzl", "bazel_toolchains")
 
 bazel_toolchains(
     name = "bazel_toolchains",
-    sha256 = "8e0633dfb59f704594f19ae996a35650747adc621ada5e8b9fb588f808c89cb0s",
-    version = "3.7.0",
-)
-
-RBE_BASE_DIGEST = "sha256:687b98e38d2bd85499951cacacf714c06e4bd94f0f44836be9e6326e074450f5"
-
-container_pull(
-    name = "rbe_ubuntu_18_04",
-    digest = RBE_BASE_DIGEST,
-    registry = "marketplace.gcr.io",
-    repository = "google/rbe-ubuntu18-04",
-)
-
-load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
-
-# Configuration for RBE (Foundry).
-# See //src/main/docker/rbe:rbe_image.
-rbe_autoconfig(
-    name = "rbe_default",
-    base_container_digest = RBE_BASE_DIGEST,
-    digest = "sha256:308c797bf7374748ac17e094be0060831dd4650aa4d89b812f4b178e6d799e8e",
-    java_home ="/usr/lib/jvm/java-11-openjdk-amd64",
-    registry = "gcr.io",
-    repository = "ads-open-measurement/rbe",
-    use_legacy_platform_definition = False,
+    sha256 = "/usr/local/google/home/sanjayvas/git/wfa-experimental/cross-media-measurement/WORKSPACE",
+    version = "5.0.0",
 )
 
 # @cloud_spanner_emulator
