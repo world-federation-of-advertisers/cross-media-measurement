@@ -1,0 +1,7 @@
+# Patterns to ignore when running linters.
+#
+# Each line is used a Git pathspec with the 'exclude' signature. Empty lines and those beginning with the '#' character are ignored.
+
+# Files from rbe_configs_gen which may include those not authored by us.
+build/rbe/configs
+
