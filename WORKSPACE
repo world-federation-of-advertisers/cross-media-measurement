@@ -321,25 +321,10 @@ http_file(
     ],
 )
 
-# Rules for swig wrapping.
-local_repository(
-    name = "wfa_rules_swig",
-    path = "../rules-swig",
-)
+# Halo dependencies.
+load("//build/halo:repositories.bzl", "halo_dependencies")
 
-# Public APIs for measurement system.
-local_repository(
-    name = "wfa_measurement_proto",
-    path = "../cross-media-measurement-api",
-)
-
-# AnySketch.
-local_repository(
-    name = "any_sketch",
-    path = "../any-sketch",
-)
-
-local_repository(
-    name = "any_sketch_java",
-    path = "../any-sketch-java",
+halo_dependencies(
+    revision = "5e44201b715433c48c0b6b31703177af21b65cf5",
+    sha256 = "c2de33f7818488020b8e71e7c6d985e934e7767eeefcad38830d27396b4f0b53",
 )
