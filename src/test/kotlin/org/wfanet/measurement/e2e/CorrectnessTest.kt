@@ -86,7 +86,7 @@ class CorrectnessTest {
     Thread.sleep(30000L)
 
     val nodeIp = clusterState.getNodeIp()
-    val nodePorts = clusterState.getNodePorts()
+    val nodePorts = clusterState.getNodePorts(listOf(spannerEmulator, publisherDataServer))
 
     val spannerEmulatorHost = "$nodeIp:${nodePorts.getValue(spannerEmulator).getValue("grpc")}"
 
@@ -120,7 +120,7 @@ class CorrectnessTest {
       SpannerDatabaseConnector(
         emulatorHost = spannerEmulatorHost,
         instanceName = "emulator-instance",
-        projectName = "ads-open-measurement",
+        projectName = "cross-media-measurement-system",
         databaseName = "kingdom",
         readyTimeout = Duration.ofSeconds(10L)
       ).use { spanner ->

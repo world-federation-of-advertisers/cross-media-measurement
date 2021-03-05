@@ -76,7 +76,7 @@ class DeployToKind() : Callable<Int> {
       )
 
     fun loadImages(clusterName: String) {
-      logger.info("*** DONE LOADING ALL IMAGES ***")
+      logger.info("*** LOADING ALL IMAGES ***")
 
       val runfiles =
         checkNotNull(
