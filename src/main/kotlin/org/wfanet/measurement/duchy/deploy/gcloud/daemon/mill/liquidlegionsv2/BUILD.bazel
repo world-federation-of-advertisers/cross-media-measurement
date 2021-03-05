@@ -2,6 +2,7 @@ load("//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
 package(default_visibility = [
     test_target(":__pkg__"),
@@ -29,8 +30,8 @@ java_binary(
 
 java_image(
     name = "gcs_liquid_legions_v2_mill_daemon_image",
-    base = "@debian_java_base//image",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.liquidlegionsv2.GcsLiquidLegionsV2MillDaemonKt",
+    target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":gcs_liquid_legions_v2_mill_daemon"],
 )

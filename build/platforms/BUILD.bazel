@@ -1,0 +1,102 @@
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+constraint_setting(name = "glibc_version")
+
+constraint_value(
+    name = "glibc_2_23",
+    constraint_setting = ":glibc_version",
+)
+
+constraint_value(
+    name = "glibc_2_27",
+    constraint_setting = ":glibc_version",
+)
+
+constraint_value(
+    name = "glibc_2_28",
+    constraint_setting = ":glibc_version",
+)
+
+constraint_value(
+    name = "glibc_2_31",
+    constraint_setting = ":glibc_version",
+)
+
+platform(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+platform(
+    name = "debian_buster",
+    constraint_values = [
+        ":glibc_2_28",
+    ],
+    parents = [":linux_x86_64"],
+)
+
+alias(
+    name = "distroless",
+    actual = ":debian_buster",
+)
+
+platform(
+    name = "debian_bullseye",
+    constraint_values = [
+        ":glibc_2_31",
+    ],
+    parents = [":debian_buster"],
+)
+
+platform(
+    name = "ubuntu_xenial",
+    constraint_values = [
+        ":glibc_2_23",
+    ],
+    parents = [":linux_x86_64"],
+)
+
+alias(
+    name = "ubuntu_16_04",
+    actual = ":ubuntu_xenial",
+)
+
+platform(
+    name = "ubuntu_bionic",
+    constraint_values = [
+        ":glibc_2_27",
+    ],
+    parents = [":ubuntu_xenial"],
+)
+
+alias(
+    name = "ubuntu_18_04",
+    actual = ":ubuntu_bionic",
+)
+
+platform(
+    name = "ubuntu_18_04_rbe",
+    constraint_values = [
+        ":glibc_2_27",
+    ],
+    parents = ["//build/rbe/configs/config:platform"],
+)
+
+platform(
+    name = "ubuntu_focal",
+    constraint_values = [
+        ":glibc_2_31",
+    ],
+    parents = [":ubuntu_bionic"],
+)
+
+alias(
+    name = "ubuntu_20_04",
+    actual = ":ubuntu_focal",
+)

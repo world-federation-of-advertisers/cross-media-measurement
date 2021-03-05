@@ -18,6 +18,17 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 
 bazel_skylib_workspace()
 
+# @platforms
+
+http_archive(
+    name = "platforms",
+    sha256 = "079945598e4b6cc075846f7fd6a9d0857c33a7afc0de868c2ccb96405225135d",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.4/platforms-0.0.4.tar.gz",
+        "https://github.com/bazelbuild/platforms/releases/download/0.0.4/platforms-0.0.4.tar.gz",
+    ],
+)
+
 # @com_google_protobuf
 http_archive(
     name = "com_google_protobuf",
@@ -184,40 +195,6 @@ load(
 )
 
 java_image_repositories()
-
-load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
-
-# docker.io/debian:bullseye-slim
-container_pull(
-    name = "debian_bullseye",
-    digest = "sha256:8ab4e348f60ebd18b891593a531ded31cbbc3878f6e476116f3b49b15c199110",
-    registry = "docker.io",
-    repository = "debian",
-)
-
-# docker.io/library/ubuntu:18.04
-container_pull(
-    name = "ubuntu_18_04",
-    digest = "sha256:d1bf40f712c466317f5e06d38b3e7e4c98fef1229872bf6e2a8d1e01836c7ec4",
-    registry = "docker.io",
-    repository = "library/ubuntu",
-)
-
-# gcr.io/ads-open-measurement/bazel
-container_pull(
-    name = "bazel_image",
-    digest = "sha256:4d63678c47062af86b9149fd24985dfabf83db62dc9ff18b209337d5c321670b",
-    registry = "gcr.io",
-    repository = "ads-open-measurement/bazel",
-)
-
-# See //src/main/docker/base:push_java_base
-container_pull(
-    name = "debian_java_base",
-    digest = "sha256:c6746729103a1a306a1ed572012562496512a691b3b23c3abacd64ad503cebc2",
-    registry = "index.docker.io",
-    repository = "wfameasurement/java-base",
-)
 
 # APT key for Google cloud.
 # See https://cloud.google.com/sdk/docs/install

@@ -8,22 +8,8 @@
 # for a remote machine to execute them.
 build:remote --jobs=200
 
-# Set several flags related to specifying the platform, toolchain and java
-# properties.
-# These flags should only be used as is for the rbe-ubuntu16-04 container
-# and need to be adapted to work with other toolchain containers.
-build:remote --host_javabase=//build/rbe/configs/java:jdk
-build:remote --javabase=//build/rbe/configs/java:jdk
-build:remote --crosstool_top=//build/rbe/configs/cc:toolchain
-build:remote --action_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
-# Platform flags:
-# The toolchain container used for execution is defined in the target indicated
-# by "extra_execution_platforms", "host_platform" and "platforms".
-# More about platforms: https://docs.bazel.build/versions/master/platforms.html
-build:remote --extra_toolchains=//build/rbe/configs/config:cc-toolchain
-build:remote --extra_execution_platforms=//build/rbe/configs/config:platform
-build:remote --host_platform=//build/rbe/configs/config:platform
-build:remote --platforms=//build/rbe/configs/config:platform
+# Include container toolchain/platform configuration.
+build:remote --config=container
 
 # Starting with Bazel 0.27.0 strategies do not need to be explicitly
 # defined. See https://github.com/bazelbuild/bazel/issues/7480
