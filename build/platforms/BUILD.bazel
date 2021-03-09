@@ -85,7 +85,7 @@ platform(
     constraint_values = [
         ":glibc_2_27",
     ],
-    parents = ["//build/rbe/configs/config:platform"],
+    parents = ["//third_party/rbe_configs/config:platform"],
 )
 
 platform(

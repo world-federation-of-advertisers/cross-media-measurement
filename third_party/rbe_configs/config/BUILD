@@ -28,7 +28,7 @@ toolchain(
         "@bazel_tools//platforms:linux",
         "@bazel_tools//platforms:x86_64",
     ],
-    toolchain = "//build/rbe/configs/cc:cc-compiler-k8",
+    toolchain = "//third_party/rbe_configs/cc:cc-compiler-k8",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
