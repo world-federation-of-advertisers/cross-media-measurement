@@ -177,3 +177,54 @@ proto_library(
         ":sketch_proto",
     ],
 )
+
+proto_library(
+    name = "exchange_workflow_proto",
+    srcs = ["exchange_workflow.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
+    name = "model_provider_proto",
+    srcs = ["model_provider.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
+    name = "recurring_exchange_proto",
+    srcs = ["recurring_exchange.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_provider_proto",
+        ":exchange_workflow_proto",
+        ":model_provider_proto",
+    ],
+)
+
+proto_library(
+    name = "exchange_proto",
+    srcs = ["exchange.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+    ],
+)
+
+proto_library(
+    name = "exchange_step_proto",
+    srcs = ["exchange_step.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":exchange_workflow_proto",
+    ],
+)
+
+proto_library(
+    name = "exchange_step_attempt_proto",
+    srcs = ["exchange_step_attempt.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":crypto_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)

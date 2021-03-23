@@ -1,0 +1,104 @@
+// Copyright 2021 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/api/v2alpha/crypto.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ExchangeStepAttemptProto";
+
+// An attempt (successful or not) of an ExchangeStep.
+message ExchangeStepAttempt {
+  message Key {
+    string recurring_exchange_id = 1;
+    string exchange_id = 2;
+    string step_id = 3;
+    string exchange_step_attempt_id = 4;
+  }
+  // Resource key
+  Key key = 1;
+
+  // An ExchangeStep can have multiple ExchangeStepAttempts. When sorted by
+  // `start_time`, these form a contiguous sequence of integers starting at 1.
+  // Output-only.
+  int32 attempt_number = 2;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+
+    // The attempt is has not yet reached a terminal state.
+    ACTIVE = 2;
+
+    // The attempt has succeeded. There cannot be more attempts for the step.
+    // Terminal state.
+    SUCCEEDED = 3;
+
+    // THe attempt has failed. The step should be retried unless it is in a
+    // terminal state.
+    FAILED = 4;
+  }
+
+  // State of the ExchangeStepAttempt. Output-only.
+  State state = 3;
+
+  message DebugLog {
+    // When the log entry was made.
+    google.protobuf.Timestamp time = 1;
+
+    // Human-readable debug message. This should NOT include any user data.
+    string message = 2;
+  }
+  // Warnings, errors, and other messages for debugging purposes. Append-only.
+  repeated DebugLog debug_log_entries = 4;
+
+  // Paths, tables, etc. accessible to the other party.
+  // Each of these is an encrypted SignedData. Each SignedData holds a
+  // serialized SharedOutput protocol buffer.
+  repeated bytes shared_outputs = 5;
+
+  // When the ExchangeStepAttempt was created. Output-only.
+  google.protobuf.Timestamp start_time = 6;
+
+  // When the ExchangeStepAttempt was last updated. Output-only.
+  google.protobuf.Timestamp update_time = 7;
+
+  message SharedOutput {
+    string label = 1;
+
+    oneof location {
+      // Represents a file to download over HTTPS. Since SharedOutput is only
+      // shared via an encrypted SignedData message, it is safe to put URLs
+      // with access tokens in here.
+      string https_uri = 2;
+
+      // Represents a query to execute under BigQuery.
+      string big_query = 3;
+
+      // Represents a file accessible via Google Cloud Storage. While sometimes
+      // HTTPS can be used directly, some may prefer to use ACLs rather than
+      // access tokens. This should be a standard GCS path of the format
+      // "gcs://bucket-name/and/some/path".
+      string google_cloud_storage = 4;
+
+      // Represents a file accessible via AWS S3. While sometimes HTTPS can be
+      // used directly, some may prefer to use ACLs rather than access tokens.
+      string amazon_s3 = 5;
+    }
+  }
+}

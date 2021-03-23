@@ -1,0 +1,51 @@
+// Copyright 2021 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ExchangeWorkflowProto";
+
+// A generic panel matching workflow. Many different pairs of parties may use
+// the same ExchangeWorkflow.
+message ExchangeWorkflow {
+  // Sequence of steps of the workflow.
+  repeated Step steps = 1;
+
+  message Step {
+    // Identifier unique in the ExchangeWorkflow.
+    string step_id = 1;
+
+    // The party that should execute this step.
+    Party party = 2;
+
+    // Each step expects some inputs of certain names. This is a map from
+    // the step-specific name to a label for the input. The step is ready to run
+    // when, for each input label, there is a completed step with the same
+    // output label.
+    map<string, string> input_labels = 3;
+    map<string, string> output_labels = 4;
+
+    // TODO(world-federation-of-advertisers/experimental#81): add step details.
+  }
+
+  enum Party {
+    PARTY_UNSPECIFIED = 0;
+    MODEL_PROVIDER = 1;
+    DATA_PROVIDER = 2;
+  }
+}
