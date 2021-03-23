@@ -80,7 +80,7 @@ internal class HeraldTest {
 
   private val secondComputationDetails = ComputationDetails.newBuilder().apply {
     liquidLegionsV2Builder.apply {
-      role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+      role = NON_AGGREGATOR
       aggregatorNodeId = "BOHEMIA"
       incomingNodeId = "SALZBURG"
       outgoingNodeId = "BOHEMIA"
@@ -109,6 +109,7 @@ internal class HeraldTest {
   }
 
   private lateinit var herald: Herald
+
   @Before
   fun initHerald() {
     herald = Herald(

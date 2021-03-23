@@ -135,7 +135,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
         flagCountTuples = completeExecutionPhaseOneAtAggregatorResponse.flagCountTuples
         partialCompositeElGamalPublicKey = DUCHY_2_3_COMBINED_EL_GAMAL_KEYS
       }.build()
-    val CompleteExecutionPhaseTwoResponse1 = CompleteExecutionPhaseTwoResponse.parseFrom(
+    val completeExecutionPhaseTwoResponse1 = CompleteExecutionPhaseTwoResponse.parseFrom(
       LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(
         completeExecutionPhaseTwoRequest1.toByteArray()
       )
@@ -147,7 +147,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
         localElGamalKeyPair = DUCHY_2_EL_GAMAL_KEYS
         compositeElGamalPublicKey = CLIENT_EL_GAMAL_KEYS
         curveId = CURVE_ID
-        flagCountTuples = CompleteExecutionPhaseTwoResponse1.flagCountTuples
+        flagCountTuples = completeExecutionPhaseTwoResponse1.flagCountTuples
         partialCompositeElGamalPublicKey = DUCHY_3_EL_GAMAL_KEYS.publicKey
       }.build()
     val completeExecutionPhaseTwoResponse2 = CompleteExecutionPhaseTwoResponse.parseFrom(

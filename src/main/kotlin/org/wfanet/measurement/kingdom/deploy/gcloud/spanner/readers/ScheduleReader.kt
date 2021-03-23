@@ -57,8 +57,10 @@ class ScheduleReader : SpannerReader<ScheduleReader.Result>() {
       advertiserId = struct.getLong("AdvertiserId"),
       reportConfigId = struct.getLong("ReportConfigId"),
       scheduleId = struct.getLong("ScheduleId"),
-      reportConfigDetails =
-        struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
+      reportConfigDetails = struct.getProtoMessage(
+        "ReportConfigDetails",
+        ReportConfigDetails.parser()
+      )
     )
 
   private fun buildSchedule(struct: Struct): ReportConfigSchedule =

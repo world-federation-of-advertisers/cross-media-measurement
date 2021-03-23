@@ -27,10 +27,10 @@ private typealias ConfigMapEntry = Map.Entry<String, DuchyPublicKeyConfig.Entry>
 /** Bytes per elliptic curve point. */
 private const val BYTES_PER_EC_POINT = 33
 
-/** The size of a [generator]. */
+/** The size of an ElGamal key generator. */
 private val GENERATOR_SIZE = BYTES_PER_EC_POINT
 
-/** The size of an [element]. */
+/** The size of an ElGamal key element. */
 private val ELEMENT_SIZE = BYTES_PER_EC_POINT
 
 /** Map of Duchy name to public key. */

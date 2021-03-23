@@ -33,7 +33,7 @@ import org.wfanet.measurement.internal.testing.ReadBlobResponse
  * [ForwardedStorageCoroutineService] implementation that uses
  * [FileSystemStorageClient].
  */
-class FileSystemStorageService(private val directory: File) : ForwardedStorageCoroutineService() {
+class FileSystemStorageService(directory: File) : ForwardedStorageCoroutineService() {
   val storageClient: FileSystemStorageClient = FileSystemStorageClient(directory)
 
   override suspend fun createBlob(requests: Flow<CreateBlobRequest>): BlobMetadata {

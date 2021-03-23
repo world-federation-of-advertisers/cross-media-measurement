@@ -38,7 +38,7 @@ class MetricValueStore private constructor(
   /**
    * Writes a metric value as a new blob with the specified content.
    *
-   * @param a [Flow] producing the content to write.
+   * @param content a [Flow] producing the content to write.
    * @return a [Blob] with a generated blob key.
    */
   suspend fun write(content: Flow<ByteString>): Blob {

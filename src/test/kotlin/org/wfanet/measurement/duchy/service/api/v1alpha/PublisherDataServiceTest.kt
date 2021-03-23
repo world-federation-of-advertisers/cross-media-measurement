@@ -110,7 +110,7 @@ class PublisherDataServiceTest {
     val response = runBlocking { service.listMetricRequisitions(request) }
 
     assertThat(response).isEqualTo(expectedResponse)
-    argumentCaptor<ListMetricRequisitionsRequest>() {
+    argumentCaptor<ListMetricRequisitionsRequest> {
       verifyBlocking(requisitionServiceMock, times(1)) {
         listMetricRequisitions(capture())
       }

@@ -153,7 +153,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun associateRequisition() = runBlocking<Unit> {
+  fun associateRequisition() = runBlocking {
     val request = AssociateRequisitionRequest.newBuilder().apply {
       externalReportId = 1
       externalRequisitionId = 2

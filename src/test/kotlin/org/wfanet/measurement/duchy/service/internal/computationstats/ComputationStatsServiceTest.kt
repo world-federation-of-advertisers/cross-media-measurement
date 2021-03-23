@@ -24,27 +24,23 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage
 
 @RunWith(JUnit4::class)
 class ComputationStatsServiceTest {
   private val fakeDatabase = FakeComputationsDatabase()
-  private val service: ComputationStatsService
-
-  init {
-    service = ComputationStatsService(fakeDatabase)
-  }
+  private val service: ComputationStatsService = ComputationStatsService(fakeDatabase)
 
   @Test
   fun `createComputationStat throws INVALID_ARGUMENT when metric name not set`() = runBlocking {
-    val request = CreateComputationStatRequest.newBuilder()
-      .setLocalComputationId(1)
-      .setComputationStage(ComputationStage.newBuilder().setLiquidLegionsSketchAggregationV1Value(1))
-      .setAttempt(1)
-      .setMetricValue(1234)
-      .build()
+    val request = CreateComputationStatRequest.newBuilder().apply {
+      localComputationId = 1
+      computationStageBuilder.liquidLegionsSketchAggregationV1 = Stage.TO_CONFIRM_REQUISITIONS
+      attempt = 1
+      metricValue = 1234
+    }.build()
     val e = assertFailsWith(StatusRuntimeException::class) {
       service.createComputationStat(request)
     }
@@ -53,13 +49,13 @@ class ComputationStatsServiceTest {
 
   @Test
   fun `createComputationStat succeeds`() = runBlocking {
-    val request = CreateComputationStatRequest.newBuilder()
-      .setLocalComputationId(1)
-      .setComputationStage(ComputationStage.newBuilder().setLiquidLegionsSketchAggregationV1Value(1))
-      .setAttempt(1)
-      .setMetricName("crypto_cpu_time_millis")
-      .setMetricValue(1234)
-      .build()
+    val request = CreateComputationStatRequest.newBuilder().apply {
+      localComputationId = 1
+      computationStageBuilder.liquidLegionsSketchAggregationV1 = Stage.TO_CONFIRM_REQUISITIONS
+      attempt = 1
+      metricName = "crypto_cpu_time_millis"
+      metricValue = 1234
+    }.build()
     val response = service.createComputationStat(request)
     assertThat(response).isEqualTo(CreateComputationStatResponse.getDefaultInstance())
   }

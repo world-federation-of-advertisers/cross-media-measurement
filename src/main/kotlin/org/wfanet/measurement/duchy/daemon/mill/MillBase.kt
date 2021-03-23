@@ -57,7 +57,6 @@ import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
-import org.wfanet.measurement.internal.duchy.MetricValue
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
@@ -467,7 +466,7 @@ data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
 
 class PermanentComputationError(cause: Throwable) : Exception(cause)
 
-fun RequisitionKey.toResourceKey(): MetricValue.ResourceKey {
+fun RequisitionKey.toResourceKey(): ResourceKey {
   return ResourceKey.newBuilder().apply {
     dataProviderResourceId = dataProviderId
     campaignResourceId = campaignId

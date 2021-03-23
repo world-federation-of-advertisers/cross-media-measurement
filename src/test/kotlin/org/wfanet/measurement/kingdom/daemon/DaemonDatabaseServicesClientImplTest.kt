@@ -84,7 +84,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun createNextReport() = runBlocking<Unit> {
+  fun createNextReport() = runBlocking {
     val externalScheduleId = 12345L
     val combinedPublicKeyResourceId = "combined-public-key"
     val schedule =
@@ -103,7 +103,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun buildRequisitionsForReport() = runBlocking<Unit> {
+  fun buildRequisitionsForReport() = runBlocking {
     val requisitionTemplate = RequisitionTemplate.newBuilder().apply {
       externalDataProviderId = 1
       externalCampaignId = 2
@@ -146,7 +146,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun createRequisition() = runBlocking<Unit> {
+  fun createRequisition() = runBlocking {
     val inputRequisition = Requisition.newBuilder().setExternalDataProviderId(1).build()
     val outputRequisition = Requisition.newBuilder().setExternalDataProviderId(2).build()
 
@@ -161,7 +161,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun associateRequisitionToReport() = runBlocking<Unit> {
+  fun associateRequisitionToReport() = runBlocking {
     val requisition = Requisition.newBuilder().setExternalRequisitionId(1).build()
     val report = Report.newBuilder().setExternalReportId(2).build()
 
@@ -177,7 +177,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun updateReportState() = runBlocking<Unit> {
+  fun updateReportState() = runBlocking {
     val outputReport = Report.getDefaultInstance()
     whenever(reportStorage.updateReportState(any())).thenReturn(outputReport)
 
@@ -197,7 +197,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun streamReportsInState() = runBlocking<Unit> {
+  fun streamReportsInState() = runBlocking {
     val report1 = Report.newBuilder().setExternalReportId(1).build()
     val report2 = Report.newBuilder().setExternalReportId(2).build()
     val report3 = Report.newBuilder().setExternalReportId(3).build()
@@ -225,7 +225,7 @@ class DaemonDatabaseServicesClientImplTest {
   }
 
   @Test
-  fun streamReadyReports() = runBlocking<Unit> {
+  fun streamReadyReports() = runBlocking {
     val report1 = Report.newBuilder().setExternalReportId(1).build()
     val report2 = Report.newBuilder().setExternalReportId(2).build()
     val report3 = Report.newBuilder().setExternalReportId(3).build()

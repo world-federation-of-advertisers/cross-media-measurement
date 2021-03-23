@@ -35,7 +35,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
   private val idGenerator = FixedIdGenerator()
 
   @Test
-  fun `Transaction with no writes succeeds`() = runBlocking<Unit> {
+  fun `Transaction with no writes succeeds`() = runBlocking {
     val transaction = object : SpannerWriter<Long, String>() {
       override suspend fun TransactionScope.runTransaction(): Long {
         return idGenerator.generateExternalId().value
@@ -50,7 +50,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `Transaction with writes succeeds`() = runBlocking<Unit> {
+  fun `Transaction with writes succeeds`() = runBlocking {
     val transaction = object : SpannerWriter<InternalId, Timestamp>() {
       override suspend fun TransactionScope.runTransaction(): InternalId {
         val internalId = idGenerator.generateInternalId()

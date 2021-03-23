@@ -20,9 +20,8 @@ import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -33,11 +32,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-
-private const val PREVIOUS_WORKER = "PREVIOUS_WORKER"
-private const val NEXT_WORKER = "NEXT_WORKER"
-private const val AGGREGATOR_WORKER = "AGGREGATOR_WORKER"
-private const val PRIMARY_WORKER = "PRIMARY_WORKER"
 
 /**
  * In-memory [ComputationsDatabase]
@@ -277,7 +271,7 @@ class FakeComputationsDatabase private constructor(
     val claimed = tokens.values.asSequence()
       .filter { it.globalComputationId !in claimedComputationIds }
       .map {
-        ComputationsDatabaseTransactor.ComputationEditToken(
+        ComputationEditToken(
           localId = it.localComputationId,
           protocol = when (it.computationStage.stageCase) {
             ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->

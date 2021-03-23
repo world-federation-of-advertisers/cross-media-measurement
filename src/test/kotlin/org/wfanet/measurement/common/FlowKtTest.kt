@@ -105,7 +105,7 @@ class FlowKtTest {
   }
 
   @Test
-  fun `concurrentMap runs concurrently`() = runBlocking<Unit> {
+  fun `concurrentMap runs concurrently`() = runBlocking {
     val latch = CountDownLatch(100)
     val events = mutableListOf<Int>()
     val result =
@@ -127,7 +127,7 @@ class FlowKtTest {
   }
 
   @Test
-  fun `concurrentMap runs in order`() = runBlocking<Unit> {
+  fun `concurrentMap runs in order`() = runBlocking {
     val events = mutableListOf<Int>()
     val result =
       flowOf(1, 2)

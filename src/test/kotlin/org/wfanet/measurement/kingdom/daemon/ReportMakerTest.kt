@@ -41,7 +41,7 @@ class ReportMakerTest {
     Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
-  fun createReports() = runBlocking<Unit> {
+  fun createReports() = runBlocking {
     val latch = CountDownLatch(15)
 
     daemonDatabaseServicesClient.stub {

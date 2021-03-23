@@ -42,7 +42,7 @@ class RequisitionLinkerTest {
     Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
-  fun createRequisitions() = runBlocking<Unit> {
+  fun createRequisitions() = runBlocking {
     val latch = CountDownLatch(15)
 
     daemonDatabaseServicesClient.stub {

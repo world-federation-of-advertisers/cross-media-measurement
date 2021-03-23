@@ -195,7 +195,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ReportConfigs ListRequisitionTemplates`() = runBlocking<Unit> {
+  fun `ReportConfigs ListRequisitionTemplates`() = runBlocking {
     val request = ListRequisitionTemplatesRequest.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
     }.build()
@@ -281,7 +281,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `Reports GetReport`() = runBlocking<Unit> {
+  fun `Reports GetReport`() = runBlocking {
     val request = GetReportRequest.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
     val expected = Report.newBuilder().apply {
       externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
@@ -296,7 +296,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `Reports CreateNextReport`() = runBlocking<Unit> {
+  fun `Reports CreateNextReport`() = runBlocking {
     val request = CreateNextReportRequest.newBuilder().apply {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
     }.build()
@@ -405,7 +405,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `Reports UpdateReportState`() = runBlocking<Unit> {
+  fun `Reports UpdateReportState`() = runBlocking {
     val request = UpdateReportStateRequest.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       state = ReportState.FAILED
@@ -424,7 +424,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `Reports AssociateRequisition`() = runBlocking<Unit> {
+  fun `Reports AssociateRequisition`() = runBlocking {
     val request = AssociateRequisitionRequest.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       externalRequisitionId = EXTERNAL_REQUISITION_ID
@@ -457,7 +457,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `ReportLogEntries CreateReportLogEntry`() = runBlocking<Unit> {
+  fun `ReportLogEntries CreateReportLogEntry`() = runBlocking {
     val request = ReportLogEntry.newBuilder().apply {
       externalReportId = EXTERNAL_REPORT_ID
       sourceBuilder.duchyBuilder.duchyId = "some-duchy"
@@ -490,7 +490,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `Requisitions CreateRequisition`() = runBlocking<Unit> {
+  fun `Requisitions CreateRequisition`() = runBlocking {
     val request = Requisition.newBuilder().apply {
       externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
       externalCampaignId = EXTERNAL_CAMPAIGN_ID

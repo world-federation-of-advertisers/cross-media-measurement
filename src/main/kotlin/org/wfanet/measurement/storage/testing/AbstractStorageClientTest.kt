@@ -27,8 +27,6 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 
-private const val DEFAULT_FLOW_BUFFER_SIZE = 4096 // 4 KiB
-
 /** Abstract base class for testing implementations of [StorageClient]. */
 abstract class AbstractStorageClientTest<T : StorageClient> {
   protected lateinit var storageClient: T

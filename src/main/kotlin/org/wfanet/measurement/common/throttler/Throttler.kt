@@ -18,8 +18,8 @@ interface Throttler {
   /**
    * Helper for performing an operation after waiting to be unthrottled.
    *
-   * Blocks until ready, then calls [block]. If [block] raises a [ThrottledException], it calls
-   * [reportThrottled] and re-throws the exception's cause.
+   * Blocks until ready, then calls [block]. If [block] raises a [ThrottledException], it re-throws
+   * the exception's cause.
    *
    * @param block what to do when not throttled
    */

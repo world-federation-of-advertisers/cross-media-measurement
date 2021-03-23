@@ -86,7 +86,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
       return LiquidLegionsSketchAggregationV2.Stage.forNumber(value.toInt()) ?: UNRECOGNIZED
     }
 
-    /** Translates [Stage]s into [ComputationStageDetails]. */
+    /** Translates [LiquidLegionsSketchAggregationV2.Stage]s into [ComputationStageDetails]. */
     class Details(val otherDuchies: List<String>) :
       ProtocolStageDetails<
         LiquidLegionsSketchAggregationV2.Stage,

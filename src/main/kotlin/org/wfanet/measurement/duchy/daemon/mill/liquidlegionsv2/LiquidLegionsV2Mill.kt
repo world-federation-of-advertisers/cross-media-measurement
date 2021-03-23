@@ -90,7 +90,7 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  * @param maxFrequency The maximum frequency to reveal in the frequency histogram.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
- * @param LiquidLegionsV2NoiseConfig The configuration of the noises added in the protocol.
+ * @param noiseConfig The configuration of the noises added in the protocol.
  */
 class LiquidLegionsV2Mill(
   millId: String,

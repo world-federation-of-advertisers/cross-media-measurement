@@ -82,7 +82,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
   }
 
   @Test
-  fun `readComputationToken wait_sketches`() = runBlocking<Unit> {
+  fun `readComputationToken wait_sketches`() = runBlocking {
     val globalId = "777"
     val localId = 0xABCDEFL
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
@@ -149,7 +149,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
   }
 
   @Test
-  fun readComputationToken() = runBlocking<Unit> {
+  fun readComputationToken() = runBlocking {
     val globalId = "998877665555"
     val localId = 100L
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
@@ -185,9 +185,9 @@ class GcpSpannerComputationsDatabaseReaderTest :
       nextAttempt = 2,
       creationTime = lastUpdated.toGcloudTimestamp(),
       details =
-        computationMutations.detailsFor(
-          LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED.toProtocolStage()
-        )
+      computationMutations.detailsFor(
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED.toProtocolStage()
+      )
     )
     val inputBlobForWaitConcatenatedComputationStageRow =
       computationMutations.insertComputationBlobReference(
@@ -257,7 +257,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
   }
 
   @Test
-  fun `readComputationToken no references`() = runBlocking<Unit> {
+  fun `readComputationToken no references`() = runBlocking {
     val globalId = "998877665555"
     val localId = 100L
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
@@ -275,9 +275,9 @@ class GcpSpannerComputationsDatabaseReaderTest :
       nextAttempt = 2,
       creationTime = lastUpdated.toGcloudTimestamp(),
       details =
-        computationMutations.detailsFor(
-          LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED.toProtocolStage()
-        )
+      computationMutations.detailsFor(
+        LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED.toProtocolStage()
+      )
     )
     databaseClient.write(
       listOf(
@@ -331,7 +331,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       updateTime = lastUpdatedTimeStamp,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1,
       stage =
-        LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage(),
+      LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage(),
       globalId = "C",
       details = DETAILS_WHEN_PRIMARY
     )

@@ -122,7 +122,7 @@ class GlobalComputationServiceTest {
     )
 
   @Test
-  fun getGlobalComputation() = runBlocking<Unit> {
+  fun getGlobalComputation() = runBlocking {
     val request =
       GetGlobalComputationRequest.newBuilder()
         .setKey(GLOBAL_COMPUTATION.key)
@@ -159,7 +159,7 @@ class GlobalComputationServiceTest {
   }
 
   @Test
-  fun streamActiveGlobalComputations() = runBlocking<Unit> {
+  fun streamActiveGlobalComputations() = runBlocking {
     var calls = 0L
     fun nextReport() =
       REPORT.toBuilder().apply {
@@ -224,7 +224,7 @@ class GlobalComputationServiceTest {
   }
 
   @Test
-  fun createGlobalComputationStatusUpdate() = runBlocking<Unit> {
+  fun createGlobalComputationStatusUpdate() = runBlocking {
     val request = CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
       parentBuilder.globalComputationId = ExternalId(1111).apiId.value
       statusUpdateBuilder.apply {
@@ -291,7 +291,7 @@ class GlobalComputationServiceTest {
   }
 
   @Test
-  fun confirmGlobalComputation() = runBlocking<Unit> {
+  fun confirmGlobalComputation() = runBlocking {
     val request = ConfirmGlobalComputationRequest.newBuilder().apply {
       keyBuilder.globalComputationId = ExternalId(1111).apiId.value
       addReadyRequisitionsBuilder().apply {
@@ -324,7 +324,7 @@ class GlobalComputationServiceTest {
   }
 
   @Test
-  fun finishGlobalComputation() = runBlocking<Unit> {
+  fun finishGlobalComputation() = runBlocking {
     val request = FinishGlobalComputationRequest.newBuilder().apply {
       keyBuilder.globalComputationId = ExternalId(123).apiId.value
       resultBuilder.apply {

@@ -30,8 +30,8 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -48,7 +48,9 @@ import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 /**
  * Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database.
  */
-class GcpSpannerComputationsDatabaseTransactor<ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+class GcpSpannerComputationsDatabaseTransactor<
+  ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
+
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
   private val clock: Clock = Clock.systemUTC(),

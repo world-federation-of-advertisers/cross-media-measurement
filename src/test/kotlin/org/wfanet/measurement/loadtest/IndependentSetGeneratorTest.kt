@@ -21,10 +21,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
+private const val DEFAULT_SEED = 1L
+
 @RunWith(JUnit4::class)
 class IndependentSetGeneratorTest {
-  private val DEFAULT_SEED = 1L
-
   @Test
   fun `set with same seed first value match succeeds`() {
     val random = Random(DEFAULT_SEED)
@@ -68,7 +68,7 @@ class IndependentSetGeneratorTest {
 
   @Test
   fun `set contains no duplicates succeeds`() {
-    var random = Random(DEFAULT_SEED)
+    val random = Random(DEFAULT_SEED)
     val setGenerator = generateIndependentSets(
       1000,
       100,

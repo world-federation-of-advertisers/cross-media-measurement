@@ -50,8 +50,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
@@ -145,14 +143,6 @@ class LiquidLegionsV1MillTest {
       blobCount.getAndIncrement()
     ).joinToString("/").also { generatedBlobKeys.add(it) }
   }
-
-  private val duchyOrder = DuchyOrder(
-    setOf(
-      Duchy(DUCHY_NAME, 10L.toBigInteger()),
-      Duchy(DUCHY_ONE_NAME, 200L.toBigInteger()),
-      Duchy(DUCHY_TWO_NAME, 303L.toBigInteger())
-    )
-  )
 
   private val primaryComputationDetails = ComputationDetails.newBuilder().apply {
     liquidLegionsV1Builder.apply {
@@ -278,7 +268,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to confirm requisition, no local requisitions required at primary`() = runBlocking<Unit> {
+  fun `to confirm requisition, no local requisitions required at primary`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -335,7 +325,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to confirm requisition, all local requisitions available non-primary`() = runBlocking<Unit> {
+  fun `to confirm requisition, all local requisitions available non-primary`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -518,7 +508,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to add noise using calculated result`() = runBlocking<Unit> {
+  fun `to add noise using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -578,7 +568,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to append sketches and add noise using calculated result`() = runBlocking<Unit> {
+  fun `to append sketches and add noise using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -643,7 +633,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to blind positions using cached result`() = runBlocking<Unit> {
+  fun `to blind positions using cached result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -695,7 +685,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to blind positions using calculated result`() = runBlocking<Unit> {
+  fun `to blind positions using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -760,7 +750,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to blind positions and merge register using calculated result`() = runBlocking<Unit> {
+  fun `to blind positions and merge register using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -826,7 +816,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to decrypt FlagCounts using calculated result`() = runBlocking<Unit> {
+  fun `to decrypt FlagCounts using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -881,7 +871,7 @@ class LiquidLegionsV1MillTest {
   }
 
   @Test
-  fun `to decrypt flag count and compute metric`() = runBlocking<Unit> {
+  fun `to decrypt flag count and compute metric`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -1182,8 +1172,3 @@ private suspend fun ComputationStore.writeString(
   token: ComputationToken,
   content: String
 ): ComputationStore.Blob = write(token, ByteString.copyFromUtf8(content))
-
-private suspend fun ComputationStore.writeString(
-  tokenBuilder: ComputationToken.Builder,
-  content: String
-) = writeString(tokenBuilder.build(), content)

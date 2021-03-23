@@ -31,7 +31,7 @@ import picocli.CommandLine.Command
   name = "deploy_to_kind",
   description = ["Builds container images from source and deploys them to a local kind cluster."]
 )
-class DeployToKind() : Callable<Int> {
+class DeployToKind : Callable<Int> {
   private val defaultClusterName = "kind"
 
   override fun call(): Int {

@@ -68,7 +68,7 @@ class FiltersTest {
   @Test
   fun `toSqlTest multiple clauses`() {
     val queryBuilder = Statement.newBuilder("WHERE ")
-    val filter = allOf<Foo>(
+    val filter = allOf(
       Foo.A(listOf(1L, 2L, 3L)),
       Foo.B(listOf("a", "b", "c")),
       Foo.C(456)

@@ -40,7 +40,7 @@ class ReportStarterTest {
     Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
-  fun startReports() = runBlocking<Unit> {
+  fun startReports() = runBlocking {
     val latch = CountDownLatch(15)
     daemonDatabaseServicesClient.stub {
       on { streamReadyReports() }

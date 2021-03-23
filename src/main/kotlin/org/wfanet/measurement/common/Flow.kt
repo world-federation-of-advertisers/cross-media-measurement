@@ -91,9 +91,8 @@ fun <T> Flow<T>.withRetriesOnEach(
  *
  * See https://github.com/Kotlin/kotlinx.coroutines/issues/1147.
  *
- * [scope] must contain the same [CoroutineContext] that the flow is collected in.
- *
- * @param scope the scope under which to launch [async] coroutines
+ * @param scope the scope under which to launch [async] coroutines. This must contain the same
+ *     [CoroutineContext][kotlin.coroutines.CoroutineContext] that the flow is collected in.
  * @param concurrency number of Deferred that can be awaiting at once
  * @param transform the mapping function
  * @return the output of mapping [transform] over the receiver

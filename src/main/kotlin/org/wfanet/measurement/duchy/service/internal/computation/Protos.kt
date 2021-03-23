@@ -84,7 +84,7 @@ fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
 fun newPassThroughBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
   ComputationStageBlobMetadata.newBuilder().apply {
     blobId = id
-    dependencyType = ComputationBlobDependency.PASS_THROUGH
+    dependencyType = PASS_THROUGH
     path = key
   }.build()
 
@@ -92,7 +92,7 @@ fun newPassThroughBlobMetadata(id: Long, key: String): ComputationStageBlobMetad
 fun newOutputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
   ComputationStageBlobMetadata.newBuilder().apply {
     blobId = id
-    dependencyType = ComputationBlobDependency.OUTPUT
+    dependencyType = OUTPUT
     path = key
   }.build()
 
@@ -100,5 +100,5 @@ fun newOutputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
 fun newEmptyOutputBlobMetadata(id: Long): ComputationStageBlobMetadata =
   ComputationStageBlobMetadata.newBuilder().apply {
     blobId = id
-    dependencyType = ComputationBlobDependency.OUTPUT
+    dependencyType = OUTPUT
   }.build()

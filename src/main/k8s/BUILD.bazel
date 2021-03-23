@@ -5,6 +5,7 @@ load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load(":macros.bzl", "cue_dump")
 
 exports_files(["duchy_public_key_config.textproto"])
+
 exports_files(["liquid_legions_v2_noise_config.textproto"])
 
 cue_string_field(

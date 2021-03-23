@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.integration.common.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
@@ -40,8 +39,6 @@ val DUCHY_IDS = DUCHY_IDS
 val DUCHIES = DUCHY_PUBLIC_KEYS.latest.map {
   Duchy(it.key, BigInteger(it.value.toByteArray()))
 }
-
-val DUCHY_ORDER = DUCHY_PUBLIC_KEYS.latest.toDuchyOrder()
 
 /**
  * Test that everything is wired up properly.
@@ -88,7 +85,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   }
 
   @Test
-  fun `LiquidLegionV2 computation, 1 requisition per duchy`() = runBlocking<Unit> {
+  fun `LiquidLegionV2 computation, 1 requisition per duchy`() = runBlocking {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
     logger.info("Starting first data provider")
@@ -142,7 +139,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   }
 
   @Test
-  fun `LiquidLegionV2 computation, all requisitions at the same duchy`() = runBlocking<Unit> {
+  fun `LiquidLegionV2 computation, all requisitions at the same duchy`() = runBlocking {
     val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
 
     logger.info("Starting first data provider")

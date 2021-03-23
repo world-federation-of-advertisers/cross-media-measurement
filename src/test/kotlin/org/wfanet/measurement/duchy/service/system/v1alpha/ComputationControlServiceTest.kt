@@ -112,7 +112,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v1 send noised sketch`() = runBlocking<Unit> {
+  fun `liquid legions v1 send noised sketch`() = runBlocking {
     val id = "21390"
     val bavariaHeader = advanceComputationHeader(LiquidLegionsV1.Description.NOISED_SKETCH, id)
     withSender(bavaria) {
@@ -147,7 +147,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v1 send concatenated sketch`() = runBlocking<Unit> {
+  fun `liquid legions v1 send concatenated sketch`() = runBlocking {
     val id = "345667"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV1.Description.CONCATENATED_SKETCH, id)
@@ -170,7 +170,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v1 send flag counts`() = runBlocking<Unit> {
+  fun `liquid legions v1 send flag counts`() = runBlocking {
     val id = "45454545"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS, id)
@@ -193,7 +193,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v2 send setup inputs`() = runBlocking<Unit> {
+  fun `liquid legions v2 send setup inputs`() = runBlocking {
     val id = "311311"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
@@ -216,7 +216,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v2 send reach phase inputs`() = runBlocking<Unit> {
+  fun `liquid legions v2 send reach phase inputs`() = runBlocking {
     val id = "444444"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
@@ -240,7 +240,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v2 resend reach phase inputs but already written`() = runBlocking<Unit> {
+  fun `liquid legions v2 resend reach phase inputs but already written`() = runBlocking {
     val id = "444444"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
@@ -265,7 +265,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v2 send filtering phase inputs`() = runBlocking<Unit> {
+  fun `liquid legions v2 send filtering phase inputs`() = runBlocking {
     val id = "55555"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, id)
@@ -289,7 +289,7 @@ class ComputationControlServiceTest {
   }
 
   @Test
-  fun `liquid legions v2 send frequency phase inputs`() = runBlocking<Unit> {
+  fun `liquid legions v2 send frequency phase inputs`() = runBlocking {
     val id = "777777"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT, id)

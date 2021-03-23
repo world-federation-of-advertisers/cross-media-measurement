@@ -66,7 +66,6 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WA
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
-private const val ELLIPTIC_CURVE_ID = 415 // prime256v1
 private val EL_GAMAL_GENERATOR = byteStringOf(
   0x03, 0x6B, 0x17, 0xD1, 0xF2, 0xE1, 0x2C, 0x42, 0x47, 0xF8, 0xBC, 0xE6, 0xE5, 0x63, 0xA4, 0x40,
   0xF2, 0x77, 0x03, 0x7D, 0x81, 0x2D, 0xEB, 0x33, 0xA0, 0xF4, 0xA1, 0x39, 0x45, 0xD8, 0x98, 0xC2,
@@ -251,7 +250,6 @@ class SingleLiquidLegionsV1Computation(
       }.build()
     ).token
   }
-  val localId by lazy { token.localComputationId }
 
   suspend fun writeOutputs(stage: LiquidLegionsSketchAggregationV1.Stage) {
     assertEquals(stage.toProtocolStage(), token.computationStage)
@@ -363,7 +361,7 @@ class SingleLiquidLegionsV1Computation(
       writeOutputs(WAIT_CONCATENATED)
       val stage =
         if (token.computationDetails.liquidLegionsV1.role ==
-          LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+          RoleInComputation.PRIMARY
         ) {
           TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
         } else TO_BLIND_POSITIONS
@@ -387,7 +385,7 @@ class SingleLiquidLegionsV1Computation(
       writeOutputs(WAIT_FLAG_COUNTS)
       val stage =
         if (token.computationDetails.liquidLegionsV1.role ==
-          LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation.PRIMARY
+          RoleInComputation.PRIMARY
         ) {
           TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
         } else TO_DECRYPT_FLAG_COUNTS

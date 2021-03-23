@@ -37,7 +37,7 @@ class ReportLogEntriesServiceTest {
   private val service = ReportLogEntriesService(kingdomRelationalDatabase)
 
   @Test
-  fun success() = runBlocking<Unit> {
+  fun success() = runBlocking {
     whenever(kingdomRelationalDatabase.addReportLogEntry(any()))
       .thenAnswer {
         it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()

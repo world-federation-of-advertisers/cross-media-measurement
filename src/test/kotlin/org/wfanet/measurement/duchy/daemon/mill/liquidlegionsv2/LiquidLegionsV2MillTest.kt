@@ -339,7 +339,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `confirm requisition, no local requisitions required at aggregator`() = runBlocking<Unit> {
+  fun `confirm requisition, no local requisitions required at aggregator`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -396,7 +396,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `confirm requisition, all local requisitions available non-aggregator`() = runBlocking<Unit> {
+  fun `confirm requisition, all local requisitions available non-aggregator`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
@@ -579,7 +579,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `setup phase at non-aggregator using calculated result`() = runBlocking<Unit> {
+  fun `setup phase at non-aggregator using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -662,7 +662,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `setup phase at aggregator using calculated result`() = runBlocking<Unit> {
+  fun `setup phase at aggregator using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -749,7 +749,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase one at non-aggregater using cached result`() = runBlocking<Unit> {
+  fun `execution phase one at non-aggregater using cached result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -801,7 +801,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase one at non-aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase one at non-aggregater using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -876,7 +876,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase one at aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase one at aggregater using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -958,7 +958,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase two at non-aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase two at non-aggregater using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -1039,7 +1039,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase two at aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase two at aggregater using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -1136,7 +1136,7 @@ class LiquidLegionsV2MillTest {
 
   @Test
   fun `execution phase three at non-aggregater using calculated result`() =
-    runBlocking<Unit> {
+    runBlocking {
       // Stage 0. preparing the storage and set up mock
       val partialToken = FakeComputationsDatabase.newPartialToken(
         localId = LOCAL_ID,
@@ -1200,7 +1200,7 @@ class LiquidLegionsV2MillTest {
     }
 
   @Test
-  fun `execution phase three at aggregater using calculated result`() = runBlocking<Unit> {
+  fun `execution phase three at aggregater using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken = FakeComputationsDatabase.newPartialToken(
       localId = LOCAL_ID,
@@ -1334,7 +1334,7 @@ class LiquidLegionsV2MillTest {
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "031887eb8e4d4290fa97601c1ef6cda80ab3d2fe82da39ef8ed2e846cc7866a3b0"
 
-    private const val CURVE_ID = 415; // NID_X9_62_prime256v1
+    private const val CURVE_ID = 415 // NID_X9_62_prime256v1
 
     private val cryptoKeySet =
       CryptoKeySet(
@@ -1357,8 +1357,3 @@ private suspend fun ComputationStore.writeString(
   token: ComputationToken,
   content: String
 ): ComputationStore.Blob = write(token, ByteString.copyFromUtf8(content))
-
-private suspend fun ComputationStore.writeString(
-  tokenBuilder: ComputationToken.Builder,
-  content: String
-) = writeString(tokenBuilder.build(), content)

@@ -88,7 +88,7 @@ class RequisitionServiceTest {
   private val service = RequisitionService(RequisitionsCoroutineStub(channel))
 
   @Test
-  fun `listMetricRequisitions without page token`() = runBlocking<Unit> {
+  fun `listMetricRequisitions without page token`() = runBlocking {
     whenever(requisitionStorage.streamRequisitions(any()))
       .thenReturn(flowOf(REQUISITION, REQUISITION))
 
@@ -146,7 +146,7 @@ class RequisitionServiceTest {
   }
 
   @Test
-  fun `listMetricRequisitions with page token`() = runBlocking<Unit> {
+  fun `listMetricRequisitions with page token`() = runBlocking {
     whenever(requisitionStorage.streamRequisitions(any()))
       .thenReturn(emptyFlow())
 

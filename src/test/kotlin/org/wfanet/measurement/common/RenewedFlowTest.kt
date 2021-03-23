@@ -32,7 +32,7 @@ class RenewedFlowTest {
   @Test
   fun `flow repeats`() = runBlockingTest {
     var i = 1
-    val result = renewedFlow<Int>(1000, 0) {
+    val result: List<Int> = renewedFlow(1000, 0) {
       flowOf(i++, i++)
     }.take(6).toList()
 
@@ -41,7 +41,7 @@ class RenewedFlowTest {
 
   @Test
   fun `timeout interrupts flow`() = runBlockingTest {
-    val result = renewedFlow<Int>(45, 0) {
+    val result: List<Int> = renewedFlow(45, 0) {
       flow {
         var i = 1
         // Loop infinitely to show that this is interrupted.

@@ -133,7 +133,7 @@ class AsyncComputationControlServiceTest {
   }
 
   @Test
-  fun `record but more blobs to write so do not advance`() = runBlocking<Unit> {
+  fun `record but more blobs to write so do not advance`() = runBlocking {
     val tokenBeforeRecord = ComputationToken.newBuilder().apply {
       computationStage = Stage.WAIT_SKETCHES.toProtocolStage()
       addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
@@ -267,7 +267,7 @@ class AsyncComputationControlServiceTest {
   }
 
   @Test
-  fun `advance when stage already advanced is a noop`() = runBlocking<Unit> {
+  fun `advance when stage already advanced is a noop`() = runBlocking {
     val tokenOfAlreadyRecordedOutput = ComputationToken.newBuilder().apply {
       computationStage = Stage.TO_BLIND_POSITIONS.toProtocolStage()
       addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
@@ -289,7 +289,7 @@ class AsyncComputationControlServiceTest {
   }
 
   @Test
-  fun `advance stage doesn't match throws exception`() = runBlocking<Unit> {
+  fun `advance stage doesn't match throws exception`() = runBlocking {
     val actualStage = Stage.TO_BLIND_POSITIONS.toProtocolStage()
     val oldToken = ComputationToken.newBuilder().setComputationStage(actualStage).build()
 

@@ -22,8 +22,6 @@ import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.storage.StorageClient
 
-private const val BLOB_KEY_PREFIX = "computations"
-
 private typealias ComputationBlobKeyGenerator = ComputationToken.() -> String
 
 /**

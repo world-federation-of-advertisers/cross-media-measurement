@@ -54,7 +54,9 @@ interface Correctness {
   val publisherDataStub: PublisherDataCoroutineStub
 
   /**
-   * Generates a sequence of sets, each with [setSize] distinct values in [0, universeSize).
+   * Generates a sequence of sets, each with [generatedSetSize] distinct values in
+   * [0, universeSize).
+   *
    * Each set is generated independently and may have non-empty intersections.
    *
    * @return Sequence of reach sets
@@ -62,11 +64,11 @@ interface Correctness {
   fun generateReach(): Sequence<Set<Long>>
 
   /**
-   * Creates an [AnySketch] object and calls insert() method with a set of reach given.
-   * Returning [AnySketch] should have at most [setSize] number of registers.
+   * Creates an [AnySketch] object and calls its [insert][AnySketch.insert] method with a set of
+   * reach given.
    *
-   * @param reach set of longs sized [setSize]
-   * @return AnySketch object
+   * @param reach set of [Long]s sized [generatedSetSize]
+   * @return an [AnySketch] object with at most [generatedSetSize] number of registers
    */
   fun generateSketch(reach: Set<Long>): AnySketch
 
@@ -92,7 +94,7 @@ interface Correctness {
   /**
    * Stores a binary-serialized [Sketch] message into a blob.
    *
-   * @param Sketch proto
+   * @param sketch proto
    * @return blob key of the stored [Sketch]
    */
   suspend fun storeSketch(sketch: Sketch): String
@@ -120,7 +122,7 @@ interface Correctness {
   /**
    * Stores a binary-serialized [TestResult] message with all the blob keys into a blob.
    *
-   * @param TestResult proto
+   * @param testResult proto
    * @return blob key of the stored [TestResult]
    */
   suspend fun storeTestResult(testResult: TestResult): String

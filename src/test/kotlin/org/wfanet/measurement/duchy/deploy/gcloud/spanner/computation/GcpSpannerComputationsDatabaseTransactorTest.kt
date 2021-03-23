@@ -34,8 +34,8 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetai
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
-import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.A
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.B
@@ -246,7 +246,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `insert two computations`() = runBlocking<Unit> {
+  fun `insert two computations`() = runBlocking {
     val idGenerator = GlobalBitsPlusTimeStampIdGenerator(testClock)
     val globalId1 = "12345"
     val localId1 = idGenerator.localId(globalId1)
@@ -374,7 +374,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun enqueue() = runBlocking<Unit> {
+  fun enqueue() = runBlocking {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationEditToken(
@@ -477,7 +477,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun claimTask() = runBlocking<Unit> {
+  fun claimTask() = runBlocking {
     testClock.tickSeconds("7_minutes_ago")
     testClock.tickSeconds("6_minutes_ago", 60)
     testClock.tickSeconds("5_minutes_ago", 60)
@@ -585,7 +585,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `claim locked tasks`() = runBlocking<Unit> {
+  fun `claim locked tasks`() = runBlocking {
     testClock.tickSeconds("5_minutes_ago", 60)
     testClock.tickSeconds("TimeOfTest", 300)
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcloudTimestamp()
@@ -781,7 +781,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `updateComputationStage and continue working`() = runBlocking<Unit> {
+  fun `updateComputationStage and continue working`() = runBlocking {
     val token = testTransitionOfStageWhere(AfterTransition.CONTINUE_WORKING)
 
     assertQueryReturns(
@@ -1010,7 +1010,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `update computation details`() = runBlocking<Unit> {
+  fun `update computation details`() = runBlocking {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
     val token = ComputationEditToken(
@@ -1059,7 +1059,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `end successful computation`() = runBlocking<Unit> {
+  fun `end successful computation`() = runBlocking {
     val token = ComputationEditToken(
       localId = 4315,
       protocol = FakeProtocol.ZERO,
@@ -1159,7 +1159,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `end failed computation`() = runBlocking<Unit> {
+  fun `end failed computation`() = runBlocking {
     val globalId = "474747"
     val token = ComputationEditToken(
       localId = 4315,
@@ -1254,7 +1254,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   }
 
   @Test
-  fun `insert computation stat succeeds`() = runBlocking<Unit> {
+  fun `insert computation stat succeeds`() = runBlocking {
     val globalId = "474747"
     val localId = 4315L
     val computation = computationMutations.insertComputation(

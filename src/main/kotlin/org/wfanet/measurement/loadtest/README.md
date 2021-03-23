@@ -7,8 +7,8 @@ unencrypted data.
 
 ## Set up
 
-*   Default spanner instance is QA instance in the Cross-Media Measurement GCP account.
-    You can spin up local Spanner cluster and provide;
+*   Default spanner instance is QA instance in the Cross-Media Measurement GCP
+    account. You can spin up local Spanner cluster and provide;
 
     --spanner-emulator-host=localhost:8080
 

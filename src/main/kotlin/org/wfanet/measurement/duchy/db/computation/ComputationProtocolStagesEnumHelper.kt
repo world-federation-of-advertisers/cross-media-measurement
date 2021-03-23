@@ -20,10 +20,10 @@ interface ComputationProtocolStagesEnumHelper<ProtocolT, StageT> {
   /** Gets the protocol type from a stage type. */
   fun stageToProtocol(stage: StageT): ProtocolT
 
-  /** Turns an enum of [stageT] into a [ComputationStageLongValues]. */
+  /** Turns an enum of [StageT] into a [ComputationStageLongValues]. */
   fun computationStageEnumToLongValues(value: StageT): ComputationStageLongValues
 
-  /** Turns a [ComputationStageLongValues] into an enum of [stageT]. */
+  /** Turns a [ComputationStageLongValues] into an enum of [StageT]. */
   fun longValuesToComputationStageEnum(value: ComputationStageLongValues): StageT
 
   /** Returns the set of valid initial stages for [protocol]. */

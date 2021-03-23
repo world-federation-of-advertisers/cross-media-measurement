@@ -36,7 +36,7 @@ import org.junit.runners.JUnit4
 @OptIn(ExperimentalCoroutinesApi::class) // For `runBlockingTest`.
 class MinimumIntervalThrottlerTest {
   @Test
-  fun onReady() = runBlocking<Unit> {
+  fun onReady() = runBlocking {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(3))
     assertTrue(throttler.onReady { true }) // Reset the last event time to now.
 
