@@ -1,4 +1,4 @@
-// Copyright 2021 The Measurement Proto Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/api/v2alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;

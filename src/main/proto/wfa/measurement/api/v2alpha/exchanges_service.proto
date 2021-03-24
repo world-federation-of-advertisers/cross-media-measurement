@@ -1,0 +1,89 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/exchange.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ExchangesServiceProto";
+
+// Service for interacting with `Exchange` resources.
+service Exchanges {
+  // Returns the `Exchange` with the specified resource key.
+  rpc GetExchange(GetExchangeRequest) returns (Exchange);
+
+  // Lists `Exchanges`.
+  rpc ListExchanges(ListExchangesRequest) returns (ListExchangesResponse);
+
+  // Uploads an encrypted audit trail for the exchange.
+  // Only the EDP will be authorized to call this method.
+  // Multiple calls to this will only save the latest complete audit trail.
+  rpc UploadAuditTrail(stream UploadAuditTrailRequest) returns (Exchange);
+}
+
+// Request message for `GetExchange` method.
+message GetExchangeRequest {
+  // Resource key.
+  Exchange.Key key = 1;
+}
+
+// Request message for `ListExchanges` method.
+message ListExchangesRequest {
+  // TODO(efoxepstein): add fields
+
+  // The maximum number of `Exchange`s to return.
+  // The service may return fewer than this value.
+  // If unspecified, at most 50 `Exchange`s will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 2;
+
+  // A page token, received from a previous `ListExchangesRequest` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListExchangesRequest`
+  // must match the call that provided the page token.
+  string page_token = 3;
+}
+
+// Response message for `ListExchanges` method.
+message ListExchangesResponse {
+  // Page of `Exchange`s.
+  repeated Exchange exchanges = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for `UpdateAuditTrail` method.
+message UploadAuditTrailRequest {
+  // The first streamed message in a request must specify a `header`; subsequent
+  // messages must specify `audit_trail_data`.
+  oneof payload {
+    // First message that identifies the `Exchange`.
+    Header header = 1;
+
+    // Encrypted bytes of the audit trail.
+    bytes audit_trail_data = 2;
+  }
+
+  message Header {
+    // The `Exchange` to upload the data to.
+    Exchange.Key key = 1;
+  }
+}

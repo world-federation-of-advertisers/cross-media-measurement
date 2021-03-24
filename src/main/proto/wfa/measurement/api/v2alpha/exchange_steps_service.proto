@@ -1,0 +1,73 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/exchange.proto";
+import "wfa/measurement/api/v2alpha/exchange_step.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ExchangeStepsServiceProto";
+
+// Service for interacting with `ExchangeStep` resources.
+service ExchangeSteps {
+  // Returns the `ExchangeStep` with the specified resource key.
+  rpc GetExchangeStep(GetExchangeStepRequest) returns (ExchangeStep);
+
+  // Lists `ExchangeSteps`.
+  rpc ListExchangeSteps(ListExchangeStepsRequest)
+      returns (ListExchangeStepsResponse);
+}
+
+// Request message for `GetExchangeStep` method.
+message GetExchangeStepRequest {
+  // Resource key.
+  ExchangeStep.Key key = 1;
+}
+
+// Request message for `ListExchangeSteps` method.
+message ListExchangeStepsRequest {
+  // The Exchange that the ExchangeSteps belong to. Required.
+  Exchange.Key parent = 1;
+
+  // The maximum number of `ExchangeStep`s to return.
+  // The service may return fewer than this value.
+  // If unspecified, at most 50 `ExchangeStep`s will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  //
+  // Since most protocols will have fewer than 50 ExchangeSteps, this can
+  // typically be left unset.
+  int32 page_size = 2;
+
+  // A page token, received from a previous `ListExchangeStepsRequest` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to
+  // `ListExchangeStepsRequest` must match the call that provided the page
+  // token.
+  string page_token = 3;
+}
+
+// Response message for `ListExchangeSteps` method.
+message ListExchangeStepsResponse {
+  // Page of `ExchangeStep`s.
+  repeated ExchangeStep exchange_steps = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}

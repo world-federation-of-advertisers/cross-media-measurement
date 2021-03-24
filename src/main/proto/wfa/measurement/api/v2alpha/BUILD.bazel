@@ -224,7 +224,40 @@ proto_library(
     srcs = ["exchange_step_attempt.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":crypto_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "recurring_exchange_service_proto",
+    srcs = ["recurring_exchange_service.proto"],
+    deps = [
+        ":data_provider_proto",
+        ":model_provider_proto",
+        ":recurring_exchange_proto",
+    ],
+)
+
+proto_library(
+    name = "exchanges_service_proto",
+    srcs = ["exchanges_service.proto"],
+    deps = [":exchange_proto"],
+)
+
+proto_library(
+    name = "exchange_steps_service_proto",
+    srcs = ["exchange_steps_service.proto"],
+    deps = [
+        ":exchange_proto",
+        ":exchange_step_proto",
+    ],
+)
+
+proto_library(
+    name = "exchange_step_attempts_service_proto",
+    srcs = ["exchange_step_attempts_service.proto"],
+    deps = [
+        ":exchange_step_attempt_proto",
+        ":exchange_step_proto",
     ],
 )

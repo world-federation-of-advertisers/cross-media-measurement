@@ -1,0 +1,94 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "wfa/measurement/api/v2alpha/model_provider.proto";
+import "wfa/measurement/api/v2alpha/recurring_exchange.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RecurringExchangesServiceProto";
+
+// Service for interacting with `RecurringExchange` resources.
+service RecurringExchanges {
+  // Returns the `RecurringExchange` with the specified resource key.
+  rpc GetRecurringExchange(GetRecurringExchangeRequest)
+      returns (RecurringExchange);
+
+  // Creates a `RecurringExchange`.
+  rpc CreateRecurringExchange(CreateRecurringExchangeRequest)
+      returns (RecurringExchange);
+
+  // Updates a `RecurringExchange`.
+  rpc UpdateRecurringExchange(RecurringExchange) returns (RecurringExchange);
+
+  // Lists `RecurringExchanges`.
+  rpc ListRecurringExchanges(ListRecurringExchangesRequest)
+      returns (ListRecurringExchangesResponse);
+}
+
+// Request message for `GetRecurringExchange` method.
+message GetRecurringExchangeRequest {
+  // Resource key.
+  RecurringExchange.Key key = 1;
+}
+
+// Request message for `CreateRecurringExchange` method.
+message CreateRecurringExchangeRequest {
+  // The `RecurringExchange` to create. Required. The `key` field will be
+  // ignored, and the system will assign an ID.
+  RecurringExchange recurring_exchange = 1;
+}
+
+// Request message for `ListRecurringExchanges` method.
+message ListRecurringExchangesRequest {
+  // The maximum number of `RecurringExchange`s to return.
+  // The service may return fewer than this value.
+  // If unspecified, at most 50 `RecurringExchange`s will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 1;
+
+  // A page token, received from a previous `ListRecurringExchangesRequest`
+  // call. Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to
+  // `ListRecurringExchangesRequest` must match the call that provided the page
+  // token.
+  string page_token = 2;
+
+  // Limits the results to those that match ALL of the specified criteria. Unset
+  // fields are ignored (i.e. treated like wildcards).
+  message Filter {
+    DataProvider.Key data_provider = 1;
+    ModelProvider.Key model_provider = 2;
+  }
+
+  // Restrictions on the RecurringExchanges listed. It is an error to request
+  // RecurringExchanges that are not associated with the caller, so at least
+  // one of `data_provider` or `model_provider` should be specified.
+  Filter filter = 3;
+}
+
+message ListRecurringExchangesResponse {
+  // Page of `RecurringExchange`s.
+  repeated RecurringExchange resources = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
