@@ -1,0 +1,246 @@
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+java_proto_library(
+    name = "account_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:account_proto",
+    ],
+)
+
+alias(
+    name = "accounts_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:accounts_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "accounts_service_kt_jvm_grpc",
+    srcs = [":accounts_service_proto"],
+)
+
+java_proto_library(
+    name = "api_key_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:api_key_proto",
+    ],
+)
+
+alias(
+    name = "combined_public_keys_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:combined_public_keys_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "combined_public_keys_service_kt_jvm_grpc",
+    srcs = [":combined_public_keys_service_proto"],
+)
+
+java_proto_library(
+    name = "crypto_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:crypto_proto",
+    ],
+)
+
+java_proto_library(
+    name = "data_provider_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_provider_proto",
+    ],
+)
+
+alias(
+    name = "data_providers_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "data_providers_service_kt_jvm_grpc",
+    srcs = [":data_providers_service_proto"],
+)
+
+java_proto_library(
+    name = "encrypted_sketch_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:encrypted_sketch_proto",
+    ],
+)
+
+alias(
+    name = "event_groups_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "event_groups_service_kt_jvm_grpc",
+    srcs = [":event_groups_service_proto"],
+)
+
+java_proto_library(
+    name = "exchange_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_proto",
+    ],
+)
+
+java_proto_library(
+    name = "exchange_step_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_proto",
+    ],
+)
+
+java_proto_library(
+    name = "exchange_step_attempt_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_proto",
+    ],
+)
+
+alias(
+    name = "exchange_step_attempts_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "exchange_step_attempts_service_kt_jvm_grpc",
+    srcs = [":exchange_step_attempts_service_proto"],
+)
+
+alias(
+    name = "exchange_steps_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_steps_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "exchange_steps_service_kt_jvm_grpc",
+    srcs = [":exchange_steps_service_proto"],
+)
+
+java_proto_library(
+    name = "exchange_workflow_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_proto",
+    ],
+)
+
+alias(
+    name = "exchanges_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "exchanges_service_kt_jvm_grpc",
+    srcs = [":exchanges_service_proto"],
+)
+
+java_proto_library(
+    name = "measurement_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+    ],
+)
+
+java_proto_library(
+    name = "measurement_consumer_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumer_proto",
+    ],
+)
+
+alias(
+    name = "measurement_consumers_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "measurement_consumers_service_kt_jvm_grpc",
+    srcs = [":measurement_consumers_service_proto"],
+)
+
+alias(
+    name = "measurements_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "measurements_service_kt_jvm_grpc",
+    srcs = [":measurements_service_proto"],
+)
+
+java_proto_library(
+    name = "model_provider_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_provider_proto",
+    ],
+)
+
+java_proto_library(
+    name = "recurring_exchange_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_proto",
+    ],
+)
+
+alias(
+    name = "recurring_exchanges_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchanges_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "recurring_exchanges_service_kt_jvm_grpc",
+    srcs = [":recurring_exchanges_service_proto"],
+)
+
+java_proto_library(
+    name = "requisition_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
+    ],
+)
+
+alias(
+    name = "requisition_fulfillment_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "requisition_fulfillment_service_kt_jvm_grpc",
+    srcs = [":requisition_fulfillment_service_proto"],
+)
+
+java_proto_library(
+    name = "requisition_spec_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_proto",
+    ],
+)
+
+alias(
+    name = "requisitions_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "requisitions_service_kt_jvm_grpc",
+    srcs = [":requisitions_service_proto"],
+)
+
+java_proto_library(
+    name = "sketch_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:sketch_proto",
+    ],
+)
+
+alias(
+    name = "sketch_configs_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:sketch_configs_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "sketch_configs_service_kt_jvm_grpc",
+    srcs = [":sketch_configs_service_proto"],
+)

@@ -298,10 +298,26 @@ http_file(
     ],
 )
 
+# Google API protos
+http_archive(
+    name = "com_google_googleapis",
+    sha256 = "65b3c3c4040ba3fc767c4b49714b839fe21dbe8467451892403ba90432bb5851",
+    strip_prefix = "googleapis-a1af63efb82f54428ab35ea76869d9cd57ca52b8",
+    urls = ["https://github.com/googleapis/googleapis/archive/a1af63efb82f54428ab35ea76869d9cd57ca52b8.tar.gz"],
+)
+
+# Google APIs imports. Required to build googleapis.
+load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
+
+switched_rules_by_language(
+    name = "com_google_googleapis_imports",
+    java = True,
+)
+
 # Halo dependencies.
 load("//build/halo:repositories.bzl", "halo_dependencies")
 
 halo_dependencies(
-    revision = "5e44201b715433c48c0b6b31703177af21b65cf5",
-    sha256 = "c2de33f7818488020b8e71e7c6d985e934e7767eeefcad38830d27396b4f0b53",
+    revision = "c3e0eb59acf365165ebf1b3d49a17c479e9f2eae",
+    sha256 = "dd60a01655f43e0693b5403f53474a32aacb7ad17430b1683150ea1a8dab157c",
 )
