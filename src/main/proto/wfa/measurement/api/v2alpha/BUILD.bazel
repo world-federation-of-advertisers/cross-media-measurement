@@ -229,8 +229,8 @@ proto_library(
 )
 
 proto_library(
-    name = "recurring_exchange_service_proto",
-    srcs = ["recurring_exchange_service.proto"],
+    name = "recurring_exchanges_service_proto",
+    srcs = ["recurring_exchanges_service.proto"],
     deps = [
         ":data_provider_proto",
         ":model_provider_proto",
