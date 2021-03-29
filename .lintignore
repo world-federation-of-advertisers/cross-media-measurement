@@ -1,6 +1,6 @@
-# Patterns to ignore when running linters.
+# File patterns that linters should ignore.
 #
-# Use the same format as gitignore.
+# This file must have valid syntax for both gitignore and hgignore.
 
-# Third-party code.
 third_party/
+node_modules/
