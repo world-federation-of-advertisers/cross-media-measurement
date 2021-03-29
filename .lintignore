@@ -1,0 +1,6 @@
+# File patterns that linters should ignore.
+#
+# This file must have valid syntax for both gitignore and hgignore.
+
+third_party/
+node_modules/
