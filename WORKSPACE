@@ -1,7 +1,6 @@
 workspace(name = "wfa_measurement_system")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 # @bazel_skylib
 
@@ -29,12 +28,13 @@ http_archive(
     ],
 )
 
-# @com_google_protobuf
 http_archive(
     name = "com_google_protobuf",
-    sha256 = "d0f5f605d0d656007ce6c8b5a82df3037e1d8fe8b121ed42e536f569dec16113",
-    strip_prefix = "protobuf-3.14.0",
-    urls = ["https://github.com/google/protobuf/archive/v3.14.0.tar.gz"],
+    sha256 = "65e020a42bdab44a66664d34421995829e9e79c60e5adaa08282fd14ca552f57",
+    strip_prefix = "protobuf-3.15.6",
+    urls = [
+        "https://github.com/protocolbuffers/protobuf/archive/refs/tags/v3.15.6.tar.gz",
+    ],
 )
 
 http_archive(
@@ -45,11 +45,13 @@ http_archive(
 )
 
 # Abseil C++ libraries
-git_repository(
+http_archive(
     name = "com_google_absl",
-    commit = "0f3bb466b868b523cf1dc9b2aaaed65c77b28862",
-    remote = "https://github.com/abseil/abseil-cpp.git",
-    shallow_since = "1603283562 -0400",
+    sha256 = "dd7db6815204c2a62a2160e32c55e97113b0a0178b2f090d6bab5ce36111db4b",
+    strip_prefix = "abseil-cpp-20210324.0",
+    urls = [
+        "https://github.com/abseil/abseil-cpp/archive/refs/tags/20210324.0.tar.gz",
+    ],
 )
 
 # @com_google_truth_truth
@@ -196,32 +198,13 @@ load(
 
 java_image_repositories()
 
-# APT key for Google cloud.
-# See https://cloud.google.com/sdk/docs/install
-http_file(
-    name = "gcloud_apt_key",
-    downloaded_file_path = "cloud.google.gpg",
-    urls = ["https://packages.cloud.google.com/apt/doc/apt-key.gpg"],
-)
-
-# @com_google_private_join_and_compute
-git_repository(
-    name = "com_google_private_join_and_compute",
-    commit = "842f43b08cecba36f8e6c2d94d7467c3b7338397",
-    remote = "https://github.com/google/private-join-and-compute.git",
-    shallow_since = "1610640414 +0000",
-)
-
 # gflags
 # Needed for glog
 http_archive(
     name = "com_github_gflags_gflags",
     sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
     strip_prefix = "gflags-2.2.2",
-    urls = [
-        "https://mirror.bazel.build/github.com/gflags/gflags/archive/v2.2.2.tar.gz",
-        "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
-    ],
+    urls = ["https://github.com/gflags/gflags/archive/v2.2.2.tar.gz"],
 )
 
 # glog
@@ -234,37 +217,28 @@ http_archive(
 )
 
 # gRPC
-# Needed for private-join-and-compute
 http_archive(
     name = "com_github_grpc_grpc",
-    sha256 = "27dd2fc5c9809ddcde8eb6fa1fa278a3486566dfc28335fca13eb8df8bd3b958",
-    strip_prefix = "grpc-1.35.0",
-    urls = [
-        "https://github.com/grpc/grpc/archive/v1.35.0.tar.gz",
-    ],
+    sha256 = "8eb9d86649c4d4a7df790226df28f081b97a62bf12c5c5fe9b5d31a29cd6541a",
+    strip_prefix = "grpc-1.36.4",
+    urls = ["https://github.com/grpc/grpc/archive/v1.36.4.tar.gz"],
 )
 
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
-# Includes boringssl, com_google_absl, and other dependencies.
-# Needed for private-join-and-compute
 grpc_deps()
 
 load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 
-# Loads transitive dependencies of GRPC.
-# Needed for private-join-and-compute
 grpc_extra_deps()
 
-# @bazel_toolchains
-# For RBE (Foundry).
-
-load("//build/bazel_toolchains:repo.bzl", "bazel_toolchains")
-
-bazel_toolchains(
-    name = "bazel_toolchains",
-    sha256 = "/usr/local/google/home/sanjayvas/git/wfa-experimental/cross-media-measurement/WORKSPACE",
-    version = "5.0.0",
+http_archive(
+    name = "com_google_private_join_and_compute",
+    sha256 = "13e0414220a2709b0dbeefafe5a4d1b3f3261a541d0405c844857521d5f25f32",
+    strip_prefix = "private-join-and-compute-89c8d0aae070b9c282043af419e47d7ef897f460",
+    urls = [
+        "https://github.com/google/private-join-and-compute/archive/89c8d0aae070b9c282043af419e47d7ef897f460.zip",
+    ],
 )
 
 # @cloud_spanner_emulator
@@ -287,7 +261,7 @@ cue_binaries(
     version = "0.2.2",
 )
 
-# Grpc Health Check Probe
+# gRPC Health Check Probe
 http_file(
     name = "grpc_health_probe",
     downloaded_file_path = "grpc-health-probe",
@@ -314,10 +288,32 @@ switched_rules_by_language(
     java = True,
 )
 
-# Halo dependencies.
-load("//build/halo:repositories.bzl", "halo_dependencies")
+load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
-halo_dependencies(
-    revision = "c3e0eb59acf365165ebf1b3d49a17c479e9f2eae",
-    sha256 = "dd60a01655f43e0693b5403f53474a32aacb7ad17430b1683150ea1a8dab157c",
+wfa_repo_archive(
+    name = "wfa_measurement_proto",
+    commit = "1303ecbf4e81901f30f5a400b80921871b701b37",
+    repo = "cross-media-measurement-api",
+    sha256 = "5552203aa815659eace1cb96c84c45ef1290ab87bba7e424311ae629b159b212",
+)
+
+wfa_repo_archive(
+    name = "wfa_rules_swig",
+    commit = "653d1bdcec85a9373df69920f35961150cf4b1b6",
+    repo = "rules_swig",
+    sha256 = "34c15134d7293fc38df6ed254b55ee912c7479c396178b7f6499b7e5351aeeec",
+)
+
+wfa_repo_archive(
+    name = "any_sketch",
+    commit = "c8af6252d16096796ac40545756a3b9cf752ed6d",
+    repo = "any-sketch",
+    sha256 = "809853931d28a3a954bfda198871befc7de101934587c98d3e303498030ee399",
+)
+
+wfa_repo_archive(
+    name = "any_sketch_java",
+    commit = "eb25d29f19f2ed6a4198988af4a09f8c300061b2",
+    repo = "any-sketch-java",
+    sha256 = "e5e4f9dcc8984e98883aa9077163bfabb33ea9f2ec3eb9d5476c4babbcca2adc",
 )
