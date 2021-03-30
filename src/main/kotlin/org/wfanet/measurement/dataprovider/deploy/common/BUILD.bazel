@@ -1,0 +1,34 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "fake_data_provider",
+    srcs = ["FakeDataProviderMain.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider/common",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider/fake",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
+    ],
+)
+
+java_binary(
+    name = "FakeDataProvider",
+    main_class = "org.wfanet.measurement.dataprovider.deploy.common.FakeDataProviderMainKt",
+    runtime_deps = [":fake_data_provider"],
+)
+
+java_image(
+    name = "fake_data_provider_image",
+    main_class = "org.wfanet.measurement.dataprovider.deploy.common.FakeDataProviderMainKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":fake_data_provider"],
+)

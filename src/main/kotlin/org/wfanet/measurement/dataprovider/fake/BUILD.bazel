@@ -1,0 +1,21 @@
+load("//build:defs.bzl", "test_target")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/dataprovider:__subpackages__",
+    test_target(":__subpackages__"),
+    "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "fake",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//imports/java/com/google/protobuf",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",
+    ],
+)
