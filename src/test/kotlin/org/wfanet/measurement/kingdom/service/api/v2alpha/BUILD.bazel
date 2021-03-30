@@ -1,0 +1,55 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ExchangesServiceTest",
+    srcs = ["ExchangesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesServiceTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/com/google/protobuf",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchanges_service",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_test(
+    name = "ExchangeStepAttemptsServiceTest",
+    srcs = ["ExchangeStepAttemptsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsServiceTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/com/google/protobuf",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
+    ],
+)
+
+kt_jvm_test(
+    name = "RecurringExchangesServiceTest",
+    srcs = ["RecurringExchangesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.RecurringExchangesServiceTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/java/com/google/protobuf",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:recurring_exchanges_service",
+        "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchanges_service_kt_jvm_grpc",
+    ],
+)
