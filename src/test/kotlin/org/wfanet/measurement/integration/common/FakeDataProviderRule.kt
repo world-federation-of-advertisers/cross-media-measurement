@@ -65,6 +65,7 @@ class FakeDataProviderRule : TestRule {
     )
   }
 
+  // TODO: replace this with FakeDataProvider.
   private suspend fun runDataProvider(
     externalDataProviderId: ExternalId,
     externalCampaignId: ExternalId,
