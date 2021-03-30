@@ -121,6 +121,7 @@ class CorrectnessImpl(
     coroutineScope {
       generatedCampaigns.forEach {
         launch {
+          // TODO: replace this with FakeDataProvider.
           encryptAndSend(it, testResult)
         }
       }

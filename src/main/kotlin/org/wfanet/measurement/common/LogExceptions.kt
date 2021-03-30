@@ -16,6 +16,7 @@ package org.wfanet.measurement.common
 
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 
 private val logger = Logger.getLogger("org.wfanet.measurement.common.LogExceptions")
 
@@ -26,14 +27,18 @@ private val logger = Logger.getLogger("org.wfanet.measurement.common.LogExceptio
  * @param block the function to run
  * @return the result of [block] or null if it threw
  */
-fun <T> logAndSuppressException(level: Level = Level.SEVERE, block: () -> T): T? =
-  runCatching { block() }.onFailure { logException(it, level) }.getOrNull()
-
 suspend fun <T> logAndSuppressExceptionSuspend(
   level: Level = Level.SEVERE,
   block: suspend () -> T
-): T? =
-  runCatching { block() }.onFailure { logException(it, level) }.getOrNull()
+): T? {
+  return try {
+    block()
+  } catch (e: Exception) {
+    if (e is CancellationException) throw e
+    logException(e, level)
+    null
+  }
+}
 
 private fun logException(throwable: Throwable, level: Level) {
   logger.log(level, "Exception:", throwable)
