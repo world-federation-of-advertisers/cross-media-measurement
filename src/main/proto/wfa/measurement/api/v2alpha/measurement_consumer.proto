@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "wfa/measurement/api/v2alpha/account.proto";
+import "wfa/measurement/api/v2alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -30,11 +31,23 @@ message MeasurementConsumer {
   // Resource key.
   Key key = 1;
 
+  // X.509 certificate in DER format which can be verified using the
+  // `MeasurementConsumer`'s root certificate. Required.
+  bytes certificate = 2;
+
+  // Resource key of the `MeasurementConsumerCertificate` that matches
+  // `certificate`. Output-only.
+  MeasurementConsumerCertificate.Key measurement_consumer_certificate = 3;
+
+  // Encryption public key for this `MeasurementConsumer` in DER format, which
+  // can be verified using `certificate`. Required.
+  SignedData public_key = 4;
+
   // Official name of the `MeasurementConsumer`.
-  string title = 2;
+  string title = 5;
 
   // Resource keys of owner `Account`s. Output-only.
-  repeated Account.Key owners = 3;
+  repeated Account.Key owners = 6;
 }
 
 message MeasurementConsumerCertificate {
@@ -50,4 +63,18 @@ message MeasurementConsumerCertificate {
   // X.509 certificate in DER format which can be verified using the
   // `MeasurementConsumer`'s root certificate. Required. Immutable.
   bytes certificate = 2;
+}
+
+// Encryption public key for the `MeasurementConsumer`. Singleton resource.
+message MeasurementConsumerPublicKey {
+  // Resource key.
+  MeasurementConsumer.Key key = 1;
+
+  // Encryption public key for this `MeasurementConsumer`, which can be verified
+  // using `measurement_consumer_certificate`. Required.
+  SignedData public_key = 2;
+
+  // Resource key of the `MeasurementConsumerCertificate` that can be used to
+  // verify `public_key`.
+  MeasurementConsumerCertificate.Key measurement_consumer_certificate = 3;
 }

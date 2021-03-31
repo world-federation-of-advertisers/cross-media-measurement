@@ -17,9 +17,15 @@ resource(DataProvider) {
   owners
   Get()
 }
+resource(DataProviderPublicKey) {
+  Update(data_provider_public_key)
+}
 resource(MeasurementConsumer) {
   owners
   Get()
+}
+resource(MeasurementConsumerPublicKey) {
+  Update(measurement_consumer_public_key)
 }
 resource(SketchConfig) {
 }
@@ -92,12 +98,16 @@ resource(ApiKey) {
 
 DataProvider *-- eventGroups
 DataProvider *-- requisitions
+DataProvider *-- DataProviderPublicKey
 EventGroup "many" .> "1" MeasurementConsumer
+
+DataProviderPublicKey -[hidden]-> requisitions
 
 Requisition "many" .> "many" EventGroup
 Requisition "many" .> "1" Measurement
 
 MeasurementConsumer *-- measurements
+MeasurementConsumer *-- MeasurementConsumerPublicKey
 Measurement "many" ..> "1" CombinedPublicKey
 Measurement "many" ..> "0..1" SketchConfig
 

@@ -38,6 +38,10 @@ service DataProviders {
   // Removes an owner from the specified `DataProvider`.
   rpc RemoveDataProviderOwner(RemoveDataProviderOwnerRequest)
       returns (DataProvider) {}
+
+  // Updates the `DataProviderPublicKey` for the specified `DataProvider`.
+  rpc UpdateDataProviderPublicKey(UpdateDataProviderPublicKeyRequest)
+      returns (DataProviderPublicKey) {}
 }
 
 // Request message for `GetDataProvider` method.
@@ -71,4 +75,10 @@ message RemoveDataProviderOwnerRequest {
   // Resource key of the `Account` to remove as an owner of this
   // `DataProvider`. Required.
   Account.Key account = 2;
+}
+
+// Request message for `UpdateDataProviderPublicKey` method.
+message UpdateDataProviderPublicKeyRequest {
+  // Resource to update. Required.
+  DataProviderPublicKey data_provider_public_key = 1;
 }

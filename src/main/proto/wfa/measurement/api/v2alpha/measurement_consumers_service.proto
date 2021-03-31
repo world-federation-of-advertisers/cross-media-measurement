@@ -40,6 +40,12 @@ service MeasurementConsumers {
   // Removes an owner from the specified `MeasurementConsumer`.
   rpc RemoveMeasurementConsumerOwner(RemoveMeasurementConsumerOwnerRequest)
       returns (MeasurementConsumer) {}
+
+  // Updates the `MeasurementConsumerPublicKey` for the specified
+  // `MeasurementConsumer`.
+  rpc UpdateMeasurementConsumerPublicKey(
+      UpdateMeasurementConsumerPublicKeyRequest)
+      returns (MeasurementConsumerPublicKey) {}
 }
 
 // Request message for `GetMeasurementConsumer` method.
@@ -73,4 +79,10 @@ message RemoveMeasurementConsumerOwnerRequest {
   // Resource key of the `Account` to remove as an owner of this
   // `MeasurementConsumer`. Required.
   Account.Key account = 2;
+}
+
+// Request message for `UpdateMeasurementConsumerPublicKey` method.
+message UpdateMeasurementConsumerPublicKeyRequest {
+  // Resource to update. Required.
+  MeasurementConsumerPublicKey measurement_consumer_public_key = 1;
 }
