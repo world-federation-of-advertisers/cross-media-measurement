@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
-#define WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 
 #include "absl/status/status.h"
 
-namespace wfa {
-namespace measurement {
-namespace common {
-
+namespace wfa::measurement::common {
 namespace internal {
 
 // A block of data, which can be either a sketch register or (flag, cout) pair.
@@ -59,8 +57,6 @@ absl::Status SortStringByBlock(std::string& data) {
 template <>
 absl::Status SortStringByBlock<0>(std::string& data) = delete;
 
-}  // namespace common
-}  // namespace measurement
-}  // namespace wfa
+}  // namespace wfa::measurement::common
 
-#endif  // WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_STRING_BLOCK_SORTER_H_
