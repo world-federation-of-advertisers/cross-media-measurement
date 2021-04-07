@@ -23,15 +23,21 @@
 --   │           └── Reports
 --   │               └── ReportLogEntries
 --   │               └── ReportRequisitions
---   └── DataProviders
---       └── Campaigns
---           └── Requisitions
+--   ├── DataProviders
+--   │   └── Campaigns
+--   │       └── Requisitions
+--   ├── ModelProviders
+--   └── RecurringExchanges
+--       └── Exchanges
+--           └── ExchangeStepAttempts
 --
 -- The important foreign key relationships between the tables are:
 --
 --   Advertisers <- 1:many -> Campaigns
 --   ReportConfigs <- many:many -> Campaigns
 --   Requisitions <- many:many -> Reports (tracked in ReportRequisitions)
+--   RecurringExchanges <- many:many -> DataProviders
+--   RecurringExchanges <- many:many -> ModelProviders
 --
 -- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
 -- expose only External identifiers, and ideally only web-safe base64 versions
@@ -326,3 +332,75 @@ CREATE UNIQUE INDEX ReportRequisitionsByRequisition
     DataProviderId, CampaignId, RequisitionId,  -- Requisitions PK
     AdvertiserId, ReportConfigId, ScheduleId, ReportId -- Reports PK
   );
+
+CREATE TABLE ModelProviders (
+  ModelProviderId INT64 NOT NULL,
+
+  ExternalModelProviderId INT64 NOT NULL,
+) PRIMARY KEY (ModelProviderId);
+
+CREATE UNIQUE INDEX ModelProvidersByExternalId
+  ON ModelProviders(ExternalModelProviderId);
+
+CREATE TABLE RecurringExchanges (
+  RecurringExchangeId           INT64 NOT NULL,
+
+  ExternalRecurringExchangeId   INT64 NOT NULL,
+
+  ModelProviderId               INT64 NOT NULL,
+  DataProviderId                INT64 NOT NULL,
+
+  -- Serialized RecurringExchangeDetails protocol buffer
+  RecurringExchangeDetails      BYTES(MAX) NOT NULL,
+  RecurringExchangeDetailsJson  STRING(MAX) NOT NULL,
+
+  CONSTRAINT FK_ModelProvider
+    FOREIGN KEY (ModelProviderId)
+    REFERENCES ModelProviders(ModelProviderId),
+
+  CONSTRAINT FK_DataProvider
+    FOREIGN KEY (DataProviderId)
+    REFERENCES DataProviders(DataProviderId),
+) PRIMARY KEY (RecurringExchangeId);
+
+CREATE UNIQUE INDEX RecurringExchangesByExternalId
+  ON RecurringExchanges(ExternalRecurringExchangeId);
+
+CREATE INDEX RecurringExchangesByDataProviderId
+  ON RecurringExchanges(DataProviderId);
+
+CREATE INDEX RecurringExchangesByModelProviderId
+  ON RecurringExchanges(ModelProviderId);
+
+CREATE TABLE Exchanges (
+  RecurringExchangeId  INT64 NOT NULL,
+  Date                 DATE NOT NULL,
+
+  -- Serialized ExchangeDetails protocol buffer
+  ExchangeDetails      BYTES(MAX) NOT NULL,
+  ExchangeDetailsJson  STRING(MAX) NOT NULL,
+) PRIMARY KEY (RecurringExchangeId, Date),
+  INTERLEAVE IN PARENT RecurringExchanges ON DELETE CASCADE;
+
+CREATE INDEX ExchangesByDate ON Exchanges(Date);
+
+-- ExchangeSteps (the public API resource) are not explicitly modeled in this
+-- database. Instead, they are inferred from the ExchangeWorkflow (available in
+-- RecurringExchangeDetails).
+--
+-- The current state of the ExchangeStep is inferred from ExchangeStepAttempts.
+-- By looking at the state of the lexicographically last row for a given
+-- Exchange parent row, the state can be determined: the current step is the max
+-- step index in an ExchangeStepAttempt row for the Exchange, or that + 1,
+--  depending on whether the attempt is marked successful or not.
+CREATE TABLE ExchangeStepAttempts (
+  RecurringExchangeId  INT64 NOT NULL,
+  Date                 DATE NOT NULL,
+  StepIndex            INT64 NOT NULL,
+  AttemptIndex         INT64 NOT NULL,
+
+  -- Serialized ExchangeStepAttemptDetails protocol buffer
+  ExchangeStepAttemptDetails      BYTES(MAX) NOT NULL,
+  ExchangeStepAttemptDetailsJson  STRING(MAX) NOT NULL,
+) PRIMARY KEY (RecurringExchangeId, Date, StepIndex, AttemptIndex),
+  INTERLEAVE IN PARENT Exchanges ON DELETE CASCADE;
