@@ -29,6 +29,10 @@ service ExchangeSteps {
   rpc GetExchangeStep(GetExchangeStepRequest) returns (ExchangeStep);
 
   // Lists `ExchangeSteps`.
+  //
+  // This method is critical to the core "flow" of the system: clients will call
+  // "/ExchangeSteps.ListExchangeSteps" with a filter for the NOT_STARTED state
+  // and then create new `ExchangeStepAttempts` for those.
   rpc ListExchangeSteps(ListExchangeStepsRequest)
       returns (ListExchangeStepsResponse);
 }
@@ -41,7 +45,10 @@ message GetExchangeStepRequest {
 
 // Request message for `ListExchangeSteps` method.
 message ListExchangeStepsRequest {
-  // The Exchange that the ExchangeSteps belong to. Required.
+  // The Exchange that the ExchangeSteps belong to.
+  //
+  // Optional: if not provided, this will list ExchangeSteps from all Exchanges
+  // that the caller has access to.
   Exchange.Key parent = 1;
 
   // The maximum number of `ExchangeStep`s to return.
@@ -60,6 +67,13 @@ message ListExchangeStepsRequest {
   // `ListExchangeStepsRequest` must match the call that provided the page
   // token.
   string page_token = 3;
+
+  // Filter for results. The API will return ExchangeSteps that match ALL of the
+  // given conditions. Repeated fields are treated as disjunctions.
+  message Filter {
+    repeated ExchangeStep.State states = 1;
+  }
+  Filter filter = 4;
 }
 
 // Response message for `ListExchangeSteps` method.
