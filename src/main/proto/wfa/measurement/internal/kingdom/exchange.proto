@@ -34,4 +34,8 @@ message Exchange {
 
   // Additional metadata about the Exchange.
   ExchangeDetails details = 3;
+
+  // Serialized ExchangeWorkflow proto denormalized from the parent
+  // `RecurringExchange`'s `RecurringExchangeDetails`.
+  bytes serialized_recurring_exchange = 4;
 }
