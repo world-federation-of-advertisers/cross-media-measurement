@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "src/main/proto/wfa/measurement/internal/kingdom/recurring_exchange.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for managing `RecurringExchange` resources.
+service RecurringExchanges {
+  // Gets an existing `RecurringExchange`.
+  rpc GetRecurringExchange(GetRecurringExchangeRequest)
+      returns (RecurringExchange);
+
+  // Creates a `RecurringExchange`.
+  rpc CreateRecurringExchange(CreateRecurringExchangeRequest)
+      returns (RecurringExchange);
+}
+
+// Request message for "/RecurringExchanges.GetRecurringExchange".
+message GetRecurringExchangeRequest {
+  fixed64 external_recurring_exchange_id = 1;
+}
+
+// Request message for "/RecurringExchanges.CreateRecurringExchange".
+message CreateRecurringExchangeRequest {
+  RecurringExchange recurring_exchange = 1;
+}
