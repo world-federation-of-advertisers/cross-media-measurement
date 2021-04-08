@@ -49,6 +49,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
+        ":duchy_proto",
         ":measurement_consumer_proto",
         ":measurement_proto",
     ],
@@ -154,15 +155,6 @@ proto_library(
 )
 
 proto_library(
-    name = "combined_public_keys_service_proto",
-    srcs = ["combined_public_keys_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":crypto_proto",
-    ],
-)
-
-proto_library(
     name = "sketch_configs_service_proto",
     srcs = ["sketch_configs_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -179,6 +171,12 @@ proto_library(
         ":measurement_consumer_proto",
         ":sketch_proto",
     ],
+)
+
+proto_library(
+    name = "duchy_proto",
+    srcs = ["duchy.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(

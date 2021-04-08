@@ -164,10 +164,6 @@ message MeasurementSpec {
   message EncryptedSketch {
     // Resource key of the sketch configuration. Required.
     SketchConfig.Key sketch_config = 1;
-
-    // The resource key of the `CombinedPublicKey` that is used to encrypt the
-    // sketch. Required.
-    CombinedPublicKey.Key combined_public_key = 2;
   }
 
   // What data the requisition is for, i.e. what data is being requisitioned.

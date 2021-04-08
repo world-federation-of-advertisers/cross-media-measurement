@@ -20,23 +20,6 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "CryptoProto";
 
-// A representation of a combined public encryption key made of up the public
-// keys for each publisher data server.
-message CombinedPublicKey {
-  message Key {
-    string combined_public_key_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
-
-  // Encryption key.
-  ElGamalPublicKey encryption_key = 2;
-
-  // Strictly increasing version, such that the version of a newer resource
-  // will always be greater than that of an older resource.
-  int64 version = 3;
-}
-
 // A public key in the ElGamal crypto system.
 message ElGamalPublicKey {
   // ID of the OpenSSL built-in elliptic curve. For example, 415 for the

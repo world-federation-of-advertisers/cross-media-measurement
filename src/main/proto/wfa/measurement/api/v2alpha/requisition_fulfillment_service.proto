@@ -54,8 +54,9 @@ message FulfillRequisitionRequest {
     // The format of the data depends on the corresponding `MeasurementSpec`. If
     // the `Requisition` is for an encrypted sketch, this is the register
     // data as documented in the `Sketch` message (sketch.proto) encrypted using
-    // the specified `CombinedPublicKey`. The only alignment requirement is by
-    // bytes: a chunk might begin or end in the middle of a single register.
+    // the combined `Duchy` ElGamal public keys. The only alignment requirement
+    // is by bytes: a chunk might begin or end in the middle of a single
+    // register.
     //
     // The optimal size of this field is one that would result in the
     // `FulfillRequisitionRequest` message being between 16KiB and 64KiB.

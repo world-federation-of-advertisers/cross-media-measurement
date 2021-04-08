@@ -13,6 +13,8 @@ skinparam default {
   fontSize 12
 }
 
+resource(Duchy) {
+}
 resource(DataProvider) {
   owners
   Get()
@@ -29,10 +31,6 @@ resource(MeasurementConsumerPublicKey) {
 }
 resource(SketchConfig) {
 }
-resource(CombinedPublicKey) {
-  encryption_key
-  Get()
-}
 resource(Measurement) {
   measurement_spec
   data_provider_entries
@@ -45,6 +43,8 @@ resource(Account) {
 }
 
 together {
+  collection(duchies, Duchy) {
+  }
   collection(measurementConsumers, MeasurementConsumer) {
     Create(measurementConsumer)
   }
@@ -52,9 +52,6 @@ together {
     Create(data_provider)
   }
   collection(sketchConfigs, SketchConfig) {
-    List()
-  }
-  collection(combinedPublicKeys, CombinedPublicKey) {
     List()
   }
   collection(accounts, Account) {
@@ -101,20 +98,19 @@ DataProvider *-- requisitions
 DataProvider *-- DataProviderPublicKey
 EventGroup "many" .> "1" MeasurementConsumer
 
-DataProviderPublicKey -[hidden]-> requisitions
+'DataProviderPublicKey -[hidden]-> requisitions
 
 Requisition "many" .> "many" EventGroup
 Requisition "many" .> "1" Measurement
+Duchy "many" <. "many" Requisition
+'Requisition "many" .> "many" Duchy
 
 MeasurementConsumer *-- measurements
 MeasurementConsumer *-- MeasurementConsumerPublicKey
-Measurement "many" ..> "1" CombinedPublicKey
 Measurement "many" ..> "0..1" SketchConfig
 
 Account *-- apiKeys
-MeasurementConsumer "many" .> "many" Account
+MeasurementConsumer "many" .> " many" Account
 DataProvider "many" .> "many" Account
-'Account "many" <. "many" MeasurementConsumer
-'Account "many" <. "many" DataProvider
 
 @enduml

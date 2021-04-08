@@ -1,0 +1,53 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "DuchyProto";
+
+// Resource message representing a Duchy.
+message Duchy {
+  message Key {
+    string duchy_id = 1;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // X.509 certificate in DER format which can be verified using the `Duchy`'s
+  // root certificate. Required.
+  bytes certificate = 2;
+
+  // Resource key of the `DuchyCertificate` that matches `certificate`.
+  // Output-only.
+  DuchyCertificate.Key duchy_certificate = 3;
+}
+
+message DuchyCertificate {
+  message Key {
+    // ID of the parent `Duchy`.
+    string duchy_id = 1;
+    // ID of this `DuchyCertificate`.
+    string duchy_certificate_id = 2;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // X.509 certificate in DER format which can be verified using the `Duchy`'s
+  // root certificate. Required. Immutable.
+  bytes certificate = 2;
+}
