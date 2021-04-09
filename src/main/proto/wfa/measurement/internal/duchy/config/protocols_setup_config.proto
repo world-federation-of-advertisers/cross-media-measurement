@@ -1,0 +1,44 @@
+// Copyright 2020 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package org.wfa.measurement.config;
+
+option java_package = "org.wfanet.measurement.internal.duchy.config";
+option java_multiple_files = true;
+
+// A combined setup configuration for all protocols used by the herald.
+// Each newly added protocol should have a field in this config proto.
+message ProtocolsSetupConfig {
+  // LiquidLegionsV2 specific configuration
+  LiquidLegionsV2SetupConfig liquid_legions_v2 = 1;
+}
+
+// LiquidLegionsV2 specific configuration
+message LiquidLegionsV2SetupConfig {
+  enum RoleInComputation {
+    // Never set intentionally
+    UNKNOWN = 0;
+
+    // The aggregator duchy for the computation.
+    AGGREGATOR = 1;
+
+    // A non-aggregator duchy for the computation. This duchy has to do many
+    // crypto operations, but is not responsible for joining sketch positions
+    // together, nor computing the final results.
+    NON_AGGREGATOR = 2;
+  }
+  RoleInComputation role = 1;
+}

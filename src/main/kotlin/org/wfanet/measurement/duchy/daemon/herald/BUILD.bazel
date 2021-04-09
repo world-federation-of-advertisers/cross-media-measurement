@@ -18,5 +18,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/protocol:requisition_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_java_proto",
     ],
 )

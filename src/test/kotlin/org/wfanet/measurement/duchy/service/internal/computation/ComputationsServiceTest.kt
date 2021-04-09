@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
@@ -50,19 +51,13 @@ class ComputationsServiceTest {
   companion object {
     val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV2Builder.apply {
-        role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-        aggregatorNodeId = "BOHEMIA"
-        incomingNodeId = "SALZBURG"
-        outgoingNodeId = "AUSTRIA"
+        role = RoleInComputation.AGGREGATOR
       }
     }.build()
 
     val nonAggregatorComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV2Builder.apply {
-        role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
-        aggregatorNodeId = "BOHEMIA"
-        incomingNodeId = "SALZBURG"
-        outgoingNodeId = "AUSTRIA"
+        role = RoleInComputation.NON_AGGREGATOR
       }
     }.build()
   }

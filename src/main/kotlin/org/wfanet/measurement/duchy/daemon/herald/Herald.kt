@@ -23,7 +23,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
@@ -31,6 +30,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetai
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
@@ -52,8 +52,7 @@ class Herald(
   otherDuchiesInComputation: List<String>,
   private val computationStorageClient: ComputationsCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
-  private val duchyName: String,
-  private val duchyOrder: DuchyOrder,
+  private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxStartAttempts: Int = 10
 ) {
@@ -139,11 +138,10 @@ class Herald(
   private suspend fun create(globalComputation: GlobalComputation) {
     val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
     logger.info("[id=$globalId] Creating Computation")
-    val computationAtThisDuchy = duchyOrder.positionFor(globalId, duchyName)
     try {
       // TODO: get the protocol from the kingdom's response and create a corresponding computation.
       LiquidLegionsV2Starter.createComputation(
-        computationStorageClient, globalComputation, computationAtThisDuchy, blobStorageBucket
+        computationStorageClient, globalComputation, protocolsSetupConfig, blobStorageBucket
       )
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: Exception) {

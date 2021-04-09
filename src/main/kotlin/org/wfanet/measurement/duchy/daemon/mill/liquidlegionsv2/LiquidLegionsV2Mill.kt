@@ -23,7 +23,6 @@ import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.common.ElGamalPublicKey
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -34,6 +33,10 @@ import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
+import org.wfanet.measurement.duchy.daemon.utils.Duchy
+import org.wfanet.measurement.duchy.daemon.utils.getDuchyOrderByPublicKeysAndComputationId
+import org.wfanet.measurement.duchy.daemon.utils.getFollowingDuchies
+import org.wfanet.measurement.duchy.daemon.utils.getNextDuchy
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
@@ -45,6 +48,8 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneRequest
@@ -60,8 +65,6 @@ import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.protocol.FlagCountTupleNoiseGenerationParameters
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -86,7 +89,6 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  * @param workerStubs A map from other duchies' Ids to their corresponding
  *    computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
- * @param duchyOrder The DuchyOrder that determines ordering of duchies for computations.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  * @param maxFrequency The maximum frequency to reveal in the frequency histogram.
  * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
@@ -94,6 +96,7 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  */
 class LiquidLegionsV2Mill(
   millId: String,
+  duchyId: String,
   dataClients: ComputationDataClients,
   metricValuesClient: MetricValuesCoroutineStub,
   globalComputationsClient: GlobalComputationsCoroutineStub,
@@ -103,16 +106,17 @@ class LiquidLegionsV2Mill(
   clock: Clock = Clock.systemUTC(),
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoKeySet: CryptoKeySet,
-  private val duchyOrder: DuchyOrder,
   private val cryptoWorker: LiquidLegionsV2Encryption,
   private val maxFrequency: Int = 10,
   private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
     12.0,
     10_000_000L
   ),
-  private val noiseConfig: LiquidLegionsV2NoiseConfig
+  private val noiseConfig: LiquidLegionsV2NoiseConfig,
+  private val aggregatorId: String
 ) : MillBase(
   millId,
+  duchyId,
   dataClients,
   globalComputationsClient,
   metricValuesClient,
@@ -252,7 +256,7 @@ class LiquidLegionsV2Mill(
         token.globalComputationId
       ),
       content = addLoggingHook(token, bytes),
-      stub = aggregatorDuchyStub(token)
+      stub = aggregatorDuchyStub()
     )
 
     return dataClients.transitionComputationToStage(
@@ -426,9 +430,7 @@ class LiquidLegionsV2Mill(
       }
       if (noiseConfig.hasFrequencyNoiseConfig()) {
         requestBuilder.apply {
-          partialCompositeElGamalPublicKey = getPartiallyCombinedPublicKey(
-            token.globalComputationId, token.computationDetails.liquidLegionsV2.outgoingNodeId
-          )
+          partialCompositeElGamalPublicKey = getPartiallyCombinedPublicKey(token)
           noiseParameters = getFrequencyNoiseParams()
         }
       }
@@ -533,37 +535,41 @@ class LiquidLegionsV2Mill(
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
+  // Gets the order of all duchies in the MPC ring. Since it is a ring, we put the aggregator at the
+  // end for simplicity.
+  private fun getMpcDuchyRing(token: ComputationToken): List<String> {
+    val nonAggregatorsSet = cryptoKeySet.allDuchyPublicKeys
+      .filter { it.key != aggregatorId }
+      .map { Duchy(it.key, it.value.element.toStringUtf8()) }.toSet()
+    return getDuchyOrderByPublicKeysAndComputationId(
+      nonAggregatorsSet, token.globalComputationId
+    ) + aggregatorId
+  }
+
   private fun nextDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
-    val nextDuchy = token.computationDetails.liquidLegionsV2.outgoingNodeId
+    val mpcDuchyRing = getMpcDuchyRing(token)
+    val nextDuchy = getNextDuchy(mpcDuchyRing, duchyId)
     return workerStubs[nextDuchy]
       ?: throw PermanentComputationError(
         IllegalArgumentException("No ComputationControlService stub for next duchy '$nextDuchy'")
       )
   }
 
-  private fun aggregatorDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
-    val aggregatorDuchy = token.computationDetails.liquidLegionsV2.aggregatorNodeId
-    return workerStubs[aggregatorDuchy]
+  private fun aggregatorDuchyStub(): ComputationControlCoroutineStub {
+    return workerStubs[aggregatorId]
       ?: throw PermanentComputationError(
         IllegalArgumentException(
-          "No ComputationControlService stub for primary duchy '$aggregatorDuchy'"
+          "No ComputationControlService stub for primary duchy '$aggregatorId'"
         )
       )
   }
 
   // Combines the public keys from the duchies after this duchy in the ring and the primary duchy.
-  fun getPartiallyCombinedPublicKey(globalId: String, nextDuchy: String): ElGamalPublicKey {
-    val order = duchyOrder.computationOrder(globalId)
-    require(order.contains(nextDuchy)) { "$nextDuchy doesn't exist in the duchy ring." }
-    val aggregatorId = order[0]
-    if (nextDuchy == aggregatorId) {
-      // Return the aggregator's key if next duchy is the aggregator.
-      return cryptoKeySet.otherDuchyPublicKeys[nextDuchy] ?: error(
-        "$nextDuchy is not in the key set."
-      )
+  fun getPartiallyCombinedPublicKey(token: ComputationToken): ElGamalPublicKey {
+    require(token.computationDetails.liquidLegionsV2.role == NON_AGGREGATOR) {
+      "only NON_AGGREGATOR should call getPartiallyCombinedPublicKey()."
     }
-
-    val partialList = order.subList(order.indexOf(nextDuchy), order.size) + aggregatorId
+    val partialList = getFollowingDuchies(getMpcDuchyRing(token), duchyId)
     val lookupKey = partialList.sorted().joinToString()
 
     return partiallyCombinedPublicKeyMap.computeIfAbsent(lookupKey) {
@@ -571,7 +577,7 @@ class LiquidLegionsV2Mill(
         curveId = cryptoKeySet.curveId.toLong()
         addAllElGamalKeys(
           partialList.map {
-            cryptoKeySet.otherDuchyPublicKeys[it] ?: error(
+            cryptoKeySet.allDuchyPublicKeys[it] ?: error(
               "$it is not in the key set."
             )
           }

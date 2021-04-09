@@ -19,7 +19,6 @@ import java.time.Duration
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.common.ElGamalKeyPair
-import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -61,8 +60,8 @@ private typealias ComputationsDb =
 
 class DuchyDependencyProviderRule(
   duchyIds: Iterable<String>
-) : ProviderRule<(Duchy) -> InProcessDuchy.DuchyDependencies> {
-  override val value: (Duchy) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
+) : ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> {
+  override val value: (String) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
 
   private val metricValueDatabaseRules =
     duchyIds
@@ -79,18 +78,18 @@ class DuchyDependencyProviderRule(
     return chainRulesSequentially(rules).apply(base, description)
   }
 
-  private fun buildDuchyDependencies(duchy: Duchy): InProcessDuchy.DuchyDependencies {
-    val metricValueDatabase = metricValueDatabaseRules[duchy.name]
-      ?: error("Missing MetricValue Spanner database for duchy $duchy")
-    val computationsDatabase = computationsDatabaseRules[duchy.name]
-      ?: error("Missing Computations Spanner database for duchy $duchy")
+  private fun buildDuchyDependencies(duchyId: String): InProcessDuchy.DuchyDependencies {
+    val metricValueDatabase = metricValueDatabaseRules[duchyId]
+      ?: error("Missing MetricValue Spanner database for duchy $duchyId")
+    val computationsDatabase = computationsDatabaseRules[duchyId]
+      ?: error("Missing Computations Spanner database for duchy $duchyId")
 
     return InProcessDuchy.DuchyDependencies(
-      buildComputationsDb(duchy.name, computationsDatabase.databaseClient),
+      buildComputationsDb(duchyId, computationsDatabase.databaseClient),
       buildMetricValueDb(metricValueDatabase.databaseClient),
-      buildStorageClient(duchy.name),
+      buildStorageClient(duchyId),
       DUCHY_PUBLIC_KEYS,
-      buildCryptoKeySet(duchy.name)
+      buildCryptoKeySet(duchyId)
     )
   }
 
@@ -138,7 +137,7 @@ class DuchyDependencyProviderRule(
         publicKey = latestDuchyPublicKeys.getValue(duchyId)
         secretKey = checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
       }.build(),
-      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
+      allDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
       clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
       curveId = latestDuchyPublicKeys.curveId
     )

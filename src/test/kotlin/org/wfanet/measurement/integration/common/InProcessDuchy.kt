@@ -50,11 +50,12 @@ import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncCom
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
@@ -119,12 +120,20 @@ class InProcessDuchy(
   private val heraldRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
+      val protocolsSetupConfig = ProtocolsSetupConfig.newBuilder().apply {
+        liquidLegionsV2Builder.apply {
+          role = if (duchyId == DUCHY_IDS.first()) {
+            LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+          } else {
+            LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
+          }
+        }
+      }.build()
       val herald = Herald(
         otherDuchyIds,
         computationStorageServiceStub,
         kingdomGlobalComputationsStub,
-        duchyId,
-        duchyDependencies.duchyPublicKeys.latest.toDuchyOrder()
+        protocolsSetupConfig
       )
 
       herald.continuallySyncStatuses(throttler)
@@ -202,17 +211,18 @@ class InProcessDuchy(
 
       val liquidLegionsV2mill = LiquidLegionsV2Mill(
         millId = "$duchyId liquidLegionsV2mill",
+        duchyId = duchyId,
         dataClients = computationDataClients,
         metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
         globalComputationsClient = kingdomGlobalComputationsStub,
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = duchyDependencies.cryptoKeySet,
-        duchyOrder = duchyDependencies.duchyPublicKeys.latest.toDuchyOrder(),
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         requestChunkSizeBytes = 2_000_000,
-        noiseConfig = noiseConfig
+        noiseConfig = noiseConfig,
+        aggregatorId = DUCHY_IDS.first()
       )
 
       liquidLegionsV2mill.continuallyProcessComputationQueue()

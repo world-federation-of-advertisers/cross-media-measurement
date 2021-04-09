@@ -15,8 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
-import org.wfanet.measurement.common.DuchyPosition
-import org.wfanet.measurement.common.DuchyRole
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
@@ -26,8 +24,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
@@ -36,20 +33,14 @@ object LiquidLegionsV2Starter : ProtocolStarter {
   override suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,
     globalComputation: GlobalComputation,
-    duchyPosition: DuchyPosition,
+    protocolsSetupConfig: ProtocolsSetupConfig,
     blobStorageBucket: String
   ) {
+    protocolsSetupConfig.liquidLegionsV2.role
     val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
     val initialComputationDetails = ComputationDetails.newBuilder().apply {
-      // TODO: use fixed role for all computations in this duchy.
       liquidLegionsV2Builder.apply {
-        role = when (duchyPosition.role) {
-          DuchyRole.PRIMARY -> AGGREGATOR
-          else -> NON_AGGREGATOR
-        }
-        incomingNodeId = duchyPosition.prev
-        outgoingNodeId = duchyPosition.next
-        aggregatorNodeId = duchyPosition.primary
+        role = protocolsSetupConfig.liquidLegionsV2.role
         totalRequisitionCount = globalComputation.totalRequisitionCount
       }
       blobsStoragePrefix = "$blobStorageBucket/$globalId"

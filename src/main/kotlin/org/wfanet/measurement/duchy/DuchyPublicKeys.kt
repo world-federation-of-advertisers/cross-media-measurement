@@ -14,10 +14,7 @@
 
 package org.wfanet.measurement.duchy
 
-import java.math.BigInteger
 import org.wfanet.common.ElGamalPublicKey
-import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
 import picocli.CommandLine
@@ -108,8 +105,4 @@ private fun ConfigMapEntry.toDuchyPublicKeysEntry(): DuchyPublicKeys.Entry {
       curveId = ellipticCurveId
     )
   }
-}
-
-fun DuchyPublicKeyMap.toDuchyOrder(): DuchyOrder {
-  return DuchyOrder(map { Duchy(it.key, BigInteger(it.value.toByteArray())) }.toSet())
 }
