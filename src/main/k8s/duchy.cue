@@ -85,22 +85,6 @@ import ("strings")
 			]
 			_dependencies: ["\(_name)-spanner-computations-server", "global-computation-server"]
 		}
-		"liquid-legions-v1-mill-daemon-pod": #Pod & {
-			_args: [
-				_computations_service_target_flag,
-				_duchy_name_flag,
-				_duchy_public_keys_config_flag,
-				_global_computations_service_target_flag,
-				_metric_values_service_target_flag,
-				"--channel-shutdown-timeout=3s",
-				"--duchy-secret-key=\(_key)",
-				"--liquid-legions-decay-rate=23.0",
-				"--liquid-legions-size=330000",
-				"--mill-id=\(_name)-liquid-legions-v1-mill-1",
-				"--polling-interval=1s",
-			] + _computation_control_service_flags + _blob_storage_flags
-			_jvm_flags: "-Xmx1g -Xms256m"
-		}
 		"liquid-legions-v2-mill-daemon-pod": #Pod & {
 			_args: [
 				_computations_service_target_flag,

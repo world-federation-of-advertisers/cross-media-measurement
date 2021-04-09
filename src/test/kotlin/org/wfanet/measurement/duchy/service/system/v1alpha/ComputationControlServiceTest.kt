@@ -46,12 +46,10 @@ import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncA
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse as AsyncAdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
-import org.wfanet.measurement.system.v1alpha.LiquidLegionsV1
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 
 private const val RUNNING_DUCHY_NAME = "Alsace"
@@ -109,87 +107,6 @@ class ComputationControlServiceTest {
           duchyIdentityProvider = duchyIdProvider
         )
       }
-  }
-
-  @Test
-  fun `liquid legions v1 send noised sketch`() = runBlocking {
-    val id = "21390"
-    val bavariaHeader = advanceComputationHeader(LiquidLegionsV1.Description.NOISED_SKETCH, id)
-    withSender(bavaria) {
-      advanceComputation(bavariaHeader.withContent("blob-contents"))
-    }
-    val bavariaBlobKey = ComputationControlService.generateBlobKey(bavariaHeader, BAVARIA)
-
-    val carinthiaHeader = advanceComputationHeader(LiquidLegionsV1.Description.NOISED_SKETCH, id)
-    withSender(carinthia) {
-      advanceComputation(carinthiaHeader.withContent("part1_", "part2_", "part3"))
-    }
-    val carinthiaBlobKey = ComputationControlService.generateBlobKey(bavariaHeader, CARINTHIA)
-
-    assertThat(advanceAsyncComputationRequests)
-      .containsExactly(
-        AsyncAdvanceComputationRequest.newBuilder().apply {
-          globalComputationId = id
-          computationStage = LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES.toProtocolStage()
-          dataOrigin = BAVARIA
-          blobPath = bavariaBlobKey
-        }.build(),
-        AsyncAdvanceComputationRequest.newBuilder().apply {
-          globalComputationId = id
-          computationStage = LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES.toProtocolStage()
-          dataOrigin = CARINTHIA
-          blobPath = carinthiaBlobKey
-        }.build()
-      )
-
-    assertThat(storageClient.readBlobAsString(bavariaBlobKey)).isEqualTo("blob-contents")
-    assertThat(storageClient.readBlobAsString(carinthiaBlobKey)).isEqualTo("part1_part2_part3")
-  }
-
-  @Test
-  fun `liquid legions v1 send concatenated sketch`() = runBlocking {
-    val id = "345667"
-    val bavariaHeader =
-      advanceComputationHeader(LiquidLegionsV1.Description.CONCATENATED_SKETCH, id)
-    withSender(bavaria) {
-      advanceComputation(bavariaHeader.withContent("contents"))
-    }
-    val key = ComputationControlService.generateBlobKey(bavariaHeader, BAVARIA)
-
-    assertThat(advanceAsyncComputationRequests)
-      .containsExactly(
-        AsyncAdvanceComputationRequest.newBuilder().apply {
-          globalComputationId = id
-          computationStage =
-            LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED.toProtocolStage()
-          dataOrigin = BAVARIA
-          blobPath = key
-        }.build()
-      )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("contents")
-  }
-
-  @Test
-  fun `liquid legions v1 send flag counts`() = runBlocking {
-    val id = "45454545"
-    val carinthiaHeader =
-      advanceComputationHeader(LiquidLegionsV1.Description.ENCRYPTED_FLAGS_AND_COUNTS, id)
-    withSender(carinthia) {
-      advanceComputation(carinthiaHeader.withContent("contents"))
-    }
-    val key = ComputationControlService.generateBlobKey(carinthiaHeader, CARINTHIA)
-
-    assertThat(advanceAsyncComputationRequests)
-      .containsExactly(
-        AsyncAdvanceComputationRequest.newBuilder().apply {
-          globalComputationId = id
-          computationStage =
-            LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS.toProtocolStage()
-          dataOrigin = CARINTHIA
-          blobPath = key
-        }.build()
-      )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("contents")
   }
 
   @Test

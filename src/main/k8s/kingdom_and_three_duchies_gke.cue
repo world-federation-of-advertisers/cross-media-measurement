@@ -66,7 +66,6 @@ objectSets: [
 		"async-computation-control-server": "\(_container_registry_prefix)/duchy/async-computation-control"
 		"computation-control-server":       "\(_container_registry_prefix)/duchy/computation-control"
 		"herald-daemon":                    "\(_container_registry_prefix)/duchy/herald"
-		"liquid-legions-v1-mill-daemon":    "\(_container_registry_prefix)/duchy/liquid-legions-v1-mill"
 		"liquid-legions-v2-mill-daemon":    "\(_container_registry_prefix)/duchy/liquid-legions-v2-mill"
 		"metric-values-storage-server":     "\(_container_registry_prefix)/duchy/metric-values"
 		"publisher-data-server":            "\(_container_registry_prefix)/duchy/publisher-data"

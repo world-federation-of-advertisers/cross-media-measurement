@@ -32,11 +32,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/herald",
     ),
     struct(
-        name = "duchy_liquid_legions_v1_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv1:gcs_liquid_legions_v1_mill_daemon_image",
-        repository = _PREFIX + "/duchy/liquid-legions-v1-mill",
-    ),
-    struct(
         name = "duchy_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv2:gcs_liquid_legions_v2_mill_daemon_image",
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
@@ -115,10 +110,6 @@ GKE_IMAGES = [
 
 # List of image build rules that are only used locally (e.g. in Kind).
 LOCAL_IMAGES = [
-    struct(
-        name = "forwarded_storage_liquid_legions_v1_mill_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv1:forwarded_storage_liquid_legions_v1_mill_daemon_image",
-    ),
     struct(
         name = "forwarded_storage_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image",

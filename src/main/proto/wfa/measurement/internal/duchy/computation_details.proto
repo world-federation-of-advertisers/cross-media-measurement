@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
-import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v1.proto";
 import "src/main/proto/wfa/measurement/protocol/liquid_legions_sketch_aggregation_v2.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
@@ -26,12 +25,9 @@ option java_multiple_files = true;
 message ComputationDetails {
   // Protocol Specific Details
   oneof details {
-    // Details specific to the liquidLegionV1 protocol.
-    protocol.LiquidLegionsSketchAggregationV1.ComputationDetails
-        liquid_legions_v1 = 1;
     // Details specific to the liquidLegionV2 protocol.
     protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
-        liquid_legions_v2 = 2;
+        liquid_legions_v2 = 1;
   }
 
   // A prefix of all the BLOBs stored for this computation. This is used for
@@ -73,11 +69,8 @@ message ComputationStageAttemptDetails {
 // within a duchy.
 message ComputationStageDetails {
   oneof detail {
-    // Details specific to the liquidLegionV1 protocol.
-    protocol.LiquidLegionsSketchAggregationV1.StageDetails liquid_legions_v1 =
-        1;
     // Details specific to the liquidLegionV2 protocol.
     protocol.LiquidLegionsSketchAggregationV2.StageDetails liquid_legions_v2 =
-        2;
+        1;
   }
 }

@@ -187,10 +187,6 @@ class Herald(
         .getComputationToken(globalId.toGetTokenRequest())
         .token
     when (token.computationDetails.detailsCase) {
-      ComputationDetails.DetailsCase.LIQUID_LEGIONS_V1 ->
-        LiquidLegionsV1Starter.startComputation(
-          token, computationStorageClient, computationProtocolStageDetails, logger
-        )
       ComputationDetails.DetailsCase.LIQUID_LEGIONS_V2 ->
         LiquidLegionsV2Starter.startComputation(
           token, computationStorageClient, computationProtocolStageDetails, logger
