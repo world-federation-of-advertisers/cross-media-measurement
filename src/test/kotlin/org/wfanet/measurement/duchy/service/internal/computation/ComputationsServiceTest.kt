@@ -213,8 +213,11 @@ class ComputationsServiceTest {
             selfReportedIdentifier = "BOHEMIA"
             stageDetailsBuilder.apply {
               algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-              stageNumber = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.number.toLong()
-              stageName = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.name
+              stageNumber =
+                LiquidLegionsSketchAggregationV2
+                  .Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.number.toLong()
+              stageName =
+                LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.name
               attemptNumber = 0
             }
             updateMessage = "Computation $id at stage WAIT_EXECUTION_PHASE_TWO_INPUTS, attempt 0"

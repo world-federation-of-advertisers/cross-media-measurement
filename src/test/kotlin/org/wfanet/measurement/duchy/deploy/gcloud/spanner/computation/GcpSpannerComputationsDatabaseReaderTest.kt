@@ -37,7 +37,8 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
 class GcpSpannerComputationsDatabaseReaderTest :
@@ -49,13 +50,13 @@ class GcpSpannerComputationsDatabaseReaderTest :
     val DETAILS_WHEN_NON_AGGREGATOR: ComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV2Builder.apply {
         outgoingNodeId = NEXT_DUCHY_IN_RING
-        role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+        role = RoleInComputation.NON_AGGREGATOR
       }
     }.build()
     val DETAILS_WHEN_AGGREGATOR: ComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV2Builder.apply {
         outgoingNodeId = NEXT_DUCHY_IN_RING
-        role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
+        role = RoleInComputation.AGGREGATOR
       }
     }.build()
   }
@@ -91,30 +92,30 @@ class GcpSpannerComputationsDatabaseReaderTest :
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+      stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
       details = DETAILS_WHEN_AGGREGATOR
     )
     val waitSetupPhaseInputComputationStageRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+      stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
       nextAttempt = 2,
       creationTime = lastUpdated.minusSeconds(2).toGcloudTimestamp(),
       endTime = lastUpdated.minusMillis(200).toGcloudTimestamp(),
       details = computationMutations.detailsFor(
-        LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+        Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
       )
     )
     val outputBlob1ForWaitSetupPhaseInputComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+        stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
         blobId = 0L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
     val outputBlob2ForWaitSetupPhaseInputComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+        stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
         blobId = 1L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
@@ -132,13 +133,13 @@ class GcpSpannerComputationsDatabaseReaderTest :
       ComputationToken.newBuilder().apply {
         globalComputationId = globalId
         localComputationId = localId
-        computationStage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+        computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
         computationDetails = DETAILS_WHEN_AGGREGATOR
         attempt = 1
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =
           computationMutations.detailsFor(
-            LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+            Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
           )
         addBlobs(newEmptyOutputBlobMetadata(0L))
         addBlobs(newEmptyOutputBlobMetadata(1L))
@@ -158,41 +159,41 @@ class GcpSpannerComputationsDatabaseReaderTest :
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
       details = DETAILS_WHEN_NON_AGGREGATOR
     )
     val setupPhaseComputationStageRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+      stage = Stage.SETUP_PHASE.toProtocolStage(),
       nextAttempt = 45,
       creationTime = lastUpdated.minusSeconds(2).toGcloudTimestamp(),
       endTime = lastUpdated.minusMillis(200).toGcloudTimestamp(),
       details = computationMutations.detailsFor(
-        LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
+        Stage.SETUP_PHASE.toProtocolStage()
       )
     )
     val outputBlobForToSetupPhaseComputationStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+        stage = Stage.SETUP_PHASE.toProtocolStage(),
         blobId = 0L,
         dependencyType = ComputationBlobDependency.OUTPUT,
         pathToBlob = "blob-key"
       )
     val waitExecutionPhaseOneInputStageRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
       nextAttempt = 2,
       creationTime = lastUpdated.toGcloudTimestamp(),
       details =
       computationMutations.detailsFor(
-        LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+        Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
       )
     )
     val inputBlobForWaitExecutionPhaseOneInputStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+        stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
         blobId = 33L,
         dependencyType = ComputationBlobDependency.INPUT,
         pathToBlob = "blob-key"
@@ -200,7 +201,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
     val outputBlobForWaitExecutionPhaseOneInputStageRow =
       computationMutations.insertComputationBlobReference(
         localId = localId,
-        stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+        stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
         blobId = 44L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
@@ -220,7 +221,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
           .setLiquidLegionsSketchAggregationV2(
-            LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+            Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
           )
           .build()
         computationDetails = DETAILS_WHEN_NON_AGGREGATOR
@@ -228,7 +229,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =
           computationMutations.detailsFor(
-            LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
           )
         addBlobs(newInputBlobMetadata(33L, "blob-key"))
         addBlobs(newEmptyOutputBlobMetadata(44L))
@@ -240,7 +241,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
     val writenOutputBlobForWaitExecutionPhaseOneStageRow =
       computationMutations.updateComputationBlobReference(
         localId = localId,
-        stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+        stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
         blobId = 44L,
         pathToBlob = "written-output-key"
       )
@@ -266,17 +267,17 @@ class GcpSpannerComputationsDatabaseReaderTest :
       updateTime = lastUpdated.toGcloudTimestamp(),
       globalId = globalId,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
       details = DETAILS_WHEN_NON_AGGREGATOR
     )
     val waitExecutionPhaseOneInputRow = computationMutations.insertComputationStage(
       localId = localId,
-      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+      stage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
       nextAttempt = 2,
       creationTime = lastUpdated.toGcloudTimestamp(),
       details =
       computationMutations.detailsFor(
-        LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+        Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
       )
     )
     databaseClient.write(
@@ -291,7 +292,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
         localComputationId = localId
         computationStage = ComputationStage.newBuilder()
           .setLiquidLegionsSketchAggregationV2(
-            LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+            Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
           )
           .build()
         computationDetails = DETAILS_WHEN_NON_AGGREGATOR
@@ -299,7 +300,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
         version = lastUpdated.toEpochMilli()
         stageSpecificDetails =
           computationMutations.detailsFor(
-            LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
           )
       }.build()
 
@@ -314,7 +315,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       localId = 123,
       updateTime = lastUpdatedTimeStamp,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-      stage = LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+      stage = Stage.SETUP_PHASE.toProtocolStage(),
       globalId = "A",
       details = DETAILS_WHEN_NON_AGGREGATOR
     )
@@ -322,7 +323,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       localId = 234,
       updateTime = lastUpdatedTimeStamp,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      stage = Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       globalId = "B",
       details = DETAILS_WHEN_NON_AGGREGATOR
     )
@@ -331,7 +332,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       updateTime = lastUpdatedTimeStamp,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
       stage =
-      LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage(),
+      Stage.SETUP_PHASE.toProtocolStage(),
       globalId = "C",
       details = DETAILS_WHEN_AGGREGATOR
     )
@@ -339,7 +340,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       localId = 456,
       updateTime = lastUpdatedTimeStamp,
       protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-      stage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage(),
+      stage = Stage.COMPLETE.toProtocolStage(),
       globalId = "D",
       details = DETAILS_WHEN_AGGREGATOR
     )
@@ -355,7 +356,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
     assertThat(
       liquidLegionsSketchAggregationSpannerReader.readGlobalComputationIds(
         setOf(
-          LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage()
+          Stage.SETUP_PHASE.toProtocolStage()
         )
       )
     ).containsExactly("A", "C")
