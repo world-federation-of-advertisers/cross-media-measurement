@@ -49,20 +49,8 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.COMPLETED
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_ADD_NOISE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_CONFIRM_REQUISITIONS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_CONCATENATED
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_FLAG_COUNTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_SKETCHES
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage.WAIT_TO_START
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -125,7 +113,7 @@ class ComputationDataClientsTest {
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleLiquidLegionsV1Computation(
+    val computation = SingleLiquidLegionsV2Computation(
       ComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
@@ -134,37 +122,43 @@ class ComputationDataClientsTest {
         otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_NOT_PRIMARY,
-      RoleInComputation.SECONDARY,
+      RoleInComputation.NON_AGGREGATOR,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(TO_CONFIRM_REQUISITIONS)
-    computation.runWaitStage(WAIT_TO_START, numOfOutput = 0)
+    computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
+    computation.runWaitStage(Stage.WAIT_TO_START, numOfOutput = 0)
     computation.start()
 
     computation.claimWorkFor("mill-2")
-    computation.writeOutputs(TO_ADD_NOISE)
-    computation.runWaitStage(WAIT_CONCATENATED)
+    computation.writeOutputs(Stage.SETUP_PHASE)
+    computation.runWaitStage(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS)
 
-    fakeRpcService.receiveConcatenatedSketchGrpc()
+    fakeRpcService.receiveIntermediateDataGrpc(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS)
 
     computation.claimWorkFor("mill-3")
-    computation.writeOutputs(TO_BLIND_POSITIONS)
-    computation.runWaitStage(WAIT_FLAG_COUNTS)
+    computation.writeOutputs(Stage.EXECUTION_PHASE_ONE)
+    computation.runWaitStage(Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS)
 
-    fakeRpcService.receiveFlagCountsGrpc()
+    fakeRpcService.receiveIntermediateDataGrpc(Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS)
 
     computation.claimWorkFor("mill-4")
-    computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS)
+    computation.writeOutputs(Stage.EXECUTION_PHASE_TWO)
+    computation.runWaitStage(Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS)
+
+    fakeRpcService.receiveIntermediateDataGrpc(Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS)
+
+    computation.claimWorkFor("mill-5")
+    computation.writeOutputs(Stage.EXECUTION_PHASE_THREE)
     computation.end(reason = CompletedReason.SUCCEEDED)
   }
 
   @Test
   fun runProtocolAtPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleLiquidLegionsV1Computation(
+    val computation = SingleLiquidLegionsV2Computation(
       ComputationDataClients(
         ComputationsCoroutineStub(
           channel = grpcTestServerRule.channel
@@ -173,35 +167,40 @@ class ComputationDataClientsTest {
         otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
-      RoleInComputation.PRIMARY,
+      RoleInComputation.AGGREGATOR,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
 
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(TO_CONFIRM_REQUISITIONS)
+    computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
     computation.waitForSketches(
-      LiquidLegionsSketchAggregationV1Protocol.EnumStages.Details(DUCHIES.subList(1, 3)).detailsFor(
-        WAIT_SKETCHES
+      LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3)).detailsFor(
+        Stage.WAIT_SETUP_PHASE_INPUTS
       )
     )
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
 
     computation.claimWorkFor("mill-2")
-    computation.writeOutputs(TO_APPEND_SKETCHES_AND_ADD_NOISE)
-    computation.runWaitStage(WAIT_CONCATENATED)
+    computation.writeOutputs(Stage.SETUP_PHASE)
+    computation.runWaitStage(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS)
 
-    fakeRpcService.receiveConcatenatedSketchGrpc()
+    fakeRpcService.receiveIntermediateDataGrpc(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS)
 
     computation.claimWorkFor("mill-3")
-    computation.writeOutputs(TO_BLIND_POSITIONS_AND_JOIN_REGISTERS)
-    computation.runWaitStage(WAIT_FLAG_COUNTS)
-    fakeRpcService.receiveFlagCountsGrpc()
+    computation.writeOutputs(Stage.EXECUTION_PHASE_ONE)
+    computation.runWaitStage(Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS)
+    fakeRpcService.receiveIntermediateDataGrpc(Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS)
 
     computation.claimWorkFor("mill-4")
-    computation.writeOutputs(TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS)
+    computation.writeOutputs(Stage.EXECUTION_PHASE_TWO)
+    computation.runWaitStage(Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS)
+    fakeRpcService.receiveIntermediateDataGrpc(Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS)
+
+    computation.claimWorkFor("mill-5")
+    computation.writeOutputs(Stage.EXECUTION_PHASE_THREE)
     computation.end(reason = CompletedReason.SUCCEEDED)
   }
 
@@ -231,7 +230,7 @@ data class ComputationStep(
  * Because it is a view of a single computation, the computation token is saved after each
  * operation.
  */
-class SingleLiquidLegionsV1Computation(
+class SingleLiquidLegionsV2Computation(
   private val dataClients: ComputationDataClients,
   globalId: String,
   roleInComputation: RoleInComputation,
@@ -242,19 +241,19 @@ class SingleLiquidLegionsV1Computation(
     dataClients.computationsClient.createComputation(
       CreateComputationRequest.newBuilder().apply {
         globalComputationId = globalId
-        computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
+        computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
         // For the purpose of this test, only set role in the computationDetails.
-        computationDetailsBuilder.liquidLegionsV1Builder.apply {
+        computationDetailsBuilder.liquidLegionsV2Builder.apply {
           role = roleInComputation
         }
       }.build()
     ).token
   }
 
-  suspend fun writeOutputs(stage: LiquidLegionsSketchAggregationV1.Stage) {
+  suspend fun writeOutputs(stage: Stage) {
     assertEquals(stage.toProtocolStage(), token.computationStage)
     testClock.tickSeconds(
-      "${token.computationStage.liquidLegionsSketchAggregationV1}_$token.attempt_outputs"
+      "${token.computationStage.liquidLegionsSketchAggregationV2}_$token.attempt_outputs"
     )
     token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
       .forEach {
@@ -306,7 +305,7 @@ class SingleLiquidLegionsV1Computation(
       val claimed = dataClients.computationsClient.claimWork(
         ClaimWorkRequest.newBuilder()
           .setOwner(workerId)
-          .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1)
+          .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
           .build()
       )
       ProtoTruth.assertThat(claimed).isNotEqualToDefaultInstance()
@@ -320,7 +319,7 @@ class SingleLiquidLegionsV1Computation(
      * set stage to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
     suspend fun receiveSketch(sender: String) {
-      val stageDetails = token.stageSpecificDetails.liquidLegionsV1.waitSketchStageDetails
+      val stageDetails = token.stageSpecificDetails.liquidLegionsV2.waitSetupPhaseInputsDetails
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
       val path = "unused_${sender}_$blobId"
@@ -343,62 +342,34 @@ class SingleLiquidLegionsV1Computation(
             .addEmptyOutputs(1)
             .clearStageSpecificDetails()
             .setComputationStage(
-              TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+              Stage.SETUP_PHASE.toProtocolStage()
             ).setAttempt(0).build()
         ) {
           dataClients.transitionComputationToStage(
             computationToken = it.token,
             inputsToNextStage = it.inputs.paths() + it.outputs.paths(),
-            stage = TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+            stage = Stage.SETUP_PHASE.toProtocolStage()
           )
         }
       }
     }
 
-    /** Fakes receiving the concatenated sketch from the incoming duchy. */
-    // TODO: use the generic rpc
-    suspend fun receiveConcatenatedSketchGrpc() {
-      writeOutputs(WAIT_CONCATENATED)
-      val stage =
-        if (token.computationDetails.liquidLegionsV1.role ==
-          RoleInComputation.PRIMARY
-        ) {
-          TO_BLIND_POSITIONS_AND_JOIN_REGISTERS
-        } else TO_BLIND_POSITIONS
+    /** Fakes receiving the intermediate data from the incoming duchy. */
+    suspend fun receiveIntermediateDataGrpc(currentStage: Stage) {
+      writeOutputs(currentStage)
+      val nextStage =
+        LiquidLegionsSketchAggregationV2Protocol.EnumStages.validSuccessors[currentStage]?.first()!!
       assertTokenChangesTo(
         token.outputBlobsToInputBlobs()
           .addBlobs(newEmptyOutputBlobMetadata(1))
-          .setComputationStage(stage.toProtocolStage())
+          .setComputationStage(nextStage.toProtocolStage())
           .setAttempt(0)
           .build()
       ) {
         dataClients.transitionComputationToStage(
           computationToken = it.token,
           inputsToNextStage = it.outputs.paths(),
-          stage = stage.toProtocolStage()
-        )
-      }
-    }
-
-    /** Fakes receiving the joined sketch from the incoming duchy. */
-    suspend fun receiveFlagCountsGrpc() {
-      writeOutputs(WAIT_FLAG_COUNTS)
-      val stage =
-        if (token.computationDetails.liquidLegionsV1.role ==
-          RoleInComputation.PRIMARY
-        ) {
-          TO_DECRYPT_FLAG_COUNTS_AND_COMPUTE_METRICS
-        } else TO_DECRYPT_FLAG_COUNTS
-      assertTokenChangesTo(
-        token
-          .outputBlobsToInputBlobs()
-          .addEmptyOutputs(1)
-          .setComputationStage(stage.toProtocolStage()).setAttempt(0).build()
-      ) {
-        dataClients.transitionComputationToStage(
-          computationToken = it.token,
-          inputsToNextStage = it.outputs.paths(),
-          stage = stage.toProtocolStage()
+          stage = nextStage.toProtocolStage()
         )
       }
     }
@@ -410,7 +381,7 @@ class SingleLiquidLegionsV1Computation(
       token
         .outputBlobsToInputBlobs()
         .addEmptyOutputs(2)
-        .setComputationStage(WAIT_SKETCHES.toProtocolStage())
+        .setComputationStage(Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage())
         .setAttempt(1)
         .setStageSpecificDetails(details)
         .build()
@@ -418,7 +389,7 @@ class SingleLiquidLegionsV1Computation(
       dataClients.transitionComputationToStage(
         computationToken = it.token,
         inputsToNextStage = it.outputs.paths(),
-        stage = WAIT_SKETCHES.toProtocolStage()
+        stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
       )
     }
   }
@@ -428,20 +399,20 @@ class SingleLiquidLegionsV1Computation(
       token
         .outputBlobsToInputBlobs(keepInputs = true)
         .addEmptyOutputs(1)
-        .setComputationStage(TO_ADD_NOISE.toProtocolStage())
+        .setComputationStage(Stage.SETUP_PHASE.toProtocolStage())
         .setAttempt(0)
         .build()
     ) {
       dataClients.transitionComputationToStage(
         computationToken = it.token,
         inputsToNextStage = it.inputs.paths(),
-        stage = TO_ADD_NOISE.toProtocolStage()
+        stage = Stage.SETUP_PHASE.toProtocolStage()
       )
     }
   }
 
   /** Move to a waiting stage and make sure the computation is not in the work queue. */
-  suspend fun runWaitStage(stage: LiquidLegionsSketchAggregationV1.Stage, numOfOutput: Int = 1) {
+  suspend fun runWaitStage(stage: Stage, numOfOutput: Int = 1) {
     assertTokenChangesTo(
       token
         .outputBlobsToInputBlobs()
@@ -461,7 +432,7 @@ class SingleLiquidLegionsV1Computation(
     token = dataClients.computationsClient.finishComputation(
       FinishComputationRequest.newBuilder()
         .setToken(token)
-        .setEndingComputationStage(COMPLETED.toProtocolStage())
+        .setEndingComputationStage(Stage.COMPLETE.toProtocolStage())
         .setReason(reason)
         .build()
     ).token

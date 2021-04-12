@@ -264,8 +264,6 @@ private fun ComputationToken.toDatabaseEditToken():
 
 private fun ComputationStage.toComputationType() =
   when (stageCase) {
-    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-      ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
     ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
     else -> failGrpc { "Computation type for $this is unknown" }

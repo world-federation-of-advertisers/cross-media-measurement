@@ -38,8 +38,6 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.LiquidLegionsV1Mill
-import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv1.crypto.JniLiquidLegionsV1Encryption
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -179,30 +177,6 @@ class InProcessDuchy(
     return channelCloserRule.register(channel).withVerboseLogging(verboseGrpcLogging)
   }
 
-  private val liquidLegionsV1millRule = CloseableResource {
-    GlobalScope.launchAsAutoCloseable {
-      val workerStubs = otherDuchyIds.map { otherDuchyId ->
-        val channel = computationControlChannel(otherDuchyId)
-        val stub = ComputationControlCoroutineStub(channel).withDuchyId(duchyId)
-        otherDuchyId to stub
-      }.toMap()
-
-      val liquidLegionsV1mill = LiquidLegionsV1Mill(
-        millId = "$duchyId liquidLegionsV1mill",
-        dataClients = computationDataClients,
-        metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
-        globalComputationsClient = kingdomGlobalComputationsStub,
-        computationStatsClient = computationStatsStub,
-        workerStubs = workerStubs,
-        cryptoKeySet = duchyDependencies.cryptoKeySet,
-        cryptoWorker = JniLiquidLegionsV1Encryption(),
-        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        requestChunkSizeBytes = 2_000_000
-      )
-      liquidLegionsV1mill.continuallyProcessComputationQueue()
-    }
-  }
-
   private val liquidLegionsV2millRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val workerStubs = otherDuchyIds.map { otherDuchyId ->
@@ -271,7 +245,6 @@ class InProcessDuchy(
       storageServer,
       metricValuesServer,
       heraldRule,
-      liquidLegionsV1millRule,
       liquidLegionsV2millRule,
       asyncComputationControlServer,
       computationControlServer,

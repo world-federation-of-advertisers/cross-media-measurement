@@ -90,8 +90,6 @@ class ComputationControlService(
         key.globalComputationId,
         protocolCase.name,
         when (protocolCase) {
-          AdvanceComputationRequest.Header.ProtocolCase.LIQUID_LEGIONS_V1 ->
-            liquidLegionsV1.description.name
           AdvanceComputationRequest.Header.ProtocolCase.LIQUID_LEGIONS_V2 ->
             liquidLegionsV2.description.name
           else -> failGrpc { "Unknown protocol $protocolCase" }

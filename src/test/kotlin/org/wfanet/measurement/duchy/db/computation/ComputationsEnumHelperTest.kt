@@ -18,28 +18,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import org.junit.Test
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 
 class ComputationsEnumHelperTest {
-  @Test
-  fun `liquidLegionsSketchAggregationV1 round trip conversion should get the same stage`() {
-    for (stage in LiquidLegionsSketchAggregationV1.Stage.values()) {
-      if (stage != LiquidLegionsSketchAggregationV1.Stage.UNRECOGNIZED) {
-        val computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregationV1(stage).build()
-        assertEquals(
-          computationStage,
-          ComputationProtocolStages.longValuesToComputationStageEnum(
-            ComputationProtocolStages.computationStageEnumToLongValues(
-              computationStage
-            )
-          ),
-          "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
-        )
-      }
-    }
-  }
 
   @Test
   fun `liquidLegionsSketchAggregationV2 round trip conversion should get the same stage`() {

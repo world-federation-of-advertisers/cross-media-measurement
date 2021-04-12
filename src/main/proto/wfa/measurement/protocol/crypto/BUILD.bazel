@@ -7,26 +7,6 @@ package(default_visibility = [
 ])
 
 proto_library(
-    name = "liquid_legions_v1_encryption_methods_proto",
-    srcs = ["liquid_legions_v1_encryption_methods.proto"],
-    strip_import_prefix = "/src/main/proto",
-    visibility = ["//visibility:private"],
-    deps = [
-        "@any_sketch//src/main/proto/wfa/common:el_gamal_key_proto",
-    ],
-)
-
-cc_proto_library(
-    name = "liquid_legions_v1_encryption_methods_cc_proto",
-    deps = [":liquid_legions_v1_encryption_methods_proto"],
-)
-
-java_proto_library(
-    name = "liquid_legions_v1_encryption_methods_java_proto",
-    deps = [":liquid_legions_v1_encryption_methods_proto"],
-)
-
-proto_library(
     name = "liquid_legions_v2_encryption_methods_proto",
     srcs = ["liquid_legions_v2_encryption_methods.proto"],
     strip_import_prefix = "/src/main/proto",

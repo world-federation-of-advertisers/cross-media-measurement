@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.db.computation
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNSPECIFIED
@@ -29,8 +28,6 @@ object ComputationProtocolStages :
   override fun stageToProtocol(stage: ComputationStage): ComputationType {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-        LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
@@ -41,13 +38,6 @@ object ComputationProtocolStages :
     ComputationStageLongValues {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       return when (value.stageCase) {
-        ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-          ComputationStageLongValues(
-            ComputationTypes.protocolEnumToLong(LIQUID_LEGIONS_SKETCH_AGGREGATION_V1),
-            LiquidLegionsSketchAggregationV1Protocol.EnumStages.enumToLong(
-              value.liquidLegionsSketchAggregationV1
-            )
-          )
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ComputationStageLongValues(
             ComputationTypes.protocolEnumToLong(LIQUID_LEGIONS_SKETCH_AGGREGATION_V2),
@@ -63,9 +53,6 @@ object ComputationProtocolStages :
     ComputationStage {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       return when (ComputationTypes.longToProtocolEnum(value.protocol)) {
-        LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-        -> LiquidLegionsSketchAggregationV1Protocol.EnumStages.longToEnum(value.stage)
-          .toProtocolStage()
         LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
         -> LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
           .toProtocolStage()
@@ -76,8 +63,6 @@ object ComputationProtocolStages :
   override fun getValidInitialStage(protocol: ComputationType): Set<ComputationStage> {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (protocol) {
-      LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-      -> LiquidLegionsSketchAggregationV1Protocol.ComputationStages.validInitialStages
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       -> LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
       UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
@@ -87,8 +72,6 @@ object ComputationProtocolStages :
   override fun getValidTerminalStages(protocol: ComputationType): Set<ComputationStage> {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (protocol) {
-      LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
-      -> LiquidLegionsSketchAggregationV1Protocol.ComputationStages.validTerminalStages
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       -> LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
       UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
@@ -105,8 +88,6 @@ object ComputationProtocolStages :
     Boolean {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       return nextStage in when (currentStage.stageCase) {
-        ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-          LiquidLegionsSketchAggregationV1Protocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")

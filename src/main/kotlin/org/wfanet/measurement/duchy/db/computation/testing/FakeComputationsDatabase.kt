@@ -274,8 +274,6 @@ class FakeComputationsDatabase private constructor(
         ComputationEditToken(
           localId = it.localComputationId,
           protocol = when (it.computationStage.stageCase) {
-            ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1 ->
-              ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V1
             ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
               ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
             else -> error("Computation type for $it is unknown")
