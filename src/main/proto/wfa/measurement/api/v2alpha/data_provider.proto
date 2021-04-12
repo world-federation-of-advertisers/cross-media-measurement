@@ -33,16 +33,18 @@ message DataProvider {
   // Resource key.
   Key key = 1;
 
-  // X.509 certificate in DER format which can be verified using the
-  // `DataProvider`'s root certificate. Required.
-  bytes certificate = 2;
+  // The *preferred* X.509 certificate belonging to this `DataProvider` in DER
+  // format. Required.
+  bytes preferred_certificate = 2;
 
-  // Resource key of the `DataProviderCertificate` that matches `certificate`.
-  // Output-only.
-  DataProviderCertificate.Key data_provider_certificate = 3;
+  // Resource key of the *preferred* `DataProviderCertificate` belonging to this
+  // `DataProvider`. Output-only.
+  //
+  // The `certificate` field of this resource matches `preferred_certificate`.
+  DataProviderCertificate.Key preferred_data_provider_certificate = 3;
 
   // Encryption public key for this `DataProvider` in DER format, which can be
-  // verified using `certificate`. Required.
+  // verified using `preferred_certificate`. Required.
   SignedData public_key = 4;
 
   // Display name of the data provider.

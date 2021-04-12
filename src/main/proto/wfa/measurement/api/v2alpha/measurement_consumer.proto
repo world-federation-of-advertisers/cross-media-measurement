@@ -31,16 +31,19 @@ message MeasurementConsumer {
   // Resource key.
   Key key = 1;
 
-  // X.509 certificate in DER format which can be verified using the
-  // `MeasurementConsumer`'s root certificate. Required.
-  bytes certificate = 2;
+  // The *preferred* X.509 certificate belonging to this `MeasurementConsumer`
+  // in DER format. Required.
+  bytes preferred_certificate = 2;
 
-  // Resource key of the `MeasurementConsumerCertificate` that matches
-  // `certificate`. Output-only.
-  MeasurementConsumerCertificate.Key measurement_consumer_certificate = 3;
+  // Resource key of the *preferred* `MeasurementConsumerCertificate` belonging
+  // to this `MeasurementConsumer`. Output-only.
+  //
+  // The `certificate` field of this resource matches `preferred_certificate`.
+  MeasurementConsumerCertificate.Key
+      preferred_measurement_consumer_certificate = 3;
 
   // Encryption public key for this `MeasurementConsumer` in DER format, which
-  // can be verified using `certificate`. Required.
+  // can be verified using `preferred_certificate`. Required.
   SignedData public_key = 4;
 
   // Official name of the `MeasurementConsumer`.

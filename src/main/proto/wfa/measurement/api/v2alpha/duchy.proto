@@ -28,13 +28,15 @@ message Duchy {
   // Resource key.
   Key key = 1;
 
-  // X.509 certificate in DER format which can be verified using the `Duchy`'s
-  // root certificate. Required.
-  bytes certificate = 2;
+  // The *preferred* X.509 certificate belonging to this `Duchy` in DER format.
+  // Required.
+  bytes preferred_certificate = 2;
 
-  // Resource key of the `DuchyCertificate` that matches `certificate`.
-  // Output-only.
-  DuchyCertificate.Key duchy_certificate = 3;
+  // Resource key of the *preferred* `DuchyCertificate` belonging to this
+  // `Duchy`. Output-only.
+  //
+  // The `certificate` field of this resource matches `preferred_certificate`.
+  DuchyCertificate.Key preferred_duchy_certificate = 3;
 }
 
 message DuchyCertificate {
