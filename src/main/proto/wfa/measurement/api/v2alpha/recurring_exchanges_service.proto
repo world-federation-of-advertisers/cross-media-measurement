@@ -34,12 +34,13 @@ service RecurringExchanges {
   rpc CreateRecurringExchange(CreateRecurringExchangeRequest)
       returns (RecurringExchange);
 
-  // Updates a `RecurringExchange`.
-  rpc UpdateRecurringExchange(RecurringExchange) returns (RecurringExchange);
-
   // Lists `RecurringExchanges`.
   rpc ListRecurringExchanges(ListRecurringExchangesRequest)
       returns (ListRecurringExchangesResponse);
+
+  // Updates a `RecurringExchange`'s state to RETIRED.
+  rpc RetireRecurringExchange(RetireRecurringExchangeRequest)
+      returns (RecurringExchange);
 }
 
 // Request message for `GetRecurringExchange` method.
@@ -91,4 +92,9 @@ message ListRecurringExchangesResponse {
   // A token, which can be sent as `page_token` to retrieve the next page.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
+}
+
+message RetireRecurringExchangeRequest {
+  // Resource key.
+  RecurringExchange.Key key = 1;
 }
