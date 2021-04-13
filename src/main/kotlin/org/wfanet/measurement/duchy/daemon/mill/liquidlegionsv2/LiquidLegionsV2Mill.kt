@@ -538,6 +538,8 @@ class LiquidLegionsV2Mill(
   // Gets the order of all duchies in the MPC ring. Since it is a ring, we put the aggregator at the
   // end for simplicity.
   private fun getMpcDuchyRing(token: ComputationToken): List<String> {
+    // TODO(wangyaopw): read the duchy order from the ComputationDetails when it is populated by the
+    //  herald.
     val nonAggregatorsSet = cryptoKeySet.allDuchyPublicKeys
       .filter { it.key != aggregatorId }
       .map { Duchy(it.key, it.value.element.toStringUtf8()) }.toSet()
@@ -559,7 +561,7 @@ class LiquidLegionsV2Mill(
     return workerStubs[aggregatorId]
       ?: throw PermanentComputationError(
         IllegalArgumentException(
-          "No ComputationControlService stub for primary duchy '$aggregatorId'"
+          "No ComputationControlService stub for the Aggregator duchy '$aggregatorId'"
         )
       )
   }
