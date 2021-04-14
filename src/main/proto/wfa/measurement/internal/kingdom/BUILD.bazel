@@ -28,6 +28,19 @@ proto_and_java_proto_library(
     name = "exchange_details",
 )
 
+proto_library(
+    name = "exchanges_service_proto",
+    srcs = ["exchanges_service.proto"],
+    deps = [
+        ":exchange_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "exchanges_service_kt_jvm_grpc",
+    srcs = [":exchanges_service_proto"],
+)
+
 proto_and_java_proto_library(
     name = "exchange_step_attempt",
     deps = [
@@ -43,6 +56,21 @@ proto_and_java_proto_library(
     ],
 )
 
+proto_library(
+    name = "exchange_step_attempts_service_proto",
+    srcs = ["exchange_step_attempts_service.proto"],
+    deps = [
+        ":exchange_step_attempt_details_proto",
+        ":exchange_step_attempt_proto",
+        "@com_google_googleapis//google/type:date_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "exchange_step_attempts_service_kt_jvm_grpc",
+    srcs = [":exchange_step_attempts_service_proto"],
+)
+
 proto_and_java_proto_library(
     name = "recurring_exchange",
     deps = [
@@ -52,6 +80,17 @@ proto_and_java_proto_library(
 
 proto_and_java_proto_library(
     name = "recurring_exchange_details",
+)
+
+proto_library(
+    name = "recurring_exchanges_service_proto",
+    srcs = ["recurring_exchanges_service.proto"],
+    deps = [":recurring_exchange_proto"],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "recurring_exchanges_service_kt_jvm_grpc",
+    srcs = [":recurring_exchanges_service_proto"],
 )
 
 proto_and_java_proto_library(

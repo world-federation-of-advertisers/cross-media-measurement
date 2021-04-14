@@ -38,8 +38,30 @@ message ExchangeStepAttempt {
 
   // Which attempt this is. The first attempt should have index 1 and each
   // subsequent attempt should increase the last `attempt_number` by 1.
+  // Output-only.
   int32 attempt_number = 5;
 
   // Additional metadata about the ExchangeStepAttempt.
   ExchangeStepAttemptDetails details = 6;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+
+    // The attempt has not yet reached a terminal state.
+    ACTIVE = 2;
+
+    // The attempt has succeeded. There cannot be more attempts for the step.
+    // Terminal state.
+    SUCCEEDED = 3;
+
+    // The attempt has failed. The step should be retried. Terminal state.
+    FAILED = 4;
+  }
+
+  // State of the ExchangeStepAttempt.
+  State state = 7;
+
+  // Serialized ExchangeWorkflow message denormalized from the ancestor
+  // `RecurringExchange`'s `RecurringExchangeDetails`. Output-only.
+  bytes serialized_recurring_exchange = 8;
 }
