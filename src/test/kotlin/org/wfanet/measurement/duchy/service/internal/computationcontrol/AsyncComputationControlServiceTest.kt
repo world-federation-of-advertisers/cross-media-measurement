@@ -44,8 +44,8 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.ComputationDetails.RoleInComputation
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV1.Stage
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
 class AsyncComputationControlServiceTest {
@@ -91,10 +91,10 @@ class AsyncComputationControlServiceTest {
   @Test
   fun `record only output and advance`() = runBlocking<Unit> {
     val tokenToWrite = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
       addBlobs(newInputBlobMetadata(0L, "input-to-the-stage"))
       addBlobs(newEmptyOutputBlobMetadata(1L))
-      computationDetails = detailsFor(RoleInComputation.PRIMARY)
+      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
     }.build()
     val tokenToAdvance = tokenToWrite.toBuilder().apply {
       clearBlobs()
@@ -107,7 +107,7 @@ class AsyncComputationControlServiceTest {
     fakeService.advanceComputation(
       AdvanceComputationRequest.newBuilder().apply {
         globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+        computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
         blobPath = BLOB_KEY
       }.build()
     )
@@ -123,7 +123,7 @@ class AsyncComputationControlServiceTest {
       .containsExactly(
         AdvanceComputationStageRequest.newBuilder().apply {
           token = tokenToAdvance
-          nextComputationStage = Stage.TO_BLIND_POSITIONS_AND_JOIN_REGISTERS.toProtocolStage()
+          nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
           addInputBlobs(BLOB_KEY)
           outputBlobs = 1
           stageDetails = ComputationStageDetails.getDefaultInstance()
@@ -135,15 +135,15 @@ class AsyncComputationControlServiceTest {
   @Test
   fun `record but more blobs to write so do not advance`() = runBlocking {
     val tokenBeforeRecord = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_SKETCHES.toProtocolStage()
+      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
       addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
       addBlobs(newEmptyOutputBlobMetadata(1L))
       addBlobs(newEmptyOutputBlobMetadata(2L))
-      computationDetails = detailsFor(RoleInComputation.PRIMARY)
+      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
       stageSpecificDetailsBuilder.apply {
-        liquidLegionsV1Builder.apply {
-          waitSketchStageDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
-          waitSketchStageDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
+        liquidLegionsV2Builder.apply {
+          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
+          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
         }
       }
     }.build()
@@ -160,7 +160,7 @@ class AsyncComputationControlServiceTest {
     fakeService.advanceComputation(
       AdvanceComputationRequest.newBuilder().apply {
         globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_SKETCHES.toProtocolStage()
+        computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
         dataOrigin = "bob"
         blobPath = BLOB_KEY
       }.build()
@@ -180,15 +180,15 @@ class AsyncComputationControlServiceTest {
   @Test
   fun `record last output blob`() = runBlocking<Unit> {
     val tokenBeforeRecord = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_SKETCHES.toProtocolStage()
+      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
       addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
       addBlobs(newEmptyOutputBlobMetadata(1L))
       addBlobs(newOutputBlobMetadata(2L, "written-output"))
-      computationDetails = detailsFor(RoleInComputation.PRIMARY)
+      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
       stageSpecificDetailsBuilder.apply {
-        liquidLegionsV1Builder.apply {
-          waitSketchStageDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
-          waitSketchStageDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
+        liquidLegionsV2Builder.apply {
+          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
+          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
         }
       }
     }.build()
@@ -205,7 +205,7 @@ class AsyncComputationControlServiceTest {
     fakeService.advanceComputation(
       AdvanceComputationRequest.newBuilder().apply {
         globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_SKETCHES.toProtocolStage()
+        computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
         dataOrigin = "bob"
         blobPath = BLOB_KEY
       }.build()
@@ -222,7 +222,7 @@ class AsyncComputationControlServiceTest {
       .containsExactly(
         AdvanceComputationStageRequest.newBuilder().apply {
           token = tokenAfterRecord
-          nextComputationStage = Stage.TO_APPEND_SKETCHES_AND_ADD_NOISE.toProtocolStage()
+          nextComputationStage = Stage.SETUP_PHASE.toProtocolStage()
           addInputBlobs("pass-through")
           addInputBlobs(BLOB_KEY)
           addInputBlobs("previously-written-output")
@@ -236,9 +236,9 @@ class AsyncComputationControlServiceTest {
   @Test
   fun `advance when blob already written`() = runBlocking<Unit> {
     val tokenOfAlreadyRecordedOutput = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
       addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-      computationDetails = detailsFor(RoleInComputation.SECONDARY)
+      computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
     }.build()
 
     val (recordBlobRequests, advanceComputationRequests) =
@@ -247,7 +247,7 @@ class AsyncComputationControlServiceTest {
     fakeService.advanceComputation(
       AdvanceComputationRequest.newBuilder().apply {
         globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+        computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
         blobPath = BLOB_KEY
       }.build()
     )
@@ -257,7 +257,7 @@ class AsyncComputationControlServiceTest {
       .containsExactly(
         AdvanceComputationStageRequest.newBuilder().apply {
           token = tokenOfAlreadyRecordedOutput
-          nextComputationStage = Stage.TO_BLIND_POSITIONS.toProtocolStage()
+          nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
           addInputBlobs(BLOB_KEY)
           outputBlobs = 1
           stageDetails = ComputationStageDetails.getDefaultInstance()
@@ -269,9 +269,9 @@ class AsyncComputationControlServiceTest {
   @Test
   fun `advance when stage already advanced is a noop`() = runBlocking {
     val tokenOfAlreadyRecordedOutput = ComputationToken.newBuilder().apply {
-      computationStage = Stage.TO_BLIND_POSITIONS.toProtocolStage()
+      computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
       addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-      computationDetails = detailsFor(RoleInComputation.SECONDARY)
+      computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
     }.build()
 
     val (recordBlobRequests, advanceComputationRequests) =
@@ -280,7 +280,7 @@ class AsyncComputationControlServiceTest {
     fakeService.advanceComputation(
       AdvanceComputationRequest.newBuilder().apply {
         globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+        computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
         blobPath = BLOB_KEY
       }.build()
     )
@@ -290,7 +290,7 @@ class AsyncComputationControlServiceTest {
 
   @Test
   fun `advance stage doesn't match throws exception`() = runBlocking {
-    val actualStage = Stage.TO_BLIND_POSITIONS.toProtocolStage()
+    val actualStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
     val oldToken = ComputationToken.newBuilder().setComputationStage(actualStage).build()
 
     val (recordBlobRequests, advanceComputationRequests) =
@@ -302,7 +302,7 @@ class AsyncComputationControlServiceTest {
       fakeService.advanceComputation(
         AdvanceComputationRequest.newBuilder().apply {
           globalComputationId = COMPUTATION_ID
-          computationStage = Stage.WAIT_CONCATENATED.toProtocolStage()
+          computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
         }.build()
       )
     }
@@ -315,6 +315,6 @@ class AsyncComputationControlServiceTest {
     private const val COMPUTATION_ID = "1234"
 
     private fun detailsFor(r: RoleInComputation): ComputationDetails =
-      ComputationDetails.newBuilder().apply { liquidLegionsV1Builder.apply { role = r } }.build()
+      ComputationDetails.newBuilder().apply { liquidLegionsV2Builder.apply { role = r } }.build()
   }
 }

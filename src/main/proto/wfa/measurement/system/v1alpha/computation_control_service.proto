@@ -37,10 +37,8 @@ message AdvanceComputationRequest {
     GlobalComputation.Key key = 1;
     // The protocol of the computation.
     oneof protocol {
-      // The LiquidLegionsV1 (two-round) protocol.
-      LiquidLegionsV1 liquid_legions_v1 = 2;
       // The LiquidLegionsV2 (three-round) protocol.
-      LiquidLegionsV2 liquid_legions_v2 = 3;
+      LiquidLegionsV2 liquid_legions_v2 = 2;
     }
   }
 
@@ -55,22 +53,6 @@ message AdvanceComputationRequest {
     // Payload of subsequent request messages.
     BodyChunk body_chunk = 2;
   }
-}
-
-message LiquidLegionsV1 {
-  // The description of the data in the payload.
-  enum Description {
-    // The data type is unknown. This is never set intentionally.
-    DESCRIPTION_UNSPECIFIED = 0;
-    // NoisedSketch from secondary duchies to the primary.
-    NOISED_SKETCH = 1;
-    // Concatenated sketch processed at MPC round one.
-    CONCATENATED_SKETCH = 2;
-    // (Flag, count) pairs processed at MPC round two.
-    ENCRYPTED_FLAGS_AND_COUNTS = 3;
-  }
-  // Payload data description
-  Description description = 1;
 }
 
 message LiquidLegionsV2 {

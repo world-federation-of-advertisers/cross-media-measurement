@@ -122,8 +122,7 @@ message DuchyLogDetails {
 
   enum MpcAlgorithm {
     MPC_ALGORITHM_UNKNOWN = 0;
-    LIQUID_LEGIONS_V1 = 1;
-    LIQUID_LEGIONS_V2 = 2;
+    LIQUID_LEGIONS_V2 = 1;
   }
 }
 

@@ -231,7 +231,7 @@ class GlobalComputationServiceTest {
         selfReportedIdentifier = "some-self-reported-duchy-identifier"
         stageDetailsBuilder.apply {
           startBuilder.seconds = 2222
-          algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V1
+          algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
           stageNumber = 3333
           stageName = "SOME_STAGE"
           attemptNumber = 4444
@@ -257,7 +257,7 @@ class GlobalComputationServiceTest {
         duchyLogDetailsBuilder.apply {
           reportedDuchyId = "some-self-reported-duchy-identifier"
           stageStartBuilder.seconds = 2222
-          algorithm = DuchyLogDetails.MpcAlgorithm.LIQUID_LEGIONS_V1
+          algorithm = DuchyLogDetails.MpcAlgorithm.LIQUID_LEGIONS_V2
           stageNumber = 3333
           stageName = "SOME_STAGE"
           stageAttemptNumber = 4444

@@ -14,17 +14,6 @@ java_proto_library(
 )
 
 proto_library(
-    name = "liquid_legions_v1_proto",
-    srcs = ["liquid_legions_sketch_aggregation_v1.proto"],
-    deps = [":requisition"],
-)
-
-java_proto_library(
-    name = "liquid_legions_v1_java_proto",
-    deps = [":liquid_legions_v1_proto"],
-)
-
-proto_library(
     name = "liquid_legions_v2_proto",
     srcs = ["liquid_legions_sketch_aggregation_v2.proto"],
     deps = [":requisition"],

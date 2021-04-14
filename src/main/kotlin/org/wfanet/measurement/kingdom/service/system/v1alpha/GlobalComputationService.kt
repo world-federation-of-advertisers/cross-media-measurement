@@ -236,7 +236,6 @@ private fun getStateType(reportState: ReportState): StateType =
 
 private fun ApiMpcAlgorithm.toStorageMpcAlgorithm(): MpcAlgorithm =
   when (this) {
-    ApiMpcAlgorithm.LIQUID_LEGIONS_V1 -> MpcAlgorithm.LIQUID_LEGIONS_V1
     ApiMpcAlgorithm.LIQUID_LEGIONS_V2 -> MpcAlgorithm.LIQUID_LEGIONS_V2
     ApiMpcAlgorithm.UNRECOGNIZED,
     ApiMpcAlgorithm.MPC_ALGORITHM_UNKNOWN ->

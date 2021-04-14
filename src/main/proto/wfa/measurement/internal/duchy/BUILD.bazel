@@ -18,7 +18,6 @@ proto_library(
     name = "computation_protocols_proto",
     srcs = ["computation_protocols.proto"],
     deps = [
-        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_proto",
         "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_proto",
     ],
 )
@@ -32,7 +31,6 @@ proto_library(
     name = "computation_details_proto",
     srcs = ["computation_details.proto"],
     deps = [
-        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v1_proto",
         "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_proto",
     ],
 )
