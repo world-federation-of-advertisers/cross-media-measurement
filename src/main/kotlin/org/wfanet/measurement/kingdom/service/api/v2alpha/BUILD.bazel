@@ -8,6 +8,20 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "util",
+    srcs = [
+        "DateUtil.kt",
+    ],
+    visibility = [
+        ":__pkg__",
+        test_target("__pkg__"),
+    ],
+    deps = [
+        "@com_google_googleapis//google/type:type_java_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "recurring_exchanges_service",
     srcs = ["RecurringExchangesService.kt"],
     deps = [
@@ -39,6 +53,7 @@ kt_jvm_library(
     name = "exchange_step_attempts_service",
     srcs = ["ExchangeStepAttemptsService.kt"],
     deps = [
+        ":util",
         "//imports/kotlin/kotlin/test",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
@@ -47,5 +62,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_details_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempts_service_kt_jvm_grpc",
     ],
 )

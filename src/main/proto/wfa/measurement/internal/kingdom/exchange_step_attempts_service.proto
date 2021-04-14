@@ -75,7 +75,7 @@ message AppendLogEntryRequest {
   int32 attempt_number = 4;
 
   // Log entry to append.
-  repeated ExchangeStepAttemptDetails.DebugLog log_entries = 5;
+  repeated ExchangeStepAttemptDetails.DebugLog debug_log_entries = 5;
 }
 
 // Request message for "/ExchangeStepAttempts.FinishExchangeStepAttempt".
