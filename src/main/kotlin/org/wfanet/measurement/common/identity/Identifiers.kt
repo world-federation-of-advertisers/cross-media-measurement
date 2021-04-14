@@ -45,6 +45,12 @@ data class ApiId(val value: String) {
   val externalId: ExternalId = ExternalId(value.base64UrlDecode().toLong())
 }
 
+/** Convenience function to convert a String [ApiId] value to a Long [ExternalId] value. */
+fun apiIdToExternalId(id: String): Long = ApiId(id).externalId.value
+
+/** Convenience function to convert Long [ExternalId] value to a String [ApiId] value. */
+fun externalIdToApiId(id: Long): String = ExternalId(id).apiId.value
+
 /** Typesafe wrapper around Long to represent the integer id format used internally. */
 data class InternalId(val value: Long)
 
