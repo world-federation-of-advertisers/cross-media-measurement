@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,22 +14,20 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.duchy;
+package wfa.measurement.internal.kingdom;
 
-option java_package = "org.wfanet.measurement.internal.duchy";
+option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-enum ComputationBlobDependency {
-  // Not set intentionally.
-  UNKNOWN = 0;
+// Stores metadata about a RecurringExchange.
+message RecurringExchangeDetails {
+  // Expects a valid CRON expression.
+  // See https://en.wikipedia.org/wiki/Cron#CRON_expression.
+  string cron_schedule = 1;
 
-  // BLOB is used as an input to the computation stage.
-  INPUT = 1;
-
-  // BLOB is an output of the computation stage.
-  OUTPUT = 2;
-
-  // BLOB is an output to the computation stage, but was written
-  // before the computation stage began.
-  PASS_THROUGH = 3;
+  // Serialized ExchangeWorkflow proto from the public API.
+  //
+  // This is serialized because DataProviders and ModelProviders will sign the
+  // ExchangeWorkflow to keep a record that they agreed to it.
+  bytes exchange_workflow = 2;
 }
