@@ -20,6 +20,7 @@ import org.wfanet.measurement.api.v2alpha.ListRecurringExchangesRequest
 import org.wfanet.measurement.api.v2alpha.ListRecurringExchangesResponse
 import org.wfanet.measurement.api.v2alpha.RecurringExchange
 import org.wfanet.measurement.api.v2alpha.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.RetireRecurringExchangeRequest
 
 class RecurringExchangesService : RecurringExchangesCoroutineImplBase() {
   override suspend fun createRecurringExchange(
@@ -40,7 +41,9 @@ class RecurringExchangesService : RecurringExchangesCoroutineImplBase() {
     TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
 
-  override suspend fun updateRecurringExchange(request: RecurringExchange): RecurringExchange {
+  override suspend fun retireRecurringExchange(
+    request: RetireRecurringExchangeRequest
+  ): RecurringExchange {
     TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
 }
