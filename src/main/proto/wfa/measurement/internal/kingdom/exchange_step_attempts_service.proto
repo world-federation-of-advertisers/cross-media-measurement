@@ -1,0 +1,93 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/type/date.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/exchange_step_attempt.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/exchange_step_attempt_details.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for managing `ExchangeStepAttempt` resources.
+service ExchangeStepAttempts {
+  // Creates an `ExchangeStepAttempt`.
+  //
+  // This should not specify the attempt number.
+  rpc CreateExchangeStepAttempt(CreateExchangeStepAttemptRequest)
+      returns (ExchangeStepAttempt);
+
+  // Streams `ExchangeStepAttempt`s.
+  rpc StreamExchangeStepAttempts(StreamExchangeStepAttemptsRequest)
+      returns (stream ExchangeStepAttempt);
+
+  // Appends an `ExchangeStepAttemptDetails.DebugLog` to an
+  // `ExchangeStepAttempt`.
+  rpc AppendLogEntry(AppendLogEntryRequest) returns (ExchangeStepAttempt);
+
+  // Updates the state of an ExchangeStepAttempt to a terminal state.
+  rpc FinishExchangeStepAttempt(FinishExchangeStepAttemptRequest)
+      returns (ExchangeStepAttempt);
+}
+
+// Request message for "/ExchangeStepAttempts.CreateExchangeStepAttempt".
+message CreateExchangeStepAttemptRequest {
+  ExchangeStepAttempt exchange_step_attempt = 1;
+}
+
+// Request message for "/ExchangeStepAttempts.StreamExchangeStepAttempts".
+message StreamExchangeStepAttemptsRequest {
+  int32 limit = 1;
+
+  // Restricts results to those matching all of the given criteria. Repeated
+  // fields are treated as disjunctions.
+  message Filter {
+    repeated fixed64 external_recurring_exchange_ids = 1;
+    repeated google.type.Date dates = 2;
+    repeated int32 step_indices = 3;
+    repeated ExchangeStepAttempt.State states = 4;
+  }
+  Filter filter = 2;
+}
+
+// Request message for "/ExchangeStepAttempts.AppendLogEntry".
+message AppendLogEntryRequest {
+  // Primary key of the `ExchangeStepAttempt`.
+  // If the `attempt_number` is omitted, appends to the entry with highest
+  // `attempt_number`.
+  fixed64 external_recurring_exchange_id = 1;
+  google.type.Date date = 2;
+  int32 step_index = 3;
+  int32 attempt_number = 4;
+
+  // Log entry to append.
+  repeated ExchangeStepAttemptDetails.DebugLog log_entries = 5;
+}
+
+// Request message for "/ExchangeStepAttempts.FinishExchangeStepAttempt".
+message FinishExchangeStepAttemptRequest {
+  // Primary key of the `ExchangeStepAttempt`.
+  // If the `attempt_number` is omitted, it assumes the `ExchangeStepAttempt`
+  // with the highest `attempt_number`.
+  fixed64 external_recurring_exchange_id = 1;
+  google.type.Date date = 2;
+  int32 step_index = 3;
+  int32 attempt_number = 4;
+
+  // Final state for the `ExchangeStepAttempt`.
+  ExchangeStepAttempt.State state = 5;
+}
