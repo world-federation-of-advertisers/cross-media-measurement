@@ -24,8 +24,8 @@ import org.wfanet.measurement.common.hexAsByteString
 data class CryptoKeySet(
   // The public and private ElGamal keys of the duchy that owns the mill.
   val ownPublicAndPrivateKeys: ElGamalKeyPair,
-  // A map of other duchies' name and their public ElGamal keys.
-  val otherDuchyPublicKeys: Map<String, ElGamalPublicKey>,
+  // A map of all duchies' name and their public ElGamal keys.
+  val allDuchyPublicKeys: Map<String, ElGamalPublicKey>,
   // The client ElGamal public keys combined from all duchies' public keys.
   val clientPublicKey: ElGamalPublicKey,
   // The id of the elliptic curve

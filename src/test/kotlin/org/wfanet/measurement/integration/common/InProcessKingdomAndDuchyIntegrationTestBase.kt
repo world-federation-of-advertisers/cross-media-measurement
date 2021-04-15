@@ -15,14 +15,12 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.math.BigInteger
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
-import org.wfanet.measurement.common.Duchy
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -36,10 +34,6 @@ import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
 val DUCHY_IDS = DUCHY_IDS
 
-val DUCHIES = DUCHY_PUBLIC_KEYS.latest.map {
-  Duchy(it.key, BigInteger(it.value.toByteArray()))
-}
-
 /**
  * Test that everything is wired up properly.
  *
@@ -51,7 +45,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
-  abstract val duchyDependenciesRule: ProviderRule<(Duchy) -> DuchyDependencies>
+  abstract val duchyDependenciesRule: ProviderRule<(String) -> DuchyDependencies>
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
     get() = kingdomRelationalDatabaseRule.value
@@ -59,13 +53,13 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   private val kingdom = InProcessKingdom(verboseGrpcLogging = true) { kingdomRelationalDatabase }
 
   private val duchies: List<InProcessDuchy> by lazy {
-    DUCHIES.map { duchy ->
+    DUCHY_PUBLIC_KEYS.latest.map { duchy ->
       InProcessDuchy(
         verboseGrpcLogging = true,
-        duchyId = duchy.name,
-        otherDuchyIds = (DUCHY_IDS.toSet() - duchy.name).toList(),
+        duchyId = duchy.key,
+        otherDuchyIds = (DUCHY_IDS.toSet() - duchy.key).toList(),
         kingdomChannel = kingdom.publicApiChannel,
-        duchyDependenciesProvider = { duchyDependenciesRule.value(duchy) }
+        duchyDependenciesProvider = { duchyDependenciesRule.value(duchy.key) }
       )
     }
   }

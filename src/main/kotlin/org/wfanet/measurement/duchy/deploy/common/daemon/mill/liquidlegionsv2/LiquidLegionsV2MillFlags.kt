@@ -98,6 +98,22 @@ class LiquidLegionsV2MillFlags {
   lateinit var millId: String
     private set
 
+  @CommandLine.Option(
+    names = ["--duchy-id"],
+    description = ["The Identifier of the Mill."],
+    required = true
+  )
+  lateinit var duchyId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--aggregator-id"],
+    description = ["The Identifier of the aggregator duchy."],
+    required = true
+  )
+  lateinit var aggregatorId: String
+    private set
+
   @set:CommandLine.Option(
     names = ["--bytes-per-chunk"],
     description = ["The number of bytes in a chunk when sending rpc result to other duchy."],

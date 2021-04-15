@@ -87,6 +87,7 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
 */
 abstract class MillBase(
   protected val millId: String,
+  protected val duchyId: String,
   protected val dataClients: ComputationDataClients,
   protected val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val metricValuesClient: MetricValuesGrpcKt.MetricValuesCoroutineStub,

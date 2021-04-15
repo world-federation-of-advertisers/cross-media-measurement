@@ -15,10 +15,10 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
-import org.wfanet.measurement.common.DuchyPosition
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 /**
@@ -30,7 +30,7 @@ interface ProtocolStarter {
   suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,
     globalComputation: GlobalComputation,
-    duchyPosition: DuchyPosition,
+    protocolsSetupConfig: ProtocolsSetupConfig,
     blobStorageBucket: String
   )
 

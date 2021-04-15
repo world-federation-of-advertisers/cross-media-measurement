@@ -19,6 +19,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
@@ -99,11 +100,9 @@ object LiquidLegionsSketchAggregationV2Protocol {
       ): Boolean {
         return when (stage) {
           WAIT_TO_START ->
-            details.role ==
-              LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+            details.role == RoleInComputation.NON_AGGREGATOR
           WAIT_SETUP_PHASE_INPUTS ->
-            details.role ==
-              LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
+            details.role == RoleInComputation.AGGREGATOR
           else ->
             true /* Stage can be executed at either primary or non-primary */
         }

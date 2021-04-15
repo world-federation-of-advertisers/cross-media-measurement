@@ -29,7 +29,6 @@ import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
@@ -83,13 +82,13 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
     val mill = LiquidLegionsV2Mill(
       millId = flags.millId,
+      duchyId = flags.duchyId,
       dataClients = dataClients,
       metricValuesClient = metricValuesClient,
       globalComputationsClient = globalComputationsClient,
       computationStatsClient = computationStatsClient,
       workerStubs = computationControlClientMap,
       cryptoKeySet = newCryptoKeySet(),
-      duchyOrder = latestDuchyPublicKeys.toDuchyOrder(),
       cryptoWorker = JniLiquidLegionsV2Encryption(),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
       requestChunkSizeBytes = flags.requestChunkSizeBytes,
@@ -100,7 +99,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       ),
       noiseConfig = flags.noiseConfig.reader().use {
         parseTextProto(it, LiquidLegionsV2NoiseConfig.getDefaultInstance())
-      }
+      },
+      aggregatorId = flags.aggregatorId
     )
 
     runBlocking { mill.continuallyProcessComputationQueue() }
@@ -113,7 +113,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         publicKey = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
         secretKey = flags.duchySecretKey.hexAsByteString()
       }.build(),
-      otherDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
+      allDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
       clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
       curveId = latestDuchyPublicKeys.curveId
     )

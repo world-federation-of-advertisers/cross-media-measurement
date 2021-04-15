@@ -37,7 +37,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
@@ -49,14 +49,12 @@ class GcpSpannerComputationsDatabaseReaderTest :
     private const val THIRD_DUCHY_IN_RING = "THIRD_DUCHY_IN_RING"
     val DETAILS_WHEN_NON_AGGREGATOR: ComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV2Builder.apply {
-        outgoingNodeId = NEXT_DUCHY_IN_RING
-        role = RoleInComputation.NON_AGGREGATOR
+        role = LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
       }
     }.build()
     val DETAILS_WHEN_AGGREGATOR: ComputationDetails = ComputationDetails.newBuilder().apply {
       liquidLegionsV2Builder.apply {
-        outgoingNodeId = NEXT_DUCHY_IN_RING
-        role = RoleInComputation.AGGREGATOR
+        role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
       }
     }.build()
   }

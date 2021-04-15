@@ -28,8 +28,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
@@ -42,8 +40,8 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
@@ -62,28 +60,25 @@ internal class HeraldTest {
   private val duchyName = "BOHEMIA"
   private val otherDuchyNames = listOf("SALZBURG", "AUSTRIA")
   private val fakeComputationStorage = FakeComputationsDatabase()
-  private val duchyOrder = DuchyOrder(
-    setOf(
-      Duchy("BOHEMIA", 10L.toBigInteger()),
-      Duchy("SALZBURG", 200L.toBigInteger()),
-      Duchy("AUSTRIA", 303L.toBigInteger())
-    )
-  )
-  private val primaryComputationDetails = ComputationDetails.newBuilder().apply {
+  private val aggregatorProtocolsSetupConfig = ProtocolsSetupConfig.newBuilder().apply {
     liquidLegionsV2Builder.apply {
-      role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-      aggregatorNodeId = "BOHEMIA"
-      incomingNodeId = "SALZBURG"
-      outgoingNodeId = "AUSTRIA"
+      role = RoleInComputation.AGGREGATOR
+    }
+  }.build()
+  private val nonAggregatorProtocolsSetupConfig = ProtocolsSetupConfig.newBuilder().apply {
+    liquidLegionsV2Builder.apply {
+      role = RoleInComputation.NON_AGGREGATOR
     }
   }.build()
 
-  private val secondComputationDetails = ComputationDetails.newBuilder().apply {
+  private val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
     liquidLegionsV2Builder.apply {
-      role = NON_AGGREGATOR
-      aggregatorNodeId = "BOHEMIA"
-      incomingNodeId = "SALZBURG"
-      outgoingNodeId = "BOHEMIA"
+      role = RoleInComputation.AGGREGATOR
+    }
+  }.build()
+  private val nonAggregatorComputationDetails = ComputationDetails.newBuilder().apply {
+    liquidLegionsV2Builder.apply {
+      role = RoleInComputation.NON_AGGREGATOR
     }
   }.build()
 
@@ -108,19 +103,24 @@ internal class HeraldTest {
     GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var herald: Herald
+  private lateinit var aggregatorHerald: Herald
+  private lateinit var nonAggregatorHerald: Herald
 
   @Before
   fun initHerald() {
-    herald = Herald(
-      otherDuchyNames, storageServiceStub, globalComputationsStub, duchyName, duchyOrder
+    aggregatorHerald = Herald(
+      otherDuchyNames, storageServiceStub, globalComputationsStub, aggregatorProtocolsSetupConfig
+    )
+    nonAggregatorHerald = Herald(
+      otherDuchyNames, storageServiceStub, globalComputationsStub, nonAggregatorProtocolsSetupConfig
     )
   }
 
   @Test
   fun `syncStatuses on empty stream retains same computaiton token`() = runBlocking {
     mockStreamActiveComputationsToReturn(/* No items in stream. */)
-    assertThat(herald.syncStatuses("TOKEN_OF_LAST_ITEM")).isEqualTo("TOKEN_OF_LAST_ITEM")
+    assertThat(nonAggregatorHerald.syncStatuses("TOKEN_OF_LAST_ITEM"))
+      .isEqualTo("TOKEN_OF_LAST_ITEM")
     assertThat(fakeComputationStorage).isEmpty()
   }
 
@@ -139,11 +139,12 @@ internal class HeraldTest {
     fakeComputationStorage.addComputation(
       globalId = confirmingKnown.globalId,
       stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
-      computationDetails = primaryComputationDetails,
+      computationDetails = aggregatorComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
 
-    assertThat(herald.syncStatuses(EMPTY_TOKEN)).isEqualTo(confirmingUnknown.continuationToken)
+    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+      .isEqualTo(confirmingUnknown.continuationToken)
     assertThat(
       fakeComputationStorage
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
@@ -168,10 +169,7 @@ internal class HeraldTest {
       .isEqualTo(
         ComputationDetails.newBuilder().apply {
           liquidLegionsV2Builder.apply {
-            role = NON_AGGREGATOR
-            incomingNodeId = "AUSTRIA"
-            outgoingNodeId = "SALZBURG"
-            aggregatorNodeId = "SALZBURG"
+            role = RoleInComputation.AGGREGATOR
             totalRequisitionCount = 10
           }
           blobsStoragePrefix = "computation-blob-storage/321"
@@ -188,7 +186,7 @@ internal class HeraldTest {
     fakeComputationStorage.addComputation(
       globalId = waitingToStart.globalId,
       stage = WAIT_TO_START.toProtocolStage(),
-      computationDetails = secondComputationDetails,
+      computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(
         newPassThroughBlobMetadata(0L, "local-copy-of-sketches")
       )
@@ -197,14 +195,14 @@ internal class HeraldTest {
     fakeComputationStorage.addComputation(
       globalId = addingNoise.globalId,
       stage = SETUP_PHASE.toProtocolStage(),
-      computationDetails = primaryComputationDetails,
+      computationDetails = aggregatorComputationDetails,
       blobs = listOf(
         newInputBlobMetadata(0L, "inputs-to-add-noise"),
         newEmptyOutputBlobMetadata(1L)
       )
     )
 
-    assertThat(herald.syncStatuses(EMPTY_TOKEN)).isEqualTo(addingNoise.continuationToken)
+    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN)).isEqualTo(addingNoise.continuationToken)
     assertThat(
       fakeComputationStorage
         .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
@@ -224,11 +222,12 @@ internal class HeraldTest {
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
       stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
-      computationDetails = secondComputationDetails,
+      computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    assertThat(herald.syncStatuses(EMPTY_TOKEN)).isEqualTo(computation.continuationToken)
+    assertThat(nonAggregatorHerald.syncStatuses(EMPTY_TOKEN))
+      .isEqualTo(computation.continuationToken)
 
     assertThat(
       fakeComputationStorage
@@ -243,7 +242,7 @@ internal class HeraldTest {
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
       stage = WAIT_TO_START.toProtocolStage(),
-      computationDetails = secondComputationDetails,
+      computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
@@ -266,8 +265,7 @@ internal class HeraldTest {
       otherDuchyNames,
       storageServiceStub,
       globalComputationsStub,
-      duchyName,
-      duchyOrder,
+      nonAggregatorProtocolsSetupConfig,
       maxStartAttempts = 2
     )
 
@@ -277,7 +275,7 @@ internal class HeraldTest {
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
       stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
-      computationDetails = secondComputationDetails,
+      computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 

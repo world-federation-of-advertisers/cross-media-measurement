@@ -16,7 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.protocol;
 
-import "src/main/proto/wfa/measurement/protocol/requisition.proto";
+import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
+import "wfa/measurement/protocol/requisition.proto";
 
 option java_package = "org.wfanet.measurement.protocol";
 option java_multiple_files = true;
@@ -94,25 +95,13 @@ message LiquidLegionsSketchAggregationV2 {
 
   // Computation details specific to the LiquidLegions V2 protocol.
   message ComputationDetails {
-    enum RoleInComputation {
-      // Never set intentionally
-      UNKNOWN = 0;
-      // The aggregator duchy for the computation.
-      AGGREGATOR = 1;
-      // A non-aggregator duchy for the computation. This duchy has to do many
-      // crypto operations, but is not responsible for joining sketch positions
-      // together, nor computing the final results.
-      NON_AGGREGATOR = 2;
-    }
     // The duchy's role in the computation.
-    RoleInComputation role = 1;
-    // The domain name of the duchy from which this one receives data for the
-    // computation.
-    string incoming_node_id = 2;
-    // The domain name of the duchy where outputs are sent for the computation.
-    string outgoing_node_id = 3;
-    // The domain name of the aggregator duchy of this computation.
-    string aggregator_node_id = 4;
+    org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
+        role = 1;
+
+    // The list of ordered duchy ids in the MPC ring, with the first element
+    // being the first non-aggregator and the last element being the aggregator.
+    repeated string duchy_order = 2;
 
     message ReachEstimate {
       int64 reach = 1;
@@ -122,11 +111,11 @@ message LiquidLegionsSketchAggregationV2 {
     // the aggregator. It is only set at the aggregator and is not shared with
     // non-aggregator nodes. The value will be included in the result for the
     // computation.
-    ReachEstimate reach_estimate = 5;
+    ReachEstimate reach_estimate = 3;
 
     // Total number of MetricRequisitions across all duchies used in this
     // computation.
-    int32 total_requisition_count = 6;
+    int32 total_requisition_count = 4;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2

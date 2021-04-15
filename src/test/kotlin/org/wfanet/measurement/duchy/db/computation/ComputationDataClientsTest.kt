@@ -26,8 +26,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.common.ElGamalPublicKey
-import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
@@ -49,7 +47,7 @@ import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -65,13 +63,6 @@ private const val ALSACE = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
-val duchyOrder = DuchyOrder(
-  setOf(
-    Duchy(ALSACE, 10L.toBigInteger()),
-    Duchy(BAVARIA, 200L.toBigInteger()),
-    Duchy(CARINTHIA, 303L.toBigInteger())
-  )
-)
 
 @RunWith(JUnit4::class)
 class ComputationDataClientsTest {
@@ -122,7 +113,7 @@ class ComputationDataClientsTest {
         otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_NOT_PRIMARY,
-      RoleInComputation.NON_AGGREGATOR,
+      LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
@@ -167,7 +158,7 @@ class ComputationDataClientsTest {
         otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
       ),
       ID_WHERE_ALSACE_IS_PRIMARY,
-      RoleInComputation.AGGREGATOR,
+      LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR,
       testClock
     )
     val fakeRpcService = computation.FakeRpcService()
@@ -233,7 +224,7 @@ data class ComputationStep(
 class SingleLiquidLegionsV2Computation(
   private val dataClients: ComputationDataClients,
   globalId: String,
-  roleInComputation: RoleInComputation,
+  roleInComputation: LiquidLegionsV2SetupConfig.RoleInComputation,
   private val testClock: TestClockWithNamedInstants
 ) {
 

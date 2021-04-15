@@ -21,12 +21,13 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.addChannelShutdownHooks
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
-import org.wfanet.measurement.duchy.toDuchyOrder
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
@@ -72,6 +73,14 @@ private class Flags {
   )
   lateinit var computationsServiceTarget: String
     private set
+
+  @CommandLine.Option(
+    names = ["--protocol-setup-config"],
+    description = ["ProtocolsSetupConfig proto message in text format."],
+    required = true
+  )
+  lateinit var protocolsSetupConfig: String
+    private set
 }
 
 @CommandLine.Command(
@@ -100,8 +109,9 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     otherDuchiesInComputation = otherDuchyNames,
     computationStorageClient = ComputationsCoroutineStub(storageChannel),
     globalComputationsClient = globalComputationsClient,
-    duchyName = duchyName,
-    duchyOrder = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest.toDuchyOrder()
+    protocolsSetupConfig = flags.protocolsSetupConfig.reader().use {
+      parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
+    }
   )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }

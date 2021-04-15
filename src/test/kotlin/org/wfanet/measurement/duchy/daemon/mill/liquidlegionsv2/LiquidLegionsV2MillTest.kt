@@ -50,8 +50,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.Duchy
-import org.wfanet.measurement.common.DuchyOrder
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
@@ -85,6 +83,7 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneRequest
@@ -99,7 +98,6 @@ import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
@@ -165,30 +163,16 @@ class LiquidLegionsV2MillTest {
     ).joinToString("/").also { generatedBlobKeys.add(it) }
   }
 
-  private val duchyOrder = DuchyOrder(
-    setOf(
-      Duchy(DUCHY_THREE_NAME, 10L.toBigInteger()),
-      Duchy(DUCHY_ONE_NAME, 200L.toBigInteger()),
-      Duchy(DUCHY_TWO_NAME, 303L.toBigInteger())
-    )
-  )
-
   private val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
     liquidLegionsV2Builder.apply {
-      role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.AGGREGATOR
-      aggregatorNodeId = DUCHY_THREE_NAME
-      incomingNodeId = DUCHY_ONE_NAME
-      outgoingNodeId = DUCHY_TWO_NAME
+      role = RoleInComputation.AGGREGATOR
       totalRequisitionCount = PUBLISHER_COUNT
     }
   }.build()
 
   private val nonAggregatorComputationDetails = ComputationDetails.newBuilder().apply {
     liquidLegionsV2Builder.apply {
-      role = LiquidLegionsSketchAggregationV2.ComputationDetails.RoleInComputation.NON_AGGREGATOR
-      aggregatorNodeId = DUCHY_ONE_NAME
-      incomingNodeId = DUCHY_TWO_NAME
-      outgoingNodeId = DUCHY_ONE_NAME
+      role = RoleInComputation.NON_AGGREGATOR
       totalRequisitionCount = PUBLISHER_COUNT
     }
   }.build()
@@ -257,10 +241,11 @@ class LiquidLegionsV2MillTest {
 
   private lateinit var computationControlRequests: List<AdvanceComputationRequest>
 
-  // Just use the same workerStub for all other duchies, since it is not relevant to this test.
-  private val workerStubs = mapOf(DUCHY_ONE_NAME to workerStub, DUCHY_TWO_NAME to workerStub)
+  // Just use the same workerStub for all other duchies, since it is not relevant to this test.a
+  private val workerStubs = mapOf(DUCHY_TWO_NAME to workerStub, DUCHY_THREE_NAME to workerStub)
 
-  private lateinit var mill: LiquidLegionsV2Mill
+  private lateinit var aggregatorMill: LiquidLegionsV2Mill
+  private lateinit var nonAggregatorMill: LiquidLegionsV2Mill
 
   private fun String.toMetricChunkResponse() = ByteString.copyFromUtf8(this).toMetricChunkResponse()
 
@@ -312,21 +297,40 @@ class LiquidLegionsV2MillTest {
   @Before
   fun setup() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
-    mill =
+    aggregatorMill =
       LiquidLegionsV2Mill(
         millId = MILL_ID,
+        duchyId = DUCHY_ONE_NAME,
         dataClients = computationDataClients,
         metricValuesClient = metricValuesStub,
         globalComputationsClient = globalComputationStub,
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = cryptoKeySet,
-        duchyOrder = duchyOrder,
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         requestChunkSizeBytes = 20,
         maxFrequency = MAX_FREQUENCY,
-        noiseConfig = testNoiseConfig
+        noiseConfig = testNoiseConfig,
+        aggregatorId = DUCHY_ONE_NAME
+      )
+
+    nonAggregatorMill =
+      LiquidLegionsV2Mill(
+        millId = MILL_ID,
+        duchyId = DUCHY_ONE_NAME,
+        dataClients = computationDataClients,
+        metricValuesClient = metricValuesStub,
+        globalComputationsClient = globalComputationStub,
+        computationStatsClient = computationStatsStub,
+        workerStubs = workerStubs,
+        cryptoKeySet = cryptoKeySet,
+        cryptoWorker = mockCryptoWorker,
+        throttler = throttler,
+        requestChunkSizeBytes = 20,
+        maxFrequency = MAX_FREQUENCY,
+        noiseConfig = testNoiseConfig,
+        aggregatorId = DUCHY_THREE_NAME
       )
 
     whenever(
@@ -349,7 +353,7 @@ class LiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -370,8 +374,8 @@ class LiquidLegionsV2MillTest {
           .setStageSpecificDetails(
             ComputationStageDetails.newBuilder().apply {
               liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
-                putExternalDuchyLocalBlobId("DUCHY_ONE", 1L)
-                putExternalDuchyLocalBlobId("DUCHY_TWO", 2L)
+                putExternalDuchyLocalBlobId("DUCHY_TWO", 1L)
+                putExternalDuchyLocalBlobId("DUCHY_THREE", 2L)
               }
             }
           )
@@ -432,7 +436,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -475,7 +479,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `confirm requisition, missing requisition at primary`() = runBlocking<Unit> {
+  fun `confirm requisition, missing requisition at aggregator`() = runBlocking<Unit> {
     // Stage 0. preparing the storage and set up mock
     val requisition1 = "1"
     val requisition2 = "2"
@@ -519,7 +523,7 @@ class LiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID]!!)
@@ -606,7 +610,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -693,7 +697,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -768,7 +772,7 @@ class LiquidLegionsV2MillTest {
     )
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID]).isEqualTo(
@@ -829,7 +833,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -904,7 +908,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -986,7 +990,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -1027,7 +1031,7 @@ class LiquidLegionsV2MillTest {
         flagCountTuples = ByteString.copyFromUtf8("data")
         localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
         compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
-        partialCompositeElGamalPublicKey = DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey()
+        partialCompositeElGamalPublicKey = DUCHY_THREE_PUBLIC_KEY.toElGamalPublicKey()
         curveId = cryptoKeySet.curveId.toLong()
         noiseParametersBuilder.apply {
           maximumFrequency = MAX_FREQUENCY
@@ -1069,7 +1073,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -1164,7 +1168,7 @@ class LiquidLegionsV2MillTest {
         }
 
       // Stage 1. Process the above computation
-      mill.pollAndProcessNextComputation()
+      nonAggregatorMill.pollAndProcessNextComputation()
 
       // Stage 2. Check the status of the computation
       val blobKey = generatedBlobKeys.last()
@@ -1232,7 +1236,7 @@ class LiquidLegionsV2MillTest {
       }
 
     // Stage 1. Process the above computation
-    mill.pollAndProcessNextComputation()
+    aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
     val blobKey = generatedBlobKeys.last()
@@ -1283,17 +1287,24 @@ class LiquidLegionsV2MillTest {
 
   @Test
   fun `getPartiallyCombinedPublicKey should be correct`() {
-    // This id would result in a duchy ring of "DUCHY_ONE_NAME -> DUCHY_TWO_NAME -> DUCHY_THREE_NAME"
-    val globalId = "1234"
+    // This id would result in a duchy ring of "DUCHY_TWO -> DUCHY_ONE -> DUCHY_THREE",
+    // so the following duchy list is {DUCHY_THREE}.
+    val token1 = ComputationToken.newBuilder().apply {
+      globalComputationId = "1234"
+      computationDetailsBuilder.liquidLegionsV2Builder.role = RoleInComputation.NON_AGGREGATOR
+    }.build()
+    assertThat(nonAggregatorMill.getPartiallyCombinedPublicKey(token1)).isEqualTo(
+      DUCHY_THREE_PUBLIC_KEY.toElGamalPublicKey()
+    )
 
-    assertThat(mill.getPartiallyCombinedPublicKey(globalId, DUCHY_ONE_NAME)).isEqualTo(
-      DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey()
-    )
-    assertThat(mill.getPartiallyCombinedPublicKey(globalId, DUCHY_TWO_NAME)).isEqualTo(
-      cryptoKeySet.clientPublicKey
-    )
-    assertThat(mill.getPartiallyCombinedPublicKey(globalId, DUCHY_THREE_NAME)).isEqualTo(
-      DUCHY_ONE_THREE_COMBINED_PUBLIC_KEY.toElGamalPublicKey()
+    // This id would result in a duchy ring of "DUCHY_ONE -> DUCHY_TWO -> DUCHY_THREE",
+    // so the following duchy list is {DUCHY_TWO, DUCHY_THREE}.
+    val token2 = ComputationToken.newBuilder().apply {
+      globalComputationId = "5678"
+      computationDetailsBuilder.liquidLegionsV2Builder.role = RoleInComputation.NON_AGGREGATOR
+    }.build()
+    assertThat(nonAggregatorMill.getPartiallyCombinedPublicKey(token2)).isEqualTo(
+      DUCHY_TWO_THREE_COMBINED_PUBLIC_KEY.toElGamalPublicKey()
     )
   }
 
@@ -1306,7 +1317,7 @@ class LiquidLegionsV2MillTest {
     private const val DUCHY_THREE_NAME = "DUCHY_THREE"
     private const val MAX_FREQUENCY = 15
 
-    private val otherDuchyNames = listOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME)
+    private val otherDuchyNames = listOf(DUCHY_TWO_NAME, DUCHY_THREE_NAME)
     private const val LOCAL_ID = 1234L
     private const val GLOBAL_ID = LOCAL_ID.toString()
 
@@ -1314,14 +1325,14 @@ class LiquidLegionsV2MillTest {
     // create a cipher using random keys and then get these keys.
     private const val DUCHY_ONE_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
-        "039ef370ff4d216225401781d88a03f5a670a5040e6333492cb4e0cd991abbd5a3"
+        "02d1432ca007a6c6d739fce2d21feb56d9a2c35cf968265f9093c4b691e11386b3"
     private const val DUCHY_TWO_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
-        "02d1432ca007a6c6d739fce2d21feb56d9a2c35cf968265f9093c4b691e11386b3"
+        "039ef370ff4d216225401781d88a03f5a670a5040e6333492cb4e0cd991abbd5a3"
     private const val DUCHY_THREE_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "02d0f25ab445fc9c29e7e2509adc93308430f432522ffa93c2ae737ceb480b66d7"
-    private const val OWN_EL_GAMAL_KEY = DUCHY_THREE_PUBLIC_KEY +
+    private const val OWN_EL_GAMAL_KEY = DUCHY_ONE_PUBLIC_KEY +
       "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
 
     // combined from DUCHY_ONE_PUBLIC_KEY + DUCHY_TWO_PUBLIC_KEY + DUCHY_THREE_PUBLIC_KEY
@@ -1330,7 +1341,7 @@ class LiquidLegionsV2MillTest {
         "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
 
     // combine from DUCHY_ONE_PUBLIC_KEY + DUCHY_THREE_PUBLIC_KEY
-    private const val DUCHY_ONE_THREE_COMBINED_PUBLIC_KEY =
+    private const val DUCHY_TWO_THREE_COMBINED_PUBLIC_KEY =
       "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
         "031887eb8e4d4290fa97601c1ef6cda80ab3d2fe82da39ef8ed2e846cc7866a3b0"
 
@@ -1339,7 +1350,7 @@ class LiquidLegionsV2MillTest {
     private val cryptoKeySet =
       CryptoKeySet(
         ownPublicAndPrivateKeys = OWN_EL_GAMAL_KEY.toElGamalKeyPair(),
-        otherDuchyPublicKeys = mapOf(
+        allDuchyPublicKeys = mapOf(
           DUCHY_ONE_NAME to DUCHY_ONE_PUBLIC_KEY.toElGamalPublicKey(),
           DUCHY_TWO_NAME to DUCHY_TWO_PUBLIC_KEY.toElGamalPublicKey(),
           DUCHY_THREE_NAME to DUCHY_THREE_PUBLIC_KEY.toElGamalPublicKey()
