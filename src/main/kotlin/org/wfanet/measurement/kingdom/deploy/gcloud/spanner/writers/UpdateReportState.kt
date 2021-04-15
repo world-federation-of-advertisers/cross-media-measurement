@@ -67,6 +67,7 @@ internal fun SpannerWriter.TransactionScope.updateReportState(
 
 private val ReportState.isTerminal: Boolean
   get() = when (this) {
+    ReportState.AWAITING_DUCHY_INITIALIZATION -> error("not implemented")
     ReportState.AWAITING_REQUISITION_CREATION,
     ReportState.AWAITING_DUCHY_CONFIRMATION,
     ReportState.IN_PROGRESS -> false

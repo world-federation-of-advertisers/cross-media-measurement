@@ -211,6 +211,7 @@ private object ContinuationTokenConverter {
 
 private fun translateState(reportState: ReportState): State =
   when (reportState) {
+    ReportState.AWAITING_DUCHY_INITIALIZATION -> error("not implemented")
     ReportState.AWAITING_REQUISITION_CREATION -> State.CREATED
     ReportState.AWAITING_DUCHY_CONFIRMATION -> State.CONFIRMING
     ReportState.IN_PROGRESS -> State.RUNNING
@@ -224,6 +225,7 @@ private fun translateState(reportState: ReportState): State =
 private enum class StateType { TERMINAL, INTERMEDIATE, INVALID }
 private fun getStateType(reportState: ReportState): StateType =
   when (reportState) {
+    ReportState.AWAITING_DUCHY_INITIALIZATION -> error("not implemented")
     ReportState.AWAITING_REQUISITION_CREATION,
     ReportState.AWAITING_DUCHY_CONFIRMATION,
     ReportState.IN_PROGRESS -> StateType.INTERMEDIATE
