@@ -48,15 +48,15 @@ message LiquidLegionsV2Config {
   // Noise parameters selected for the LiquidLegionV2 MPC protocol.
   // Only used as the configuration file consumed by the LiquidLegionV2Mill.
   message NoiseConfig {
-    // Configuration for noise added by the EDPs to protect per EDP reach.
+    // Configuration for input noise added by the EDPs to protect per EDP reach.
     // These noises don't affect the final output.
-    message EdpNoiseConfig {
+    message InputNoiseConfig {
       // DP params for the publisher noise registers.
       // Each of these registers contains a well-known constant register id, and
       // arbitrary key and count values.
       wfa.common.DifferentialPrivacyParams publisher_noise = 1;
     }
-    EdpNoiseConfig edp_noise_config = 1;
+    InputNoiseConfig input_noise_config = 1;
 
     // Configuration for noises added by the MPC workers to protect intermediate
     // results. These noises don't affect the final output.
