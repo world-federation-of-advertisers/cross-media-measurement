@@ -31,8 +31,7 @@ import org.wfanet.measurement.integration.common.InProcessDuchy.DuchyDependencie
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
-
-val DUCHY_IDS = DUCHY_IDS
+import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 
 /**
  * Test that everything is wired up properly.
@@ -41,16 +40,25 @@ val DUCHY_IDS = DUCHY_IDS
  * easily.
  */
 abstract class InProcessKingdomAndDuchyIntegrationTestBase {
-  /** Provides a [KingdomRelationalDatabase] to the test. */
-  abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
+  /** Provides a [KingdomRelationalDatabase] and a [DatabaseTestHelper] to the test. */
+  abstract val kingdomDatabasesRule:
+    ProviderRule<Pair<KingdomRelationalDatabase, DatabaseTestHelper>>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
   abstract val duchyDependenciesRule: ProviderRule<(String) -> DuchyDependencies>
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-    get() = kingdomRelationalDatabaseRule.value
+    get() = kingdomDatabasesRule.value.first
 
-  private val kingdom = InProcessKingdom(verboseGrpcLogging = true) { kingdomRelationalDatabase }
+  private val databaseTestHelper: DatabaseTestHelper
+    get() = kingdomDatabasesRule.value.second
+
+  private val kingdom =
+    InProcessKingdom(
+      verboseGrpcLogging = true,
+      kingdomRelationalDatabaseProvider = { kingdomRelationalDatabase },
+      databaseTestHelperProvider = { databaseTestHelper }
+    )
 
   private val duchies: List<InProcessDuchy> by lazy {
     DUCHY_PUBLIC_KEYS.latest.map { duchy ->
@@ -71,7 +79,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     chainRulesSequentially(
       DuchyIdSetter(DUCHY_IDS),
       dataProviderRule,
-      kingdomRelationalDatabaseRule,
+      kingdomDatabasesRule,
       kingdom,
       duchyDependenciesRule,
       *duchies.toTypedArray()

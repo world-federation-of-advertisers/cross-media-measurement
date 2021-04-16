@@ -20,5 +20,5 @@ import org.wfanet.measurement.integration.common.InProcessKingdomIntegrationTest
  * Implementation of [InProcessKingdomIntegrationTestBase] for GCP backends (Spanner, GCS).
  */
 class InProcessKingdomIntegrationTest : InProcessKingdomIntegrationTestBase() {
-  override val kingdomRelationalDatabaseRule by lazy { KingdomRelationalDatabaseProviderRule() }
+  override val kingdomDatabasesRule by lazy { KingdomDatabasesProviderRule() }
 }

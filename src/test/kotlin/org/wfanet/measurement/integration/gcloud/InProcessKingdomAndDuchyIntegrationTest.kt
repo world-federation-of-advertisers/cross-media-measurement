@@ -14,13 +14,13 @@
 
 package org.wfanet.measurement.integration.gcloud
 
-import org.wfanet.measurement.integration.common.DUCHY_IDS
+import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.integration.common.InProcessKingdomAndDuchyIntegrationTestBase
 
 /**
  * Implementation of [InProcessKingdomAndDuchyIntegrationTestBase] for GCP backends (Spanner, GCS).
  */
 class InProcessKingdomAndDuchyIntegrationTest : InProcessKingdomAndDuchyIntegrationTestBase() {
-  override val kingdomRelationalDatabaseRule by lazy { KingdomRelationalDatabaseProviderRule() }
+  override val kingdomDatabasesRule by lazy { KingdomDatabasesProviderRule() }
   override val duchyDependenciesRule by lazy { DuchyDependencyProviderRule(DUCHY_IDS) }
 }
