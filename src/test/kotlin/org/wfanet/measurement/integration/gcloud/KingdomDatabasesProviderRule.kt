@@ -21,19 +21,32 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
 
-class KingdomRelationalDatabaseProviderRule : ProviderRule<KingdomRelationalDatabase> {
+class KingdomDatabasesProviderRule :
+  ProviderRule<Pair<KingdomRelationalDatabase, DatabaseTestHelper>> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
-  override val value: KingdomRelationalDatabase by lazy {
+  private val kingdomRelationalDatabase by lazy {
     SpannerKingdomRelationalDatabase(
       Clock.systemUTC(),
       RandomIdGenerator(Clock.systemUTC()),
       spannerDatabase.databaseClient
     )
   }
+
+  private val databaseTestHelper by lazy {
+    SpannerDatabaseTestHelper(
+      Clock.systemUTC(),
+      RandomIdGenerator(Clock.systemUTC()),
+      spannerDatabase.databaseClient
+    )
+  }
+
+  override val value by lazy { Pair(kingdomRelationalDatabase, databaseTestHelper) }
 
   override fun apply(base: Statement, description: Description): Statement {
     return spannerDatabase.apply(base, description)

@@ -23,7 +23,9 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.testing.AbstractKingdomRelationalDatabaseTest
+import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
 
 @RunWith(JUnit4::class)
 class SpannerKingdomRelationalDatabaseTest : AbstractKingdomRelationalDatabaseTest() {
@@ -31,17 +33,26 @@ class SpannerKingdomRelationalDatabaseTest : AbstractKingdomRelationalDatabaseTe
   val spannerEmulatorDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
   private lateinit var spannerKingdomDatabase: SpannerKingdomRelationalDatabase
-
   override val database: KingdomRelationalDatabase
     get() = spannerKingdomDatabase
 
+  private lateinit var spannerDatabaseTestHelper: SpannerDatabaseTestHelper
+  override val databaseTestHelper: DatabaseTestHelper
+    get() = spannerDatabaseTestHelper
+
   @Before
-  fun initKingdomDatabase() {
+  fun initKingdomDatabases() {
     spannerKingdomDatabase =
       SpannerKingdomRelationalDatabase(
         Clock.systemUTC(),
         RandomIdGenerator(),
         spannerEmulatorDatabase.databaseClient
       )
+
+    spannerDatabaseTestHelper = SpannerDatabaseTestHelper(
+      Clock.systemUTC(),
+      RandomIdGenerator(),
+      spannerEmulatorDatabase.databaseClient
+    )
   }
 }

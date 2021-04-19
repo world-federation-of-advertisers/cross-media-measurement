@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionRequest
@@ -55,15 +56,23 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsReque
  * same tests easily.
  */
 abstract class InProcessKingdomIntegrationTestBase {
-  /** Provides a [KingdomRelationalDatabase] to the test. */
-  abstract val kingdomRelationalDatabaseRule: ProviderRule<KingdomRelationalDatabase>
+  /** Provides a [KingdomRelationalDatabase] and a [DatabaseTestHelper] to the test. */
+  abstract val kingdomDatabasesRule:
+    ProviderRule<Pair<KingdomRelationalDatabase, DatabaseTestHelper>>
 
   private val kingdomRelationalDatabase: KingdomRelationalDatabase
-    get() = kingdomRelationalDatabaseRule.value
+    get() = kingdomDatabasesRule.value.first
+
+  private val databaseTestHelper: DatabaseTestHelper
+    get() = kingdomDatabasesRule.value.second
 
   private var duchyId: String = "some-duchy"
 
-  private val kingdom = InProcessKingdom { kingdomRelationalDatabase }
+  private val kingdom =
+    InProcessKingdom(
+      kingdomRelationalDatabaseProvider = { kingdomRelationalDatabase },
+      databaseTestHelperProvider = { databaseTestHelper }
+    )
 
   private val globalComputations = mutableListOf<GlobalComputation>()
   private val globalComputationsMutex = Mutex()
@@ -94,7 +103,7 @@ abstract class InProcessKingdomIntegrationTestBase {
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
       DuchyIdSetter(duchyId),
-      kingdomRelationalDatabaseRule,
+      kingdomDatabasesRule,
       kingdom,
       globalComputationsReader
     )

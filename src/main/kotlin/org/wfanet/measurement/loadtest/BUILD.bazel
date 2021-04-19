@@ -20,7 +20,10 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/common/truth/extensions/proto",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:spanner_database_test_helper",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "//src/main/proto/wfa/measurement/api/v1alpha:publisher_data_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",

@@ -31,6 +31,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/daemon",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v1alpha:requisition_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:global_computation_service",

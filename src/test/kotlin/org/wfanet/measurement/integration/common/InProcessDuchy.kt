@@ -50,6 +50,7 @@ import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncCom
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
+import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
