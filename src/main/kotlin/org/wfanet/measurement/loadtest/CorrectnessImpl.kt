@@ -67,6 +67,7 @@ import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
+import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
@@ -92,22 +93,25 @@ class CorrectnessImpl(
   /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
   private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
-  suspend fun process(relationalDatabase: KingdomRelationalDatabase) {
+  suspend fun process(
+    relationalDatabase: KingdomRelationalDatabase,
+    relationalDatabaseTestHelper: DatabaseTestHelper
+  ) {
     logger.info("Starting with RunID: $runId ...")
     val testResult = TestResult.newBuilder().setRunId(runId)
 
-    val advertiser = relationalDatabase.createAdvertiser()
+    val advertiser = relationalDatabaseTestHelper.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
 
     val generatedCampaigns = List(dataProviderCount) {
-      relationalDatabase.createDataProvider(externalAdvertiserId).toList()
+      relationalDatabaseTestHelper.createDataProvider(externalAdvertiserId).toList()
     }.flatten()
 
     // Schedule a report before loading the metric requisitions.
     val campaignIds = generatedCampaigns.map { it.campaignId }
     val reportConfigAndScheduleId =
-      relationalDatabase.scheduleReport(externalAdvertiserId, campaignIds)
+      relationalDatabaseTestHelper.scheduleReport(externalAdvertiserId, campaignIds)
 
     val anySketches = generatedCampaigns.map { it.sketch }
     val combinedAnySketch = SketchProtos.toAnySketch(sketchConfig).apply { mergeAll(anySketches) }
@@ -165,7 +169,7 @@ class CorrectnessImpl(
     }.first()
   }
 
-  private suspend fun KingdomRelationalDatabase.createDataProvider(
+  private suspend fun DatabaseTestHelper.createDataProvider(
     externalAdvertiserId: ExternalId
   ): Flow<GeneratedCampaign> {
     val dataProvider = createDataProvider()
@@ -177,7 +181,7 @@ class CorrectnessImpl(
     }
   }
 
-  private suspend fun KingdomRelationalDatabase.createCampaign(
+  private suspend fun DatabaseTestHelper.createCampaign(
     reach: Set<Long>,
     externalAdvertiserId: ExternalId,
     externalDataProviderId: ExternalId
@@ -194,7 +198,7 @@ class CorrectnessImpl(
     return GeneratedCampaign(externalDataProviderId, externalCampaignId, anySketch)
   }
 
-  private suspend fun KingdomRelationalDatabase.scheduleReport(
+  private suspend fun DatabaseTestHelper.scheduleReport(
     externalAdvertiserId: ExternalId,
     campaignIds: List<ExternalId>
   ): ReportConfigAndScheduleId {

@@ -61,12 +61,13 @@ val REFUSAL: Refusal = Refusal.newBuilder().apply {
 abstract class AbstractKingdomRelationalDatabaseTest {
   /** [KingdomRelationalDatabase] instance. */
   abstract val database: KingdomRelationalDatabase
+  abstract val databaseTestHelper: DatabaseTestHelper
 
   protected suspend fun buildRequisitionWithParents(): RequisitionWithParents {
-    val advertiser = database.createAdvertiser()
-    val dataProvider = database.createDataProvider()
+    val advertiser = databaseTestHelper.createAdvertiser()
+    val dataProvider = databaseTestHelper.createDataProvider()
     val campaign =
-      database.createCampaign(
+      databaseTestHelper.createCampaign(
         ExternalId(dataProvider.externalDataProviderId),
         ExternalId(advertiser.externalAdvertiserId),
         PROVIDED_CAMPAIGN_ID
@@ -102,7 +103,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     advertiserId: ExternalId,
     vararg campaignIds: ExternalId
   ): Report {
-    val reportConfig = database.createReportConfig(
+    val reportConfig = databaseTestHelper.createReportConfig(
       ReportConfig.newBuilder().apply {
         externalAdvertiserId = advertiserId.value
         reportConfigDetailsBuilder.apply {
@@ -115,7 +116,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
       }.build(),
       campaignIds.asList()
     )
-    val schedule = database.createSchedule(
+    val schedule = databaseTestHelper.createSchedule(
       ReportConfigSchedule.newBuilder().apply {
         externalAdvertiserId = reportConfig.externalAdvertiserId
         externalReportConfigId = reportConfig.externalReportConfigId

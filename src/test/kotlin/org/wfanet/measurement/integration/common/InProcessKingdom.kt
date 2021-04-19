@@ -55,6 +55,7 @@ import org.wfanet.measurement.kingdom.daemon.runReportMaker
 import org.wfanet.measurement.kingdom.daemon.runReportStarter
 import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
@@ -67,9 +68,11 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService 
  */
 class InProcessKingdom(
   verboseGrpcLogging: Boolean = true,
-  kingdomRelationalDatabaseProvider: () -> KingdomRelationalDatabase
+  kingdomRelationalDatabaseProvider: () -> KingdomRelationalDatabase,
+  databaseTestHelperProvider: () -> DatabaseTestHelper
 ) : TestRule {
   private val kingdomRelationalDatabase by lazy { kingdomRelationalDatabaseProvider() }
+  private val databaseTestHelper by lazy { databaseTestHelperProvider() }
 
   private val databaseServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
     logger.info("Building Kingdom's internal services")
@@ -160,34 +163,34 @@ class InProcessKingdom(
    * ReportConfigSchedule to [kingdomRelationalDatabase].
    */
   fun populateKingdomRelationalDatabase(): SetupIdentifiers = runBlocking {
-    val advertiser = kingdomRelationalDatabase.createAdvertiser()
+    val advertiser = databaseTestHelper.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
 
-    val dataProvider1 = kingdomRelationalDatabase.createDataProvider()
+    val dataProvider1 = databaseTestHelper.createDataProvider()
     logger.info("Created a DataProvider: $dataProvider1")
 
-    val dataProvider2 = kingdomRelationalDatabase.createDataProvider()
+    val dataProvider2 = databaseTestHelper.createDataProvider()
     logger.info("Created a DataProvider: $dataProvider2")
 
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
     val externalDataProviderId1 = ExternalId(dataProvider1.externalDataProviderId)
     val externalDataProviderId2 = ExternalId(dataProvider2.externalDataProviderId)
 
-    val campaign1 = kingdomRelationalDatabase.createCampaign(
+    val campaign1 = databaseTestHelper.createCampaign(
       externalDataProviderId1,
       externalAdvertiserId,
       "Springtime Sale Campaign"
     )
     logger.info("Created a Campaign: $campaign1")
 
-    val campaign2 = kingdomRelationalDatabase.createCampaign(
+    val campaign2 = databaseTestHelper.createCampaign(
       externalDataProviderId2,
       externalAdvertiserId,
       "Summer Savings Campaign"
     )
     logger.info("Created a Campaign: $campaign2")
 
-    val campaign3 = kingdomRelationalDatabase.createCampaign(
+    val campaign3 = databaseTestHelper.createCampaign(
       externalDataProviderId2,
       externalAdvertiserId,
       "Yet Another Campaign"
@@ -205,7 +208,7 @@ class InProcessKingdom(
       }
     }.build()
 
-    val reportConfig = kingdomRelationalDatabase.createReportConfig(
+    val reportConfig = databaseTestHelper.createReportConfig(
       ReportConfig.newBuilder()
         .setExternalAdvertiserId(externalAdvertiserId.value)
         .apply {
@@ -225,7 +228,7 @@ class InProcessKingdom(
 
     val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
 
-    val schedule = kingdomRelationalDatabase.createSchedule(
+    val schedule = databaseTestHelper.createSchedule(
       ReportConfigSchedule.newBuilder()
         .setExternalAdvertiserId(externalAdvertiserId.value)
         .setExternalReportConfigId(externalReportConfigId.value)

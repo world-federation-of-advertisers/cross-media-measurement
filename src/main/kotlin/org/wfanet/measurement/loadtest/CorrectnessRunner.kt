@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -56,6 +57,9 @@ abstract class CorrectnessRunner : Runnable {
         val relationalDatabase =
           SpannerKingdomRelationalDatabase(clock, RandomIdGenerator(clock), spanner.databaseClient)
 
+        val databaseTestHelper =
+          SpannerDatabaseTestHelper(clock, RandomIdGenerator(clock), spanner.databaseClient)
+
         val correctness = CorrectnessImpl(
           dataProviderCount = flags.dataProviderCount,
           campaignCount = flags.campaignCount,
@@ -67,7 +71,7 @@ abstract class CorrectnessRunner : Runnable {
           publisherDataStub = publisherDataStub
         )
 
-        correctness.process(relationalDatabase)
+        correctness.process(relationalDatabase, databaseTestHelper)
       }
     }
   }
