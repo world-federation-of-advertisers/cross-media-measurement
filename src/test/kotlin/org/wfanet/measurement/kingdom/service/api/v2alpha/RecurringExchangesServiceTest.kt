@@ -22,7 +22,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.CreateRecurringExchangeRequest
 import org.wfanet.measurement.api.v2alpha.GetRecurringExchangeRequest
 import org.wfanet.measurement.api.v2alpha.ListRecurringExchangesRequest
-import org.wfanet.measurement.api.v2alpha.RecurringExchange
+import org.wfanet.measurement.api.v2alpha.RetireRecurringExchangeRequest
 
 @RunWith(JUnit4::class)
 class RecurringExchangesServiceTest {
@@ -51,9 +51,9 @@ class RecurringExchangesServiceTest {
   }
 
   @Test
-  fun updateRecurringExchange() = runBlocking<Unit> {
+  fun retireRecurringExchange() = runBlocking<Unit> {
     assertFailsWith(NotImplementedError::class) {
-      service.updateRecurringExchange(RecurringExchange.getDefaultInstance())
+      service.retireRecurringExchange(RetireRecurringExchangeRequest.getDefaultInstance())
     }
   }
 }
