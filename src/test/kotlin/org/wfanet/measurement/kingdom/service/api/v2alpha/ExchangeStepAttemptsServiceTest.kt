@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Timestamp
+import com.google.type.Date
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
@@ -43,14 +45,18 @@ private const val STEP_INDEX = 1
 private const val ATTEMPT_NUMBER = 3
 private val ARBITRARY_BYTES = ByteString.copyFromUtf8("some arbitrary bytes")
 
+private val DEBUG_LOG_1_TIME = Timestamp.newBuilder().setSeconds(1010101).build()
+private const val DEBUG_LOG_1_MESSAGE = "some message"
+private val DEBUG_LOG_2_TIME = Timestamp.newBuilder().setSeconds(2020202).build()
+private const val DEBUG_LOG_2_MESSAGE = "some other message"
+
+private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
+private val EXCHANGE_ID = String.format("%d-%2d-%d", DATE.year, DATE.month, DATE.day)
+
 private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
   InternalExchangeStepAttempt.newBuilder().apply {
     externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-    dateBuilder.apply {
-      year = 2021
-      month = 3
-      day = 14
-    }
+    date = DATE
     stepIndex = STEP_INDEX
     attemptNumber = ATTEMPT_NUMBER
     state = InternalExchangeStepAttempt.State.ACTIVE
@@ -58,12 +64,12 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
       startTimeBuilder.seconds = 123
       updateTimeBuilder.seconds = 456
       addDebugLogEntriesBuilder().apply {
-        timeBuilder.seconds = 789
-        message = "some message"
+        time = DEBUG_LOG_1_TIME
+        message = DEBUG_LOG_1_MESSAGE
       }
       addDebugLogEntriesBuilder().apply {
-        timeBuilder.seconds = 101112
-        message = "some other message"
+        time = DEBUG_LOG_2_TIME
+        message = DEBUG_LOG_2_MESSAGE
       }
       addSharedOutputs(ARBITRARY_BYTES)
     }
@@ -72,7 +78,7 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
 private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt = ExchangeStepAttempt.newBuilder().apply {
   keyBuilder.apply {
     recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
-    exchangeId = "2021-03-14"
+    exchangeId = EXCHANGE_ID
     stepId = externalIdToApiId(STEP_INDEX.toLong())
     exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
   }
@@ -81,12 +87,12 @@ private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt = ExchangeStepAttempt.new
   startTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.startTime
   updateTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.updateTime
   addDebugLogEntriesBuilder().apply {
-    timeBuilder.seconds = 789
-    message = "some message"
+    time = DEBUG_LOG_1_TIME
+    message = DEBUG_LOG_1_MESSAGE
   }
   addDebugLogEntriesBuilder().apply {
-    timeBuilder.seconds = 101112
-    message = "some other message"
+    time = DEBUG_LOG_2_TIME
+    message = DEBUG_LOG_2_MESSAGE
   }
   addSharedOutputs(ARBITRARY_BYTES)
 }.build()
