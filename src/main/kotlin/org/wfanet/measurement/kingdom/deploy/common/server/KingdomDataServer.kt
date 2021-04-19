@@ -32,7 +32,7 @@ abstract class KingdomDataServer : Runnable {
   protected suspend fun run(database: KingdomRelationalDatabase) {
     DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
 
-    val services = buildDataServices(database)
+    val services = buildDataServices(database, database, database)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

@@ -18,14 +18,15 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 
 class ReportConfigSchedulesService(
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
+  private val legacySchedulingDatabase: LegacySchedulingDatabase
 ) : ReportConfigSchedulesCoroutineImplBase() {
 
   override fun streamReadyReportConfigSchedules(
     request: StreamReadyReportConfigSchedulesRequest
-  ): Flow<ReportConfigSchedule> =
-    kingdomRelationalDatabase.streamReadySchedules(request.limit)
+  ): Flow<ReportConfigSchedule> {
+    return legacySchedulingDatabase.streamReadySchedules(request.limit)
+  }
 }

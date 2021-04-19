@@ -66,6 +66,7 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.storage.StorageClient
@@ -152,7 +153,7 @@ class CorrectnessImpl(
     logger.info("Correctness Test passes with manifest: $blobKey.")
   }
 
-  private suspend fun KingdomRelationalDatabase.getFinishedReport(
+  private suspend fun ReportDatabase.getFinishedReport(
     externalReportConfigId: ExternalId,
     externalScheduleId: ExternalId
   ): Report {
