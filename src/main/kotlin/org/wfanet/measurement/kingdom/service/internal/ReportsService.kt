@@ -28,25 +28,25 @@ import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineImp
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
 class ReportsService(
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
+  private val reportDatabase: ReportDatabase
 ) : ReportsCoroutineImplBase() {
   override suspend fun getReport(request: GetReportRequest): Report {
-    return kingdomRelationalDatabase.getReport(ExternalId(request.externalReportId))
+    return reportDatabase.getReport(ExternalId(request.externalReportId))
   }
 
   override suspend fun createNextReport(request: CreateNextReportRequest): Report {
-    return kingdomRelationalDatabase.createNextReport(
+    return reportDatabase.createNextReport(
       ExternalId(request.externalScheduleId),
       request.combinedPublicKeyResourceId
     )
   }
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> {
-    return kingdomRelationalDatabase.streamReports(
+    return reportDatabase.streamReports(
       streamReportsFilter(
         externalAdvertiserIds = request.filter.externalAdvertiserIdsList.map(::ExternalId),
         externalReportConfigIds = request.filter.externalReportConfigIdsList.map(::ExternalId),
@@ -59,11 +59,11 @@ class ReportsService(
   }
 
   override fun streamReadyReports(request: StreamReadyReportsRequest): Flow<Report> {
-    return kingdomRelationalDatabase.streamReadyReports(request.limit)
+    return reportDatabase.streamReadyReports(request.limit)
   }
 
   override suspend fun updateReportState(request: UpdateReportStateRequest): Report {
-    return kingdomRelationalDatabase.updateReportState(
+    return reportDatabase.updateReportState(
       ExternalId(request.externalReportId),
       request.state
     )
@@ -72,7 +72,7 @@ class ReportsService(
   override suspend fun associateRequisition(
     request: AssociateRequisitionRequest
   ): AssociateRequisitionResponse {
-    kingdomRelationalDatabase.associateRequisitionToReport(
+    reportDatabase.associateRequisitionToReport(
       externalRequisitionId = ExternalId(request.externalRequisitionId),
       externalReportId = ExternalId(request.externalReportId)
     )
@@ -82,7 +82,7 @@ class ReportsService(
   override suspend fun confirmDuchyReadiness(
     request: ConfirmDuchyReadinessRequest
   ): Report {
-    return kingdomRelationalDatabase.confirmDuchyReadiness(
+    return reportDatabase.confirmDuchyReadiness(
       ExternalId(request.externalReportId),
       request.duchyId,
       request.externalRequisitionIdsList.map(::ExternalId).toSet()
@@ -90,7 +90,7 @@ class ReportsService(
   }
 
   override suspend fun finishReport(request: FinishReportRequest): Report {
-    return kingdomRelationalDatabase.finishReport(
+    return reportDatabase.finishReport(
       ExternalId(request.externalReportId),
       request.result
     )
