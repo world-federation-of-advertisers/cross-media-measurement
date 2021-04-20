@@ -51,7 +51,7 @@ private val DEBUG_LOG_2_TIME = Timestamp.newBuilder().setSeconds(2020202).build(
 private const val DEBUG_LOG_2_MESSAGE = "some other message"
 
 private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
-private val EXCHANGE_ID = String.format("%d-%02d-%02d", DATE.year, DATE.month, DATE.day)
+private const val EXCHANGE_ID = "2021-03-14"
 
 private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
   InternalExchangeStepAttempt.newBuilder().apply {
