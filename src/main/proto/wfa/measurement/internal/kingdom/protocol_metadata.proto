@@ -36,31 +36,31 @@ message LiquidLegionsV2MetaData {
 // is created and then immutable.
 message LiquidLegionsV2Config {
   // Parameters of the Liquid Legion sketch.
-  message LiquidLegionSketchConfig {
+  message Sketch {
     // The decay rate of the Liquid Legions sketch.
     double decay_rate = 1;
 
     // The maximum size of the Liquid Legions sketch.
     int64 size = 2;
   }
-  LiquidLegionSketchConfig sketch_config = 1;
+  Sketch sketch = 1;
 
   // Noise parameters selected for the LiquidLegionV2 MPC protocol.
   // Only used as the configuration file consumed by the LiquidLegionV2Mill.
-  message NoiseConfig {
+  message Noise {
     // Configuration for input noise added by the EDPs to protect per EDP reach.
     // These noises don't affect the final output.
-    message InputNoiseConfig {
+    message InputNoise {
       // DP params for the publisher noise registers.
       // Each of these registers contains a well-known constant register id, and
       // arbitrary key and count values.
       wfa.common.DifferentialPrivacyParams publisher_noise = 1;
     }
-    InputNoiseConfig input_noise_config = 1;
+    InputNoise input_noise = 1;
 
     // Configuration for noises added by the MPC workers to protect intermediate
     // results. These noises don't affect the final output.
-    message MpcNoiseConfig {
+    message MpcNoise {
       // DP params for the blind histogram noise register.
       // Each of these registers contains a random register id, the same
       // constant key indicating that the register is destroyed, and an
@@ -71,11 +71,11 @@ message LiquidLegionsV2Config {
       // arbitrary key and count values.
       wfa.common.DifferentialPrivacyParams noise_for_publisher_noise = 2;
     }
-    MpcNoiseConfig mpc_noise_config = 2;
+    MpcNoise mpc_noise = 2;
 
     // Configuration for noises added by the MPC workers to protect the final
     // output.
-    message OutputNoiseConfig {
+    message OutputNoise {
       // DP params for the global reach DP noise registers.
       // Each of these registers contains a random register id which is out of
       // bounds of the normal id space, the same constant key indicating that
@@ -85,9 +85,9 @@ message LiquidLegionsV2Config {
       // Same value is used for both (0, R, R) and (R, R, R) tuples.
       wfa.common.DifferentialPrivacyParams global_frequency_noise = 2;
     }
-    OutputNoiseConfig output_noise_config = 3;
+    OutputNoise output_noise = 3;
   }
-  NoiseConfig noise_config = 2;
+  Noise noise = 2;
 
   // The maximum frequency to reveal in the histogram.
   int32 maximum_frequency = 3;

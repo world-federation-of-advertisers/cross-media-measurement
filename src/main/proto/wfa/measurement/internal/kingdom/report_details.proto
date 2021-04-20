@@ -47,7 +47,7 @@ message ReportDetails {
   }
   repeated ExternalRequisitionKey requisitions = 3;
 
-  oneof protocol {
+  oneof protocol_metadata {
     LiquidLegionsV2MetaData liquid_legions_v2 = 4;
   }
 
