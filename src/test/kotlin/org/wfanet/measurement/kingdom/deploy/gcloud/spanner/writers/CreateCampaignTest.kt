@@ -51,10 +51,11 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
     externalAdvertiserId: Long
   ): Campaign {
     return CreateCampaign(
-      ExternalId(externalDataProviderId),
-      ExternalId(externalAdvertiserId),
-      PROVIDED_CAMPAIGN_ID
-    ).execute(databaseClient, idGenerator)
+        ExternalId(externalDataProviderId),
+        ExternalId(externalAdvertiserId),
+        PROVIDED_CAMPAIGN_ID
+      )
+      .execute(databaseClient, idGenerator)
   }
 
   @Before
@@ -70,48 +71,54 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
       .toList()
 
   @Test
-  fun success() = runBlocking<Unit> {
-    val campaign = createCampaign(EXTERNAL_DATA_PROVIDER_ID, EXTERNAL_ADVERTISER_ID)
+  fun success() =
+    runBlocking<Unit> {
+      val campaign = createCampaign(EXTERNAL_DATA_PROVIDER_ID, EXTERNAL_ADVERTISER_ID)
 
-    assertThat(campaign)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        Campaign.newBuilder().apply {
-          externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          externalCampaignId = EXTERNAL_CAMPAIGN_ID
-          providedCampaignId = PROVIDED_CAMPAIGN_ID
-        }.build()
-      )
+      assertThat(campaign)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          Campaign.newBuilder()
+            .apply {
+              externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              externalCampaignId = EXTERNAL_CAMPAIGN_ID
+              providedCampaignId = PROVIDED_CAMPAIGN_ID
+            }
+            .build()
+        )
 
-    assertThat(readCampaignStructs())
-      .containsExactly(
-        Struct.newBuilder()
-          .set("DataProviderId").to(DATA_PROVIDER_ID)
-          .set("CampaignId").to(CAMPAIGN_ID)
-          .set("AdvertiserId").to(ADVERTISER_ID)
-          .set("ExternalCampaignId").to(EXTERNAL_CAMPAIGN_ID)
-          .set("ProvidedCampaignId").to(PROVIDED_CAMPAIGN_ID)
-          .set("CampaignDetails").to(ByteArray.copyFrom(""))
-          .set("CampaignDetailsJson").to("")
-          .build()
-      )
-  }
+      assertThat(readCampaignStructs())
+        .containsExactly(
+          Struct.newBuilder()
+            .set("DataProviderId")
+            .to(DATA_PROVIDER_ID)
+            .set("CampaignId")
+            .to(CAMPAIGN_ID)
+            .set("AdvertiserId")
+            .to(ADVERTISER_ID)
+            .set("ExternalCampaignId")
+            .to(EXTERNAL_CAMPAIGN_ID)
+            .set("ProvidedCampaignId")
+            .to(PROVIDED_CAMPAIGN_ID)
+            .set("CampaignDetails")
+            .to(ByteArray.copyFrom(""))
+            .set("CampaignDetailsJson")
+            .to("")
+            .build()
+        )
+    }
 
   @Test
   fun `invalid data provider id`() = runBlocking {
-    assertFails {
-      createCampaign(99999L, EXTERNAL_ADVERTISER_ID)
-    }
+    assertFails { createCampaign(99999L, EXTERNAL_ADVERTISER_ID) }
 
     assertThat(readCampaignStructs()).isEmpty()
   }
 
   @Test
   fun `invalid campaign id`() = runBlocking {
-    assertFails {
-      createCampaign(EXTERNAL_DATA_PROVIDER_ID, 999999L)
-    }
+    assertFails { createCampaign(EXTERNAL_DATA_PROVIDER_ID, 999999L) }
 
     assertThat(readCampaignStructs()).isEmpty()
   }

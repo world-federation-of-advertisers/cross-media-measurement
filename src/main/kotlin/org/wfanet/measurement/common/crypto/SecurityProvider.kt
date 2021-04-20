@@ -27,9 +27,8 @@ import org.wfanet.measurement.common.base64Decode
 
 private const val CERTIFICATE_TYPE = "X.509"
 
-private val conscryptProvider: Provider = Conscrypt.newProvider().also {
-  Security.insertProviderAt(it, 1)
-}
+private val conscryptProvider: Provider =
+  Conscrypt.newProvider().also { Security.insertProviderAt(it, 1) }
 
 /** Primary JCE [Provider] for crypto operations. */
 val jceProvider: Provider = conscryptProvider
@@ -40,7 +39,8 @@ private val certFactory = CertificateFactory.getInstance(CERTIFICATE_TYPE, jcePr
 fun readCertificate(pemFile: File): X509Certificate {
   return pemFile.inputStream().use { fileInputStream ->
     certFactory.generateCertificate(fileInputStream)
-  } as X509Certificate
+  } as
+    X509Certificate
 }
 
 /** Reads an X.509 certificate collection from a PEM file. */
@@ -48,7 +48,8 @@ fun readCertificateCollection(pemFile: File): Collection<X509Certificate> {
   @Suppress("UNCHECKED_CAST") // Underlying mutable collection never exposed.
   return pemFile.inputStream().use { fileInputStream ->
     certFactory.generateCertificates(fileInputStream)
-  } as Collection<X509Certificate>
+  } as
+    Collection<X509Certificate>
 }
 
 /** Reads a private key from a PKCS#8-encoded PEM file. */

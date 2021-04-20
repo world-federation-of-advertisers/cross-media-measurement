@@ -18,9 +18,8 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogE
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 
-class ReportLogEntriesService(
-  private val reportDatabase: ReportDatabase
-) : ReportLogEntriesCoroutineImplBase() {
+class ReportLogEntriesService(private val reportDatabase: ReportDatabase) :
+  ReportLogEntriesCoroutineImplBase() {
   override suspend fun createReportLogEntry(request: ReportLogEntry): ReportLogEntry {
     return reportDatabase.addReportLogEntry(request)
   }

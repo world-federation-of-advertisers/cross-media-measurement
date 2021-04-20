@@ -42,9 +42,7 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
   }
 
   /** The latest (most recent) entry. */
-  val latest: Entry by lazy {
-    entries.maxBy { it.value.combinedPublicKeyVersion }!!.value
-  }
+  val latest: Entry by lazy { entries.maxBy { it.value.combinedPublicKeyVersion }!!.value }
 
   /** Returns the [Entry] for the specified CombinedPublicKey resource ID. */
   fun get(combinedPublicKeyId: String): Entry? = entries[combinedPublicKeyId]
@@ -70,9 +68,8 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
   companion object {
     /** Constructs a [DuchyPublicKeys] instance from command-line flags. */
     fun fromFlags(flags: Flags): DuchyPublicKeys {
-      val configMessage = flags.config.reader().use {
-        parseTextProto(it, DuchyPublicKeyConfig.getDefaultInstance())
-      }
+      val configMessage =
+        flags.config.reader().use { parseTextProto(it, DuchyPublicKeyConfig.getDefaultInstance()) }
       return DuchyPublicKeys(configMessage)
     }
   }
@@ -87,20 +84,26 @@ private fun ConfigMapEntry.toDuchyPublicKeysEntry(): DuchyPublicKeys.Entry {
       "Expected $ELEMENT_SIZE bytes for element. Got ${combinedElGamalElement.size()}."
     }
     return DuchyPublicKeys.Entry(
-      publicKeyMap = elGamalElementsMap.mapValues {
-        require(it.value.size() == ELEMENT_SIZE) {
-          "Expected $ELEMENT_SIZE bytes for element. Got ${it.value.size()}."
-        }
-        ElGamalPublicKey.newBuilder().apply {
-          generator = elGamalGenerator
-          element = it.value
-        }.build()
-      },
+      publicKeyMap =
+        elGamalElementsMap.mapValues {
+          require(it.value.size() == ELEMENT_SIZE) {
+            "Expected $ELEMENT_SIZE bytes for element. Got ${it.value.size()}."
+          }
+          ElGamalPublicKey.newBuilder()
+            .apply {
+              generator = elGamalGenerator
+              element = it.value
+            }
+            .build()
+        },
       combinedPublicKeyId = key,
-      combinedPublicKey = ElGamalPublicKey.newBuilder().apply {
-        generator = elGamalGenerator
-        element = combinedElGamalElement
-      }.build(),
+      combinedPublicKey =
+        ElGamalPublicKey.newBuilder()
+          .apply {
+            generator = elGamalGenerator
+            element = combinedElGamalElement
+          }
+          .build(),
       combinedPublicKeyVersion = combinedPublicKeyVersion,
       curveId = ellipticCurveId
     )

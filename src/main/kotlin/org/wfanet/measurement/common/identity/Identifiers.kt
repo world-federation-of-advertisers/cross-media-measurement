@@ -57,15 +57,11 @@ data class InternalId(val value: Long)
 // An alternative is: toBigInteger().toByteArray(), but that includes the sign bit, which uses an
 // extra byte.
 private fun Long.toByteArray(): ByteArray =
-  ByteArray(8) {
-    ((this shr ((7 - it) * 8)) and 0xFF).toByte()
-  }
+  ByteArray(8) { ((this shr ((7 - it) * 8)) and 0xFF).toByte() }
 
 private fun ByteArray.toLong(): Long {
   require(size == 8) { "Invalid conversion: $this is not 8 bytes" }
   return BigInteger(this).toLong().also {
-    require(it >= 0L) {
-      "Negative id numbers are not permitted: $it"
-    }
+    require(it >= 0L) { "Negative id numbers are not permitted: $it" }
   }
 }

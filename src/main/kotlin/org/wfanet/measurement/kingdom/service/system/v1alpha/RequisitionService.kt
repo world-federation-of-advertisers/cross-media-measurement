@@ -24,23 +24,26 @@ import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionResponse
 import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineImplBase as RequisitionCoroutineService
 
 /** Implementation of Requisition service from system API. */
-class RequisitionService private constructor(
+class RequisitionService
+private constructor(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity
 ) : RequisitionCoroutineService() {
-  constructor(requisitionsClient: RequisitionsCoroutineStub) : this(
-    requisitionsClient,
-    ::duchyIdentityFromContext
-  )
+  constructor(
+    requisitionsClient: RequisitionsCoroutineStub
+  ) : this(requisitionsClient, ::duchyIdentityFromContext)
 
   override suspend fun fulfillMetricRequisition(
     request: FulfillMetricRequisitionRequest
   ): FulfillMetricRequisitionResponse {
     val externalId = ApiId(request.key.metricRequisitionId).externalId
-    val internalRequest = FulfillRequisitionRequest.newBuilder().apply {
-      externalRequisitionId = externalId.value
-      duchyId = duchyIdentityProvider().id
-    }.build()
+    val internalRequest =
+      FulfillRequisitionRequest.newBuilder()
+        .apply {
+          externalRequisitionId = externalId.value
+          duchyId = duchyIdentityProvider().id
+        }
+        .build()
     requisitionsClient.fulfillRequisition(internalRequest)
 
     return FulfillMetricRequisitionResponse.getDefaultInstance()

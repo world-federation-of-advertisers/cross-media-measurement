@@ -50,10 +50,13 @@ class CampaignReader : SpannerReader<CampaignReader.Result>() {
       struct.getLong("AdvertiserId")
     )
 
-  private fun buildCampaign(struct: Struct): Campaign = Campaign.newBuilder().apply {
-    externalDataProviderId = struct.getLong("ExternalDataProviderId")
-    externalCampaignId = struct.getLong("ExternalCampaignId")
-    providedCampaignId = struct.getString("ProvidedCampaignId")
-    externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
-  }.build()
+  private fun buildCampaign(struct: Struct): Campaign =
+    Campaign.newBuilder()
+      .apply {
+        externalDataProviderId = struct.getLong("ExternalDataProviderId")
+        externalCampaignId = struct.getLong("ExternalCampaignId")
+        providedCampaignId = struct.getString("ProvidedCampaignId")
+        externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
+      }
+      .build()
 }

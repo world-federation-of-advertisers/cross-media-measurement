@@ -57,8 +57,5 @@ fun runKingdomApiServer(
   val service = serviceFactory(channel).withDuchyIdentities()
   val name = service.serviceDescriptor.name + "Server"
 
-  CommonServer
-    .fromFlags(commonServerFlags, name, service)
-    .start()
-    .blockUntilShutdown()
+  CommonServer.fromFlags(commonServerFlags, name, service).start().blockUntilShutdown()
 }

@@ -70,7 +70,6 @@ import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCorout
  * @param otherDuchyIds the names of other duchies
  * @param kingdomChannel a gRPC channel to the Kingdom
  * @param duchyDependenciesProvider provides the backends and other inputs required to start a Duchy
- *
  */
 class InProcessDuchy(
   val verboseGrpcLogging: Boolean = true,
@@ -97,22 +96,24 @@ class InProcessDuchy(
     ComputationStatsCoroutineStub(computationControlChannel(duchyId))
   }
 
-  private val storageServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-    addService(
-      ComputationsService(
-        duchyDependencies.computationsDatabase,
-        kingdomGlobalComputationsStub,
-        duchyId,
-        Clock.systemUTC()
+  private val storageServer =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      addService(
+        ComputationsService(
+          duchyDependencies.computationsDatabase,
+          kingdomGlobalComputationsStub,
+          duchyId,
+          Clock.systemUTC()
+        )
       )
-    )
-  }
+    }
 
-  private val metricValuesServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-    addService(
-      MetricValuesService(duchyDependencies.metricValueDatabase, duchyDependencies.storageClient)
-    )
-  }
+  private val metricValuesServer =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      addService(
+        MetricValuesService(duchyDependencies.metricValueDatabase, duchyDependencies.storageClient)
+      )
+    }
 
   private val computationStorageServiceStub by lazy {
     ComputationsCoroutineStub(storageServer.channel)
@@ -121,21 +122,26 @@ class InProcessDuchy(
   private val heraldRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
       val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
-      val protocolsSetupConfig = ProtocolsSetupConfig.newBuilder().apply {
-        liquidLegionsV2Builder.apply {
-          role = if (duchyId == DUCHY_IDS.first()) {
-            LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
-          } else {
-            LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
+      val protocolsSetupConfig =
+        ProtocolsSetupConfig.newBuilder()
+          .apply {
+            liquidLegionsV2Builder.apply {
+              role =
+                if (duchyId == DUCHY_IDS.first()) {
+                  LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+                } else {
+                  LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
+                }
+            }
           }
-        }
-      }.build()
-      val herald = Herald(
-        otherDuchyIds,
-        computationStorageServiceStub,
-        kingdomGlobalComputationsStub,
-        protocolsSetupConfig
-      )
+          .build()
+      val herald =
+        Herald(
+          otherDuchyIds,
+          computationStorageServiceStub,
+          kingdomGlobalComputationsStub,
+          protocolsSetupConfig
+        )
 
       herald.continuallySyncStatuses(throttler)
     }
@@ -166,13 +172,12 @@ class InProcessDuchy(
     ) {
       addService(
         ComputationControlService(
-          AsyncComputationControlCoroutineStub(asyncComputationControlServer.channel),
-          duchyDependencies.storageClient
-        ).withDuchyIdentities()
+            AsyncComputationControlCoroutineStub(asyncComputationControlServer.channel),
+            duchyDependencies.storageClient
+          )
+          .withDuchyIdentities()
       )
-      addService(
-        ComputationStatsService(duchyDependencies.computationsDatabase)
-      )
+      addService(ComputationStatsService(duchyDependencies.computationsDatabase))
     }
 
   private val channelCloserRule = GrpcCleanupRule()
@@ -180,51 +185,55 @@ class InProcessDuchy(
   private fun computationControlChannelName(duchyId: String) = "duchy-computation-control-$duchyId"
 
   private fun computationControlChannel(duchyId: String): Channel {
-    val channel =
-      InProcessChannelBuilder
-        .forName(computationControlChannelName(duchyId))
-        .build()
+    val channel = InProcessChannelBuilder.forName(computationControlChannelName(duchyId)).build()
     return channelCloserRule.register(channel).withVerboseLogging(verboseGrpcLogging)
   }
 
   private val liquidLegionsV2millRule = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
-      val workerStubs = otherDuchyIds.map { otherDuchyId ->
-        val channel = computationControlChannel(otherDuchyId)
-        val stub = ComputationControlCoroutineStub(channel).withDuchyId(duchyId)
-        otherDuchyId to stub
-      }.toMap()
+      val workerStubs =
+        otherDuchyIds
+          .map { otherDuchyId ->
+            val channel = computationControlChannel(otherDuchyId)
+            val stub = ComputationControlCoroutineStub(channel).withDuchyId(duchyId)
+            otherDuchyId to stub
+          }
+          .toMap()
 
-      val noiseConfig = LiquidLegionsV2NoiseConfig.newBuilder().apply {
-        reachNoiseConfigBuilder.apply {
-          blindHistogramNoiseBuilder.epsilon = 1.0
-          blindHistogramNoiseBuilder.delta = 1.0
-          noiseForPublisherNoiseBuilder.epsilon = 1.0
-          noiseForPublisherNoiseBuilder.delta = 1.0
-          globalReachDpNoiseBuilder.epsilon = 40.0
-          globalReachDpNoiseBuilder.delta = exp(-80.0)
-        }
-        frequencyNoiseConfigBuilder.apply {
-          epsilon = 40.0
-          delta = exp(-80.0)
-        }
-      }.build()
+      val noiseConfig =
+        LiquidLegionsV2NoiseConfig.newBuilder()
+          .apply {
+            reachNoiseConfigBuilder.apply {
+              blindHistogramNoiseBuilder.epsilon = 1.0
+              blindHistogramNoiseBuilder.delta = 1.0
+              noiseForPublisherNoiseBuilder.epsilon = 1.0
+              noiseForPublisherNoiseBuilder.delta = 1.0
+              globalReachDpNoiseBuilder.epsilon = 40.0
+              globalReachDpNoiseBuilder.delta = exp(-80.0)
+            }
+            frequencyNoiseConfigBuilder.apply {
+              epsilon = 40.0
+              delta = exp(-80.0)
+            }
+          }
+          .build()
 
-      val liquidLegionsV2mill = LiquidLegionsV2Mill(
-        millId = "$duchyId liquidLegionsV2mill",
-        duchyId = duchyId,
-        dataClients = computationDataClients,
-        metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
-        globalComputationsClient = kingdomGlobalComputationsStub,
-        computationStatsClient = computationStatsStub,
-        workerStubs = workerStubs,
-        cryptoKeySet = duchyDependencies.cryptoKeySet,
-        cryptoWorker = JniLiquidLegionsV2Encryption(),
-        throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        requestChunkSizeBytes = 2_000_000,
-        noiseConfig = noiseConfig,
-        aggregatorId = DUCHY_IDS.first()
-      )
+      val liquidLegionsV2mill =
+        LiquidLegionsV2Mill(
+          millId = "$duchyId liquidLegionsV2mill",
+          duchyId = duchyId,
+          dataClients = computationDataClients,
+          metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
+          globalComputationsClient = kingdomGlobalComputationsStub,
+          computationStatsClient = computationStatsStub,
+          workerStubs = workerStubs,
+          cryptoKeySet = duchyDependencies.cryptoKeySet,
+          cryptoWorker = JniLiquidLegionsV2Encryption(),
+          throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          requestChunkSizeBytes = 2_000_000,
+          noiseConfig = noiseConfig,
+          aggregatorId = DUCHY_IDS.first()
+        )
 
       liquidLegionsV2mill.continuallyProcessComputationQueue()
     }
@@ -252,16 +261,17 @@ class InProcessDuchy(
   }
 
   override fun apply(statement: Statement, description: Description): Statement {
-    val combinedRule = chainRulesSequentially(
-      storageServer,
-      metricValuesServer,
-      heraldRule,
-      liquidLegionsV2millRule,
-      asyncComputationControlServer,
-      computationControlServer,
-      publisherDataServer,
-      channelCloserRule
-    )
+    val combinedRule =
+      chainRulesSequentially(
+        storageServer,
+        metricValuesServer,
+        heraldRule,
+        liquidLegionsV2millRule,
+        asyncComputationControlServer,
+        computationControlServer,
+        publisherDataServer,
+        channelCloserRule
+      )
     return combinedRule.apply(statement, description)
   }
 }

@@ -49,27 +49,22 @@ import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComp
 class ComputationsServiceTest {
 
   companion object {
-    val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.AGGREGATOR
-      }
-    }.build()
+    val aggregatorComputationDetails =
+      ComputationDetails.newBuilder()
+        .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+        .build()
 
-    val nonAggregatorComputationDetails = ComputationDetails.newBuilder().apply {
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.NON_AGGREGATOR
-      }
-    }.build()
+    val nonAggregatorComputationDetails =
+      ComputationDetails.newBuilder()
+        .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+        .build()
   }
 
   private val fakeDatabase = FakeComputationsDatabase()
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(mockGlobalComputations)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockGlobalComputations) }
 
   private val fakeService: ComputationsService by lazy {
     ComputationsService(
@@ -90,20 +85,29 @@ class ComputationsServiceTest {
       listOf()
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
-    val newComputationDetails = aggregatorComputationDetails.toBuilder().apply {
-      liquidLegionsV2Builder.reachEstimateBuilder.reach = 123
-    }.build()
-    val request = UpdateComputationDetailsRequest.newBuilder().apply {
-      token = tokenAtStart
-      details = newComputationDetails
-    }.build()
+    val newComputationDetails =
+      aggregatorComputationDetails
+        .toBuilder()
+        .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
+        .build()
+    val request =
+      UpdateComputationDetailsRequest.newBuilder()
+        .apply {
+          token = tokenAtStart
+          details = newComputationDetails
+        }
+        .build()
 
     assertThat(fakeService.updateComputationDetails(request))
       .isEqualTo(
-        tokenAtStart.toBuilder().apply {
-          version = 1
-          computationDetails = newComputationDetails
-        }.build().toUpdateComputationDetailsResponse()
+        tokenAtStart
+          .toBuilder()
+          .apply {
+            version = 1
+            computationDetails = newComputationDetails
+          }
+          .build()
+          .toUpdateComputationDetailsResponse()
       )
   }
 
@@ -117,38 +121,48 @@ class ComputationsServiceTest {
       listOf()
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
-    val request = FinishComputationRequest.newBuilder().apply {
-      token = tokenAtStart
-      endingComputationStage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
-      reason = ComputationDetails.CompletedReason.FAILED
-    }.build()
+    val request =
+      FinishComputationRequest.newBuilder()
+        .apply {
+          token = tokenAtStart
+          endingComputationStage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+          reason = ComputationDetails.CompletedReason.FAILED
+        }
+        .build()
 
     assertThat(fakeService.finishComputation(request))
       .isEqualTo(
-        tokenAtStart.toBuilder().clearStageSpecificDetails().apply {
-          version = 1
-          computationStage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
-        }.build().toFinishComputationResponse()
+        tokenAtStart
+          .toBuilder()
+          .clearStageSpecificDetails()
+          .apply {
+            version = 1
+            computationStage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+          }
+          .build()
+          .toFinishComputationResponse()
       )
 
     verifyProtoArgument(
-      mockGlobalComputations,
-      GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
-    ).comparingExpectedFieldsOnly()
+        mockGlobalComputations,
+        GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+      )
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
-        CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-          parentBuilder.globalComputationId = id
-          statusUpdateBuilder.apply {
-            selfReportedIdentifier = "BOHEMIA"
-            stageDetailsBuilder.apply {
-              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-              stageNumber = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.number.toLong()
-              stageName = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.name
-              attemptNumber = 0
+        CreateGlobalComputationStatusUpdateRequest.newBuilder()
+          .apply {
+            parentBuilder.globalComputationId = id
+            statusUpdateBuilder.apply {
+              selfReportedIdentifier = "BOHEMIA"
+              stageDetailsBuilder.apply {
+                algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
+                stageNumber = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.number.toLong()
+                stageName = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.name
+                attemptNumber = 0
+              }
+              updateMessage = "Computation $id at stage COMPLETE, attempt 0"
             }
-            updateMessage = "Computation $id at stage COMPLETE, attempt 0"
           }
-        }
           .build()
       )
   }
@@ -169,55 +183,70 @@ class ComputationsServiceTest {
 
     val tokenAfterRecordingBlob =
       fakeService.recordOutputBlobPath(
-        RecordOutputBlobPathRequest.newBuilder().apply {
-          token = tokenAtStart
-          outputBlobId = 1L
-          blobPath = "the_writen_output_blob"
-        }.build()
-      ).token
+          RecordOutputBlobPathRequest.newBuilder()
+            .apply {
+              token = tokenAtStart
+              outputBlobId = 1L
+              blobPath = "the_writen_output_blob"
+            }
+            .build()
+        )
+        .token
 
-    val request = AdvanceComputationStageRequest.newBuilder().apply {
-      token = tokenAfterRecordingBlob
-      nextComputationStage =
-        LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
-      addAllInputBlobs(listOf("inputs_to_new_stage"))
-      outputBlobs = 1
-      afterTransition = AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE
-    }.build()
+    val request =
+      AdvanceComputationStageRequest.newBuilder()
+        .apply {
+          token = tokenAfterRecordingBlob
+          nextComputationStage =
+            LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+          addAllInputBlobs(listOf("inputs_to_new_stage"))
+          outputBlobs = 1
+          afterTransition = AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE
+        }
+        .build()
 
     assertThat(fakeService.advanceComputationStage(request))
       .isEqualTo(
-        tokenAtStart.toBuilder().clearBlobs().clearStageSpecificDetails().apply {
-          version = 2
-          attempt = 1
-          computationStage =
-            LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
-          addBlobs(newInputBlobMetadata(id = 0L, key = "inputs_to_new_stage"))
-          addBlobs(newEmptyOutputBlobMetadata(id = 1L))
-        }.build().toAdvanceComputationStageResponse()
+        tokenAtStart
+          .toBuilder()
+          .clearBlobs()
+          .clearStageSpecificDetails()
+          .apply {
+            version = 2
+            attempt = 1
+            computationStage =
+              LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+                .toProtocolStage()
+            addBlobs(newInputBlobMetadata(id = 0L, key = "inputs_to_new_stage"))
+            addBlobs(newEmptyOutputBlobMetadata(id = 1L))
+          }
+          .build()
+          .toAdvanceComputationStageResponse()
       )
 
     verifyProtoArgument(
-      mockGlobalComputations,
-      GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
-    ).comparingExpectedFieldsOnly()
+        mockGlobalComputations,
+        GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+      )
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
-        CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-          parentBuilder.globalComputationId = id
-          statusUpdateBuilder.apply {
-            selfReportedIdentifier = "BOHEMIA"
-            stageDetailsBuilder.apply {
-              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-              stageNumber =
-                LiquidLegionsSketchAggregationV2
-                  .Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.number.toLong()
-              stageName =
-                LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.name
-              attemptNumber = 0
+        CreateGlobalComputationStatusUpdateRequest.newBuilder()
+          .apply {
+            parentBuilder.globalComputationId = id
+            statusUpdateBuilder.apply {
+              selfReportedIdentifier = "BOHEMIA"
+              stageDetailsBuilder.apply {
+                algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
+                stageNumber =
+                  LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.number
+                    .toLong()
+                stageName =
+                  LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.name
+                attemptNumber = 0
+              }
+              updateMessage = "Computation $id at stage WAIT_EXECUTION_PHASE_TWO_INPUTS, attempt 0"
             }
-            updateMessage = "Computation $id at stage WAIT_EXECUTION_PHASE_TWO_INPUTS, attempt 0"
           }
-        }
           .build()
       )
   }
@@ -245,19 +274,22 @@ class ComputationsServiceTest {
       nonAggregatorComputationDetails,
       listOf()
     )
-    val getIdsInMillStagesRequest = GetComputationIdsRequest.newBuilder().apply {
-      addAllStages(
-        setOf(
-          LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-          LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE.toProtocolStage()
-        )
-      )
-    }.build()
+    val getIdsInMillStagesRequest =
+      GetComputationIdsRequest.newBuilder()
+        .apply {
+          addAllStages(
+            setOf(
+              LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+              LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE.toProtocolStage()
+            )
+          )
+        }
+        .build()
     assertThat(fakeService.getComputationIds(getIdsInMillStagesRequest))
       .isEqualTo(
-        GetComputationIdsResponse.newBuilder().apply {
-          addAllGlobalIds(setOf(blindId, decryptId))
-        }.build()
+        GetComputationIdsResponse.newBuilder()
+          .apply { addAllGlobalIds(setOf(blindId, decryptId)) }
+          .build()
       )
   }
 
@@ -271,8 +303,7 @@ class ComputationsServiceTest {
       nonAggregatorComputationDetails,
       listOf()
     )
-    val unclaimedAtStart =
-      fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
+    val unclaimedAtStart = fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
       claimed,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
@@ -280,41 +311,42 @@ class ComputationsServiceTest {
       listOf()
     )
     fakeDatabase.claimedComputationIds.add(claimed)
-    val claimedAtStart =
-      fakeService.getComputationToken(claimed.toGetTokenRequest()).token
+    val claimedAtStart = fakeService.getComputationToken(claimed.toGetTokenRequest()).token
     val owner = "TheOwner"
-    val request = ClaimWorkRequest.newBuilder()
-      .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
-      .setOwner(owner)
-      .build()
+    val request =
+      ClaimWorkRequest.newBuilder()
+        .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
+        .setOwner(owner)
+        .build()
     assertThat(fakeService.claimWork(request))
       .isEqualTo(
-        unclaimedAtStart.toBuilder().setVersion(1).setAttempt(1).build()
-          .toClaimWorkResponse()
+        unclaimedAtStart.toBuilder().setVersion(1).setAttempt(1).build().toClaimWorkResponse()
       )
     assertThat(fakeService.claimWork(request)).isEqualToDefaultInstance()
     assertThat(fakeService.getComputationToken(claimed.toGetTokenRequest()))
       .isEqualTo(claimedAtStart.toGetComputationTokenResponse())
 
     verifyProtoArgument(
-      mockGlobalComputations,
-      GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
-    ).comparingExpectedFieldsOnly()
+        mockGlobalComputations,
+        GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+      )
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
-        CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-          parentBuilder.globalComputationId = unclaimed
-          statusUpdateBuilder.apply {
-            selfReportedIdentifier = "BOHEMIA"
-            stageDetailsBuilder.apply {
-              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-              stageNumber =
-                LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.number.toLong()
-              stageName = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.name
-              attemptNumber = 1
+        CreateGlobalComputationStatusUpdateRequest.newBuilder()
+          .apply {
+            parentBuilder.globalComputationId = unclaimed
+            statusUpdateBuilder.apply {
+              selfReportedIdentifier = "BOHEMIA"
+              stageDetailsBuilder.apply {
+                algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
+                stageNumber =
+                  LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.number.toLong()
+                stageName = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.name
+                attemptNumber = 1
+              }
+              updateMessage = "Computation $unclaimed at stage EXECUTION_PHASE_ONE, attempt 1"
             }
-            updateMessage = "Computation $unclaimed at stage EXECUTION_PHASE_ONE, attempt 1"
           }
-        }
           .build()
       )
   }

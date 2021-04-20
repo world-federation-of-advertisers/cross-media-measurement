@@ -33,16 +33,16 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
-/**
- * In-memory [ComputationsDatabase]
- */
-class FakeComputationsDatabase private constructor(
+/** In-memory [ComputationsDatabase] */
+class FakeComputationsDatabase
+private constructor(
   /** Map of local computation ID to [ComputationToken]. */
   private val tokens: MutableMap<Long, ComputationToken>
-) : Map<Long, ComputationToken> by tokens,
+) :
+  Map<Long, ComputationToken> by tokens,
   ComputationsDatabase,
-  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
-  by ComputationProtocolStages {
+  ComputationProtocolStagesEnumHelper<
+    ComputationType, ComputationStage> by ComputationProtocolStages {
 
   constructor() : this(mutableMapOf())
 
@@ -65,11 +65,7 @@ class FakeComputationsDatabase private constructor(
       stage = initialStage,
       computationDetails = computationDetails,
       stageDetails = stageDetails,
-      blobs = listOf(
-        newEmptyOutputBlobMetadata(
-          id = 0L
-        )
-      )
+      blobs = listOf(newEmptyOutputBlobMetadata(id = 0L))
     )
   }
 
@@ -81,20 +77,19 @@ class FakeComputationsDatabase private constructor(
     blobs: List<ComputationStageBlobMetadata>,
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
   ) {
-    require(localId!in tokens) {
-      "Cannot add multiple computations with the same id. $localId"
-    }
-    require(blobs.distinctBy { it.blobId }.size == blobs.size) {
-      "Blobs must have distinct IDs"
-    }
+    require(localId !in tokens) { "Cannot add multiple computations with the same id. $localId" }
+    require(blobs.distinctBy { it.blobId }.size == blobs.size) { "Blobs must have distinct IDs" }
 
-    tokens[localId] = newPartialToken(localId, stage).apply {
-      setComputationDetails(computationDetails)
-      addAllBlobs(blobs)
-      if (stageDetails !== ComputationStageDetails.getDefaultInstance()) {
-        stageSpecificDetails = stageDetails
-      }
-    }.build()
+    tokens[localId] =
+      newPartialToken(localId, stage)
+        .apply {
+          setComputationDetails(computationDetails)
+          addAllBlobs(blobs)
+          if (stageDetails !== ComputationStageDetails.getDefaultInstance()) {
+            stageSpecificDetails = stageDetails
+          }
+        }
+        .build()
   }
 
   /** @see addComputation */
@@ -117,12 +112,12 @@ class FakeComputationsDatabase private constructor(
   }
 
   /**
-   * Changes the token for a computation to a new one and increments the lastUpdateTime.
-   * Blob references are unchanged.
+   * Changes the token for a computation to a new one and increments the lastUpdateTime. Blob
+   * references are unchanged.
    *
    * @param tokenToUpdate token of the computation that will be changed.
    * @param changedTokenBuilderFunc function which returns a [ComputationToken.Builder] used to
-   *   replace the [tokenToUpdate]. The version of the token is always incremented.
+   * replace the [tokenToUpdate]. The version of the token is always incremented.
    */
   private fun updateToken(
     tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
@@ -173,19 +168,13 @@ class FakeComputationsDatabase private constructor(
         // Add input blob metadata to token.
         addAllBlobs(
           inputBlobPaths.mapIndexed { idx, objectKey ->
-            newInputBlobMetadata(
-              id = idx.toLong(),
-              key = objectKey
-            )
+            newInputBlobMetadata(id = idx.toLong(), key = objectKey)
           }
         )
         // Add input blob metadata to token.
         addAllBlobs(
           passThroughBlobPaths.mapIndexed { idx, objectKey ->
-            newPassThroughBlobMetadata(
-              id = idx.toLong() + inputBlobPaths.size,
-              key = objectKey
-            )
+            newPassThroughBlobMetadata(id = idx.toLong() + inputBlobPaths.size, key = objectKey)
           }
         )
         // Add output blob metadata to token.
@@ -241,18 +230,13 @@ class FakeComputationsDatabase private constructor(
     blobRef: BlobRef
   ) {
     updateToken(token) { existing ->
-      val existingBlobInToken =
-        newEmptyOutputBlobMetadata(
-          blobRef.idInRelationalDatabase
-        )
+      val existingBlobInToken = newEmptyOutputBlobMetadata(blobRef.idInRelationalDatabase)
       val blobs: MutableSet<ComputationStageBlobMetadata> =
         getNonNull(existing.localComputationId).blobsList.toMutableSet()
       // Replace the blob metadata in the token.
       check(blobs.remove(existingBlobInToken)) { "$existingBlobInToken not in $blobs" }
       blobs.add(existingBlobInToken.toBuilder().setPath(blobRef.key).build())
-      existing.toBuilder()
-        .clearBlobs()
-        .addAllBlobs(blobs)
+      existing.toBuilder().clearBlobs().addAllBlobs(blobs)
     }
   }
 
@@ -268,23 +252,27 @@ class FakeComputationsDatabase private constructor(
   }
 
   override suspend fun claimTask(protocol: ComputationType, ownerId: String): String? {
-    val claimed = tokens.values.asSequence()
-      .filter { it.globalComputationId !in claimedComputationIds }
-      .map {
-        ComputationEditToken(
-          localId = it.localComputationId,
-          protocol = when (it.computationStage.stageCase) {
-            ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-              ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-            else -> error("Computation type for $it is unknown")
-          },
-          stage = it.computationStage,
-          attempt = it.attempt,
-          editVersion = it.version
-        )
-      }
-      .firstOrNull()
-      ?: return null
+    val claimed =
+      tokens
+        .values
+        .asSequence()
+        .filter { it.globalComputationId !in claimedComputationIds }
+        .map {
+          ComputationEditToken(
+            localId = it.localComputationId,
+            protocol =
+              when (it.computationStage.stageCase) {
+                ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+                  ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+                else -> error("Computation type for $it is unknown")
+              },
+            stage = it.computationStage,
+            attempt = it.attempt,
+            editVersion = it.version
+          )
+        }
+        .firstOrNull()
+        ?: return null
 
     updateToken(claimed) { existing ->
       claimedComputationIds.add(existing.globalComputationId)
@@ -310,10 +298,7 @@ class FakeComputationsDatabase private constructor(
   }
 
   companion object {
-    fun newPartialToken(
-      localId: Long,
-      stage: ComputationStage
-    ): ComputationToken.Builder {
+    fun newPartialToken(localId: Long, stage: ComputationStage): ComputationToken.Builder {
       return ComputationToken.newBuilder().apply {
         globalComputationId = localId.toString()
         localComputationId = localId

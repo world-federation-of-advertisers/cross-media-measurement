@@ -24,8 +24,7 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 private fun run(
-  @CommandLine.Mixin
-  flags: DaemonFlags,
+  @CommandLine.Mixin flags: DaemonFlags,
   @CommandLine.Option(
     names = ["--combined-public-key-id"],
     description = ["ID of the CombinedPublicKey resource to associate with created reports."],

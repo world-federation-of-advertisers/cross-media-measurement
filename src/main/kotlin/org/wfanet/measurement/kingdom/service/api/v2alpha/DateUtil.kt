@@ -19,11 +19,13 @@ import java.time.LocalDate
 
 /** Converts a [LocalDate] to [Date]. */
 fun LocalDate.toProtoDate(): Date {
-  return Date.newBuilder().also {
-    it.year = year
-    it.month = monthValue
-    it.day = dayOfMonth
-  }.build()
+  return Date.newBuilder()
+    .also {
+      it.year = year
+      it.month = monthValue
+      it.day = dayOfMonth
+    }
+    .build()
 }
 
 /** Converts a [Date] to a [LocalDate]. */

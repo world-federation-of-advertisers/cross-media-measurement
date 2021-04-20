@@ -90,11 +90,7 @@ abstract class InProcessKingdomIntegrationTestBase {
           .onEach { continuationToken = it.continuationToken }
           .map { it.globalComputation }
           .onEach { logger.info("Found GlobalComputation: $it") }
-          .collect {
-            globalComputationsMutex.withLock {
-              globalComputations.add(it)
-            }
-          }
+          .collect { globalComputationsMutex.withLock { globalComputations.add(it) } }
       }
     }
   }
@@ -151,26 +147,35 @@ abstract class InProcessKingdomIntegrationTestBase {
     val requisitions = listOf(requisition1, requisition2, requisition3)
     requisitions.forEach { fulfillRequisition(it) }
 
-    val expectedMetricRequisition1 = MetricRequisition.newBuilder().apply {
-      keyBuilder.apply {
-        dataProviderId = externalDataProviderId1.apiId.value
-        campaignId = externalCampaignId1.apiId.value
-      }
-    }.build()
+    val expectedMetricRequisition1 =
+      MetricRequisition.newBuilder()
+        .apply {
+          keyBuilder.apply {
+            dataProviderId = externalDataProviderId1.apiId.value
+            campaignId = externalCampaignId1.apiId.value
+          }
+        }
+        .build()
 
-    val expectedMetricRequisition2 = MetricRequisition.newBuilder().apply {
-      keyBuilder.apply {
-        dataProviderId = externalDataProviderId2.apiId.value
-        campaignId = externalCampaignId2.apiId.value
-      }
-    }.build()
+    val expectedMetricRequisition2 =
+      MetricRequisition.newBuilder()
+        .apply {
+          keyBuilder.apply {
+            dataProviderId = externalDataProviderId2.apiId.value
+            campaignId = externalCampaignId2.apiId.value
+          }
+        }
+        .build()
 
-    val expectedMetricRequisition3 = MetricRequisition.newBuilder().apply {
-      keyBuilder.apply {
-        dataProviderId = externalDataProviderId2.apiId.value
-        campaignId = externalCampaignId3.apiId.value
-      }
-    }.build()
+    val expectedMetricRequisition3 =
+      MetricRequisition.newBuilder()
+        .apply {
+          keyBuilder.apply {
+            dataProviderId = externalDataProviderId2.apiId.value
+            campaignId = externalCampaignId3.apiId.value
+          }
+        }
+        .build()
 
     assertThat(requisitions)
       .comparingExpectedFieldsOnly()
@@ -190,10 +195,12 @@ abstract class InProcessKingdomIntegrationTestBase {
 
     logger.info("Confirming Duchy readiness")
     globalComputationsStub.confirmGlobalComputation(
-      ConfirmGlobalComputationRequest.newBuilder().apply {
-        key = computation.key
-        addAllReadyRequisitions(requisitions.map { it.key.toSystemKey() })
-      }.build()
+      ConfirmGlobalComputationRequest.newBuilder()
+        .apply {
+          key = computation.key
+          addAllReadyRequisitions(requisitions.map { it.key.toSystemKey() })
+        }
+        .build()
     )
 
     logger.info("Awaiting a GlobalComputation in RUNNING state")
@@ -204,30 +211,36 @@ abstract class InProcessKingdomIntegrationTestBase {
 
     logger.info("Finishing GlobalComputation")
     globalComputationsStub.finishGlobalComputation(
-      FinishGlobalComputationRequest.newBuilder().apply {
-        key = computation.key
-        resultBuilder.apply {
-          reach = 12345L
-          putFrequency(6L, 0.4)
-          putFrequency(8L, 0.6)
-        }
-      }.build()
-    )
-
-    val finalComputation = globalComputationsStub.getGlobalComputation(
-      GetGlobalComputationRequest.newBuilder().setKey(computation.key).build()
-    )
-    assertThat(finalComputation)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        startedComputation.toBuilder().apply {
-          state = GlobalComputation.State.SUCCEEDED
+      FinishGlobalComputationRequest.newBuilder()
+        .apply {
+          key = computation.key
           resultBuilder.apply {
             reach = 12345L
             putFrequency(6L, 0.4)
             putFrequency(8L, 0.6)
           }
-        }.build()
+        }
+        .build()
+    )
+
+    val finalComputation =
+      globalComputationsStub.getGlobalComputation(
+        GetGlobalComputationRequest.newBuilder().setKey(computation.key).build()
+      )
+    assertThat(finalComputation)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        startedComputation
+          .toBuilder()
+          .apply {
+            state = GlobalComputation.State.SUCCEEDED
+            resultBuilder.apply {
+              reach = 12345L
+              putFrequency(6L, 0.4)
+              putFrequency(8L, 0.6)
+            }
+          }
+          .build()
       )
   }
 
@@ -235,11 +248,7 @@ abstract class InProcessKingdomIntegrationTestBase {
     state: GlobalComputation.State
   ): GlobalComputation {
     return pollFor {
-      globalComputationsMutex.withLock {
-        globalComputations.findLast {
-          it.state == state
-        }
-      }
+      globalComputationsMutex.withLock { globalComputations.findLast { it.state == state } }
     }
   }
 
@@ -247,17 +256,20 @@ abstract class InProcessKingdomIntegrationTestBase {
     dataProviderId: ExternalId,
     campaignId: ExternalId
   ): List<MetricRequisition> {
-    val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parentBuilder.apply {
-        this.dataProviderId = dataProviderId.apiId.value
-        this.campaignId = campaignId.apiId.value
-      }
-      pageSize = 1
-      filterBuilder.apply {
-        addStates(MetricRequisition.State.UNFULFILLED)
-        addStates(MetricRequisition.State.FULFILLED)
-      }
-    }.build()
+    val request =
+      ListMetricRequisitionsRequest.newBuilder()
+        .apply {
+          parentBuilder.apply {
+            this.dataProviderId = dataProviderId.apiId.value
+            this.campaignId = campaignId.apiId.value
+          }
+          pageSize = 1
+          filterBuilder.apply {
+            addStates(MetricRequisition.State.UNFULFILLED)
+            addStates(MetricRequisition.State.FULFILLED)
+          }
+        }
+        .build()
     logger.info("Listing requisitions: $request")
     val response = requisitionsStub.listMetricRequisitions(request)
     logger.info("Got requisitions: $response")
@@ -267,9 +279,9 @@ abstract class InProcessKingdomIntegrationTestBase {
   private suspend fun fulfillRequisition(metricRequisition: MetricRequisition) {
     logger.info("Fulfilling requisition: $metricRequisition")
     systemRequisitionsStub.fulfillMetricRequisition(
-      FulfillMetricRequisitionRequest.newBuilder().apply {
-        key = metricRequisition.key.toSystemKey()
-      }.build()
+      FulfillMetricRequisitionRequest.newBuilder()
+        .apply { key = metricRequisition.key.toSystemKey() }
+        .build()
     )
   }
 
@@ -279,9 +291,11 @@ abstract class InProcessKingdomIntegrationTestBase {
 }
 
 private fun MetricRequisition.Key.toSystemKey(): MetricRequisitionKey {
-  return MetricRequisitionKey.newBuilder().also {
-    it.dataProviderId = dataProviderId
-    it.campaignId = campaignId
-    it.metricRequisitionId = metricRequisitionId
-  }.build()
+  return MetricRequisitionKey.newBuilder()
+    .also {
+      it.dataProviderId = dataProviderId
+      it.campaignId = campaignId
+      it.metricRequisitionId = metricRequisitionId
+    }
+    .build()
 }

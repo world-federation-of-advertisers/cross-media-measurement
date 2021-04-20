@@ -43,10 +43,13 @@ class DaemonDatabaseServicesClientImpl(
     reportConfigSchedule: ReportConfigSchedule,
     combinedPublicKeyResourceId: String
   ) {
-    val request = CreateNextReportRequest.newBuilder().apply {
-      externalScheduleId = reportConfigSchedule.externalScheduleId
-      this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
-    }.build()
+    val request =
+      CreateNextReportRequest.newBuilder()
+        .apply {
+          externalScheduleId = reportConfigSchedule.externalScheduleId
+          this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
+        }
+        .build()
     reportStorage.createNextReport(request)
   }
 
@@ -62,15 +65,17 @@ class DaemonDatabaseServicesClientImpl(
   }
 
   private fun buildRequisition(report: Report, template: RequisitionTemplate): Requisition =
-    Requisition.newBuilder().apply {
-      externalDataProviderId = template.externalDataProviderId
-      externalCampaignId = template.externalCampaignId
-      combinedPublicKeyResourceId = report.reportDetails.combinedPublicKeyResourceId
-      windowStartTime = report.windowStartTime
-      windowEndTime = report.windowEndTime
-      state = RequisitionState.UNFULFILLED
-      requisitionDetails = template.requisitionDetails
-    }.build()
+    Requisition.newBuilder()
+      .apply {
+        externalDataProviderId = template.externalDataProviderId
+        externalCampaignId = template.externalCampaignId
+        combinedPublicKeyResourceId = report.reportDetails.combinedPublicKeyResourceId
+        windowStartTime = report.windowStartTime
+        windowEndTime = report.windowEndTime
+        state = RequisitionState.UNFULFILLED
+        requisitionDetails = template.requisitionDetails
+      }
+      .build()
 
   override suspend fun createRequisition(requisition: Requisition): Requisition =
     requisitionStorage.createRequisition(requisition)
@@ -95,9 +100,7 @@ class DaemonDatabaseServicesClientImpl(
 
   override fun streamReportsInState(state: ReportState): Flow<Report> =
     reportStorage.streamReports(
-      StreamReportsRequest.newBuilder().apply {
-        filterBuilder.addStates(state)
-      }.build()
+      StreamReportsRequest.newBuilder().apply { filterBuilder.addStates(state) }.build()
     )
 
   override fun streamReadyReports(): Flow<Report> =

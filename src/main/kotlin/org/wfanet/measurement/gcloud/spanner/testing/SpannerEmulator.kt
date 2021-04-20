@@ -31,24 +31,19 @@ private const val INVALID_HOST_MESSAGE =
 /**
  * Wrapper for Cloud Spanner Emulator binary.
  *
- * @param port TCP port that the emulator should listen on, or 0 to allocate a
- *     port automatically
+ * @param port TCP port that the emulator should listen on, or 0 to allocate a port automatically
  */
 class SpannerEmulator(private val port: Int = 0) : AutoCloseable {
   private lateinit var emulator: Process
   private lateinit var emulatorHost: String
 
-  /**
-   * Starts the emulator process.
-   */
+  /** Starts the emulator process. */
   fun start() {
     check(!this::emulator.isInitialized)
 
     // Open a socket on `port`. This should reduce the likelihood that the port
     // is in use. Additionally, this will allocate a port if `port` is 0.
-    val localPort = ServerSocket(port).use {
-      it.localPort
-    }
+    val localPort = ServerSocket(port).use { it.localPort }
 
     emulatorHost = "$EMULATOR_HOSTNAME:$localPort"
     emulator =
@@ -61,20 +56,16 @@ class SpannerEmulator(private val port: Int = 0) : AutoCloseable {
    * Suspends until the emulator is ready.
    *
    * @param timeout Timeout for how long to wait before throwing a
-   *     [kotlinx.coroutines.TimeoutCancellationException].
+   * [kotlinx.coroutines.TimeoutCancellationException].
    * @return the emulator host, which can be passed to
-   *    [com.google.cloud.spanner.SpannerOptions.Builder.setEmulatorHost].
+   * [com.google.cloud.spanner.SpannerOptions.Builder.setEmulatorHost].
    */
   suspend fun waitUntilReady(timeout: Duration = Duration.ofSeconds(10)): String {
-    withTimeout(timeout.toMillis()) {
-      emulatorReady()
-    }
+    withTimeout(timeout.toMillis()) { emulatorReady() }
     return emulatorHost
   }
 
-  /**
-   * Returns when emulator is ready.
-   */
+  /** Returns when emulator is ready. */
   private suspend fun emulatorReady() {
     /** Suffix of line of emulator output that will tell us that it's ready. */
     val readyLineSuffix = "Server address: $emulatorHost"

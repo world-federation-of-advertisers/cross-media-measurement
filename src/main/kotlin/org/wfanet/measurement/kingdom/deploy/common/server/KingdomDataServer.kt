@@ -23,11 +23,9 @@ import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
-  @CommandLine.Mixin
-  private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
-  @CommandLine.Mixin
-  private lateinit var duchyIdFlags: DuchyIdFlags
+  @CommandLine.Mixin private lateinit var duchyIdFlags: DuchyIdFlags
 
   protected suspend fun run(database: KingdomRelationalDatabase) {
     DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)

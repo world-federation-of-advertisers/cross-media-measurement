@@ -34,11 +34,9 @@ fun buildChannel(target: String): ManagedChannel {
  * Builds a [ManagedChannel] for the specified target.
  *
  * @param target the URI or authority string for the target server
- * @param shutdownTimeout duration of time to allow a channel to finish
- *     processing on server shutdown
+ * @param shutdownTimeout duration of time to allow a channel to finish processing on server
+ * shutdown
  */
 fun buildChannel(target: String, shutdownTimeout: Duration): ManagedChannel {
-  return buildChannel(target).also {
-    Runtime.getRuntime().addShutdownHook(it, shutdownTimeout)
-  }
+  return buildChannel(target).also { Runtime.getRuntime().addShutdownHook(it, shutdownTimeout) }
 }

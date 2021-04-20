@@ -20,20 +20,15 @@ import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
-/**
- * Implementation of [ComputationControlServer] using Google Cloud Storage (GCS).
- */
+/** Implementation of [ComputationControlServer] using Google Cloud Storage (GCS). */
 @CommandLine.Command(
   name = "GcsComputationControlServer",
-  description = [
-    "Server daemon for ${ComputationControlServer.SERVICE_NAME} service."
-  ],
+  description = ["Server daemon for ${ComputationControlServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 class GcsComputationControlServer : ComputationControlServer() {
-  @CommandLine.Mixin
-  private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
     val gcs = GcsFromFlags(gcsFlags)
@@ -41,5 +36,4 @@ class GcsComputationControlServer : ComputationControlServer() {
   }
 }
 
-fun main(args: Array<String>) =
-  commandLineMain(GcsComputationControlServer(), args)
+fun main(args: Array<String>) = commandLineMain(GcsComputationControlServer(), args)

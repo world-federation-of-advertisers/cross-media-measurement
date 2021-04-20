@@ -19,9 +19,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.identity.DuchyIds
 
-/**
- * JUnit rule that sets the global list of all valid Duchy ids to [duchyIds].
- */
+/** JUnit rule that sets the global list of all valid Duchy ids to [duchyIds]. */
 class DuchyIdSetter(val duchyIds: Set<String>) : TestRule {
   constructor(duchyIds: Iterable<String>) : this(duchyIds.toSet())
   constructor(vararg duchyIds: String) : this(duchyIds.toSet())

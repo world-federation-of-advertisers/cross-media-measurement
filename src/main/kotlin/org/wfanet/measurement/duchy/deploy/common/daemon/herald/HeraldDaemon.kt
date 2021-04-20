@@ -100,19 +100,20 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, channel)
 
   val globalComputationsClient =
-    GlobalComputationsCoroutineStub(channel)
-      .withDuchyId(flags.duchy.duchyName)
+    GlobalComputationsCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
   val storageChannel = buildChannel(flags.computationsServiceTarget)
 
-  val herald = Herald(
-    otherDuchiesInComputation = otherDuchyNames,
-    computationStorageClient = ComputationsCoroutineStub(storageChannel),
-    globalComputationsClient = globalComputationsClient,
-    protocolsSetupConfig = flags.protocolsSetupConfig.reader().use {
-      parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-    }
-  )
+  val herald =
+    Herald(
+      otherDuchiesInComputation = otherDuchyNames,
+      computationStorageClient = ComputationsCoroutineStub(storageChannel),
+      globalComputationsClient = globalComputationsClient,
+      protocolsSetupConfig =
+        flags.protocolsSetupConfig.reader().use {
+          parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
+        }
+    )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }
 }

@@ -20,9 +20,7 @@ import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
-/**
- * Reads [ReportConfigSchedule] protos (and primary key) from Spanner.
- */
+/** Reads [ReportConfigSchedule] protos (and primary key) from Spanner. */
 class ScheduleReader : SpannerReader<ScheduleReader.Result>() {
   data class Result(
     val schedule: ReportConfigSchedule,
@@ -57,20 +55,20 @@ class ScheduleReader : SpannerReader<ScheduleReader.Result>() {
       advertiserId = struct.getLong("AdvertiserId"),
       reportConfigId = struct.getLong("ReportConfigId"),
       scheduleId = struct.getLong("ScheduleId"),
-      reportConfigDetails = struct.getProtoMessage(
-        "ReportConfigDetails",
-        ReportConfigDetails.parser()
-      )
+      reportConfigDetails =
+        struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
     )
 
   private fun buildSchedule(struct: Struct): ReportConfigSchedule =
-    ReportConfigSchedule.newBuilder().apply {
-      externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
-      externalReportConfigId = struct.getLong("ExternalReportConfigId")
-      externalScheduleId = struct.getLong("ExternalScheduleId")
+    ReportConfigSchedule.newBuilder()
+      .apply {
+        externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
+        externalReportConfigId = struct.getLong("ExternalReportConfigId")
+        externalScheduleId = struct.getLong("ExternalScheduleId")
 
-      nextReportStartTime = struct.getTimestamp("NextReportStartTime").toProto()
-      repetitionSpec = struct.getProtoMessage("RepetitionSpec", RepetitionSpec.parser())
-      repetitionSpecJson = struct.getString("RepetitionSpecJson")
-    }.build()
+        nextReportStartTime = struct.getTimestamp("NextReportStartTime").toProto()
+        repetitionSpec = struct.getProtoMessage("RepetitionSpec", RepetitionSpec.parser())
+        repetitionSpecJson = struct.getString("RepetitionSpecJson")
+      }
+      .build()
 }

@@ -29,25 +29,29 @@ abstract class AbstractMetricValueDatabaseTest<T : MetricValueDatabase> {
   protected lateinit var metricValueDb: T
   protected lateinit var fixedIdGenerator: FixedIdGenerator
 
-  @Test fun `insertMetricValue inserts MetricValue`() = runBlocking {
+  @Test
+  fun `insertMetricValue inserts MetricValue`() = runBlocking {
     val metricValue = insertTestMetricValue()
 
     assertThat(metricValue).isEqualTo(testMetricValue)
   }
 
-  @Test fun `getMetricValue returns null for non-existant external ID`() = runBlocking {
+  @Test
+  fun `getMetricValue returns null for non-existant external ID`() = runBlocking {
     val metricValue = metricValueDb.getMetricValue(ExternalId(testMetricValue.externalId))
 
     assertThat(metricValue).isNull()
   }
 
-  @Test fun `getMetricValue returns null for non-existant resource key`() = runBlocking {
+  @Test
+  fun `getMetricValue returns null for non-existant resource key`() = runBlocking {
     val metricValue = metricValueDb.getMetricValue(testMetricValue.resourceKey)
 
     assertThat(metricValue).isNull()
   }
 
-  @Test fun `getMetricValue with external ID returns MetricValue`() = runBlocking {
+  @Test
+  fun `getMetricValue with external ID returns MetricValue`() = runBlocking {
     insertTestMetricValue()
 
     val metricValue = metricValueDb.getMetricValue(ExternalId(testMetricValue.externalId))
@@ -55,7 +59,8 @@ abstract class AbstractMetricValueDatabaseTest<T : MetricValueDatabase> {
     assertThat(metricValue).isEqualTo(testMetricValue)
   }
 
-  @Test fun `getMetricValue with resource key returns MetricValue`() = runBlocking {
+  @Test
+  fun `getMetricValue with resource key returns MetricValue`() = runBlocking {
     insertTestMetricValue()
 
     val metricValue = metricValueDb.getMetricValue(testMetricValue.resourceKey)
@@ -63,13 +68,15 @@ abstract class AbstractMetricValueDatabaseTest<T : MetricValueDatabase> {
     assertThat(metricValue).isEqualTo(testMetricValue)
   }
 
-  @Test fun `getBlobStorageKey returns null for non-existant resource key`() = runBlocking {
+  @Test
+  fun `getBlobStorageKey returns null for non-existant resource key`() = runBlocking {
     val blobKey = metricValueDb.getBlobStorageKey(testMetricValue.resourceKey)
 
     assertThat(blobKey).isNull()
   }
 
-  @Test fun `getBlobStorageKey returns blob storage key`() = runBlocking {
+  @Test
+  fun `getBlobStorageKey returns blob storage key`() = runBlocking {
     insertTestMetricValue()
 
     val blobKey = metricValueDb.getBlobStorageKey(testMetricValue.resourceKey)
@@ -83,15 +90,18 @@ abstract class AbstractMetricValueDatabaseTest<T : MetricValueDatabase> {
   }
 
   companion object {
-    val testMetricValue: MetricValue = MetricValue.newBuilder().apply {
-      externalId = 987654321L
-      resourceKeyBuilder.apply {
-        dataProviderResourceId = "data-provider-id"
-        campaignResourceId = "campaign-id"
-        metricRequisitionResourceId = "requisition-id"
-      }
-      blobStorageKey = "blob-key"
-      blobFingerprint = ByteString.copyFrom(ByteArray(32))
-    }.build()
+    val testMetricValue: MetricValue =
+      MetricValue.newBuilder()
+        .apply {
+          externalId = 987654321L
+          resourceKeyBuilder.apply {
+            dataProviderResourceId = "data-provider-id"
+            campaignResourceId = "campaign-id"
+            metricRequisitionResourceId = "requisition-id"
+          }
+          blobStorageKey = "blob-key"
+          blobFingerprint = ByteString.copyFrom(ByteArray(32))
+        }
+        .build()
   }
 }

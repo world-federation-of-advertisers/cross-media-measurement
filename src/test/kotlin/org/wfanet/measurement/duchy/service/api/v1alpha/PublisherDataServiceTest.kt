@@ -81,152 +81,177 @@ class PublisherDataServiceTest {
   init {
     val channel = grpcTestServerRule.channel
 
-    service = PublisherDataService(
-      MetricValuesCoroutineStub(channel),
-      RequisitionCoroutineStub(channel),
-      SystemRequisitionCoroutineStub(channel),
-      DataProviderRegistrationCoroutineStub(channel),
-      DUCHY_PUBLIC_KEYS
-    )
+    service =
+      PublisherDataService(
+        MetricValuesCoroutineStub(channel),
+        RequisitionCoroutineStub(channel),
+        SystemRequisitionCoroutineStub(channel),
+        DataProviderRegistrationCoroutineStub(channel),
+        DUCHY_PUBLIC_KEYS
+      )
   }
 
-  @Test fun `listMetricRequisitions delegates to Requisition service`() {
-    val metricRequisitionKey = MetricRequisition.Key.newBuilder().apply {
-      dataProviderId = "dataProviderId"
-      campaignId = "campaign"
-      metricRequisitionId = "metricRequisition"
-    }.build()
-    val expectedResponse = ListMetricRequisitionsResponse.newBuilder().apply {
-      addMetricRequisitionsBuilder().key = metricRequisitionKey
-    }.build()
+  @Test
+  fun `listMetricRequisitions delegates to Requisition service`() {
+    val metricRequisitionKey =
+      MetricRequisition.Key.newBuilder()
+        .apply {
+          dataProviderId = "dataProviderId"
+          campaignId = "campaign"
+          metricRequisitionId = "metricRequisition"
+        }
+        .build()
+    val expectedResponse =
+      ListMetricRequisitionsResponse.newBuilder()
+        .apply { addMetricRequisitionsBuilder().key = metricRequisitionKey }
+        .build()
     requisitionServiceMock.stub {
       onBlocking { listMetricRequisitions(any()) }.thenReturn(expectedResponse)
     }
 
-    val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parentBuilder.dataProviderId = metricRequisitionKey.dataProviderId
-      parentBuilder.campaignId = metricRequisitionKey.campaignId
-    }.build()
+    val request =
+      ListMetricRequisitionsRequest.newBuilder()
+        .apply {
+          parentBuilder.dataProviderId = metricRequisitionKey.dataProviderId
+          parentBuilder.campaignId = metricRequisitionKey.campaignId
+        }
+        .build()
     val response = runBlocking { service.listMetricRequisitions(request) }
 
     assertThat(response).isEqualTo(expectedResponse)
     argumentCaptor<ListMetricRequisitionsRequest> {
-      verifyBlocking(requisitionServiceMock, times(1)) {
-        listMetricRequisitions(capture())
-      }
+      verifyBlocking(requisitionServiceMock, times(1)) { listMetricRequisitions(capture()) }
       assertThat(firstValue).isEqualTo(request)
     }
   }
 
-  @Test fun `refuseMetricRequisition delegates to Requisition service`() {
-    val metricRequisitionKey = MetricRequisition.Key.newBuilder().apply {
-      dataProviderId = "dataProviderId"
-      campaignId = "campaign"
-      metricRequisitionId = "metricRequisition"
-    }.build()
-    val expectedResponse = MetricRequisition.newBuilder().apply {
-      key = metricRequisitionKey
-      state = MetricRequisition.State.PERMANENTLY_UNFILLABLE
-    }.build()
+  @Test
+  fun `refuseMetricRequisition delegates to Requisition service`() {
+    val metricRequisitionKey =
+      MetricRequisition.Key.newBuilder()
+        .apply {
+          dataProviderId = "dataProviderId"
+          campaignId = "campaign"
+          metricRequisitionId = "metricRequisition"
+        }
+        .build()
+    val expectedResponse =
+      MetricRequisition.newBuilder()
+        .apply {
+          key = metricRequisitionKey
+          state = MetricRequisition.State.PERMANENTLY_UNFILLABLE
+        }
+        .build()
     requisitionServiceMock.stub {
       onBlocking { refuseMetricRequisition(any()) }.thenReturn(expectedResponse)
     }
 
-    val request = RefuseMetricRequisitionRequest.newBuilder().apply {
-      key = metricRequisitionKey
-      refusalBuilder.apply {
-        justification = MetricRequisition.Refusal.Justification.DATA_UNAVAILABLE
-        message = "Disk corrupted"
-      }
-    }.build()
+    val request =
+      RefuseMetricRequisitionRequest.newBuilder()
+        .apply {
+          key = metricRequisitionKey
+          refusalBuilder.apply {
+            justification = MetricRequisition.Refusal.Justification.DATA_UNAVAILABLE
+            message = "Disk corrupted"
+          }
+        }
+        .build()
     val response = runBlocking { service.refuseMetricRequisition(request) }
 
     assertThat(response).isEqualTo(expectedResponse)
     argumentCaptor<RefuseMetricRequisitionRequest> {
-      verifyBlocking(requisitionServiceMock, times(1)) {
-        refuseMetricRequisition(capture())
-      }
+      verifyBlocking(requisitionServiceMock, times(1)) { refuseMetricRequisition(capture()) }
       assertThat(firstValue).isEqualTo(request)
     }
   }
 
-  @Test fun `uploadMetricValue stores metric and fulfills requisition`() {
-    val metricValueKey = MetricRequisition.Key.newBuilder().apply {
-      dataProviderId = "dataProviderId"
-      campaignId = "campaign"
-      metricRequisitionId = "metricRequisition"
-    }.build()
+  @Test
+  fun `uploadMetricValue stores metric and fulfills requisition`() {
+    val metricValueKey =
+      MetricRequisition.Key.newBuilder()
+        .apply {
+          dataProviderId = "dataProviderId"
+          campaignId = "campaign"
+          metricRequisitionId = "metricRequisition"
+        }
+        .build()
 
     lateinit var storeRequests: List<StoreMetricValueRequest>
     metricValuesServiceMock.stub {
       onBlocking { storeMetricValue(any()) }.thenAnswer {
         val requests: Flow<StoreMetricValueRequest> = it.getArgument(0)
         storeRequests = runBlocking { requests.toList() }
-        InternalMetricValue.newBuilder().apply {
-          resourceKey = metricValueKey.toResourceKey()
-        }.build()
+        InternalMetricValue.newBuilder()
+          .apply { resourceKey = metricValueKey.toResourceKey() }
+          .build()
       }
     }
     systemRequisitionServiceMock.stub {
-      onBlocking {
-        fulfillMetricRequisition(any())
-      }.thenReturn(FulfillMetricRequisitionResponse.getDefaultInstance())
+      onBlocking { fulfillMetricRequisition(any()) }
+        .thenReturn(FulfillMetricRequisitionResponse.getDefaultInstance())
     }
 
     val response = runBlocking {
       service.uploadMetricValue(
         flowOf(
-          UploadMetricValueRequest.newBuilder().apply {
-            headerBuilder.key = metricValueKey
-          }.build(),
-          UploadMetricValueRequest.newBuilder().apply {
-            chunkBuilder.data = testMetricValueData
-          }.build()
+          UploadMetricValueRequest.newBuilder()
+            .apply { headerBuilder.key = metricValueKey }
+            .build(),
+          UploadMetricValueRequest.newBuilder()
+            .apply { chunkBuilder.data = testMetricValueData }
+            .build()
         )
       )
     }
 
     assertThat(response.state).isEqualTo(MetricRequisition.State.FULFILLED)
-    assertThat(storeRequests).containsExactly(
-      StoreMetricValueRequest.newBuilder().apply {
-        headerBuilder.resourceKey = metricValueKey.toResourceKey()
-      }.build(),
-      StoreMetricValueRequest.newBuilder().apply {
-        chunkBuilder.data = testMetricValueData
-      }.build()
-    ).inOrder()
+    assertThat(storeRequests)
+      .containsExactly(
+        StoreMetricValueRequest.newBuilder()
+          .apply { headerBuilder.resourceKey = metricValueKey.toResourceKey() }
+          .build(),
+        StoreMetricValueRequest.newBuilder()
+          .apply { chunkBuilder.data = testMetricValueData }
+          .build()
+      )
+      .inOrder()
   }
 
-  @Test fun `getCombinedPublicKey throws NOT_FOUND for unknown ID`() {
-    val request = GetCombinedPublicKeyRequest.newBuilder()
-      .apply { keyBuilder.combinedPublicKeyId = "unknown-id" }
-      .build()
+  @Test
+  fun `getCombinedPublicKey throws NOT_FOUND for unknown ID`() {
+    val request =
+      GetCombinedPublicKeyRequest.newBuilder()
+        .apply { keyBuilder.combinedPublicKeyId = "unknown-id" }
+        .build()
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      runBlocking { service.getCombinedPublicKey(request) }
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.getCombinedPublicKey(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
-  @Test fun `getCombinedPublicKey throws INVALID_ARGUMENT for missing ID`() {
-    val request = GetCombinedPublicKeyRequest.newBuilder()
-      .apply { keyBuilder }
-      .build()
+  @Test
+  fun `getCombinedPublicKey throws INVALID_ARGUMENT for missing ID`() {
+    val request = GetCombinedPublicKeyRequest.newBuilder().apply { keyBuilder }.build()
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      runBlocking { service.getCombinedPublicKey(request) }
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.getCombinedPublicKey(request) }
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
-  @Test fun `getCombinedPublicKey returns CombinedPublicKey`() {
+  @Test
+  fun `getCombinedPublicKey returns CombinedPublicKey`() {
     val latestPublicKeys = DUCHY_PUBLIC_KEYS.latest
     val combinedPublicKeyId = latestPublicKeys.combinedPublicKeyId
-    val request = GetCombinedPublicKeyRequest.newBuilder()
-      .apply { keyBuilder.combinedPublicKeyId = combinedPublicKeyId }
-      .build()
+    val request =
+      GetCombinedPublicKeyRequest.newBuilder()
+        .apply { keyBuilder.combinedPublicKeyId = combinedPublicKeyId }
+        .build()
 
     val response = runBlocking { service.getCombinedPublicKey(request) }
 

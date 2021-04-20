@@ -21,9 +21,9 @@ import org.wfanet.measurement.common.asBufferedFlow
 /**
  * Interface for blob/object storage operations.
  *
- * It is assumed that the content of blobs accessed through this interface is
- * immutable once the blob has been created. Hence, this interface has no
- * operations for modifying the content of an existing blob.
+ * It is assumed that the content of blobs accessed through this interface is immutable once the
+ * blob has been created. Hence, this interface has no operations for modifying the content of an
+ * existing blob.
  */
 interface StorageClient {
   /** Default size in bytes of each [Flow] value. */
@@ -52,8 +52,8 @@ interface StorageClient {
 }
 
 /**
- * [Creates][StorageClient.createBlob] a [StorageClient.Blob] using a [Flow]
- * with [ByteString]s of [StorageClient.defaultBufferSizeBytes] size.
+ * [Creates][StorageClient.createBlob] a [StorageClient.Blob] using a [Flow] with [ByteString]s of
+ * [StorageClient.defaultBufferSizeBytes] size.
  */
 suspend fun StorageClient.createBlob(blobKey: String, content: ByteString) =
   createBlob(blobKey, content.asBufferedFlow(defaultBufferSizeBytes))

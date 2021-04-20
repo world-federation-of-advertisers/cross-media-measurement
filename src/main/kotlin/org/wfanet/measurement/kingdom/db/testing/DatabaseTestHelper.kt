@@ -23,14 +23,10 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 
 /** Abstracts database operations required for testing. */
 interface DatabaseTestHelper {
-  /**
-   * Registers a Data Provider.
-   */
+  /** Registers a Data Provider. */
   suspend fun createDataProvider(): DataProvider
 
-  /**
-   * Registers an Advertiser.
-   */
+  /** Registers an Advertiser. */
   suspend fun createAdvertiser(): Advertiser
 
   /**
@@ -50,8 +46,8 @@ interface DatabaseTestHelper {
   /**
    * Creates a [ReportConfig] for an Advertiser.
    *
-   * The `externalReportConfigId` in [reportConfig] is ignored and the return value will have a
-   * new `externalReportConfigId` populated.
+   * The `externalReportConfigId` in [reportConfig] is ignored and the return value will have a new
+   * `externalReportConfigId` populated.
    */
   suspend fun createReportConfig(
     reportConfig: ReportConfig,

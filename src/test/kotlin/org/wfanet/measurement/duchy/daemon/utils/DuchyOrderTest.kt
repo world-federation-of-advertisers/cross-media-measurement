@@ -61,22 +61,34 @@ class DuchyOrderTest {
       histogram[temp] = histogram.getOrDefault(temp, 0) + 1
     }
     Assert.assertEquals(
-      1.0 / 6, histogram[listOf(SALZBURG, BOHEMIA, AUSTRIA)]!!.toDouble() / trails, 0.01
+      1.0 / 6,
+      histogram[listOf(SALZBURG, BOHEMIA, AUSTRIA)]!!.toDouble() / trails,
+      0.01
     )
     Assert.assertEquals(
-      1.0 / 6, histogram[listOf(SALZBURG, AUSTRIA, BOHEMIA)]!!.toDouble() / trails, 0.01
+      1.0 / 6,
+      histogram[listOf(SALZBURG, AUSTRIA, BOHEMIA)]!!.toDouble() / trails,
+      0.01
     )
     Assert.assertEquals(
-      1.0 / 6, histogram[listOf(BOHEMIA, SALZBURG, AUSTRIA)]!!.toDouble() / trails, 0.01
+      1.0 / 6,
+      histogram[listOf(BOHEMIA, SALZBURG, AUSTRIA)]!!.toDouble() / trails,
+      0.01
     )
     Assert.assertEquals(
-      1.0 / 6, histogram[listOf(BOHEMIA, AUSTRIA, SALZBURG)]!!.toDouble() / trails, 0.01
+      1.0 / 6,
+      histogram[listOf(BOHEMIA, AUSTRIA, SALZBURG)]!!.toDouble() / trails,
+      0.01
     )
     Assert.assertEquals(
-      1.0 / 6, histogram[listOf(AUSTRIA, BOHEMIA, SALZBURG)]!!.toDouble() / trails, 0.01
+      1.0 / 6,
+      histogram[listOf(AUSTRIA, BOHEMIA, SALZBURG)]!!.toDouble() / trails,
+      0.01
     )
     Assert.assertEquals(
-      1.0 / 6, histogram[listOf(AUSTRIA, SALZBURG, BOHEMIA)]!!.toDouble() / trails, 0.01
+      1.0 / 6,
+      histogram[listOf(AUSTRIA, SALZBURG, BOHEMIA)]!!.toDouble() / trails,
+      0.01
     )
   }
 
@@ -90,9 +102,7 @@ class DuchyOrderTest {
   @Test
   fun `getFollowingDuchies returns the following duchies`() {
     assertEquals(
-      getFollowingDuchies(
-        listOf(BOHEMIA, SALZBURG, AUSTRIA), BOHEMIA
-      ),
+      getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), BOHEMIA),
       listOf(SALZBURG, AUSTRIA)
     )
     assertEquals(getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), SALZBURG), listOf(AUSTRIA))
@@ -104,10 +114,6 @@ class DuchyOrderTest {
     private const val BOHEMIA = "Bohemia"
     private const val SALZBURG = "Salzburg"
     private val duchies =
-      setOf(
-        Duchy(BOHEMIA, "key1"),
-        Duchy(SALZBURG, "key2"),
-        Duchy(AUSTRIA, "key3")
-      )
+      setOf(Duchy(BOHEMIA, "key1"), Duchy(SALZBURG, "key2"), Duchy(AUSTRIA, "key3"))
   }
 }

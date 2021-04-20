@@ -31,16 +31,12 @@ import com.google.cloud.spanner.Statement
  */
 fun Statement.Builder.appendClause(sql: String): Statement.Builder = append("\n$sql ")
 
-/**
- * Convenience function for applying a Mutation to a transaction.
- */
+/** Convenience function for applying a Mutation to a transaction. */
 fun Mutation.bufferTo(transactionContext: AsyncDatabaseClient.TransactionContext) {
   transactionContext.buffer(this)
 }
 
-/**
- * Constructs a [Spanner].
- */
+/** Constructs a [Spanner]. */
 fun buildSpanner(projectName: String, spannerEmulatorHost: String? = null): Spanner {
   return SpannerOptions.newBuilder()
     .apply {
@@ -53,9 +49,7 @@ fun buildSpanner(projectName: String, spannerEmulatorHost: String? = null): Span
     .service
 }
 
-/**
- * Creates a Spanner [Instance].
- */
+/** Creates a Spanner [Instance]. */
 fun Spanner.createInstance(
   projectName: String,
   instanceName: String,
@@ -65,8 +59,7 @@ fun Spanner.createInstance(
 ): Instance {
   val instanceId = InstanceId.of(projectName, instanceName)
   val instanceInfo =
-    InstanceInfo
-      .newBuilder(instanceId)
+    InstanceInfo.newBuilder(instanceId)
       .setDisplayName(displayName)
       .setInstanceConfigId(InstanceConfigId.of(projectName, instanceConfigId))
       .setNodeCount(instanceNodeCount)
@@ -75,8 +68,7 @@ fun Spanner.createInstance(
 }
 
 /**
- * The wrapped cause of this exception if it doesn't have a known [ErrorCode],
- * or `null` otherwise.
+ * The wrapped cause of this exception if it doesn't have a known [ErrorCode], or `null` otherwise.
  */
 val SpannerException.wrappedException: Throwable?
   get() = if (errorCode == ErrorCode.UNKNOWN) cause else null

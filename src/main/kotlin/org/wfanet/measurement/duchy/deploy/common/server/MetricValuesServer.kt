@@ -27,10 +27,12 @@ abstract class MetricValuesServer : Runnable {
 
   protected fun run(metricValueDb: MetricValueDatabase, storageClient: StorageClient) {
     CommonServer.fromFlags(
-      serverFlags,
-      javaClass.name,
-      MetricValuesService(metricValueDb, storageClient)
-    ).start().blockUntilShutdown()
+        serverFlags,
+        javaClass.name,
+        MetricValuesService(metricValueDb, storageClient)
+      )
+      .start()
+      .blockUntilShutdown()
   }
 
   companion object {

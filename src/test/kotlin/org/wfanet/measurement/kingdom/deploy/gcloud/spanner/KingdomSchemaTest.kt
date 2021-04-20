@@ -30,20 +30,22 @@ class KingdomSchemaTest : UsingSpannerEmulator(KINGDOM_SCHEMA) {
 
   @Test
   fun `insert single Advertiser`() = runBlocking {
-    val mutation = Mutation.newInsertBuilder("Advertisers")
-      .set("AdvertiserId").to(3011)
-      .set("ExternalAdvertiserId").to(1)
-      .set("AdvertiserDetails").to(ByteArray.copyFrom("123"))
-      .set("AdvertiserDetailsJSON").to(ByteArray.copyFrom("123"))
-      .build()
+    val mutation =
+      Mutation.newInsertBuilder("Advertisers")
+        .set("AdvertiserId")
+        .to(3011)
+        .set("ExternalAdvertiserId")
+        .to(1)
+        .set("AdvertiserDetails")
+        .to(ByteArray.copyFrom("123"))
+        .set("AdvertiserDetailsJSON")
+        .to(ByteArray.copyFrom("123"))
+        .build()
     databaseClient.write(listOf(mutation))
     assertQueryReturns(
       databaseClient,
       "SELECT AdvertiserId, ExternalAdvertiserId FROM Advertisers",
-      Struct.newBuilder()
-        .set("AdvertiserId").to(3011)
-        .set("ExternalAdvertiserId").to(1)
-        .build()
+      Struct.newBuilder().set("AdvertiserId").to(3011).set("ExternalAdvertiserId").to(1).build()
     )
   }
 }

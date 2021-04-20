@@ -36,24 +36,20 @@ private val REPORT: Report = Report.getDefaultInstance()
 @RunWith(JUnit4::class)
 class ReportStarterTest {
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient = mock()
-  private val daemon =
-    Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
+  private val daemon = Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
   fun startReports() = runBlocking {
     val latch = CountDownLatch(15)
     daemonDatabaseServicesClient.stub {
-      on { streamReadyReports() }
-        .thenReturn(flowOf(REPORT, REPORT, REPORT))
+      on { streamReadyReports() }.thenReturn(flowOf(REPORT, REPORT, REPORT))
 
-      onBlocking { updateReportState(any(), any()) }
-        .then { latch.countDown() }
+      onBlocking { updateReportState(any(), any()) }.then { latch.countDown() }
     }
 
     launchAndCancelWithLatch(latch) { daemon.runReportStarter() }
 
-    verify(daemonDatabaseServicesClient, atLeast(5))
-      .streamReadyReports()
+    verify(daemonDatabaseServicesClient, atLeast(5)).streamReadyReports()
 
     verify(daemonDatabaseServicesClient, atLeast(15))
       .updateReportState(same(REPORT), eq(Report.ReportState.AWAITING_DUCHY_CONFIRMATION))

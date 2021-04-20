@@ -17,6 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
 fun buildRequisitionDetails(sketchConfigId: Long): RequisitionDetails =
-  RequisitionDetails.newBuilder().apply {
-    metricDefinitionBuilder.sketchBuilder.sketchConfigId = sketchConfigId
-  }.build()
+  RequisitionDetails.newBuilder()
+    .apply { metricDefinitionBuilder.sketchBuilder.sketchConfigId = sketchConfigId }
+    .build()

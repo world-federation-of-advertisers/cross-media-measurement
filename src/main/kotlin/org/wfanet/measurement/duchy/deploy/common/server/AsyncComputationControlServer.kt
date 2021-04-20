@@ -62,9 +62,7 @@ class AsyncComputationControlServiceFlags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(
-  @CommandLine.Mixin flags: AsyncComputationControlServiceFlags
-) {
+private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
   val duchyName = flags.duchy.duchyName
   val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
   require(latestDuchyPublicKeys.containsKey(duchyName)) {
@@ -77,13 +75,15 @@ private fun run(
   val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
 
   CommonServer.fromFlags(
-    flags.server,
-    SERVER_NAME,
-    AsyncComputationControlService(
-      ComputationsCoroutineStub(channel),
-      ComputationProtocolStageDetails(otherDuchyNames)
+      flags.server,
+      SERVER_NAME,
+      AsyncComputationControlService(
+        ComputationsCoroutineStub(channel),
+        ComputationProtocolStageDetails(otherDuchyNames)
+      )
     )
-  ).start().blockUntilShutdown()
+    .start()
+    .blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

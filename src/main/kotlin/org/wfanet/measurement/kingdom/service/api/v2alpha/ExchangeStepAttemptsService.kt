@@ -36,18 +36,21 @@ class ExchangeStepAttemptsService(
   private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub
 ) : ExchangeStepAttemptsCoroutineImplBase() {
   override suspend fun appendLogEntry(request: AppendLogEntryRequest): ExchangeStepAttempt {
-    val internalRequest = InternalAppendLogEntryRequest.newBuilder().apply {
-      externalRecurringExchangeId = apiIdToExternalId(request.key.recurringExchangeId)
-      date = LocalDate.parse(request.key.exchangeId).toProtoDate()
-      stepIndex = apiIdToExternalId(request.key.stepId).toInt()
-      attemptNumber = apiIdToExternalId(request.key.exchangeStepAttemptId).toInt()
-      for (entry in request.logEntriesList) {
-        addDebugLogEntriesBuilder().apply {
-          time = entry.time
-          message = entry.message
+    val internalRequest =
+      InternalAppendLogEntryRequest.newBuilder()
+        .apply {
+          externalRecurringExchangeId = apiIdToExternalId(request.key.recurringExchangeId)
+          date = LocalDate.parse(request.key.exchangeId).toProtoDate()
+          stepIndex = apiIdToExternalId(request.key.stepId).toInt()
+          attemptNumber = apiIdToExternalId(request.key.exchangeStepAttemptId).toInt()
+          for (entry in request.logEntriesList) {
+            addDebugLogEntriesBuilder().apply {
+              time = entry.time
+              message = entry.message
+            }
+          }
         }
-      }
-    }.build()
+        .build()
     val response = internalExchangeStepAttempts.appendLogEntry(internalRequest)
     return response.toV2Alpha()
   }
@@ -78,15 +81,17 @@ class ExchangeStepAttemptsService(
 }
 
 private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
-  return ExchangeStepAttempt.newBuilder().also { builder ->
-    builder.key = toV2AlphaKey()
-    builder.attemptNumber = attemptNumber
-    builder.state = state.toV2Alpha()
-    builder.addAllDebugLogEntries(details.debugLogEntriesList.map { it.toV2Alpha() })
-    builder.addAllSharedOutputs(details.sharedOutputsList)
-    builder.startTime = details.startTime
-    builder.updateTime = details.updateTime
-  }.build()
+  return ExchangeStepAttempt.newBuilder()
+    .also { builder ->
+      builder.key = toV2AlphaKey()
+      builder.attemptNumber = attemptNumber
+      builder.state = state.toV2Alpha()
+      builder.addAllDebugLogEntries(details.debugLogEntriesList.map { it.toV2Alpha() })
+      builder.addAllSharedOutputs(details.sharedOutputsList)
+      builder.startTime = details.startTime
+      builder.updateTime = details.updateTime
+    }
+    .build()
 }
 
 private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
@@ -101,17 +106,21 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
 }
 
 private fun InternalExchangeStepAttempt.toV2AlphaKey(): ExchangeStepAttempt.Key {
-  return ExchangeStepAttempt.Key.newBuilder().apply {
-    recurringExchangeId = externalIdToApiId(externalRecurringExchangeId)
-    exchangeId = date.toLocalDate().toString()
-    stepId = externalIdToApiId(stepIndex.toLong())
-    exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
-  }.build()
+  return ExchangeStepAttempt.Key.newBuilder()
+    .apply {
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId)
+      exchangeId = date.toLocalDate().toString()
+      stepId = externalIdToApiId(stepIndex.toLong())
+      exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
+    }
+    .build()
 }
 
 private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
-  return ExchangeStepAttempt.DebugLog.newBuilder().also {
-    it.time = time
-    it.message = message
-  }.build()
+  return ExchangeStepAttempt.DebugLog.newBuilder()
+    .also {
+      it.time = time
+      it.message = message
+    }
+    .build()
 }

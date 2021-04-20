@@ -29,9 +29,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.truncateByteFields
 
-/**
- * Logs all gRPC requests and responses.
- */
+/** Logs all gRPC requests and responses. */
 class LoggingServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
@@ -39,29 +37,25 @@ class LoggingServerInterceptor : ServerInterceptor {
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
     val methodName = call.methodDescriptor.fullMethodName
-    val interceptedCall = object : SimpleForwardingServerCall<ReqT, RespT>(call) {
-      override fun sendMessage(message: RespT) {
-        val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
-        logger.logp(Level.INFO, methodName, "gRPC response", "[$threadName] $messageToLog")
-        super.sendMessage(message)
-      }
-      override fun close(status: Status, trailers: Metadata) {
-        if (status.cause != null) {
-          logger.logp(Level.SEVERE, methodName, "gRPC exception", "[$threadName]", status.cause)
+    val interceptedCall =
+      object : SimpleForwardingServerCall<ReqT, RespT>(call) {
+        override fun sendMessage(message: RespT) {
+          val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
+          logger.logp(Level.INFO, methodName, "gRPC response", "[$threadName] $messageToLog")
+          super.sendMessage(message)
         }
-        super.close(status, trailers)
+        override fun close(status: Status, trailers: Metadata) {
+          if (status.cause != null) {
+            logger.logp(Level.SEVERE, methodName, "gRPC exception", "[$threadName]", status.cause)
+          }
+          super.close(status, trailers)
+        }
       }
-    }
     val originalListener = next.startCall(interceptedCall, headers)
     return object : SimpleForwardingServerCallListener<ReqT>(originalListener) {
       override fun onMessage(message: ReqT) {
         val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
-        logger.logp(
-          Level.INFO,
-          methodName,
-          "gRPC request",
-          "[$threadName] $headers $messageToLog"
-        )
+        logger.logp(Level.INFO, methodName, "gRPC request", "[$threadName] $headers $messageToLog")
         super.onMessage(message)
       }
     }
@@ -75,17 +69,13 @@ class LoggingServerInterceptor : ServerInterceptor {
   }
 }
 
-/**
- * Logs all gRPC requests and responses.
- */
+/** Logs all gRPC requests and responses. */
 fun BindableService.withVerboseLogging(enabled: Boolean = true): ServerServiceDefinition {
   if (!enabled) return this.bindService()
   return ServerInterceptors.interceptForward(this, LoggingServerInterceptor())
 }
 
-/**
- * Logs all gRPC requests and responses.
- */
+/** Logs all gRPC requests and responses. */
 fun ServerServiceDefinition.withVerboseLogging(enabled: Boolean = true): ServerServiceDefinition {
   if (!enabled) return this
   return ServerInterceptors.interceptForward(this, LoggingServerInterceptor())

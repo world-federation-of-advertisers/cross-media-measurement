@@ -45,7 +45,6 @@ suspend fun Daemon.runRequisitionLinker() {
     .collect()
 }
 
-private fun Daemon.streamReportsAwaitingRequisitionCreation(): Flow<Report> =
-  retryLoop {
-    daemonDatabaseServicesClient.streamReportsInState(ReportState.AWAITING_REQUISITION_CREATION)
-  }
+private fun Daemon.streamReportsAwaitingRequisitionCreation(): Flow<Report> = retryLoop {
+  daemonDatabaseServicesClient.streamReportsInState(ReportState.AWAITING_REQUISITION_CREATION)
+}

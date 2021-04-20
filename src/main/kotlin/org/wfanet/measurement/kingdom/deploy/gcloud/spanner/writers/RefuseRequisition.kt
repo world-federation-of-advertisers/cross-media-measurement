@@ -34,9 +34,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportRequis
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 /**
- * [SpannerWriter] for reading a [Requisition] and, if its state is
- * [RequisitionState.UNFULFILLED], updating it to set its state to
- * [RequisitionState.PERMANENTLY_UNAVAILABLE].
+ * [SpannerWriter] for reading a [Requisition] and, if its state is [RequisitionState.UNFULFILLED],
+ * updating it to set its state to [RequisitionState.PERMANENTLY_UNAVAILABLE].
  *
  * If its state is not [RequisitionState.UNFULFILLED], no mutation is made.
  */
@@ -51,21 +50,25 @@ class RefuseRequisition(
       return RequisitionUpdate.noOp(requisition)
     }
 
-    val requisitionDetails = requisition.requisitionDetails.toBuilder().also {
-      it.refusal = refusal
-    }.build()
+    val requisitionDetails =
+      requisition.requisitionDetails.toBuilder().also { it.refusal = refusal }.build()
     Mutation.newUpdateBuilder("Requisitions")
-      .set("DataProviderId").to(readResult.dataProviderId)
-      .set("CampaignId").to(readResult.campaignId)
-      .set("RequisitionId").to(readResult.requisitionId)
-      .set("State").toProtoEnum(RequisitionState.PERMANENTLY_UNAVAILABLE)
-      .set("RequisitionDetails").toProtoBytes(requisitionDetails)
-      .set("RequisitionDetailsJson").toProtoJson(requisitionDetails)
+      .set("DataProviderId")
+      .to(readResult.dataProviderId)
+      .set("CampaignId")
+      .to(readResult.campaignId)
+      .set("RequisitionId")
+      .to(readResult.requisitionId)
+      .set("State")
+      .toProtoEnum(RequisitionState.PERMANENTLY_UNAVAILABLE)
+      .set("RequisitionDetails")
+      .toProtoBytes(requisitionDetails)
+      .set("RequisitionDetailsJson")
+      .toProtoJson(requisitionDetails)
       .build()
       .bufferTo(transactionContext)
 
-    ReportRequisitionReader
-      .readReportsWithAssociatedRequisition(
+    ReportRequisitionReader.readReportsWithAssociatedRequisition(
         transactionContext,
         InternalId(readResult.dataProviderId),
         InternalId(readResult.campaignId),
@@ -74,11 +77,14 @@ class RefuseRequisition(
       .collect { markReportFailed(it) }
 
     return requisition to
-      requisition.toBuilder().also {
-        it.state = RequisitionState.PERMANENTLY_UNAVAILABLE
-        it.requisitionDetails = requisitionDetails
-        it.requisitionDetailsJson = requisitionDetails.toJson()
-      }.build()
+      requisition
+        .toBuilder()
+        .also {
+          it.state = RequisitionState.PERMANENTLY_UNAVAILABLE
+          it.requisitionDetails = requisitionDetails
+          it.requisitionDetailsJson = requisitionDetails.toJson()
+        }
+        .build()
   }
 
   private fun TransactionScope.markReportFailed(reportReadResult: ReportReader.Result) =

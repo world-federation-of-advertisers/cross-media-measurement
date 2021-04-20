@@ -25,8 +25,7 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 private class GcsCorrectnessRunner : CorrectnessRunner() {
-  @CommandLine.Mixin
-  private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
     run(GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags)))

@@ -101,7 +101,7 @@ private class Flags {
     description = ["Host name and port of the spanner emulator."],
     required = false
   )
-  var spannerEmulatorHost: String ? = null
+  var spannerEmulatorHost: String? = null
     private set
 }
 
@@ -161,8 +161,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 }
 
 private val ExecutionException.isAlreadyExistsException: Boolean
-  get() = cause.let {
-    it != null && it is SpannerException && it.errorCode == ErrorCode.ALREADY_EXISTS
-  }
+  get() =
+    cause.let { it != null && it is SpannerException && it.errorCode == ErrorCode.ALREADY_EXISTS }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

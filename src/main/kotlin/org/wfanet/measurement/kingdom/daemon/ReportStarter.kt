@@ -27,16 +27,14 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
  * number of associated, fulfilled Requisitions.
  */
 suspend fun Daemon.runReportStarter() {
-  streamReadyReports()
-    .onEach { logger.info("Report is ready: $it") }
-    .collect { report ->
-      throttleAndLog {
-        daemonDatabaseServicesClient.updateReportState(
-          report,
-          ReportState.AWAITING_DUCHY_CONFIRMATION
-        )
-      }
+  streamReadyReports().onEach { logger.info("Report is ready: $it") }.collect { report ->
+    throttleAndLog {
+      daemonDatabaseServicesClient.updateReportState(
+        report,
+        ReportState.AWAITING_DUCHY_CONFIRMATION
+      )
     }
+  }
 }
 
 private fun Daemon.streamReadyReports(): Flow<Report> = retryLoop {

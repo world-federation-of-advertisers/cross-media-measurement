@@ -28,9 +28,7 @@ fun runSubprocess(
   logger.info("*** RUNNING: $command***")
 
   val process =
-    ProcessBuilder(command.split("\\s".toRegex()))
-      .redirectErrorStream(redirectErrorStream)
-      .start()
+    ProcessBuilder(command.split("\\s".toRegex())).redirectErrorStream(redirectErrorStream).start()
 
   runBlocking {
     joinAll(

@@ -34,16 +34,15 @@ import io.grpc.stub.MetadataUtils
  */
 data class DuchyIdentity(val id: String) {
   init {
-    require(id in DuchyIds.ALL) {
-      "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}"
-    }
+    require(id in DuchyIds.ALL) { "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}" }
   }
 }
 
 val duchyIdentityFromContext: DuchyIdentity
-  get() = requireNotNull(DUCHY_IDENTITY_CONTEXT_KEY.get()) {
-    "gRPC context is missing key $DUCHY_IDENTITY_CONTEXT_KEY"
-  }
+  get() =
+    requireNotNull(DUCHY_IDENTITY_CONTEXT_KEY.get()) {
+      "gRPC context is missing key $DUCHY_IDENTITY_CONTEXT_KEY"
+    }
 
 private const val KEY_NAME = "duchy-identity"
 private val DUCHY_IDENTITY_CONTEXT_KEY: Context.Key<DuchyIdentity> = Context.key(KEY_NAME)
@@ -56,8 +55,9 @@ private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STR
  * still required.
  *
  * To install in a server, wrap a service with:
+ * ```
  *    yourService.withDuchyIdentities()
- *
+ * ```
  * On the client side, use [withDuchyId].
  */
 class DuchyServerIdentityInterceptor : ServerInterceptor {
@@ -81,23 +81,18 @@ class DuchyServerIdentityInterceptor : ServerInterceptor {
   }
 }
 
-/**
- * Convenience helper for [DuchyServerIdentityInterceptor].
- */
+/** Convenience helper for [DuchyServerIdentityInterceptor]. */
 fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
 
-/**
- * Convenience helper for [DuchyServerIdentityInterceptor].
- */
+/** Convenience helper for [DuchyServerIdentityInterceptor]. */
 fun ServerServiceDefinition.withDuchyIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
 
 /**
  * Sets metadata key "duchy_id" on all outgoing requests.
  *
- * Usage:
- *   val someStub = SomeServiceCoroutineStub(channel).withDuchyId("MyDuchyId")
+ * Usage: val someStub = SomeServiceCoroutineStub(channel).withDuchyId("MyDuchyId")
  */
 fun <T : AbstractStub<T>> T.withDuchyId(duchyId: String): T {
   val metadata = Metadata()

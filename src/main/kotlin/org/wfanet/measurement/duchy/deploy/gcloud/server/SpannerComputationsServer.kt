@@ -27,9 +27,7 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpanner
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
-/**
- * Implementation of [ComputationsServer] using Google Cloud Spanner.
- */
+/** Implementation of [ComputationsServer] using Google Cloud Spanner. */
 @CommandLine.Command(
   name = "SpannerComputationsServer",
   description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],
@@ -37,8 +35,7 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 class SpannerComputationsServer : ComputationsServer() {
-  @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   private val latestDuchyPublicKeys: DuchyPublicKeys.Entry
     get() = duchyPublicKeys.latest
@@ -57,14 +54,16 @@ class SpannerComputationsServer : ComputationsServer() {
         GcpSpannerComputationsDatabaseReader(databaseClient, protocolStageEnumHelper),
         GcpSpannerComputationsDatabaseTransactor(
           databaseClient = databaseClient,
-          computationMutations = ComputationMutations(
-            ComputationTypes, protocolStageEnumHelper, computationProtocolStageDetails
-          )
+          computationMutations =
+            ComputationMutations(
+              ComputationTypes,
+              protocolStageEnumHelper,
+              computationProtocolStageDetails
+            )
         )
       )
     }
   }
 }
 
-fun main(args: Array<String>) =
-  commandLineMain(SpannerComputationsServer(), args)
+fun main(args: Array<String>) = commandLineMain(SpannerComputationsServer(), args)

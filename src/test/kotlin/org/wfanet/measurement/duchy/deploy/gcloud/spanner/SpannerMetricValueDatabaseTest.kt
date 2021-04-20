@@ -29,14 +29,13 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 class SpannerMetricValueDatabaseTest :
   AbstractMetricValueDatabaseTest<SpannerMetricValueDatabase>() {
 
-  @Rule
-  @JvmField
-  val spannerDatabase = SpannerEmulatorDatabaseRule(METRIC_VALUES_SCHEMA)
+  @Rule @JvmField val spannerDatabase = SpannerEmulatorDatabaseRule(METRIC_VALUES_SCHEMA)
 
   val databaseClient: AsyncDatabaseClient
     get() = spannerDatabase.databaseClient
 
-  @Before fun initMetricValueDb() {
+  @Before
+  fun initMetricValueDb() {
     fixedIdGenerator = FixedIdGenerator()
     metricValueDb = SpannerMetricValueDatabase(databaseClient, fixedIdGenerator)
   }

@@ -38,12 +38,16 @@ class LiquidLegionsSketchAggregationV2ContextTest {
     val context =
       LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
     fun assertContextThrowsErrorWhenCallingNextStage(stage: Stage) {
-      val token = ComputationToken.newBuilder().apply {
-        computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregationV2Value(stage.ordinal)
+      val token =
+        ComputationToken.newBuilder()
+          .apply {
+            computationStage =
+              ComputationStage.newBuilder()
+                .setLiquidLegionsSketchAggregationV2Value(stage.ordinal)
+                .build()
+            addBlobs(newEmptyOutputBlobMetadata(1L))
+          }
           .build()
-        addBlobs(newEmptyOutputBlobMetadata(1L))
-      }.build()
       assertFailsWith<StatusRuntimeException> {
         println(stage)
         context.outputBlob(token)
@@ -57,8 +61,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> {
           val next =
-            context
-              .nextStage(ComputationDetails.getDefaultInstance(), stage.toProtocolStage())
+            context.nextStage(ComputationDetails.getDefaultInstance(), stage.toProtocolStage())
               .liquidLegionsSketchAggregationV2
           assertTrue("$next is not a valid successor of $stage") {
             LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(stage, next)
@@ -71,73 +74,93 @@ class LiquidLegionsSketchAggregationV2ContextTest {
 
   @Test
   fun `output blob for wait sketches`() {
-    val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-      addBlobs(newEmptyOutputBlobMetadata(1L))
-      addBlobs(newEmptyOutputBlobMetadata(21L))
-      stageSpecificDetailsBuilder.apply {
-        liquidLegionsV2Builder.apply {
-          waitSetupPhaseInputsDetailsBuilder
-            .putExternalDuchyLocalBlobId("alice", 21L)
-            .putExternalDuchyLocalBlobId("bob", 1L)
+    val token =
+      ComputationToken.newBuilder()
+        .apply {
+          computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+          addBlobs(newEmptyOutputBlobMetadata(1L))
+          addBlobs(newEmptyOutputBlobMetadata(21L))
+          stageSpecificDetailsBuilder.apply {
+            liquidLegionsV2Builder.apply {
+              waitSetupPhaseInputsDetailsBuilder
+                .putExternalDuchyLocalBlobId("alice", 21L)
+                .putExternalDuchyLocalBlobId("bob", 1L)
+            }
+          }
         }
-      }
-    }.build()
+        .build()
 
     assertThat(
-      LiquidLegionsSketchAggregationV2Context(
-        AdvanceComputationRequest.newBuilder().setDataOrigin("alice").build()
-      ).outputBlob(token)
-    ).isEqualTo(newEmptyOutputBlobMetadata(21L))
+        LiquidLegionsSketchAggregationV2Context(
+            AdvanceComputationRequest.newBuilder().setDataOrigin("alice").build()
+          )
+          .outputBlob(token)
+      )
+      .isEqualTo(newEmptyOutputBlobMetadata(21L))
     assertThat(
-      LiquidLegionsSketchAggregationV2Context(
-        AdvanceComputationRequest.newBuilder().setDataOrigin("bob").build()
-      ).outputBlob(token)
-    ).isEqualTo(newEmptyOutputBlobMetadata(1L))
+        LiquidLegionsSketchAggregationV2Context(
+            AdvanceComputationRequest.newBuilder().setDataOrigin("bob").build()
+          )
+          .outputBlob(token)
+      )
+      .isEqualTo(newEmptyOutputBlobMetadata(1L))
     assertFailsWith<IllegalStateException> {
       LiquidLegionsSketchAggregationV2Context(
-        AdvanceComputationRequest.newBuilder().setDataOrigin("unknown-sender").build()
-      ).outputBlob(token)
+          AdvanceComputationRequest.newBuilder().setDataOrigin("unknown-sender").build()
+        )
+        .outputBlob(token)
     }
   }
 
   @Test
   fun `output blob for wait reach estimation inputs`() {
-    val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
-      addBlobs(newEmptyOutputBlobMetadata(1L))
-    }.build()
+    val token =
+      ComputationToken.newBuilder()
+        .apply {
+          computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+          addBlobs(newEmptyOutputBlobMetadata(1L))
+        }
+        .build()
 
     assertThat(
-      LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
-        .outputBlob(token)
-    ).isEqualTo(newEmptyOutputBlobMetadata(1L))
+        LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
+          .outputBlob(token)
+      )
+      .isEqualTo(newEmptyOutputBlobMetadata(1L))
   }
 
   @Test
   fun `output blob for wait filtering phase inputs`() {
-    val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
-      addBlobs(newEmptyOutputBlobMetadata(100L))
-    }.build()
+    val token =
+      ComputationToken.newBuilder()
+        .apply {
+          computationStage = Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+          addBlobs(newEmptyOutputBlobMetadata(100L))
+        }
+        .build()
 
     assertThat(
-      LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
-        .outputBlob(token)
-    ).isEqualTo(newEmptyOutputBlobMetadata(100L))
+        LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
+          .outputBlob(token)
+      )
+      .isEqualTo(newEmptyOutputBlobMetadata(100L))
   }
 
   @Test
   fun `output blob for wait frequency inputs`() {
-    val token = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
-      addBlobs(newEmptyOutputBlobMetadata(120L))
-    }.build()
+    val token =
+      ComputationToken.newBuilder()
+        .apply {
+          computationStage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+          addBlobs(newEmptyOutputBlobMetadata(120L))
+        }
+        .build()
 
     assertThat(
-      LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
-        .outputBlob(token)
-    ).isEqualTo(newEmptyOutputBlobMetadata(120L))
+        LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
+          .outputBlob(token)
+      )
+      .isEqualTo(newEmptyOutputBlobMetadata(120L))
   }
 
   @Test
@@ -145,15 +168,17 @@ class LiquidLegionsSketchAggregationV2ContextTest {
     val context =
       LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
     fun assertContextThrowsErrorWhenGettingBlob(stage: Stage) {
-      val token = ComputationToken.newBuilder().apply {
-        computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregationV2Value(stage.ordinal)
+      val token =
+        ComputationToken.newBuilder()
+          .apply {
+            computationStage =
+              ComputationStage.newBuilder()
+                .setLiquidLegionsSketchAggregationV2Value(stage.ordinal)
+                .build()
+            addBlobs(newEmptyOutputBlobMetadata(1L))
+          }
           .build()
-        addBlobs(newEmptyOutputBlobMetadata(1L))
-      }.build()
-      assertFailsWith<StatusRuntimeException> {
-        context.outputBlob(token)
-      }
+      assertFailsWith<StatusRuntimeException> { context.outputBlob(token) }
     }
 
     for (stage in Stage.values()) {
@@ -163,7 +188,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         Stage.WAIT_SETUP_PHASE_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
-        Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> { }
+        Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> {}
         else -> assertContextThrowsErrorWhenGettingBlob(stage)
       }
     }

@@ -31,46 +31,54 @@ import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 private const val EXTERNAL_REPORT_CONFIG_ID = 1L
 
-private val REQUISITION_TEMPLATE1: RequisitionTemplate = RequisitionTemplate.newBuilder().apply {
-  externalDataProviderId = 2
-  externalCampaignId = 3
-  requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 4
-}.build()
+private val REQUISITION_TEMPLATE1: RequisitionTemplate =
+  RequisitionTemplate.newBuilder()
+    .apply {
+      externalDataProviderId = 2
+      externalCampaignId = 3
+      requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 4
+    }
+    .build()
 
-private val REQUISITION_TEMPLATE2: RequisitionTemplate = RequisitionTemplate.newBuilder().apply {
-  externalDataProviderId = 5
-  externalCampaignId = 6
-  requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 7
-}.build()
+private val REQUISITION_TEMPLATE2: RequisitionTemplate =
+  RequisitionTemplate.newBuilder()
+    .apply {
+      externalDataProviderId = 5
+      externalCampaignId = 6
+      requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 7
+    }
+    .build()
 
 @RunWith(JUnit4::class)
 class ReportConfigsServiceTest {
 
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
-    on { listRequisitionTemplates(any()) }
-      .thenReturn(flowOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
-  }
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase =
+    mock() {
+      on { listRequisitionTemplates(any()) }
+        .thenReturn(flowOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
+    }
 
   private val service = ReportConfigsService(kingdomRelationalDatabase)
 
   @Test
-  fun listRequisitionTemplates() = runBlocking<Unit> {
-    val request =
-      ListRequisitionTemplatesRequest.newBuilder()
-        .setExternalReportConfigId(EXTERNAL_REPORT_CONFIG_ID)
-        .build()
+  fun listRequisitionTemplates() =
+    runBlocking<Unit> {
+      val request =
+        ListRequisitionTemplatesRequest.newBuilder()
+          .setExternalReportConfigId(EXTERNAL_REPORT_CONFIG_ID)
+          .build()
 
-    val expectedResponse =
-      ListRequisitionTemplatesResponse.newBuilder()
-        .addRequisitionTemplates(REQUISITION_TEMPLATE1)
-        .addRequisitionTemplates(REQUISITION_TEMPLATE2)
-        .build()
+      val expectedResponse =
+        ListRequisitionTemplatesResponse.newBuilder()
+          .addRequisitionTemplates(REQUISITION_TEMPLATE1)
+          .addRequisitionTemplates(REQUISITION_TEMPLATE2)
+          .build()
 
-    assertThat(service.listRequisitionTemplates(request))
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(expectedResponse)
+      assertThat(service.listRequisitionTemplates(request))
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(expectedResponse)
 
-    verify(kingdomRelationalDatabase)
-      .listRequisitionTemplates(ExternalId(EXTERNAL_REPORT_CONFIG_ID))
-  }
+      verify(kingdomRelationalDatabase)
+        .listRequisitionTemplates(ExternalId(EXTERNAL_REPORT_CONFIG_ID))
+    }
 }

@@ -53,53 +53,52 @@ fun <V : TerminalClause> AllOfClause<V>.toSql(
 }
 
 object StreamRequisitionsFilterSqlConverter : SqlConverter<StreamRequisitionsClause> {
-  override fun sqlData(v: StreamRequisitionsClause): SqlData = when (v) {
-    is StreamRequisitionsClause.ExternalDataProviderId -> SqlData(
-      "DataProviders.ExternalDataProviderId",
-      "external_data_provider_id",
-      externalIdValueArray(v.values)
-    )
-
-    is StreamRequisitionsClause.ExternalCampaignId -> SqlData(
-      "Campaigns.ExternalCampaignId",
-      "external_campaignId",
-      externalIdValueArray(v.values)
-    )
-
-    is StreamRequisitionsClause.CreatedAfter ->
-      SqlData("Requisitions.CreateTime", "create_time", timestampValue(v.value))
-
-    is StreamRequisitionsClause.State ->
-      SqlData("Requisitions.State", "state", enumValueArray(v.values))
-  }
+  override fun sqlData(v: StreamRequisitionsClause): SqlData =
+    when (v) {
+      is StreamRequisitionsClause.ExternalDataProviderId ->
+        SqlData(
+          "DataProviders.ExternalDataProviderId",
+          "external_data_provider_id",
+          externalIdValueArray(v.values)
+        )
+      is StreamRequisitionsClause.ExternalCampaignId ->
+        SqlData(
+          "Campaigns.ExternalCampaignId",
+          "external_campaignId",
+          externalIdValueArray(v.values)
+        )
+      is StreamRequisitionsClause.CreatedAfter ->
+        SqlData("Requisitions.CreateTime", "create_time", timestampValue(v.value))
+      is StreamRequisitionsClause.State ->
+        SqlData("Requisitions.State", "state", enumValueArray(v.values))
+    }
 }
 
 object StreamReportsFilterSqlConverter : SqlConverter<StreamReportsClause> {
-  override fun sqlData(v: StreamReportsClause): SqlData = when (v) {
-    is StreamReportsClause.ExternalAdvertiserId -> SqlData(
-      "Advertisers.ExternalAdvertiserId",
-      "external_advertiser_id",
-      externalIdValueArray(v.values)
-    )
-
-    is StreamReportsClause.ExternalReportConfigId -> SqlData(
-      "ReportConfigs.ExternalReportConfigId",
-      "external_report_config_id",
-      externalIdValueArray(v.values)
-    )
-
-    is StreamReportsClause.ExternalScheduleId -> SqlData(
-      "ReportConfigSchedules.ExternalScheduleId",
-      "external_schedule_id",
-      externalIdValueArray(v.values)
-    )
-
-    is StreamReportsClause.State ->
-      SqlData("Reports.State", "state", enumValueArray(v.values))
-
-    is StreamReportsClause.UpdatedAfter ->
-      SqlData("Reports.UpdateTime", "update_time", timestampValue(v.value))
-  }
+  override fun sqlData(v: StreamReportsClause): SqlData =
+    when (v) {
+      is StreamReportsClause.ExternalAdvertiserId ->
+        SqlData(
+          "Advertisers.ExternalAdvertiserId",
+          "external_advertiser_id",
+          externalIdValueArray(v.values)
+        )
+      is StreamReportsClause.ExternalReportConfigId ->
+        SqlData(
+          "ReportConfigs.ExternalReportConfigId",
+          "external_report_config_id",
+          externalIdValueArray(v.values)
+        )
+      is StreamReportsClause.ExternalScheduleId ->
+        SqlData(
+          "ReportConfigSchedules.ExternalScheduleId",
+          "external_schedule_id",
+          externalIdValueArray(v.values)
+        )
+      is StreamReportsClause.State -> SqlData("Reports.State", "state", enumValueArray(v.values))
+      is StreamReportsClause.UpdatedAfter ->
+        SqlData("Reports.UpdateTime", "update_time", timestampValue(v.value))
+    }
 }
 
 private fun externalIdValueArray(ids: Iterable<ExternalId>): Value =

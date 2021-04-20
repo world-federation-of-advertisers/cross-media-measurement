@@ -27,9 +27,8 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
 
-class RequisitionsService(
-  private val requisitionDatabase: RequisitionDatabase
-) : RequisitionsCoroutineImplBase() {
+class RequisitionsService(private val requisitionDatabase: RequisitionDatabase) :
+  RequisitionsCoroutineImplBase() {
   override suspend fun createRequisition(request: Requisition): Requisition {
     require(request.externalRequisitionId == 0L) {
       "Cannot create a Requisition with a set externalRequisitionId: $request"
@@ -41,26 +40,29 @@ class RequisitionsService(
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
-    val transition = requisitionDatabase.fulfillRequisition(
-      ExternalId(request.externalRequisitionId),
-      request.duchyId
-    )
+    val transition =
+      requisitionDatabase.fulfillRequisition(
+        ExternalId(request.externalRequisitionId),
+        request.duchyId
+      )
     return when (val preState = transition.original.state) {
       RequisitionState.UNFULFILLED -> transition.current
-      else -> failGrpc(Status.FAILED_PRECONDITION) {
-        "Cannot fulfill MetricRequisition in state $preState"
-      }
+      else ->
+        failGrpc(Status.FAILED_PRECONDITION) {
+          "Cannot fulfill MetricRequisition in state $preState"
+        }
     }
   }
 
   override fun streamRequisitions(request: StreamRequisitionsRequest): Flow<Requisition> {
     val filter = request.filter
-    val internalFilter = streamRequisitionsFilter(
-      externalDataProviderIds = filter.externalDataProviderIdsList.map(::ExternalId),
-      externalCampaignIds = filter.externalCampaignIdsList.map(::ExternalId),
-      states = filter.statesList,
-      createdAfter = filter.createdAfter.toInstant()
-    )
+    val internalFilter =
+      streamRequisitionsFilter(
+        externalDataProviderIds = filter.externalDataProviderIdsList.map(::ExternalId),
+        externalCampaignIds = filter.externalCampaignIdsList.map(::ExternalId),
+        states = filter.statesList,
+        createdAfter = filter.createdAfter.toInstant()
+      )
     return requisitionDatabase.streamRequisitions(internalFilter, request.limit)
   }
 }

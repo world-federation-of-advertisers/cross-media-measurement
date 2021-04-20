@@ -87,28 +87,31 @@ class DaemonDatabaseServicesClientImplTest {
   fun createNextReport() = runBlocking {
     val externalScheduleId = 12345L
     val combinedPublicKeyResourceId = "combined-public-key"
-    val schedule =
-      ReportConfigSchedule.newBuilder()
-        .setExternalScheduleId(12345)
-        .build()
+    val schedule = ReportConfigSchedule.newBuilder().setExternalScheduleId(12345).build()
 
     daemonDatabaseServicesClient.createNextReport(schedule, combinedPublicKeyResourceId)
 
-    val expectedRequest = CreateNextReportRequest.newBuilder().apply {
-      this.externalScheduleId = externalScheduleId
-      this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
-    }.build()
+    val expectedRequest =
+      CreateNextReportRequest.newBuilder()
+        .apply {
+          this.externalScheduleId = externalScheduleId
+          this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
+        }
+        .build()
     verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::createNextReport)
       .isEqualTo(expectedRequest)
   }
 
   @Test
   fun buildRequisitionsForReport() = runBlocking {
-    val requisitionTemplate = RequisitionTemplate.newBuilder().apply {
-      externalDataProviderId = 1
-      externalCampaignId = 2
-      requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 3
-    }.build()
+    val requisitionTemplate =
+      RequisitionTemplate.newBuilder()
+        .apply {
+          externalDataProviderId = 1
+          externalCampaignId = 2
+          requisitionDetailsBuilder.metricDefinitionBuilder.sketchBuilder.sketchConfigId = 3
+        }
+        .build()
 
     whenever(reportConfigStorage.listRequisitionTemplates(any()))
       .thenReturn(
@@ -117,20 +120,24 @@ class DaemonDatabaseServicesClientImplTest {
           .build()
       )
 
-    val report = Report.newBuilder()
-      .setExternalReportConfigId(4)
-      .setWindowStartTime(Instant.ofEpochSecond(123).toProtoTime())
-      .setWindowEndTime(Instant.ofEpochSecond(456).toProtoTime())
-      .build()
+    val report =
+      Report.newBuilder()
+        .setExternalReportConfigId(4)
+        .setWindowStartTime(Instant.ofEpochSecond(123).toProtoTime())
+        .setWindowEndTime(Instant.ofEpochSecond(456).toProtoTime())
+        .build()
 
-    val expectedRequisition = Requisition.newBuilder().apply {
-      externalDataProviderId = 1
-      externalCampaignId = 2
-      windowStartTime = report.windowStartTime
-      windowEndTime = report.windowEndTime
-      state = RequisitionState.UNFULFILLED
-      requisitionDetails = requisitionTemplate.requisitionDetails
-    }.build()
+    val expectedRequisition =
+      Requisition.newBuilder()
+        .apply {
+          externalDataProviderId = 1
+          externalCampaignId = 2
+          windowStartTime = report.windowStartTime
+          windowEndTime = report.windowEndTime
+          state = RequisitionState.UNFULFILLED
+          requisitionDetails = requisitionTemplate.requisitionDetails
+        }
+        .build()
 
     assertThat(daemonDatabaseServicesClient.buildRequisitionsForReport(report))
       .containsExactly(expectedRequisition)
@@ -139,9 +146,9 @@ class DaemonDatabaseServicesClientImplTest {
       ListRequisitionTemplatesRequest.newBuilder().setExternalReportConfigId(4).build()
 
     verifyProtoArgument(
-      reportConfigStorage,
-      ReportConfigsCoroutineImplBase::listRequisitionTemplates
-    )
+        reportConfigStorage,
+        ReportConfigsCoroutineImplBase::listRequisitionTemplates
+      )
       .isEqualTo(expectedRequest)
   }
 
@@ -150,8 +157,7 @@ class DaemonDatabaseServicesClientImplTest {
     val inputRequisition = Requisition.newBuilder().setExternalDataProviderId(1).build()
     val outputRequisition = Requisition.newBuilder().setExternalDataProviderId(2).build()
 
-    whenever(requisitionStorage.createRequisition(any()))
-      .thenReturn(outputRequisition)
+    whenever(requisitionStorage.createRequisition(any())).thenReturn(outputRequisition)
 
     assertThat(daemonDatabaseServicesClient.createRequisition(inputRequisition))
       .isEqualTo(outputRequisition)
@@ -167,10 +173,13 @@ class DaemonDatabaseServicesClientImplTest {
 
     daemonDatabaseServicesClient.associateRequisitionToReport(requisition, report)
 
-    val expectedRequest = AssociateRequisitionRequest.newBuilder().apply {
-      externalRequisitionId = 1
-      externalReportId = 2
-    }.build()
+    val expectedRequest =
+      AssociateRequisitionRequest.newBuilder()
+        .apply {
+          externalRequisitionId = 1
+          externalReportId = 2
+        }
+        .build()
 
     verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::associateRequisition)
       .isEqualTo(expectedRequest)
@@ -202,26 +211,19 @@ class DaemonDatabaseServicesClientImplTest {
     val report2 = Report.newBuilder().setExternalReportId(2).build()
     val report3 = Report.newBuilder().setExternalReportId(3).build()
 
-    whenever(reportStorage.streamReports(any()))
-      .thenReturn(flowOf(report1, report2, report3))
+    whenever(reportStorage.streamReports(any())).thenReturn(flowOf(report1, report2, report3))
 
     val state = ReportState.AWAITING_REQUISITION_CREATION
     val outputReports = daemonDatabaseServicesClient.streamReportsInState(state)
 
-    assertThat(outputReports.toList())
-      .containsExactly(report1, report2, report3)
-      .inOrder()
+    assertThat(outputReports.toList()).containsExactly(report1, report2, report3).inOrder()
 
-    val expectedRequest = StreamReportsRequest.newBuilder().apply {
-      filterBuilder.addStates(state)
-    }.build()
+    val expectedRequest =
+      StreamReportsRequest.newBuilder().apply { filterBuilder.addStates(state) }.build()
 
-    val actualRequest = captureFirst<StreamReportsRequest> {
-      verify(reportStorage).streamReports(capture())
-    }
-    assertThat(actualRequest)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedRequest)
+    val actualRequest =
+      captureFirst<StreamReportsRequest> { verify(reportStorage).streamReports(capture()) }
+    assertThat(actualRequest).comparingExpectedFieldsOnly().isEqualTo(expectedRequest)
   }
 
   @Test
@@ -230,28 +232,25 @@ class DaemonDatabaseServicesClientImplTest {
     val report2 = Report.newBuilder().setExternalReportId(2).build()
     val report3 = Report.newBuilder().setExternalReportId(3).build()
 
-    whenever(reportStorage.streamReadyReports(any()))
-      .thenReturn(flowOf(report1, report2, report3))
+    whenever(reportStorage.streamReadyReports(any())).thenReturn(flowOf(report1, report2, report3))
 
     val outputReports = daemonDatabaseServicesClient.streamReadyReports()
 
-    assertThat(outputReports.toList())
-      .containsExactly(report1, report2, report3)
-      .inOrder()
+    assertThat(outputReports.toList()).containsExactly(report1, report2, report3).inOrder()
   }
 
   @Test
-  fun streamReadySchedules() = runBlocking<Unit> {
-    val schedule1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
-    val schedule2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
-    val schedule3 = ReportConfigSchedule.newBuilder().setExternalScheduleId(3).build()
+  fun streamReadySchedules() =
+    runBlocking<Unit> {
+      val schedule1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
+      val schedule2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
+      val schedule3 = ReportConfigSchedule.newBuilder().setExternalScheduleId(3).build()
 
-    whenever(reportConfigScheduleStorage.streamReadyReportConfigSchedules(any()))
-      .thenReturn(flowOf(schedule1, schedule2, schedule3))
+      whenever(reportConfigScheduleStorage.streamReadyReportConfigSchedules(any()))
+        .thenReturn(flowOf(schedule1, schedule2, schedule3))
 
-    val outputSchedules = daemonDatabaseServicesClient.streamReadySchedules()
+      val outputSchedules = daemonDatabaseServicesClient.streamReadySchedules()
 
-    assertThat(outputSchedules.toList())
-      .containsExactly(schedule1, schedule2, schedule3)
-  }
+      assertThat(outputSchedules.toList()).containsExactly(schedule1, schedule2, schedule3)
+    }
 }

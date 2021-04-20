@@ -42,9 +42,7 @@ fun <T> renewedFlow(
   block: suspend () -> Flow<T>
 ): Flow<T> = flow {
   while (true) {
-    withTimeoutOrNull(reconnectMillis) {
-      emitAll(block())
-    }
+    withTimeoutOrNull(reconnectMillis) { emitAll(block()) }
     delay(reconnectDelayMillis)
   }
 }
@@ -53,5 +51,4 @@ fun <T> renewedFlow(
   reconnect: Duration,
   reconnectDelay: Duration,
   block: suspend () -> Flow<T>
-): Flow<T> =
-  renewedFlow(reconnect.toMillis(), reconnectDelay.toMillis(), block)
+): Flow<T> = renewedFlow(reconnect.toMillis(), reconnectDelay.toMillis(), block)

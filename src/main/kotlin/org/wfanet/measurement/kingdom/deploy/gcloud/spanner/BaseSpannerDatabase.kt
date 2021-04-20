@@ -27,23 +27,17 @@ open class BaseSpannerDatabase(
   protected val idGenerator: IdGenerator,
   protected val client: AsyncDatabaseClient
 ) {
-  /**
-   * Executes a [SpannerWriter] with [client], [idGenerator], and [clock].
-   */
+  /** Executes a [SpannerWriter] with [client], [idGenerator], and [clock]. */
   protected suspend fun <R> SpannerWriter<*, R>.execute(): R {
     return execute(client, idGenerator, clock)
   }
 
-  /**
-   * Executes a [SpannerQuery] in a single-use ReadContext from [client].
-   */
+  /** Executes a [SpannerQuery] in a single-use ReadContext from [client]. */
   protected fun <R> SpannerQuery<*, R>.execute(): Flow<R> {
     return execute(client.singleUse())
   }
 
-  /**
-   * Executes a [SpannerQuery] to get a single result in a single-use ReadContext from [client].
-   */
+  /** Executes a [SpannerQuery] to get a single result in a single-use ReadContext from [client]. */
   protected suspend fun <R> SpannerQuery<*, R>.executeSingle(): R {
     return executeSingle(client.singleUse())
   }

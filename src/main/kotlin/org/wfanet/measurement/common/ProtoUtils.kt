@@ -26,14 +26,14 @@ import java.io.File
 import java.time.Clock
 import java.time.Instant
 
-/** Converts a protobuf [MessageOrBuilder] into its canonical JSON representation.*/
+/** Converts a protobuf [MessageOrBuilder] into its canonical JSON representation. */
 fun MessageOrBuilder.toJson(): String {
   return JsonFormat.printer().omittingInsignificantWhitespace().print(this)
 }
 
 /**
- * Truncates all of the [bytes][FieldDescriptor.Type.BYTES] fields in this
- * [Message.Builder] in-place, returning itself for chaining.
+ * Truncates all of the [bytes][FieldDescriptor.Type.BYTES] fields in this [Message.Builder]
+ * in-place, returning itself for chaining.
  *
  * @param truncatedSize the size in bytes to truncate to
  */
@@ -80,17 +80,14 @@ fun <T : Message.Builder> T.truncateByteFields(truncatedSize: Int): T {
   return this
 }
 
-/** Truncate all byte fields inside a protobuf [Message].*/
+/** Truncate all byte fields inside a protobuf [Message]. */
 fun <T : Message> T.truncateByteFields(truncatedSize: Int): T {
   @Suppress("UNCHECKED_CAST") // Safe due to Message contract.
   return toBuilder().truncateByteFields(truncatedSize).build() as T
 }
 
 fun Instant.toProtoTime(): Timestamp =
-  Timestamp.newBuilder()
-    .setSeconds(epochSecond)
-    .setNanos(nano)
-    .build()
+  Timestamp.newBuilder().setSeconds(epochSecond).setNanos(nano).build()
 
 fun Timestamp.toInstant(): Instant = Instant.ofEpochSecond(seconds, nanos.toLong())
 
@@ -109,7 +106,5 @@ fun <T : Message> parseTextProto(textProto: Readable, messageInstance: T): T {
 }
 
 fun <T : Message> parseTextProto(textProto: File, messageInstance: T): T {
-  return textProto.bufferedReader().use { reader ->
-    parseTextProto(reader, messageInstance)
-  }
+  return textProto.bufferedReader().use { reader -> parseTextProto(reader, messageInstance) }
 }

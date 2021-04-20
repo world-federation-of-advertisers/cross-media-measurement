@@ -32,9 +32,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportRequis
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 /**
- * [SpannerWriter] for reading a [Requisition] and, if its state is
- * [RequisitionState.UNFULFILLED], updating it to set its state to
- * [RequisitionState.FULFILLED].
+ * [SpannerWriter] for reading a [Requisition] and, if its state is [RequisitionState.UNFULFILLED],
+ * updating it to set its state to [RequisitionState.FULFILLED].
  *
  * If its state is not [RequisitionState.UNFULFILLED], no mutation is made.
  */
@@ -50,16 +49,20 @@ class FulfillRequisition(
     }
 
     Mutation.newUpdateBuilder("Requisitions")
-      .set("DataProviderId").to(readResult.dataProviderId)
-      .set("CampaignId").to(readResult.campaignId)
-      .set("RequisitionId").to(readResult.requisitionId)
-      .set("State").toProtoEnum(RequisitionState.FULFILLED)
-      .set("DuchyId").to(duchyId)
+      .set("DataProviderId")
+      .to(readResult.dataProviderId)
+      .set("CampaignId")
+      .to(readResult.campaignId)
+      .set("RequisitionId")
+      .to(readResult.requisitionId)
+      .set("State")
+      .toProtoEnum(RequisitionState.FULFILLED)
+      .set("DuchyId")
+      .to(duchyId)
       .build()
       .bufferTo(transactionContext)
 
-    ReportRequisitionReader
-      .readReportsWithAssociatedRequisition(
+    ReportRequisitionReader.readReportsWithAssociatedRequisition(
         transactionContext,
         InternalId(readResult.dataProviderId),
         InternalId(readResult.campaignId),
@@ -68,27 +71,43 @@ class FulfillRequisition(
       .collect { updateReportDetails(it) }
 
     return requisition to
-      requisition.toBuilder().also {
-        it.duchyId = duchyId
-        it.state = RequisitionState.FULFILLED
-      }.build()
+      requisition
+        .toBuilder()
+        .also {
+          it.duchyId = duchyId
+          it.state = RequisitionState.FULFILLED
+        }
+        .build()
   }
 
   private fun TransactionScope.updateReportDetails(reportReadResult: ReportReader.Result) {
-    val newReportDetails = reportReadResult.report.reportDetails.toBuilder().apply {
-      requisitionsBuilderList
-        .single { it.externalRequisitionId == externalRequisitionId.value }
-        .duchyId = duchyId
-    }.build()
+    val newReportDetails =
+      reportReadResult
+        .report
+        .reportDetails
+        .toBuilder()
+        .apply {
+          requisitionsBuilderList
+            .single { it.externalRequisitionId == externalRequisitionId.value }
+            .duchyId = duchyId
+        }
+        .build()
 
     Mutation.newUpdateBuilder("Reports")
-      .set("AdvertiserId").to(reportReadResult.advertiserId)
-      .set("ReportConfigId").to(reportReadResult.reportConfigId)
-      .set("ScheduleId").to(reportReadResult.scheduleId)
-      .set("ReportId").to(reportReadResult.reportId)
-      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("ReportDetails").toProtoBytes(newReportDetails)
-      .set("ReportDetailsJson").toProtoJson(newReportDetails)
+      .set("AdvertiserId")
+      .to(reportReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(reportReadResult.reportConfigId)
+      .set("ScheduleId")
+      .to(reportReadResult.scheduleId)
+      .set("ReportId")
+      .to(reportReadResult.reportId)
+      .set("UpdateTime")
+      .to(Value.COMMIT_TIMESTAMP)
+      .set("ReportDetails")
+      .toProtoBytes(newReportDetails)
+      .set("ReportDetailsJson")
+      .toProtoJson(newReportDetails)
       .build()
       .bufferTo(transactionContext)
   }

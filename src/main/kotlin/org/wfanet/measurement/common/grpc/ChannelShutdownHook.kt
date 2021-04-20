@@ -39,9 +39,7 @@ private class ChannelShutdownHook(
 }
 
 fun addChannelShutdownHooks(r: Runtime, timeout: Duration, vararg channels: ManagedChannel) {
-  channels.forEach {
-    r.addShutdownHook(it, timeout)
-  }
+  channels.forEach { r.addShutdownHook(it, timeout) }
 }
 
 fun Runtime.addShutdownHook(channel: ManagedChannel, timeout: Duration) {

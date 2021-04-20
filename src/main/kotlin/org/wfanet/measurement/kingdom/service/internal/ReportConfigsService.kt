@@ -21,9 +21,8 @@ import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineImplBase
 import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 
-class ReportConfigsService(
-  private val legacySchedulingDatabase: LegacySchedulingDatabase
-) : ReportConfigsCoroutineImplBase() {
+class ReportConfigsService(private val legacySchedulingDatabase: LegacySchedulingDatabase) :
+  ReportConfigsCoroutineImplBase() {
 
   override suspend fun listRequisitionTemplates(
     request: ListRequisitionTemplatesRequest

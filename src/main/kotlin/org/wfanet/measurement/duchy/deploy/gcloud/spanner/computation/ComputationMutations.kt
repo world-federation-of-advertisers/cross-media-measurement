@@ -57,14 +57,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
   ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
   ComputationProtocolStageDetailsHelper<
-    ProtocolT,
-    StageT,
-    StageDT,
-    ComputationDT>
-  by computationProtocolStageDetailsHelper {
-  /**
-   * Appends fields to write in a mutation of the Computations spanner table.
-   */
+    ProtocolT, StageT, StageDT, ComputationDT> by computationProtocolStageDetailsHelper {
+  /** Appends fields to write in a mutation of the Computations spanner table. */
   private fun computation(
     newBuilderFunction: MutationBuilderFunction,
     localId: Long,
@@ -83,9 +77,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     protocol?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
     stage?.let { m.set("ComputationStage").to(computationStageEnumToLongValues(it).stage) }
     lockOwner?.let { m.set("LockOwner").to(stringOrNull(it)) }
-    lockExpirationTime?.let {
-      m.set("LockExpirationTime").to(timestampOrNull(it))
-    }
+    lockExpirationTime?.let { m.set("LockExpirationTime").to(timestampOrNull(it)) }
     details?.let {
       m.set("ComputationDetails").toProtoBytes(details)
       m.set("ComputationDetailsJSON").toProtoJson(details)
@@ -97,8 +89,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
    * Creates an insertion to the Computations table.
    *
    * Fields required for the write are non-nullable. Any param set to null will be excluded from the
-   * update mutation. When the desired value to write to the column is null the parameter should
-   * be set to the WRITE_NULL_* value of the column type.
+   * update mutation. When the desired value to write to the column is null the parameter should be
+   * set to the WRITE_NULL_* value of the column type.
    */
   fun insertComputation(
     localId: Long,
@@ -127,8 +119,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
    * Creates an update to the Computations table.
    *
    * Fields required for the write are non-nullable. Any param set to null will be excluded from the
-   * update mutation. When the desired value to write to the column is null the parameter should
-   * be set to the WRITE_NULL_* value of the column type.
+   * update mutation. When the desired value to write to the column is null the parameter should be
+   * set to the WRITE_NULL_* value of the column type.
    */
   fun updateComputation(
     localId: Long,
@@ -149,9 +141,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     )
   }
 
-  /**
-   * Appends fields to write in a mutation of the ComputationStages spanner table.
-   */
+  /** Appends fields to write in a mutation of the ComputationStages spanner table. */
   fun computationStage(
     newBuilderFunction: MutationBuilderFunction,
     localId: Long,
@@ -192,8 +182,15 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     details: StageDT
   ): Mutation {
     return computationStage(
-      Mutation::newInsertBuilder, localId, stage, nextAttempt, creationTime, endTime,
-      previousStage, followingStage, details
+      Mutation::newInsertBuilder,
+      localId,
+      stage,
+      nextAttempt,
+      creationTime,
+      endTime,
+      previousStage,
+      followingStage,
+      details
     )
   }
 
@@ -214,8 +211,15 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     details: StageDT? = null
   ): Mutation {
     return computationStage(
-      Mutation::newUpdateBuilder, localId, stage, nextAttempt, creationTime, endTime,
-      previousStage, followingStage, details
+      Mutation::newUpdateBuilder,
+      localId,
+      stage,
+      nextAttempt,
+      creationTime,
+      endTime,
+      previousStage,
+      followingStage,
+      details
     )
   }
 
@@ -363,12 +367,18 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     metricValue: Long
   ): Mutation {
     return newBuilderFunction("ComputationStats")
-      .set("ComputationId").to(localId)
-      .set("ComputationStage").to(computationStageEnumToLongValues(stage).stage)
-      .set("Attempt").to(attempt)
-      .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("MetricName").to(metricName)
-      .set("MetricValue").to(metricValue)
+      .set("ComputationId")
+      .to(localId)
+      .set("ComputationStage")
+      .to(computationStageEnumToLongValues(stage).stage)
+      .set("Attempt")
+      .to(attempt)
+      .set("CreateTime")
+      .to(Value.COMMIT_TIMESTAMP)
+      .set("MetricName")
+      .to(metricName)
+      .set("MetricValue")
+      .to(metricValue)
       .build()
   }
 

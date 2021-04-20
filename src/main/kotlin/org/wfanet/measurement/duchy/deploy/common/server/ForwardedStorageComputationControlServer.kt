@@ -18,26 +18,19 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
-/**
- * Implementation of [ComputationControlServer] using Fake Storage Service.
- */
+/** Implementation of [ComputationControlServer] using Fake Storage Service. */
 @CommandLine.Command(
   name = "ForwardedStorageComputationControlServer",
-  description = [
-    "Server daemon for ${ComputationControlServer.SERVICE_NAME} service."
-  ],
+  description = ["Server daemon for ${ComputationControlServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class ForwardedStorageComputationControlServer :
-  ComputationControlServer() {
-  @CommandLine.Mixin
-  private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+class ForwardedStorageComputationControlServer : ComputationControlServer() {
+  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
     run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
   }
 }
 
-fun main(args: Array<String>) =
-  commandLineMain(ForwardedStorageComputationControlServer(), args)
+fun main(args: Array<String>) = commandLineMain(ForwardedStorageComputationControlServer(), args)

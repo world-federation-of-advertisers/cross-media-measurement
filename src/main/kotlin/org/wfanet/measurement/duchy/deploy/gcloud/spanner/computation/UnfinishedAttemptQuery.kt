@@ -40,18 +40,16 @@ class UnfinishedAttemptQuery<StageT>(
   override fun asResult(struct: Struct): UnfinishedAttemptQueryResult<StageT> =
     UnfinishedAttemptQueryResult(
       computationId = localId,
-      stage = parseStageEnum(
-        ComputationStageLongValues(
-          struct.getLong("Protocol"),
-          struct.getLong("ComputationStage")
-        )
-      ),
+      stage =
+        parseStageEnum(
+          ComputationStageLongValues(struct.getLong("Protocol"), struct.getLong("ComputationStage"))
+        ),
       attempt = struct.getLong("Attempt"),
       details = struct.getProtoMessage("Details", ComputationStageAttemptDetails.parser())
     )
 }
 
-/** @see [UnfinishedAttemptQuery.asResult] .*/
+/** @see [UnfinishedAttemptQuery.asResult] . */
 data class UnfinishedAttemptQueryResult<StageT>(
   val computationId: Long,
   val stage: StageT,

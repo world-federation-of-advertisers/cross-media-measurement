@@ -47,25 +47,25 @@ class UnclaimedTasksQuery<StageT>(
   }
   override val sql: Statement =
     Statement.newBuilder(parameterizedQueryString)
-      .bind("current_time").to(timestamp)
-      .bind("protocol").to(protocol)
+      .bind("current_time")
+      .to(timestamp)
+      .bind("protocol")
+      .to(protocol)
       .build()
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),
       globalId = struct.getString("GlobalComputationId"),
-      computationStage = parseStageEnum(
-        ComputationStageLongValues(
-          struct.getLong("Protocol"),
-          struct.getLong("ComputationStage")
-        )
-      ),
+      computationStage =
+        parseStageEnum(
+          ComputationStageLongValues(struct.getLong("Protocol"), struct.getLong("ComputationStage"))
+        ),
       updateTime = struct.getTimestamp("UpdateTime"),
       nextAttempt = struct.getLong("NextAttempt")
     )
 }
 
-/** @see [UnclaimedTasksQuery.asResult] .*/
+/** @see [UnclaimedTasksQuery.asResult] . */
 data class UnclaimedTaskQueryResult<StageT>(
   val computationId: Long,
   val globalId: String,

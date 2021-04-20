@@ -27,20 +27,16 @@ private val logger = Logger.getLogger(QUALIFIED_CLASS_NAME)
 private class Flags {
   @CommandLine.Option(
     names = ["--blob-storage-directory"],
-    description = [
-      "Directory to store blobs on the file system.",
-      "If not specified, a new temporary directory will be created and used."
-    ]
+    description =
+      [
+        "Directory to store blobs on the file system.",
+        "If not specified, a new temporary directory will be created and used."]
   )
   var directory: File? = null
     private set
 }
 
-@CommandLine.Command(
-  name = SERVER_NAME,
-  mixinStandardHelpOptions = true,
-  showDefaultValues = true
-)
+@CommandLine.Command(name = SERVER_NAME, mixinStandardHelpOptions = true, showDefaultValues = true)
 private fun run(
   @CommandLine.Mixin serverFlags: CommonServer.Flags,
   @CommandLine.Mixin flags: Flags
@@ -48,11 +44,9 @@ private fun run(
   val directory = flags.directory ?: createTempDir()
   logger.info("Storing blobs in $directory")
 
-  CommonServer.fromFlags(
-    serverFlags,
-    SERVER_NAME,
-    FileSystemStorageService(directory)
-  ).start().blockUntilShutdown()
+  CommonServer.fromFlags(serverFlags, SERVER_NAME, FileSystemStorageService(directory))
+    .start()
+    .blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

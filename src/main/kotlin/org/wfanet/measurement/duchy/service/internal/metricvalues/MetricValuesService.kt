@@ -40,13 +40,14 @@ import org.wfanet.measurement.storage.StorageClient
 /**
  * Buffer size in bytes for each chunk's data.
  *
- * The total size for each message in gRPC streaming should be 16-64 KiB
- * according to https://github.com/grpc/grpc.github.io/issues/371.
+ * The total size for each message in gRPC streaming should be 16-64 KiB according to
+ * https://github.com/grpc/grpc.github.io/issues/371.
  */
 private const val STREAM_BYTE_BUFFER_SIZE = 1024 * 32 // 32 KiB
 
 /** Implementation of `wfa.measurement.internal.duchy.MetricValues` gRPC service. */
-class MetricValuesService private constructor(
+class MetricValuesService
+private constructor(
   private val metricValueDb: MetricValueDatabase,
   private val metricValueStore: MetricValueStore
 ) : MetricValuesCoroutineService() {
@@ -65,33 +66,36 @@ class MetricValuesService private constructor(
         metricValueDb.getMetricValue(request.resourceKey)
       GetMetricValueRequest.KeyCase.KEY_NOT_SET ->
         throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
-    } ?: throw Status.NOT_FOUND.asRuntimeException()
+    }
+      ?: throw Status.NOT_FOUND.asRuntimeException()
   }
 
   override suspend fun storeMetricValue(requests: Flow<StoreMetricValueRequest>): MetricValue {
-    val metricValue = requests.consumeFirstOr { StoreMetricValueRequest.getDefaultInstance() }
-      .use { consumed ->
+    val metricValue =
+      requests.consumeFirstOr { StoreMetricValueRequest.getDefaultInstance() }.use { consumed ->
         val resourceKey = consumed.item.header.resourceKey
         if (!resourceKey.valid) {
-          throw Status.INVALID_ARGUMENT.withDescription("resource_key missing or incomplete")
+          throw Status.INVALID_ARGUMENT
+            .withDescription("resource_key missing or incomplete")
             .asRuntimeException()
         }
 
         val digest = makeFingerprinter()
 
         val blobChunks: Flow<ByteString> =
-          consumed
-            .remaining
-            .map { it.chunk.data }
-            .onEach { digest.update(it.asReadOnlyByteBuffer()) }
+          consumed.remaining.map { it.chunk.data }.onEach {
+            digest.update(it.asReadOnlyByteBuffer())
+          }
 
         val blob = metricValueStore.write(blobChunks)
 
-        MetricValue.newBuilder().apply {
-          this.resourceKey = resourceKey
-          blobStorageKey = blob.blobKey
-          blobFingerprint = digest.digest().toByteString()
-        }.build()
+        MetricValue.newBuilder()
+          .apply {
+            this.resourceKey = resourceKey
+            blobStorageKey = blob.blobKey
+            blobFingerprint = digest.digest().toByteString()
+          }
+          .build()
       }
 
     return metricValueDb.insertMetricValue(metricValue)
@@ -100,24 +104,29 @@ class MetricValuesService private constructor(
   override fun streamMetricValue(request: StreamMetricValueRequest) =
     flow<StreamMetricValueResponse> {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      val metricValue = when (request.keyCase) {
-        StreamMetricValueRequest.KeyCase.EXTERNAL_ID ->
-          metricValueDb.getMetricValue(ExternalId(request.externalId))
-        StreamMetricValueRequest.KeyCase.RESOURCE_KEY ->
-          metricValueDb.getMetricValue(request.resourceKey)
-        StreamMetricValueRequest.KeyCase.KEY_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
-      } ?: failGrpc(Status.NOT_FOUND) { "MetricValue not found: $request" }
+      val metricValue =
+        when (request.keyCase) {
+          StreamMetricValueRequest.KeyCase.EXTERNAL_ID ->
+            metricValueDb.getMetricValue(ExternalId(request.externalId))
+          StreamMetricValueRequest.KeyCase.RESOURCE_KEY ->
+            metricValueDb.getMetricValue(request.resourceKey)
+          StreamMetricValueRequest.KeyCase.KEY_NOT_SET ->
+            failGrpc(Status.INVALID_ARGUMENT) { "key not set" }
+        }
+          ?: failGrpc(Status.NOT_FOUND) { "MetricValue not found: $request" }
 
-      val content = metricValueStore.get(metricValue.blobStorageKey)
-        ?: failGrpc(Status.DATA_LOSS) { "Missing metric value data" }
+      val content =
+        metricValueStore.get(metricValue.blobStorageKey)
+          ?: failGrpc(Status.DATA_LOSS) { "Missing metric value data" }
 
       // Emit header.
       emit(
-        StreamMetricValueResponse.newBuilder().apply {
-          headerBuilder.metricValue = metricValue
-          headerBuilder.dataSizeBytes = content.size
-        }.build()
+        StreamMetricValueResponse.newBuilder()
+          .apply {
+            headerBuilder.metricValue = metricValue
+            headerBuilder.dataSizeBytes = content.size
+          }
+          .build()
       )
 
       val digest = makeFingerprinter()
@@ -125,11 +134,7 @@ class MetricValuesService private constructor(
       // Emit chunks.
       content.read(STREAM_BYTE_BUFFER_SIZE).collect { bytes ->
         digest.update(bytes.asReadOnlyByteBuffer())
-        emit(
-          StreamMetricValueResponse.newBuilder().apply {
-            chunkBuilder.data = bytes
-          }.build()
-        )
+        emit(StreamMetricValueResponse.newBuilder().apply { chunkBuilder.data = bytes }.build())
       }
 
       val fingerprint: ByteArray = digest.digest()

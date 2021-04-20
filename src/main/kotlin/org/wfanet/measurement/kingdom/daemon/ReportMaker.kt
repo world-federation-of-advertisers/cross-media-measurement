@@ -26,14 +26,12 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
  * the Report covers.
  */
 suspend fun Daemon.runReportMaker(combinedPublicKeyResourceId: String) {
-  streamReadySchedules()
-    .onEach { logger.info("Schedule is ready: $it") }
-    .collect { schedule ->
-      throttleAndLog {
-        logger.info("Creating next report for schedule: $schedule")
-        daemonDatabaseServicesClient.createNextReport(schedule, combinedPublicKeyResourceId)
-      }
+  streamReadySchedules().onEach { logger.info("Schedule is ready: $it") }.collect { schedule ->
+    throttleAndLog {
+      logger.info("Creating next report for schedule: $schedule")
+      daemonDatabaseServicesClient.createNextReport(schedule, combinedPublicKeyResourceId)
     }
+  }
 }
 
 private fun Daemon.streamReadySchedules(): Flow<ReportConfigSchedule> = retryLoop {

@@ -52,10 +52,7 @@ class AsyncComputationControlServiceTest {
   private val mockComputationsService: ComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(mockComputationsService)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationsService) }
 
   private val fakeService: AsyncComputationControlService by lazy {
     AsyncComputationControlService(
@@ -89,200 +86,255 @@ class AsyncComputationControlServiceTest {
   }
 
   @Test
-  fun `record only output and advance`() = runBlocking<Unit> {
-    val tokenToWrite = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
-      addBlobs(newInputBlobMetadata(0L, "input-to-the-stage"))
-      addBlobs(newEmptyOutputBlobMetadata(1L))
-      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
-    }.build()
-    val tokenToAdvance = tokenToWrite.toBuilder().apply {
-      clearBlobs()
-      addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-    }.build()
+  fun `record only output and advance`() =
+    runBlocking<Unit> {
+      val tokenToWrite =
+        ComputationToken.newBuilder()
+          .apply {
+            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            addBlobs(newInputBlobMetadata(0L, "input-to-the-stage"))
+            addBlobs(newEmptyOutputBlobMetadata(1L))
+            computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
+          }
+          .build()
+      val tokenToAdvance =
+        tokenToWrite
+          .toBuilder()
+          .apply {
+            clearBlobs()
+            addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
+          }
+          .build()
 
-    val (recordBlobRequests, advanceComputationRequests) =
-      mockComputationsServiceCalls(tokenToWrite, tokenToAdvance)
+      val (recordBlobRequests, advanceComputationRequests) =
+        mockComputationsServiceCalls(tokenToWrite, tokenToAdvance)
 
-    fakeService.advanceComputation(
-      AdvanceComputationRequest.newBuilder().apply {
-        globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
-        blobPath = BLOB_KEY
-      }.build()
-    )
-    assertThat(recordBlobRequests)
-      .containsExactly(
-        RecordOutputBlobPathRequest.newBuilder().apply {
-          token = tokenToWrite
-          outputBlobId = 1
-          blobPath = BLOB_KEY
-        }.build()
+      fakeService.advanceComputation(
+        AdvanceComputationRequest.newBuilder()
+          .apply {
+            globalComputationId = COMPUTATION_ID
+            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            blobPath = BLOB_KEY
+          }
+          .build()
       )
-    assertThat(advanceComputationRequests)
-      .containsExactly(
-        AdvanceComputationStageRequest.newBuilder().apply {
-          token = tokenToAdvance
-          nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
-          addInputBlobs(BLOB_KEY)
-          outputBlobs = 1
-          stageDetails = ComputationStageDetails.getDefaultInstance()
-          afterTransition = AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-        }.build()
-      )
-  }
+      assertThat(recordBlobRequests)
+        .containsExactly(
+          RecordOutputBlobPathRequest.newBuilder()
+            .apply {
+              token = tokenToWrite
+              outputBlobId = 1
+              blobPath = BLOB_KEY
+            }
+            .build()
+        )
+      assertThat(advanceComputationRequests)
+        .containsExactly(
+          AdvanceComputationStageRequest.newBuilder()
+            .apply {
+              token = tokenToAdvance
+              nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+              addInputBlobs(BLOB_KEY)
+              outputBlobs = 1
+              stageDetails = ComputationStageDetails.getDefaultInstance()
+              afterTransition =
+                AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+            }
+            .build()
+        )
+    }
 
   @Test
   fun `record but more blobs to write so do not advance`() = runBlocking {
-    val tokenBeforeRecord = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-      addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
-      addBlobs(newEmptyOutputBlobMetadata(1L))
-      addBlobs(newEmptyOutputBlobMetadata(2L))
-      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
-      stageSpecificDetailsBuilder.apply {
-        liquidLegionsV2Builder.apply {
-          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
-          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
+    val tokenBeforeRecord =
+      ComputationToken.newBuilder()
+        .apply {
+          computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+          addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
+          addBlobs(newEmptyOutputBlobMetadata(1L))
+          addBlobs(newEmptyOutputBlobMetadata(2L))
+          computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
+          stageSpecificDetailsBuilder.apply {
+            liquidLegionsV2Builder.apply {
+              waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
+              waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
+            }
+          }
         }
-      }
-    }.build()
-    val tokenAfterRecord = tokenBeforeRecord.toBuilder().apply {
-      clearBlobs()
-      addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
-      addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-      addBlobs(newEmptyOutputBlobMetadata(2L)) // There is still a blob without a key.
-    }.build()
+        .build()
+    val tokenAfterRecord =
+      tokenBeforeRecord
+        .toBuilder()
+        .apply {
+          clearBlobs()
+          addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
+          addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
+          addBlobs(newEmptyOutputBlobMetadata(2L)) // There is still a blob without a key.
+        }
+        .build()
 
     val (recordBlobRequests, advanceComputationRequests) =
       mockComputationsServiceCalls(tokenBeforeRecord, tokenAfterRecord)
 
     fakeService.advanceComputation(
-      AdvanceComputationRequest.newBuilder().apply {
-        globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-        dataOrigin = "bob"
-        blobPath = BLOB_KEY
-      }.build()
+      AdvanceComputationRequest.newBuilder()
+        .apply {
+          globalComputationId = COMPUTATION_ID
+          computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+          dataOrigin = "bob"
+          blobPath = BLOB_KEY
+        }
+        .build()
     )
     assertThat(recordBlobRequests)
       .containsExactly(
-        RecordOutputBlobPathRequest.newBuilder().apply {
-          token = tokenBeforeRecord
-          outputBlobId = 1
-          blobPath = BLOB_KEY
-        }.build()
+        RecordOutputBlobPathRequest.newBuilder()
+          .apply {
+            token = tokenBeforeRecord
+            outputBlobId = 1
+            blobPath = BLOB_KEY
+          }
+          .build()
       )
     // Waiting on more outputs for the stage. Computation stage is not advanced.
     assertThat(advanceComputationRequests).isEmpty()
   }
 
   @Test
-  fun `record last output blob`() = runBlocking<Unit> {
-    val tokenBeforeRecord = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-      addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
-      addBlobs(newEmptyOutputBlobMetadata(1L))
-      addBlobs(newOutputBlobMetadata(2L, "written-output"))
-      computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
-      stageSpecificDetailsBuilder.apply {
-        liquidLegionsV2Builder.apply {
-          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
-          waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
-        }
-      }
-    }.build()
-    val tokenAfterRecord = tokenBeforeRecord.toBuilder().apply {
-      clearBlobs()
-      addBlobs(newPassThroughBlobMetadata(0L, "pass-through"))
-      addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-      addBlobs(newOutputBlobMetadata(2L, "previously-written-output"))
-    }.build()
+  fun `record last output blob`() =
+    runBlocking<Unit> {
+      val tokenBeforeRecord =
+        ComputationToken.newBuilder()
+          .apply {
+            computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+            addBlobs(newPassThroughBlobMetadata(0L, "pass-through-blob"))
+            addBlobs(newEmptyOutputBlobMetadata(1L))
+            addBlobs(newOutputBlobMetadata(2L, "written-output"))
+            computationDetails = detailsFor(RoleInComputation.AGGREGATOR)
+            stageSpecificDetailsBuilder.apply {
+              liquidLegionsV2Builder.apply {
+                waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("alice", 2L)
+                waitSetupPhaseInputsDetailsBuilder.putExternalDuchyLocalBlobId("bob", 1L)
+              }
+            }
+          }
+          .build()
+      val tokenAfterRecord =
+        tokenBeforeRecord
+          .toBuilder()
+          .apply {
+            clearBlobs()
+            addBlobs(newPassThroughBlobMetadata(0L, "pass-through"))
+            addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
+            addBlobs(newOutputBlobMetadata(2L, "previously-written-output"))
+          }
+          .build()
 
-    val (recordBlobRequests, advanceComputationRequests) =
-      mockComputationsServiceCalls(tokenBeforeRecord, tokenAfterRecord)
+      val (recordBlobRequests, advanceComputationRequests) =
+        mockComputationsServiceCalls(tokenBeforeRecord, tokenAfterRecord)
 
-    fakeService.advanceComputation(
-      AdvanceComputationRequest.newBuilder().apply {
-        globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-        dataOrigin = "bob"
-        blobPath = BLOB_KEY
-      }.build()
-    )
-    assertThat(recordBlobRequests)
-      .containsExactly(
-        RecordOutputBlobPathRequest.newBuilder().apply {
-          token = tokenBeforeRecord
-          outputBlobId = 1
-          blobPath = BLOB_KEY
-        }.build()
+      fakeService.advanceComputation(
+        AdvanceComputationRequest.newBuilder()
+          .apply {
+            globalComputationId = COMPUTATION_ID
+            computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+            dataOrigin = "bob"
+            blobPath = BLOB_KEY
+          }
+          .build()
       )
-    assertThat(advanceComputationRequests)
-      .containsExactly(
-        AdvanceComputationStageRequest.newBuilder().apply {
-          token = tokenAfterRecord
-          nextComputationStage = Stage.SETUP_PHASE.toProtocolStage()
-          addInputBlobs("pass-through")
-          addInputBlobs(BLOB_KEY)
-          addInputBlobs("previously-written-output")
-          outputBlobs = 1
-          stageDetails = ComputationStageDetails.getDefaultInstance()
-          afterTransition = AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-        }.build()
-      )
-  }
+      assertThat(recordBlobRequests)
+        .containsExactly(
+          RecordOutputBlobPathRequest.newBuilder()
+            .apply {
+              token = tokenBeforeRecord
+              outputBlobId = 1
+              blobPath = BLOB_KEY
+            }
+            .build()
+        )
+      assertThat(advanceComputationRequests)
+        .containsExactly(
+          AdvanceComputationStageRequest.newBuilder()
+            .apply {
+              token = tokenAfterRecord
+              nextComputationStage = Stage.SETUP_PHASE.toProtocolStage()
+              addInputBlobs("pass-through")
+              addInputBlobs(BLOB_KEY)
+              addInputBlobs("previously-written-output")
+              outputBlobs = 1
+              stageDetails = ComputationStageDetails.getDefaultInstance()
+              afterTransition =
+                AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+            }
+            .build()
+        )
+    }
 
   @Test
-  fun `advance when blob already written`() = runBlocking<Unit> {
-    val tokenOfAlreadyRecordedOutput = ComputationToken.newBuilder().apply {
-      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
-      addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-      computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
-    }.build()
+  fun `advance when blob already written`() =
+    runBlocking<Unit> {
+      val tokenOfAlreadyRecordedOutput =
+        ComputationToken.newBuilder()
+          .apply {
+            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
+            computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
+          }
+          .build()
 
-    val (recordBlobRequests, advanceComputationRequests) =
-      mockComputationsServiceCalls(tokenOfAlreadyRecordedOutput, tokenOfAlreadyRecordedOutput)
+      val (recordBlobRequests, advanceComputationRequests) =
+        mockComputationsServiceCalls(tokenOfAlreadyRecordedOutput, tokenOfAlreadyRecordedOutput)
 
-    fakeService.advanceComputation(
-      AdvanceComputationRequest.newBuilder().apply {
-        globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
-        blobPath = BLOB_KEY
-      }.build()
-    )
-    // The key of the output blob was already recorded.
-    assertThat(recordBlobRequests).isEmpty()
-    assertThat(advanceComputationRequests)
-      .containsExactly(
-        AdvanceComputationStageRequest.newBuilder().apply {
-          token = tokenOfAlreadyRecordedOutput
-          nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
-          addInputBlobs(BLOB_KEY)
-          outputBlobs = 1
-          stageDetails = ComputationStageDetails.getDefaultInstance()
-          afterTransition = AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-        }.build()
+      fakeService.advanceComputation(
+        AdvanceComputationRequest.newBuilder()
+          .apply {
+            globalComputationId = COMPUTATION_ID
+            computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            blobPath = BLOB_KEY
+          }
+          .build()
       )
-  }
+      // The key of the output blob was already recorded.
+      assertThat(recordBlobRequests).isEmpty()
+      assertThat(advanceComputationRequests)
+        .containsExactly(
+          AdvanceComputationStageRequest.newBuilder()
+            .apply {
+              token = tokenOfAlreadyRecordedOutput
+              nextComputationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+              addInputBlobs(BLOB_KEY)
+              outputBlobs = 1
+              stageDetails = ComputationStageDetails.getDefaultInstance()
+              afterTransition =
+                AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+            }
+            .build()
+        )
+    }
 
   @Test
   fun `advance when stage already advanced is a noop`() = runBlocking {
-    val tokenOfAlreadyRecordedOutput = ComputationToken.newBuilder().apply {
-      computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
-      addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
-      computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
-    }.build()
+    val tokenOfAlreadyRecordedOutput =
+      ComputationToken.newBuilder()
+        .apply {
+          computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+          addBlobs(newOutputBlobMetadata(1L, BLOB_KEY))
+          computationDetails = detailsFor(RoleInComputation.NON_AGGREGATOR)
+        }
+        .build()
 
     val (recordBlobRequests, advanceComputationRequests) =
       mockComputationsServiceCalls(tokenOfAlreadyRecordedOutput, tokenOfAlreadyRecordedOutput)
 
     fakeService.advanceComputation(
-      AdvanceComputationRequest.newBuilder().apply {
-        globalComputationId = COMPUTATION_ID
-        computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
-        blobPath = BLOB_KEY
-      }.build()
+      AdvanceComputationRequest.newBuilder()
+        .apply {
+          globalComputationId = COMPUTATION_ID
+          computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+          blobPath = BLOB_KEY
+        }
+        .build()
     )
     assertThat(recordBlobRequests).isEmpty()
     assertThat(advanceComputationRequests).isEmpty()
@@ -300,10 +352,12 @@ class AsyncComputationControlServiceTest {
       message = "INVALID_ARGUMENT: Actual stage from computation ($actualStage) did not match"
     ) {
       fakeService.advanceComputation(
-        AdvanceComputationRequest.newBuilder().apply {
-          globalComputationId = COMPUTATION_ID
-          computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
-        }.build()
+        AdvanceComputationRequest.newBuilder()
+          .apply {
+            globalComputationId = COMPUTATION_ID
+            computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage()
+          }
+          .build()
       )
     }
     assertThat(recordBlobRequests).isEmpty()

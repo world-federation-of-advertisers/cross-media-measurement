@@ -31,13 +31,15 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
       val expected =
         when (stage) {
           LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS ->
-            ComputationStageDetails.newBuilder().apply {
-              liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
-                putExternalDuchyLocalBlobId("A", 1L)
-                putExternalDuchyLocalBlobId("B", 2L)
-                putExternalDuchyLocalBlobId("C", 3L)
+            ComputationStageDetails.newBuilder()
+              .apply {
+                liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
+                  putExternalDuchyLocalBlobId("A", 1L)
+                  putExternalDuchyLocalBlobId("B", 2L)
+                  putExternalDuchyLocalBlobId("C", 3L)
+                }
               }
-            }.build()
+              .build()
           else -> ComputationStageDetails.getDefaultInstance()
         }
       val stageProto = d.detailsFor(stage)

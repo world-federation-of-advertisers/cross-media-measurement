@@ -33,31 +33,37 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatab
 class CreateDataProviderTest : KingdomDatabaseTestBase() {
 
   @Test
-  fun success() = runBlocking<Unit> {
-    val idGenerator = FixedIdGenerator()
-    val dataProvider = CreateDataProvider().execute(databaseClient, idGenerator)
+  fun success() =
+    runBlocking<Unit> {
+      val idGenerator = FixedIdGenerator()
+      val dataProvider = CreateDataProvider().execute(databaseClient, idGenerator)
 
-    assertThat(dataProvider)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        DataProvider.newBuilder().apply {
-          externalDataProviderId = idGenerator.externalId.value
-        }.build()
-      )
+      assertThat(dataProvider)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          DataProvider.newBuilder()
+            .apply { externalDataProviderId = idGenerator.externalId.value }
+            .build()
+        )
 
-    val dataProviders = databaseClient
-      .singleUse(TimestampBound.strong())
-      .executeQuery(Statement.of("SELECT * FROM DataProviders"))
-      .toList()
+      val dataProviders =
+        databaseClient
+          .singleUse(TimestampBound.strong())
+          .executeQuery(Statement.of("SELECT * FROM DataProviders"))
+          .toList()
 
-    assertThat(dataProviders)
-      .containsExactly(
-        Struct.newBuilder()
-          .set("DataProviderId").to(idGenerator.internalId.value)
-          .set("ExternalDataProviderId").to(idGenerator.externalId.value)
-          .set("DataProviderDetails").to(ByteArray.copyFrom(""))
-          .set("DataProviderDetailsJson").to("")
-          .build()
-      )
-  }
+      assertThat(dataProviders)
+        .containsExactly(
+          Struct.newBuilder()
+            .set("DataProviderId")
+            .to(idGenerator.internalId.value)
+            .set("ExternalDataProviderId")
+            .to(idGenerator.externalId.value)
+            .set("DataProviderDetails")
+            .to(ByteArray.copyFrom(""))
+            .set("DataProviderDetailsJson")
+            .to("")
+            .build()
+        )
+    }
 }

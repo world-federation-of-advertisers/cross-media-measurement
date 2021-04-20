@@ -23,12 +23,11 @@ import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
- * Base class for JUnit4 tests using Cloud Spanner databases running in a test
- * [Instance][com.google.cloud.spanner.Instance] in Cloud Spanner Emulator.
+ * Base class for JUnit4 tests using Cloud Spanner databases running in a test [Instance]
+ * [com.google.cloud.spanner.Instance] in Cloud Spanner Emulator.
  *
- * One emulator and test instance is created per test class, and one database is
- * created per test case method. The [AsyncDatabaseClient] is accessible via the
- * [databaseClient] property.
+ * One emulator and test instance is created per test class, and one database is created per test
+ * case method. The [AsyncDatabaseClient] is accessible via the [databaseClient] property.
  *
  * Example use:
  * ```
@@ -45,8 +44,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  * ```
  */
 abstract class UsingSpannerEmulator(schema: SpannerSchema) {
-  @get:Rule
-  val spannerDatabase = SpannerEmulatorDatabaseRule(schema)
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(schema)
 
   val databaseClient: AsyncDatabaseClient
     get() = spannerDatabase.databaseClient
@@ -55,7 +53,8 @@ abstract class UsingSpannerEmulator(schema: SpannerSchema) {
     get() = runBlocking { getCurrentSpannerTimestamp() }
 
   suspend fun getCurrentSpannerTimestamp(): Instant {
-    return databaseClient.singleUse()
+    return databaseClient
+      .singleUse()
       .executeQuery(Statement.of("SELECT CURRENT_TIMESTAMP()"))
       .single()
       .getTimestamp(0)

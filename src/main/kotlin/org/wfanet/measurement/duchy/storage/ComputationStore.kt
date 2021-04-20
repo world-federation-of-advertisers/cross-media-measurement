@@ -28,17 +28,17 @@ private typealias ComputationBlobKeyGenerator = ComputationToken.() -> String
  * Blob storage for computations.
  *
  * @param storageClient the blob storage client.
- * @param generateBlobKey a function to generate a unique blob key for a given
- *     [token][ComputationToken].
+ * @param generateBlobKey a function to generate a unique blob key for a given [token]
+ * [ComputationToken].
  */
-class ComputationStore private constructor(
+class ComputationStore
+private constructor(
   private val storageClient: StorageClient,
   private val generateBlobKey: ComputationBlobKeyGenerator
 ) {
-  constructor(storageClient: StorageClient) : this(
-    storageClient,
-    ComputationToken::generateUniqueBlobKey
-  )
+  constructor(
+    storageClient: StorageClient
+  ) : this(storageClient, ComputationToken::generateUniqueBlobKey)
 
   /**
    * Writes a new computation blob with the specified content.
@@ -58,13 +58,11 @@ class ComputationStore private constructor(
     write(token, content.asBufferedFlow(storageClient.defaultBufferSizeBytes))
 
   /**
-   * Returns a [Blob] for the computation with the specified blob key, or
-   * `null` if the computation isn't found.
+   * Returns a [Blob] for the computation with the specified blob key, or `null` if the computation
+   * isn't found.
    */
   fun get(blobKey: String): Blob? {
-    return storageClient.getBlob(blobKey)?.let {
-      Blob(blobKey, it)
-    }
+    return storageClient.getBlob(blobKey)?.let { Blob(blobKey, it) }
   }
 
   /** [StorageClient.Blob] implementation for [ComputationStore]. */
@@ -84,10 +82,11 @@ class ComputationStore private constructor(
 /** Returns a unique blob key derived from this [ComputationToken]. */
 private fun ComputationToken.generateUniqueBlobKey(): String {
   return listOf(
-    "/computations",
-    localComputationId,
-    computationStage.name,
-    version,
-    UUID.randomUUID().toString()
-  ).joinToString("/")
+      "/computations",
+      localComputationId,
+      computationStage.name,
+      version,
+      UUID.randomUUID().toString()
+    )
+    .joinToString("/")
 }

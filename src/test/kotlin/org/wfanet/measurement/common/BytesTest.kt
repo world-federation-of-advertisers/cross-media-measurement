@@ -44,8 +44,6 @@ class BytesTest {
 
   @Test
   fun `ByteString asBufferedFlow with invalid buffer size`() = runBlockingTest {
-    assertFails {
-      ByteString.copyFromUtf8("this should throw").asBufferedFlow(0).toList()
-    }
+    assertFails { ByteString.copyFromUtf8("this should throw").asBufferedFlow(0).toList() }
   }
 }

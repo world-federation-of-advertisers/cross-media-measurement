@@ -48,28 +48,32 @@ class TransportSecurityTest {
   private val tempDir: File = temporaryFolder.root
   private val healthStatusManager = HealthStatusManager()
 
-  private val serverCerts = SigningCerts.fromPemFiles(
-    certificateFile = tempDir.resolve("server.pem"),
-    privateKeyFile = tempDir.resolve("server.key"),
-    trustedCertCollectionFile = tempDir.resolve("client-root.pem")
-  )
+  private val serverCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = tempDir.resolve("server.pem"),
+      privateKeyFile = tempDir.resolve("server.key"),
+      trustedCertCollectionFile = tempDir.resolve("client-root.pem")
+    )
 
-  private val clientCerts = SigningCerts.fromPemFiles(
-    certificateFile = tempDir.resolve("client.pem"),
-    privateKeyFile = tempDir.resolve("client.key"),
-    trustedCertCollectionFile = tempDir.resolve("server-root.pem")
-  )
+  private val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = tempDir.resolve("client.pem"),
+      privateKeyFile = tempDir.resolve("client.key"),
+      trustedCertCollectionFile = tempDir.resolve("server-root.pem")
+    )
 
-  @get:Rule
-  val grpcCleanup = GrpcCleanupRule()
+  @get:Rule val grpcCleanup = GrpcCleanupRule()
 
   private fun startServer(clientAuth: ClientAuth): Server {
-    val server = grpcCleanup.register(
-      NettyServerBuilder.forPort(0)
-        .sslContext(serverCerts.toServerTlsContext(clientAuth))
-        .addService(healthStatusManager.healthService.withVerboseLogging())
-        .build()
-    ).start()
+    val server =
+      grpcCleanup
+        .register(
+          NettyServerBuilder.forPort(0)
+            .sslContext(serverCerts.toServerTlsContext(clientAuth))
+            .addService(healthStatusManager.healthService.withVerboseLogging())
+            .build()
+        )
+        .start()
     healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)
 
     return server
@@ -124,19 +128,16 @@ class TransportSecurityTest {
   @Test
   fun `TLS RPC succeeds`() {
     val server = startServer(ClientAuth.NONE)
-    val channel = grpcCleanup.register(
-      NettyChannelBuilder.forAddress(HOSTNAME, server.port)
-        .sslContext(clientCerts.toClientTlsContext())
-        .build()
-    )
+    val channel =
+      grpcCleanup.register(
+        NettyChannelBuilder.forAddress(HOSTNAME, server.port)
+          .sslContext(clientCerts.toClientTlsContext())
+          .build()
+      )
     val client = HealthCoroutineStub(channel)
 
     val response = runBlocking {
-      client.check(
-        HealthCheckRequest.newBuilder().apply {
-          service = SERVICE
-        }.build()
-      )
+      client.check(HealthCheckRequest.newBuilder().apply { service = SERVICE }.build())
     }
 
     assertThat(response.status).isEqualTo(HealthCheckResponse.ServingStatus.SERVING)
@@ -145,19 +146,16 @@ class TransportSecurityTest {
   @Test
   fun `mTLS RPC succeeds`() {
     val server = startServer(ClientAuth.REQUIRE)
-    val channel = grpcCleanup.register(
-      NettyChannelBuilder.forAddress(HOSTNAME, server.port)
-        .sslContext(clientCerts.toClientTlsContext())
-        .build()
-    )
+    val channel =
+      grpcCleanup.register(
+        NettyChannelBuilder.forAddress(HOSTNAME, server.port)
+          .sslContext(clientCerts.toClientTlsContext())
+          .build()
+      )
     val client = HealthCoroutineStub(channel)
 
     val response = runBlocking {
-      client.check(
-        HealthCheckRequest.newBuilder().apply {
-          service = SERVICE
-        }.build()
-      )
+      client.check(HealthCheckRequest.newBuilder().apply { service = SERVICE }.build())
     }
 
     assertThat(response.status).isEqualTo(HealthCheckResponse.ServingStatus.SERVING)
@@ -166,9 +164,7 @@ class TransportSecurityTest {
   companion object {
     val logger: Logger = Logger.getLogger(this::class.java.canonicalName)
 
-    @JvmField
-    @ClassRule
-    val temporaryFolder: TemporaryFolder = TemporaryFolder()
+    @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
 
     @JvmStatic
     @BeforeClass
@@ -256,9 +252,7 @@ class TransportSecurityTest {
         ProcessBuilder(*command).directory(temporaryFolder.root).redirectErrorStream(true).start()
 
       val exitCode = runInterruptible { process.waitFor() }
-      val output = process.inputStream.use {
-        it.bufferedReader().readText()
-      }
+      val output = process.inputStream.use { it.bufferedReader().readText() }
       if (exitCode == 0) {
         logger.info(output)
       } else {

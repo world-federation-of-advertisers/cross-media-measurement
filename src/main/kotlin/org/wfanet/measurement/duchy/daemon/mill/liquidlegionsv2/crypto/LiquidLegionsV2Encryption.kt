@@ -30,33 +30,35 @@ import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
 
 /**
- * Crypto operations for the Liquid Legions v2 protocol.
- * check src/main/cc/wfa/measurement/common/crypto/liquid_legions_v2_encryption_utility.h for more
+ * Crypto operations for the Liquid Legions v2 protocol. check
+ * src/main/cc/wfa/measurement/common/crypto/liquid_legions_v2_encryption_utility.h for more
  * descriptions.
  */
 interface LiquidLegionsV2Encryption {
 
   fun completeSetupPhase(request: CompleteSetupPhaseRequest): CompleteSetupPhaseResponse
 
-  fun completeExecutionPhaseOne(request: CompleteExecutionPhaseOneRequest):
-    CompleteExecutionPhaseOneResponse
+  fun completeExecutionPhaseOne(
+    request: CompleteExecutionPhaseOneRequest
+  ): CompleteExecutionPhaseOneResponse
 
   fun completeExecutionPhaseOneAtAggregator(
     request: CompleteExecutionPhaseOneAtAggregatorRequest
-  ):
-    CompleteExecutionPhaseOneAtAggregatorResponse
+  ): CompleteExecutionPhaseOneAtAggregatorResponse
 
-  fun completeExecutionPhaseTwo(request: CompleteExecutionPhaseTwoRequest):
-    CompleteExecutionPhaseTwoResponse
+  fun completeExecutionPhaseTwo(
+    request: CompleteExecutionPhaseTwoRequest
+  ): CompleteExecutionPhaseTwoResponse
 
-  fun completeExecutionPhaseTwoAtAggregator(request: CompleteExecutionPhaseTwoAtAggregatorRequest):
-    CompleteExecutionPhaseTwoAtAggregatorResponse
+  fun completeExecutionPhaseTwoAtAggregator(
+    request: CompleteExecutionPhaseTwoAtAggregatorRequest
+  ): CompleteExecutionPhaseTwoAtAggregatorResponse
 
-  fun completeExecutionPhaseThree(request: CompleteExecutionPhaseThreeRequest):
-    CompleteExecutionPhaseThreeResponse
+  fun completeExecutionPhaseThree(
+    request: CompleteExecutionPhaseThreeRequest
+  ): CompleteExecutionPhaseThreeResponse
 
   fun completeExecutionPhaseThreeAtAggregator(
     request: CompleteExecutionPhaseThreeAtAggregatorRequest
-  ):
-    CompleteExecutionPhaseThreeAtAggregatorResponse
+  ): CompleteExecutionPhaseThreeAtAggregatorResponse
 }

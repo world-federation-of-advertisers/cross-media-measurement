@@ -23,17 +23,16 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 
-class UpdateReportState(
-  private val externalReportId: ExternalId,
-  private val state: ReportState
-) : SpannerWriter<Report, Report>() {
+class UpdateReportState(private val externalReportId: ExternalId, private val state: ReportState) :
+  SpannerWriter<Report, Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {
     val reportReadResult = ReportReader().readExternalId(transactionContext, externalReportId)
     return updateReportState(reportReadResult, state)
   }
 
   override fun ResultScope<Report>.buildResult(): Report {
-    return checkNotNull(transactionResult).toBuilder()
+    return checkNotNull(transactionResult)
+      .toBuilder()
       .setUpdateTime(commitTimestamp.toProto())
       .build()
   }
@@ -53,12 +52,18 @@ internal fun SpannerWriter.TransactionScope.updateReportState(
   }
 
   Mutation.newUpdateBuilder("Reports")
-    .set("AdvertiserId").to(reportReadResult.advertiserId)
-    .set("ReportConfigId").to(reportReadResult.reportConfigId)
-    .set("ScheduleId").to(reportReadResult.scheduleId)
-    .set("ReportId").to(reportReadResult.reportId)
-    .set("State").toProtoEnum(state)
-    .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    .set("AdvertiserId")
+    .to(reportReadResult.advertiserId)
+    .set("ReportConfigId")
+    .to(reportReadResult.reportConfigId)
+    .set("ScheduleId")
+    .to(reportReadResult.scheduleId)
+    .set("ReportId")
+    .to(reportReadResult.reportId)
+    .set("State")
+    .toProtoEnum(state)
+    .set("UpdateTime")
+    .to(Value.COMMIT_TIMESTAMP)
     .build()
     .bufferTo(transactionContext)
 
@@ -66,14 +71,14 @@ internal fun SpannerWriter.TransactionScope.updateReportState(
 }
 
 private val ReportState.isTerminal: Boolean
-  get() = when (this) {
-    ReportState.AWAITING_REQUISITION_CREATION,
-    ReportState.AWAITING_DUCHY_CONFIRMATION,
-    ReportState.IN_PROGRESS -> false
-
-    ReportState.SUCCEEDED,
-    ReportState.FAILED,
-    ReportState.CANCELLED,
-    ReportState.UNRECOGNIZED,
-    ReportState.REPORT_STATE_UNKNOWN -> true
-  }
+  get() =
+    when (this) {
+      ReportState.AWAITING_REQUISITION_CREATION,
+      ReportState.AWAITING_DUCHY_CONFIRMATION,
+      ReportState.IN_PROGRESS -> false
+      ReportState.SUCCEEDED,
+      ReportState.FAILED,
+      ReportState.CANCELLED,
+      ReportState.UNRECOGNIZED,
+      ReportState.REPORT_STATE_UNKNOWN -> true
+    }

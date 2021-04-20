@@ -41,16 +41,14 @@ private const val DUCHY_ID: String = "some-duchy-id"
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
   private val duchyIdProvider = { DuchyIdentity(DUCHY_ID) }
 
   private val requisitionsServiceMock: RequisitionsCoroutineService =
     mock(useConstructor = UseConstructor.parameterless())
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
   private val service =
     RequisitionService.forTesting(
@@ -60,30 +58,37 @@ class RequisitionServiceTest {
 
   @Test
   fun `fulfillMetricRequisition delegates to Requisitions service`() = runBlocking {
-    val requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = 123L
-      externalCampaignId = 456L
-      externalRequisitionId = 789L
-    }.build()
-    val metricRequisitionKey = MetricRequisitionKey.newBuilder().apply {
-      dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
-      campaignId = ExternalId(requisition.externalCampaignId).apiId.value
-      metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
-    }.build()
+    val requisition =
+      Requisition.newBuilder()
+        .apply {
+          externalDataProviderId = 123L
+          externalCampaignId = 456L
+          externalRequisitionId = 789L
+        }
+        .build()
+    val metricRequisitionKey =
+      MetricRequisitionKey.newBuilder()
+        .apply {
+          dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
+          campaignId = ExternalId(requisition.externalCampaignId).apiId.value
+          metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
+        }
+        .build()
     whenever(requisitionsServiceMock.fulfillRequisition(any())).thenReturn(requisition)
 
-    val request = FulfillMetricRequisitionRequest.newBuilder().apply {
-      key = metricRequisitionKey
-    }.build()
+    val request =
+      FulfillMetricRequisitionRequest.newBuilder().apply { key = metricRequisitionKey }.build()
     val result = service.fulfillMetricRequisition(request)
 
     assertThat(result).isEqualTo(FulfillMetricRequisitionResponse.getDefaultInstance())
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineService::fulfillRequisition)
       .isEqualTo(
-        FulfillRequisitionRequest.newBuilder().apply {
-          externalRequisitionId = requisition.externalRequisitionId
-          duchyId = DUCHY_ID
-        }.build()
+        FulfillRequisitionRequest.newBuilder()
+          .apply {
+            externalRequisitionId = requisition.externalRequisitionId
+            duchyId = DUCHY_ID
+          }
+          .build()
       )
   }
 }

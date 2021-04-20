@@ -31,17 +31,19 @@ import org.junit.runners.JUnit4
 class AdaptiveThrottlerTest {
   @Test
   fun onReady() = runBlockingTest {
-    val clock = object : Clock() {
-      override fun instant(): Instant = Instant.ofEpochMilli(currentTime)
-      override fun withZone(zone: ZoneId?): Clock = error("Unimplemented")
-      override fun getZone(): ZoneId = error("Unimplemented")
-    }
-    val throttler = AdaptiveThrottler(
-      overloadFactor = 2.0,
-      clock = clock,
-      timeHorizon = Duration.ofSeconds(1L),
-      pollDelay = Duration.ofMillis(1L)
-    )
+    val clock =
+      object : Clock() {
+        override fun instant(): Instant = Instant.ofEpochMilli(currentTime)
+        override fun withZone(zone: ZoneId?): Clock = error("Unimplemented")
+        override fun getZone(): ZoneId = error("Unimplemented")
+      }
+    val throttler =
+      AdaptiveThrottler(
+        overloadFactor = 2.0,
+        clock = clock,
+        timeHorizon = Duration.ofSeconds(1L),
+        pollDelay = Duration.ofMillis(1L)
+      )
 
     val events = mutableListOf<Int>()
 
@@ -72,12 +74,9 @@ class AdaptiveThrottlerTest {
     // Should converge around 100qps (and thus take 10,000 / 100 = 100 seconds).
     // However, since there's randomness involved, we accept a wide range of durations.
     val testDuration = Duration.between(begin, lastAccept)
-    assertThat(testDuration)
-      .isIn(Range.open(Duration.ofSeconds(90), Duration.ofSeconds(110)))
+    assertThat(testDuration).isIn(Range.open(Duration.ofSeconds(90), Duration.ofSeconds(110)))
 
     // Ensure all the events actually executed.
-    assertThat(events)
-      .containsExactlyElementsIn(0 until 10_000)
-      .inOrder()
+    assertThat(events).containsExactlyElementsIn(0 until 10_000).inOrder()
   }
 }

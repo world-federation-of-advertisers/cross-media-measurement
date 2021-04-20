@@ -30,23 +30,29 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatab
 @RunWith(JUnit4::class)
 class CreateAdvertiserTest : KingdomDatabaseTestBase() {
   @Test
-  fun success() = runBlocking<Unit> {
-    val idGenerator = FixedIdGenerator()
-    CreateAdvertiser().execute(databaseClient, idGenerator)
+  fun success() =
+    runBlocking<Unit> {
+      val idGenerator = FixedIdGenerator()
+      CreateAdvertiser().execute(databaseClient, idGenerator)
 
-    val advertisers = databaseClient
-      .singleUse(TimestampBound.strong())
-      .executeQuery(Statement.of("SELECT * FROM Advertisers"))
-      .toList()
+      val advertisers =
+        databaseClient
+          .singleUse(TimestampBound.strong())
+          .executeQuery(Statement.of("SELECT * FROM Advertisers"))
+          .toList()
 
-    assertThat(advertisers)
-      .containsExactly(
-        Struct.newBuilder()
-          .set("AdvertiserId").to(idGenerator.internalId.value)
-          .set("ExternalAdvertiserId").to(idGenerator.externalId.value)
-          .set("AdvertiserDetails").to(ByteArray.copyFrom(""))
-          .set("AdvertiserDetailsJson").to("")
-          .build()
-      )
-  }
+      assertThat(advertisers)
+        .containsExactly(
+          Struct.newBuilder()
+            .set("AdvertiserId")
+            .to(idGenerator.internalId.value)
+            .set("ExternalAdvertiserId")
+            .to(idGenerator.externalId.value)
+            .set("AdvertiserDetails")
+            .to(ByteArray.copyFrom(""))
+            .set("AdvertiserDetailsJson")
+            .to("")
+            .build()
+        )
+    }
 }

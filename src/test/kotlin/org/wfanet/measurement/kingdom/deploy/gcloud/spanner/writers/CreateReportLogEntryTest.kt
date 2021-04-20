@@ -41,14 +41,17 @@ private const val EXTERNAL_SCHEDULE_ID = 6L
 private const val REPORT_ID = 7L
 private const val EXTERNAL_REPORT_ID = 8L
 
-private val REPORT_LOG_ENTRY: ReportLogEntry = ReportLogEntry.newBuilder().apply {
-  externalReportId = EXTERNAL_REPORT_ID
-  sourceBuilder.advertiserBuilder.externalAdvertiserId = 99999
-  reportLogDetailsBuilder.apply {
-    advertiserLogDetailsBuilder.apiMethod = "/Foo.Bar"
-    reportMessage = "some-report-message"
-  }
-}.build()
+private val REPORT_LOG_ENTRY: ReportLogEntry =
+  ReportLogEntry.newBuilder()
+    .apply {
+      externalReportId = EXTERNAL_REPORT_ID
+      sourceBuilder.advertiserBuilder.externalAdvertiserId = 99999
+      reportLogDetailsBuilder.apply {
+        advertiserLogDetailsBuilder.apiMethod = "/Foo.Bar"
+        reportMessage = "some-report-message"
+      }
+    }
+    .build()
 
 class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
   @Before
@@ -79,56 +82,59 @@ class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
 
   private fun reportLogEntryStructWithCreateTime(createTime: Timestamp): Struct =
     Struct.newBuilder()
-      .set("AdvertiserId").to(ADVERTISER_ID)
-      .set("ReportConfigId").to(REPORT_CONFIG_ID)
-      .set("ScheduleId").to(SCHEDULE_ID)
-      .set("ReportId").to(REPORT_ID)
-      .set("CreateTime").to(createTime)
-      .set("ReportLogDetails").toProtoBytes(REPORT_LOG_ENTRY.reportLogDetails)
-      .set("ReportLogDetailsJson").toProtoJson(REPORT_LOG_ENTRY.reportLogDetails)
+      .set("AdvertiserId")
+      .to(ADVERTISER_ID)
+      .set("ReportConfigId")
+      .to(REPORT_CONFIG_ID)
+      .set("ScheduleId")
+      .to(SCHEDULE_ID)
+      .set("ReportId")
+      .to(REPORT_ID)
+      .set("CreateTime")
+      .to(createTime)
+      .set("ReportLogDetails")
+      .toProtoBytes(REPORT_LOG_ENTRY.reportLogDetails)
+      .set("ReportLogDetailsJson")
+      .toProtoJson(REPORT_LOG_ENTRY.reportLogDetails)
       .build()
 
   @Test
-  fun success() = runBlocking<Unit> {
-    val timestampBefore = currentSpannerTimestamp
-    val reportLogEntry = createReportLogEntry(REPORT_LOG_ENTRY)
-    val timestampAfter = currentSpannerTimestamp
+  fun success() =
+    runBlocking<Unit> {
+      val timestampBefore = currentSpannerTimestamp
+      val reportLogEntry = createReportLogEntry(REPORT_LOG_ENTRY)
+      val timestampAfter = currentSpannerTimestamp
 
-    assertThat(reportLogEntry)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(REPORT_LOG_ENTRY)
+      assertThat(reportLogEntry).comparingExpectedFieldsOnly().isEqualTo(REPORT_LOG_ENTRY)
 
-    val createTime = reportLogEntry.createTime.toInstant()
-    assertThat(createTime).isGreaterThan(timestampBefore)
-    assertThat(createTime).isLessThan(timestampAfter)
+      val createTime = reportLogEntry.createTime.toInstant()
+      assertThat(createTime).isGreaterThan(timestampBefore)
+      assertThat(createTime).isLessThan(timestampAfter)
 
-    assertThat(readReportLogEntries())
-      .containsExactly(reportLogEntryStructWithCreateTime(createTime.toGcloudTimestamp()))
-  }
+      assertThat(readReportLogEntries())
+        .containsExactly(reportLogEntryStructWithCreateTime(createTime.toGcloudTimestamp()))
+    }
 
   @Test
-  fun `multiple ReportLogEntries`() = runBlocking<Unit> {
-    val reportLogEntry1 = createReportLogEntry(REPORT_LOG_ENTRY)
-    val reportLogEntry2 = createReportLogEntry(REPORT_LOG_ENTRY)
-    val reportLogEntry3 = createReportLogEntry(REPORT_LOG_ENTRY)
-    assertThat(readReportLogEntries())
-      .containsExactly(
-        reportLogEntryStructWithCreateTime(reportLogEntry1.createTime.toGcloudTimestamp()),
-        reportLogEntryStructWithCreateTime(reportLogEntry2.createTime.toGcloudTimestamp()),
-        reportLogEntryStructWithCreateTime(reportLogEntry3.createTime.toGcloudTimestamp())
-      )
-  }
+  fun `multiple ReportLogEntries`() =
+    runBlocking<Unit> {
+      val reportLogEntry1 = createReportLogEntry(REPORT_LOG_ENTRY)
+      val reportLogEntry2 = createReportLogEntry(REPORT_LOG_ENTRY)
+      val reportLogEntry3 = createReportLogEntry(REPORT_LOG_ENTRY)
+      assertThat(readReportLogEntries())
+        .containsExactly(
+          reportLogEntryStructWithCreateTime(reportLogEntry1.createTime.toGcloudTimestamp()),
+          reportLogEntryStructWithCreateTime(reportLogEntry2.createTime.toGcloudTimestamp()),
+          reportLogEntryStructWithCreateTime(reportLogEntry3.createTime.toGcloudTimestamp())
+        )
+    }
 
   @Test
   fun `missing Report`() {
     val missingExternalReportId = EXTERNAL_REPORT_ID + 1
     val reportLogEntry =
-      REPORT_LOG_ENTRY.toBuilder()
-        .setExternalReportId(missingExternalReportId)
-        .build()
+      REPORT_LOG_ENTRY.toBuilder().setExternalReportId(missingExternalReportId).build()
 
-    assertFails {
-      createReportLogEntry(reportLogEntry)
-    }
+    assertFails { createReportLogEntry(reportLogEntry) }
   }
 }

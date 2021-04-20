@@ -37,25 +37,21 @@ private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.getDefaultInst
 @RunWith(JUnit4::class)
 class ReportMakerTest {
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient = mock()
-  private val daemon =
-    Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
+  private val daemon = Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
   fun createReports() = runBlocking {
     val latch = CountDownLatch(15)
 
     daemonDatabaseServicesClient.stub {
-      on { streamReadySchedules() }
-        .thenReturn((1..10).map { SCHEDULE }.asFlow())
+      on { streamReadySchedules() }.thenReturn((1..10).map { SCHEDULE }.asFlow())
 
-      onBlocking { createNextReport(any(), any()) }
-        .then { latch.countDown() }
+      onBlocking { createNextReport(any(), any()) }.then { latch.countDown() }
     }
 
     launchAndCancelWithLatch(latch) { daemon.runReportMaker(COMBINED_PUBLIC_KEY_ID) }
 
-    verify(daemonDatabaseServicesClient, atLeast(2))
-      .streamReadySchedules()
+    verify(daemonDatabaseServicesClient, atLeast(2)).streamReadySchedules()
 
     verify(daemonDatabaseServicesClient, atLeast(15))
       .createNextReport(same(SCHEDULE), eq(COMBINED_PUBLIC_KEY_ID))

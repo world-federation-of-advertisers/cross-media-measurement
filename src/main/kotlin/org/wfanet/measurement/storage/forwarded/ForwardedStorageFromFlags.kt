@@ -19,9 +19,7 @@ import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedS
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
-/**
- * Client access provider for Forwarded Storage via command-line flags.
- */
+/** Client access provider for Forwarded Storage via command-line flags. */
 class ForwardedStorageFromFlags(private val flags: Flags) {
 
   val storageClient: StorageClient by lazy {

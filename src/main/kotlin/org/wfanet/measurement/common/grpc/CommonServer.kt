@@ -26,7 +26,8 @@ import java.util.logging.Logger
 import kotlin.properties.Delegates
 import picocli.CommandLine
 
-class CommonServer private constructor(
+class CommonServer
+private constructor(
   private val nameForLogging: String,
   private val port: Int,
   services: Iterable<ServerServiceDefinition>
@@ -34,10 +35,12 @@ class CommonServer private constructor(
   private val healthStatusManager = HealthStatusManager()
 
   private val server: Server by lazy {
-    ServerBuilder.forPort(port).apply {
-      addService(healthStatusManager.healthService)
-      services.forEach { addService(it) }
-    }.build()
+    ServerBuilder.forPort(port)
+      .apply {
+        addService(healthStatusManager.healthService)
+        services.forEach { addService(it) }
+      }
+      .build()
   }
 
   @Throws(IOException::class)
@@ -47,20 +50,18 @@ class CommonServer private constructor(
       healthStatusManager.setStatus(it.serviceDescriptor.name, ServingStatus.SERVING)
     }
 
-    logger.log(
-      Level.INFO,
-      "$nameForLogging started, listening on $port"
-    )
-    Runtime.getRuntime().addShutdownHook(
-      object : Thread() {
-        override fun run() {
-          // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-          System.err.println("*** $nameForLogging shutting down...")
-          this@CommonServer.stop()
-          System.err.println("*** $nameForLogging shut down")
+    logger.log(Level.INFO, "$nameForLogging started, listening on $port")
+    Runtime.getRuntime()
+      .addShutdownHook(
+        object : Thread() {
+          override fun run() {
+            // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+            System.err.println("*** $nameForLogging shutting down...")
+            this@CommonServer.stop()
+            System.err.println("*** $nameForLogging shut down")
+          }
         }
-      }
-    )
+      )
     return this
   }
 

@@ -56,8 +56,7 @@ class PublisherDataService(
   /**
    * Latest [CombinedPublicKey] resource.
    *
-   * This is eagerly cached as most [GetCombinedPublicKeyRequest]s will be for
-   * this value.
+   * This is eagerly cached as most [GetCombinedPublicKeyRequest]s will be for this value.
    */
   private val latestCombinedPublicKey: CombinedPublicKey =
     getCombinedPublicKey(duchyPublicKeys.latest.combinedPublicKeyId)!!
@@ -74,28 +73,31 @@ class PublisherDataService(
   override suspend fun uploadMetricValue(
     requests: Flow<UploadMetricValueRequest>
   ): UploadMetricValueResponse {
-    val internalMetricValue = metricValuesClient.storeMetricValue(
-      requests.map { requestMessage ->
-        StoreMetricValueRequest.newBuilder().apply {
-          if (requestMessage.hasHeader()) {
-            val key = requestMessage.header.key
-            headerBuilder.resourceKey = key.toResourceKey()
-          } else {
-            chunkBuilder.data = requestMessage.chunk.data
-          }
-        }.build()
-      }
-    )
+    val internalMetricValue =
+      metricValuesClient.storeMetricValue(
+        requests.map { requestMessage ->
+          StoreMetricValueRequest.newBuilder()
+            .apply {
+              if (requestMessage.hasHeader()) {
+                val key = requestMessage.header.key
+                headerBuilder.resourceKey = key.toResourceKey()
+              } else {
+                chunkBuilder.data = requestMessage.chunk.data
+              }
+            }
+            .build()
+        }
+      )
 
     systemRequisitionClient.fulfillMetricRequisition(
-      FulfillMetricRequisitionRequest.newBuilder().apply {
-        key = internalMetricValue.resourceKey.toSystemRequisitionKey()
-      }.build()
+      FulfillMetricRequisitionRequest.newBuilder()
+        .apply { key = internalMetricValue.resourceKey.toSystemRequisitionKey() }
+        .build()
     )
 
-    return UploadMetricValueResponse.newBuilder().apply {
-      state = MetricRequisition.State.FULFILLED
-    }.build()
+    return UploadMetricValueResponse.newBuilder()
+      .apply { state = MetricRequisition.State.FULFILLED }
+      .build()
   }
 
   override suspend fun getCombinedPublicKey(
@@ -113,30 +115,36 @@ class PublisherDataService(
   private fun getCombinedPublicKey(combinedPublicKeyId: String): CombinedPublicKey? {
     val entry = duchyPublicKeys.get(combinedPublicKeyId) ?: return null
 
-    return CombinedPublicKey.newBuilder().apply {
-      keyBuilder.combinedPublicKeyId = combinedPublicKeyId
-      version = entry.combinedPublicKeyVersion
-      encryptionKeyBuilder.apply {
-        ellipticCurveId = entry.curveId
-        generator = entry.combinedPublicKey.generator
-        element = entry.combinedPublicKey.element
+    return CombinedPublicKey.newBuilder()
+      .apply {
+        keyBuilder.combinedPublicKeyId = combinedPublicKeyId
+        version = entry.combinedPublicKeyVersion
+        encryptionKeyBuilder.apply {
+          ellipticCurveId = entry.curveId
+          generator = entry.combinedPublicKey.generator
+          element = entry.combinedPublicKey.element
+        }
       }
-    }.build()
+      .build()
   }
 }
 
 private fun ResourceKeyOrBuilder.toSystemRequisitionKey(): MetricRequisitionKey {
-  return MetricRequisitionKey.newBuilder().apply {
-    dataProviderId = dataProviderResourceId
-    campaignId = campaignResourceId
-    metricRequisitionId = metricRequisitionResourceId
-  }.build()
+  return MetricRequisitionKey.newBuilder()
+    .apply {
+      dataProviderId = dataProviderResourceId
+      campaignId = campaignResourceId
+      metricRequisitionId = metricRequisitionResourceId
+    }
+    .build()
 }
 
 fun MetricRequisition.KeyOrBuilder.toResourceKey(): ResourceKey {
-  return ResourceKey.newBuilder().apply {
-    dataProviderResourceId = dataProviderId
-    campaignResourceId = campaignId
-    metricRequisitionResourceId = metricRequisitionId
-  }.build()
+  return ResourceKey.newBuilder()
+    .apply {
+      dataProviderResourceId = dataProviderId
+      campaignResourceId = campaignId
+      metricRequisitionResourceId = metricRequisitionId
+    }
+    .build()
 }

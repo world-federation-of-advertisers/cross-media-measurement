@@ -52,13 +52,16 @@ class ReportConfigReader : SpannerReader<ReportConfigReader.Result>() {
       struct.getLong("ReportConfigId")
     )
 
-  private fun buildReportConfig(struct: Struct): ReportConfig = ReportConfig.newBuilder().apply {
-    externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
-    externalReportConfigId = struct.getLong("ExternalReportConfigId")
-    numRequisitions = struct.getLong("NumRequisitions")
-    state = struct.getProtoEnum("State", ReportConfigState::forNumber)
-    reportConfigDetails =
-      struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
-    reportConfigDetailsJson = struct.getString("ReportConfigDetailsJson")
-  }.build()
+  private fun buildReportConfig(struct: Struct): ReportConfig =
+    ReportConfig.newBuilder()
+      .apply {
+        externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
+        externalReportConfigId = struct.getLong("ExternalReportConfigId")
+        numRequisitions = struct.getLong("NumRequisitions")
+        state = struct.getProtoEnum("State", ReportConfigState::forNumber)
+        reportConfigDetails =
+          struct.getProtoMessage("ReportConfigDetails", ReportConfigDetails.parser())
+        reportConfigDetailsJson = struct.getString("ReportConfigDetailsJson")
+      }
+      .build()
 }

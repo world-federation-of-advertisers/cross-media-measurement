@@ -14,13 +14,5 @@
 
 package org.wfanet.measurement.common.throttler
 
-/**
- * Indicates pushback used for throttling.
- */
-class ThrottledException(
-  message: String,
-  throwable: Throwable
-) : Exception(
-  message,
-  throwable
-)
+/** Indicates pushback used for throttling. */
+class ThrottledException(message: String, throwable: Throwable) : Exception(message, throwable)

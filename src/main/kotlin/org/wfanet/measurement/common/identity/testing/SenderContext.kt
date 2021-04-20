@@ -20,10 +20,7 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 
 private typealias DuchyIdProvider = () -> DuchyIdentity
 
-/**
- * Maintains a sender [DuchyIdentity] for calls to a given service
- * implementation.
- */
+/** Maintains a sender [DuchyIdentity] for calls to a given service implementation. */
 class SenderContext<T>(serviceProvider: (DuchyIdProvider) -> T) {
   private val mutex = Mutex()
 
@@ -32,11 +29,9 @@ class SenderContext<T>(serviceProvider: (DuchyIdProvider) -> T) {
 
   val service: T = serviceProvider { sender }
 
-  suspend fun <R> withSender(
-    sender: DuchyIdentity,
-    callMethod: suspend T.() -> R
-  ): R = mutex.withLock {
-    this.sender = sender
-    service.callMethod()
-  }
+  suspend fun <R> withSender(sender: DuchyIdentity, callMethod: suspend T.() -> R): R =
+    mutex.withLock {
+      this.sender = sender
+      service.callMethod()
+    }
 }

@@ -19,30 +19,20 @@ import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 
-/**
- * Abstraction around a common pattern for Spanner read-only queries.
- */
+/** Abstraction around a common pattern for Spanner read-only queries. */
 abstract class SpannerQuery<S : Any, T> {
-  /**
-   * The [BaseSpannerReader] to execute.
-   */
+  /** The [BaseSpannerReader] to execute. */
   protected abstract val reader: BaseSpannerReader<S>
 
-  /**
-   * Post-processes the results.
-   */
+  /** Post-processes the results. */
   abstract fun Flow<S>.transform(): Flow<T>
 
-  /**
-   * Executes the query.
-   */
+  /** Executes the query. */
   fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> {
     return reader.execute(readContext).transform()
   }
 
-  /**
-   * Executes the query to take the unique result, running on the proper Dispatcher.
-   */
+  /** Executes the query to take the unique result, running on the proper Dispatcher. */
   suspend fun executeSingle(readContext: AsyncDatabaseClient.ReadContext): T {
     return execute(readContext).single()
   }

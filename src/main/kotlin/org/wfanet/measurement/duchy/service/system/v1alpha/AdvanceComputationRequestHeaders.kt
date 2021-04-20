@@ -54,7 +54,9 @@ fun advanceComputationHeader(
   liquidLegionsV2ContentDescription: LiquidLegionsV2.Description,
   globalComputationId: String
 ): AdvanceComputationRequest.Header =
-  AdvanceComputationRequest.Header.newBuilder().apply {
-    keyBuilder.globalComputationId = globalComputationId
-    liquidLegionsV2Builder.description = liquidLegionsV2ContentDescription
-  }.build()
+  AdvanceComputationRequest.Header.newBuilder()
+    .apply {
+      keyBuilder.globalComputationId = globalComputationId
+      liquidLegionsV2Builder.description = liquidLegionsV2ContentDescription
+    }
+    .build()

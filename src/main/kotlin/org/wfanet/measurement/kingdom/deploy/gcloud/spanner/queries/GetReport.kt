@@ -24,16 +24,15 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.SpannerReade
 
 class GetReport(externalReportId: ExternalId) : SpannerQuery<ReportReader.Result, Report>() {
   override val reader: SpannerReader<ReportReader.Result> by lazy {
-    ReportReader(index = ReportReader.Index.EXTERNAL_ID)
-      .withBuilder {
-        appendClause("WHERE Reports.ExternalReportId = @external_report_id")
-        bind("external_report_id").to(externalReportId.value)
+    ReportReader(index = ReportReader.Index.EXTERNAL_ID).withBuilder {
+      appendClause("WHERE Reports.ExternalReportId = @external_report_id")
+      bind("external_report_id").to(externalReportId.value)
 
-        // The index ReportsByExternalId will enforce that only a single result is returned, but we
-        // explicitly add LIMIT 1 to make it obvious, when looking at debug logs or porting this
-        // code to other databases, that the query should return a single result.
-        appendClause("LIMIT 1")
-      }
+      // The index ReportsByExternalId will enforce that only a single result is returned, but we
+      // explicitly add LIMIT 1 to make it obvious, when looking at debug logs or porting this
+      // code to other databases, that the query should return a single result.
+      appendClause("LIMIT 1")
+    }
   }
 
   override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }

@@ -41,24 +41,26 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
 
 private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
-private val REPORT_DETAILS = ReportDetails.newBuilder().apply {
-  combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
-}.build()
+private val REPORT_DETAILS =
+  ReportDetails.newBuilder()
+    .apply { combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID }
+    .build()
 
 abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
 
   // TODO: add AdvertiserDetails proto as input.
-  protected suspend fun insertAdvertiser(
-    advertiserId: Long,
-    externalAdvertiserId: Long
-  ) {
+  protected suspend fun insertAdvertiser(advertiserId: Long, externalAdvertiserId: Long) {
     write(
       Mutation.newInsertBuilder("Advertisers")
-        .set("AdvertiserId").to(advertiserId)
-        .set("ExternalAdvertiserId").to(externalAdvertiserId)
-        .set("AdvertiserDetails").to(ByteArray.copyFrom(""))
-        .set("AdvertiserDetailsJson").to("irrelevant-advertiser-details-json")
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ExternalAdvertiserId")
+        .to(externalAdvertiserId)
+        .set("AdvertiserDetails")
+        .to(ByteArray.copyFrom(""))
+        .set("AdvertiserDetailsJson")
+        .to("irrelevant-advertiser-details-json")
         .build()
     )
   }
@@ -73,13 +75,20 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("ReportConfigs")
-        .set("AdvertiserId").to(advertiserId)
-        .set("ReportConfigId").to(reportConfigId)
-        .set("ExternalReportConfigId").to(externalReportConfigId)
-        .set("NumRequisitions").to(numRequisitions)
-        .set("State").toProtoEnum(state)
-        .set("ReportConfigDetails").toProtoBytes(reportConfigDetails)
-        .set("ReportConfigDetailsJson").toProtoJson(reportConfigDetails)
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ReportConfigId")
+        .to(reportConfigId)
+        .set("ExternalReportConfigId")
+        .to(externalReportConfigId)
+        .set("NumRequisitions")
+        .to(numRequisitions)
+        .set("State")
+        .toProtoEnum(state)
+        .set("ReportConfigDetails")
+        .toProtoBytes(reportConfigDetails)
+        .set("ReportConfigDetailsJson")
+        .toProtoJson(reportConfigDetails)
         .build()
     )
   }
@@ -94,13 +103,20 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("ReportConfigSchedules")
-        .set("AdvertiserId").to(advertiserId)
-        .set("ReportConfigId").to(reportConfigId)
-        .set("ScheduleId").to(scheduleId)
-        .set("ExternalScheduleId").to(externalScheduleId)
-        .set("NextReportStartTime").to(nextReportStartTime.toGcloudTimestamp())
-        .set("RepetitionSpec").toProtoBytes(repetitionSpec)
-        .set("RepetitionSpecJson").toProtoJson(repetitionSpec)
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ReportConfigId")
+        .to(reportConfigId)
+        .set("ScheduleId")
+        .to(scheduleId)
+        .set("ExternalScheduleId")
+        .to(externalScheduleId)
+        .set("NextReportStartTime")
+        .to(nextReportStartTime.toGcloudTimestamp())
+        .set("RepetitionSpec")
+        .toProtoBytes(repetitionSpec)
+        .set("RepetitionSpecJson")
+        .toProtoJson(repetitionSpec)
         .build()
     )
   }
@@ -113,10 +129,14 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("ReportConfigCampaigns")
-        .set("AdvertiserId").to(advertiserId)
-        .set("ReportConfigId").to(reportConfigId)
-        .set("DataProviderId").to(dataProviderId)
-        .set("CampaignId").to(campaignId)
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ReportConfigId")
+        .to(reportConfigId)
+        .set("DataProviderId")
+        .to(dataProviderId)
+        .set("CampaignId")
+        .to(campaignId)
         .build()
     )
   }
@@ -136,18 +156,30 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("Reports")
-        .set("AdvertiserId").to(advertiserId)
-        .set("ReportConfigId").to(reportConfigId)
-        .set("ScheduleId").to(scheduleId)
-        .set("ReportId").to(reportId)
-        .set("ExternalReportId").to(externalReportId)
-        .set("CreateTime").to(createTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP)
-        .set("UpdateTime").to(updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP)
-        .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
-        .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
-        .set("State").toProtoEnum(state)
-        .set("ReportDetails").toProtoBytes(reportDetails)
-        .set("ReportDetailsJson").toProtoJson(reportDetails)
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ReportConfigId")
+        .to(reportConfigId)
+        .set("ScheduleId")
+        .to(scheduleId)
+        .set("ReportId")
+        .to(reportId)
+        .set("ExternalReportId")
+        .to(externalReportId)
+        .set("CreateTime")
+        .to(createTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP)
+        .set("UpdateTime")
+        .to(updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP)
+        .set("WindowStartTime")
+        .to(windowStartTime.toGcloudTimestamp())
+        .set("WindowEndTime")
+        .to(windowEndTime.toGcloudTimestamp())
+        .set("State")
+        .toProtoEnum(state)
+        .set("ReportDetails")
+        .toProtoBytes(reportDetails)
+        .set("ReportDetailsJson")
+        .toProtoJson(reportDetails)
         .build()
     )
   }
@@ -172,21 +204,31 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     insertReportConfig(advertiserId, reportConfigId, externalReportConfigId)
     insertReportConfigSchedule(advertiserId, reportConfigId, scheduleId, externalScheduleId)
     insertReport(
-      advertiserId, reportConfigId, scheduleId, reportId, externalReportId, state, createTime,
-      updateTime, windowStartTime, windowEndTime, reportDetails
+      advertiserId,
+      reportConfigId,
+      scheduleId,
+      reportId,
+      externalReportId,
+      state,
+      createTime,
+      updateTime,
+      windowStartTime,
+      windowEndTime,
+      reportDetails
     )
   }
 
-  protected suspend fun insertDataProvider(
-    dataProviderId: Long,
-    externalDataProviderId: Long
-  ) {
+  protected suspend fun insertDataProvider(dataProviderId: Long, externalDataProviderId: Long) {
     write(
       Mutation.newInsertBuilder("DataProviders")
-        .set("DataProviderId").to(dataProviderId)
-        .set("ExternalDataProviderId").to(externalDataProviderId)
-        .set("DataProviderDetails").to(ByteArray.copyFrom(""))
-        .set("DataProviderDetailsJson").to("")
+        .set("DataProviderId")
+        .to(dataProviderId)
+        .set("ExternalDataProviderId")
+        .to(externalDataProviderId)
+        .set("DataProviderDetails")
+        .to(ByteArray.copyFrom(""))
+        .set("DataProviderDetailsJson")
+        .to("")
         .build()
     )
   }
@@ -200,13 +242,20 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("Campaigns")
-        .set("DataProviderId").to(dataProviderId)
-        .set("CampaignId").to(campaignId)
-        .set("ExternalCampaignId").to(externalCampaignId)
-        .set("AdvertiserId").to(advertiserId)
-        .set("ProvidedCampaignId").to(providedCampaignId)
-        .set("CampaignDetails").to(ByteArray.copyFrom(""))
-        .set("CampaignDetailsJson").to("")
+        .set("DataProviderId")
+        .to(dataProviderId)
+        .set("CampaignId")
+        .to(campaignId)
+        .set("ExternalCampaignId")
+        .to(externalCampaignId)
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ProvidedCampaignId")
+        .to(providedCampaignId)
+        .set("CampaignDetails")
+        .to(ByteArray.copyFrom(""))
+        .set("CampaignDetailsJson")
+        .to("")
         .build()
     )
   }
@@ -226,18 +275,30 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("Requisitions")
-        .set("DataProviderId").to(dataProviderId)
-        .set("CampaignId").to(campaignId)
-        .set("RequisitionId").to(requisitionId)
-        .set("ExternalRequisitionId").to(externalRequisitionId)
-        .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
-        .set("CreateTime").to(createTime.toGcloudTimestamp())
-        .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
-        .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
-        .set("State").toProtoEnum(state)
-        .set("DuchyId").to(duchyId)
-        .set("RequisitionDetails").toProtoBytes(requisitionDetails)
-        .set("RequisitionDetailsJson").toProtoJson(requisitionDetails)
+        .set("DataProviderId")
+        .to(dataProviderId)
+        .set("CampaignId")
+        .to(campaignId)
+        .set("RequisitionId")
+        .to(requisitionId)
+        .set("ExternalRequisitionId")
+        .to(externalRequisitionId)
+        .set("CombinedPublicKeyResourceId")
+        .to(combinedPublicKeyResourceId)
+        .set("CreateTime")
+        .to(createTime.toGcloudTimestamp())
+        .set("WindowStartTime")
+        .to(windowStartTime.toGcloudTimestamp())
+        .set("WindowEndTime")
+        .to(windowEndTime.toGcloudTimestamp())
+        .set("State")
+        .toProtoEnum(state)
+        .set("DuchyId")
+        .to(duchyId)
+        .set("RequisitionDetails")
+        .toProtoBytes(requisitionDetails)
+        .set("RequisitionDetailsJson")
+        .toProtoJson(requisitionDetails)
         .build()
     )
   }
@@ -253,36 +314,34 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   ) {
     write(
       Mutation.newInsertBuilder("ReportRequisitions")
-        .set("AdvertiserId").to(advertiserId)
-        .set("ReportConfigId").to(reportConfigId)
-        .set("ScheduleId").to(scheduleId)
-        .set("ReportId").to(reportId)
-        .set("DataProviderId").to(dataProviderId)
-        .set("CampaignId").to(campaignId)
-        .set("RequisitionId").to(requisitionId)
+        .set("AdvertiserId")
+        .to(advertiserId)
+        .set("ReportConfigId")
+        .to(reportConfigId)
+        .set("ScheduleId")
+        .to(scheduleId)
+        .set("ReportId")
+        .to(reportId)
+        .set("DataProviderId")
+        .to(dataProviderId)
+        .set("CampaignId")
+        .to(campaignId)
+        .set("RequisitionId")
+        .to(requisitionId)
         .build()
     )
   }
 
   protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
-    ReportReader()
-      .execute(databaseClient.singleUse())
-      .map { it.report }
-      .toList()
+    ReportReader().execute(databaseClient.singleUse()).map { it.report }.toList()
   }
 
   protected fun readAllSchedulesInSpanner(): List<ReportConfigSchedule> = runBlocking {
-    ScheduleReader()
-      .execute(databaseClient.singleUse())
-      .map { it.schedule }
-      .toList()
+    ScheduleReader().execute(databaseClient.singleUse()).map { it.schedule }.toList()
   }
 
   protected fun readAllRequisitionsInSpanner(): List<Requisition> = runBlocking {
-    RequisitionReader()
-      .execute(databaseClient.singleUse())
-      .map { it.requisition }
-      .toList()
+    RequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
   }
 
   // TODO: add helpers for other tables.

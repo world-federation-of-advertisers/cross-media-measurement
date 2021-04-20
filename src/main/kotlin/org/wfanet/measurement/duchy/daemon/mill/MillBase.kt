@@ -74,17 +74,17 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * A [MillBase] wrapping common functionalities of mills.
  *
  * @param millId The identifier of this mill, used to claim a work.
- * @param dataClients clients that have access to local computation storage, i.e., spanner
- *    table and blob store.
+ * @param dataClients clients that have access to local computation storage, i.e., spanner table and
+ * blob store.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *    computation table.
+ * computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
-*/
+ */
 abstract class MillBase(
   protected val millId: String,
   protected val duchyId: String,
@@ -100,28 +100,21 @@ abstract class MillBase(
   abstract val endingStage: ComputationStage
 
   /**
-   * The main function of the mill.
-   * Continually poll and work on available computations from the queue.
-   * The polling interval is controlled by the [MinimumIntervalThrottler].
+   * The main function of the mill. Continually poll and work on available computations from the
+   * queue. The polling interval is controlled by the [MinimumIntervalThrottler].
    */
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
     withContext(CoroutineName("Mill $millId")) {
-      throttler.loopOnReady {
-        pollAndProcessNextComputation()
-      }
+      throttler.loopOnReady { pollAndProcessNextComputation() }
     }
   }
 
-  /**
-   * Poll and work on the next available computations.
-   */
+  /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
     logger.info("@Mill $millId: Polling available computations...")
-    val claimWorkRequest = ClaimWorkRequest.newBuilder()
-      .setComputationType(computationType)
-      .setOwner(millId)
-      .build()
+    val claimWorkRequest =
+      ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
     val claimWorkResponse: ClaimWorkResponse =
       dataClients.computationsClient.claimWork(claimWorkRequest)
     if (claimWorkResponse.hasToken()) {
@@ -136,9 +129,7 @@ abstract class MillBase(
     }
   }
 
-  /**
-   * Process the computation according to its protocol and status.
-   */
+  /** Process the computation according to its protocol and status. */
   private suspend fun processComputation(token: ComputationToken) {
     // Log the current mill memory usage before processing.
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_MAXIMUM, Runtime.getRuntime().maxMemory())
@@ -155,22 +146,16 @@ abstract class MillBase(
       // or enqueue the computation.
       val latestToken = getLatestComputationToken(globalId)
       when (e) {
-        is IllegalStateException,
-        is IllegalArgumentException,
-        is PermanentComputationError -> {
+        is IllegalStateException, is IllegalArgumentException, is PermanentComputationError -> {
           logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(latestToken, e.toString(), PERMANENT)
-          )
+          sendStatusUpdateToKingdom(newErrorUpdateRequest(latestToken, e.toString(), PERMANENT))
           // Mark the computation FAILED for all permanent errors
           completeComputation(latestToken, CompletedReason.FAILED)
         }
         else -> {
           // Treat all other errors as transient.
           logger.log(Level.SEVERE, "$globalId@$millId: TRANSIENT error", e)
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(latestToken, e.toString(), TRANSIENT)
-          )
+          sendStatusUpdateToKingdom(newErrorUpdateRequest(latestToken, e.toString(), TRANSIENT))
           // Enqueue the computation again for future retry
           enqueueComputation(latestToken)
         }
@@ -178,21 +163,14 @@ abstract class MillBase(
     }
   }
 
-  /**
-   * Actual implementation of processComputation().
-   */
+  /** Actual implementation of processComputation(). */
   protected abstract suspend fun processComputationImpl(token: ComputationToken)
 
-  /**
-   * Returns whether a value exists for the requisition by calling the
-   * MetricValues service.
-   */
+  /** Returns whether a value exists for the requisition by calling the MetricValues service. */
   suspend fun metricValueExists(key: RequisitionKey): Boolean {
     return try {
       metricValuesClient.getMetricValue(
-        GetMetricValueRequest.newBuilder()
-          .setResourceKey(key.toResourceKey())
-          .build()
+        GetMetricValueRequest.newBuilder().setResourceKey(key.toResourceKey()).build()
       )
       true
     } catch (e: StatusException) {
@@ -211,18 +189,17 @@ abstract class MillBase(
     availableRequisitions: Iterable<RequisitionKey>
   ): Flow<Flow<ByteString>> = flow {
     for (requisitionKey in availableRequisitions) {
-      val responses = metricValuesClient.streamMetricValue(
-        StreamMetricValueRequest.newBuilder()
-          .setResourceKey(requisitionKey.toResourceKey())
-          .build()
-      )
+      val responses =
+        metricValuesClient.streamMetricValue(
+          StreamMetricValueRequest.newBuilder()
+            .setResourceKey(requisitionKey.toResourceKey())
+            .build()
+        )
       emit(responses.dropWhile { it.hasHeader() }.map { it.chunk.data })
     }
   }
 
-  /**
-   * Sends status update to the Kingdom's GlobalComputationsService.
-   */
+  /** Sends status update to the Kingdom's GlobalComputationsService. */
   private suspend fun sendStatusUpdateToKingdom(
     request: CreateGlobalComputationStatusUpdateRequest
   ) {
@@ -233,9 +210,7 @@ abstract class MillBase(
     }
   }
 
-  /**
-   * Writes stage metric to the [Logger] and also sends to the ComputationStatsService.
-   */
+  /** Writes stage metric to the [Logger] and also sends to the ComputationStatsService. */
   private suspend fun logStageMetric(
     token: ComputationToken,
     metricName: String,
@@ -248,9 +223,7 @@ abstract class MillBase(
     sendComputationStats(token, metricName, metricValue)
   }
 
-  /**
-   * Writes stage duration metric to the [Logger] and also sends to the ComputationStatsService.
-   */
+  /** Writes stage duration metric to the [Logger] and also sends to the ComputationStatsService. */
   protected suspend fun logStageDurationMetric(
     token: ComputationToken,
     metricName: String,
@@ -263,9 +236,7 @@ abstract class MillBase(
     sendComputationStats(token, metricName, metricValue)
   }
 
-  /**
-   * Sends state metric to the ComputationStatsService.
-   */
+  /** Sends state metric to the ComputationStatsService. */
   private suspend fun sendComputationStats(
     token: ComputationToken,
     metricName: String,
@@ -284,52 +255,45 @@ abstract class MillBase(
     }
   }
 
-  /**
-   * Builds a [CreateGlobalComputationStatusUpdateRequest] to update the new error.
-   */
+  /** Builds a [CreateGlobalComputationStatusUpdateRequest] to update the new error. */
   private fun newErrorUpdateRequest(
     token: ComputationToken,
     message: String,
     type: GlobalComputationStatusUpdate.ErrorDetails.ErrorType
   ): CreateGlobalComputationStatusUpdateRequest {
     val timestamp = clock.protoTimestamp()
-    return CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-      parentBuilder.globalComputationId = token.globalComputationId
-      statusUpdateBuilder.apply {
-        selfReportedIdentifier = millId
-        stageDetailsBuilder.apply {
-          algorithm = token.computationStage.mpcAlgorithm
-          stageNumber = token.computationStage.number.toLong()
-          stageName = token.computationStage.name
-          start = timestamp
-          attemptNumber = token.attempt.toLong()
-        }
-        updateMessage = "Computation ${token.globalComputationId} at stage " +
-          "${token.computationStage.name}, attempt ${token.attempt} failed."
-        errorDetailsBuilder.apply {
-          errorTime = timestamp
-          errorType = type
-          errorMessage = "${token.globalComputationId}@$millId: $message"
+    return CreateGlobalComputationStatusUpdateRequest.newBuilder()
+      .apply {
+        parentBuilder.globalComputationId = token.globalComputationId
+        statusUpdateBuilder.apply {
+          selfReportedIdentifier = millId
+          stageDetailsBuilder.apply {
+            algorithm = token.computationStage.mpcAlgorithm
+            stageNumber = token.computationStage.number.toLong()
+            stageName = token.computationStage.name
+            start = timestamp
+            attemptNumber = token.attempt.toLong()
+          }
+          updateMessage =
+            "Computation ${token.globalComputationId} at stage " +
+              "${token.computationStage.name}, attempt ${token.attempt} failed."
+          errorDetailsBuilder.apply {
+            errorTime = timestamp
+            errorType = type
+            errorMessage = "${token.globalComputationId}@$millId: $message"
+          }
         }
       }
-    }.build()
+      .build()
   }
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
-  protected fun addLoggingHook(
-    token: ComputationToken,
-    bytes: Flow<ByteString>
-  ): Flow<ByteString> {
+  protected fun addLoggingHook(token: ComputationToken, bytes: Flow<ByteString>): Flow<ByteString> {
     var numOfBytes = 0L
-    return bytes.onEach { numOfBytes += it.size() }
-      .onCompletion {
-        logStageMetric(
-          token,
-          BYTES_OF_DATA_IN_RPC,
-          numOfBytes
-        )
-      }
+    return bytes.onEach { numOfBytes += it.size() }.onCompletion {
+      logStageMetric(token, BYTES_OF_DATA_IN_RPC, numOfBytes)
+    }
   }
 
   /** Sends an AdvanceComputationRequest to the target duchy. */
@@ -339,11 +303,13 @@ abstract class MillBase(
     content: Flow<ByteString>,
     stub: ComputationControlCoroutineStub
   ) {
-    val requestFlow = content.asBufferedFlow(requestChunkSizeBytes).map {
-      AdvanceComputationRequest.newBuilder().apply {
-        bodyChunkBuilder.partialData = it
-      }.build()
-    }.onStart { emit(AdvanceComputationRequest.newBuilder().setHeader(header).build()) }
+    val requestFlow =
+      content
+        .asBufferedFlow(requestChunkSizeBytes)
+        .map {
+          AdvanceComputationRequest.newBuilder().apply { bodyChunkBuilder.partialData = it }.build()
+        }
+        .onStart { emit(AdvanceComputationRequest.newBuilder().setHeader(header).build()) }
     stub.advanceComputation(requestFlow)
   }
 
@@ -356,10 +322,7 @@ abstract class MillBase(
   ): CachedResult {
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
-      return CachedResult(
-        checkNotNull(dataClients.readSingleOutputBlob(token)),
-        token
-      )
+      return CachedResult(checkNotNull(dataClients.readSingleOutputBlob(token)), token)
     }
     val newResult: ByteString =
       try {
@@ -371,57 +334,50 @@ abstract class MillBase(
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
       }
-    return CachedResult(
-      flowOf(newResult),
-      dataClients.writeSingleOutputBlob(token, newResult)
-    )
+    return CachedResult(flowOf(newResult), dataClients.writeSingleOutputBlob(token, newResult))
   }
 
-  /**
-   * Reads all input blobs and combines all the bytes together.
-   */
-  protected suspend fun readAndCombineAllInputBlobs(token: ComputationToken, count: Int):
-    ByteString {
-      val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
-      if (blobMap.size != count) {
-        throw PermanentComputationError(
-          Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
-        )
-      }
-      return blobMap.values.flatten()
+  /** Reads all input blobs and combines all the bytes together. */
+  protected suspend fun readAndCombineAllInputBlobs(
+    token: ComputationToken,
+    count: Int
+  ): ByteString {
+    val blobMap: Map<BlobRef, ByteString> = dataClients.readInputBlobs(token)
+    if (blobMap.size != count) {
+      throw PermanentComputationError(
+        Exception("Unexpected number of input blobs. expected $count, actual ${blobMap.size}.")
+      )
     }
+    return blobMap.values.flatten()
+  }
 
-  /**
-   * Completes a computation and records the [CompletedReason]
-   */
+  /** Completes a computation and records the [CompletedReason] */
   protected suspend fun completeComputation(
     token: ComputationToken,
     reason: CompletedReason
   ): ComputationToken {
-    val response = dataClients.computationsClient.finishComputation(
-      FinishComputationRequest.newBuilder().also {
-        it.token = token
-        it.endingComputationStage = endingStage
-        it.reason = reason
-      }.build()
-    )
+    val response =
+      dataClients.computationsClient.finishComputation(
+        FinishComputationRequest.newBuilder()
+          .also {
+            it.token = token
+            it.endingComputationStage = endingStage
+            it.reason = reason
+          }
+          .build()
+      )
     return response.token
   }
 
-  /**
-   * Gets the latest [ComputationToken] for computation with [globalId].
-   */
+  /** Gets the latest [ComputationToken] for computation with [globalId]. */
   private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
     return dataClients.computationsClient.getComputationToken(
-      GetComputationTokenRequest.newBuilder().apply {
-        globalComputationId = globalId
-      }.build()
-    ).token
+        GetComputationTokenRequest.newBuilder().apply { globalComputationId = globalId }.build()
+      )
+      .token
   }
 
-  /**
-   * Enqueue a computation with a delay.
-   */
+  /** Enqueue a computation with a delay. */
   private suspend fun enqueueComputation(token: ComputationToken) {
     dataClients.computationsClient.enqueueComputation(
       EnqueueComputationRequest.newBuilder()
@@ -468,11 +424,13 @@ data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
 class PermanentComputationError(cause: Throwable) : Exception(cause)
 
 fun RequisitionKey.toResourceKey(): ResourceKey {
-  return ResourceKey.newBuilder().apply {
-    dataProviderResourceId = dataProviderId
-    campaignResourceId = campaignId
-    metricRequisitionResourceId = metricRequisitionId
-  }.build()
+  return ResourceKey.newBuilder()
+    .apply {
+      dataProviderResourceId = dataProviderId
+      campaignResourceId = campaignId
+      metricRequisitionResourceId = metricRequisitionId
+    }
+    .build()
 }
 
 fun RequisitionKey.toMetricRequisitionKey(): MetricRequisitionKey {
@@ -483,9 +441,7 @@ fun RequisitionKey.toMetricRequisitionKey(): MetricRequisitionKey {
     .build()
 }
 
-/**
- * Converts a milliseconds to a human friendly string.
- */
+/** Converts a milliseconds to a human friendly string. */
 fun Long.toHumanFriendlyDuration(): String {
   val seconds = this / 1000
   val ms = this % 1000

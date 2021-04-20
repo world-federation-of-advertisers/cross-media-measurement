@@ -26,11 +26,9 @@ import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import picocli.CommandLine
 
 /**
- * Implementation of [MetricValuesServer] using Google Cloud Platform (GCP)
- * components.
+ * Implementation of [MetricValuesServer] using Google Cloud Platform (GCP) components.
  *
- * In particular, Google Cloud Spanner for database and Google Cloud Storage for
- * storage.
+ * In particular, Google Cloud Spanner for database and Google Cloud Storage for storage.
  */
 @CommandLine.Command(
   name = "GcpMetricValuesServer",
@@ -39,16 +37,13 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 private class GcpMetricValuesServer : MetricValuesServer() {
-  @CommandLine.Mixin
-  private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
-  @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     spannerFlags.usingSpanner { spanner ->
-
       val googleCloudStorage = GcsFromFlags(gcsFlags)
       val metricValueDb =
         SpannerMetricValueDatabase(spanner.databaseClient, RandomIdGenerator(clock))

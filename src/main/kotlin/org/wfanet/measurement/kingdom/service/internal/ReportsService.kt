@@ -31,9 +31,7 @@ import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
-class ReportsService(
-  private val reportDatabase: ReportDatabase
-) : ReportsCoroutineImplBase() {
+class ReportsService(private val reportDatabase: ReportDatabase) : ReportsCoroutineImplBase() {
   override suspend fun getReport(request: GetReportRequest): Report {
     return reportDatabase.getReport(ExternalId(request.externalReportId))
   }
@@ -63,10 +61,7 @@ class ReportsService(
   }
 
   override suspend fun updateReportState(request: UpdateReportStateRequest): Report {
-    return reportDatabase.updateReportState(
-      ExternalId(request.externalReportId),
-      request.state
-    )
+    return reportDatabase.updateReportState(ExternalId(request.externalReportId), request.state)
   }
 
   override suspend fun associateRequisition(
@@ -79,9 +74,7 @@ class ReportsService(
     return AssociateRequisitionResponse.getDefaultInstance()
   }
 
-  override suspend fun confirmDuchyReadiness(
-    request: ConfirmDuchyReadinessRequest
-  ): Report {
+  override suspend fun confirmDuchyReadiness(request: ConfirmDuchyReadinessRequest): Report {
     return reportDatabase.confirmDuchyReadiness(
       ExternalId(request.externalReportId),
       request.duchyId,
@@ -90,9 +83,6 @@ class ReportsService(
   }
 
   override suspend fun finishReport(request: FinishReportRequest): Report {
-    return reportDatabase.finishReport(
-      ExternalId(request.externalReportId),
-      request.result
-    )
+    return reportDatabase.finishReport(ExternalId(request.externalReportId), request.result)
   }
 }

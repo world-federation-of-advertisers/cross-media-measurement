@@ -120,10 +120,7 @@ class ComputationsService(
     )
 
     sendStatusUpdateToKingdom(
-      newStatusUpdateRequest(
-        request.token.globalComputationId,
-        request.endingComputationStage
-      )
+      newStatusUpdateRequest(request.token.globalComputationId, request.endingComputationStage)
     )
 
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
@@ -133,8 +130,9 @@ class ComputationsService(
   override suspend fun getComputationToken(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
-    val computationToken = computationsDatabase.readComputationToken(request.globalComputationId)
-      ?: throw Status.NOT_FOUND.asRuntimeException()
+    val computationToken =
+      computationsDatabase.readComputationToken(request.globalComputationId)
+        ?: throw Status.NOT_FOUND.asRuntimeException()
     return computationToken.toGetComputationTokenResponse()
   }
 
@@ -157,10 +155,7 @@ class ComputationsService(
   ): RecordOutputBlobPathResponse {
     computationsDatabase.writeOutputBlobReference(
       request.token.toDatabaseEditToken(),
-      BlobRef(
-        request.outputBlobId,
-        request.blobPath
-      )
+      BlobRef(request.outputBlobId, request.blobPath)
     )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toRecordOutputBlobPathResponse()
@@ -188,10 +183,7 @@ class ComputationsService(
     )
 
     sendStatusUpdateToKingdom(
-      newStatusUpdateRequest(
-        request.token.globalComputationId,
-        request.nextComputationStage
-      )
+      newStatusUpdateRequest(request.token.globalComputationId, request.nextComputationStage)
     )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toAdvanceComputationStageResponse()
@@ -201,8 +193,7 @@ class ComputationsService(
     request: GetComputationIdsRequest
   ): GetComputationIdsResponse {
     val ids = computationsDatabase.readGlobalComputationIds(request.stagesList.toSet())
-    return GetComputationIdsResponse.newBuilder()
-      .addAllGlobalIds(ids).build()
+    return GetComputationIdsResponse.newBuilder().addAllGlobalIds(ids).build()
   }
 
   override suspend fun enqueueComputation(
@@ -220,21 +211,23 @@ class ComputationsService(
     computationStage: ComputationStage,
     attempt: Long = 0L
   ): CreateGlobalComputationStatusUpdateRequest {
-    return CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-      parentBuilder.globalComputationId = globalId
-      statusUpdateBuilder.apply {
-        selfReportedIdentifier = duchyName
-        stageDetailsBuilder.apply {
-          algorithm = computationStage.mpcAlgorithm
-          stageNumber = computationStage.number.toLong()
-          stageName = computationStage.name
-          start = clock.protoTimestamp()
-          attemptNumber = attempt
+    return CreateGlobalComputationStatusUpdateRequest.newBuilder()
+      .apply {
+        parentBuilder.globalComputationId = globalId
+        statusUpdateBuilder.apply {
+          selfReportedIdentifier = duchyName
+          stageDetailsBuilder.apply {
+            algorithm = computationStage.mpcAlgorithm
+            stageNumber = computationStage.number.toLong()
+            stageName = computationStage.name
+            start = clock.protoTimestamp()
+            attemptNumber = attempt
+          }
+          updateMessage =
+            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
         }
-        updateMessage = "Computation $globalId at stage ${computationStage.name}, " +
-          "attempt $attempt"
       }
-    }.build()
+      .build()
   }
 
   private suspend fun sendStatusUpdateToKingdom(
@@ -254,13 +247,13 @@ class ComputationsService(
 
 private fun ComputationToken.toDatabaseEditToken():
   ComputationEditToken<ComputationType, ComputationStage> =
-    ComputationEditToken(
-      localId = localComputationId,
-      protocol = computationStage.toComputationType(),
-      stage = computationStage,
-      attempt = attempt,
-      editVersion = version
-    )
+  ComputationEditToken(
+    localId = localComputationId,
+    protocol = computationStage.toComputationType(),
+    stage = computationStage,
+    attempt = attempt,
+    editVersion = version
+  )
 
 private fun ComputationStage.toComputationType() =
   when (stageCase) {

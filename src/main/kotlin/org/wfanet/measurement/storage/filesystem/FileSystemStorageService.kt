@@ -29,24 +29,22 @@ import org.wfanet.measurement.internal.testing.GetBlobMetadataRequest
 import org.wfanet.measurement.internal.testing.ReadBlobRequest
 import org.wfanet.measurement.internal.testing.ReadBlobResponse
 
-/**
- * [ForwardedStorageCoroutineService] implementation that uses
- * [FileSystemStorageClient].
- */
+/** [ForwardedStorageCoroutineService] implementation that uses [FileSystemStorageClient]. */
 class FileSystemStorageService(directory: File) : ForwardedStorageCoroutineService() {
   val storageClient: FileSystemStorageClient = FileSystemStorageClient(directory)
 
   override suspend fun createBlob(requests: Flow<CreateBlobRequest>): BlobMetadata {
-    val blob = requests.consumeFirstOr { CreateBlobRequest.getDefaultInstance() }.use { consumed ->
-      val headerRequest = consumed.item
-      val blobKey = headerRequest.header.blobKey
-      if (blobKey.isBlank()) {
-        throw Status.INVALID_ARGUMENT.withDescription("Missing blob key").asRuntimeException()
-      }
+    val blob =
+      requests.consumeFirstOr { CreateBlobRequest.getDefaultInstance() }.use { consumed ->
+        val headerRequest = consumed.item
+        val blobKey = headerRequest.header.blobKey
+        if (blobKey.isBlank()) {
+          throw Status.INVALID_ARGUMENT.withDescription("Missing blob key").asRuntimeException()
+        }
 
-      val content = consumed.remaining.map { it.bodyChunk.content }
-      storageClient.createBlob(blobKey, content)
-    }
+        val content = consumed.remaining.map { it.bodyChunk.content }
+        storageClient.createBlob(blobKey, content)
+      }
 
     return BlobMetadata.newBuilder().setSize(blob.size).build()
   }
@@ -64,7 +62,7 @@ class FileSystemStorageService(directory: File) : ForwardedStorageCoroutineServi
     return DeleteBlobResponse.getDefaultInstance()
   }
 
-  private fun getBlob(blobKey: String) = storageClient.getBlob(blobKey) ?: throw StatusException(
-    Status.NOT_FOUND.withDescription("Blob not found with key $blobKey")
-  )
+  private fun getBlob(blobKey: String) =
+    storageClient.getBlob(blobKey)
+      ?: throw StatusException(Status.NOT_FOUND.withDescription("Blob not found with key $blobKey"))
 }

@@ -26,10 +26,7 @@ import org.wfanet.measurement.storage.StorageClient
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 4 // 4 KiB
 
-/**
- * [StorageClient] implementation that utilizes flat files in the specified
- * directory as blobs.
- */
+/** [StorageClient] implementation that utilizes flat files in the specified directory as blobs. */
 class FileSystemStorageClient(private val directory: File) : StorageClient {
   init {
     require(directory.isDirectory) { "$directory is not a directory" }

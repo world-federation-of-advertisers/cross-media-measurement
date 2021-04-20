@@ -25,8 +25,7 @@ fun Timestamp.toInstant(): Instant {
 }
 
 /**
- * Converts this [Timestamp] to the number of milliseconds since the epoch of
- * 1970-01-01T00:00:00Z.
+ * Converts this [Timestamp] to the number of milliseconds since the epoch of 1970-01-01T00:00:00Z.
  */
 fun Timestamp.toEpochMilli(): Long {
   return toInstant().toEpochMilli()

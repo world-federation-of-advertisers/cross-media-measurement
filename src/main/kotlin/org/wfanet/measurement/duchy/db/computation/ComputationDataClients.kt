@@ -27,10 +27,9 @@ import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.read
 
-/**
- * Storage clients providing access to the ComputationsService and ComputationStore.
- */
-class ComputationDataClients private constructor(
+/** Storage clients providing access to the ComputationsService and ComputationStore. */
+class ComputationDataClients
+private constructor(
   val computationsClient: ComputationsCoroutineStub,
   private val computationStore: ComputationStore,
   otherDuchies: List<String>
@@ -48,8 +47,8 @@ class ComputationDataClients private constructor(
    * Calls AdvanceComputationStage to move to a new stage in a consistent way.
    *
    * The assumption is this will only be called by a job that is executing the stage of a
-   * computation, which will have knowledge of all the data needed as input to the next stage.
-   * Most of the time [inputsToNextStage] is the list of outputs of the currently running stage.
+   * computation, which will have knowledge of all the data needed as input to the next stage. Most
+   * of the time [inputsToNextStage] is the list of outputs of the currently running stage.
    */
   suspend fun transitionComputationToStage(
     computationToken: ComputationToken,
@@ -57,21 +56,20 @@ class ComputationDataClients private constructor(
     passThroughBlobs: List<String> = listOf(),
     stage: ComputationStage
   ): ComputationToken =
-    computationsClient
-      .advanceComputationStage(
-        computationToken = computationToken,
-        inputsToNextStage = inputsToNextStage,
-        passThroughBlobs = passThroughBlobs,
-        stage = stage,
-        computationProtocolStageDetails = computationProtocolStageDetails
-      )
+    computationsClient.advanceComputationStage(
+      computationToken = computationToken,
+      inputsToNextStage = inputsToNextStage,
+      passThroughBlobs = passThroughBlobs,
+      stage = stage,
+      computationProtocolStageDetails = computationProtocolStageDetails
+    )
 
   /**
-   * Writes the content as a single output blob to the current stage if no
-   * output blob has yet been written.
+   * Writes the content as a single output blob to the current stage if no output blob has yet been
+   * written.
    *
-   * @return the resulting [ComputationToken] after updating blob reference, or
-   *     [computationToken] if no blob was written
+   * @return the resulting [ComputationToken] after updating blob reference, or [computationToken]
+   * if no blob was written
    */
   suspend fun writeSingleOutputBlob(
     computationToken: ComputationToken,
@@ -93,14 +91,13 @@ class ComputationDataClients private constructor(
   }
 
   /**
-   * Writes the blob content using [writeContent] if no blob key is present in
-   * [metadata].
+   * Writes the blob content using [writeContent] if no blob key is present in [metadata].
    *
    * @param metadata [ComputationStageBlobMetadata] for the blob
-   * @param writeContent function which writes bound blob content, to be called
-   *     with [computationToken]
-   * @return resulting [ComputationToken] from write, or [computationToken] if
-   *     no write was performed
+   * @param writeContent function which writes bound blob content, to be called with
+   * [computationToken]
+   * @return resulting [ComputationToken] from write, or [computationToken] if no write was
+   * performed
    */
   private suspend fun writeBlobIfNotPresent(
     computationToken: ComputationToken,
@@ -112,30 +109,31 @@ class ComputationDataClients private constructor(
     }
 
     val blob = writeContent(computationToken)
-    val response = computationsClient.recordOutputBlobPath(
-      RecordOutputBlobPathRequest.newBuilder().apply {
-        token = computationToken
-        outputBlobId = metadata.blobId
-        blobPath = blob.blobKey
-      }.build()
-    )
+    val response =
+      computationsClient.recordOutputBlobPath(
+        RecordOutputBlobPathRequest.newBuilder()
+          .apply {
+            token = computationToken
+            outputBlobId = metadata.blobId
+            blobPath = blob.blobKey
+          }
+          .build()
+      )
     return response.token
   }
 
-  /**
-   * Returns a map of [BlobRef]s to the actual bytes of the BLOB for all inputs
-   * to the stage.
-   */
+  /** Returns a map of [BlobRef]s to the actual bytes of the BLOB for all inputs to the stage. */
   suspend fun readInputBlobs(token: ComputationToken): Map<BlobRef, ByteString> {
-    return token.blobsList
+    return token
+      .blobsList
       .filter { it.dependencyType == ComputationBlobDependency.INPUT }
       .map { it.toBlobRef() }
       .associateWith { getBlob(it).read().flatten() }
   }
 
   /**
-   * Returns the content of the single output blob of the stage, or
-   * `null` if it hasn't yet been written.
+   * Returns the content of the single output blob of the stage, or `null` if it hasn't yet been
+   * written.
    */
   fun readSingleOutputBlob(token: ComputationToken): Flow<ByteString>? {
     val blobRef = token.singleOutputBlobMetadata().toBlobRef()
@@ -159,21 +157,17 @@ class ComputationDataClients private constructor(
       computationStore: ComputationStore,
       otherDuchies: List<String>
     ): ComputationDataClients {
-      return ComputationDataClients(
-        computationStorageClient,
-        computationStore,
-        otherDuchies
-      )
+      return ComputationDataClients(computationStorageClient, computationStore, otherDuchies)
     }
   }
 }
 
 /**
- * Returns the single [ComputationStageBlobMetadata] of type output from a token. Throws an
- * error if there are not any output blobs or if there are more than one.
+ * Returns the single [ComputationStageBlobMetadata] of type output from a token. Throws an error if
+ * there are not any output blobs or if there are more than one.
  *
- * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
- * case the path will be empty.
+ * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a case
+ * the path will be empty.
  */
 fun ComputationToken.singleOutputBlobMetadata(): ComputationStageBlobMetadata =
   allOutputBlobMetadataList().single()
@@ -181,8 +175,8 @@ fun ComputationToken.singleOutputBlobMetadata(): ComputationStageBlobMetadata =
 /**
  * Returns all [ComputationStageBlobMetadata]s which are of type output from a token.
  *
- * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a
- * case the path will be empty.
+ * The returned [ComputationStageBlobMetadata] may be for a yet to be written blob. In such a case
+ * the path will be empty.
  */
 fun ComputationToken.allOutputBlobMetadataList(): List<ComputationStageBlobMetadata> =
   blobsList.filter {

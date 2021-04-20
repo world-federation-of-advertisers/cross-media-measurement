@@ -18,10 +18,7 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.internal.kingdom.Advertiser
 
 class AdvertiserReader : SpannerReader<AdvertiserReader.Result>() {
-  data class Result(
-    val advertiser: Advertiser,
-    val advertiserId: Long
-  )
+  data class Result(val advertiser: Advertiser, val advertiserId: Long)
 
   override val baseSql: String =
     """
@@ -38,7 +35,8 @@ class AdvertiserReader : SpannerReader<AdvertiserReader.Result>() {
   override suspend fun translate(struct: Struct): Result =
     Result(buildAdvertiser(struct), struct.getLong("AdvertiserId"))
 
-  private fun buildAdvertiser(struct: Struct): Advertiser = Advertiser.newBuilder().apply {
-    externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
-  }.build()
+  private fun buildAdvertiser(struct: Struct): Advertiser =
+    Advertiser.newBuilder()
+      .apply { externalAdvertiserId = struct.getLong("ExternalAdvertiserId") }
+      .build()
 }

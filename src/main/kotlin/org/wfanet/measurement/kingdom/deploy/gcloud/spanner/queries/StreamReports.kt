@@ -31,10 +31,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
  * @param filter a filter to control which [Report]s to return
  * @param limit how many [Report]s to return -- if zero, there is no limit
  */
-class StreamReports(
-  filter: StreamReportsFilter,
-  limit: Long
-) : SpannerQuery<ReportReader.Result, Report>() {
+class StreamReports(filter: StreamReportsFilter, limit: Long) :
+  SpannerQuery<ReportReader.Result, Report>() {
   override val reader: BaseSpannerReader<ReportReader.Result> by lazy {
     ReportReader(forcedIndex).withBuilder {
       if (!filter.empty) {

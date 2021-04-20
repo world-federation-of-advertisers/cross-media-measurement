@@ -36,39 +36,45 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `Transaction with no writes succeeds`() = runBlocking {
-    val transaction = object : SpannerWriter<Long, String>() {
-      override suspend fun TransactionScope.runTransaction(): Long {
-        return idGenerator.generateExternalId().value
-      }
+    val transaction =
+      object : SpannerWriter<Long, String>() {
+        override suspend fun TransactionScope.runTransaction(): Long {
+          return idGenerator.generateExternalId().value
+        }
 
-      override fun ResultScope<Long>.buildResult(): String {
-        return requireNotNull(transactionResult).toString()
+        override fun ResultScope<Long>.buildResult(): String {
+          return requireNotNull(transactionResult).toString()
+        }
       }
-    }
     val result = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
     assertThat(result).isEqualTo(idGenerator.externalId.value.toString())
   }
 
   @Test
   fun `Transaction with writes succeeds`() = runBlocking {
-    val transaction = object : SpannerWriter<InternalId, Timestamp>() {
-      override suspend fun TransactionScope.runTransaction(): InternalId {
-        val internalId = idGenerator.generateInternalId()
-        transactionContext.buffer(
-          Mutation.newInsertBuilder("Advertisers")
-            .set("AdvertiserId").to(internalId.value)
-            .set("ExternalAdvertiserId").to(idGenerator.generateExternalId().value)
-            .set("AdvertiserDetails").to(ByteArray.copyFrom(""))
-            .set("AdvertiserDetailsJson").to("irrelevant-advertiser-details-json")
-            .build()
-        )
-        return internalId
-      }
+    val transaction =
+      object : SpannerWriter<InternalId, Timestamp>() {
+        override suspend fun TransactionScope.runTransaction(): InternalId {
+          val internalId = idGenerator.generateInternalId()
+          transactionContext.buffer(
+            Mutation.newInsertBuilder("Advertisers")
+              .set("AdvertiserId")
+              .to(internalId.value)
+              .set("ExternalAdvertiserId")
+              .to(idGenerator.generateExternalId().value)
+              .set("AdvertiserDetails")
+              .to(ByteArray.copyFrom(""))
+              .set("AdvertiserDetailsJson")
+              .to("irrelevant-advertiser-details-json")
+              .build()
+          )
+          return internalId
+        }
 
-      override fun ResultScope<InternalId>.buildResult(): Timestamp {
-        return commitTimestamp
+        override fun ResultScope<InternalId>.buildResult(): Timestamp {
+          return commitTimestamp
+        }
       }
-    }
 
     val commitTimestamp = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
 
@@ -77,29 +83,28 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
     val readContext = databaseClient.singleUse(bound)
     val key = Key.of(idGenerator.internalId.value)
     val row = readContext.readRow("Advertisers", key, listOf("ExternalAdvertiserId"))
-    assertThat(requireNotNull(row).getLong(0))
-      .isEqualTo(idGenerator.externalId.value)
+    assertThat(requireNotNull(row).getLong(0)).isEqualTo(idGenerator.externalId.value)
   }
 
   @Test
-  fun `multiple execution fails`() = runBlocking<Unit> {
-    val transaction = object : SpannerWriter<Long, String>() {
-      override suspend fun TransactionScope.runTransaction(): Long {
-        return 1
-      }
+  fun `multiple execution fails`() =
+    runBlocking<Unit> {
+      val transaction =
+        object : SpannerWriter<Long, String>() {
+          override suspend fun TransactionScope.runTransaction(): Long {
+            return 1
+          }
 
-      override fun ResultScope<Long>.buildResult(): String {
-        return "the-result"
-      }
+          override fun ResultScope<Long>.buildResult(): String {
+            return "the-result"
+          }
+        }
+
+      // First execution should succeed
+      val result = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
+      assertThat(result).isEqualTo("the-result")
+
+      // Second execution should fail
+      assertFails { transaction.execute(databaseClient, idGenerator, Clock.systemUTC()) }
     }
-
-    // First execution should succeed
-    val result = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
-    assertThat(result).isEqualTo("the-result")
-
-    // Second execution should fail
-    assertFails {
-      transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
-    }
-  }
 }

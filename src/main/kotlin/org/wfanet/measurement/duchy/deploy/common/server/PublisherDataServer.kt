@@ -61,9 +61,8 @@ private class Flags {
 
   @CommandLine.Option(
     names = ["--system-requisition-service-target"],
-    description = [
-      "gRPC target (authority string or URI) for Requisition service in the system API."
-    ],
+    description =
+      ["gRPC target (authority string or URI) for Requisition service in the system API."],
     required = true
   )
   lateinit var systemRequisitionServiceTarget: String
@@ -95,18 +94,16 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val registrationClient =
     DataProviderRegistrationCoroutineStub(buildChannel(flags.registrationServiceTarget))
 
-  val service = PublisherDataService(
-    metricValuesClient,
-    requisitionClient,
-    systemRequisitionClient,
-    registrationClient,
-    DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
-  )
+  val service =
+    PublisherDataService(
+      metricValuesClient,
+      requisitionClient,
+      systemRequisitionClient,
+      registrationClient,
+      DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
+    )
 
-  CommonServer
-    .fromFlags(flags.server, SERVER_NAME, service)
-    .start()
-    .blockUntilShutdown()
+  CommonServer.fromFlags(flags.server, SERVER_NAME, service).start().blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

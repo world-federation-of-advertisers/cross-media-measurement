@@ -19,7 +19,7 @@ import java.time.Clock
 
 /** Knows how to make local identifiers for computations to be used in a Spanner database. */
 interface LocalComputationIdGenerator {
-  /** Generates a local identifier for a computation.*/
+  /** Generates a local identifier for a computation. */
   fun localId(globalId: String): Long
 }
 

@@ -21,9 +21,7 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 
-/**
- * Reads [Report] protos from Spanner.
- */
+/** Reads [Report] protos from Spanner. */
 class ReportReader(index: Index = Index.NONE) : SpannerReader<ReportReader.Result>() {
   data class Result(
     val report: Report,
@@ -62,42 +60,46 @@ class ReportReader(index: Index = Index.NONE) : SpannerReader<ReportReader.Resul
     )
   }
 
-  private fun buildReport(struct: Struct): Report = Report.newBuilder().apply {
-    externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
-    externalReportConfigId = struct.getLong("ExternalReportConfigId")
-    externalScheduleId = struct.getLong("ExternalScheduleId")
-    externalReportId = struct.getLong("ExternalReportId")
+  private fun buildReport(struct: Struct): Report =
+    Report.newBuilder()
+      .apply {
+        externalAdvertiserId = struct.getLong("ExternalAdvertiserId")
+        externalReportConfigId = struct.getLong("ExternalReportConfigId")
+        externalScheduleId = struct.getLong("ExternalScheduleId")
+        externalReportId = struct.getLong("ExternalReportId")
 
-    createTime = struct.getTimestamp("CreateTime").toProto()
-    updateTime = struct.getTimestamp("UpdateTime").toProto()
+        createTime = struct.getTimestamp("CreateTime").toProto()
+        updateTime = struct.getTimestamp("UpdateTime").toProto()
 
-    windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
-    windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
-    state = struct.getProtoEnum("State", ReportState::forNumber)
+        windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
+        windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
+        state = struct.getProtoEnum("State", ReportState::forNumber)
 
-    reportDetails = struct.getProtoMessage("ReportDetails", ReportDetails.parser())
-    reportDetailsJson = struct.getString("ReportDetailsJson")
-  }.build()
+        reportDetails = struct.getProtoMessage("ReportDetails", ReportDetails.parser())
+        reportDetailsJson = struct.getString("ReportDetailsJson")
+      }
+      .build()
 
   companion object {
-    private val SELECT_COLUMNS = listOf(
-      "Reports.AdvertiserId",
-      "Reports.ReportConfigId",
-      "Reports.ScheduleId",
-      "Reports.ReportId",
-      "Reports.ExternalReportId",
-      "Reports.CreateTime",
-      "Reports.UpdateTime",
-      "Reports.WindowStartTime",
-      "Reports.WindowEndTime",
-      "Reports.State",
-      "Reports.ReportDetails",
-      "Reports.ReportDetailsJson",
-      "Advertisers.ExternalAdvertiserId",
-      "ReportConfigs.ExternalReportConfigId",
-      "ReportConfigs.NumRequisitions",
-      "ReportConfigSchedules.ExternalScheduleId"
-    )
+    private val SELECT_COLUMNS =
+      listOf(
+        "Reports.AdvertiserId",
+        "Reports.ReportConfigId",
+        "Reports.ScheduleId",
+        "Reports.ReportId",
+        "Reports.ExternalReportId",
+        "Reports.CreateTime",
+        "Reports.UpdateTime",
+        "Reports.WindowStartTime",
+        "Reports.WindowEndTime",
+        "Reports.State",
+        "Reports.ReportDetails",
+        "Reports.ReportDetailsJson",
+        "Advertisers.ExternalAdvertiserId",
+        "ReportConfigs.ExternalReportConfigId",
+        "ReportConfigs.NumRequisitions",
+        "ReportConfigSchedules.ExternalScheduleId"
+      )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
   }

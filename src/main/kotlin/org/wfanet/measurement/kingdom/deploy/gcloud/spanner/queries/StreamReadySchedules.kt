@@ -21,23 +21,19 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
 
-/**
- * SpannerQuery for finding [ReportConfigSchedule]s with nextReportStartTimes in the past.
- */
-class StreamReadySchedules(
-  limit: Long
-) : SpannerQuery<ScheduleReader.Result, ReportConfigSchedule>() {
+/** SpannerQuery for finding [ReportConfigSchedule]s with nextReportStartTimes in the past. */
+class StreamReadySchedules(limit: Long) :
+  SpannerQuery<ScheduleReader.Result, ReportConfigSchedule>() {
 
   override val reader: BaseSpannerReader<ScheduleReader.Result> by lazy {
-    ScheduleReader()
-      .withBuilder {
-        appendClause("WHERE ReportConfigSchedules.NextReportStartTime < CURRENT_TIMESTAMP()")
+    ScheduleReader().withBuilder {
+      appendClause("WHERE ReportConfigSchedules.NextReportStartTime < CURRENT_TIMESTAMP()")
 
-        if (limit > 0) {
-          appendClause("LIMIT @limit")
-          bind("limit").to(limit)
-        }
+      if (limit > 0) {
+        appendClause("LIMIT @limit")
+        bind("limit").to(limit)
       }
+    }
   }
 
   override fun Flow<ScheduleReader.Result>.transform(): Flow<ReportConfigSchedule> {

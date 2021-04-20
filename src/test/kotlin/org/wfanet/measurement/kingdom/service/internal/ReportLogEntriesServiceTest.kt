@@ -38,22 +38,22 @@ class ReportLogEntriesServiceTest {
 
   @Test
   fun success() = runBlocking {
-    whenever(kingdomRelationalDatabase.addReportLogEntry(any()))
-      .thenAnswer {
-        it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()
-      }
+    whenever(kingdomRelationalDatabase.addReportLogEntry(any())).thenAnswer {
+      it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()
+    }
 
-    val request = ReportLogEntry.newBuilder().apply {
-      externalReportId = EXTERNAL_REPORT_ID
-    }.build()
+    val request =
+      ReportLogEntry.newBuilder().apply { externalReportId = EXTERNAL_REPORT_ID }.build()
 
     val result = service.createReportLogEntry(request)
     assertThat(result)
       .isEqualTo(
-        ReportLogEntry.newBuilder().apply {
-          externalReportId = EXTERNAL_REPORT_ID
-          createTime = CREATE_TIME
-        }.build()
+        ReportLogEntry.newBuilder()
+          .apply {
+            externalReportId = EXTERNAL_REPORT_ID
+            createTime = CREATE_TIME
+          }
+          .build()
       )
   }
 }

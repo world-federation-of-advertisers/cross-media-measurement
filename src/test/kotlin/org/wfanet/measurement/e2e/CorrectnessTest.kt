@@ -40,18 +40,14 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.tools.ClusterState
 
-/**
- * Runs a correctness test in a Kubernetes-in-Docker (kind) cluster.
- */
+/** Runs a correctness test in a Kubernetes-in-Docker (kind) cluster. */
 class CorrectnessTest {
   private val publisherDataServer = "a-publisher-data-server"
   private val spannerEmulator = "spanner-emulator"
   private val pushSpannerSchemaJob = "push-spanner-schema-job"
   lateinit var storageClient: StorageClient
 
-  @Rule
-  @JvmField
-  val tempDirectory = TemporaryFolder()
+  @Rule @JvmField val tempDirectory = TemporaryFolder()
 
   @Before
   fun initClient() {
@@ -67,8 +63,8 @@ class CorrectnessTest {
     val maxAttempts = 300
     var isReady = false
     for (numAttempts in 1..maxAttempts) {
-      val podStatuses = clusterState.getPodStatuses()
-        .filter { !it.key.startsWith("correctness-test-job-") }
+      val podStatuses =
+        clusterState.getPodStatuses().filter { !it.key.startsWith("correctness-test-job-") }
       val podsRunningOrSucceeded =
         podStatuses.isNotEmpty() && podStatuses.values.all { it == "Running" || it == "Succeeded" }
       val haveSchemaPushesSucceeded =
@@ -91,8 +87,9 @@ class CorrectnessTest {
     val spannerEmulatorHost = "$nodeIp:${nodePorts.getValue(spannerEmulator).getValue("grpc")}"
 
     val channel: ManagedChannel =
-      ManagedChannelBuilder
-        .forTarget("$nodeIp:${nodePorts.getValue(publisherDataServer).getValue("port")}")
+      ManagedChannelBuilder.forTarget(
+          "$nodeIp:${nodePorts.getValue(publisherDataServer).getValue("port")}"
+        )
         .usePlaintext()
         .build()
     val publisherDataStub = PublisherDataGrpcKt.PublisherDataCoroutineStub(channel)
@@ -105,48 +102,53 @@ class CorrectnessTest {
 
     if (runId.isBlank()) {
       // Set the runId to current timestamp.
-      runId = DateTimeFormatter
-        .ofPattern("yyyy-MM-ddHH-mm-ss-SSS")
-        .withZone(ZoneOffset.UTC)
-        .format(Instant.now())
+      runId =
+        DateTimeFormatter.ofPattern("yyyy-MM-ddHH-mm-ss-SSS")
+          .withZone(ZoneOffset.UTC)
+          .format(Instant.now())
     }
 
-    val sketchConfig = resource.openStream().use { input ->
-      parseTextProto(input.bufferedReader(), SketchConfig.getDefaultInstance())
-    }
+    val sketchConfig =
+      resource.openStream().use { input ->
+        parseTextProto(input.bufferedReader(), SketchConfig.getDefaultInstance())
+      }
 
     val clock = Clock.systemUTC()
     runBlocking {
       SpannerDatabaseConnector(
-        emulatorHost = spannerEmulatorHost,
-        instanceName = "emulator-instance",
-        projectName = "cross-media-measurement-system",
-        databaseName = "kingdom",
-        readyTimeout = Duration.ofSeconds(10L)
-      ).use { spanner ->
-        val relationalDatabase =
-          SpannerKingdomRelationalDatabase(clock, RandomIdGenerator(clock), spanner.databaseClient)
-
-        val correctness = CorrectnessImpl(
-          dataProviderCount = dataProviderCount,
-          campaignCount = campaignCount,
-          generatedSetSize = generatedSetSize,
-          universeSize = universeSize,
-          runId = runId,
-          sketchConfig = sketchConfig,
-          storageClient = storageClient,
-          publisherDataStub = publisherDataStub
+          emulatorHost = spannerEmulatorHost,
+          instanceName = "emulator-instance",
+          projectName = "cross-media-measurement-system",
+          databaseName = "kingdom",
+          readyTimeout = Duration.ofSeconds(10L)
         )
+        .use { spanner ->
+          val relationalDatabase =
+            SpannerKingdomRelationalDatabase(
+              clock,
+              RandomIdGenerator(clock),
+              spanner.databaseClient
+            )
 
-        correctness.process(relationalDatabase)
-      }
+          val correctness =
+            CorrectnessImpl(
+              dataProviderCount = dataProviderCount,
+              campaignCount = campaignCount,
+              generatedSetSize = generatedSetSize,
+              universeSize = universeSize,
+              runId = runId,
+              sketchConfig = sketchConfig,
+              storageClient = storageClient,
+              publisherDataStub = publisherDataStub
+            )
+
+          correctness.process(relationalDatabase)
+        }
     }
   }
 
   companion object {
-    @ClassRule
-    @JvmField
-    val kindRule = KindRule()
+    @ClassRule @JvmField val kindRule = KindRule()
 
     private const val configPath =
       "/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto"

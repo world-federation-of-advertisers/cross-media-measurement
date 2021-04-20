@@ -26,14 +26,12 @@ class ComputationsEnumHelperTest {
   fun `liquidLegionsSketchAggregationV2 round trip conversion should get the same stage`() {
     for (stage in LiquidLegionsSketchAggregationV2.Stage.values()) {
       if (stage != LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED) {
-        val computationStage = ComputationStage.newBuilder()
-          .setLiquidLegionsSketchAggregationV2(stage).build()
+        val computationStage =
+          ComputationStage.newBuilder().setLiquidLegionsSketchAggregationV2(stage).build()
         assertEquals(
           computationStage,
           ComputationProtocolStages.longValuesToComputationStageEnum(
-            ComputationProtocolStages.computationStageEnumToLongValues(
-              computationStage
-            )
+            ComputationProtocolStages.computationStageEnumToLongValues(computationStage)
           ),
           "protocolEnumToLong and longToProtocolEnum were not inverses for $stage"
         )
@@ -44,9 +42,7 @@ class ComputationsEnumHelperTest {
   @Test
   fun `longValuesToComputationStageEnum with invalid numbers`() {
     assertFails {
-      ComputationProtocolStages.longValuesToComputationStageEnum(
-        ComputationStageLongValues(-1, -1)
-      )
+      ComputationProtocolStages.longValuesToComputationStageEnum(ComputationStageLongValues(-1, -1))
     }
   }
 }

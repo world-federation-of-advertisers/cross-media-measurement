@@ -20,8 +20,7 @@ import kotlinx.coroutines.Job
 /**
  * Suspending version of [java.util.concurrent.CountDownLatch].
  *
- * @param count the number of times [countDown] can be called before a call to
- *     [await] would resume.
+ * @param count the number of times [countDown] can be called before a call to [await] would resume
  */
 class CountDownLatch(count: Int) {
   init {

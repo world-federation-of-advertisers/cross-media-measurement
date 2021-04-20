@@ -29,7 +29,8 @@ private typealias BlobKeyGenerator = () -> String
  * @param storageClient the blob storage client.
  * @param generateBlobKey a function to generate unique blob keys.
  */
-class MetricValueStore private constructor(
+class MetricValueStore
+private constructor(
   private val storageClient: StorageClient,
   private val generateBlobKey: BlobKeyGenerator
 ) {
@@ -48,13 +49,11 @@ class MetricValueStore private constructor(
   }
 
   /**
-   * Returns a [Blob] for the metric value with the specified blob key, or
-   * `null` if the metric value isn't found.
+   * Returns a [Blob] for the metric value with the specified blob key, or `null` if the metric
+   * value isn't found.
    */
   fun get(blobKey: String): Blob? {
-    return storageClient.getBlob(blobKey.withBlobKeyPrefix())?.let {
-      Blob(blobKey, it)
-    }
+    return storageClient.getBlob(blobKey.withBlobKeyPrefix())?.let { Blob(blobKey, it) }
   }
 
   /** [StorageClient.Blob] implementation for [MetricValueStore]. */

@@ -55,10 +55,13 @@ class CreateNextReport(
   }
 
   override fun ResultScope<Report>.buildResult(): Report {
-    return checkNotNull(transactionResult).toBuilder().apply {
-      createTime = commitTimestamp.toProto()
-      updateTime = commitTimestamp.toProto()
-    }.build()
+    return checkNotNull(transactionResult)
+      .toBuilder()
+      .apply {
+        createTime = commitTimestamp.toProto()
+        updateTime = commitTimestamp.toProto()
+      }
+      .build()
   }
 
   private fun TransactionScope.needsNewReport(schedule: ReportConfigSchedule): Boolean {
@@ -77,47 +80,66 @@ class CreateNextReport(
 
     val nextNextReportStartTime = windowStartTime.plus(repetitionPeriod)
 
-    val reportDetails = ReportDetails.newBuilder().also {
-      it.combinedPublicKeyResourceId = combinedPublicKeyResourceId
-    }.build()
+    val reportDetails =
+      ReportDetails.newBuilder()
+        .also { it.combinedPublicKeyResourceId = combinedPublicKeyResourceId }
+        .build()
     val reportDetailsJson: String = reportDetails.toJson()
 
     Mutation.newUpdateBuilder("ReportConfigSchedules")
-      .set("AdvertiserId").to(scheduleReadResult.advertiserId)
-      .set("ReportConfigId").to(scheduleReadResult.reportConfigId)
-      .set("ScheduleId").to(scheduleReadResult.scheduleId)
-      .set("NextReportStartTime").to(nextNextReportStartTime.toGcloudTimestamp())
+      .set("AdvertiserId")
+      .to(scheduleReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(scheduleReadResult.reportConfigId)
+      .set("ScheduleId")
+      .to(scheduleReadResult.scheduleId)
+      .set("NextReportStartTime")
+      .to(nextNextReportStartTime.toGcloudTimestamp())
       .build()
       .bufferTo(transactionContext)
 
     val newExternalReportId = idGenerator.generateExternalId()
     Mutation.newInsertBuilder("Reports")
-      .set("AdvertiserId").to(scheduleReadResult.advertiserId)
-      .set("ReportConfigId").to(scheduleReadResult.reportConfigId)
-      .set("ScheduleId").to(scheduleReadResult.scheduleId)
-      .set("ReportId").to(idGenerator.generateInternalId().value)
-      .set("ExternalReportId").to(newExternalReportId.value)
-      .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
-      .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
-      .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
-      .set("ReportDetails").toProtoBytes(reportDetails)
-      .set("ReportDetailsJson").to(reportDetailsJson)
+      .set("AdvertiserId")
+      .to(scheduleReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(scheduleReadResult.reportConfigId)
+      .set("ScheduleId")
+      .to(scheduleReadResult.scheduleId)
+      .set("ReportId")
+      .to(idGenerator.generateInternalId().value)
+      .set("ExternalReportId")
+      .to(newExternalReportId.value)
+      .set("CreateTime")
+      .to(Value.COMMIT_TIMESTAMP)
+      .set("UpdateTime")
+      .to(Value.COMMIT_TIMESTAMP)
+      .set("WindowStartTime")
+      .to(windowStartTime.toGcloudTimestamp())
+      .set("WindowEndTime")
+      .to(windowEndTime.toGcloudTimestamp())
+      .set("State")
+      .toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
+      .set("ReportDetails")
+      .toProtoBytes(reportDetails)
+      .set("ReportDetailsJson")
+      .to(reportDetailsJson)
       .build()
       .bufferTo(transactionContext)
 
-    return Report.newBuilder().apply {
-      externalAdvertiserId = scheduleReadResult.schedule.externalAdvertiserId
-      externalReportConfigId = scheduleReadResult.schedule.externalReportConfigId
-      externalScheduleId = scheduleReadResult.schedule.externalScheduleId
-      externalReportId = newExternalReportId.value
-      this.windowStartTime = windowStartTime.toProtoTime()
-      this.windowEndTime = windowEndTime.toProtoTime()
-      state = ReportState.AWAITING_REQUISITION_CREATION
-      this.reportDetails = reportDetails
-      this.reportDetailsJson = reportDetailsJson
-    }.build()
+    return Report.newBuilder()
+      .apply {
+        externalAdvertiserId = scheduleReadResult.schedule.externalAdvertiserId
+        externalReportConfigId = scheduleReadResult.schedule.externalReportConfigId
+        externalScheduleId = scheduleReadResult.schedule.externalScheduleId
+        externalReportId = newExternalReportId.value
+        this.windowStartTime = windowStartTime.toProtoTime()
+        this.windowEndTime = windowEndTime.toProtoTime()
+        state = ReportState.AWAITING_REQUISITION_CREATION
+        this.reportDetails = reportDetails
+        this.reportDetailsJson = reportDetailsJson
+      }
+      .build()
   }
 
   private fun getTemporalAmount(period: TimePeriod): TemporalAmount {

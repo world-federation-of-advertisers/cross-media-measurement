@@ -49,39 +49,38 @@ private class Flags {
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(
-  @CommandLine.Mixin flags: Flags,
-  @CommandLine.Mixin spannerFlags: SpannerFlags
-) = runBlocking {
+private fun run(@CommandLine.Mixin flags: Flags, @CommandLine.Mixin spannerFlags: SpannerFlags) =
+    runBlocking {
   spannerFlags.newSpannerEmulator().use { emulator: SpannerEmulator ->
     emulator.start()
     val emulatorHost = emulator.waitUntilReady()
     println("Spanner emulator running on $emulatorHost")
 
     SpannerDatabaseConnector(
-      spannerFlags.instanceName,
-      spannerFlags.projectName,
-      spannerFlags.readyTimeout,
-      spannerFlags.databaseName,
-      emulatorHost
-    ).use { spanner ->
-      val displayName =
-        if (flags.hasInstanceDisplayName) flags.instanceDisplayName else spannerFlags.instanceName
-      val instance = spanner.createInstance("emulator-config", 1, displayName)
-      println("Instance ${instance.displayName} created")
+        spannerFlags.instanceName,
+        spannerFlags.projectName,
+        spannerFlags.readyTimeout,
+        spannerFlags.databaseName,
+        emulatorHost
+      )
+      .use { spanner ->
+        val displayName =
+          if (flags.hasInstanceDisplayName) flags.instanceDisplayName else spannerFlags.instanceName
+        val instance = spanner.createInstance("emulator-config", 1, displayName)
+        println("Instance ${instance.displayName} created")
 
-      val schema = SpannerSchema(flags.schemaFile)
-      println("Read in schema file: ${flags.schemaFile.absolutePath}")
+        val schema = SpannerSchema(flags.schemaFile)
+        println("Read in schema file: ${flags.schemaFile.absolutePath}")
 
-      schema.definitionReader().useLines { lines ->
-        createDatabase(instance, lines, spannerFlags.databaseName)
+        schema.definitionReader().useLines { lines ->
+          createDatabase(instance, lines, spannerFlags.databaseName)
+        }
+        println("Database ${spanner.databaseId} created")
+
+        // Stay alive so the emulator doesn't terminate.
+        println("Idling until terminated")
+        Job().join()
       }
-      println("Database ${spanner.databaseId} created")
-
-      // Stay alive so the emulator doesn't terminate.
-      println("Idling until terminated")
-      Job().join()
-    }
   }
 }
 

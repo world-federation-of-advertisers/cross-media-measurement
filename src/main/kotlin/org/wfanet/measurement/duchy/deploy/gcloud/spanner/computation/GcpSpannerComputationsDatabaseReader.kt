@@ -26,9 +26,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
-/**
- * Implementation of [ComputationsDatabaseReader] using GCP Spanner Database.
- */
+/** Implementation of [ComputationsDatabaseReader] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseReader(
   private val databaseClient: AsyncDatabaseClient,
   private val computationProtocolStagesHelper:
@@ -37,8 +35,9 @@ class GcpSpannerComputationsDatabaseReader(
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? =
     ComputationTokenProtoQuery(
-      computationProtocolStagesHelper::longValuesToComputationStageEnum, globalId
-    )
+        computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        globalId
+      )
       .execute(databaseClient)
       .singleOrNull()
 
@@ -49,10 +48,10 @@ class GcpSpannerComputationsDatabaseReader(
     }
 
     return GlobalIdsQuery(
-      ComputationProtocolStages::computationStageEnumToLongValues,
-      stages,
-      computationTypes[0]
-    )
+        ComputationProtocolStages::computationStageEnumToLongValues,
+        stages,
+        computationTypes[0]
+      )
       .execute(databaseClient)
       .toCollection(mutableSetOf())
   }

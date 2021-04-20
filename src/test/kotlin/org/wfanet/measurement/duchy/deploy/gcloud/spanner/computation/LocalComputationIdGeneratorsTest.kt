@@ -28,9 +28,10 @@ class LocalComputationIdGeneratorsTest {
   @Test
   fun `gen local id`() {
     val testTime = 0x0FFFFFFF_1230ABCD
-    val gen = GlobalBitsPlusTimeStampIdGenerator(
-      Clock.fixed(Instant.ofEpochMilli(testTime), ZoneId.systemDefault())
-    )
+    val gen =
+      GlobalBitsPlusTimeStampIdGenerator(
+        Clock.fixed(Instant.ofEpochMilli(testTime), ZoneId.systemDefault())
+      )
     val globalId = "123"
     assertEquals(
       parseUnsignedLong("B3D50C48FFFFFFF0", 16) or globalId.hashCode().toLong(),

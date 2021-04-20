@@ -35,9 +35,12 @@ class GlobalIdsQuery<StageT>(
       """
   }
   override val sql: Statement =
-    Statement.newBuilder(parameterizedQuery).bind("stages").toInt64Array(
-      filterToStages.map { toComputationStageLongValuesFunc(it).stage }.toLongArray()
-    ).bind("protocol").to(ComputationTypes.protocolEnumToLong(computationType)).build()
+    Statement.newBuilder(parameterizedQuery)
+      .bind("stages")
+      .toInt64Array(filterToStages.map { toComputationStageLongValuesFunc(it).stage }.toLongArray())
+      .bind("protocol")
+      .to(ComputationTypes.protocolEnumToLong(computationType))
+      .build()
 
   override fun asResult(struct: Struct): String = struct.getString("GlobalComputationId")
 }

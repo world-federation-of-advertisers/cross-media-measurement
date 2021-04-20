@@ -46,26 +46,39 @@ class AssociateRequisitionAndReport(
     }
 
     Mutation.newInsertBuilder("ReportRequisitions")
-      .set("AdvertiserId").to(reportReadResult.advertiserId)
-      .set("ReportConfigId").to(reportReadResult.reportConfigId)
-      .set("ScheduleId").to(reportReadResult.scheduleId)
-      .set("ReportId").to(reportReadResult.reportId)
-      .set("DataProviderId").to(requisitionReadResult.dataProviderId)
-      .set("CampaignId").to(requisitionReadResult.campaignId)
-      .set("RequisitionId").to(requisitionReadResult.requisitionId)
+      .set("AdvertiserId")
+      .to(reportReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(reportReadResult.reportConfigId)
+      .set("ScheduleId")
+      .to(reportReadResult.scheduleId)
+      .set("ReportId")
+      .to(reportReadResult.reportId)
+      .set("DataProviderId")
+      .to(requisitionReadResult.dataProviderId)
+      .set("CampaignId")
+      .to(requisitionReadResult.campaignId)
+      .set("RequisitionId")
+      .to(requisitionReadResult.requisitionId)
       .build()
       .bufferTo(transactionContext)
 
     val requisition = requisitionReadResult.requisition
 
-    val newReportDetails = reportReadResult.report.reportDetails.toBuilder().apply {
-      addRequisitionsBuilder().apply {
-        externalDataProviderId = requisition.externalDataProviderId
-        externalCampaignId = requisition.externalCampaignId
-        externalRequisitionId = requisition.externalRequisitionId
-        duchyId = requisition.duchyId
-      }
-    }.build()
+    val newReportDetails =
+      reportReadResult
+        .report
+        .reportDetails
+        .toBuilder()
+        .apply {
+          addRequisitionsBuilder().apply {
+            externalDataProviderId = requisition.externalDataProviderId
+            externalCampaignId = requisition.externalCampaignId
+            externalRequisitionId = requisition.externalRequisitionId
+            duchyId = requisition.duchyId
+          }
+        }
+        .build()
 
     Mutation.newUpdateBuilder("Reports")
       .apply {

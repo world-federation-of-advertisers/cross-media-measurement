@@ -31,8 +31,8 @@ import picocli.CommandLine
  * This throttler tracks the number of attempts and failures over the last [timeHorizon] time window
  * to dynamically delay calls to [onReady] to reduce throttling while maximizing throughput.
  *
- * For most batch use cases, [overloadFactor] should be 1.1.
- * For interactive use cases, a higher value is acceptable (e.g. 2.0).
+ * For most batch use cases, [overloadFactor] should be 1.1. For interactive use cases, a higher
+ * value is acceptable (e.g. 2.0).
  *
  * @param overloadFactor how much to overload the backend
  * @param clock a clock
@@ -47,12 +47,9 @@ class AdaptiveThrottler(
 ) : Throttler {
 
   /** Create an [AdaptiveThrottler] from the values set in [Flags]. */
-  constructor(flags: Flags) : this(
-    flags.overloadFactor,
-    Clock.systemUTC(),
-    flags.timeHorizon,
-    flags.throttlePollDelay
-  )
+  constructor(
+    flags: Flags
+  ) : this(flags.overloadFactor, Clock.systemUTC(), flags.timeHorizon, flags.throttlePollDelay)
 
   private val mutex = Mutex(false)
   private val requests = ArrayDeque<Instant>()
@@ -71,8 +68,8 @@ class AdaptiveThrottler(
    * Repeatedly delays by [pollDelay] and then runs and returns the result of [block].
    *
    * The total amount of delay converges so that the resources accessed by [block] are overloaded by
-   * [overloadFactor]. For example, if [overloadFactor] is 1.1, we expect 10% of requests to throw
-   * a [ThrottledException].
+   * [overloadFactor]. For example, if [overloadFactor] is 1.1, we expect 10% of requests to throw a
+   * [ThrottledException].
    */
   override suspend fun <T> onReady(block: suspend () -> T): T {
     while (Random.nextDouble() < rejectionProbability) {
@@ -80,11 +77,12 @@ class AdaptiveThrottler(
       delay(pollDelay.toMillis())
     }
     updateQueue(requests)
-    val result = try {
-      block()
-    } catch (e: ThrottledException) {
-      throw checkNotNull(e.cause) { "ThrottledException thrown without cause: $e" }
-    }
+    val result =
+      try {
+        block()
+      } catch (e: ThrottledException) {
+        throw checkNotNull(e.cause) { "ThrottledException thrown without cause: $e" }
+      }
     updateQueue(accepts)
     return result
   }
@@ -105,10 +103,10 @@ class AdaptiveThrottler(
     @set:CommandLine.Option(
       names = ["--throttler-overload-factor"],
       required = true,
-      description = [
-        "How much to overload the backend. If the factor is 1.1 it is expected ",
-        "that 10% of requests will fail due to throttling."
-      ],
+      description =
+        [
+          "How much to overload the backend. If the factor is 1.1 it is expected ",
+          "that 10% of requests will fail due to throttling."],
       defaultValue = "1.1"
     )
     var overloadFactor by Delegates.notNull<Double>()
