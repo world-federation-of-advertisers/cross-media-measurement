@@ -19,12 +19,8 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.Advertiser
-import org.wfanet.measurement.internal.kingdom.Campaign
-import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
@@ -37,7 +33,6 @@ import org.wfanet.measurement.kingdom.db.StreamReportsFilter
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetReport
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.ReadRequisitionTemplates
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.SpannerQuery
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamReadyReports
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamReadySchedules
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamReports
@@ -45,25 +40,19 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequis
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.AssociateRequisitionAndReport
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmDuchyReadiness
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAdvertiser
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCampaign
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReport
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportLogEntry
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRequisition
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateSchedule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishReport
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FulfillRequisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RefuseRequisition
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateReportState
 
 class SpannerKingdomRelationalDatabase(
-  private val clock: Clock,
-  private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
-) : KingdomRelationalDatabase {
+  clock: Clock,
+  idGenerator: IdGenerator,
+  client: AsyncDatabaseClient
+) : KingdomRelationalDatabase, BaseSpannerDatabase(clock, idGenerator, client) {
 
   override suspend fun createRequisition(requisition: Requisition): Requisition {
     return CreateRequisition(requisition).execute()
@@ -153,37 +142,4 @@ class SpannerKingdomRelationalDatabase(
   ): Report {
     return FinishReport(externalReportId, result).execute()
   }
-
-  override suspend fun createDataProvider(): DataProvider {
-    return CreateDataProvider().execute()
-  }
-
-  override suspend fun createAdvertiser(): Advertiser {
-    return CreateAdvertiser().execute()
-  }
-
-  override suspend fun createCampaign(
-    externalDataProviderId: ExternalId,
-    externalAdvertiserId: ExternalId,
-    providedCampaignId: String
-  ): Campaign {
-    return CreateCampaign(externalDataProviderId, externalAdvertiserId, providedCampaignId)
-      .execute()
-  }
-
-  override suspend fun createReportConfig(
-    reportConfig: ReportConfig,
-    campaigns: List<ExternalId>
-  ): ReportConfig {
-    return CreateReportConfig(reportConfig, campaigns).execute()
-  }
-
-  override suspend fun createSchedule(schedule: ReportConfigSchedule): ReportConfigSchedule {
-    return CreateSchedule(schedule).execute()
-  }
-
-  // Convenience functions for executing reads and writes.
-  private suspend fun <R> SpannerWriter<*, R>.execute(): R = execute(client, idGenerator, clock)
-  private fun <R> SpannerQuery<*, R>.execute(): Flow<R> = execute(client.singleUse())
-  private suspend fun <R> SpannerQuery<*, R>.executeSingle(): R = executeSingle(client.singleUse())
 }
