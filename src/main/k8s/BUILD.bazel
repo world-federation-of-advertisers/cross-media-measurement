@@ -8,6 +8,10 @@ exports_files(["duchy_public_key_config.textproto"])
 
 exports_files(["liquid_legions_v2_noise_config.textproto"])
 
+exports_files(["aggregator_protocols_setup_config.textproto"])
+
+exports_files(["non_aggregator_protocols_setup_config.textproto"])
+
 cue_string_field(
     name = "duchy_public_key_config",
     src = "duchy_public_key_config.textproto",
@@ -22,7 +26,23 @@ cue_string_field(
     package = "k8s",
 )
 
+cue_string_field(
+    name = "aggregator_protocols_setup_config",
+    src = "aggregator_protocols_setup_config.textproto",
+    identifier = "#AggregatorProtocolsSetupConfig",
+    package = "k8s",
+)
+
+cue_string_field(
+    name = "non_aggregator_protocols_setup_config",
+    src = "non_aggregator_protocols_setup_config.textproto",
+    identifier = "#NonAggregatorProtocolsSetupConfig",
+    package = "k8s",
+)
+
 CUE_LIBRARIES = [
+    ":aggregator_protocols_setup_config.cue",
+    ":non_aggregator_protocols_setup_config.cue",
     ":duchy_public_key_config.cue",
     ":liquid_legions_v2_noise_config.cue",
     "base.cue",

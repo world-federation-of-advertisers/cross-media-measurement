@@ -1,0 +1,5 @@
+# proto-file: src/main/proto/wfa/measurement/internal/duchy/config/protocols_setup_config.proto
+# proto-message: ProtocolsSetupConfig
+liquid_legions_v2 {
+  role: NON_AGGREGATOR
+}

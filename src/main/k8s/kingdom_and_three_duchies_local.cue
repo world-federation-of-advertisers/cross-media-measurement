@@ -83,21 +83,25 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 
 #Duchies: [
 	{
-		name: "a"
-		key:  "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
+		name:                   "aggregator"
+		key:                    "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
+		protocols_setup_config: #AggregatorProtocolsSetupConfig
 	},
 	{
-		name: "b"
-		key:  "31cc32e7cd53ff24f2b64ae8c531099af9867ebf5d9a659f742459947caa29b0"
+		name:                   "worker-1"
+		key:                    "31cc32e7cd53ff24f2b64ae8c531099af9867ebf5d9a659f742459947caa29b0"
+		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 	},
 	{
-		name: "c"
-		key:  "338cce0306416b70e901436cb9eca5ac758e8ff41d7b58dabadf8726608ca6cc"
+		name:                   "worker-2"
+		key:                    "338cce0306416b70e901436cb9eca5ac758e8ff41d7b58dabadf8726608ca6cc"
+		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 	},
 ]
 
 #LocalDuchy: #Duchy & {
 	_duchy_names: [ for d in #Duchies {d.name}]
+	_aggregator_name: "duchy-aggregator"
 	_spanner_schema_push_flags: [
 		"--create-instance",
 		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,

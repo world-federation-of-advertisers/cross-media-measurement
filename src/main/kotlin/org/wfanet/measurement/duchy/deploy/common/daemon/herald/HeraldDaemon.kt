@@ -75,7 +75,7 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--protocol-setup-config"],
+    names = ["--protocols-setup-config"],
     description = ["ProtocolsSetupConfig proto message in text format."],
     required = true
   )

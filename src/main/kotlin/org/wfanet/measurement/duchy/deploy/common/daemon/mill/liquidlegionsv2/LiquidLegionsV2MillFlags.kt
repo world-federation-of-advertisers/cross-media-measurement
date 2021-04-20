@@ -99,14 +99,6 @@ class LiquidLegionsV2MillFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--duchy-id"],
-    description = ["The Identifier of the Mill."],
-    required = true
-  )
-  lateinit var duchyId: String
-    private set
-
-  @CommandLine.Option(
     names = ["--aggregator-id"],
     description = ["The Identifier of the aggregator duchy."],
     required = true
