@@ -19,17 +19,17 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineImplBase
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 
 class ReportConfigsService(
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
+  private val legacySchedulingDatabase: LegacySchedulingDatabase
 ) : ReportConfigsCoroutineImplBase() {
 
   override suspend fun listRequisitionTemplates(
     request: ListRequisitionTemplatesRequest
   ): ListRequisitionTemplatesResponse {
     val id = ExternalId(request.externalReportConfigId)
-    val requisitionTemplates = kingdomRelationalDatabase.listRequisitionTemplates(id)
+    val requisitionTemplates = legacySchedulingDatabase.listRequisitionTemplates(id)
     return ListRequisitionTemplatesResponse.newBuilder()
       .addAllRequisitionTemplates(requisitionTemplates.toList())
       .build()

@@ -24,11 +24,11 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
 
 class RequisitionsService(
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
+  private val requisitionDatabase: RequisitionDatabase
 ) : RequisitionsCoroutineImplBase() {
   override suspend fun createRequisition(request: Requisition): Requisition {
     require(request.externalRequisitionId == 0L) {
@@ -37,11 +37,11 @@ class RequisitionsService(
     require(request.state == RequisitionState.UNFULFILLED) {
       "Initial requisitions must be unfulfilled: $request"
     }
-    return kingdomRelationalDatabase.createRequisition(request)
+    return requisitionDatabase.createRequisition(request)
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
-    val transition = kingdomRelationalDatabase.fulfillRequisition(
+    val transition = requisitionDatabase.fulfillRequisition(
       ExternalId(request.externalRequisitionId),
       request.duchyId
     )
@@ -61,6 +61,6 @@ class RequisitionsService(
       states = filter.statesList,
       createdAfter = filter.createdAfter.toInstant()
     )
-    return kingdomRelationalDatabase.streamRequisitions(internalFilter, request.limit)
+    return requisitionDatabase.streamRequisitions(internalFilter, request.limit)
   }
 }

@@ -113,14 +113,14 @@ private val REPETITION_SPEC: RepetitionSpec = RepetitionSpec.newBuilder().apply 
 class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   @get:Rule
   val grpcTestServer = GrpcTestServerRule(logAllRequests = true) {
-    val relationalDatabase =
+    val database =
       SpannerKingdomRelationalDatabase(
         Clock.systemUTC(),
         RandomIdGenerator(Clock.systemUTC()),
         databaseClient
       )
 
-    buildDataServices(relationalDatabase)
+    buildDataServices(database, database, database)
       .forEach(this::addService)
   }
 
