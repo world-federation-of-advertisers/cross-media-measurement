@@ -55,34 +55,38 @@ private val WINDOW_START_TIME: Timestamp = Instant.ofEpochSecond(456).toProtoTim
 private val WINDOW_END_TIME: Timestamp = Instant.ofEpochSecond(789).toProtoTime()
 
 private val IRRELEVANT_DETAILS: RequisitionDetails = RequisitionDetails.getDefaultInstance()
-private val REQUISITION: Requisition = Requisition.newBuilder().apply {
-  externalDataProviderId = 1
-  externalCampaignId = 2
-  externalRequisitionId = 3
-  combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_ID
-  providedCampaignId = CAMPAIGN_REFERENCE_ID
-  createTime = CREATE_TIME
-  state = RequisitionState.FULFILLED
-  windowStartTime = WINDOW_START_TIME
-  windowEndTime = WINDOW_END_TIME
-  requisitionDetails = IRRELEVANT_DETAILS
-  requisitionDetailsJson = IRRELEVANT_DETAILS.toJson()
-}.build()
+private val REQUISITION: Requisition =
+  Requisition.newBuilder()
+    .apply {
+      externalDataProviderId = 1
+      externalCampaignId = 2
+      externalRequisitionId = 3
+      combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_ID
+      providedCampaignId = CAMPAIGN_REFERENCE_ID
+      createTime = CREATE_TIME
+      state = RequisitionState.FULFILLED
+      windowStartTime = WINDOW_START_TIME
+      windowEndTime = WINDOW_END_TIME
+      requisitionDetails = IRRELEVANT_DETAILS
+      requisitionDetailsJson = IRRELEVANT_DETAILS.toJson()
+    }
+    .build()
 
 private val REQUISITION_API_KEY: MetricRequisition.Key =
-  MetricRequisition.Key.newBuilder().apply {
-    dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
-    campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
-    metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
-  }.build()
+  MetricRequisition.Key.newBuilder()
+    .apply {
+      dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+      campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+      metricRequisitionId = ExternalId(REQUISITION.externalRequisitionId).apiId.value
+    }
+    .build()
 
 @RunWith(JUnit4::class)
 class RequisitionServiceTest {
   private val requisitionStorage: RequisitionsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionStorage) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionStorage) }
 
   private val channel = grpcTestServerRule.channel
   private val service = RequisitionService(RequisitionsCoroutineStub(channel))
@@ -92,126 +96,145 @@ class RequisitionServiceTest {
     whenever(requisitionStorage.streamRequisitions(any()))
       .thenReturn(flowOf(REQUISITION, REQUISITION))
 
-    val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parentBuilder.apply {
-        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
-        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
-      }
-      filterBuilder.addAllStates(
-        listOf(
-          MetricRequisition.State.UNFULFILLED,
-          MetricRequisition.State.FULFILLED
-        )
-      )
-      pageSize = 2
-      pageToken = ""
-    }.build()
+    val request =
+      ListMetricRequisitionsRequest.newBuilder()
+        .apply {
+          parentBuilder.apply {
+            dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+            campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+          }
+          filterBuilder.addAllStates(
+            listOf(MetricRequisition.State.UNFULFILLED, MetricRequisition.State.FULFILLED)
+          )
+          pageSize = 2
+          pageToken = ""
+        }
+        .build()
 
     val result = service.listMetricRequisitions(request)
 
-    val expected = ListMetricRequisitionsResponse.newBuilder().apply {
-      addMetricRequisitionsBuilder().apply {
-        key = REQUISITION_API_KEY
-        state = MetricRequisition.State.FULFILLED
-        campaignReferenceId = CAMPAIGN_REFERENCE_ID
-        combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
-      }
-      addMetricRequisitionsBuilder().apply {
-        key = REQUISITION_API_KEY
-        state = MetricRequisition.State.FULFILLED
-        campaignReferenceId = CAMPAIGN_REFERENCE_ID
-        combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
-      }
-      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
-    }.build()
+    val expected =
+      ListMetricRequisitionsResponse.newBuilder()
+        .apply {
+          addMetricRequisitionsBuilder().apply {
+            key = REQUISITION_API_KEY
+            state = MetricRequisition.State.FULFILLED
+            campaignReferenceId = CAMPAIGN_REFERENCE_ID
+            combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
+          }
+          addMetricRequisitionsBuilder().apply {
+            key = REQUISITION_API_KEY
+            state = MetricRequisition.State.FULFILLED
+            campaignReferenceId = CAMPAIGN_REFERENCE_ID
+            combinedPublicKeyBuilder.combinedPublicKeyId = COMBINED_PUBLIC_KEY_ID
+          }
+          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+        }
+        .build()
 
-    assertThat(result)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(expected)
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
 
-    val requisitionStorageRequest = captureFirst<StreamRequisitionsRequest> {
-      verify(requisitionStorage).streamRequisitions(capture())
-    }
+    val requisitionStorageRequest =
+      captureFirst<StreamRequisitionsRequest> {
+        verify(requisitionStorage).streamRequisitions(capture())
+      }
     assertThat(requisitionStorageRequest)
       .isEqualTo(
-        StreamRequisitionsRequest.newBuilder().apply {
-          limit = 2
-          filterBuilder.apply {
-            addAllStates(listOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED))
-            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
-            addExternalCampaignIds(REQUISITION.externalCampaignId)
+        StreamRequisitionsRequest.newBuilder()
+          .apply {
+            limit = 2
+            filterBuilder.apply {
+              addAllStates(listOf(RequisitionState.UNFULFILLED, RequisitionState.FULFILLED))
+              addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+              addExternalCampaignIds(REQUISITION.externalCampaignId)
+            }
           }
-        }.build()
+          .build()
       )
   }
 
   @Test
   fun `listMetricRequisitions with page token`() = runBlocking {
-    whenever(requisitionStorage.streamRequisitions(any()))
-      .thenReturn(emptyFlow())
+    whenever(requisitionStorage.streamRequisitions(any())).thenReturn(emptyFlow())
 
-    val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parentBuilder.apply {
-        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
-        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
-      }
-      filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
-      pageSize = 1
-      pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
-    }.build()
+    val request =
+      ListMetricRequisitionsRequest.newBuilder()
+        .apply {
+          parentBuilder.apply {
+            dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+            campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+          }
+          filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
+          pageSize = 1
+          pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+        }
+        .build()
 
     val result = service.listMetricRequisitions(request)
     val expected = ListMetricRequisitionsResponse.getDefaultInstance()
 
     assertThat(result).isEqualTo(expected)
 
-    val requisitionStorageRequest = captureFirst<StreamRequisitionsRequest> {
-      verify(requisitionStorage).streamRequisitions(capture())
-    }
+    val requisitionStorageRequest =
+      captureFirst<StreamRequisitionsRequest> {
+        verify(requisitionStorage).streamRequisitions(capture())
+      }
     assertThat(requisitionStorageRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        StreamRequisitionsRequest.newBuilder().apply {
-          limit = 1
-          filterBuilder.apply {
-            addStates(RequisitionState.UNFULFILLED)
-            addExternalDataProviderIds(REQUISITION.externalDataProviderId)
-            addExternalCampaignIds(REQUISITION.externalCampaignId)
-            createdAfter = CREATE_TIME
+        StreamRequisitionsRequest.newBuilder()
+          .apply {
+            limit = 1
+            filterBuilder.apply {
+              addStates(RequisitionState.UNFULFILLED)
+              addExternalDataProviderIds(REQUISITION.externalDataProviderId)
+              addExternalCampaignIds(REQUISITION.externalCampaignId)
+              createdAfter = CREATE_TIME
+            }
           }
-        }.build()
+          .build()
       )
   }
 
   @Test
   fun `listRequisitions returns refused MetricRequisition`() = runBlocking {
-    val requisition = REQUISITION.toBuilder().apply {
-      state = RequisitionState.PERMANENTLY_UNAVAILABLE
-      requisitionDetailsBuilder.refusalBuilder.apply {
-        justification = RequisitionDetails.Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
-        message = "Too old"
-      }
-    }.build()
+    val requisition =
+      REQUISITION
+        .toBuilder()
+        .apply {
+          state = RequisitionState.PERMANENTLY_UNAVAILABLE
+          requisitionDetailsBuilder.refusalBuilder.apply {
+            justification = RequisitionDetails.Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
+            message = "Too old"
+          }
+        }
+        .build()
     whenever(requisitionStorage.streamRequisitions(any())).thenReturn(flowOf(requisition))
 
-    val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parentBuilder.apply {
-        dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
-        campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
-      }
-      filterBuilder.addStates(MetricRequisition.State.PERMANENTLY_UNFILLABLE)
-      pageSize = 10
-    }.build()
+    val request =
+      ListMetricRequisitionsRequest.newBuilder()
+        .apply {
+          parentBuilder.apply {
+            dataProviderId = ExternalId(REQUISITION.externalDataProviderId).apiId.value
+            campaignId = ExternalId(REQUISITION.externalCampaignId).apiId.value
+          }
+          filterBuilder.addStates(MetricRequisition.State.PERMANENTLY_UNFILLABLE)
+          pageSize = 10
+        }
+        .build()
     val response = service.listMetricRequisitions(request)
 
     assertThat(response.metricRequisitionsList).hasSize(1)
     val metricRequisition = response.metricRequisitionsList.first()
     assertThat(metricRequisition.state).isEqualTo(MetricRequisition.State.PERMANENTLY_UNFILLABLE)
-    assertThat(metricRequisition.refusal).isEqualTo(
-      Refusal.newBuilder().apply {
-        justification = Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
-        message = requisition.requisitionDetails.refusal.message
-      }.build()
-    )
+    assertThat(metricRequisition.refusal)
+      .isEqualTo(
+        Refusal.newBuilder()
+          .apply {
+            justification = Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
+            message = requisition.requisitionDetails.refusal.message
+          }
+          .build()
+      )
   }
 }

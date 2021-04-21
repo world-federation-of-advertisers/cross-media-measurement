@@ -30,9 +30,7 @@ import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 
 fun String.toGetTokenRequest(): GetComputationTokenRequest =
-  GetComputationTokenRequest.newBuilder()
-    .setGlobalComputationId(this)
-    .build()
+  GetComputationTokenRequest.newBuilder().setGlobalComputationId(this).build()
 
 @Deprecated("Computation store should generate blob keys")
 fun ComputationToken.toBlobPath(name: String) =
@@ -68,37 +66,45 @@ fun ComputationToken.toRecordOutputBlobPathResponse(): RecordOutputBlobPathRespo
 
 /** Extract the list of output blob paths from a [ComputationToken]. */
 fun ComputationToken.outputPathList(): List<String> =
-  this.blobsList.filter {
-    it.dependencyType == OUTPUT || it.dependencyType == PASS_THROUGH
-  }.map { it.path }
+  this.blobsList.filter { it.dependencyType == OUTPUT || it.dependencyType == PASS_THROUGH }.map {
+    it.path
+  }
 
 /** Creates a [ComputationStageBlobMetadata] for an input blob. */
 fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
-  ComputationStageBlobMetadata.newBuilder().apply {
-    blobId = id
-    dependencyType = ComputationBlobDependency.INPUT
-    path = key
-  }.build()
+  ComputationStageBlobMetadata.newBuilder()
+    .apply {
+      blobId = id
+      dependencyType = ComputationBlobDependency.INPUT
+      path = key
+    }
+    .build()
 
 /** Creates a [ComputationStageBlobMetadata] for a pass through blob. */
 fun newPassThroughBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
-  ComputationStageBlobMetadata.newBuilder().apply {
-    blobId = id
-    dependencyType = PASS_THROUGH
-    path = key
-  }.build()
+  ComputationStageBlobMetadata.newBuilder()
+    .apply {
+      blobId = id
+      dependencyType = PASS_THROUGH
+      path = key
+    }
+    .build()
 
 /** Creates a [ComputationStageBlobMetadata] for an output blob. */
 fun newOutputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =
-  ComputationStageBlobMetadata.newBuilder().apply {
-    blobId = id
-    dependencyType = OUTPUT
-    path = key
-  }.build()
+  ComputationStageBlobMetadata.newBuilder()
+    .apply {
+      blobId = id
+      dependencyType = OUTPUT
+      path = key
+    }
+    .build()
 
 /** Creates a [ComputationStageBlobMetadata] for an output blob that doesn't have a key set. */
 fun newEmptyOutputBlobMetadata(id: Long): ComputationStageBlobMetadata =
-  ComputationStageBlobMetadata.newBuilder().apply {
-    blobId = id
-    dependencyType = OUTPUT
-  }.build()
+  ComputationStageBlobMetadata.newBuilder()
+    .apply {
+      blobId = id
+      dependencyType = OUTPUT
+    }
+    .build()

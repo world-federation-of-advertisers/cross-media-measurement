@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
- * Wrapper around an SQL based query to the Spanner database that abstracts away spanner
- * result sets and spanner structs.
+ * Wrapper around an SQL based query to the Spanner database that abstracts away spanner result sets
+ * and spanner structs.
  */
 interface SqlBasedQuery<out Result> {
   val sql: Statement
@@ -31,8 +31,8 @@ interface SqlBasedQuery<out Result> {
   fun asResult(struct: Struct): Result
 
   /**
-   *  Runs this query using a singleUse query in the database client, returning a [Sequence]
-   *  of the [Result]s.
+   * Runs this query using a singleUse query in the database client, returning a [Sequence] of the
+   * [Result]s.
    */
   fun execute(databaseClient: AsyncDatabaseClient): Flow<Result> =
     execute(databaseClient.singleUse())

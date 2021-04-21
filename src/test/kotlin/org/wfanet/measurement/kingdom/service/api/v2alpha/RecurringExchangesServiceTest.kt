@@ -30,30 +30,34 @@ class RecurringExchangesServiceTest {
   val service = RecurringExchangesService()
 
   @Test
-  fun createRecurringExchange() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.createRecurringExchange(CreateRecurringExchangeRequest.getDefaultInstance())
+  fun createRecurringExchange() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.createRecurringExchange(CreateRecurringExchangeRequest.getDefaultInstance())
+      }
     }
-  }
 
   @Test
-  fun getRecurringExchange() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.getRecurringExchange(GetRecurringExchangeRequest.getDefaultInstance())
+  fun getRecurringExchange() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.getRecurringExchange(GetRecurringExchangeRequest.getDefaultInstance())
+      }
     }
-  }
 
   @Test
-  fun listRecurringExchanges() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.listRecurringExchanges(ListRecurringExchangesRequest.getDefaultInstance())
+  fun listRecurringExchanges() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.listRecurringExchanges(ListRecurringExchangesRequest.getDefaultInstance())
+      }
     }
-  }
 
   @Test
-  fun retireRecurringExchange() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.retireRecurringExchange(RetireRecurringExchangeRequest.getDefaultInstance())
+  fun retireRecurringExchange() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.retireRecurringExchange(RetireRecurringExchangeRequest.getDefaultInstance())
+      }
     }
-  }
 }

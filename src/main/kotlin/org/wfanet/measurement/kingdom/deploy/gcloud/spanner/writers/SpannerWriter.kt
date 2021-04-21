@@ -25,9 +25,9 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
  * Abstracts a common pattern:
- *  - Run a RMW transaction
- *  - Optionally perform additional reads after the transaction is done
- *  - Transform all of the outputs into a result
+ * - Run a RMW transaction
+ * - Optionally perform additional reads after the transaction is done
+ * - Transform all of the outputs into a result
  *
  * Each SpannerWriter instance will be executed at most once.
  *
@@ -40,10 +40,7 @@ abstract class SpannerWriter<T, R> {
     val clock: Clock
   )
 
-  data class ResultScope<T>(
-    val transactionResult: T?,
-    val commitTimestamp: Timestamp
-  )
+  data class ResultScope<T>(val transactionResult: T?, val commitTimestamp: Timestamp)
 
   /**
    * Override this to perform the body of the Spanner transaction.
@@ -78,10 +75,11 @@ abstract class SpannerWriter<T, R> {
     logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
-    val transactionResult: T? = runner.execute { transactionContext ->
-      val scope = TransactionScope(transactionContext, idGenerator, clock)
-      scope.runTransaction()
-    }
+    val transactionResult: T? =
+      runner.execute { transactionContext ->
+        val scope = TransactionScope(transactionContext, idGenerator, clock)
+        scope.runTransaction()
+      }
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
   }

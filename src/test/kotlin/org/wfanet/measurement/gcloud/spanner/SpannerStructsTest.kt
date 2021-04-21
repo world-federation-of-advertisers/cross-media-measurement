@@ -28,14 +28,21 @@ class SpannerStructsTest {
   private val timestamp = Timestamp.now()
   private val str = "abcdefg"
   private val int64 = 405060708090100L
-  private val struct = Struct.newBuilder()
-    .set("nullString").to(null as String?)
-    .set("stringValue").to(str)
-    .set("nullInt64").to(null as Long?)
-    .set("int64Value").to(int64)
-    .set("nullTimestamp").to(null as Timestamp?)
-    .set("timestampValue").to(timestamp)
-    .build()
+  private val struct =
+    Struct.newBuilder()
+      .set("nullString")
+      .to(null as String?)
+      .set("stringValue")
+      .to(str)
+      .set("nullInt64")
+      .to(null as Long?)
+      .set("int64Value")
+      .to(int64)
+      .set("nullTimestamp")
+      .to(null as Timestamp?)
+      .set("timestampValue")
+      .to(timestamp)
+      .build()
 
   @Test
   fun getNullableString() {

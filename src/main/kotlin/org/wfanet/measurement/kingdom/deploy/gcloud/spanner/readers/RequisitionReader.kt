@@ -21,9 +21,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
-/**
- * Reads [Requisition] protos (and their internal primary keys) from Spanner.
- */
+/** Reads [Requisition] protos (and their internal primary keys) from Spanner. */
 class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
   data class Result(
     val requisition: Requisition,
@@ -64,29 +62,30 @@ class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
       requisitionId = struct.getLong("RequisitionId")
     )
 
-  private fun buildRequisition(struct: Struct): Requisition = Requisition.newBuilder().apply {
-    externalDataProviderId = struct.getLong("ExternalDataProviderId")
-    externalCampaignId = struct.getLong("ExternalCampaignId")
-    externalRequisitionId = struct.getLong("ExternalRequisitionId")
-    combinedPublicKeyResourceId = struct.getString("CombinedPublicKeyResourceId")
+  private fun buildRequisition(struct: Struct): Requisition =
+    Requisition.newBuilder()
+      .apply {
+        externalDataProviderId = struct.getLong("ExternalDataProviderId")
+        externalCampaignId = struct.getLong("ExternalCampaignId")
+        externalRequisitionId = struct.getLong("ExternalRequisitionId")
+        combinedPublicKeyResourceId = struct.getString("CombinedPublicKeyResourceId")
 
-    providedCampaignId = struct.getString("ProvidedCampaignId")
+        providedCampaignId = struct.getString("ProvidedCampaignId")
 
-    createTime = struct.getTimestamp("CreateTime").toProto()
+        createTime = struct.getTimestamp("CreateTime").toProto()
 
-    windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
-    windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
+        windowStartTime = struct.getTimestamp("WindowStartTime").toProto()
+        windowEndTime = struct.getTimestamp("WindowEndTime").toProto()
 
-    state = struct.getProtoEnum("State", RequisitionState::forNumber)
+        state = struct.getProtoEnum("State", RequisitionState::forNumber)
 
-    if (!struct.isNull("DuchyId")) {
-      duchyId = struct.getString("DuchyId")
-    }
+        if (!struct.isNull("DuchyId")) {
+          duchyId = struct.getString("DuchyId")
+        }
 
-    requisitionDetails = struct.getProtoMessage(
-      "RequisitionDetails",
-      RequisitionDetails.parser()
-    )
-    requisitionDetailsJson = struct.getString("RequisitionDetailsJson")
-  }.build()
+        requisitionDetails =
+          struct.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+        requisitionDetailsJson = struct.getString("RequisitionDetailsJson")
+      }
+      .build()
 }

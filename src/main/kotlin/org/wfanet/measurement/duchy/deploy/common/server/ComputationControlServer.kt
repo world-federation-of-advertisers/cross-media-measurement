@@ -48,13 +48,13 @@ abstract class ComputationControlServer : Runnable {
     val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
 
     CommonServer.fromFlags(
-      flags.server,
-      javaClass.name,
-      ComputationControlService(
-        AsyncComputationControlCoroutineStub(channel),
-        storageClient
-      ).withDuchyIdentities()
-    ).start().blockUntilShutdown()
+        flags.server,
+        javaClass.name,
+        ComputationControlService(AsyncComputationControlCoroutineStub(channel), storageClient)
+          .withDuchyIdentities()
+      )
+      .start()
+      .blockUntilShutdown()
   }
 
   protected class Flags {

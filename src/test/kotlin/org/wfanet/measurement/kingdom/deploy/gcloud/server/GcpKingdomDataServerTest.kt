@@ -87,21 +87,27 @@ private const val REQUISITION_ID = 13L
 private const val EXTERNAL_REQUISITION_ID = 14L
 private const val DUCHY_ID = "some-duchy"
 
-private val REPORT_CONFIG_DETAILS: ReportConfigDetails = ReportConfigDetails.newBuilder().apply {
-  addMetricDefinitionsBuilder().sketchBuilder.sketchConfigId = 12345
-  reportDurationBuilder.apply {
-    count = 5
-    unit = TimePeriod.Unit.DAY
-  }
-}.build()
+private val REPORT_CONFIG_DETAILS: ReportConfigDetails =
+  ReportConfigDetails.newBuilder()
+    .apply {
+      addMetricDefinitionsBuilder().sketchBuilder.sketchConfigId = 12345
+      reportDurationBuilder.apply {
+        count = 5
+        unit = TimePeriod.Unit.DAY
+      }
+    }
+    .build()
 
-private val REPETITION_SPEC: RepetitionSpec = RepetitionSpec.newBuilder().apply {
-  startBuilder.seconds = 12345
-  repetitionPeriodBuilder.apply {
-    count = 7
-    unit = TimePeriod.Unit.DAY
-  }
-}.build()
+private val REPETITION_SPEC: RepetitionSpec =
+  RepetitionSpec.newBuilder()
+    .apply {
+      startBuilder.seconds = 12345
+      repetitionPeriodBuilder.apply {
+        count = 7
+        unit = TimePeriod.Unit.DAY
+      }
+    }
+    .build()
 
 /**
  * Integration test for Kingdom internal services + Spanner.
@@ -112,20 +118,19 @@ private val REPETITION_SPEC: RepetitionSpec = RepetitionSpec.newBuilder().apply 
  */
 class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   @get:Rule
-  val grpcTestServer = GrpcTestServerRule(logAllRequests = true) {
-    val database =
-      SpannerKingdomRelationalDatabase(
-        Clock.systemUTC(),
-        RandomIdGenerator(Clock.systemUTC()),
-        databaseClient
-      )
+  val grpcTestServer =
+    GrpcTestServerRule(logAllRequests = true) {
+      val database =
+        SpannerKingdomRelationalDatabase(
+          Clock.systemUTC(),
+          RandomIdGenerator(Clock.systemUTC()),
+          databaseClient
+        )
 
-    buildDataServices(database, database, database)
-      .forEach(this::addService)
-  }
+      buildDataServices(database, database, database).forEach(this::addService)
+    }
 
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
   private val channel by lazy { grpcTestServer.channel }
   private val reportConfigsStub by lazy { ReportConfigsCoroutineStub(channel) }
@@ -170,286 +175,331 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
 
   @Test
   fun coverage() {
-    val serviceDescriptors = listOf(
-      ReportConfigsGrpcKt.serviceDescriptor,
-      ReportConfigSchedulesGrpcKt.serviceDescriptor,
-      ReportsGrpcKt.serviceDescriptor,
-      ReportLogEntriesGrpcKt.serviceDescriptor,
-      RequisitionsGrpcKt.serviceDescriptor
-    )
+    val serviceDescriptors =
+      listOf(
+        ReportConfigsGrpcKt.serviceDescriptor,
+        ReportConfigSchedulesGrpcKt.serviceDescriptor,
+        ReportsGrpcKt.serviceDescriptor,
+        ReportLogEntriesGrpcKt.serviceDescriptor,
+        RequisitionsGrpcKt.serviceDescriptor
+      )
 
     val expectedTests =
-      serviceDescriptors
-        .flatMap { descriptor ->
-          descriptor.methods.map { it.fullMethodName.substringAfterLast('.').replace('/', ' ') }
-        }
+      serviceDescriptors.flatMap { descriptor ->
+        descriptor.methods.map { it.fullMethodName.substringAfterLast('.').replace('/', ' ') }
+      }
 
     val actualTests =
-      javaClass
-        .methods
-        .filter { it.isAnnotationPresent(Test::class.java) }
-        .map { it.name }
+      javaClass.methods.filter { it.isAnnotationPresent(Test::class.java) }.map { it.name }
 
-    assertThat(actualTests)
-      .containsAtLeastElementsIn(expectedTests)
+    assertThat(actualTests).containsAtLeastElementsIn(expectedTests)
   }
 
   @Test
   fun `ReportConfigs ListRequisitionTemplates`() = runBlocking {
-    val request = ListRequisitionTemplatesRequest.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-    }.build()
+    val request =
+      ListRequisitionTemplatesRequest.newBuilder()
+        .apply { externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID }
+        .build()
 
-    val expected = ListRequisitionTemplatesResponse.newBuilder().apply {
-      addRequisitionTemplatesBuilder().apply {
-        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-        externalCampaignId = EXTERNAL_CAMPAIGN_ID
-        requisitionDetailsBuilder.metricDefinition = REPORT_CONFIG_DETAILS.getMetricDefinitions(0)
-      }
-    }.build()
+    val expected =
+      ListRequisitionTemplatesResponse.newBuilder()
+        .apply {
+          addRequisitionTemplatesBuilder().apply {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalCampaignId = EXTERNAL_CAMPAIGN_ID
+            requisitionDetailsBuilder.metricDefinition =
+              REPORT_CONFIG_DETAILS.getMetricDefinitions(0)
+          }
+        }
+        .build()
 
     val result = reportConfigsStub.listRequisitionTemplates(request)
     assertThat(result).isEqualTo(expected)
   }
 
   @Test
-  fun `ReportConfigSchedules StreamReadyReportConfigSchedules`() = runBlocking<Unit> {
-    val request = StreamReadyReportConfigSchedulesRequest.getDefaultInstance()
+  fun `ReportConfigSchedules StreamReadyReportConfigSchedules`() =
+    runBlocking<Unit> {
+      val request = StreamReadyReportConfigSchedulesRequest.getDefaultInstance()
 
-    val expected = ReportConfigSchedule.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-    }.build()
+      val expected =
+        ReportConfigSchedule.newBuilder()
+          .apply {
+            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+          }
+          .build()
 
-    val result = reportConfigSchedulesStub.streamReadyReportConfigSchedules(request)
-    assertThat(result.toList())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expected)
-  }
+      val result = reportConfigSchedulesStub.streamReadyReportConfigSchedules(request)
+      assertThat(result.toList()).comparingExpectedFieldsOnly().containsExactly(expected)
+    }
 
   @Test
-  fun `Reports ConfirmDuchyReadiness`() = runBlocking<Unit> {
-    databaseClient.write(
-      Mutation.newUpdateBuilder("Reports")
-        .set("AdvertiserId").to(ADVERTISER_ID)
-        .set("ReportConfigId").to(REPORT_CONFIG_ID)
-        .set("ScheduleId").to(SCHEDULE_ID)
-        .set("ReportId").to(REPORT_ID)
-        .set("State").toProtoEnum(ReportState.AWAITING_DUCHY_CONFIRMATION)
-        .build(),
-      Mutation.newUpdateBuilder("Requisitions")
-        .set("DataProviderId").to(DATA_PROVIDER_ID)
-        .set("CampaignId").to(CAMPAIGN_ID)
-        .set("RequisitionId").to(REQUISITION_ID)
-        .set("DuchyId").to(DUCHY_ID)
-        .set("State").toProtoEnum(RequisitionState.FULFILLED)
-        .build()
-    )
+  fun `Reports ConfirmDuchyReadiness`() =
+    runBlocking<Unit> {
+      databaseClient.write(
+        Mutation.newUpdateBuilder("Reports")
+          .set("AdvertiserId")
+          .to(ADVERTISER_ID)
+          .set("ReportConfigId")
+          .to(REPORT_CONFIG_ID)
+          .set("ScheduleId")
+          .to(SCHEDULE_ID)
+          .set("ReportId")
+          .to(REPORT_ID)
+          .set("State")
+          .toProtoEnum(ReportState.AWAITING_DUCHY_CONFIRMATION)
+          .build(),
+        Mutation.newUpdateBuilder("Requisitions")
+          .set("DataProviderId")
+          .to(DATA_PROVIDER_ID)
+          .set("CampaignId")
+          .to(CAMPAIGN_ID)
+          .set("RequisitionId")
+          .to(REQUISITION_ID)
+          .set("DuchyId")
+          .to(DUCHY_ID)
+          .set("State")
+          .toProtoEnum(RequisitionState.FULFILLED)
+          .build()
+      )
 
-    insertReportRequisition(
-      ADVERTISER_ID,
-      REPORT_CONFIG_ID,
-      SCHEDULE_ID,
-      REPORT_ID,
-      DATA_PROVIDER_ID,
-      CAMPAIGN_ID,
-      REQUISITION_ID
-    )
+      insertReportRequisition(
+        ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        REPORT_ID,
+        DATA_PROVIDER_ID,
+        CAMPAIGN_ID,
+        REQUISITION_ID
+      )
 
-    val request = ConfirmDuchyReadinessRequest.newBuilder().apply {
-      externalReportId = EXTERNAL_REPORT_ID
-      duchyId = DUCHY_ID
-      addExternalRequisitionIds(EXTERNAL_REQUISITION_ID)
-    }.build()
+      val request =
+        ConfirmDuchyReadinessRequest.newBuilder()
+          .apply {
+            externalReportId = EXTERNAL_REPORT_ID
+            duchyId = DUCHY_ID
+            addExternalRequisitionIds(EXTERNAL_REQUISITION_ID)
+          }
+          .build()
 
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-      state = ReportState.IN_PROGRESS
-    }.build()
+      val expected =
+        Report.newBuilder()
+          .apply {
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+            state = ReportState.IN_PROGRESS
+          }
+          .build()
 
-    val result = reportsStub.confirmDuchyReadiness(request)
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+      val result = reportsStub.confirmDuchyReadiness(request)
+      assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
 
-    assertThat(readAllReportsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expected)
-  }
+      assertThat(readAllReportsInSpanner()).comparingExpectedFieldsOnly().containsExactly(expected)
+    }
 
   @Test
   fun `Reports GetReport`() = runBlocking {
     val request = GetReportRequest.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-    }.build()
+    val expected =
+      Report.newBuilder()
+        .apply {
+          externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+          externalScheduleId = EXTERNAL_SCHEDULE_ID
+          externalReportId = EXTERNAL_REPORT_ID
+        }
+        .build()
 
     val result = reportsStub.getReport(request)
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
   }
 
   @Test
   fun `Reports CreateNextReport`() = runBlocking {
-    val request = CreateNextReportRequest.newBuilder().apply {
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-    }.build()
+    val request =
+      CreateNextReportRequest.newBuilder()
+        .apply { externalScheduleId = EXTERNAL_SCHEDULE_ID }
+        .build()
 
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-    }.build()
+    val expected =
+      Report.newBuilder()
+        .apply {
+          externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+          externalScheduleId = EXTERNAL_SCHEDULE_ID
+        }
+        .build()
 
     val result = reportsStub.createNextReport(request)
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
   }
 
   @Test
-  fun `Reports FinishReport`() = runBlocking<Unit> {
-    val request = FinishReportRequest.newBuilder().apply {
-      externalReportId = EXTERNAL_REPORT_ID
-      resultBuilder.apply {
-        reach = 12345
-        putFrequency(1, 0.2)
-        putFrequency(3, 0.8)
-      }
-    }.build()
+  fun `Reports FinishReport`() =
+    runBlocking<Unit> {
+      val request =
+        FinishReportRequest.newBuilder()
+          .apply {
+            externalReportId = EXTERNAL_REPORT_ID
+            resultBuilder.apply {
+              reach = 12345
+              putFrequency(1, 0.2)
+              putFrequency(3, 0.8)
+            }
+          }
+          .build()
 
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-      state = ReportState.SUCCEEDED
-      reportDetailsBuilder.resultBuilder.apply {
-        reach = 12345
-        putFrequency(1, 0.2)
-        putFrequency(3, 0.8)
-      }
-    }.build()
+      val expected =
+        Report.newBuilder()
+          .apply {
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+            state = ReportState.SUCCEEDED
+            reportDetailsBuilder.resultBuilder.apply {
+              reach = 12345
+              putFrequency(1, 0.2)
+              putFrequency(3, 0.8)
+            }
+          }
+          .build()
 
-    val result = reportsStub.finishReport(request)
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+      val result = reportsStub.finishReport(request)
+      assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
 
-    assertThat(readAllReportsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expected)
-  }
-
-  @Test
-  fun `Reports StreamReports`() = runBlocking<Unit> {
-    val request = StreamReportsRequest.getDefaultInstance()
-
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-    }.build()
-
-    val result = reportsStub.streamReports(request)
-    assertThat(result.toList())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expected)
-  }
+      assertThat(readAllReportsInSpanner()).comparingExpectedFieldsOnly().containsExactly(expected)
+    }
 
   @Test
-  fun `Reports StreamReadyReports`() = runBlocking<Unit> {
-    databaseClient.write(
-      Mutation.newUpdateBuilder("Reports")
-        .set("AdvertiserId").to(ADVERTISER_ID)
-        .set("ReportConfigId").to(REPORT_CONFIG_ID)
-        .set("ScheduleId").to(SCHEDULE_ID)
-        .set("ReportId").to(REPORT_ID)
-        .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
-        .build(),
-      Mutation.newUpdateBuilder("Requisitions")
-        .set("DataProviderId").to(DATA_PROVIDER_ID)
-        .set("CampaignId").to(CAMPAIGN_ID)
-        .set("RequisitionId").to(REQUISITION_ID)
-        .set("DuchyId").to(DUCHY_ID)
-        .set("State").toProtoEnum(RequisitionState.FULFILLED)
-        .build()
-    )
+  fun `Reports StreamReports`() =
+    runBlocking<Unit> {
+      val request = StreamReportsRequest.getDefaultInstance()
 
-    insertReportRequisition(
-      ADVERTISER_ID,
-      REPORT_CONFIG_ID,
-      SCHEDULE_ID,
-      REPORT_ID,
-      DATA_PROVIDER_ID,
-      CAMPAIGN_ID,
-      REQUISITION_ID
-    )
+      val expected =
+        Report.newBuilder()
+          .apply {
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+          }
+          .build()
 
-    val request = StreamReadyReportsRequest.getDefaultInstance()
+      val result = reportsStub.streamReports(request)
+      assertThat(result.toList()).comparingExpectedFieldsOnly().containsExactly(expected)
+    }
 
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-    }.build()
+  @Test
+  fun `Reports StreamReadyReports`() =
+    runBlocking<Unit> {
+      databaseClient.write(
+        Mutation.newUpdateBuilder("Reports")
+          .set("AdvertiserId")
+          .to(ADVERTISER_ID)
+          .set("ReportConfigId")
+          .to(REPORT_CONFIG_ID)
+          .set("ScheduleId")
+          .to(SCHEDULE_ID)
+          .set("ReportId")
+          .to(REPORT_ID)
+          .set("State")
+          .toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
+          .build(),
+        Mutation.newUpdateBuilder("Requisitions")
+          .set("DataProviderId")
+          .to(DATA_PROVIDER_ID)
+          .set("CampaignId")
+          .to(CAMPAIGN_ID)
+          .set("RequisitionId")
+          .to(REQUISITION_ID)
+          .set("DuchyId")
+          .to(DUCHY_ID)
+          .set("State")
+          .toProtoEnum(RequisitionState.FULFILLED)
+          .build()
+      )
 
-    val result = reportsStub.streamReadyReports(request)
-    assertThat(result.toList())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expected)
-  }
+      insertReportRequisition(
+        ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        REPORT_ID,
+        DATA_PROVIDER_ID,
+        CAMPAIGN_ID,
+        REQUISITION_ID
+      )
+
+      val request = StreamReadyReportsRequest.getDefaultInstance()
+
+      val expected =
+        Report.newBuilder()
+          .apply {
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+          }
+          .build()
+
+      val result = reportsStub.streamReadyReports(request)
+      assertThat(result.toList()).comparingExpectedFieldsOnly().containsExactly(expected)
+    }
 
   @Test
   fun `Reports UpdateReportState`() = runBlocking {
-    val request = UpdateReportStateRequest.newBuilder().apply {
-      externalReportId = EXTERNAL_REPORT_ID
-      state = ReportState.FAILED
-    }.build()
+    val request =
+      UpdateReportStateRequest.newBuilder()
+        .apply {
+          externalReportId = EXTERNAL_REPORT_ID
+          state = ReportState.FAILED
+        }
+        .build()
 
-    val expected = Report.newBuilder().apply {
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-    }.build()
+    val expected =
+      Report.newBuilder()
+        .apply {
+          externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+          externalScheduleId = EXTERNAL_SCHEDULE_ID
+          externalReportId = EXTERNAL_REPORT_ID
+        }
+        .build()
 
     val result = reportsStub.updateReportState(request)
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
   }
 
   @Test
   fun `Reports AssociateRequisition`() = runBlocking {
-    val request = AssociateRequisitionRequest.newBuilder().apply {
-      externalReportId = EXTERNAL_REPORT_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-    }.build()
+    val request =
+      AssociateRequisitionRequest.newBuilder()
+        .apply {
+          externalReportId = EXTERNAL_REPORT_ID
+          externalRequisitionId = EXTERNAL_REQUISITION_ID
+        }
+        .build()
 
     val expected = AssociateRequisitionResponse.getDefaultInstance()
 
     val result = reportsStub.associateRequisition(request)
     assertThat(result).isEqualTo(expected)
 
-    val key = Key.of(
-      // Report PK
-      ADVERTISER_ID,
-      REPORT_CONFIG_ID,
-      SCHEDULE_ID,
-      REPORT_ID,
+    val key =
+      Key.of(
+        // Report PK
+        ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        REPORT_ID,
 
-      // Requisition PK
-      DATA_PROVIDER_ID,
-      CAMPAIGN_ID,
-      REQUISITION_ID
-    )
+        // Requisition PK
+        DATA_PROVIDER_ID,
+        CAMPAIGN_ID,
+        REQUISITION_ID
+      )
 
     val spannerResult =
-      databaseClient.singleUse()
+      databaseClient
+        .singleUse()
         .read("ReportRequisitions", KeySet.singleKey(key), listOf("AdvertiserId"))
         .singleOrNull()
 
@@ -458,111 +508,123 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `ReportLogEntries CreateReportLogEntry`() = runBlocking {
-    val request = ReportLogEntry.newBuilder().apply {
-      externalReportId = EXTERNAL_REPORT_ID
-      sourceBuilder.duchyBuilder.duchyId = "some-duchy"
-    }.build()
+    val request =
+      ReportLogEntry.newBuilder()
+        .apply {
+          externalReportId = EXTERNAL_REPORT_ID
+          sourceBuilder.duchyBuilder.duchyId = "some-duchy"
+        }
+        .build()
 
     val timeBefore = currentSpannerTimestamp
     val result = reportLogEntriesStub.createReportLogEntry(request)
     val timeAfter = currentSpannerTimestamp
 
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(request)
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(request)
 
     val createTime = result.createTime.toInstant()
     assertThat(createTime).isIn(Range.open(timeBefore, timeAfter))
 
-    val key = Key.of(
-      ADVERTISER_ID,
-      REPORT_CONFIG_ID,
-      SCHEDULE_ID,
-      REPORT_ID,
-      result.createTime.toGcloudTimestamp()
-    )
+    val key =
+      Key.of(
+        ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        REPORT_ID,
+        result.createTime.toGcloudTimestamp()
+      )
 
-    val spannerResult = databaseClient.singleUse()
-      .read("ReportLogEntries", KeySet.singleKey(key), listOf("AdvertiserId"))
-      .singleOrNull()
+    val spannerResult =
+      databaseClient
+        .singleUse()
+        .read("ReportLogEntries", KeySet.singleKey(key), listOf("AdvertiserId"))
+        .singleOrNull()
 
     assertThat(spannerResult).isNotNull()
   }
 
   @Test
   fun `Requisitions CreateRequisition`() = runBlocking {
-    val request = Requisition.newBuilder().apply {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalCampaignId = EXTERNAL_CAMPAIGN_ID
-      combinedPublicKeyResourceId = "some-combined-public-key"
-      windowStartTimeBuilder.seconds = 123
-      windowEndTimeBuilder.seconds = 456
-      state = RequisitionState.UNFULFILLED
-    }.build()
+    val request =
+      Requisition.newBuilder()
+        .apply {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalCampaignId = EXTERNAL_CAMPAIGN_ID
+          combinedPublicKeyResourceId = "some-combined-public-key"
+          windowStartTimeBuilder.seconds = 123
+          windowEndTimeBuilder.seconds = 456
+          state = RequisitionState.UNFULFILLED
+        }
+        .build()
 
     val timeBefore = currentSpannerTimestamp
     val result = requisitionsStub.createRequisition(request)
     val timeAfter = currentSpannerTimestamp
 
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(request)
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(request)
 
     assertThat(result.createTime.toInstant()).isIn(Range.open(timeBefore, timeAfter))
 
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .contains(result)
+    assertThat(readAllRequisitionsInSpanner()).comparingExpectedFieldsOnly().contains(result)
   }
 
   @Test
-  fun `Requisitions FulfillRequisition`() = runBlocking<Unit> {
-    val request = FulfillRequisitionRequest.newBuilder().apply {
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-      duchyId = DUCHY_ID
-    }.build()
+  fun `Requisitions FulfillRequisition`() =
+    runBlocking<Unit> {
+      val request =
+        FulfillRequisitionRequest.newBuilder()
+          .apply {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            duchyId = DUCHY_ID
+          }
+          .build()
 
-    val expected = Requisition.newBuilder().apply {
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-      state = RequisitionState.FULFILLED
-      duchyId = DUCHY_ID
-    }.build()
+      val expected =
+        Requisition.newBuilder()
+          .apply {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            state = RequisitionState.FULFILLED
+            duchyId = DUCHY_ID
+          }
+          .build()
 
-    val result = requisitionsStub.fulfillRequisition(request)
+      val result = requisitionsStub.fulfillRequisition(request)
 
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+      assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
 
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(result)
-  }
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(result)
+    }
 
   @Test
-  fun `Requisitions StreamRequisitions`() = runBlocking<Unit> {
-    databaseClient.write(
-      Mutation.newUpdateBuilder("Requisitions")
-        .set("DataProviderId").to(DATA_PROVIDER_ID)
-        .set("CampaignId").to(CAMPAIGN_ID)
-        .set("RequisitionId").to(REQUISITION_ID)
-        .set("CreateTime").to(Instant.now().toGcloudTimestamp())
-        .build()
-    )
+  fun `Requisitions StreamRequisitions`() =
+    runBlocking<Unit> {
+      databaseClient.write(
+        Mutation.newUpdateBuilder("Requisitions")
+          .set("DataProviderId")
+          .to(DATA_PROVIDER_ID)
+          .set("CampaignId")
+          .to(CAMPAIGN_ID)
+          .set("RequisitionId")
+          .to(REQUISITION_ID)
+          .set("CreateTime")
+          .to(Instant.now().toGcloudTimestamp())
+          .build()
+      )
 
-    val request = StreamRequisitionsRequest.newBuilder().apply {
-      limit = 12345
-    }.build()
+      val request = StreamRequisitionsRequest.newBuilder().apply { limit = 12345 }.build()
 
-    val expected = Requisition.newBuilder().apply {
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalCampaignId = EXTERNAL_CAMPAIGN_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-    }.build()
+      val expected =
+        Requisition.newBuilder()
+          .apply {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalCampaignId = EXTERNAL_CAMPAIGN_ID
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+          }
+          .build()
 
-    val result = requisitionsStub.streamRequisitions(request).toList()
-    assertThat(result)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expected)
-  }
+      val result = requisitionsStub.streamRequisitions(request).toList()
+      assertThat(result).comparingExpectedFieldsOnly().containsExactly(expected)
+    }
 }

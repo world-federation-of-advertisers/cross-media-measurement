@@ -42,8 +42,7 @@ class FileSystemStorageServiceTest : AbstractStorageClientTest<ForwardedStorageC
     addService(FileSystemStorageService(tempDirectory.root))
   }
 
-  @get:Rule
-  val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
+  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   private val storageStub = ForwardedStorageCoroutineStub(grpcTestServerRule.channel)
 
@@ -54,38 +53,47 @@ class FileSystemStorageServiceTest : AbstractStorageClientTest<ForwardedStorageC
 
   @Test
   fun `getBlobMetadata returns NOT_FOUND when blobKey does not exist`() {
-    val e = assertThrows(StatusException::class.java) {
-      runBlocking {
-        storageStub.getBlobMetadata(
-          GetBlobMetadataRequest.newBuilder().setBlobKey("get/blob/size/returns/not/found").build()
-        )
+    val e =
+      assertThrows(StatusException::class.java) {
+        runBlocking {
+          storageStub.getBlobMetadata(
+            GetBlobMetadataRequest.newBuilder()
+              .setBlobKey("get/blob/size/returns/not/found")
+              .build()
+          )
+        }
       }
-    }
     assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
   fun `readBlob returns NOT_FOUND when blobKey does not exist`() {
-    val e = assertThrows(StatusException::class.java) {
-      runBlocking {
-        storageStub.readBlob(
-          ReadBlobRequest.newBuilder().setBlobKey("read/blob/returns/not/found").setChunkSize(4096)
-            .build()
-        ).toList()
+    val e =
+      assertThrows(StatusException::class.java) {
+        runBlocking {
+          storageStub
+            .readBlob(
+              ReadBlobRequest.newBuilder()
+                .setBlobKey("read/blob/returns/not/found")
+                .setChunkSize(4096)
+                .build()
+            )
+            .toList()
+        }
       }
-    }
     assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
   fun `deleteBlob returns NOT_FOUND when blobKey does not exist`() {
-    val e = assertThrows(StatusException::class.java) {
-      runBlocking {
-        storageStub.deleteBlob(
-          DeleteBlobRequest.newBuilder().setBlobKey("delete/blob/returns/not/found").build()
-        )
+    val e =
+      assertThrows(StatusException::class.java) {
+        runBlocking {
+          storageStub.deleteBlob(
+            DeleteBlobRequest.newBuilder().setBlobKey("delete/blob/returns/not/found").build()
+          )
+        }
       }
-    }
     assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 }

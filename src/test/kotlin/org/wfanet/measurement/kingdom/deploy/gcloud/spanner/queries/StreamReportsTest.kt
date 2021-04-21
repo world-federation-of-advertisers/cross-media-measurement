@@ -44,12 +44,15 @@ private const val EXTERNAL_REPORT_ID1 = 10L
 private const val EXTERNAL_REPORT_ID2 = 11L
 private const val EXTERNAL_REPORT_ID3 = 12L
 
-private val REPORT1: Report = Report.newBuilder().apply {
-  externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-  externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-  externalScheduleId = EXTERNAL_SCHEDULE_ID
-  externalReportId = EXTERNAL_REPORT_ID1
-}.build()
+private val REPORT1: Report =
+  Report.newBuilder()
+    .apply {
+      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      externalScheduleId = EXTERNAL_SCHEDULE_ID
+      externalReportId = EXTERNAL_REPORT_ID1
+    }
+    .build()
 
 private val REPORT2: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID2).build()
 private val REPORT3: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID3).build()
@@ -104,46 +107,48 @@ class StreamReportsTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `create time`() = runBlocking<Unit> {
-    suspend fun executeWithTimeFilter(time: Instant) =
-      executeToList(streamReportsFilter(updatedAfter = time), 100)
+  fun `create time`() =
+    runBlocking<Unit> {
+      suspend fun executeWithTimeFilter(time: Instant) =
+        executeToList(streamReportsFilter(updatedAfter = time), 100)
 
-    val all = executeWithTimeFilter(Instant.EPOCH)
+      val all = executeWithTimeFilter(Instant.EPOCH)
 
-    assertThat(all)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REPORT1, REPORT2, REPORT3)
-      .inOrder()
+      assertThat(all)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REPORT1, REPORT2, REPORT3)
+        .inOrder()
 
-    assertThat(executeWithTimeFilter(all[0].createTime.toInstant()))
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REPORT2, REPORT3)
-  }
+      assertThat(executeWithTimeFilter(all[0].createTime.toInstant()))
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REPORT2, REPORT3)
+    }
 
   @Test
   fun `external id filters`() = runBlocking {
     fun wrongIdIf(condition: Boolean, id: Long) = ExternalId(if (condition) UNUSED_ID else id)
 
     repeat(3) {
-      val filter = streamReportsFilter(
-        externalAdvertiserIds = listOf(wrongIdIf(it == 0, EXTERNAL_ADVERTISER_ID)),
-        externalReportConfigIds = listOf(wrongIdIf(it == 1, EXTERNAL_REPORT_CONFIG_ID)),
-        externalScheduleIds = listOf(wrongIdIf(it == 2, EXTERNAL_SCHEDULE_ID))
-      )
-      assertThat(executeToList(filter, 10))
-        .isEmpty()
+      val filter =
+        streamReportsFilter(
+          externalAdvertiserIds = listOf(wrongIdIf(it == 0, EXTERNAL_ADVERTISER_ID)),
+          externalReportConfigIds = listOf(wrongIdIf(it == 1, EXTERNAL_REPORT_CONFIG_ID)),
+          externalScheduleIds = listOf(wrongIdIf(it == 2, EXTERNAL_SCHEDULE_ID))
+        )
+      assertThat(executeToList(filter, 10)).isEmpty()
     }
   }
 
   @Test
   fun `all filters`() = runBlocking {
-    val filter = streamReportsFilter(
-      externalAdvertiserIds = listOf(ExternalId(EXTERNAL_ADVERTISER_ID)),
-      externalReportConfigIds = listOf(ExternalId(EXTERNAL_REPORT_CONFIG_ID)),
-      externalScheduleIds = listOf(ExternalId(EXTERNAL_SCHEDULE_ID)),
-      states = listOf(ReportState.IN_PROGRESS),
-      updatedAfter = Instant.EPOCH
-    )
+    val filter =
+      streamReportsFilter(
+        externalAdvertiserIds = listOf(ExternalId(EXTERNAL_ADVERTISER_ID)),
+        externalReportConfigIds = listOf(ExternalId(EXTERNAL_REPORT_CONFIG_ID)),
+        externalScheduleIds = listOf(ExternalId(EXTERNAL_SCHEDULE_ID)),
+        states = listOf(ReportState.IN_PROGRESS),
+        updatedAfter = Instant.EPOCH
+      )
     assertThat(executeToList(filter, 10))
       .comparingExpectedFieldsOnly()
       .containsExactly(REPORT1, REPORT2, REPORT3)

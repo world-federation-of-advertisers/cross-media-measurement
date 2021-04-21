@@ -25,8 +25,8 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
 /**
- * Implementation of [MetricValuesServer] using Google Cloud Spanner for
- * database and ForwardedStorage service for storage.
+ * Implementation of [MetricValuesServer] using Google Cloud Spanner for database and
+ * ForwardedStorage service for storage.
  */
 @CommandLine.Command(
   name = "SpannerForwardedStorageMetricValuesServer",
@@ -35,11 +35,9 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 private class SpannerForwardedStorageMetricValuesServer : MetricValuesServer() {
-  @CommandLine.Mixin
-  private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
-  @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()

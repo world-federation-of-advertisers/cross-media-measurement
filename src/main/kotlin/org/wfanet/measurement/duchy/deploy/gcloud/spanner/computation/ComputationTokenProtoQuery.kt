@@ -26,12 +26,11 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 
-/** Query for fields needed to make a [ComputationToken] .*/
+/** Query for fields needed to make a [ComputationToken] . */
 class ComputationTokenProtoQuery(
   val parseStageEnum: (ComputationStageLongValues) -> ComputationStage,
   globalId: String
-) :
-  SqlBasedQuery<ComputationToken> {
+) : SqlBasedQuery<ComputationToken> {
   companion object {
     private val parameterizedQueryString =
       """
@@ -65,15 +64,17 @@ class ComputationTokenProtoQuery(
       struct
         .getStructList("Blobs")
         .map {
-          ComputationStageBlobMetadata.newBuilder().apply {
-            blobId = it.getLong("BlobId")
-            val blobPath = it.getString("PathToBlob")
-            if (!blobPath.isNullOrBlank()) {
-              path = blobPath
+          ComputationStageBlobMetadata.newBuilder()
+            .apply {
+              blobId = it.getLong("BlobId")
+              val blobPath = it.getString("PathToBlob")
+              if (!blobPath.isNullOrBlank()) {
+                path = blobPath
+              }
+              dependencyType =
+                ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
             }
-            dependencyType =
-              ComputationBlobDependency.forNumber(it.getLong("DependencyType").toInt())
-          }.build()
+            .build()
         }
         .sortedBy { it.blobId }
         .toList()
@@ -81,23 +82,26 @@ class ComputationTokenProtoQuery(
     val computationDetailsProto =
       struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
     val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
-    return ComputationToken.newBuilder().apply {
-      globalComputationId = struct.getString("GlobalComputationId")
-      localComputationId = struct.getLong("ComputationId")
-      computationStage = parseStageEnum(
-        ComputationStageLongValues(
-          struct.getLong("Protocol"),
-          struct.getLong("ComputationStage")
-        )
-      )
-      attempt = struct.getLong("NextAttempt").toInt() - 1
-      computationDetails = computationDetailsProto
-      version = struct.getTimestamp("UpdateTime").toEpochMilli()
-      stageSpecificDetails = stageDetails
+    return ComputationToken.newBuilder()
+      .apply {
+        globalComputationId = struct.getString("GlobalComputationId")
+        localComputationId = struct.getLong("ComputationId")
+        computationStage =
+          parseStageEnum(
+            ComputationStageLongValues(
+              struct.getLong("Protocol"),
+              struct.getLong("ComputationStage")
+            )
+          )
+        attempt = struct.getLong("NextAttempt").toInt() - 1
+        computationDetails = computationDetailsProto
+        version = struct.getTimestamp("UpdateTime").toEpochMilli()
+        stageSpecificDetails = stageDetails
 
-      if (blobs.isNotEmpty()) {
-        addAllBlobs(blobs)
+        if (blobs.isNotEmpty()) {
+          addAllBlobs(blobs)
+        }
       }
-    }.build()
+      .build()
   }
 }

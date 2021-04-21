@@ -57,21 +57,24 @@ class ConfirmDuchyReadiness(
     val expectedIds = requisitions.map { ExternalId(it) }.toSet()
     validateRequisitions(externalRequisitionIds, expectedIds)
 
-    val newReport = reportReadResult.report.toBuilder().apply {
-      reportDetailsBuilder.addConfirmedDuchies(duchyId)
-      if (reportDetails.confirmedDuchiesCount == DuchyIds.size) {
-        state = ReportState.IN_PROGRESS
-      }
-    }.build()
+    val newReport =
+      reportReadResult
+        .report
+        .toBuilder()
+        .apply {
+          reportDetailsBuilder.addConfirmedDuchies(duchyId)
+          if (reportDetails.confirmedDuchiesCount == DuchyIds.size) {
+            state = ReportState.IN_PROGRESS
+          }
+        }
+        .build()
 
     updateReport(reportReadResult, newReport)
 
     return newReport
   }
 
-  private fun TransactionScope.readRequisitionsForReportAndDuchy(
-    reportId: Long
-  ): Flow<Long> {
+  private fun TransactionScope.readRequisitionsForReportAndDuchy(reportId: Long): Flow<Long> {
     val sql =
       """
       SELECT Requisitions.ExternalRequisitionId
@@ -81,13 +84,8 @@ class ConfirmDuchyReadiness(
         AND Requisitions.DuchyId = @duchy_id
       """.trimIndent()
     val statement =
-      Statement.newBuilder(sql)
-        .bind("report_id").to(reportId)
-        .bind("duchy_id").to(duchyId)
-        .build()
-    return transactionContext
-      .executeQuery(statement)
-      .map { it.getLong("ExternalRequisitionId") }
+      Statement.newBuilder(sql).bind("report_id").to(reportId).bind("duchy_id").to(duchyId).build()
+    return transactionContext.executeQuery(statement).map { it.getLong("ExternalRequisitionId") }
   }
 
   private fun validateRequisitions(providedIds: Set<ExternalId>, expectedIds: Set<ExternalId>) {
@@ -106,14 +104,22 @@ class ConfirmDuchyReadiness(
     newReport: Report
   ) {
     Mutation.newUpdateBuilder("Reports")
-      .set("AdvertiserId").to(reportReadResult.advertiserId)
-      .set("ReportConfigId").to(reportReadResult.reportConfigId)
-      .set("ScheduleId").to(reportReadResult.scheduleId)
-      .set("ReportId").to(reportReadResult.reportId)
-      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("ReportDetails").toProtoBytes(newReport.reportDetails)
-      .set("ReportDetailsJson").toProtoJson(newReport.reportDetails)
-      .set("State").toProtoEnum(newReport.state)
+      .set("AdvertiserId")
+      .to(reportReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(reportReadResult.reportConfigId)
+      .set("ScheduleId")
+      .to(reportReadResult.scheduleId)
+      .set("ReportId")
+      .to(reportReadResult.reportId)
+      .set("UpdateTime")
+      .to(Value.COMMIT_TIMESTAMP)
+      .set("ReportDetails")
+      .toProtoBytes(newReport.reportDetails)
+      .set("ReportDetailsJson")
+      .toProtoJson(newReport.reportDetails)
+      .set("State")
+      .toProtoEnum(newReport.state)
       .build()
       .bufferTo(transactionContext)
   }

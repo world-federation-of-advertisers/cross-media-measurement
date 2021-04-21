@@ -38,11 +38,8 @@ interface ComputationProtocolStagesEnumHelper<ProtocolT, StageT> {
   /** True if a [protocol] computation may end in the given stage. */
   fun validTerminalStage(protocol: ProtocolT, stage: StageT): Boolean
 
-  /** True if a computation may progress from the [currentStage] to the [nextStage].*/
+  /** True if a computation may progress from the [currentStage] to the [nextStage]. */
   fun validTransition(currentStage: StageT, nextStage: StageT): Boolean
 }
 
-data class ComputationStageLongValues(
-  val protocol: Long,
-  val stage: Long
-)
+data class ComputationStageLongValues(val protocol: Long, val stage: Long)

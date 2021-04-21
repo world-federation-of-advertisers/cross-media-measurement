@@ -20,7 +20,7 @@ interface ComputationProtocolStageDetailsHelper<
   /** Creates the stage specific details for a given computation stage. */
   fun detailsFor(stage: StageT): StageDetailsT
 
-  /** Converts bytes into a [StageDetailsT] based on [protocol] .*/
+  /** Converts bytes into a [StageDetailsT] based on [protocol] . */
   fun parseDetails(protocol: ProtocolT, bytes: ByteArray): StageDetailsT
 
   /** True if a computation with [ComputationDetailsT] can be at [StageT]. */
@@ -33,8 +33,10 @@ interface ComputationProtocolStageDetailsHelper<
   fun outputBlobNumbersForStage(stage: StageT): Int
 
   /** Sets [EndComputationReason] to the [ComputationDetailsT]. */
-  fun setEndingState(details: ComputationDetailsT, reason: EndComputationReason):
-    ComputationDetailsT
+  fun setEndingState(
+    details: ComputationDetailsT,
+    reason: EndComputationReason
+  ): ComputationDetailsT
 
   /** Parses the [ComputationDetailsT] proto from [ByteArray]. */
   fun parseComputationDetails(bytes: ByteArray): ComputationDetailsT

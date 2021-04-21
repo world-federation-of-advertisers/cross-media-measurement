@@ -45,16 +45,22 @@ const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
 const val SKETCH_CONFIG_ID = 123L
 const val PROVIDED_CAMPAIGN_ID = "Campaign 1"
 
-val METRIC_DEFINITION: MetricDefinition = MetricDefinition.newBuilder().apply {
-  sketchBuilder.apply {
-    type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
-    sketchConfigId = SKETCH_CONFIG_ID
-  }
-}.build()
-val REFUSAL: Refusal = Refusal.newBuilder().apply {
-  justification = Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
-  message = "Too old"
-}.build()
+val METRIC_DEFINITION: MetricDefinition =
+  MetricDefinition.newBuilder()
+    .apply {
+      sketchBuilder.apply {
+        type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
+        sketchConfigId = SKETCH_CONFIG_ID
+      }
+    }
+    .build()
+val REFUSAL: Refusal =
+  Refusal.newBuilder()
+    .apply {
+      justification = Refusal.Justification.COLLECTION_INTERVAL_TOO_DISTANT
+      message = "Too old"
+    }
+    .build()
 
 /** Abstract base class for [KingdomRelationalDatabase] tests. */
 @RunWith(JUnit4::class)
@@ -73,17 +79,18 @@ abstract class AbstractKingdomRelationalDatabaseTest {
         PROVIDED_CAMPAIGN_ID
       )
 
-    val requisition = Requisition.newBuilder().apply {
-      externalDataProviderId = campaign.externalDataProviderId
-      externalCampaignId = campaign.externalCampaignId
-      combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
-      windowStartTimeBuilder.seconds = 100
-      windowEndTimeBuilder.seconds = 200
+    val requisition =
+      Requisition.newBuilder()
+        .apply {
+          externalDataProviderId = campaign.externalDataProviderId
+          externalCampaignId = campaign.externalCampaignId
+          combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
+          windowStartTimeBuilder.seconds = 100
+          windowEndTimeBuilder.seconds = 200
 
-      requisitionDetailsBuilder.apply {
-        metricDefinition = METRIC_DEFINITION
-      }
-    }.build()
+          requisitionDetailsBuilder.apply { metricDefinition = METRIC_DEFINITION }
+        }
+        .build()
 
     return RequisitionWithParents(
       advertiser = advertiser,
@@ -103,29 +110,35 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     advertiserId: ExternalId,
     vararg campaignIds: ExternalId
   ): Report {
-    val reportConfig = databaseTestHelper.createReportConfig(
-      ReportConfig.newBuilder().apply {
-        externalAdvertiserId = advertiserId.value
-        reportConfigDetailsBuilder.apply {
-          reportDurationBuilder.apply {
-            unit = TimePeriod.Unit.DAY
-            unitValue = 1
+    val reportConfig =
+      databaseTestHelper.createReportConfig(
+        ReportConfig.newBuilder()
+          .apply {
+            externalAdvertiserId = advertiserId.value
+            reportConfigDetailsBuilder.apply {
+              reportDurationBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                unitValue = 1
+              }
+              addMetricDefinitions(METRIC_DEFINITION)
+            }
           }
-          addMetricDefinitions(METRIC_DEFINITION)
-        }
-      }.build(),
-      campaignIds.asList()
-    )
-    val schedule = databaseTestHelper.createSchedule(
-      ReportConfigSchedule.newBuilder().apply {
-        externalAdvertiserId = reportConfig.externalAdvertiserId
-        externalReportConfigId = reportConfig.externalReportConfigId
-        repetitionSpecBuilder.apply {
-          start = Clock.systemUTC().instant().toProtoTime()
-          repetitionPeriod = reportConfig.reportConfigDetails.reportDuration
-        }
-      }.build()
-    )
+          .build(),
+        campaignIds.asList()
+      )
+    val schedule =
+      databaseTestHelper.createSchedule(
+        ReportConfigSchedule.newBuilder()
+          .apply {
+            externalAdvertiserId = reportConfig.externalAdvertiserId
+            externalReportConfigId = reportConfig.externalReportConfigId
+            repetitionSpecBuilder.apply {
+              start = Clock.systemUTC().instant().toProtoTime()
+              repetitionPeriod = reportConfig.reportConfigDetails.reportDuration
+            }
+          }
+          .build()
+      )
     return database.createNextReport(
       ExternalId(schedule.externalScheduleId),
       COMBINED_PUBLIC_KEY_RESOURCE_ID
@@ -191,14 +204,17 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     database.fulfillRequisition(externalRequisitionId, DUCHY_ID)
 
     val report = database.getReport(externalReportId)
-    assertThat(report.reportDetails.requisitionsList).containsExactly(
-      ReportDetails.ExternalRequisitionKey.newBuilder().also {
-        it.externalCampaignId = requisition.externalCampaignId
-        it.externalDataProviderId = requisition.externalDataProviderId
-        it.externalRequisitionId = requisition.externalRequisitionId
-        it.duchyId = DUCHY_ID
-      }.build()
-    )
+    assertThat(report.reportDetails.requisitionsList)
+      .containsExactly(
+        ReportDetails.ExternalRequisitionKey.newBuilder()
+          .also {
+            it.externalCampaignId = requisition.externalCampaignId
+            it.externalDataProviderId = requisition.externalDataProviderId
+            it.externalRequisitionId = requisition.externalRequisitionId
+            it.duchyId = DUCHY_ID
+          }
+          .build()
+      )
     assertThat(report.updateTime.toInstant()).isGreaterThan(insertedReport.updateTime.toInstant())
   }
 
@@ -247,29 +263,33 @@ abstract class AbstractKingdomRelationalDatabaseTest {
   }
 
   @Test
-  fun `associateRequisitionToReport links requisition and report`() = runBlocking<Unit> {
-    val (_, _, campaign, requisition) = createRequisitionWithParents()
-    val insertedReport =
-      createReportWithParents(
-        ExternalId(campaign.externalAdvertiserId),
-        ExternalId(campaign.externalCampaignId)
+  fun `associateRequisitionToReport links requisition and report`() =
+    runBlocking<Unit> {
+      val (_, _, campaign, requisition) = createRequisitionWithParents()
+      val insertedReport =
+        createReportWithParents(
+          ExternalId(campaign.externalAdvertiserId),
+          ExternalId(campaign.externalCampaignId)
+        )
+
+      val externalReportId = ExternalId(insertedReport.externalReportId)
+      database.associateRequisitionToReport(
+        ExternalId(requisition.externalRequisitionId),
+        externalReportId
       )
 
-    val externalReportId = ExternalId(insertedReport.externalReportId)
-    database.associateRequisitionToReport(
-      ExternalId(requisition.externalRequisitionId),
-      externalReportId
-    )
-
-    val report = database.getReport(externalReportId)
-    assertThat(report.reportDetails.requisitionsList).containsExactly(
-      ReportDetails.ExternalRequisitionKey.newBuilder().apply {
-        externalCampaignId = requisition.externalCampaignId
-        externalDataProviderId = requisition.externalDataProviderId
-        externalRequisitionId = requisition.externalRequisitionId
-      }.build()
-    )
-  }
+      val report = database.getReport(externalReportId)
+      assertThat(report.reportDetails.requisitionsList)
+        .containsExactly(
+          ReportDetails.ExternalRequisitionKey.newBuilder()
+            .apply {
+              externalCampaignId = requisition.externalCampaignId
+              externalDataProviderId = requisition.externalDataProviderId
+              externalRequisitionId = requisition.externalRequisitionId
+            }
+            .build()
+        )
+    }
 
   data class RequisitionWithParents(
     val advertiser: Advertiser,

@@ -51,7 +51,6 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
       REPORT_ID,
       EXTERNAL_REPORT_ID,
       ReportState.AWAITING_REQUISITION_CREATION
-
     )
   }
 
@@ -59,11 +58,16 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
     databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("Reports")
-          .set("AdvertiserId").to(ADVERTISER_ID)
-          .set("ReportConfigId").to(REPORT_CONFIG_ID)
-          .set("ScheduleId").to(SCHEDULE_ID)
-          .set("ReportId").to(REPORT_ID)
-          .set("State").toProtoEnum(state)
+          .set("AdvertiserId")
+          .to(ADVERTISER_ID)
+          .set("ReportConfigId")
+          .to(REPORT_CONFIG_ID)
+          .set("ScheduleId")
+          .to(SCHEDULE_ID)
+          .set("ReportId")
+          .to(REPORT_ID)
+          .set("State")
+          .toProtoEnum(state)
           .build()
       )
     )
@@ -86,13 +90,15 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
     assertThat(report)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        Report.newBuilder().apply {
-          externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-          externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-          externalScheduleId = EXTERNAL_SCHEDULE_ID
-          externalReportId = EXTERNAL_REPORT_ID
-          this.state = state
-        }.build()
+        Report.newBuilder()
+          .apply {
+            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+            this.state = state
+          }
+          .build()
       )
   }
 
@@ -105,12 +111,13 @@ class UpdateReportStateTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `terminal states do not allow updates`() = runBlocking {
-    val terminalStates = setOf(
-      ReportState.REPORT_STATE_UNKNOWN,
-      ReportState.FAILED,
-      ReportState.CANCELLED,
-      ReportState.SUCCEEDED
-    )
+    val terminalStates =
+      setOf(
+        ReportState.REPORT_STATE_UNKNOWN,
+        ReportState.FAILED,
+        ReportState.CANCELLED,
+        ReportState.SUCCEEDED
+      )
     for (terminalState in terminalStates) {
       directlyUpdateState(terminalState)
       assertFails { updateReportState(ReportState.IN_PROGRESS) }

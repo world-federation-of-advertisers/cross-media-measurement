@@ -4,12 +4,6 @@ max_line_length = 100
 trim_trailing_whitespace = true
 insert_final_newline = true
 kotlin_imports_layout=ascii
-# Argument wrapping currently disabled due to
-#   https://github.com/pinterest/ktlint/issues/926
-disabled_rules=experimental:argument-list-wrapping
-
-[*.kts]
-# Comma-separated list of rules to disable
-# AnnotationRule currently disabled due to
-#   https://github.com/pinterest/ktlint/issues/745
-disabled_rules=experimental:annotation,experimental:argument-list-wrapping
+# Comma-separated list of rules to disable.
+# indent, import-ordering, and parameter-list-wrapping rules disabled to avoid conflicts with ktfmt.
+disabled_rules=indent,import-ordering,parameter-list-wrapping

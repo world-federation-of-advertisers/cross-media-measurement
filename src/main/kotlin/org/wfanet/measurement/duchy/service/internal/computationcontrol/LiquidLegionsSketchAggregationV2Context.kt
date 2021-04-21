@@ -28,15 +28,14 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 /**
  * Context for a single [AdvanceComputationRequest] for a LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
- *  computation.
+ * computation.
  *
  * @param request the request received by the Async Computation Control Service for a
- *   LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 computation. It is the context in which these functions
- *   operate.
+ * LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 computation. It is the context in which these functions
+ * operate.
  */
-class LiquidLegionsSketchAggregationV2Context(
-  override val request: AdvanceComputationRequest
-) : SingleRequestContext {
+class LiquidLegionsSketchAggregationV2Context(override val request: AdvanceComputationRequest) :
+  SingleRequestContext {
 
   override val computationType = LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 
@@ -53,10 +52,11 @@ class LiquidLegionsSketchAggregationV2Context(
       Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
       Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
       Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> token.singleOutputBlobMetadata()
-      else -> failGrpc {
-        "Not expecting to advance computation in stage ${token.computationStage} through the " +
-          "AsyncComputationControl Service"
-      }
+      else ->
+        failGrpc {
+          "Not expecting to advance computation in stage ${token.computationStage} through the " +
+            "AsyncComputationControl Service"
+        }
     }
 
   override fun nextStage(
@@ -68,9 +68,8 @@ class LiquidLegionsSketchAggregationV2Context(
       Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS -> Stage.EXECUTION_PHASE_ONE
       Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS -> Stage.EXECUTION_PHASE_TWO
       Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> Stage.EXECUTION_PHASE_THREE
-      else -> failGrpc {
-        "Next liquid legions v2 stage unknown for ($computationDetails, stage: $stage)"
-      }
+      else ->
+        failGrpc { "Next liquid legions v2 stage unknown for ($computationDetails, stage: $stage)" }
     }.toProtocolStage()
   }
 }

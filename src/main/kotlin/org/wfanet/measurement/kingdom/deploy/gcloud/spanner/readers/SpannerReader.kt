@@ -20,16 +20,12 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
-/**
- * Abstraction for reading rows from Spanner and translating into more expressive objects.
- */
+/** Abstraction for reading rows from Spanner and translating into more expressive objects. */
 abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
   protected abstract val baseSql: String
   protected abstract val externalIdColumn: String
 
-  override val builder: Statement.Builder by lazy {
-    Statement.newBuilder(baseSql)
-  }
+  override val builder: Statement.Builder by lazy { Statement.newBuilder(baseSql) }
 
   fun withBuilder(block: Statement.Builder.() -> Unit): SpannerReader<T> {
     builder.block()
@@ -40,8 +36,7 @@ abstract class SpannerReader<T : Any> : BaseSpannerReader<T>() {
     readContext: AsyncDatabaseClient.ReadContext,
     externalId: ExternalId
   ): T? {
-    return this
-      .withBuilder {
+    return this.withBuilder {
         appendClause("WHERE $externalIdColumn = @external_id")
         bind("external_id").to(externalId.value)
 

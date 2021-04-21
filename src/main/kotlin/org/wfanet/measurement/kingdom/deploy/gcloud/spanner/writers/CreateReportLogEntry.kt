@@ -23,32 +23,34 @@ import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 
-class CreateReportLogEntry(
-  private val reportLogEntry: ReportLogEntry
-) : SpannerWriter<Unit, ReportLogEntry>() {
+class CreateReportLogEntry(private val reportLogEntry: ReportLogEntry) :
+  SpannerWriter<Unit, ReportLogEntry>() {
 
   override suspend fun TransactionScope.runTransaction() {
     val externalId = ExternalId(reportLogEntry.externalReportId)
     val reportReadResult = ReportReader().readExternalId(transactionContext, externalId)
-    reportLogEntry
-      .toInsertMutation(reportReadResult)
-      .bufferTo(transactionContext)
+    reportLogEntry.toInsertMutation(reportReadResult).bufferTo(transactionContext)
   }
 
   override fun ResultScope<Unit>.buildResult(): ReportLogEntry {
-    return reportLogEntry.toBuilder().apply {
-      createTime = commitTimestamp.toProto()
-    }.build()
+    return reportLogEntry.toBuilder().apply { createTime = commitTimestamp.toProto() }.build()
   }
 }
 
 private fun ReportLogEntry.toInsertMutation(reportReadResult: ReportReader.Result): Mutation =
   Mutation.newInsertBuilder("ReportLogEntries")
-    .set("AdvertiserId").to(reportReadResult.advertiserId)
-    .set("ReportConfigId").to(reportReadResult.reportConfigId)
-    .set("ScheduleId").to(reportReadResult.scheduleId)
-    .set("ReportId").to(reportReadResult.reportId)
-    .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
-    .set("ReportLogDetails").toProtoBytes(reportLogDetails)
-    .set("ReportLogDetailsJson").toProtoJson(reportLogDetails)
+    .set("AdvertiserId")
+    .to(reportReadResult.advertiserId)
+    .set("ReportConfigId")
+    .to(reportReadResult.reportConfigId)
+    .set("ScheduleId")
+    .to(reportReadResult.scheduleId)
+    .set("ReportId")
+    .to(reportReadResult.reportId)
+    .set("CreateTime")
+    .to(Value.COMMIT_TIMESTAMP)
+    .set("ReportLogDetails")
+    .toProtoBytes(reportLogDetails)
+    .set("ReportLogDetailsJson")
+    .toProtoJson(reportLogDetails)
     .build()

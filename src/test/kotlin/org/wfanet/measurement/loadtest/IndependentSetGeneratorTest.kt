@@ -29,11 +29,7 @@ class IndependentSetGeneratorTest {
   fun `set with same seed first value match succeeds`() {
     val random = Random(DEFAULT_SEED)
     val universeSize: Long = 1000000
-    val setGenerator = generateIndependentSets(
-      universeSize,
-      1,
-      random
-    )
+    val setGenerator = generateIndependentSets(universeSize, 1, random)
 
     // Generate new Random object with the same seed to generate same numbers.
     val random2 = Random(DEFAULT_SEED)
@@ -43,21 +39,14 @@ class IndependentSetGeneratorTest {
 
   @Test
   fun `set contains 0 to n values succeeds`() {
-    val setGenerator = generateIndependentSets(
-      100,
-      100
-    )
+    val setGenerator = generateIndependentSets(100, 100)
     assertThat(setGenerator.first()).containsExactlyElementsIn(0L..99L)
   }
 
   @Test
   fun `set size succeeds`() {
     val random = Random(DEFAULT_SEED)
-    val setGenerator = generateIndependentSets(
-      99,
-      33,
-      random
-    ).take(10)
+    val setGenerator = generateIndependentSets(99, 33, random).take(10)
     var size = 0
     setGenerator.forEach {
       size++
@@ -69,22 +58,13 @@ class IndependentSetGeneratorTest {
   @Test
   fun `set contains no duplicates succeeds`() {
     val random = Random(DEFAULT_SEED)
-    val setGenerator = generateIndependentSets(
-      1000,
-      100,
-      random
-    ).take(10)
-    setGenerator.forEach {
-      assertThat(it).containsNoDuplicates()
-    }
+    val setGenerator = generateIndependentSets(1000, 100, random).take(10)
+    setGenerator.forEach { assertThat(it).containsNoDuplicates() }
   }
 
   @Test
   fun `set none without elements succeeds`() {
-    val setGenerator = generateIndependentSets(
-      100,
-      100
-    ).take(0)
+    val setGenerator = generateIndependentSets(100, 100).take(0)
 
     assertThat(setGenerator.none()).isTrue()
   }
@@ -92,20 +72,14 @@ class IndependentSetGeneratorTest {
   @Test
   fun `set set size out of bounds throws`() {
     assertFailsWith(IllegalArgumentException::class, "SetSize larger than UniverseSize") {
-      generateIndependentSets(
-        10,
-        100
-      ).first()
+      generateIndependentSets(10, 100).first()
     }
   }
 
   @Test
   fun `set universe size out of bounds throws`() {
     assertFailsWith(IllegalArgumentException::class, "Universe size less than 1") {
-      generateIndependentSets(
-        -10,
-        1
-      ).first()
+      generateIndependentSets(-10, 1).first()
     }
   }
 }

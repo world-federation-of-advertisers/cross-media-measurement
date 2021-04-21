@@ -30,10 +30,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  * @param filter a filter to control which [Requisition]s to return
  * @param limit how many [Requisition]s to return -- if zero, there is no limit
  */
-class StreamRequisitions(
-  filter: StreamRequisitionsFilter,
-  limit: Long
-) : SpannerQuery<RequisitionReader.Result, Requisition>() {
+class StreamRequisitions(filter: StreamRequisitionsFilter, limit: Long) :
+  SpannerQuery<RequisitionReader.Result, Requisition>() {
 
   override val reader: BaseSpannerReader<RequisitionReader.Result> by lazy {
     RequisitionReader().withBuilder {

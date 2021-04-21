@@ -53,14 +53,10 @@ fun Struct.getNullableTimestamp(column: String): Timestamp? =
 fun Struct.getNullableLong(column: String): Long? =
   nullOrValue(column, Type.Code.INT64, Struct::getLong)
 
-/**
- * Returns a bytes column as a Kotlin native ByteArray. This is useful for deserializing protos.
- */
+/** Returns a bytes column as a Kotlin native ByteArray. This is useful for deserializing protos. */
 fun Struct.getBytesAsByteArray(column: String): ByteArray = getBytes(column).toByteArray()
 
-/**
- * Returns a bytes column as a protobuf ByteString.
- */
+/** Returns a bytes column as a protobuf ByteString. */
 fun Struct.getBytesAsByteString(column: String): ByteString =
   ByteString.copyFrom(getBytes(column).asReadOnlyByteBuffer())
 

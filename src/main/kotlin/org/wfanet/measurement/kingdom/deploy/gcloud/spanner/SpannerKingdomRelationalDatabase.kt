@@ -59,10 +59,9 @@ class SpannerKingdomRelationalDatabase(
   }
 
   override suspend fun getRequisition(externalRequisitionId: ExternalId): Requisition? {
-    return RequisitionReader().readExternalIdOrNull(
-      client.singleUse(),
-      externalRequisitionId
-    )?.requisition
+    return RequisitionReader()
+      .readExternalIdOrNull(client.singleUse(), externalRequisitionId)
+      ?.requisition
   }
 
   override suspend fun fulfillRequisition(

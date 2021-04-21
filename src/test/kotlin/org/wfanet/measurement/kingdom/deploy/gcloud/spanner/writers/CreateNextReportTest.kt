@@ -53,11 +53,8 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
   private val idGenerator = FixedIdGenerator(InternalId(REPORT_ID), ExternalId(EXTERNAL_REPORT_ID))
 
   private fun createNextReport(): Report = runBlocking {
-    CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID), COMBINED_PUBLIC_KEY_RESOURCE_ID).execute(
-      databaseClient,
-      idGenerator,
-      clock
-    )
+    CreateNextReport(ExternalId(EXTERNAL_SCHEDULE_ID), COMBINED_PUBLIC_KEY_RESOURCE_ID)
+      .execute(databaseClient, idGenerator, clock)
   }
 
   @Before
@@ -67,113 +64,126 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
       EXTERNAL_REPORT_CONFIG_ID,
-      reportConfigDetails = ReportConfigDetails.newBuilder().apply {
-        reportDurationBuilder.apply {
-          unit = TimePeriod.Unit.DAY
-          count = 3
-        }
-      }.build()
+      reportConfigDetails =
+        ReportConfigDetails.newBuilder()
+          .apply {
+            reportDurationBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 3
+            }
+          }
+          .build()
     )
   }
 
   @Test
-  fun success() = runBlocking<Unit> {
-    clock.tickSeconds("nextReportStartTime")
-    clock.tickSeconds("now")
+  fun success() =
+    runBlocking<Unit> {
+      clock.tickSeconds("nextReportStartTime")
+      clock.tickSeconds("now")
 
-    val scheduleRepetitionSpec: RepetitionSpec = RepetitionSpec.newBuilder().apply {
-      repetitionPeriodBuilder.apply {
-        unit = TimePeriod.Unit.DAY
-        count = 14
-      }
-    }.build()
+      val scheduleRepetitionSpec: RepetitionSpec =
+        RepetitionSpec.newBuilder()
+          .apply {
+            repetitionPeriodBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 14
+            }
+          }
+          .build()
 
-    insertReportConfigSchedule(
-      advertiserId = ADVERTISER_ID,
-      reportConfigId = REPORT_CONFIG_ID,
-      scheduleId = SCHEDULE_ID,
-      externalScheduleId = EXTERNAL_SCHEDULE_ID,
-      nextReportStartTime = clock["nextReportStartTime"],
-      repetitionSpec = scheduleRepetitionSpec
-    )
+      insertReportConfigSchedule(
+        advertiserId = ADVERTISER_ID,
+        reportConfigId = REPORT_CONFIG_ID,
+        scheduleId = SCHEDULE_ID,
+        externalScheduleId = EXTERNAL_SCHEDULE_ID,
+        nextReportStartTime = clock["nextReportStartTime"],
+        repetitionSpec = scheduleRepetitionSpec
+      )
 
-    val timestampBefore = currentSpannerTimestamp
-    val report = createNextReport()
-    val timestampAfter = currentSpannerTimestamp
+      val timestampBefore = currentSpannerTimestamp
+      val report = createNextReport()
+      val timestampAfter = currentSpannerTimestamp
 
-    val expectedReport: Report = Report.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-      reportDetailsBuilder.combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
-      windowStartTime = clock["nextReportStartTime"].toProtoTime()
-      windowEndTime = (clock["nextReportStartTime"] + Period.ofDays(3)).toProtoTime()
-      state = ReportState.AWAITING_REQUISITION_CREATION
-    }.build()
+      val expectedReport: Report =
+        Report.newBuilder()
+          .apply {
+            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+            reportDetailsBuilder.combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
+            windowStartTime = clock["nextReportStartTime"].toProtoTime()
+            windowEndTime = (clock["nextReportStartTime"] + Period.ofDays(3)).toProtoTime()
+            state = ReportState.AWAITING_REQUISITION_CREATION
+          }
+          .build()
 
-    assertThat(report)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedReport)
+      assertThat(report).comparingExpectedFieldsOnly().isEqualTo(expectedReport)
 
-    assertThat(report.createTime).isEqualTo(report.updateTime)
-    assertThat(report.createTime.toInstant()).isGreaterThan(timestampBefore)
-    assertThat(report.createTime.toInstant()).isLessThan(timestampAfter)
+      assertThat(report.createTime).isEqualTo(report.updateTime)
+      assertThat(report.createTime.toInstant()).isGreaterThan(timestampBefore)
+      assertThat(report.createTime.toInstant()).isLessThan(timestampAfter)
 
-    assertThat(readAllReportsInSpanner())
-      .containsExactly(report)
+      assertThat(readAllReportsInSpanner()).containsExactly(report)
 
-    val expectedSchedule: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      repetitionSpec = scheduleRepetitionSpec
-      nextReportStartTime = clock["nextReportStartTime"].plus(Period.ofDays(14)).toProtoTime()
-    }.build()
+      val expectedSchedule: ReportConfigSchedule =
+        ReportConfigSchedule.newBuilder()
+          .apply {
+            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            repetitionSpec = scheduleRepetitionSpec
+            nextReportStartTime = clock["nextReportStartTime"].plus(Period.ofDays(14)).toProtoTime()
+          }
+          .build()
 
-    assertThat(readAllSchedulesInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expectedSchedule)
-  }
+      assertThat(readAllSchedulesInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(expectedSchedule)
+    }
 
   @Test
-  fun `nextReportStartTime in the future`() = runBlocking<Unit> {
-    clock.tickSeconds("now")
+  fun `nextReportStartTime in the future`() =
+    runBlocking<Unit> {
+      clock.tickSeconds("now")
 
-    val startTime = clock.instant() + Period.ofDays(5)
-    insertReportConfigSchedule(
-      advertiserId = ADVERTISER_ID,
-      reportConfigId = REPORT_CONFIG_ID,
-      scheduleId = SCHEDULE_ID,
-      externalScheduleId = EXTERNAL_SCHEDULE_ID,
-      nextReportStartTime = startTime,
-      repetitionSpec = RepetitionSpec.newBuilder().apply {
-        start = startTime.toProtoTime()
-        repetitionPeriodBuilder.apply {
-          unit = TimePeriod.Unit.DAY
-          count = 1
-        }
-      }.build()
-    )
+      val startTime = clock.instant() + Period.ofDays(5)
+      insertReportConfigSchedule(
+        advertiserId = ADVERTISER_ID,
+        reportConfigId = REPORT_CONFIG_ID,
+        scheduleId = SCHEDULE_ID,
+        externalScheduleId = EXTERNAL_SCHEDULE_ID,
+        nextReportStartTime = startTime,
+        repetitionSpec =
+          RepetitionSpec.newBuilder()
+            .apply {
+              start = startTime.toProtoTime()
+              repetitionPeriodBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                count = 1
+              }
+            }
+            .build()
+      )
 
-    val report = createNextReport()
+      val report = createNextReport()
 
-    val expectedReport = Report.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-      windowStartTime = startTime.toProtoTime()
-      windowEndTime = (startTime + Period.ofDays(3)).toProtoTime()
-      state = ReportState.AWAITING_REQUISITION_CREATION
-    }.build()
+      val expectedReport =
+        Report.newBuilder()
+          .apply {
+            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+            windowStartTime = startTime.toProtoTime()
+            windowEndTime = (startTime + Period.ofDays(3)).toProtoTime()
+            state = ReportState.AWAITING_REQUISITION_CREATION
+          }
+          .build()
 
-    assertThat(report)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedReport)
+      assertThat(report).comparingExpectedFieldsOnly().isEqualTo(expectedReport)
 
-    assertThat(readAllReportsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(report)
-  }
+      assertThat(readAllReportsInSpanner()).comparingExpectedFieldsOnly().containsExactly(report)
+    }
 }

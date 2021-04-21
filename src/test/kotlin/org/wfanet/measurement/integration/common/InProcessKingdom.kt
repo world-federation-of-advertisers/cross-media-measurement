@@ -74,41 +74,43 @@ class InProcessKingdom(
   private val kingdomRelationalDatabase by lazy { kingdomRelationalDatabaseProvider() }
   private val databaseTestHelper by lazy { databaseTestHelperProvider() }
 
-  private val databaseServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-    logger.info("Building Kingdom's internal services")
-    val services =
-      buildDataServices(
-        kingdomRelationalDatabase,
-        kingdomRelationalDatabase,
-        kingdomRelationalDatabase
-      )
-    for (service in services) {
-      addService(service.withVerboseLogging(verboseGrpcLogging))
+  private val databaseServices =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      logger.info("Building Kingdom's internal services")
+      val services =
+        buildDataServices(
+          kingdomRelationalDatabase,
+          kingdomRelationalDatabase,
+          kingdomRelationalDatabase
+        )
+      for (service in services) {
+        addService(service.withVerboseLogging(verboseGrpcLogging))
+      }
     }
-  }
 
-  private val kingdomApiServices = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-    logger.info("Building Kingdom's public API services")
-    val reportsClient = ReportsCoroutineStub(databaseServices.channel)
-    val reportLogEntriesClient = ReportLogEntriesCoroutineStub(databaseServices.channel)
-    val requisitionsClient = RequisitionsCoroutineStub(databaseServices.channel)
+  private val kingdomApiServices =
+    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+      logger.info("Building Kingdom's public API services")
+      val reportsClient = ReportsCoroutineStub(databaseServices.channel)
+      val reportLogEntriesClient = ReportLogEntriesCoroutineStub(databaseServices.channel)
+      val requisitionsClient = RequisitionsCoroutineStub(databaseServices.channel)
 
-    addService(
-      GlobalComputationService(reportsClient, reportLogEntriesClient)
-        .withDuchyIdentities()
-        .withVerboseLogging(verboseGrpcLogging)
-    )
-    addService(
-      RequisitionService(requisitionsClient)
-        .withDuchyIdentities()
-        .withVerboseLogging(verboseGrpcLogging)
-    )
-    addService(
-      SystemRequisitionService(requisitionsClient)
-        .withDuchyIdentities()
-        .withVerboseLogging(verboseGrpcLogging)
-    )
-  }
+      addService(
+        GlobalComputationService(reportsClient, reportLogEntriesClient)
+          .withDuchyIdentities()
+          .withVerboseLogging(verboseGrpcLogging)
+      )
+      addService(
+        RequisitionService(requisitionsClient)
+          .withDuchyIdentities()
+          .withVerboseLogging(verboseGrpcLogging)
+      )
+      addService(
+        SystemRequisitionService(requisitionsClient)
+          .withDuchyIdentities()
+          .withVerboseLogging(verboseGrpcLogging)
+      )
+    }
 
   private val daemonRunner = CloseableResource {
     GlobalScope.launchAsAutoCloseable {
@@ -128,19 +130,18 @@ class InProcessKingdom(
         val reportStorage = ReportsCoroutineStub(databaseServices.channel)
         val requisitionStorage = RequisitionsCoroutineStub(databaseServices.channel)
         val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(200))
-        val daemonDatabaseServicesClient = DaemonDatabaseServicesClientImpl(
-          reportConfigStorage,
-          reportConfigScheduleStorage,
-          reportStorage,
-          requisitionStorage
-        )
+        val daemonDatabaseServicesClient =
+          DaemonDatabaseServicesClientImpl(
+            reportConfigStorage,
+            reportConfigScheduleStorage,
+            reportStorage,
+            requisitionStorage
+          )
         val daemon = Daemon(daemonThrottler, 1, daemonDatabaseServicesClient)
         launch(exceptionHandler + CoroutineName("RequisitionLinker")) {
           daemon.runRequisitionLinker()
         }
-        launch(exceptionHandler + CoroutineName("ReportStarter")) {
-          daemon.runReportStarter()
-        }
+        launch(exceptionHandler + CoroutineName("ReportStarter")) { daemon.runReportStarter() }
         launch(exceptionHandler + CoroutineName("ReportMaker")) {
           daemon.runReportMaker(DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId)
         }
@@ -148,9 +149,7 @@ class InProcessKingdom(
     }
   }
 
-  /**
-   * Provides a gRPC channel to the Kingdom's public APIs.
-   */
+  /** Provides a gRPC channel to the Kingdom's public APIs. */
   val publicApiChannel: Channel
     get() = kingdomApiServices.channel
 
@@ -182,74 +181,82 @@ class InProcessKingdom(
     val externalDataProviderId1 = ExternalId(dataProvider1.externalDataProviderId)
     val externalDataProviderId2 = ExternalId(dataProvider2.externalDataProviderId)
 
-    val campaign1 = databaseTestHelper.createCampaign(
-      externalDataProviderId1,
-      externalAdvertiserId,
-      "Springtime Sale Campaign"
-    )
+    val campaign1 =
+      databaseTestHelper.createCampaign(
+        externalDataProviderId1,
+        externalAdvertiserId,
+        "Springtime Sale Campaign"
+      )
     logger.info("Created a Campaign: $campaign1")
 
-    val campaign2 = databaseTestHelper.createCampaign(
-      externalDataProviderId2,
-      externalAdvertiserId,
-      "Summer Savings Campaign"
-    )
+    val campaign2 =
+      databaseTestHelper.createCampaign(
+        externalDataProviderId2,
+        externalAdvertiserId,
+        "Summer Savings Campaign"
+      )
     logger.info("Created a Campaign: $campaign2")
 
-    val campaign3 = databaseTestHelper.createCampaign(
-      externalDataProviderId2,
-      externalAdvertiserId,
-      "Yet Another Campaign"
-    )
+    val campaign3 =
+      databaseTestHelper.createCampaign(
+        externalDataProviderId2,
+        externalAdvertiserId,
+        "Yet Another Campaign"
+      )
     logger.info("Created a Campaign: $campaign3")
 
     val externalCampaignId1 = ExternalId(campaign1.externalCampaignId)
     val externalCampaignId2 = ExternalId(campaign2.externalCampaignId)
     val externalCampaignId3 = ExternalId(campaign3.externalCampaignId)
 
-    val metricDefinition = MetricDefinition.newBuilder().apply {
-      sketchBuilder.apply {
-        sketchConfigId = 12345L
-        type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
-      }
-    }.build()
-
-    val reportConfig = databaseTestHelper.createReportConfig(
-      ReportConfig.newBuilder()
-        .setExternalAdvertiserId(externalAdvertiserId.value)
+    val metricDefinition =
+      MetricDefinition.newBuilder()
         .apply {
-          numRequisitions = 3
-          reportConfigDetailsBuilder.apply {
-            addMetricDefinitions(metricDefinition)
-            reportDurationBuilder.apply {
-              unit = TimePeriod.Unit.DAY
-              count = 7
-            }
+          sketchBuilder.apply {
+            sketchConfigId = 12345L
+            type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
           }
         }
-        .build(),
-      listOf(externalCampaignId1, externalCampaignId2, externalCampaignId3)
-    )
+        .build()
+
+    val reportConfig =
+      databaseTestHelper.createReportConfig(
+        ReportConfig.newBuilder()
+          .setExternalAdvertiserId(externalAdvertiserId.value)
+          .apply {
+            numRequisitions = 3
+            reportConfigDetailsBuilder.apply {
+              addMetricDefinitions(metricDefinition)
+              reportDurationBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                count = 7
+              }
+            }
+          }
+          .build(),
+        listOf(externalCampaignId1, externalCampaignId2, externalCampaignId3)
+      )
     logger.info("Created a ReportConfig: $reportConfig")
 
     val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
 
-    val schedule = databaseTestHelper.createSchedule(
-      ReportConfigSchedule.newBuilder()
-        .setExternalAdvertiserId(externalAdvertiserId.value)
-        .setExternalReportConfigId(externalReportConfigId.value)
-        .apply {
-          repetitionSpecBuilder.apply {
-            start = Instant.now().toProtoTime()
-            repetitionPeriodBuilder.apply {
-              unit = TimePeriod.Unit.DAY
-              count = 7
+    val schedule =
+      databaseTestHelper.createSchedule(
+        ReportConfigSchedule.newBuilder()
+          .setExternalAdvertiserId(externalAdvertiserId.value)
+          .setExternalReportConfigId(externalReportConfigId.value)
+          .apply {
+            repetitionSpecBuilder.apply {
+              start = Instant.now().toProtoTime()
+              repetitionPeriodBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                count = 7
+              }
             }
+            nextReportStartTime = repetitionSpec.start
           }
-          nextReportStartTime = repetitionSpec.start
-        }
-        .build()
-    )
+          .build()
+      )
     logger.info("Created a ReportConfigSchedule: $schedule")
 
     SetupIdentifiers(

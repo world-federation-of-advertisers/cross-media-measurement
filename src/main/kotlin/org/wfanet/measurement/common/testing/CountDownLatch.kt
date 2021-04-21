@@ -21,8 +21,8 @@ import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.common.CountDownLatch
 
 /**
- * Runs [block] in a coroutine, cancelling the coroutine once [latch]'s
- * [count][CountDownLatch.count] is zero or [timeout] is reached.
+ * Runs [block] in a coroutine, cancelling the coroutine once [latch]'s [count]
+ * [CountDownLatch.count] is zero or [timeout] is reached.
  */
 suspend fun launchAndCancelWithLatch(
   latch: CountDownLatch,

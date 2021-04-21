@@ -31,18 +31,14 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 class SpannerKingdomDataServer : KingdomDataServer() {
-  @CommandLine.Mixin
-  private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->
       val clock = Clock.systemUTC()
 
-      val database = SpannerKingdomRelationalDatabase(
-        clock,
-        RandomIdGenerator(clock),
-        spanner.databaseClient
-      )
+      val database =
+        SpannerKingdomRelationalDatabase(clock, RandomIdGenerator(clock), spanner.databaseClient)
 
       run(database)
     }

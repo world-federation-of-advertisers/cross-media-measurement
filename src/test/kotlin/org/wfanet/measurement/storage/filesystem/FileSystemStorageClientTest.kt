@@ -23,11 +23,10 @@ import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
 
 @RunWith(JUnit4::class)
 class FileSystemStorageClientTest : AbstractStorageClientTest<FileSystemStorageClient>() {
-  @Rule
-  @JvmField
-  val tempDirectory = TemporaryFolder()
+  @Rule @JvmField val tempDirectory = TemporaryFolder()
 
-  @Before fun initClient() {
+  @Before
+  fun initClient() {
     storageClient = FileSystemStorageClient(tempDirectory.root)
   }
 }

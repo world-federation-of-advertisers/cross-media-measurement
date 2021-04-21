@@ -21,9 +21,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
-/**
- * Helper functions to create/start a protocol specific computation.
- */
+/** Helper functions to create/start a protocol specific computation. */
 interface ProtocolStarter {
 
   /** Creates an new computation. */

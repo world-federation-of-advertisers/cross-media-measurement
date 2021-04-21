@@ -54,68 +54,70 @@ import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 
 @RunWith(JUnit4::class)
 class MetricValuesServiceTest {
-  @Rule
-  @JvmField
-  val tempDirectory = TemporaryFolder()
+  @Rule @JvmField val tempDirectory = TemporaryFolder()
 
   private var nextBlobKey = ""
   private val metricValueDbMock: MetricValueDatabase = mock()
   private lateinit var metricValueStore: MetricValueStore
   private lateinit var service: MetricValuesService
 
-  @Before fun initService() {
+  @Before
+  fun initService() {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
     metricValueStore = MetricValueStore.forTesting(storageClient) { nextBlobKey }
     service = MetricValuesService.forTesting(metricValueDbMock, metricValueStore)
   }
 
-  @Test fun `getMetricValue by ID returns MetricValue`() = runBlocking {
+  @Test
+  fun `getMetricValue by ID returns MetricValue`() = runBlocking {
     metricValueDbMock.stub {
-      onBlocking {
-        getMetricValue(ExternalId(testMetricValue.externalId))
-      }.thenReturn(testMetricValue)
+      onBlocking { getMetricValue(ExternalId(testMetricValue.externalId)) }
+        .thenReturn(testMetricValue)
     }
 
-    val response = service.getMetricValue(
-      GetMetricValueRequest.newBuilder().apply {
-        externalId = testMetricValue.externalId
-      }.build()
-    )
+    val response =
+      service.getMetricValue(
+        GetMetricValueRequest.newBuilder().apply { externalId = testMetricValue.externalId }.build()
+      )
 
     assertThat(response).isEqualTo(testMetricValue)
   }
 
-  @Test fun `getMetricValue by resource key returns MetricValue`() = runBlocking {
+  @Test
+  fun `getMetricValue by resource key returns MetricValue`() = runBlocking {
     metricValueDbMock.stub {
-      onBlocking {
-        getMetricValue(testMetricValue.resourceKey)
-      }.thenReturn(testMetricValue)
+      onBlocking { getMetricValue(testMetricValue.resourceKey) }.thenReturn(testMetricValue)
     }
 
-    val response = service.getMetricValue(
-      GetMetricValueRequest.newBuilder().apply {
-        resourceKey = testMetricValue.resourceKey
-      }.build()
-    )
+    val response =
+      service.getMetricValue(
+        GetMetricValueRequest.newBuilder()
+          .apply { resourceKey = testMetricValue.resourceKey }
+          .build()
+      )
 
     assertThat(response).isEqualTo(testMetricValue)
   }
 
-  @Test fun `getMetricValue throws INVALID_ARGUMENT when key not set`() = runBlocking {
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.getMetricValue(GetMetricValueRequest.getDefaultInstance())
-    }
+  @Test
+  fun `getMetricValue throws INVALID_ARGUMENT when key not set`() = runBlocking {
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.getMetricValue(GetMetricValueRequest.getDefaultInstance())
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
-  @Test fun `getMetricValue throws NOT_FOUND when MetricValue not found`() = runBlocking {
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.getMetricValue(
-        GetMetricValueRequest.newBuilder().apply {
-          resourceKey = testMetricValue.resourceKey
-        }.build()
-      )
-    }
+  @Test
+  fun `getMetricValue throws NOT_FOUND when MetricValue not found`() = runBlocking {
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.getMetricValue(
+          GetMetricValueRequest.newBuilder()
+            .apply { resourceKey = testMetricValue.resourceKey }
+            .build()
+        )
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
@@ -123,11 +125,7 @@ class MetricValuesServiceTest {
   fun `storeMetricValue stores MetricValue with data`() = runBlocking {
     nextBlobKey = testMetricValue.blobStorageKey
 
-    metricValueDbMock.stub {
-      onBlocking {
-        insertMetricValue(any())
-      }.thenReturn(testMetricValue)
-    }
+    metricValueDbMock.stub { onBlocking { insertMetricValue(any()) }.thenReturn(testMetricValue) }
 
     val response =
       service.storeMetricValue(
@@ -142,9 +140,7 @@ class MetricValuesServiceTest {
       )
 
     argumentCaptor<MetricValue> {
-      verifyBlocking(metricValueDbMock, times(1)) {
-        insertMetricValue(capture())
-      }
+      verifyBlocking(metricValueDbMock, times(1)) { insertMetricValue(capture()) }
       assertThat(firstValue).isEqualTo(testMetricValue.toBuilder().clearExternalId().build())
     }
     assertThat(response).isEqualTo(testMetricValue)
@@ -152,94 +148,106 @@ class MetricValuesServiceTest {
     assertThat(data).contentEqualTo(testMetricValueData)
   }
 
-  @Test fun `streamMetricValue returns MetricValue with data`() = runBlocking {
+  @Test
+  fun `streamMetricValue returns MetricValue with data`() = runBlocking {
     nextBlobKey = testMetricValue.blobStorageKey
     metricValueStore.write(flowOf(testMetricValueData))
 
     metricValueDbMock.stub {
-      onBlocking {
-        getMetricValue(testMetricValue.resourceKey)
-      }.thenReturn(testMetricValue)
+      onBlocking { getMetricValue(testMetricValue.resourceKey) }.thenReturn(testMetricValue)
     }
 
     lateinit var header: StreamMetricValueResponse.Header
     var output = ByteString.EMPTY
     service.streamMetricValue(
-      StreamMetricValueRequest.newBuilder().apply {
-        resourceKey = testMetricValue.resourceKey
-      }.build()
-    ).collect { responseMessage ->
-      if (responseMessage.hasHeader()) {
-        header = responseMessage.header
-      } else {
-        output = output.concat(responseMessage.chunk.data)
+        StreamMetricValueRequest.newBuilder()
+          .apply { resourceKey = testMetricValue.resourceKey }
+          .build()
+      )
+      .collect { responseMessage ->
+        if (responseMessage.hasHeader()) {
+          header = responseMessage.header
+        } else {
+          output = output.concat(responseMessage.chunk.data)
+        }
       }
-    }
 
     assertThat(header.metricValue).isEqualTo(testMetricValue)
     assertThat(header.dataSizeBytes).isEqualTo(testMetricValueData.size)
     assertThat(output).isEqualTo(testMetricValueData)
   }
 
-  @Test fun `streamMetricValue throws when fingerprint is wrong`() = runBlocking {
+  @Test
+  fun `streamMetricValue throws when fingerprint is wrong`() = runBlocking {
     nextBlobKey = testMetricValue.blobStorageKey
     metricValueStore.write(flowOf(testMetricValueData))
 
     metricValueDbMock.stub {
-      onBlocking {
-        getMetricValue(testMetricValue.resourceKey)
-      }.thenReturn(
-        testMetricValue.toBuilder()
-          .setBlobFingerprint(random.nextBytes(32).toByteString())
-          .build()
-      )
+      onBlocking { getMetricValue(testMetricValue.resourceKey) }
+        .thenReturn(
+          testMetricValue
+            .toBuilder()
+            .setBlobFingerprint(random.nextBytes(32).toByteString())
+            .build()
+        )
     }
 
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.streamMetricValue(
-        StreamMetricValueRequest.newBuilder().apply {
-          resourceKey = testMetricValue.resourceKey
-        }.build()
-      ).collect()
-    }
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service
+          .streamMetricValue(
+            StreamMetricValueRequest.newBuilder()
+              .apply { resourceKey = testMetricValue.resourceKey }
+              .build()
+          )
+          .collect()
+      }
 
     assertThat(e.status.code).isEqualTo(Status.Code.DATA_LOSS)
   }
 
-  @Test fun `streamMetricValue throws INVALID_ARGUMENT when key not set`() = runBlocking {
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.streamMetricValue(StreamMetricValueRequest.getDefaultInstance()).collect()
-    }
+  @Test
+  fun `streamMetricValue throws INVALID_ARGUMENT when key not set`() = runBlocking {
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.streamMetricValue(StreamMetricValueRequest.getDefaultInstance()).collect()
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
-  @Test fun `streamMetricValue throws NOT_FOUND when MetricValue not found`() = runBlocking {
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.streamMetricValue(
-        StreamMetricValueRequest.newBuilder().apply {
-          resourceKey = testMetricValue.resourceKey
-        }.build()
-      ).collect()
-    }
+  @Test
+  fun `streamMetricValue throws NOT_FOUND when MetricValue not found`() = runBlocking {
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service
+          .streamMetricValue(
+            StreamMetricValueRequest.newBuilder()
+              .apply { resourceKey = testMetricValue.resourceKey }
+              .build()
+          )
+          .collect()
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
-  @Test fun `streamMetricValue throws DATA_LOSS when blob not found`() = runBlocking {
+  @Test
+  fun `streamMetricValue throws DATA_LOSS when blob not found`() = runBlocking {
     nextBlobKey = testMetricValue.blobStorageKey
 
     metricValueDbMock.stub {
-      onBlocking {
-        getMetricValue(testMetricValue.resourceKey)
-      }.thenReturn(testMetricValue)
+      onBlocking { getMetricValue(testMetricValue.resourceKey) }.thenReturn(testMetricValue)
     }
 
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.streamMetricValue(
-        StreamMetricValueRequest.newBuilder().apply {
-          resourceKey = testMetricValue.resourceKey
-        }.build()
-      ).collect()
-    }
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service
+          .streamMetricValue(
+            StreamMetricValueRequest.newBuilder()
+              .apply { resourceKey = testMetricValue.resourceKey }
+              .build()
+          )
+          .collect()
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.DATA_LOSS)
   }
 
@@ -249,20 +257,20 @@ class MetricValuesServiceTest {
       random.nextBytes(random.nextInt(BYTES_PER_MIB * 3, BYTES_PER_MIB * 4)).toByteString()
 
     private val testMetricValueDataFingerprint: ByteString =
-      MessageDigest
-        .getInstance("SHA-256")
-        .digest(testMetricValueData.toByteArray())
-        .toByteString()
+      MessageDigest.getInstance("SHA-256").digest(testMetricValueData.toByteArray()).toByteString()
 
-    private val testMetricValue: MetricValue = MetricValue.newBuilder().apply {
-      externalId = 987654321L
-      resourceKeyBuilder.apply {
-        dataProviderResourceId = "data-provider-id"
-        campaignResourceId = "campaign-id"
-        metricRequisitionResourceId = "requisition-id"
-      }
-      blobStorageKey = "blob-key"
-      blobFingerprint = testMetricValueDataFingerprint
-    }.build()
+    private val testMetricValue: MetricValue =
+      MetricValue.newBuilder()
+        .apply {
+          externalId = 987654321L
+          resourceKeyBuilder.apply {
+            dataProviderResourceId = "data-provider-id"
+            campaignResourceId = "campaign-id"
+            metricRequisitionResourceId = "requisition-id"
+          }
+          blobStorageKey = "blob-key"
+          blobFingerprint = testMetricValueDataFingerprint
+        }
+        .build()
   }
 }

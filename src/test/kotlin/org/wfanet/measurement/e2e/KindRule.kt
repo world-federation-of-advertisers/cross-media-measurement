@@ -31,9 +31,7 @@ class KindRule : TestRule {
         // Load the Docker images.
         DeployToKind.loadImages(clusterName)
         // Create the pods and services.
-        runSubprocess(
-          "kubectl apply -f ${DeployToKind.manifestPath} --context kind-$clusterName"
-        )
+        runSubprocess("kubectl apply -f ${DeployToKind.manifestPath} --context kind-$clusterName")
         try {
           // Run the test.
           base.evaluate()

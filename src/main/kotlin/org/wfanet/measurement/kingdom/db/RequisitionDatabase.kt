@@ -20,9 +20,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
-/**
- * Abstraction around the Kingdom's relational database for storing [Requisition] metadata.
- */
+/** Abstraction around the Kingdom's relational database for storing [Requisition] metadata. */
 interface RequisitionDatabase {
   /**
    * Persists a [Requisition] in the database.
@@ -35,14 +33,14 @@ interface RequisitionDatabase {
   suspend fun createRequisition(requisition: Requisition): Requisition
 
   /**
-   * Returns the [Requisition] with the given ID from the database, or null if
-   * none can be found with that ID.
+   * Returns the [Requisition] with the given ID from the database, or null if none can be found
+   * with that ID.
    */
   suspend fun getRequisition(externalRequisitionId: ExternalId): Requisition?
 
   /**
-   * Transitions the state of a [Requisition] to [RequisitionState.FULFILLED] if
-   * its current state is [RequisitionState.UNFULFILLED].
+   * Transitions the state of a [Requisition] to [RequisitionState.FULFILLED] if its current state
+   * is [RequisitionState.UNFULFILLED].
    */
   suspend fun fulfillRequisition(
     externalRequisitionId: ExternalId,
@@ -50,18 +48,15 @@ interface RequisitionDatabase {
   ): RequisitionUpdate
 
   /**
-   * Transitions the state of a [Requisition] to
-   * [RequisitionState.PERMANENTLY_UNAVAILABLE] if its current state is
-   * [RequisitionState.UNFULFILLED], setting
-   * [requisition_details.refusal][RequisitionDetails.getRefusal].
+   * Transitions the state of a [Requisition] to [RequisitionState.PERMANENTLY_UNAVAILABLE] if its
+   * current state is [RequisitionState.UNFULFILLED], setting [requisition_details.refusal]
+   * [RequisitionDetails.getRefusal].
    */
   suspend fun refuseRequisition(
     externalRequisitionId: ExternalId,
     refusal: RequisitionDetails.Refusal
   ): RequisitionUpdate
 
-  /**
-   * Streams [Requisition]s.
-   */
+  /** Streams [Requisition]s. */
   fun streamRequisitions(filter: StreamRequisitionsFilter, limit: Long): Flow<Requisition>
 }

@@ -27,8 +27,7 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 class GcsLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
-  @CommandLine.Mixin
-  private lateinit var gcsFlags: GcsFromFlags.Flags
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
     val gcs = GcsFromFlags(gcsFlags)

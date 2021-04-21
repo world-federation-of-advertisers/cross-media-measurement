@@ -23,8 +23,8 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 private const val TLS_V13_PROTOCOL = "TLSv1.3"
 
 /**
- * Converts this [SigningCerts] into an [SslContext] for a gRPC client with
- * client authentication (mTLS).
+ * Converts this [SigningCerts] into an [SslContext] for a gRPC client with client authentication
+ * (mTLS).
  */
 fun SigningCerts.toClientTlsContext(): SslContext {
   return GrpcSslContexts.forClient()
@@ -34,9 +34,7 @@ fun SigningCerts.toClientTlsContext(): SslContext {
     .build()
 }
 
-/**
- * Converts this [SigningCerts] into an [SslContext] for a gRPC server with TLS.
- */
+/** Converts this [SigningCerts] into an [SslContext] for a gRPC server with TLS. */
 fun SigningCerts.toServerTlsContext(clientAuth: ClientAuth = ClientAuth.NONE): SslContext {
   return GrpcSslContexts.configure(SslContextBuilder.forServer(privateKey, certificate))
     .protocols(TLS_V13_PROTOCOL)

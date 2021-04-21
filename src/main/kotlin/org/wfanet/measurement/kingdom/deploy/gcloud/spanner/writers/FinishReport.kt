@@ -38,32 +38,43 @@ class FinishReport(
     }
 
     val newReportDetails =
-      reportReadResult.report.reportDetails.toBuilder()
-        .setResult(result)
-        .build()
+      reportReadResult.report.reportDetails.toBuilder().setResult(result).build()
 
     Mutation.newUpdateBuilder("Reports")
-      .set("AdvertiserId").to(reportReadResult.advertiserId)
-      .set("ReportConfigId").to(reportReadResult.reportConfigId)
-      .set("ScheduleId").to(reportReadResult.scheduleId)
-      .set("ReportId").to(reportReadResult.reportId)
-      .set("State").toProtoEnum(ReportState.SUCCEEDED)
-      .set("ReportDetails").toProtoBytes(newReportDetails)
-      .set("ReportDetailsJson").toProtoJson(newReportDetails)
-      .set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      .set("AdvertiserId")
+      .to(reportReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(reportReadResult.reportConfigId)
+      .set("ScheduleId")
+      .to(reportReadResult.scheduleId)
+      .set("ReportId")
+      .to(reportReadResult.reportId)
+      .set("State")
+      .toProtoEnum(ReportState.SUCCEEDED)
+      .set("ReportDetails")
+      .toProtoBytes(newReportDetails)
+      .set("ReportDetailsJson")
+      .toProtoJson(newReportDetails)
+      .set("UpdateTime")
+      .to(Value.COMMIT_TIMESTAMP)
       .build()
       .bufferTo(transactionContext)
 
-    return reportReadResult.report.toBuilder().apply {
-      state = ReportState.SUCCEEDED
-      reportDetails = newReportDetails
-      reportDetailsJson = newReportDetails.toJson()
-    }.build()
+    return reportReadResult
+      .report
+      .toBuilder()
+      .apply {
+        state = ReportState.SUCCEEDED
+        reportDetails = newReportDetails
+        reportDetailsJson = newReportDetails.toJson()
+      }
+      .build()
   }
 
   override fun ResultScope<Report>.buildResult(): Report {
-    return checkNotNull(transactionResult).toBuilder().apply {
-      updateTime = commitTimestamp.toProto()
-    }.build()
+    return checkNotNull(transactionResult)
+      .toBuilder()
+      .apply { updateTime = commitTimestamp.toProto() }
+      .build()
   }
 }

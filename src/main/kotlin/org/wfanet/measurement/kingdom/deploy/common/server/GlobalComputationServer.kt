@@ -34,10 +34,7 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags
 ) {
   runKingdomApiServer(kingdomApiServerFlags, duchyIdFlags, commonServerFlags) { channel ->
-    GlobalComputationService(
-      ReportsCoroutineStub(channel),
-      ReportLogEntriesCoroutineStub(channel)
-    )
+    GlobalComputationService(ReportsCoroutineStub(channel), ReportLogEntriesCoroutineStub(channel))
   }
 }
 

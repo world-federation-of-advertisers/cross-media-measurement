@@ -21,15 +21,14 @@ import com.google.cloud.spanner.Instance
  * Creates a [Database] with name [databaseName] in [spannerInstance] using the
  * [schemaDefinitionLines].
  *
- * This sanitizes [schemaDefinitionLines] for the Spanner emulator by removing
- * comments and constraints.
+ * This sanitizes [schemaDefinitionLines] for the Spanner emulator by removing comments and
+ * constraints.
  */
 fun createDatabase(
   spannerInstance: Instance,
   schemaDefinitionLines: Sequence<String>,
   databaseName: String
-): Database =
-  spannerInstance.createDatabase(databaseName, sanitizeSdl(schemaDefinitionLines)).get()
+): Database = spannerInstance.createDatabase(databaseName, sanitizeSdl(schemaDefinitionLines)).get()
 
 private fun sanitizeSdl(sdl: Sequence<String>): List<String> {
   return sdl

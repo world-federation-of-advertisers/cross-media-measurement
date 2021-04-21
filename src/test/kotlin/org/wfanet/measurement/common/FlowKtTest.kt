@@ -35,10 +35,9 @@ class FlowKtTest {
   fun `withRetriesOnEach no errors thrown`() = runBlocking {
     val successfullyProcessedItems = mutableListOf<Int>()
     var totalTries = 0
-    (1..10).asFlow()
-      .withRetriesOnEach(3, retryPredicate = { fail("unexpected retry") }) {
-        totalTries += 1
-      }
+    (1..10)
+      .asFlow()
+      .withRetriesOnEach(3, retryPredicate = { fail("unexpected retry") }) { totalTries += 1 }
       .toList(successfullyProcessedItems)
     assertThat(successfullyProcessedItems).isEqualTo((1..10).toList())
     assertThat(totalTries).isEqualTo(10)
@@ -49,7 +48,8 @@ class FlowKtTest {
     val successfullyProcessedItems = mutableListOf<Int>()
     val triesCounter = mutableMapOf<Int, Int>()
     assertFailsWith<IllegalArgumentException> {
-      (1..100).asFlow()
+      (1..100)
+        .asFlow()
         .withRetriesOnEach(3, retryPredicate = { it is NullPointerException }) {
           triesCounter.putIfAbsent(it, 0)
           triesCounter[it] = 1 + (triesCounter[it] ?: 0)
@@ -68,7 +68,8 @@ class FlowKtTest {
     val successfullyProcessedItems = mutableListOf<Int>()
     val triesCounter = mutableMapOf<Int, Int>()
     assertFailsWith<IllegalArgumentException> {
-      (1..100).asFlow()
+      (1..100)
+        .asFlow()
         .withRetriesOnEach(3) {
           triesCounter.putIfAbsent(it, 0)
           triesCounter[it] = 1 + (triesCounter[it] ?: 0)
@@ -80,17 +81,20 @@ class FlowKtTest {
         .toList(successfullyProcessedItems)
     }
     assertThat(successfullyProcessedItems).isEqualTo((1..7).toList())
-    assertThat(triesCounter).isEqualTo(
-      // all items should have been attempted once except the last item which is attempted 3 times.
-      mapOf(1 to 1, 2 to 1, 3 to 1, 4 to 1, 5 to 1, 6 to 1, 7 to 1, 8 to 3)
-    )
+    assertThat(triesCounter)
+      .isEqualTo(
+        // all items should have been attempted once except the last item which is attempted 3
+        // times.
+        mapOf(1 to 1, 2 to 1, 3 to 1, 4 to 1, 5 to 1, 6 to 1, 7 to 1, 8 to 3)
+      )
   }
 
   @Test
   fun `withRetriesOnEach retries and succeeds`() = runBlocking {
     val successfullyProcessedItems = mutableListOf<Int>()
     val triesCounter = mutableMapOf<Int, Int>()
-    (1..6).asFlow()
+    (1..6)
+      .asFlow()
       .withRetriesOnEach(3) {
         val initValue = triesCounter.putIfAbsent(it, 0)
         triesCounter[it] = 1 + (triesCounter[it] ?: 0)
@@ -118,12 +122,8 @@ class FlowKtTest {
           -it
         }
         .toList()
-    assertThat(events)
-      .containsExactlyElementsIn(1..100)
-      .inOrder()
-    assertThat(result)
-      .containsExactlyElementsIn(-1 downTo -100)
-      .inOrder()
+    assertThat(events).containsExactlyElementsIn(1..100).inOrder()
+    assertThat(result).containsExactlyElementsIn(-1 downTo -100).inOrder()
   }
 
   @Test
@@ -136,12 +136,8 @@ class FlowKtTest {
           -it
         }
         .toList()
-    assertThat(events)
-      .containsExactly(1, 2)
-      .inOrder()
-    assertThat(result)
-      .containsExactly(-1, -2)
-      .inOrder()
+    assertThat(events).containsExactly(1, 2).inOrder()
+    assertThat(result).containsExactly(-1, -2).inOrder()
   }
 
   @Test

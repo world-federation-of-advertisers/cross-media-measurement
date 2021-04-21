@@ -65,41 +65,46 @@ private const val DUCHY_ID = "some-duchy-id"
 private const val OTHER_DUCHY_ID = "other-duchy-id"
 private val DUCHY_AUTH_PROVIDER = { DuchyIdentity(DUCHY_ID) }
 
-private val REPORT: Report = Report.newBuilder().apply {
-  externalAdvertiserId = 1
-  externalReportConfigId = 2
-  externalScheduleId = 3
-  externalReportId = 4
+private val REPORT: Report =
+  Report.newBuilder()
+    .apply {
+      externalAdvertiserId = 1
+      externalReportConfigId = 2
+      externalScheduleId = 3
+      externalReportId = 4
 
-  reportDetailsBuilder.apply {
-    addRequisitionsBuilder().apply {
-      externalDataProviderId = 5
-      externalCampaignId = 6
-      externalRequisitionId = 7
-      duchyId = DUCHY_ID
+      reportDetailsBuilder.apply {
+        addRequisitionsBuilder().apply {
+          externalDataProviderId = 5
+          externalCampaignId = 6
+          externalRequisitionId = 7
+          duchyId = DUCHY_ID
+        }
+        addRequisitionsBuilder().apply {
+          externalDataProviderId = 8
+          externalCampaignId = 9
+          externalRequisitionId = 10
+          duchyId = OTHER_DUCHY_ID
+        }
+      }
     }
-    addRequisitionsBuilder().apply {
-      externalDataProviderId = 8
-      externalCampaignId = 9
-      externalRequisitionId = 10
-      duchyId = OTHER_DUCHY_ID
-    }
-  }
-}.build()
+    .build()
 
-private val GLOBAL_COMPUTATION: GlobalComputation = GlobalComputation.newBuilder().apply {
-  keyBuilder.globalComputationId = ExternalId(REPORT.externalReportId).apiId.value
-  addMetricRequisitionsBuilder().apply {
-    dataProviderId = ExternalId(5).apiId.value
-    campaignId = ExternalId(6).apiId.value
-    metricRequisitionId = ExternalId(7).apiId.value
-  }
-}.build()
+private val GLOBAL_COMPUTATION: GlobalComputation =
+  GlobalComputation.newBuilder()
+    .apply {
+      keyBuilder.globalComputationId = ExternalId(REPORT.externalReportId).apiId.value
+      addMetricRequisitionsBuilder().apply {
+        dataProviderId = ExternalId(5).apiId.value
+        campaignId = ExternalId(6).apiId.value
+        metricRequisitionId = ExternalId(7).apiId.value
+      }
+    }
+    .build()
 
 @RunWith(JUnit4::class)
 class GlobalComputationServiceTest {
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
   private val reportStorage: ReportsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -123,19 +128,17 @@ class GlobalComputationServiceTest {
 
   @Test
   fun getGlobalComputation() = runBlocking {
-    val request =
-      GetGlobalComputationRequest.newBuilder()
-        .setKey(GLOBAL_COMPUTATION.key)
-        .build()
+    val request = GetGlobalComputationRequest.newBuilder().setKey(GLOBAL_COMPUTATION.key).build()
 
-    val stateMap = mapOf(
-      ReportState.AWAITING_REQUISITION_CREATION to State.CREATED,
-      ReportState.AWAITING_DUCHY_CONFIRMATION to State.CONFIRMING,
-      ReportState.IN_PROGRESS to State.RUNNING,
-      ReportState.SUCCEEDED to State.SUCCEEDED,
-      ReportState.FAILED to State.FAILED,
-      ReportState.CANCELLED to State.CANCELLED
-    )
+    val stateMap =
+      mapOf(
+        ReportState.AWAITING_REQUISITION_CREATION to State.CREATED,
+        ReportState.AWAITING_DUCHY_CONFIRMATION to State.CONFIRMING,
+        ReportState.IN_PROGRESS to State.RUNNING,
+        ReportState.SUCCEEDED to State.SUCCEEDED,
+        ReportState.FAILED to State.FAILED,
+        ReportState.CANCELLED to State.CANCELLED
+      )
 
     for ((reportState, computationState) in stateMap) {
       val report = REPORT.toBuilder().setState(reportState).build()
@@ -149,9 +152,7 @@ class GlobalComputationServiceTest {
 
       verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
-          GetReportRequest.newBuilder()
-            .setExternalReportId(REPORT.externalReportId)
-            .build()
+          GetReportRequest.newBuilder().setExternalReportId(REPORT.externalReportId).build()
         )
 
       Mockito.reset(reportStorage)
@@ -162,25 +163,28 @@ class GlobalComputationServiceTest {
   fun streamActiveGlobalComputations() = runBlocking {
     var calls = 0L
     fun nextReport() =
-      REPORT.toBuilder().apply {
-        externalReportId = 100 + calls
-        updateTimeBuilder.seconds = 1000 + calls
-        calls++
-      }.build()
+      REPORT
+        .toBuilder()
+        .apply {
+          externalReportId = 100 + calls
+          updateTimeBuilder.seconds = 1000 + calls
+          calls++
+        }
+        .build()
 
     fun expectedResponse(id: Long) =
-      StreamActiveGlobalComputationsResponse.newBuilder().apply {
-        globalComputationBuilder.keyBuilder.globalComputationId = ExternalId(id).apiId.value
-      }.build()
+      StreamActiveGlobalComputationsResponse.newBuilder()
+        .apply {
+          globalComputationBuilder.keyBuilder.globalComputationId = ExternalId(id).apiId.value
+        }
+        .build()
 
-    whenever(reportStorage.streamReports(any()))
-      .thenAnswer {
-        flowOf(nextReport(), nextReport())
-      }
+    whenever(reportStorage.streamReports(any())).thenAnswer { flowOf(nextReport(), nextReport()) }
 
-    val flow = service.streamActiveGlobalComputations(
-      StreamActiveGlobalComputationsRequest.getDefaultInstance()
-    )
+    val flow =
+      service.streamActiveGlobalComputations(
+        StreamActiveGlobalComputationsRequest.getDefaultInstance()
+      )
 
     assertThat(flow.take(5).toList())
       .comparingExpectedFieldsOnly()
@@ -194,19 +198,21 @@ class GlobalComputationServiceTest {
       .inOrder()
 
     fun expectedStreamReportsRequest(updatedAfterSeconds: Long) =
-      StreamReportsRequest.newBuilder().apply {
-        filterBuilder.apply {
-          addAllStates(
-            listOf(
-              ReportState.AWAITING_REQUISITION_CREATION,
-              ReportState.AWAITING_DUCHY_CONFIRMATION,
-              ReportState.IN_PROGRESS
+      StreamReportsRequest.newBuilder()
+        .apply {
+          filterBuilder.apply {
+            addAllStates(
+              listOf(
+                ReportState.AWAITING_REQUISITION_CREATION,
+                ReportState.AWAITING_DUCHY_CONFIRMATION,
+                ReportState.IN_PROGRESS
+              )
             )
-          )
 
-          updatedAfterBuilder.seconds = updatedAfterSeconds
+            updatedAfterBuilder.seconds = updatedAfterSeconds
+          }
         }
-      }.build()
+        .build()
 
     inOrder(reportStorage) {
       argumentCaptor<StreamReportsRequest> {
@@ -225,99 +231,109 @@ class GlobalComputationServiceTest {
 
   @Test
   fun createGlobalComputationStatusUpdate() = runBlocking {
-    val request = CreateGlobalComputationStatusUpdateRequest.newBuilder().apply {
-      parentBuilder.globalComputationId = ExternalId(1111).apiId.value
-      statusUpdateBuilder.apply {
-        selfReportedIdentifier = "some-self-reported-duchy-identifier"
-        stageDetailsBuilder.apply {
-          startBuilder.seconds = 2222
-          algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-          stageNumber = 3333
-          stageName = "SOME_STAGE"
-          attemptNumber = 4444
+    val request =
+      CreateGlobalComputationStatusUpdateRequest.newBuilder()
+        .apply {
+          parentBuilder.globalComputationId = ExternalId(1111).apiId.value
+          statusUpdateBuilder.apply {
+            selfReportedIdentifier = "some-self-reported-duchy-identifier"
+            stageDetailsBuilder.apply {
+              startBuilder.seconds = 2222
+              algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
+              stageNumber = 3333
+              stageName = "SOME_STAGE"
+              attemptNumber = 4444
+            }
+            updateMessage = "some-update-message"
+            errorDetailsBuilder.apply {
+              errorTimeBuilder.seconds = 5555
+              errorType = GlobalComputationStatusUpdate.ErrorDetails.ErrorType.TRANSIENT
+              errorMessage = "some-error-message"
+            }
+          }
         }
-        updateMessage = "some-update-message"
-        errorDetailsBuilder.apply {
-          errorTimeBuilder.seconds = 5555
-          errorType = GlobalComputationStatusUpdate.ErrorDetails.ErrorType.TRANSIENT
-          errorMessage = "some-error-message"
-        }
-      }
-    }.build()
+        .build()
 
     val expectedResult =
-      request.statusUpdate.toBuilder()
+      request
+        .statusUpdate
+        .toBuilder()
         .setCreateTime(Instant.ofEpochSecond(6666).toProtoTime())
         .build()
 
-    val expectedReportLogEntry = ReportLogEntry.newBuilder().apply {
-      externalReportId = 1111
-      sourceBuilder.duchyBuilder.duchyId = DUCHY_ID
-      reportLogDetailsBuilder.apply {
-        duchyLogDetailsBuilder.apply {
-          reportedDuchyId = "some-self-reported-duchy-identifier"
-          stageStartBuilder.seconds = 2222
-          algorithm = DuchyLogDetails.MpcAlgorithm.LIQUID_LEGIONS_V2
-          stageNumber = 3333
-          stageName = "SOME_STAGE"
-          stageAttemptNumber = 4444
+    val expectedReportLogEntry =
+      ReportLogEntry.newBuilder()
+        .apply {
+          externalReportId = 1111
+          sourceBuilder.duchyBuilder.duchyId = DUCHY_ID
+          reportLogDetailsBuilder.apply {
+            duchyLogDetailsBuilder.apply {
+              reportedDuchyId = "some-self-reported-duchy-identifier"
+              stageStartBuilder.seconds = 2222
+              algorithm = DuchyLogDetails.MpcAlgorithm.LIQUID_LEGIONS_V2
+              stageNumber = 3333
+              stageName = "SOME_STAGE"
+              stageAttemptNumber = 4444
+            }
+            reportMessage = "some-update-message"
+            errorDetailsBuilder.apply {
+              errorTimeBuilder.seconds = 5555
+              errorType = ReportLogDetails.ErrorDetails.ErrorType.TRANSIENT
+              errorMessage = "some-error-message"
+              stacktrace = "TODO: propagate stack trace"
+            }
+          }
         }
-        reportMessage = "some-update-message"
-        errorDetailsBuilder.apply {
-          errorTimeBuilder.seconds = 5555
-          errorType = ReportLogDetails.ErrorDetails.ErrorType.TRANSIENT
-          errorMessage = "some-error-message"
-          stacktrace = "TODO: propagate stack trace"
-        }
-      }
-    }.build()
+        .build()
 
-    whenever(reportLogEntryStorage.createReportLogEntry(any()))
-      .thenAnswer {
-        it.getArgument<ReportLogEntry>(0)
-          .toBuilder()
-          .setCreateTime(Instant.ofEpochSecond(6666).toProtoTime())
-          .build()
-      }
+    whenever(reportLogEntryStorage.createReportLogEntry(any())).thenAnswer {
+      it.getArgument<ReportLogEntry>(0)
+        .toBuilder()
+        .setCreateTime(Instant.ofEpochSecond(6666).toProtoTime())
+        .build()
+    }
 
-    assertThat(service.createGlobalComputationStatusUpdate(request))
-      .isEqualTo(expectedResult)
+    assertThat(service.createGlobalComputationStatusUpdate(request)).isEqualTo(expectedResult)
 
     verifyProtoArgument(
-      reportLogEntryStorage,
-      ReportLogEntriesCoroutineImplBase::createReportLogEntry
-    )
+        reportLogEntryStorage,
+        ReportLogEntriesCoroutineImplBase::createReportLogEntry
+      )
       .isEqualTo(expectedReportLogEntry)
   }
 
   @Test
   fun confirmGlobalComputation() = runBlocking {
-    val request = ConfirmGlobalComputationRequest.newBuilder().apply {
-      keyBuilder.globalComputationId = ExternalId(1111).apiId.value
-      addReadyRequisitionsBuilder().apply {
-        dataProviderId = ExternalId(2222).apiId.value
-        campaignId = ExternalId(3333).apiId.value
-        metricRequisitionId = ExternalId(4444).apiId.value
-      }
-      addReadyRequisitionsBuilder().apply {
-        dataProviderId = ExternalId(5555).apiId.value
-        campaignId = ExternalId(6666).apiId.value
-        metricRequisitionId = ExternalId(7777).apiId.value
-      }
-    }.build()
+    val request =
+      ConfirmGlobalComputationRequest.newBuilder()
+        .apply {
+          keyBuilder.globalComputationId = ExternalId(1111).apiId.value
+          addReadyRequisitionsBuilder().apply {
+            dataProviderId = ExternalId(2222).apiId.value
+            campaignId = ExternalId(3333).apiId.value
+            metricRequisitionId = ExternalId(4444).apiId.value
+          }
+          addReadyRequisitionsBuilder().apply {
+            dataProviderId = ExternalId(5555).apiId.value
+            campaignId = ExternalId(6666).apiId.value
+            metricRequisitionId = ExternalId(7777).apiId.value
+          }
+        }
+        .build()
 
-    whenever(reportStorage.confirmDuchyReadiness(any()))
-      .thenReturn(REPORT)
+    whenever(reportStorage.confirmDuchyReadiness(any())).thenReturn(REPORT)
 
     val expectedComputation = GLOBAL_COMPUTATION.toBuilder().setTotalRequisitionCount(2).build()
-    assertThat(service.confirmGlobalComputation(request))
-      .isEqualTo(expectedComputation)
+    assertThat(service.confirmGlobalComputation(request)).isEqualTo(expectedComputation)
 
-    val expectedConfirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
-      externalReportId = ExternalId(1111).value
-      duchyId = DUCHY_ID
-      addAllExternalRequisitionIds(listOf(ExternalId(4444).value, ExternalId(7777).value))
-    }.build()
+    val expectedConfirmDuchyReadinessRequest =
+      ConfirmDuchyReadinessRequest.newBuilder()
+        .apply {
+          externalReportId = ExternalId(1111).value
+          duchyId = DUCHY_ID
+          addAllExternalRequisitionIds(listOf(ExternalId(4444).value, ExternalId(7777).value))
+        }
+        .build()
 
     verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::confirmDuchyReadiness)
       .isEqualTo(expectedConfirmDuchyReadinessRequest)
@@ -325,48 +341,60 @@ class GlobalComputationServiceTest {
 
   @Test
   fun finishGlobalComputation() = runBlocking {
-    val request = FinishGlobalComputationRequest.newBuilder().apply {
-      keyBuilder.globalComputationId = ExternalId(123).apiId.value
-      resultBuilder.apply {
-        reach = 456
-        putFrequency(1, 0.2)
-        putFrequency(3, 0.8)
-      }
-    }.build()
-
-    whenever(reportStorage.finishReport(any()))
-      .thenReturn(
-        REPORT.toBuilder().apply {
-          state = ReportState.SUCCEEDED
-          reportDetailsBuilder.resultBuilder.apply {
-            reach = 456
-            putFrequency(1, 0.2)
-            putFrequency(3, 0.8)
-          }
-        }.build()
-      )
-
-    assertThat(service.finishGlobalComputation(request))
-      .isEqualTo(
-        GLOBAL_COMPUTATION.toBuilder().apply {
-          state = State.SUCCEEDED
+    val request =
+      FinishGlobalComputationRequest.newBuilder()
+        .apply {
+          keyBuilder.globalComputationId = ExternalId(123).apiId.value
           resultBuilder.apply {
             reach = 456
             putFrequency(1, 0.2)
             putFrequency(3, 0.8)
           }
-          totalRequisitionCount = 2
-        }.build()
+        }
+        .build()
+
+    whenever(reportStorage.finishReport(any()))
+      .thenReturn(
+        REPORT
+          .toBuilder()
+          .apply {
+            state = ReportState.SUCCEEDED
+            reportDetailsBuilder.resultBuilder.apply {
+              reach = 456
+              putFrequency(1, 0.2)
+              putFrequency(3, 0.8)
+            }
+          }
+          .build()
       )
 
-    val expectedFinishReportRequest = FinishReportRequest.newBuilder().apply {
-      externalReportId = 123
-      resultBuilder.apply {
-        reach = 456
-        putFrequency(1, 0.2)
-        putFrequency(3, 0.8)
-      }
-    }.build()
+    assertThat(service.finishGlobalComputation(request))
+      .isEqualTo(
+        GLOBAL_COMPUTATION
+          .toBuilder()
+          .apply {
+            state = State.SUCCEEDED
+            resultBuilder.apply {
+              reach = 456
+              putFrequency(1, 0.2)
+              putFrequency(3, 0.8)
+            }
+            totalRequisitionCount = 2
+          }
+          .build()
+      )
+
+    val expectedFinishReportRequest =
+      FinishReportRequest.newBuilder()
+        .apply {
+          externalReportId = 123
+          resultBuilder.apply {
+            reach = 456
+            putFrequency(1, 0.2)
+            putFrequency(3, 0.8)
+          }
+        }
+        .build()
 
     verifyProtoArgument(reportStorage, ReportsCoroutineImplBase::finishReport)
       .isEqualTo(expectedFinishReportRequest)

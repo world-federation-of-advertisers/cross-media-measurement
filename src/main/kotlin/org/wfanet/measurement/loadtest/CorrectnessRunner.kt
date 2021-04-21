@@ -31,24 +31,20 @@ import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 abstract class CorrectnessRunner : Runnable {
-  @CommandLine.Mixin
-  private lateinit var flags: CorrectnessFlags
+  @CommandLine.Mixin private lateinit var flags: CorrectnessFlags
 
   protected fun run(storageClient: StorageClient) {
     val channel: ManagedChannel =
-      ManagedChannelBuilder
-        .forTarget(flags.publisherDataServiceTarget)
-        .usePlaintext()
-        .build()
+      ManagedChannelBuilder.forTarget(flags.publisherDataServiceTarget).usePlaintext().build()
     val publisherDataStub = PublisherDataCoroutineStub(channel)
 
     var runId = flags.runId
     if (flags.runId.isBlank()) {
       // Set the runId to current timestamp.
-      runId = DateTimeFormatter
-        .ofPattern("yyyy-MM-ddHH-mm-ss-SSS")
-        .withZone(ZoneOffset.UTC)
-        .format(Instant.now())
+      runId =
+        DateTimeFormatter.ofPattern("yyyy-MM-ddHH-mm-ss-SSS")
+          .withZone(ZoneOffset.UTC)
+          .format(Instant.now())
     }
     val sketchConfig = parseTextProto(flags.sketchConfigFile, SketchConfig.getDefaultInstance())
     val clock = Clock.systemUTC()
@@ -60,16 +56,17 @@ abstract class CorrectnessRunner : Runnable {
         val databaseTestHelper =
           SpannerDatabaseTestHelper(clock, RandomIdGenerator(clock), spanner.databaseClient)
 
-        val correctness = CorrectnessImpl(
-          dataProviderCount = flags.dataProviderCount,
-          campaignCount = flags.campaignCount,
-          generatedSetSize = flags.generatedSetSize,
-          universeSize = flags.universeSize,
-          runId = runId,
-          sketchConfig = sketchConfig,
-          storageClient = storageClient,
-          publisherDataStub = publisherDataStub
-        )
+        val correctness =
+          CorrectnessImpl(
+            dataProviderCount = flags.dataProviderCount,
+            campaignCount = flags.campaignCount,
+            generatedSetSize = flags.generatedSetSize,
+            universeSize = flags.universeSize,
+            runId = runId,
+            sketchConfig = sketchConfig,
+            storageClient = storageClient,
+            publisherDataStub = publisherDataStub
+          )
 
         correctness.process(relationalDatabase, databaseTestHelper)
       }

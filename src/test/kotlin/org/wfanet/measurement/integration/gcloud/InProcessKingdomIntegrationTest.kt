@@ -16,9 +16,7 @@ package org.wfanet.measurement.integration.gcloud
 
 import org.wfanet.measurement.integration.common.InProcessKingdomIntegrationTestBase
 
-/**
- * Implementation of [InProcessKingdomIntegrationTestBase] for GCP backends (Spanner, GCS).
- */
+/** Implementation of [InProcessKingdomIntegrationTestBase] for GCP backends (Spanner, GCS). */
 class InProcessKingdomIntegrationTest : InProcessKingdomIntegrationTestBase() {
   override val kingdomDatabasesRule by lazy { KingdomDatabasesProviderRule() }
 }

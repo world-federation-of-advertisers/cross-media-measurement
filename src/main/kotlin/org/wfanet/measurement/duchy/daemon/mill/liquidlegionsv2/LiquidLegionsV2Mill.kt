@@ -77,17 +77,17 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
  *
  * @param millId The identifier of this mill, used to claim a work.
- * @param dataClients clients that have access to local computation storage, i.e., spanner
- *    table and blob store.
+ * @param dataClients clients that have access to local computation storage, i.e., spanner table and
+ * blob store.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- *    computation table.
+ * computation table.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
  * @param workerStubs A map from other duchies' Ids to their corresponding
- *    computationControlClients, used for passing computation to other duchies.
+ * computationControlClients, used for passing computation to other duchies.
  * @param cryptoKeySet The set of crypto keys used in the computation.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  * @param maxFrequency The maximum frequency to reveal in the frequency histogram.
@@ -108,50 +108,41 @@ class LiquidLegionsV2Mill(
   private val cryptoKeySet: CryptoKeySet,
   private val cryptoWorker: LiquidLegionsV2Encryption,
   private val maxFrequency: Int = 10,
-  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(
-    12.0,
-    10_000_000L
-  ),
+  private val liquidLegionsConfig: LiquidLegionsConfig = LiquidLegionsConfig(12.0, 10_000_000L),
   private val noiseConfig: LiquidLegionsV2NoiseConfig,
   private val aggregatorId: String
-) : MillBase(
-  millId,
-  duchyId,
-  dataClients,
-  globalComputationsClient,
-  metricValuesClient,
-  computationStatsClient,
-  throttler,
-  ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-  requestChunkSizeBytes,
-  clock
-) {
-  override val endingStage: ComputationStage = ComputationStage.newBuilder().apply {
-    liquidLegionsSketchAggregationV2 = Stage.COMPLETE
-  }.build()
+) :
+  MillBase(
+    millId,
+    duchyId,
+    dataClients,
+    globalComputationsClient,
+    metricValuesClient,
+    computationStatsClient,
+    throttler,
+    ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+    requestChunkSizeBytes,
+    clock
+  ) {
+  override val endingStage: ComputationStage =
+    ComputationStage.newBuilder()
+      .apply { liquidLegionsSketchAggregationV2 = Stage.COMPLETE }
+      .build()
 
-  private val actions = mapOf(
-    Pair(Stage.CONFIRM_REQUISITIONS_PHASE, AGGREGATOR)
-      to ::confirmRequisitions,
-    Pair(Stage.CONFIRM_REQUISITIONS_PHASE, NON_AGGREGATOR)
-      to ::confirmRequisitions,
-    Pair(Stage.SETUP_PHASE, AGGREGATOR)
-      to ::completeSetupPhaseAtAggregator,
-    Pair(Stage.SETUP_PHASE, NON_AGGREGATOR)
-      to ::completeSetupPhaseAtNonAggregator,
-    Pair(Stage.EXECUTION_PHASE_ONE, AGGREGATOR)
-      to ::completeExecutionPhaseOneAtAggregator,
-    Pair(Stage.EXECUTION_PHASE_ONE, NON_AGGREGATOR)
-      to ::completeExecutionPhaseOneAtNonAggregator,
-    Pair(Stage.EXECUTION_PHASE_TWO, AGGREGATOR)
-      to ::completeExecutionPhaseTwoAtAggregator,
-    Pair(Stage.EXECUTION_PHASE_TWO, NON_AGGREGATOR)
-      to ::completeExecutionPhaseTwoAtNonAggregator,
-    Pair(Stage.EXECUTION_PHASE_THREE, AGGREGATOR)
-      to ::completeExecutionPhaseThreeAtAggregator,
-    Pair(Stage.EXECUTION_PHASE_THREE, NON_AGGREGATOR)
-      to ::completeExecutionPhaseThreeAtNonAggregator
-  )
+  private val actions =
+    mapOf(
+      Pair(Stage.CONFIRM_REQUISITIONS_PHASE, AGGREGATOR) to ::confirmRequisitions,
+      Pair(Stage.CONFIRM_REQUISITIONS_PHASE, NON_AGGREGATOR) to ::confirmRequisitions,
+      Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeSetupPhaseAtAggregator,
+      Pair(Stage.SETUP_PHASE, NON_AGGREGATOR) to ::completeSetupPhaseAtNonAggregator,
+      Pair(Stage.EXECUTION_PHASE_ONE, AGGREGATOR) to ::completeExecutionPhaseOneAtAggregator,
+      Pair(Stage.EXECUTION_PHASE_ONE, NON_AGGREGATOR) to ::completeExecutionPhaseOneAtNonAggregator,
+      Pair(Stage.EXECUTION_PHASE_TWO, AGGREGATOR) to ::completeExecutionPhaseTwoAtAggregator,
+      Pair(Stage.EXECUTION_PHASE_TWO, NON_AGGREGATOR) to ::completeExecutionPhaseTwoAtNonAggregator,
+      Pair(Stage.EXECUTION_PHASE_THREE, AGGREGATOR) to ::completeExecutionPhaseThreeAtAggregator,
+      Pair(Stage.EXECUTION_PHASE_THREE, NON_AGGREGATOR) to
+        ::completeExecutionPhaseThreeAtNonAggregator
+    )
 
   // The key is the concatenation of the sorted duchy ids.
   private var partiallyCombinedPublicKeyMap = HashMap<String, ElGamalPublicKey>()
@@ -166,7 +157,7 @@ class LiquidLegionsV2Mill(
     action(token)
   }
 
-  /** Process computation in the confirm requisitions phase*/
+  /** Process computation in the confirm requisitions phase */
   @OptIn(FlowPreview::class) // For `flattenConcat`.
   private suspend fun confirmRequisitions(token: ComputationToken): ComputationToken {
     val requisitionsToConfirm =
@@ -174,10 +165,12 @@ class LiquidLegionsV2Mill(
     val availableRequisitions = requisitionsToConfirm.filter { metricValueExists(it) }
 
     globalComputationsClient.confirmGlobalComputation(
-      ConfirmGlobalComputationRequest.newBuilder().apply {
-        addAllReadyRequisitions(availableRequisitions.map { it.toMetricRequisitionKey() })
-        keyBuilder.globalComputationId = token.globalComputationId.toString()
-      }.build()
+      ConfirmGlobalComputationRequest.newBuilder()
+        .apply {
+          addAllReadyRequisitions(availableRequisitions.map { it.toMetricRequisitionKey() })
+          keyBuilder.globalComputationId = token.globalComputationId.toString()
+        }
+        .build()
     )
 
     if (availableRequisitions.size != requisitionsToConfirm.size) {
@@ -199,12 +192,12 @@ class LiquidLegionsV2Mill(
     return dataClients.transitionComputationToStage(
       nextToken,
       passThroughBlobs = nextToken.outputPathList(),
-      stage = when (checkNotNull(nextToken.computationDetails.liquidLegionsV2.role)) {
-        AGGREGATOR -> Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-        NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()
-        else ->
-          error("Unknown role: ${nextToken.computationDetails.liquidLegionsV2.role}")
-      }
+      stage =
+        when (checkNotNull(nextToken.computationDetails.liquidLegionsV2.role)) {
+          AGGREGATOR -> Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+          NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()
+          else -> error("Unknown role: ${nextToken.computationDetails.liquidLegionsV2.role}")
+        }
     )
   }
 
@@ -212,20 +205,24 @@ class LiquidLegionsV2Mill(
     require(AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val request = readAndCombineAllInputBlobs(token, workerStubs.size + 1)
-        .toCompleteSetupPhaseRequest(token.computationDetails.liquidLegionsV2.totalRequisitionCount)
-      val cryptoResult: CompleteSetupPhaseResponse =
-        cryptoWorker.completeSetupPhase(request)
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.combinedRegisterVector
-    }
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val request =
+          readAndCombineAllInputBlobs(token, workerStubs.size + 1)
+            .toCompleteSetupPhaseRequest(
+              token.computationDetails.liquidLegionsV2.totalRequisitionCount
+            )
+        val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.combinedRegisterVector
+      }
 
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(token)
     )
@@ -241,20 +238,24 @@ class LiquidLegionsV2Mill(
     require(NON_AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val request = readAndCombineAllInputBlobs(token, 1)
-        .toCompleteSetupPhaseRequest(token.computationDetails.liquidLegionsV2.totalRequisitionCount)
-      val cryptoResult: CompleteSetupPhaseResponse =
-        cryptoWorker.completeSetupPhase(request)
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.combinedRegisterVector
-    }
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val request =
+          readAndCombineAllInputBlobs(token, 1)
+            .toCompleteSetupPhaseRequest(
+              token.computationDetails.liquidLegionsV2.totalRequisitionCount
+            )
+        val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.combinedRegisterVector
+      }
 
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.SETUP_PHASE_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = aggregatorDuchyStub()
     )
@@ -272,29 +273,32 @@ class LiquidLegionsV2Mill(
     require(AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val requestBuilder = CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
-        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
-        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
-        curveId = cryptoKeySet.curveId.toLong()
-        combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
-        totalSketchesCount = token.computationDetails.liquidLegionsV2.totalRequisitionCount
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val requestBuilder =
+          CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
+            localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+            compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+            curveId = cryptoKeySet.curveId.toLong()
+            combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
+            totalSketchesCount = token.computationDetails.liquidLegionsV2.totalRequisitionCount
+          }
+        if (noiseConfig.hasFrequencyNoiseConfig()) {
+          requestBuilder.noiseParameters = getFrequencyNoiseParams()
+        }
+        val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
+          cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.flagCountTuples
       }
-      if (noiseConfig.hasFrequencyNoiseConfig()) {
-        requestBuilder.noiseParameters = getFrequencyNoiseParams()
-      }
-      val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
-        cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.flagCountTuples
-    }
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(token)
     )
@@ -312,26 +316,30 @@ class LiquidLegionsV2Mill(
     require(NON_AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val cryptoResult: CompleteExecutionPhaseOneResponse =
-        cryptoWorker.completeExecutionPhaseOne(
-          CompleteExecutionPhaseOneRequest.newBuilder().apply {
-            localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
-            compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
-            curveId = cryptoKeySet.curveId.toLong()
-            combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
-          }.build()
-        )
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.combinedRegisterVector
-    }
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val cryptoResult: CompleteExecutionPhaseOneResponse =
+          cryptoWorker.completeExecutionPhaseOne(
+            CompleteExecutionPhaseOneRequest.newBuilder()
+              .apply {
+                localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+                compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+                curveId = cryptoKeySet.curveId.toLong()
+                combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
+              }
+              .build()
+          )
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.combinedRegisterVector
+      }
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(token)
     )
@@ -350,60 +358,70 @@ class LiquidLegionsV2Mill(
       "invalid role for this function."
     }
     var reach = 0L
-    val (bytes, tempToken) = existingOutputOr(token) {
-      val requestBuilder = CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
-        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
-        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
-        curveId = cryptoKeySet.curveId.toLong()
-        flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-        maximumFrequency = maxFrequency
-        liquidLegionsParametersBuilder.apply {
-          decayRate = liquidLegionsConfig.decayRate
-          size = liquidLegionsConfig.size
+    val (bytes, tempToken) =
+      existingOutputOr(token) {
+        val requestBuilder =
+          CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
+            localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+            compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+            curveId = cryptoKeySet.curveId.toLong()
+            flagCountTuples = readAndCombineAllInputBlobs(token, 1)
+            maximumFrequency = maxFrequency
+            liquidLegionsParametersBuilder.apply {
+              decayRate = liquidLegionsConfig.decayRate
+              size = liquidLegionsConfig.size
+            }
+          }
+        if (noiseConfig.hasReachNoiseConfig()) {
+          requestBuilder.reachDpNoiseBaselineBuilder.apply {
+            contributorsCount = workerStubs.size + 1
+            globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+          }
         }
-      }
-      if (noiseConfig.hasReachNoiseConfig()) {
-        requestBuilder.reachDpNoiseBaselineBuilder.apply {
-          contributorsCount = workerStubs.size + 1
-          globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+        if (noiseConfig.hasFrequencyNoiseConfig()) {
+          requestBuilder.frequencyNoiseParametersBuilder.apply {
+            contributorsCount = workerStubs.size + 1
+            maximumFrequency = maxFrequency
+            dpParams = noiseConfig.frequencyNoiseConfig
+          }
         }
-      }
-      if (noiseConfig.hasFrequencyNoiseConfig()) {
-        requestBuilder.frequencyNoiseParametersBuilder.apply {
-          contributorsCount = workerStubs.size + 1
-          maximumFrequency = maxFrequency
-          dpParams = noiseConfig.frequencyNoiseConfig
-        }
+
+        val cryptoResult: CompleteExecutionPhaseTwoAtAggregatorResponse =
+          cryptoWorker.completeExecutionPhaseTwoAtAggregator(requestBuilder.build())
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        reach = cryptoResult.reach
+        cryptoResult.sameKeyAggregatorMatrix
       }
 
-      val cryptoResult: CompleteExecutionPhaseTwoAtAggregatorResponse =
-        cryptoWorker.completeExecutionPhaseTwoAtAggregator(requestBuilder.build())
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      reach = cryptoResult.reach
-      cryptoResult.sameKeyAggregatorMatrix
-    }
-
-    val nextToken = if (token.computationDetails.liquidLegionsV2.hasReachEstimate()) {
-      // Do nothing if the token has already contained the ReachEstimate
-      tempToken
-    } else {
-      // Update the newly calculated reach to the ComputationDetails.
-      dataClients.computationsClient.updateComputationDetails(
-        UpdateComputationDetailsRequest.newBuilder().also {
-          it.token = tempToken
-          it.details = token.computationDetails.toBuilder().apply {
-            liquidLegionsV2Builder.reachEstimateBuilder.reach = reach
-          }.build()
-        }.build()
-      ).token
-    }
+    val nextToken =
+      if (token.computationDetails.liquidLegionsV2.hasReachEstimate()) {
+        // Do nothing if the token has already contained the ReachEstimate
+        tempToken
+      } else {
+        // Update the newly calculated reach to the ComputationDetails.
+        dataClients.computationsClient.updateComputationDetails(
+            UpdateComputationDetailsRequest.newBuilder()
+              .also {
+                it.token = tempToken
+                it.details =
+                  token
+                    .computationDetails
+                    .toBuilder()
+                    .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = reach }
+                    .build()
+              }
+              .build()
+          )
+          .token
+      }
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(token)
     )
@@ -421,32 +439,35 @@ class LiquidLegionsV2Mill(
     require(NON_AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val requestBuilder = CompleteExecutionPhaseTwoRequest.newBuilder().apply {
-        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
-        compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
-        curveId = cryptoKeySet.curveId.toLong()
-        flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-      }
-      if (noiseConfig.hasFrequencyNoiseConfig()) {
-        requestBuilder.apply {
-          partialCompositeElGamalPublicKey = getPartiallyCombinedPublicKey(token)
-          noiseParameters = getFrequencyNoiseParams()
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val requestBuilder =
+          CompleteExecutionPhaseTwoRequest.newBuilder().apply {
+            localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+            compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
+            curveId = cryptoKeySet.curveId.toLong()
+            flagCountTuples = readAndCombineAllInputBlobs(token, 1)
+          }
+        if (noiseConfig.hasFrequencyNoiseConfig()) {
+          requestBuilder.apply {
+            partialCompositeElGamalPublicKey = getPartiallyCombinedPublicKey(token)
+            noiseParameters = getFrequencyNoiseParams()
+          }
         }
-      }
 
-      val cryptoResult: CompleteExecutionPhaseTwoResponse =
-        cryptoWorker.completeExecutionPhaseTwo(requestBuilder.build())
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.flagCountTuples
-    }
+        val cryptoResult: CompleteExecutionPhaseTwoResponse =
+          cryptoWorker.completeExecutionPhaseTwo(requestBuilder.build())
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.flagCountTuples
+      }
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(token)
     )
@@ -467,36 +488,40 @@ class LiquidLegionsV2Mill(
     require(token.computationDetails.liquidLegionsV2.hasReachEstimate()) {
       "Reach estimate is missing."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val requestBuilder = CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
-        localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
-        curveId = cryptoKeySet.curveId.toLong()
-        sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
-        maximumFrequency = maxFrequency
-      }
-      if (noiseConfig.hasFrequencyNoiseConfig()) {
-        requestBuilder.globalFrequencyDpNoisePerBucketBuilder.apply {
-          contributorsCount = workerStubs.size + 1
-          dpParams = noiseConfig.frequencyNoiseConfig
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val requestBuilder =
+          CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
+            localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+            curveId = cryptoKeySet.curveId.toLong()
+            sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
+            maximumFrequency = maxFrequency
+          }
+        if (noiseConfig.hasFrequencyNoiseConfig()) {
+          requestBuilder.globalFrequencyDpNoisePerBucketBuilder.apply {
+            contributorsCount = workerStubs.size + 1
+            dpParams = noiseConfig.frequencyNoiseConfig
+          }
         }
+        val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
+          cryptoWorker.completeExecutionPhaseThreeAtAggregator(requestBuilder.build())
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.toByteString()
       }
-      val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
-        cryptoWorker.completeExecutionPhaseThreeAtAggregator(requestBuilder.build())
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.toByteString()
-    }
 
     val frequencyDistributionMap =
       CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(bytes.flatten())
         .frequencyDistributionMap
     globalComputationsClient.finishGlobalComputation(
-      FinishGlobalComputationRequest.newBuilder().apply {
-        keyBuilder.globalComputationId = token.globalComputationId.toString()
-        resultBuilder.apply {
-          reach = nextToken.computationDetails.liquidLegionsV2.reachEstimate.reach
-          putAllFrequency(frequencyDistributionMap)
+      FinishGlobalComputationRequest.newBuilder()
+        .apply {
+          keyBuilder.globalComputationId = token.globalComputationId.toString()
+          resultBuilder.apply {
+            reach = nextToken.computationDetails.liquidLegionsV2.reachEstimate.reach
+            putAllFrequency(frequencyDistributionMap)
+          }
         }
-      }.build()
+        .build()
     )
 
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
@@ -508,25 +533,29 @@ class LiquidLegionsV2Mill(
     require(NON_AGGREGATOR == token.computationDetails.liquidLegionsV2.role) {
       "invalid role for this function."
     }
-    val (bytes, nextToken) = existingOutputOr(token) {
-      val cryptoResult: CompleteExecutionPhaseThreeResponse =
-        cryptoWorker.completeExecutionPhaseThree(
-          CompleteExecutionPhaseThreeRequest.newBuilder().apply {
-            localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
-            curveId = cryptoKeySet.curveId.toLong()
-            sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
-          }.build()
-        )
-      logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-      cryptoResult.sameKeyAggregatorMatrix
-    }
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val cryptoResult: CompleteExecutionPhaseThreeResponse =
+          cryptoWorker.completeExecutionPhaseThree(
+            CompleteExecutionPhaseThreeRequest.newBuilder()
+              .apply {
+                localElGamalKeyPair = cryptoKeySet.ownPublicAndPrivateKeys
+                curveId = cryptoKeySet.curveId.toLong()
+                sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
+              }
+              .build()
+          )
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.sameKeyAggregatorMatrix
+      }
 
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
-      header = advanceComputationHeader(
-        LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
-        token.globalComputationId
-      ),
+      header =
+        advanceComputationHeader(
+          LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT,
+          token.globalComputationId
+        ),
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(token)
     )
@@ -540,12 +569,14 @@ class LiquidLegionsV2Mill(
   private fun getMpcDuchyRing(token: ComputationToken): List<String> {
     // TODO(wangyaopw): read the duchy order from the ComputationDetails when it is populated by the
     //  herald.
-    val nonAggregatorsSet = cryptoKeySet.allDuchyPublicKeys
-      .filter { it.key != aggregatorId }
-      .map { Duchy(it.key, it.value.element.toStringUtf8()) }.toSet()
-    return getDuchyOrderByPublicKeysAndComputationId(
-      nonAggregatorsSet, token.globalComputationId
-    ) + aggregatorId
+    val nonAggregatorsSet =
+      cryptoKeySet
+        .allDuchyPublicKeys
+        .filter { it.key != aggregatorId }
+        .map { Duchy(it.key, it.value.element.toStringUtf8()) }
+        .toSet()
+    return getDuchyOrderByPublicKeysAndComputationId(nonAggregatorsSet, token.globalComputationId) +
+      aggregatorId
   }
 
   private fun nextDuchyStub(token: ComputationToken): ComputationControlCoroutineStub {
@@ -575,19 +606,21 @@ class LiquidLegionsV2Mill(
     val lookupKey = partialList.sorted().joinToString()
 
     return partiallyCombinedPublicKeyMap.computeIfAbsent(lookupKey) {
-      val request = CombineElGamalPublicKeysRequest.newBuilder().apply {
-        curveId = cryptoKeySet.curveId.toLong()
-        addAllElGamalKeys(
-          partialList.map {
-            cryptoKeySet.allDuchyPublicKeys[it] ?: error(
-              "$it is not in the key set."
+      val request =
+        CombineElGamalPublicKeysRequest.newBuilder()
+          .apply {
+            curveId = cryptoKeySet.curveId.toLong()
+            addAllElGamalKeys(
+              partialList.map {
+                cryptoKeySet.allDuchyPublicKeys[it] ?: error("$it is not in the key set.")
+              }
             )
           }
+          .build()
+      val response =
+        CombineElGamalPublicKeysResponse.parseFrom(
+          SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
         )
-      }.build()
-      val response = CombineElGamalPublicKeysResponse.parseFrom(
-        SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
-      )
       response.elGamalKeys
     }
   }
@@ -595,8 +628,7 @@ class LiquidLegionsV2Mill(
   private fun ByteString.toCompleteSetupPhaseRequest(
     totalRequisitionCount: Int
   ): CompleteSetupPhaseRequest {
-    val requestBuilder = CompleteSetupPhaseRequest.newBuilder()
-      .setCombinedRegisterVector(this)
+    val requestBuilder = CompleteSetupPhaseRequest.newBuilder().setCombinedRegisterVector(this)
     if (noiseConfig.hasReachNoiseConfig()) {
       requestBuilder.noiseParametersBuilder.apply {
         compositeElGamalPublicKey = cryptoKeySet.clientPublicKey
@@ -614,11 +646,13 @@ class LiquidLegionsV2Mill(
   }
 
   private fun getFrequencyNoiseParams(): FlagCountTupleNoiseGenerationParameters {
-    return FlagCountTupleNoiseGenerationParameters.newBuilder().apply {
-      maximumFrequency = maxFrequency
-      contributorsCount = workerStubs.size + 1
-      dpParams = noiseConfig.frequencyNoiseConfig
-    }.build()
+    return FlagCountTupleNoiseGenerationParameters.newBuilder()
+      .apply {
+        maximumFrequency = maxFrequency
+        contributorsCount = workerStubs.size + 1
+        dpParams = noiseConfig.frequencyNoiseConfig
+      }
+      .build()
   }
 
   companion object {

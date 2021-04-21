@@ -30,21 +30,29 @@ class CreateCampaign(
   private val providedCampaignId: String
 ) : SpannerWriter<ExternalId, Campaign>() {
   override suspend fun TransactionScope.runTransaction(): ExternalId {
-    val (dataProviderId, advertiserId) = coroutineScope {
-      val dataProviderIed = async { readDataProviderId() }
-      val advertiserId = async { readAdvertiserId() }
-      Pair(dataProviderIed.await(), advertiserId.await())
-    }
+    val (dataProviderId, advertiserId) =
+      coroutineScope {
+        val dataProviderIed = async { readDataProviderId() }
+        val advertiserId = async { readAdvertiserId() }
+        Pair(dataProviderIed.await(), advertiserId.await())
+      }
     val internalId = idGenerator.generateInternalId()
     val externalId = idGenerator.generateExternalId()
     Mutation.newInsertBuilder("Campaigns")
-      .set("DataProviderId").to(dataProviderId.value)
-      .set("CampaignId").to(internalId.value)
-      .set("AdvertiserId").to(advertiserId.value)
-      .set("ExternalCampaignId").to(externalId.value)
-      .set("ProvidedCampaignId").to(providedCampaignId)
-      .set("CampaignDetails").to("")
-      .set("CampaignDetailsJson").to("")
+      .set("DataProviderId")
+      .to(dataProviderId.value)
+      .set("CampaignId")
+      .to(internalId.value)
+      .set("AdvertiserId")
+      .to(advertiserId.value)
+      .set("ExternalCampaignId")
+      .to(externalId.value)
+      .set("ProvidedCampaignId")
+      .to(providedCampaignId)
+      .set("CampaignDetails")
+      .to("")
+      .set("CampaignDetailsJson")
+      .to("")
       .build()
       .bufferTo(transactionContext)
     return externalId

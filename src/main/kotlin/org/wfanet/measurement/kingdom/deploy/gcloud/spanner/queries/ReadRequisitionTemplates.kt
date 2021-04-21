@@ -29,9 +29,8 @@ import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 
 @OptIn(FlowPreview::class) // For `flatMapConcat`
-class ReadRequisitionTemplates(
-  externalReportConfigId: ExternalId
-) : SpannerQuery<Struct, RequisitionTemplate>() {
+class ReadRequisitionTemplates(externalReportConfigId: ExternalId) :
+  SpannerQuery<Struct, RequisitionTemplate>() {
   override val reader: BaseSpannerReader<Struct> by lazy {
     val sql =
       """
@@ -49,7 +48,8 @@ class ReadRequisitionTemplates(
 
     val statement: Statement =
       Statement.newBuilder(sql)
-        .bind("external_report_config_id").to(externalReportConfigId.value)
+        .bind("external_report_config_id")
+        .to(externalReportConfigId.value)
         .build()
 
     BaseSpannerReader.forStructs(statement)
@@ -89,7 +89,5 @@ class ReadRequisitionTemplates(
       .build()
 
   private fun buildRequisitionDetails(metricDefinition: MetricDefinition): RequisitionDetails =
-    RequisitionDetails.newBuilder()
-      .setMetricDefinition(metricDefinition)
-      .build()
+    RequisitionDetails.newBuilder().setMetricDefinition(metricDefinition).build()
 }

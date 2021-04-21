@@ -60,27 +60,23 @@ internal class HeraldTest {
   private val duchyName = "BOHEMIA"
   private val otherDuchyNames = listOf("SALZBURG", "AUSTRIA")
   private val fakeComputationStorage = FakeComputationsDatabase()
-  private val aggregatorProtocolsSetupConfig = ProtocolsSetupConfig.newBuilder().apply {
-    liquidLegionsV2Builder.apply {
-      role = RoleInComputation.AGGREGATOR
-    }
-  }.build()
-  private val nonAggregatorProtocolsSetupConfig = ProtocolsSetupConfig.newBuilder().apply {
-    liquidLegionsV2Builder.apply {
-      role = RoleInComputation.NON_AGGREGATOR
-    }
-  }.build()
+  private val aggregatorProtocolsSetupConfig =
+    ProtocolsSetupConfig.newBuilder()
+      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+      .build()
+  private val nonAggregatorProtocolsSetupConfig =
+    ProtocolsSetupConfig.newBuilder()
+      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+      .build()
 
-  private val aggregatorComputationDetails = ComputationDetails.newBuilder().apply {
-    liquidLegionsV2Builder.apply {
-      role = RoleInComputation.AGGREGATOR
-    }
-  }.build()
-  private val nonAggregatorComputationDetails = ComputationDetails.newBuilder().apply {
-    liquidLegionsV2Builder.apply {
-      role = RoleInComputation.NON_AGGREGATOR
-    }
-  }.build()
+  private val aggregatorComputationDetails =
+    ComputationDetails.newBuilder()
+      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+      .build()
+  private val nonAggregatorComputationDetails =
+    ComputationDetails.newBuilder()
+      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+      .build()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -108,17 +104,25 @@ internal class HeraldTest {
 
   @Before
   fun initHerald() {
-    aggregatorHerald = Herald(
-      otherDuchyNames, storageServiceStub, globalComputationsStub, aggregatorProtocolsSetupConfig
-    )
-    nonAggregatorHerald = Herald(
-      otherDuchyNames, storageServiceStub, globalComputationsStub, nonAggregatorProtocolsSetupConfig
-    )
+    aggregatorHerald =
+      Herald(
+        otherDuchyNames,
+        storageServiceStub,
+        globalComputationsStub,
+        aggregatorProtocolsSetupConfig
+      )
+    nonAggregatorHerald =
+      Herald(
+        otherDuchyNames,
+        storageServiceStub,
+        globalComputationsStub,
+        nonAggregatorProtocolsSetupConfig
+      )
   }
 
   @Test
-  fun `syncStatuses on empty stream retains same computaiton token`() = runBlocking {
-    mockStreamActiveComputationsToReturn(/* No items in stream. */)
+  fun `syncStatuses on empty stream retains same computation token`() = runBlocking {
+    mockStreamActiveComputationsToReturn() // No items in stream.
     assertThat(nonAggregatorHerald.syncStatuses("TOKEN_OF_LAST_ITEM"))
       .isEqualTo("TOKEN_OF_LAST_ITEM")
     assertThat(fakeComputationStorage).isEmpty()
@@ -127,11 +131,7 @@ internal class HeraldTest {
   @Test
   fun `syncStatuses creates new computations`() = runBlocking {
     val confirmingKnown = ComputationAtKingdom("454647484950", GlobalComputation.State.CONFIRMING)
-    val newComputationsRequisitions = listOf(
-      "alice/a/1234",
-      "bob/bb/abc",
-      "caroline/ccc/234567"
-    )
+    val newComputationsRequisitions = listOf("alice/a/1234", "bob/bb/abc", "caroline/ccc/234567")
     val confirmingUnknown =
       ComputationAtKingdom("321", GlobalComputation.State.CONFIRMING, newComputationsRequisitions)
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
@@ -146,73 +146,79 @@ internal class HeraldTest {
     assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
       .isEqualTo(confirmingUnknown.continuationToken)
     assertThat(
-      fakeComputationStorage
-        .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
-    ).containsExactly(
-      confirmingKnown.globalId.toLong(),
-      CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
-      confirmingUnknown.globalId.toLong(),
-      CONFIRM_REQUISITIONS_PHASE.toProtocolStage()
-    )
+        fakeComputationStorage.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.globalId.toLong(),
+        CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+        confirmingUnknown.globalId.toLong(),
+        CONFIRM_REQUISITIONS_PHASE.toProtocolStage()
+      )
 
     assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
       .isEqualTo(
-        ComputationStageDetails.newBuilder().apply {
-          liquidLegionsV2Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
-            addKeys(requisitionKey("alice", "a", "1234"))
-            addKeys(requisitionKey("bob", "bb", "abc"))
-            addKeys(requisitionKey("caroline", "ccc", "234567"))
+        ComputationStageDetails.newBuilder()
+          .apply {
+            liquidLegionsV2Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
+              addKeys(requisitionKey("alice", "a", "1234"))
+              addKeys(requisitionKey("bob", "bb", "abc"))
+              addKeys(requisitionKey("caroline", "ccc", "234567"))
+            }
           }
-        }.build()
+          .build()
       )
     assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.computationDetails)
       .isEqualTo(
-        ComputationDetails.newBuilder().apply {
-          liquidLegionsV2Builder.apply {
-            role = RoleInComputation.AGGREGATOR
-            totalRequisitionCount = 10
+        ComputationDetails.newBuilder()
+          .apply {
+            liquidLegionsV2Builder.apply {
+              role = RoleInComputation.AGGREGATOR
+              totalRequisitionCount = 10
+            }
+            blobsStoragePrefix = "computation-blob-storage/321"
           }
-          blobsStoragePrefix = "computation-blob-storage/321"
-        }.build()
+          .build()
       )
   }
 
   @Test
-  fun `syncStatuses starts computations in wait_to_start`() = runBlocking<Unit> {
-    val waitingToStart = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
-    val addingNoise = ComputationAtKingdom("231313", GlobalComputation.State.RUNNING)
-    mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
+  fun `syncStatuses starts computations in wait_to_start`() =
+    runBlocking<Unit> {
+      val waitingToStart = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+      val addingNoise = ComputationAtKingdom("231313", GlobalComputation.State.RUNNING)
+      mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
 
-    fakeComputationStorage.addComputation(
-      globalId = waitingToStart.globalId,
-      stage = WAIT_TO_START.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails,
-      blobs = listOf(
-        newPassThroughBlobMetadata(0L, "local-copy-of-sketches")
+      fakeComputationStorage.addComputation(
+        globalId = waitingToStart.globalId,
+        stage = WAIT_TO_START.toProtocolStage(),
+        computationDetails = nonAggregatorComputationDetails,
+        blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
       )
-    )
 
-    fakeComputationStorage.addComputation(
-      globalId = addingNoise.globalId,
-      stage = SETUP_PHASE.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails,
-      blobs = listOf(
-        newInputBlobMetadata(0L, "inputs-to-add-noise"),
-        newEmptyOutputBlobMetadata(1L)
+      fakeComputationStorage.addComputation(
+        globalId = addingNoise.globalId,
+        stage = SETUP_PHASE.toProtocolStage(),
+        computationDetails = aggregatorComputationDetails,
+        blobs =
+          listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
       )
-    )
 
-    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN)).isEqualTo(addingNoise.continuationToken)
-    assertThat(
-      fakeComputationStorage
-        .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
-    ).containsExactly(
-      waitingToStart.globalId.toLong(),
-      SETUP_PHASE.toProtocolStage(),
-      addingNoise.globalId.toLong(),
-      SETUP_PHASE.toProtocolStage()
-    )
-  }
+      assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+        .isEqualTo(addingNoise.continuationToken)
+      assertThat(
+          fakeComputationStorage.mapValues { (_, fakeComputation) ->
+            fakeComputation.computationStage
+          }
+        )
+        .containsExactly(
+          waitingToStart.globalId.toLong(),
+          SETUP_PHASE.toProtocolStage(),
+          addingNoise.globalId.toLong(),
+          SETUP_PHASE.toProtocolStage()
+        )
+    }
 
   @Test
   fun `syncStatuses starts computations with retries`() = runBlocking {
@@ -230,12 +236,11 @@ internal class HeraldTest {
       .isEqualTo(computation.continuationToken)
 
     assertThat(
-      fakeComputationStorage
-        .mapValues { (_, fakeComputation) -> fakeComputation.computationStage }
-    ).containsExactly(
-      computation.globalId.toLong(),
-      CONFIRM_REQUISITIONS_PHASE.toProtocolStage()
-    )
+        fakeComputationStorage.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(computation.globalId.toLong(), CONFIRM_REQUISITIONS_PHASE.toProtocolStage())
 
     // Update the state.
     fakeComputationStorage.remove(computation.globalId.toLong())
@@ -247,42 +252,43 @@ internal class HeraldTest {
     )
 
     // Wait for the background retry to fix the state.
-    val finalComputation = pollFor(timeoutMillis = 10_000L) {
-      val c = fakeComputationStorage[computation.globalId.toLong()]
-      if (c?.computationStage == SETUP_PHASE.toProtocolStage()) {
-        c
-      } else {
-        null
+    val finalComputation =
+      pollFor(timeoutMillis = 10_000L) {
+        val c = fakeComputationStorage[computation.globalId.toLong()]
+        if (c?.computationStage == SETUP_PHASE.toProtocolStage()) {
+          c
+        } else {
+          null
+        }
       }
-    }
 
     assertThat(finalComputation).isNotNull()
   }
 
   @Test
-  fun `syncStatuses gives up on starting computations`() = runBlocking<Unit> {
-    val heraldWithOneRetry = Herald(
-      otherDuchyNames,
-      storageServiceStub,
-      globalComputationsStub,
-      nonAggregatorProtocolsSetupConfig,
-      maxStartAttempts = 2
-    )
+  fun `syncStatuses gives up on starting computations`() =
+    runBlocking<Unit> {
+      val heraldWithOneRetry =
+        Herald(
+          otherDuchyNames,
+          storageServiceStub,
+          globalComputationsStub,
+          nonAggregatorProtocolsSetupConfig,
+          maxStartAttempts = 2
+        )
 
-    val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
-    mockStreamActiveComputationsToReturn(computation)
+      val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+      mockStreamActiveComputationsToReturn(computation)
 
-    fakeComputationStorage.addComputation(
-      globalId = computation.globalId,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails,
-      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
-    )
+      fakeComputationStorage.addComputation(
+        globalId = computation.globalId,
+        stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+        computationDetails = nonAggregatorComputationDetails,
+        blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+      )
 
-    assertFails {
-      heraldWithOneRetry.continuallySyncStatuses(FakeThrottler())
+      assertFails { heraldWithOneRetry.continuallySyncStatuses(FakeThrottler()) }
     }
-  }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: ComputationAtKingdom) =
     globalComputations.stub {
@@ -304,29 +310,35 @@ data class ComputationAtKingdom(
 ) {
   private fun parseResourceKey(stringKey: String): MetricRequisitionKey {
     val (provider, campaign, requisition) = stringKey.split("/")
-    return MetricRequisitionKey.newBuilder().apply {
-      dataProviderId = provider
-      campaignId = campaign
-      metricRequisitionId = requisition
-    }.build()
+    return MetricRequisitionKey.newBuilder()
+      .apply {
+        dataProviderId = provider
+        campaignId = campaign
+        metricRequisitionId = requisition
+      }
+      .build()
   }
 
   val continuationToken = "token_for_$globalId"
   val streamedResponse: StreamActiveGlobalComputationsResponse =
-    StreamActiveGlobalComputationsResponse.newBuilder().apply {
-      globalComputationBuilder.apply {
-        keyBuilder.apply { globalComputationId = globalId }
-        state = stateAtKingdom
-        addAllMetricRequisitions(requisitionResourceKeys.map { parseResourceKey(it) })
-        totalRequisitionCount = this@ComputationAtKingdom.totalRequisitionCount
+    StreamActiveGlobalComputationsResponse.newBuilder()
+      .apply {
+        globalComputationBuilder.apply {
+          keyBuilder.apply { globalComputationId = globalId }
+          state = stateAtKingdom
+          addAllMetricRequisitions(requisitionResourceKeys.map { parseResourceKey(it) })
+          totalRequisitionCount = this@ComputationAtKingdom.totalRequisitionCount
+        }
+        continuationToken = this@ComputationAtKingdom.continuationToken
       }
-      continuationToken = this@ComputationAtKingdom.continuationToken
-    }.build()
+      .build()
 }
 
 private fun requisitionKey(provider: String, campaign: String, requisition: String) =
-  RequisitionKey.newBuilder().apply {
-    dataProviderId = provider
-    campaignId = campaign
-    metricRequisitionId = requisition
-  }.build()
+  RequisitionKey.newBuilder()
+    .apply {
+      dataProviderId = provider
+      campaignId = campaign
+      metricRequisitionId = requisition
+    }
+    .build()

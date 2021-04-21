@@ -49,10 +49,10 @@ class LiquidLegionsV2MillFlags {
 
   @CommandLine.Option(
     names = ["--computation-control-service-target"],
-    description = [
-      "gRPC target (authority string or URI) of the ComputationControl service in another Duchy.",
-      "This is a key=value pair where the key is the other Duchy's name. It can be repeated."
-    ],
+    description =
+      [
+        "gRPC target (authority string or URI) of the ComputationControl service in another Duchy.",
+        "This is a key=value pair where the key is the other Duchy's name. It can be repeated."],
     required = true
   )
   lateinit var computationControlServiceTargets: Map<String, String>

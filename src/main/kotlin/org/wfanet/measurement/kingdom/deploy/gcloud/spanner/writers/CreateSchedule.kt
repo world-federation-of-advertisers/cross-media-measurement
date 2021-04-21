@@ -32,10 +32,14 @@ class CreateSchedule(private val schedule: ReportConfigSchedule) :
       ReportConfigReader()
         .readExternalId(transactionContext, ExternalId(schedule.externalReportConfigId))
 
-    val actualSchedule = schedule.toBuilder().apply {
-      externalScheduleId = idGenerator.generateExternalId().value
-      nextReportStartTime = repetitionSpec.start
-    }.build()
+    val actualSchedule =
+      schedule
+        .toBuilder()
+        .apply {
+          externalScheduleId = idGenerator.generateExternalId().value
+          nextReportStartTime = repetitionSpec.start
+        }
+        .build()
 
     actualSchedule
       .toMutation(reportConfigReadResult, idGenerator.generateInternalId())
@@ -50,12 +54,19 @@ private fun ReportConfigSchedule.toMutation(
   scheduleId: InternalId
 ): Mutation {
   return Mutation.newInsertBuilder("ReportConfigSchedules")
-    .set("AdvertiserId").to(reportConfigReadResult.advertiserId)
-    .set("ReportConfigId").to(reportConfigReadResult.reportConfigId)
-    .set("ScheduleId").to(scheduleId.value)
-    .set("ExternalScheduleId").to(externalScheduleId)
-    .set("NextReportStartTime").to(nextReportStartTime.toGcloudTimestamp())
-    .set("RepetitionSpec").toProtoBytes(repetitionSpec)
-    .set("RepetitionSpecJson").toProtoJson(repetitionSpec)
+    .set("AdvertiserId")
+    .to(reportConfigReadResult.advertiserId)
+    .set("ReportConfigId")
+    .to(reportConfigReadResult.reportConfigId)
+    .set("ScheduleId")
+    .to(scheduleId.value)
+    .set("ExternalScheduleId")
+    .to(externalScheduleId)
+    .set("NextReportStartTime")
+    .to(nextReportStartTime.toGcloudTimestamp())
+    .set("RepetitionSpec")
+    .toProtoBytes(repetitionSpec)
+    .set("RepetitionSpecJson")
+    .toProtoJson(repetitionSpec)
     .build()
 }

@@ -37,16 +37,19 @@ private const val EXTERNAL_ADVERTISER_ID = 2L
 private const val REPORT_CONFIG_ID = 3L
 private const val EXTERNAL_REPORT_CONFIG_ID = 4L
 
-private val SCHEDULE: ReportConfigSchedule = ReportConfigSchedule.newBuilder().apply {
-  externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-  repetitionSpecBuilder.apply {
-    startBuilder.seconds = 12345
-    repetitionPeriodBuilder.apply {
-      unit = TimePeriod.Unit.DAY
-      count = 7
+private val SCHEDULE: ReportConfigSchedule =
+  ReportConfigSchedule.newBuilder()
+    .apply {
+      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+      repetitionSpecBuilder.apply {
+        startBuilder.seconds = 12345
+        repetitionPeriodBuilder.apply {
+          unit = TimePeriod.Unit.DAY
+          count = 7
+        }
+      }
     }
-  }
-}.build()
+    .build()
 
 class CreateScheduleTest : KingdomDatabaseTestBase() {
   @Before
@@ -73,40 +76,51 @@ class CreateScheduleTest : KingdomDatabaseTestBase() {
 
   private fun makeExpectedScheduleStruct(scheduleId: Long, externalScheduleId: Long): Struct {
     return Struct.newBuilder()
-      .set("AdvertiserId").to(ADVERTISER_ID)
-      .set("ReportConfigId").to(REPORT_CONFIG_ID)
-      .set("ScheduleId").to(scheduleId)
-      .set("ExternalScheduleId").to(externalScheduleId)
-      .set("NextReportStartTime").to(SCHEDULE.repetitionSpec.start.toGcloudTimestamp())
-      .set("RepetitionSpec").toProtoBytes(SCHEDULE.repetitionSpec)
-      .set("RepetitionSpecJson").toProtoJson(SCHEDULE.repetitionSpec)
+      .set("AdvertiserId")
+      .to(ADVERTISER_ID)
+      .set("ReportConfigId")
+      .to(REPORT_CONFIG_ID)
+      .set("ScheduleId")
+      .to(scheduleId)
+      .set("ExternalScheduleId")
+      .to(externalScheduleId)
+      .set("NextReportStartTime")
+      .to(SCHEDULE.repetitionSpec.start.toGcloudTimestamp())
+      .set("RepetitionSpec")
+      .toProtoBytes(SCHEDULE.repetitionSpec)
+      .set("RepetitionSpecJson")
+      .toProtoJson(SCHEDULE.repetitionSpec)
       .build()
   }
 
   @Test
-  fun success() = runBlocking<Unit> {
-    val schedule = createSchedule(SCHEDULE, 10L, 11L)
-    assertThat(schedule)
-      .isEqualTo(
-        SCHEDULE.toBuilder().apply {
-          externalScheduleId = 11L
-          nextReportStartTime = repetitionSpec.start
-        }.build()
-      )
-    assertThat(readSchedules())
-      .containsExactly(makeExpectedScheduleStruct(10L, 11L))
-  }
+  fun success() =
+    runBlocking<Unit> {
+      val schedule = createSchedule(SCHEDULE, 10L, 11L)
+      assertThat(schedule)
+        .isEqualTo(
+          SCHEDULE
+            .toBuilder()
+            .apply {
+              externalScheduleId = 11L
+              nextReportStartTime = repetitionSpec.start
+            }
+            .build()
+        )
+      assertThat(readSchedules()).containsExactly(makeExpectedScheduleStruct(10L, 11L))
+    }
 
   @Test
-  fun `multiple schedules`() = runBlocking<Unit> {
-    createSchedule(SCHEDULE, 10L, 11L)
-    createSchedule(SCHEDULE, 12L, 13L)
-    createSchedule(SCHEDULE, 14L, 15L)
-    assertThat(readSchedules())
-      .containsExactly(
-        makeExpectedScheduleStruct(10L, 11L),
-        makeExpectedScheduleStruct(12L, 13L),
-        makeExpectedScheduleStruct(14L, 15L)
-      )
-  }
+  fun `multiple schedules`() =
+    runBlocking<Unit> {
+      createSchedule(SCHEDULE, 10L, 11L)
+      createSchedule(SCHEDULE, 12L, 13L)
+      createSchedule(SCHEDULE, 14L, 15L)
+      assertThat(readSchedules())
+        .containsExactly(
+          makeExpectedScheduleStruct(10L, 11L),
+          makeExpectedScheduleStruct(12L, 13L),
+          makeExpectedScheduleStruct(14L, 15L)
+        )
+    }
 }

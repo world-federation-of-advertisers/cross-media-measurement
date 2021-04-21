@@ -105,9 +105,11 @@ class CorrectnessImpl(
     logger.info("Created an Advertiser: $advertiser")
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
 
-    val generatedCampaigns = List(dataProviderCount) {
-      relationalDatabaseTestHelper.createDataProvider(externalAdvertiserId).toList()
-    }.flatten()
+    val generatedCampaigns =
+      List(dataProviderCount) {
+          relationalDatabaseTestHelper.createDataProvider(externalAdvertiserId).toList()
+        }
+        .flatten()
 
     // Schedule a report before loading the metric requisitions.
     val campaignIds = generatedCampaigns.map { it.campaignId }
@@ -123,13 +125,7 @@ class CorrectnessImpl(
     logger.info("Estimation Results saved with blob key: $storedResultsPath")
 
     // Finally, we are sending encrypted sketches to the PublisherDataService.
-    coroutineScope {
-      generatedCampaigns.forEach {
-        launch {
-          encryptAndSend(it, testResult)
-        }
-      }
-    }
+    coroutineScope { generatedCampaigns.forEach { launch { encryptAndSend(it, testResult) } } }
 
     val expectedResult =
       ReportDetails.Result.newBuilder().setReach(reach).putAllFrequency(frequency).build()
@@ -159,15 +155,16 @@ class CorrectnessImpl(
   ): Report {
     logger.info("Getting finished report from Kingdom Spanner...")
     return renewedFlow(10_000, 1_000) {
-      streamReports(
-        streamReportsFilter(
-          externalReportConfigIds = listOf(externalReportConfigId),
-          externalScheduleIds = listOf(externalScheduleId),
-          states = listOf(Report.ReportState.SUCCEEDED)
-        ),
-        limit = 1
-      )
-    }.first()
+        streamReports(
+          streamReportsFilter(
+            externalReportConfigIds = listOf(externalReportConfigId),
+            externalScheduleIds = listOf(externalScheduleId),
+            states = listOf(Report.ReportState.SUCCEEDED)
+          ),
+          limit = 1
+        )
+      }
+      .first()
   }
 
   private suspend fun DatabaseTestHelper.createDataProvider(
@@ -187,11 +184,7 @@ class CorrectnessImpl(
     externalAdvertiserId: ExternalId,
     externalDataProviderId: ExternalId
   ): GeneratedCampaign {
-    val campaign = createCampaign(
-      externalDataProviderId,
-      externalAdvertiserId,
-      "Campaign name"
-    )
+    val campaign = createCampaign(externalDataProviderId, externalAdvertiserId, "Campaign name")
     logger.info("Created a Campaign $campaign")
     val externalCampaignId = ExternalId(campaign.externalCampaignId)
     val anySketch = generateSketch(reach)
@@ -203,42 +196,51 @@ class CorrectnessImpl(
     externalAdvertiserId: ExternalId,
     campaignIds: List<ExternalId>
   ): ReportConfigAndScheduleId {
-    val metricDefinition = MetricDefinition.newBuilder().apply {
-      sketchBuilder.apply {
-        sketchConfigId = 12345L
-        type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
-      }
-    }.build()
-    val reportConfig = createReportConfig(
-      ReportConfig.newBuilder().apply {
-        this.externalAdvertiserId = externalAdvertiserId.value
-        numRequisitions = campaignIds.size.toLong()
-        reportConfigDetailsBuilder.apply {
-          addMetricDefinitions(metricDefinition)
-          reportDurationBuilder.apply {
-            unit = TimePeriod.Unit.DAY
-            count = 1
+    val metricDefinition =
+      MetricDefinition.newBuilder()
+        .apply {
+          sketchBuilder.apply {
+            sketchConfigId = 12345L
+            type = SketchMetricDefinition.Type.IMPRESSION_REACH_AND_FREQUENCY
           }
         }
-      }.build(),
-      campaignIds
-    )
+        .build()
+    val reportConfig =
+      createReportConfig(
+        ReportConfig.newBuilder()
+          .apply {
+            this.externalAdvertiserId = externalAdvertiserId.value
+            numRequisitions = campaignIds.size.toLong()
+            reportConfigDetailsBuilder.apply {
+              addMetricDefinitions(metricDefinition)
+              reportDurationBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                count = 1
+              }
+            }
+          }
+          .build(),
+        campaignIds
+      )
     logger.info("Created a ReportConfig: $reportConfig")
     val externalReportConfigId = ExternalId(reportConfig.externalReportConfigId)
-    val schedule = createSchedule(
-      ReportConfigSchedule.newBuilder().apply {
-        this.externalAdvertiserId = externalAdvertiserId.value
-        this.externalReportConfigId = externalReportConfigId.value
-        repetitionSpecBuilder.apply {
-          start = Instant.now().toProtoTime()
-          repetitionPeriodBuilder.apply {
-            unit = TimePeriod.Unit.DAY
-            count = 1
+    val schedule =
+      createSchedule(
+        ReportConfigSchedule.newBuilder()
+          .apply {
+            this.externalAdvertiserId = externalAdvertiserId.value
+            this.externalReportConfigId = externalReportConfigId.value
+            repetitionSpecBuilder.apply {
+              start = Instant.now().toProtoTime()
+              repetitionPeriodBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                count = 1
+              }
+            }
+            nextReportStartTime = repetitionSpec.start
           }
-        }
-        nextReportStartTime = repetitionSpec.start
-      }.build()
-    )
+          .build()
+      )
     logger.info("Created a ReportConfigSchedule: $schedule")
     return ReportConfigAndScheduleId(
       externalReportConfigId,
@@ -253,25 +255,21 @@ class CorrectnessImpl(
     val dataProviderId = generatedCampaign.dataProviderId.apiId
     val campaignId = generatedCampaign.campaignId.apiId
 
-    val requisition = runCatching {
-      getMetricRequisition(dataProviderId, campaignId)
-    }.getOrThrowWithMessage {
-      "Error getting metric requisition. Data provider: $dataProviderId, campaign: $campaignId"
-    }
-    val resourceKey = requisition.combinedPublicKey
-    val combinedPublicKey = publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
-      runCatching {
-        publisherDataStub.getCombinedPublicKey(resourceKey)
-      }.getOrThrowWithMessage {
-        "Error getting combined public key $resourceKey"
+    val requisition =
+      runCatching { getMetricRequisition(dataProviderId, campaignId) }.getOrThrowWithMessage {
+        "Error getting metric requisition. Data provider: $dataProviderId, campaign: $campaignId"
       }
-    }
+    val resourceKey = requisition.combinedPublicKey
+    val combinedPublicKey =
+      publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
+        runCatching { publisherDataStub.getCombinedPublicKey(resourceKey) }.getOrThrowWithMessage {
+          "Error getting combined public key $resourceKey"
+        }
+      }
     val encryptedSketch =
       encryptAndStore(generatedCampaign.sketch, combinedPublicKey.encryptionKey, testResult)
 
-    runCatching {
-      uploadMetricValue(requisition.key, encryptedSketch)
-    }.getOrThrowWithMessage {
+    runCatching { uploadMetricValue(requisition.key, encryptedSketch) }.getOrThrowWithMessage {
       "Error uploading metric value for ${requisition.key}"
     }
   }
@@ -312,11 +310,7 @@ class CorrectnessImpl(
 
   override fun estimateCardinality(anySketch: AnySketch): Long {
     val activeRegisterCount = anySketch.toList().size.toLong()
-    return Estimators.EstimateCardinalityLiquidLegions(
-      DECAY_RATE,
-      INDEX_SIZE,
-      activeRegisterCount
-    )
+    return Estimators.EstimateCardinalityLiquidLegions(DECAY_RATE, INDEX_SIZE, activeRegisterCount)
   }
 
   override fun estimateFrequency(anySketch: AnySketch): Map<Long, Double> {
@@ -327,17 +321,19 @@ class CorrectnessImpl(
   }
 
   override fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): ByteString {
-    val request: EncryptSketchRequest = EncryptSketchRequest.newBuilder().apply {
-      this.sketch = sketch
-      maximumValue = MAX_COUNTER_VALUE
-      curveId = combinedPublicKey.ellipticCurveId.toLong()
-      elGamalKeysBuilder.generator = combinedPublicKey.generator
-      elGamalKeysBuilder.element = combinedPublicKey.element
-      destroyedRegisterStrategy = FLAGGED_KEY // for LL_V2 protocol
-    }.build()
-    val response = EncryptSketchResponse.parseFrom(
-      SketchEncrypterAdapter.EncryptSketch(request.toByteArray())
-    )
+    val request: EncryptSketchRequest =
+      EncryptSketchRequest.newBuilder()
+        .apply {
+          this.sketch = sketch
+          maximumValue = MAX_COUNTER_VALUE
+          curveId = combinedPublicKey.ellipticCurveId.toLong()
+          elGamalKeysBuilder.generator = combinedPublicKey.generator
+          elGamalKeysBuilder.element = combinedPublicKey.element
+          destroyedRegisterStrategy = FLAGGED_KEY // for LL_V2 protocol
+        }
+        .build()
+    val response =
+      EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
     return response.encryptedSketch
   }
 
@@ -349,18 +345,18 @@ class CorrectnessImpl(
     return storeBlob(encryptedSketch)
   }
 
-  override suspend fun storeEstimationResults(
-    reach: Long,
-    frequency: Map<Long, Double>
-  ): String {
-    val computation = GlobalComputation.newBuilder().apply {
-      keyBuilder.globalComputationId = GLOBAL_COMPUTATION_ID
-      state = GlobalComputation.State.SUCCEEDED
-      resultBuilder.apply {
-        setReach(reach)
-        putAllFrequency(frequency)
-      }
-    }.build()
+  override suspend fun storeEstimationResults(reach: Long, frequency: Map<Long, Double>): String {
+    val computation =
+      GlobalComputation.newBuilder()
+        .apply {
+          keyBuilder.globalComputationId = GLOBAL_COMPUTATION_ID
+          state = GlobalComputation.State.SUCCEEDED
+          resultBuilder.apply {
+            setReach(reach)
+            putAllFrequency(frequency)
+          }
+        }
+        .build()
     logger.info("Reach and Frequency are computed: $computation")
     return storeBlob(computation.toByteString())
   }
@@ -377,9 +373,7 @@ class CorrectnessImpl(
 
     var requisition: MetricRequisition? = null
     while (requisition == null) {
-      throttler.onReady {
-        requisition = loadMetricRequisitions(dataProviderId, campaignId)
-      }
+      throttler.onReady { requisition = loadMetricRequisitions(dataProviderId, campaignId) }
     }
     return requisition as MetricRequisition
   }
@@ -388,14 +382,17 @@ class CorrectnessImpl(
     dataProviderId: ApiId,
     campaignId: ApiId
   ): MetricRequisition? {
-    val request = ListMetricRequisitionsRequest.newBuilder().apply {
-      parentBuilder.apply {
-        this.dataProviderId = dataProviderId.value
-        this.campaignId = campaignId.value
-      }
-      filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
-      pageSize = 1
-    }.build()
+    val request =
+      ListMetricRequisitionsRequest.newBuilder()
+        .apply {
+          parentBuilder.apply {
+            this.dataProviderId = dataProviderId.value
+            this.campaignId = campaignId.value
+          }
+          filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
+          pageSize = 1
+        }
+        .build()
     val response = publisherDataStub.listMetricRequisitions(request)
     check(response.metricRequisitionsCount <= 1) { "Too many requisitions: $response" }
     return response.metricRequisitionsList.firstOrNull()
@@ -406,18 +403,14 @@ class CorrectnessImpl(
     metricValueKey: MetricRequisition.Key,
     encryptedSketch: ByteString
   ) {
-    val header = flowOf(
-      UploadMetricValueRequest.newBuilder().apply {
-        headerBuilder.key = metricValueKey
-      }.build()
-    )
+    val header =
+      flowOf(
+        UploadMetricValueRequest.newBuilder().apply { headerBuilder.key = metricValueKey }.build()
+      )
     val bodyContent =
-      encryptedSketch.asBufferedFlow(STREAM_BYTE_BUFFER_SIZE)
-        .map {
-          UploadMetricValueRequest.newBuilder().apply {
-            chunkBuilder.data = it
-          }.build()
-        }
+      encryptedSketch.asBufferedFlow(STREAM_BYTE_BUFFER_SIZE).map {
+        UploadMetricValueRequest.newBuilder().apply { chunkBuilder.data = it }.build()
+      }
     val request = merge(header, bodyContent)
 
     publisherDataStub.uploadMetricValue(request)
@@ -456,24 +449,22 @@ private data class GeneratedCampaign(
   val sketch: AnySketch
 )
 
-private data class ReportConfigAndScheduleId(val reportConfig: ExternalId, val schedule: ExternalId)
+private data class ReportConfigAndScheduleId(
+  val reportConfig: ExternalId,
+  val schedule: ExternalId
+)
 
 private suspend fun PublisherDataCoroutineStub.getCombinedPublicKey(
   resourceKey: CombinedPublicKey.Key
 ): CombinedPublicKey {
   return getCombinedPublicKey(
-    GetCombinedPublicKeyRequest.newBuilder().apply {
-      key = resourceKey
-    }.build()
+    GetCombinedPublicKeyRequest.newBuilder().apply { key = resourceKey }.build()
   )
 }
 
 /**
- * Returns the value or throws a [RuntimeException] wrapping the cause with the
- * provided message.
+ * Returns the value or throws a [RuntimeException] wrapping the cause with the provided message.
  */
 private fun <T> Result<T>.getOrThrowWithMessage(provideMessage: () -> String): T {
-  return getOrElse { cause ->
-    throw RuntimeException(provideMessage(), cause)
-  }
+  return getOrElse { cause -> throw RuntimeException(provideMessage(), cause) }
 }

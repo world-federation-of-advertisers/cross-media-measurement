@@ -32,20 +32,20 @@ import org.wfanet.measurement.storage.StorageClient
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 
 /** [StorageClient] for ForwardedStorage service. */
-class ForwardedStorageClient(
-  private val storageStub: ForwardedStorageCoroutineStub
-) : StorageClient {
+class ForwardedStorageClient(private val storageStub: ForwardedStorageCoroutineStub) :
+  StorageClient {
 
   override val defaultBufferSizeBytes: Int
     get() = DEFAULT_BUFFER_SIZE_BYTES
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
-    val requests = content.map {
-      CreateBlobRequest.newBuilder().apply { bodyChunkBuilder.content = it }.build()
-    }.onStart {
-      emit(CreateBlobRequest.newBuilder().apply { headerBuilder.blobKey = blobKey }.build())
-    }
+    val requests =
+      content
+        .map { CreateBlobRequest.newBuilder().apply { bodyChunkBuilder.content = it }.build() }
+        .onStart {
+          emit(CreateBlobRequest.newBuilder().apply { headerBuilder.blobKey = blobKey }.build())
+        }
     val metadata = storageStub.createBlob(requests)
 
     return Blob(blobKey, metadata.size)
@@ -53,39 +53,39 @@ class ForwardedStorageClient(
 
   override fun getBlob(blobKey: String): StorageClient.Blob? {
     // Check if the blob exists
-    val blobSize = try {
-      runBlocking {
-        storageStub.getBlobMetadata(
-          GetBlobMetadataRequest.newBuilder().setBlobKey(blobKey).build()
-        ).size
+    val blobSize =
+      try {
+        runBlocking {
+          storageStub.getBlobMetadata(
+              GetBlobMetadataRequest.newBuilder().setBlobKey(blobKey).build()
+            )
+            .size
+        }
+      } catch (e: StatusException) {
+        if (e.status.code == Status.NOT_FOUND.code) {
+          return null
+        } else {
+          throw e
+        }
       }
-    } catch (e: StatusException) {
-      if (e.status.code == Status.NOT_FOUND.code) {
-        return null
-      } else {
-        throw e
-      }
-    }
 
     return Blob(blobKey, blobSize)
   }
 
-  private inner class Blob(
-    private val blobKey: String,
-    override val size: Long
-  ) : StorageClient.Blob {
+  private inner class Blob(private val blobKey: String, override val size: Long) :
+    StorageClient.Blob {
     override val storageClient: StorageClient
       get() = this@ForwardedStorageClient
 
     override fun read(bufferSizeBytes: Int): Flow<ByteString> =
       storageStub.readBlob(
-        ReadBlobRequest.newBuilder().setBlobKey(blobKey).setChunkSize(bufferSizeBytes).build()
-      ).map {
-        it.chunk
-      }
+          ReadBlobRequest.newBuilder().setBlobKey(blobKey).setChunkSize(bufferSizeBytes).build()
+        )
+        .map { it.chunk }
 
-    override fun delete() = runBlocking<Unit> {
-      storageStub.deleteBlob(DeleteBlobRequest.newBuilder().setBlobKey(blobKey).build())
-    }
+    override fun delete() =
+      runBlocking<Unit> {
+        storageStub.deleteBlob(DeleteBlobRequest.newBuilder().setBlobKey(blobKey).build())
+      }
   }
 }

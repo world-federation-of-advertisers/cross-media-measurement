@@ -58,20 +58,23 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /**
- * Protocol Zero:
- * +--------------+
- * |              |
- * |              v
- * A -> B -> C -> E
+ * Protocol Zero: +--------------+ | | | v A -> B -> C -> E
+ * ```
  *      |         ^
  *      v         |
  *      D --------+
- *
- * Protocol One:
- * X -> Y -> Z
+ * ```
+ * Protocol One: X -> Y -> Z
  */
 enum class FakeProtocolStages {
-  A, B, C, D, E, X, Y, Z;
+  A,
+  B,
+  C,
+  D,
+  E,
+  X,
+  Y,
+  Z
 }
 
 enum class FakeProtocol {
@@ -96,19 +99,11 @@ enum class FakeProtocol {
 
 object ComputationProtocolStages :
   ComputationProtocolStagesEnumHelper<FakeProtocol, FakeProtocolStages> {
-  private val validInitialStages = mapOf(
-    FakeProtocol.ZERO to setOf(A),
-    FakeProtocol.ONE to setOf(X)
-  )
-  private val validTerminalStages = mapOf(
-    FakeProtocol.ZERO to setOf(E),
-    FakeProtocol.ONE to setOf(Z)
-  )
-  private val validSuccessors = mapOf(
-    A to setOf(B),
-    B to setOf(C, D),
-    X to setOf(Y)
-  )
+  private val validInitialStages =
+    mapOf(FakeProtocol.ZERO to setOf(A), FakeProtocol.ONE to setOf(X))
+  private val validTerminalStages =
+    mapOf(FakeProtocol.ZERO to setOf(E), FakeProtocol.ONE to setOf(Z))
+  private val validSuccessors = mapOf(A to setOf(B), B to setOf(C, D), X to setOf(Y))
 
   override fun stageToProtocol(stage: FakeProtocolStages): FakeProtocol {
     return when (stage) {
@@ -117,34 +112,36 @@ object ComputationProtocolStages :
     }
   }
 
-  override fun computationStageEnumToLongValues(value: FakeProtocolStages):
-    ComputationStageLongValues {
-      return when (value) {
-        A -> ComputationStageLongValues(0, 0)
-        B -> ComputationStageLongValues(0, 1)
-        C -> ComputationStageLongValues(0, 2)
-        D -> ComputationStageLongValues(0, 3)
-        E -> ComputationStageLongValues(0, 4)
-        X -> ComputationStageLongValues(1, 0)
-        Y -> ComputationStageLongValues(1, 1)
-        Z -> ComputationStageLongValues(1, 2)
-      }
+  override fun computationStageEnumToLongValues(
+    value: FakeProtocolStages
+  ): ComputationStageLongValues {
+    return when (value) {
+      A -> ComputationStageLongValues(0, 0)
+      B -> ComputationStageLongValues(0, 1)
+      C -> ComputationStageLongValues(0, 2)
+      D -> ComputationStageLongValues(0, 3)
+      E -> ComputationStageLongValues(0, 4)
+      X -> ComputationStageLongValues(1, 0)
+      Y -> ComputationStageLongValues(1, 1)
+      Z -> ComputationStageLongValues(1, 2)
     }
+  }
 
-  override fun longValuesToComputationStageEnum(value: ComputationStageLongValues):
-    FakeProtocolStages {
-      return when (value) {
-        ComputationStageLongValues(0, 0) -> A
-        ComputationStageLongValues(0, 1) -> B
-        ComputationStageLongValues(0, 2) -> C
-        ComputationStageLongValues(0, 3) -> D
-        ComputationStageLongValues(0, 4) -> E
-        ComputationStageLongValues(1, 0) -> X
-        ComputationStageLongValues(1, 1) -> Y
-        ComputationStageLongValues(1, 2) -> Z
-        else -> error("Bad value")
-      }
+  override fun longValuesToComputationStageEnum(
+    value: ComputationStageLongValues
+  ): FakeProtocolStages {
+    return when (value) {
+      ComputationStageLongValues(0, 0) -> A
+      ComputationStageLongValues(0, 1) -> B
+      ComputationStageLongValues(0, 2) -> C
+      ComputationStageLongValues(0, 3) -> D
+      ComputationStageLongValues(0, 4) -> E
+      ComputationStageLongValues(1, 0) -> X
+      ComputationStageLongValues(1, 1) -> Y
+      ComputationStageLongValues(1, 2) -> Z
+      else -> error("Bad value")
     }
+  }
 
   override fun getValidInitialStage(protocol: FakeProtocol): Set<FakeProtocolStages> =
     validInitialStages[protocol] ?: error("bad protocol")
@@ -186,10 +183,9 @@ class ProtocolStageDetailsHelper :
   override fun validateRoleForStage(
     stage: FakeProtocolStages,
     computationDetails: FakeComputationDetails
-  ):
-    Boolean {
-      return true // the value doesn't matter in this test
-    }
+  ): Boolean {
+    return true // the value doesn't matter in this test
+  }
 
   override fun afterTransitionForStage(stage: FakeProtocolStages): AfterTransition {
     return AfterTransition.ADD_UNCLAIMED_TO_QUEUE // the value doesn't matter in this test
@@ -200,9 +196,7 @@ class ProtocolStageDetailsHelper :
   }
 
   override fun detailsFor(stage: FakeProtocolStages): FakeProtocolStageDetails {
-    return FakeProtocolStageDetails.newBuilder()
-      .setName(stage.name)
-      .build()
+    return FakeProtocolStageDetails.newBuilder().setName(stage.name).build()
   }
 
   override fun parseDetails(protocol: FakeProtocol, bytes: ByteArray): FakeProtocolStageDetails =
@@ -213,9 +207,8 @@ class ProtocolStageDetailsHelper :
 class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   companion object {
-    val FAKE_COMPUTATION_DETAILS = FakeComputationDetails.newBuilder().apply {
-      role = "foo"
-    }.build()
+    val FAKE_COMPUTATION_DETAILS =
+      FakeComputationDetails.newBuilder().apply { role = "foo" }.build()
 
     val TEST_INSTANT: Instant = Instant.ofEpochMilli(123456789L)
   }
@@ -230,19 +223,16 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
 
   private lateinit var database:
     GcpSpannerComputationsDatabaseTransactor<
-      FakeProtocol,
-      FakeProtocolStages,
-      FakeProtocolStageDetails,
-      FakeComputationDetails
-      >
+      FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails, FakeComputationDetails>
 
   @Before
   fun initDatabase() {
-    database = GcpSpannerComputationsDatabaseTransactor(
-      databaseClient,
-      clock = testClock,
-      computationMutations = computationMutations
-    )
+    database =
+      GcpSpannerComputationsDatabaseTransactor(
+        databaseClient,
+        clock = testClock,
+        computationMutations = computationMutations
+      )
   }
 
   @Test
@@ -251,12 +241,20 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     val globalId1 = "12345"
     val localId1 = idGenerator.localId(globalId1)
     database.insertComputation(
-      globalId1, FakeProtocol.ZERO, A, computationMutations.detailsFor(A), FAKE_COMPUTATION_DETAILS
+      globalId1,
+      FakeProtocol.ZERO,
+      A,
+      computationMutations.detailsFor(A),
+      FAKE_COMPUTATION_DETAILS
     )
     val globalId2 = "5678"
     val localId2 = idGenerator.localId(globalId2)
     database.insertComputation(
-      globalId2, FakeProtocol.ZERO, A, computationMutations.detailsFor(A), FAKE_COMPUTATION_DETAILS
+      globalId2,
+      FakeProtocol.ZERO,
+      A,
+      computationMutations.detailsFor(A),
+      FAKE_COMPUTATION_DETAILS
     )
 
     assertQueryReturns(
@@ -268,24 +266,40 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(localId1)
-        .set("ComputationStage").toFakeStage(A)
-        .set("UpdateTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("GlobalComputationId").to(globalId1)
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("ComputationDetails").toProtoBytes(FAKE_COMPUTATION_DETAILS)
-        .set("ComputationDetailsJSON").toProtoJson(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationId")
+        .to(localId1)
+        .set("ComputationStage")
+        .toFakeStage(A)
+        .set("UpdateTime")
+        .to(TEST_INSTANT.toGcloudTimestamp())
+        .set("GlobalComputationId")
+        .to(globalId1)
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(TEST_INSTANT.toGcloudTimestamp())
+        .set("ComputationDetails")
+        .toProtoBytes(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(FAKE_COMPUTATION_DETAILS)
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(localId2)
-        .set("ComputationStage").toFakeStage(A)
-        .set("UpdateTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("GlobalComputationId").to(globalId2)
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("ComputationDetails").toProtoBytes(FAKE_COMPUTATION_DETAILS)
-        .set("ComputationDetailsJSON").toProtoJson(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationId")
+        .to(localId2)
+        .set("ComputationStage")
+        .toFakeStage(A)
+        .set("UpdateTime")
+        .to(TEST_INSTANT.toGcloudTimestamp())
+        .set("GlobalComputationId")
+        .to(globalId2)
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(TEST_INSTANT.toGcloudTimestamp())
+        .set("ComputationDetails")
+        .toProtoBytes(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(FAKE_COMPUTATION_DETAILS)
         .build()
     )
 
@@ -298,22 +312,36 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(localId1)
-        .set("ComputationStage").toFakeStage(A)
-        .set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("NextAttempt").to(1L)
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(A))
-        .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(A))
+        .set("ComputationId")
+        .to(localId1)
+        .set("ComputationStage")
+        .toFakeStage(A)
+        .set("CreationTime")
+        .to(TEST_INSTANT.toGcloudTimestamp())
+        .set("NextAttempt")
+        .to(1L)
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(computationMutations.detailsFor(A))
+        .set("DetailsJSON")
+        .toProtoJson(computationMutations.detailsFor(A))
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(localId2)
-        .set("ComputationStage").toFakeStage(A)
-        .set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
-        .set("NextAttempt").to(1L)
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(A))
-        .set("DetailsJSON").toProtoJson(computationMutations.detailsFor(A))
+        .set("ComputationId")
+        .to(localId2)
+        .set("ComputationStage")
+        .toFakeStage(A)
+        .set("CreationTime")
+        .to(TEST_INSTANT.toGcloudTimestamp())
+        .set("NextAttempt")
+        .to(1L)
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(computationMutations.detailsFor(A))
+        .set("DetailsJSON")
+        .toProtoJson(computationMutations.detailsFor(A))
         .build()
     )
 
@@ -325,86 +353,109 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       GROUP BY ComputationId
       ORDER BY ComputationId DESC
       """.trimIndent(),
-      Struct.newBuilder()
-        .set("ComputationId").to(localId1)
-        .set("N").to(1)
-        .build(),
-      Struct.newBuilder()
-        .set("ComputationId").to(localId2)
-        .set("N").to(1)
-        .build()
+      Struct.newBuilder().set("ComputationId").to(localId1).set("N").to(1).build(),
+      Struct.newBuilder().set("ComputationId").to(localId2).set("N").to(1).build()
     )
   }
 
   @Test
-  fun `insert computations with same global id fails`() = runBlocking<Unit> {
-    database.insertComputation(
-      "123", FakeProtocol.ZERO, A, computationMutations.detailsFor(A), FAKE_COMPUTATION_DETAILS
-    )
-    // This one fails because the same local id is used.
-    assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
+  fun `insert computations with same global id fails`() =
+    runBlocking<Unit> {
       database.insertComputation(
-        "123", FakeProtocol.ZERO, A, computationMutations.detailsFor(A), FAKE_COMPUTATION_DETAILS
+        "123",
+        FakeProtocol.ZERO,
+        A,
+        computationMutations.detailsFor(A),
+        FAKE_COMPUTATION_DETAILS
       )
+      // This one fails because the same local id is used.
+      assertFailsWith(SpannerException::class, "ALREADY_EXISTS") {
+        database.insertComputation(
+          "123",
+          FakeProtocol.ZERO,
+          A,
+          computationMutations.detailsFor(A),
+          FAKE_COMPUTATION_DETAILS
+        )
+      }
     }
-  }
 
   @Test
-  fun `insert computation with bad initial stage fails`() = runBlocking<Unit> {
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation(
-        "123", FakeProtocol.ONE, B, computationMutations.detailsFor(B), FAKE_COMPUTATION_DETAILS
-      )
+  fun `insert computation with bad initial stage fails`() =
+    runBlocking<Unit> {
+      assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+        database.insertComputation(
+          "123",
+          FakeProtocol.ONE,
+          B,
+          computationMutations.detailsFor(B),
+          FAKE_COMPUTATION_DETAILS
+        )
+      }
+      assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+        database.insertComputation(
+          "123",
+          FakeProtocol.ONE,
+          C,
+          computationMutations.detailsFor(C),
+          FAKE_COMPUTATION_DETAILS
+        )
+      }
+      assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+        database.insertComputation(
+          "123",
+          FakeProtocol.ZERO,
+          D,
+          computationMutations.detailsFor(D),
+          FAKE_COMPUTATION_DETAILS
+        )
+      }
+      assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+        database.insertComputation(
+          "123",
+          FakeProtocol.ONE,
+          E,
+          computationMutations.detailsFor(E),
+          FAKE_COMPUTATION_DETAILS
+        )
+      }
     }
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation(
-        "123", FakeProtocol.ONE, C, computationMutations.detailsFor(C), FAKE_COMPUTATION_DETAILS
-      )
-    }
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation(
-        "123", FakeProtocol.ZERO, D, computationMutations.detailsFor(D), FAKE_COMPUTATION_DETAILS
-      )
-    }
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.insertComputation(
-        "123", FakeProtocol.ONE, E, computationMutations.detailsFor(E), FAKE_COMPUTATION_DETAILS
-      )
-    }
-  }
 
   @Test
   fun enqueue() = runBlocking {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
-    val token = ComputationEditToken(
-      localId = 1,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 1,
-      editVersion = lastUpdated.toEpochMilli()
-    )
+    val token =
+      ComputationEditToken(
+        localId = 1,
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        attempt = 1,
+        editVersion = lastUpdated.toEpochMilli()
+      )
 
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      updateTime = lastUpdated.toGcloudTimestamp(),
-      globalId = "0",
-      protocol = token.protocol,
-      stage = token.stage,
-      lockOwner = "PeterSpacemen",
-      lockExpirationTime = lockExpires.toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val differentComputation = computationMutations.insertComputation(
-      localId = 456789,
-      updateTime = lastUpdated.toGcloudTimestamp(),
-      globalId = "10111213",
-      protocol = token.protocol,
-      stage = B,
-      lockOwner = "PeterSpacemen",
-      lockExpirationTime = lockExpires.toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
+    val computation =
+      computationMutations.insertComputation(
+        localId = token.localId,
+        updateTime = lastUpdated.toGcloudTimestamp(),
+        globalId = "0",
+        protocol = token.protocol,
+        stage = token.stage,
+        lockOwner = "PeterSpacemen",
+        lockExpirationTime = lockExpires.toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val differentComputation =
+      computationMutations.insertComputation(
+        localId = 456789,
+        updateTime = lastUpdated.toGcloudTimestamp(),
+        globalId = "10111213",
+        protocol = token.protocol,
+        stage = B,
+        lockOwner = "PeterSpacemen",
+        lockExpirationTime = lockExpires.toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
 
     databaseClient.write(listOf(computation, differentComputation))
     database.enqueue(token, 2)
@@ -418,63 +469,82 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationId
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("Protocol").to(0)
-        .set("ComputationStage").toFakeStage(token.stage)
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(TEST_INSTANT.plusSeconds(2).toGcloudTimestamp())
-        .set("ComputationDetails").toProtoBytes(FAKE_COMPUTATION_DETAILS)
-        .set("ComputationDetailsJSON").toProtoJson(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationId")
+        .to(token.localId)
+        .set("Protocol")
+        .to(0)
+        .set("ComputationStage")
+        .toFakeStage(token.stage)
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(TEST_INSTANT.plusSeconds(2).toGcloudTimestamp())
+        .set("ComputationDetails")
+        .toProtoBytes(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(FAKE_COMPUTATION_DETAILS)
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(456789)
-        .set("Protocol").to(0)
-        .set("ComputationStage").to(1)
-        .set("LockOwner").to("PeterSpacemen")
-        .set("LockExpirationTime").to(lockExpires.toGcloudTimestamp())
-        .set("ComputationDetails").toProtoBytes(FAKE_COMPUTATION_DETAILS)
-        .set("ComputationDetailsJSON").toProtoJson(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationId")
+        .to(456789)
+        .set("Protocol")
+        .to(0)
+        .set("ComputationStage")
+        .to(1)
+        .set("LockOwner")
+        .to("PeterSpacemen")
+        .set("LockExpirationTime")
+        .to(lockExpires.toGcloudTimestamp())
+        .set("ComputationDetails")
+        .toProtoBytes(FAKE_COMPUTATION_DETAILS)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(FAKE_COMPUTATION_DETAILS)
         .build()
     )
   }
 
   @Test
-  fun `enqueue deleted computation fails`() = runBlocking<Unit> {
-    val token = ComputationEditToken(
-      localId = 1,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 1,
-      editVersion = 0
-    )
-    assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
-  }
+  fun `enqueue deleted computation fails`() =
+    runBlocking<Unit> {
+      val token =
+        ComputationEditToken(
+          localId = 1,
+          protocol = FakeProtocol.ZERO,
+          stage = C,
+          attempt = 1,
+          editVersion = 0
+        )
+      assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
+    }
 
   @Test
-  fun `enqueue with old token fails`() = runBlocking<Unit> {
-    val lastUpdated = Instant.ofEpochMilli(12345678910L)
-    val lockExpires = lastUpdated.plusSeconds(1)
-    val token = ComputationEditToken(
-      localId = 1,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 1,
-      editVersion = lastUpdated.minusSeconds(200).toEpochMilli()
-    )
+  fun `enqueue with old token fails`() =
+    runBlocking<Unit> {
+      val lastUpdated = Instant.ofEpochMilli(12345678910L)
+      val lockExpires = lastUpdated.plusSeconds(1)
+      val token =
+        ComputationEditToken(
+          localId = 1,
+          protocol = FakeProtocol.ZERO,
+          stage = C,
+          attempt = 1,
+          editVersion = lastUpdated.minusSeconds(200).toEpochMilli()
+        )
 
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      updateTime = lastUpdated.toGcloudTimestamp(),
-      globalId = "1234",
-      protocol = FakeProtocol.ONE,
-      stage = token.stage,
-      lockOwner = "AnOwnedLock",
-      lockExpirationTime = lockExpires.toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    databaseClient.write(listOf(computation))
-    assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
-  }
+      val computation =
+        computationMutations.insertComputation(
+          localId = token.localId,
+          updateTime = lastUpdated.toGcloudTimestamp(),
+          globalId = "1234",
+          protocol = FakeProtocol.ONE,
+          stage = token.stage,
+          lockOwner = "AnOwnedLock",
+          lockExpirationTime = lockExpires.toGcloudTimestamp(),
+          details = FAKE_COMPUTATION_DETAILS
+        )
+      databaseClient.write(listOf(computation))
+      assertFailsWith<IllegalStateException> { database.enqueue(token, 0) }
+    }
 
   @Test
   fun claimTask() = runBlocking {
@@ -485,59 +555,65 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcloudTimestamp()
     val sixMinutesAgo = testClock["6_minutes_ago"].toGcloudTimestamp()
     val sevenMinutesAgo = testClock["7_minutes_ago"].toGcloudTimestamp()
-    val enqueuedSevenMinutesAgoForOtherProtocol = computationMutations.insertComputation(
-      localId = 111,
-      updateTime = fiveMinutesAgo,
-      globalId = "11",
-      protocol = FakeProtocol.ZERO,
-      stage = A,
-      lockOwner = WRITE_NULL_STRING,
-      lockExpirationTime = sevenMinutesAgo,
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val enqueuedSevenMinutesAgoForOtherProtocolStage = computationMutations.insertComputationStage(
-      localId = 111,
-      stage = A,
-      nextAttempt = 1,
-      creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
-      details = computationMutations.detailsFor(A)
-    )
+    val enqueuedSevenMinutesAgoForOtherProtocol =
+      computationMutations.insertComputation(
+        localId = 111,
+        updateTime = fiveMinutesAgo,
+        globalId = "11",
+        protocol = FakeProtocol.ZERO,
+        stage = A,
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = sevenMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val enqueuedSevenMinutesAgoForOtherProtocolStage =
+      computationMutations.insertComputationStage(
+        localId = 111,
+        stage = A,
+        nextAttempt = 1,
+        creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
+        details = computationMutations.detailsFor(A)
+      )
 
-    val enqueuedFiveMinutesAgo = computationMutations.insertComputation(
-      localId = 555,
-      updateTime = fiveMinutesAgo,
-      globalId = "55",
-      protocol = FakeProtocol.ONE,
-      stage = A,
-      lockOwner = WRITE_NULL_STRING,
-      lockExpirationTime = fiveMinutesAgo,
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val enqueuedFiveMinutesAgoStage = computationMutations.insertComputationStage(
-      localId = 555,
-      stage = A,
-      nextAttempt = 1,
-      creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
-      details = computationMutations.detailsFor(A)
-    )
+    val enqueuedFiveMinutesAgo =
+      computationMutations.insertComputation(
+        localId = 555,
+        updateTime = fiveMinutesAgo,
+        globalId = "55",
+        protocol = FakeProtocol.ONE,
+        stage = A,
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = fiveMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val enqueuedFiveMinutesAgoStage =
+      computationMutations.insertComputationStage(
+        localId = 555,
+        stage = A,
+        nextAttempt = 1,
+        creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
+        details = computationMutations.detailsFor(A)
+      )
 
-    val enqueuedSixMinutesAgo = computationMutations.insertComputation(
-      localId = 66,
-      protocol = FakeProtocol.ONE,
-      stage = A,
-      updateTime = sixMinutesAgo,
-      globalId = "6",
-      lockOwner = WRITE_NULL_STRING,
-      lockExpirationTime = sixMinutesAgo,
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val enqueuedSixMinutesAgoStage = computationMutations.insertComputationStage(
-      localId = 66,
-      stage = A,
-      nextAttempt = 1,
-      creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
-      details = computationMutations.detailsFor(A)
-    )
+    val enqueuedSixMinutesAgo =
+      computationMutations.insertComputation(
+        localId = 66,
+        protocol = FakeProtocol.ONE,
+        stage = A,
+        updateTime = sixMinutesAgo,
+        globalId = "6",
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = sixMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val enqueuedSixMinutesAgoStage =
+      computationMutations.insertComputationStage(
+        localId = 66,
+        stage = A,
+        nextAttempt = 1,
+        creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
+        details = computationMutations.detailsFor(A)
+      )
     databaseClient.write(
       listOf(
         enqueuedFiveMinutesAgo,
@@ -557,10 +633,14 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       WHERE ComputationId = 66 AND ComputationStage = 0
       """.trimIndent(),
       Struct.newBuilder()
-        .set("Attempt").to(1)
-        .set("BeginTime").to(testClock.last().toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
 
@@ -573,10 +653,14 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       WHERE ComputationId = 555 AND ComputationStage = 0
       """.trimIndent(),
       Struct.newBuilder()
-        .set("Attempt").to(1)
-        .set("BeginTime").to(testClock.last().toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
 
@@ -590,56 +674,62 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     testClock.tickSeconds("TimeOfTest", 300)
     val fiveMinutesAgo = testClock["5_minutes_ago"].toGcloudTimestamp()
     val fiveMinutesFromNow = testClock.last().plusSeconds(300).toGcloudTimestamp()
-    val expiredClaim = computationMutations.insertComputation(
-      localId = 111L,
-      protocol = FakeProtocol.ZERO,
-      stage = A,
-      updateTime = testClock["start"].toGcloudTimestamp(),
-      globalId = "11",
-      lockOwner = "owner-of-the-lock",
-      lockExpirationTime = fiveMinutesAgo,
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val expiredClaimStage = computationMutations.insertComputationStage(
-      localId = 111,
-      stage = A,
-      nextAttempt = 2,
-      creationTime = fiveMinutesAgo,
-      details = computationMutations.detailsFor(A)
-    )
-    val expiredClaimAttempt = computationMutations.insertComputationStageAttempt(
-      localId = 111,
-      stage = A,
-      attempt = 1,
-      beginTime = fiveMinutesAgo,
-      details = ComputationStageAttemptDetails.getDefaultInstance()
-    )
+    val expiredClaim =
+      computationMutations.insertComputation(
+        localId = 111L,
+        protocol = FakeProtocol.ZERO,
+        stage = A,
+        updateTime = testClock["start"].toGcloudTimestamp(),
+        globalId = "11",
+        lockOwner = "owner-of-the-lock",
+        lockExpirationTime = fiveMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val expiredClaimStage =
+      computationMutations.insertComputationStage(
+        localId = 111,
+        stage = A,
+        nextAttempt = 2,
+        creationTime = fiveMinutesAgo,
+        details = computationMutations.detailsFor(A)
+      )
+    val expiredClaimAttempt =
+      computationMutations.insertComputationStageAttempt(
+        localId = 111,
+        stage = A,
+        attempt = 1,
+        beginTime = fiveMinutesAgo,
+        details = ComputationStageAttemptDetails.getDefaultInstance()
+      )
     databaseClient.write(listOf(expiredClaim, expiredClaimStage, expiredClaimAttempt))
 
-    val claimed = computationMutations.insertComputation(
-      localId = 333,
-      protocol = FakeProtocol.ZERO,
-      stage = A,
-      updateTime = testClock["start"].toGcloudTimestamp(),
-      globalId = "33",
-      lockOwner = "owner-of-the-lock",
-      lockExpirationTime = fiveMinutesFromNow,
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val claimedStage = computationMutations.insertComputationStage(
-      localId = 333,
-      stage = A,
-      nextAttempt = 2,
-      creationTime = fiveMinutesAgo,
-      details = computationMutations.detailsFor(A)
-    )
-    val claimedAttempt = computationMutations.insertComputationStageAttempt(
-      localId = 333,
-      stage = A,
-      attempt = 1,
-      beginTime = fiveMinutesAgo,
-      details = ComputationStageAttemptDetails.getDefaultInstance()
-    )
+    val claimed =
+      computationMutations.insertComputation(
+        localId = 333,
+        protocol = FakeProtocol.ZERO,
+        stage = A,
+        updateTime = testClock["start"].toGcloudTimestamp(),
+        globalId = "33",
+        lockOwner = "owner-of-the-lock",
+        lockExpirationTime = fiveMinutesFromNow,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val claimedStage =
+      computationMutations.insertComputationStage(
+        localId = 333,
+        stage = A,
+        nextAttempt = 2,
+        creationTime = fiveMinutesAgo,
+        details = computationMutations.detailsFor(A)
+      )
+    val claimedAttempt =
+      computationMutations.insertComputationStageAttempt(
+        localId = 333,
+        stage = A,
+        attempt = 1,
+        beginTime = fiveMinutesAgo,
+        details = ComputationStageAttemptDetails.getDefaultInstance()
+      )
     databaseClient.write(listOf(claimed, claimedStage, claimedAttempt))
 
     // Claim a task that is owned but the lock expired.
@@ -653,20 +743,28 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY Attempt
       """.trimIndent(),
       Struct.newBuilder()
-        .set("Attempt").to(1)
-        .set("BeginTime").to(fiveMinutesAgo)
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN
-          }.build()
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(fiveMinutesAgo)
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
+            .build()
         )
         .build(),
       Struct.newBuilder()
-        .set("Attempt").to(2)
-        .set("BeginTime").to(testClock.last().toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
+        .set("Attempt")
+        .to(2)
+        .set("BeginTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
 
@@ -681,30 +779,33 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     testClock.tickSeconds("last_updated")
     testClock.tickSeconds("lock_expires", 100)
     val globalId = "55"
-    val token = ComputationEditToken(
-      localId = 4315,
-      protocol = FakeProtocol.ONE,
-      stage = B,
-      attempt = 2,
-      editVersion = testClock["last_updated"].toEpochMilli()
-    )
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      updateTime = testClock["last_updated"].toGcloudTimestamp(),
-      globalId = globalId,
-      protocol = token.protocol,
-      stage = B,
-      lockOwner = "the-owner-of-the-lock",
-      lockExpirationTime = testClock["lock_expires"].toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val stage = computationMutations.insertComputationStage(
-      localId = token.localId,
-      stage = B,
-      nextAttempt = 3,
-      creationTime = testClock["stage_b_created"].toGcloudTimestamp(),
-      details = computationMutations.detailsFor(B)
-    )
+    val token =
+      ComputationEditToken(
+        localId = 4315,
+        protocol = FakeProtocol.ONE,
+        stage = B,
+        attempt = 2,
+        editVersion = testClock["last_updated"].toEpochMilli()
+      )
+    val computation =
+      computationMutations.insertComputation(
+        localId = token.localId,
+        updateTime = testClock["last_updated"].toGcloudTimestamp(),
+        globalId = globalId,
+        protocol = token.protocol,
+        stage = B,
+        lockOwner = "the-owner-of-the-lock",
+        lockExpirationTime = testClock["lock_expires"].toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val stage =
+      computationMutations.insertComputationStage(
+        localId = token.localId,
+        stage = B,
+        nextAttempt = 3,
+        creationTime = testClock["stage_b_created"].toGcloudTimestamp(),
+        details = computationMutations.detailsFor(B)
+      )
     val attempt =
       computationMutations.insertComputationStageAttempt(
         localId = token.localId,
@@ -741,9 +842,12 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       FROM Computations
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(D)
-        .set("UpdateTime").to(testClock["update_stage"].toGcloudTimestamp())
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(D)
+        .set("UpdateTime")
+        .to(testClock["update_stage"].toGcloudTimestamp())
         .build()
     )
 
@@ -756,26 +860,36 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationStage
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(B)
-        .set("CreationTime").to(testClock["stage_b_created"].toGcloudTimestamp())
-        .set("EndTime").to(testClock["update_stage"].toGcloudTimestamp())
-        .set("PreviousStage").to(null as Long?)
-        .set("FollowingStage").to(
-          ComputationProtocolStages.computationStageEnumToLongValues(D).stage
-        )
-        .set("Details").toProtoBytes(computationMutations.detailsFor(B))
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(B)
+        .set("CreationTime")
+        .to(testClock["stage_b_created"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock["update_stage"].toGcloudTimestamp())
+        .set("PreviousStage")
+        .to(null as Long?)
+        .set("FollowingStage")
+        .to(ComputationProtocolStages.computationStageEnumToLongValues(D).stage)
+        .set("Details")
+        .toProtoBytes(computationMutations.detailsFor(B))
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(D)
-        .set("CreationTime").to(testClock["update_stage"].toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("PreviousStage").to(
-          ComputationProtocolStages.computationStageEnumToLongValues(B).stage
-        )
-        .set("FollowingStage").to(null as Long?)
-        .set("Details").toProtoBytes(computationMutations.detailsFor(D))
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(D)
+        .set("CreationTime")
+        .to(testClock["update_stage"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("PreviousStage")
+        .to(ComputationProtocolStages.computationStageEnumToLongValues(B).stage)
+        .set("FollowingStage")
+        .to(null as Long?)
+        .set("Details")
+        .toProtoBytes(computationMutations.detailsFor(D))
         .build()
     )
   }
@@ -788,9 +902,12 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       databaseClient,
       "SELECT ComputationId, LockOwner, LockExpirationTime FROM Computations",
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("LockOwner").to("the-owner-of-the-lock")
-        .set("LockExpirationTime").to(testClock.last().plusSeconds(300).toGcloudTimestamp())
+        .set("ComputationId")
+        .to(token.localId)
+        .set("LockOwner")
+        .to("the-owner-of-the-lock")
+        .set("LockExpirationTime")
+        .to(testClock.last().plusSeconds(300).toGcloudTimestamp())
         .build()
     )
 
@@ -802,24 +919,36 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(B)
-        .set("Attempt").to(2)
-        .set("BeginTime").to(testClock["stage_b_created"].toGcloudTimestamp())
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
-          }.build()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(B)
+        .set("Attempt")
+        .to(2)
+        .set("BeginTime")
+        .to(testClock["stage_b_created"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED }
+            .build()
         )
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(D)
-        .set("Attempt").to(1)
-        .set("BeginTime").to(testClock.last().toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(D)
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
   }
@@ -832,9 +961,12 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       databaseClient,
       "SELECT ComputationId, LockOwner, LockExpirationTime FROM Computations",
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(testClock.last().toGcloudTimestamp())
+        .set("ComputationId")
+        .to(token.localId)
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(testClock.last().toGcloudTimestamp())
         .build()
     )
 
@@ -846,15 +978,21 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(B)
-        .set("Attempt").to(2)
-        .set("BeginTime").to(testClock["stage_b_created"].toGcloudTimestamp())
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
-          }.build()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(B)
+        .set("Attempt")
+        .to(2)
+        .set("BeginTime")
+        .to(testClock["stage_b_created"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED }
+            .build()
         )
         .build()
     )
@@ -868,9 +1006,12 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       databaseClient,
       "SELECT ComputationId, LockOwner, LockExpirationTime FROM Computations",
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(null as Timestamp?)
+        .set("ComputationId")
+        .to(token.localId)
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(null as Timestamp?)
         .build()
     )
 
@@ -882,160 +1023,193 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(B)
-        .set("Attempt").to(2)
-        .set("BeginTime").to(testClock["stage_b_created"].toGcloudTimestamp())
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
-          }.build()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(B)
+        .set("Attempt")
+        .to(2)
+        .set("BeginTime")
+        .to(testClock["stage_b_created"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED }
+            .build()
         )
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(D)
-        .set("Attempt").to(1)
-        .set("BeginTime").to(testClock.last().toGcloudTimestamp())
-        .set("EndTime").to(null as Timestamp?)
-        .set("Details").toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(D)
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("EndTime")
+        .to(null as Timestamp?)
+        .set("Details")
+        .toProtoBytes(ComputationStageAttemptDetails.getDefaultInstance())
         .build()
     )
   }
 
   @Test
-  fun `updateComputationStage illegal stage transition fails`() = runBlocking<Unit> {
-    val token = ComputationEditToken(
-      localId = 1,
-      attempt = 1,
-      protocol = FakeProtocol.ZERO,
-      stage = A,
-      editVersion = 0
-    )
-    assertFailsWith<IllegalArgumentException> {
-      database.updateComputationStage(
-        token = token,
-        nextStage = D,
-        inputBlobPaths = listOf(),
-        passThroughBlobPaths = listOf(),
-        outputBlobs = 0,
-        afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE,
-        nextStageDetails = computationMutations.detailsFor(D)
-      )
+  fun `updateComputationStage illegal stage transition fails`() =
+    runBlocking<Unit> {
+      val token =
+        ComputationEditToken(
+          localId = 1,
+          attempt = 1,
+          protocol = FakeProtocol.ZERO,
+          stage = A,
+          editVersion = 0
+        )
+      assertFailsWith<IllegalArgumentException> {
+        database.updateComputationStage(
+          token = token,
+          nextStage = D,
+          inputBlobPaths = listOf(),
+          passThroughBlobPaths = listOf(),
+          outputBlobs = 0,
+          afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE,
+          nextStageDetails = computationMutations.detailsFor(D)
+        )
+      }
     }
-  }
 
   @Test
-  fun writeOutputBlobReference() = runBlocking<Unit> {
-    val token = ComputationEditToken(
-      localId = 4315,
-      protocol = FakeProtocol.ZERO,
-      stage = B,
-      attempt = 1,
-      editVersion = testClock.last().toEpochMilli()
-    )
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      protocol = token.protocol,
-      stage = B,
-      updateTime = testClock.last().toGcloudTimestamp(),
-      globalId = "2002",
-      lockOwner = WRITE_NULL_STRING,
-      lockExpirationTime = WRITE_NULL_TIMESTAMP,
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val stage = computationMutations.insertComputationStage(
-      localId = token.localId,
-      stage = B,
-      nextAttempt = 3,
-      creationTime = testClock.last().toGcloudTimestamp(),
-      details = FakeProtocolStageDetails.getDefaultInstance()
-    )
-    val outputRef = computationMutations.insertComputationBlobReference(
-      localId = token.localId,
-      stage = B,
-      blobId = 1234L,
-      dependencyType = ComputationBlobDependency.OUTPUT
-    )
-    val inputRef = computationMutations.insertComputationBlobReference(
-      localId = token.localId,
-      stage = B,
-      blobId = 5678L,
-      pathToBlob = "/path/to/input/blob",
-      dependencyType = ComputationBlobDependency.INPUT
-    )
-    databaseClient.write(listOf(computation, stage, outputRef, inputRef))
-    testClock.tickSeconds("write-blob-ref")
-    database.writeOutputBlobReference(token, BlobRef(1234L, "/wrote/something/there"))
-    assertQueryReturns(
-      databaseClient,
-      """
+  fun writeOutputBlobReference() =
+    runBlocking<Unit> {
+      val token =
+        ComputationEditToken(
+          localId = 4315,
+          protocol = FakeProtocol.ZERO,
+          stage = B,
+          attempt = 1,
+          editVersion = testClock.last().toEpochMilli()
+        )
+      val computation =
+        computationMutations.insertComputation(
+          localId = token.localId,
+          protocol = token.protocol,
+          stage = B,
+          updateTime = testClock.last().toGcloudTimestamp(),
+          globalId = "2002",
+          lockOwner = WRITE_NULL_STRING,
+          lockExpirationTime = WRITE_NULL_TIMESTAMP,
+          details = FAKE_COMPUTATION_DETAILS
+        )
+      val stage =
+        computationMutations.insertComputationStage(
+          localId = token.localId,
+          stage = B,
+          nextAttempt = 3,
+          creationTime = testClock.last().toGcloudTimestamp(),
+          details = FakeProtocolStageDetails.getDefaultInstance()
+        )
+      val outputRef =
+        computationMutations.insertComputationBlobReference(
+          localId = token.localId,
+          stage = B,
+          blobId = 1234L,
+          dependencyType = ComputationBlobDependency.OUTPUT
+        )
+      val inputRef =
+        computationMutations.insertComputationBlobReference(
+          localId = token.localId,
+          stage = B,
+          blobId = 5678L,
+          pathToBlob = "/path/to/input/blob",
+          dependencyType = ComputationBlobDependency.INPUT
+        )
+      databaseClient.write(listOf(computation, stage, outputRef, inputRef))
+      testClock.tickSeconds("write-blob-ref")
+      database.writeOutputBlobReference(token, BlobRef(1234L, "/wrote/something/there"))
+      assertQueryReturns(
+        databaseClient,
+        """
       SELECT b.ComputationId, b.ComputationStage, b.BlobId, b.PathToBlob, b.DependencyType,
              c.UpdateTime
       FROM ComputationBlobReferences AS b
       JOIN Computations AS c USING(ComputationId)
       ORDER BY ComputationStage, BlobId
       """.trimIndent(),
-      Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(token.stage)
-        .set("BlobId").to(1234L)
-        .set("PathToBlob").to("/wrote/something/there")
-        .set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
-        .set("UpdateTime").to(testClock.get("write-blob-ref").toGcloudTimestamp())
-        .build(),
-      Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(token.stage)
-        .set("BlobId").to(5678L)
-        .set("PathToBlob").to("/path/to/input/blob")
-        .set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)
-        .set("UpdateTime").to(testClock.get("write-blob-ref").toGcloudTimestamp())
-        .build()
-    )
+        Struct.newBuilder()
+          .set("ComputationId")
+          .to(token.localId)
+          .set("ComputationStage")
+          .toFakeStage(token.stage)
+          .set("BlobId")
+          .to(1234L)
+          .set("PathToBlob")
+          .to("/wrote/something/there")
+          .set("DependencyType")
+          .toProtoEnum(ComputationBlobDependency.OUTPUT)
+          .set("UpdateTime")
+          .to(testClock.get("write-blob-ref").toGcloudTimestamp())
+          .build(),
+        Struct.newBuilder()
+          .set("ComputationId")
+          .to(token.localId)
+          .set("ComputationStage")
+          .toFakeStage(token.stage)
+          .set("BlobId")
+          .to(5678L)
+          .set("PathToBlob")
+          .to("/path/to/input/blob")
+          .set("DependencyType")
+          .toProtoEnum(ComputationBlobDependency.INPUT)
+          .set("UpdateTime")
+          .to(testClock.get("write-blob-ref").toGcloudTimestamp())
+          .build()
+      )
 
-    // Can't update a blob with blank path.
-    assertFailsWith<IllegalArgumentException> {
-      database.writeOutputBlobReference(token, BlobRef(1234L, ""))
+      // Can't update a blob with blank path.
+      assertFailsWith<IllegalArgumentException> {
+        database.writeOutputBlobReference(token, BlobRef(1234L, ""))
+      }
+      // Can't update an input blob
+      assertFailsWith<IllegalStateException> {
+        database.writeOutputBlobReference(token, BlobRef(5678L, "/wrote/something/there"))
+      }
+      // Blob id doesn't exist
+      assertFailsWith<IllegalStateException> {
+        database.writeOutputBlobReference(token, BlobRef(223344L, "/wrote/something/there"))
+      }
     }
-    // Can't update an input blob
-    assertFailsWith<IllegalStateException> {
-      database.writeOutputBlobReference(token, BlobRef(5678L, "/wrote/something/there"))
-    }
-    // Blob id doesn't exist
-    assertFailsWith<IllegalStateException> {
-      database.writeOutputBlobReference(token, BlobRef(223344L, "/wrote/something/there"))
-    }
-  }
 
   @Test
   fun `update computation details`() = runBlocking {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
-    val token = ComputationEditToken(
-      localId = 4315,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 2,
-      editVersion = lastUpdated.toEpochMilli()
-    )
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      updateTime = lastUpdated.toGcloudTimestamp(),
-      protocol = token.protocol,
-      stage = token.stage,
-      globalId = "55",
-      lockOwner = "PeterSpacemen",
-      lockExpirationTime = lockExpires.toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
+    val token =
+      ComputationEditToken(
+        localId = 4315,
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        attempt = 2,
+        editVersion = lastUpdated.toEpochMilli()
+      )
+    val computation =
+      computationMutations.insertComputation(
+        localId = token.localId,
+        updateTime = lastUpdated.toGcloudTimestamp(),
+        protocol = token.protocol,
+        stage = token.stage,
+        globalId = "55",
+        lockOwner = "PeterSpacemen",
+        lockExpirationTime = lockExpires.toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
 
     testClock.tickSeconds("time-ended")
     databaseClient.write(listOf(computation))
-    val newComputationDetails = FakeComputationDetails.newBuilder().apply {
-      role = "something different"
-    }.build()
+    val newComputationDetails =
+      FakeComputationDetails.newBuilder().apply { role = "something different" }.build()
     database.updateComputationDetails(token, newComputationDetails)
     assertQueryReturns(
       databaseClient,
@@ -1046,62 +1220,77 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(C)
-        .set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        .set("GlobalComputationId").to("55")
-        .set("LockOwner").to("PeterSpacemen")
-        .set("LockExpirationTime").to(lockExpires.toGcloudTimestamp())
-        .set("ComputationDetails").toProtoBytes(newComputationDetails)
-        .set("ComputationDetailsJSON").toProtoJson(newComputationDetails)
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(C)
+        .set("UpdateTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("GlobalComputationId")
+        .to("55")
+        .set("LockOwner")
+        .to("PeterSpacemen")
+        .set("LockExpirationTime")
+        .to(lockExpires.toGcloudTimestamp())
+        .set("ComputationDetails")
+        .toProtoBytes(newComputationDetails)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(newComputationDetails)
         .build()
     )
   }
 
   @Test
   fun `end successful computation`() = runBlocking {
-    val token = ComputationEditToken(
-      localId = 4315,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 2,
-      editVersion = testClock.last().toEpochMilli()
-    )
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      updateTime = testClock.last().toGcloudTimestamp(),
-      protocol = token.protocol,
-      stage = C,
-      globalId = "55",
-      lockOwner = WRITE_NULL_STRING,
-      lockExpirationTime = testClock.last().toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val stage = computationMutations.insertComputationStage(
-      localId = token.localId,
-      stage = C,
-      nextAttempt = 3,
-      creationTime = testClock.last().toGcloudTimestamp(),
-      details = computationMutations.detailsFor(C)
-    )
-    val unfinishedPreviousAttempt = computationMutations.insertComputationStageAttempt(
-      localId = token.localId,
-      stage = token.stage,
-      attempt = token.attempt.toLong() - 1,
-      beginTime = testClock.last().toGcloudTimestamp(),
-      details = ComputationStageAttemptDetails.getDefaultInstance()
-    )
-    val attempt = computationMutations.insertComputationStageAttempt(
-      localId = token.localId,
-      stage = token.stage,
-      attempt = token.attempt.toLong(),
-      beginTime = testClock.last().toGcloudTimestamp(),
-      details = ComputationStageAttemptDetails.getDefaultInstance()
-    )
+    val token =
+      ComputationEditToken(
+        localId = 4315,
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        attempt = 2,
+        editVersion = testClock.last().toEpochMilli()
+      )
+    val computation =
+      computationMutations.insertComputation(
+        localId = token.localId,
+        updateTime = testClock.last().toGcloudTimestamp(),
+        protocol = token.protocol,
+        stage = C,
+        globalId = "55",
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = testClock.last().toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val stage =
+      computationMutations.insertComputationStage(
+        localId = token.localId,
+        stage = C,
+        nextAttempt = 3,
+        creationTime = testClock.last().toGcloudTimestamp(),
+        details = computationMutations.detailsFor(C)
+      )
+    val unfinishedPreviousAttempt =
+      computationMutations.insertComputationStageAttempt(
+        localId = token.localId,
+        stage = token.stage,
+        attempt = token.attempt.toLong() - 1,
+        beginTime = testClock.last().toGcloudTimestamp(),
+        details = ComputationStageAttemptDetails.getDefaultInstance()
+      )
+    val attempt =
+      computationMutations.insertComputationStageAttempt(
+        localId = token.localId,
+        stage = token.stage,
+        attempt = token.attempt.toLong(),
+        beginTime = testClock.last().toGcloudTimestamp(),
+        details = ComputationStageAttemptDetails.getDefaultInstance()
+      )
     testClock.tickSeconds("time-ended")
     databaseClient.write(listOf(computation, stage, unfinishedPreviousAttempt, attempt))
     val expectedDetails =
-      FAKE_COMPUTATION_DETAILS.toBuilder().setEndReason(EndComputationReason.SUCCEEDED.toString())
+      FAKE_COMPUTATION_DETAILS
+        .toBuilder()
+        .setEndReason(EndComputationReason.SUCCEEDED.toString())
         .build()
     database.endComputation(token, E, EndComputationReason.SUCCEEDED)
     assertQueryReturns(
@@ -1113,14 +1302,22 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(E)
-        .set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        .set("GlobalComputationId").to("55")
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(null as Timestamp?)
-        .set("ComputationDetails").toProtoBytes(expectedDetails)
-        .set("ComputationDetailsJSON").toProtoJson(expectedDetails)
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(E)
+        .set("UpdateTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("GlobalComputationId")
+        .to("55")
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(null as Timestamp?)
+        .set("ComputationDetails")
+        .toProtoBytes(expectedDetails)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(expectedDetails)
         .build()
     )
 
@@ -1132,27 +1329,39 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(C)
-        .set("Attempt").to(1)
-        .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.CANCELLED
-          }.build()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(C)
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(testClock["start"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.CANCELLED }
+            .build()
         )
         .build(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(C)
-        .set("Attempt").to(2)
-        .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED
-          }.build()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(C)
+        .set("Attempt")
+        .to(2)
+        .set("BeginTime")
+        .to(testClock["start"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.SUCCEEDED }
+            .build()
         )
         .build()
     )
@@ -1161,41 +1370,47 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   @Test
   fun `end failed computation`() = runBlocking {
     val globalId = "474747"
-    val token = ComputationEditToken(
-      localId = 4315,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 1,
-      editVersion = testClock.last().toEpochMilli()
-    )
-    val computation = computationMutations.insertComputation(
-      localId = token.localId,
-      updateTime = testClock.last().toGcloudTimestamp(),
-      protocol = token.protocol,
-      stage = C,
-      globalId = globalId,
-      lockOwner = "lock-owner",
-      lockExpirationTime = testClock.last().toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val stage = computationMutations.insertComputationStage(
-      localId = token.localId,
-      stage = C,
-      nextAttempt = 3,
-      creationTime = testClock.last().toGcloudTimestamp(),
-      details = computationMutations.detailsFor(C)
-    )
-    val attempt = computationMutations.insertComputationStageAttempt(
-      localId = token.localId,
-      stage = C,
-      attempt = 1,
-      beginTime = testClock.last().toGcloudTimestamp(),
-      details = ComputationStageAttemptDetails.getDefaultInstance()
-    )
+    val token =
+      ComputationEditToken(
+        localId = 4315,
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        attempt = 1,
+        editVersion = testClock.last().toEpochMilli()
+      )
+    val computation =
+      computationMutations.insertComputation(
+        localId = token.localId,
+        updateTime = testClock.last().toGcloudTimestamp(),
+        protocol = token.protocol,
+        stage = C,
+        globalId = globalId,
+        lockOwner = "lock-owner",
+        lockExpirationTime = testClock.last().toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val stage =
+      computationMutations.insertComputationStage(
+        localId = token.localId,
+        stage = C,
+        nextAttempt = 3,
+        creationTime = testClock.last().toGcloudTimestamp(),
+        details = computationMutations.detailsFor(C)
+      )
+    val attempt =
+      computationMutations.insertComputationStageAttempt(
+        localId = token.localId,
+        stage = C,
+        attempt = 1,
+        beginTime = testClock.last().toGcloudTimestamp(),
+        details = ComputationStageAttemptDetails.getDefaultInstance()
+      )
     testClock.tickSeconds("time-failed")
     databaseClient.write(listOf(computation, stage, attempt))
     val expectedDetails =
-      FAKE_COMPUTATION_DETAILS.toBuilder().setEndReason(EndComputationReason.FAILED.toString())
+      FAKE_COMPUTATION_DETAILS
+        .toBuilder()
+        .setEndReason(EndComputationReason.FAILED.toString())
         .build()
     database.endComputation(token, E, EndComputationReason.FAILED)
     assertQueryReturns(
@@ -1207,14 +1422,22 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationId DESC
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(E)
-        .set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        .set("GlobalComputationId").to(globalId)
-        .set("LockOwner").to(null as String?)
-        .set("LockExpirationTime").to(null as Timestamp?)
-        .set("ComputationDetails").toProtoBytes(expectedDetails)
-        .set("ComputationDetailsJSON").toProtoJson(expectedDetails)
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(E)
+        .set("UpdateTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("GlobalComputationId")
+        .to(globalId)
+        .set("LockOwner")
+        .to(null as String?)
+        .set("LockExpirationTime")
+        .to(null as Timestamp?)
+        .set("ComputationDetails")
+        .toProtoBytes(expectedDetails)
+        .set("ComputationDetailsJSON")
+        .toProtoJson(expectedDetails)
         .build()
     )
     assertQueryReturns(
@@ -1225,62 +1448,73 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       ORDER BY ComputationStage, Attempt
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(token.localId)
-        .set("ComputationStage").toFakeStage(C)
-        .set("Attempt").to(1)
-        .set("BeginTime").to(testClock["start"].toGcloudTimestamp())
-        .set("EndTime").to(testClock.last().toGcloudTimestamp())
-        .set("Details").toProtoBytes(
-          ComputationStageAttemptDetails.newBuilder().apply {
-            reasonEnded = ComputationStageAttemptDetails.EndReason.ERROR
-          }.build()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("ComputationStage")
+        .toFakeStage(C)
+        .set("Attempt")
+        .to(1)
+        .set("BeginTime")
+        .to(testClock["start"].toGcloudTimestamp())
+        .set("EndTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .set("Details")
+        .toProtoBytes(
+          ComputationStageAttemptDetails.newBuilder()
+            .apply { reasonEnded = ComputationStageAttemptDetails.EndReason.ERROR }
+            .build()
         )
         .build()
     )
   }
 
   @Test
-  fun `endComputation throws for non-ending state`() = runBlocking<Unit> {
-    val token = ComputationEditToken(
-      localId = 4315,
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      attempt = 1,
-      editVersion = testClock.last().toEpochMilli()
-    )
-    assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-      database.endComputation(token, B, EndComputationReason.CANCELED)
+  fun `endComputation throws for non-ending state`() =
+    runBlocking<Unit> {
+      val token =
+        ComputationEditToken(
+          localId = 4315,
+          protocol = FakeProtocol.ZERO,
+          stage = C,
+          attempt = 1,
+          editVersion = testClock.last().toEpochMilli()
+        )
+      assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
+        database.endComputation(token, B, EndComputationReason.CANCELED)
+      }
     }
-  }
 
   @Test
   fun `insert computation stat succeeds`() = runBlocking {
     val globalId = "474747"
     val localId = 4315L
-    val computation = computationMutations.insertComputation(
-      localId = localId,
-      updateTime = testClock.last().toGcloudTimestamp(),
-      protocol = FakeProtocol.ZERO,
-      stage = C,
-      globalId = globalId,
-      lockOwner = "lock-owner",
-      lockExpirationTime = testClock.last().toGcloudTimestamp(),
-      details = FAKE_COMPUTATION_DETAILS
-    )
-    val stage = computationMutations.insertComputationStage(
-      localId = localId,
-      stage = C,
-      nextAttempt = 3,
-      creationTime = testClock.last().toGcloudTimestamp(),
-      details = computationMutations.detailsFor(C)
-    )
-    val attempt = computationMutations.insertComputationStageAttempt(
-      localId = localId,
-      stage = C,
-      attempt = 2,
-      beginTime = testClock.last().toGcloudTimestamp(),
-      details = ComputationStageAttemptDetails.getDefaultInstance()
-    )
+    val computation =
+      computationMutations.insertComputation(
+        localId = localId,
+        updateTime = testClock.last().toGcloudTimestamp(),
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        globalId = globalId,
+        lockOwner = "lock-owner",
+        lockExpirationTime = testClock.last().toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val stage =
+      computationMutations.insertComputationStage(
+        localId = localId,
+        stage = C,
+        nextAttempt = 3,
+        creationTime = testClock.last().toGcloudTimestamp(),
+        details = computationMutations.detailsFor(C)
+      )
+    val attempt =
+      computationMutations.insertComputationStageAttempt(
+        localId = localId,
+        stage = C,
+        attempt = 2,
+        beginTime = testClock.last().toGcloudTimestamp(),
+        details = ComputationStageAttemptDetails.getDefaultInstance()
+      )
     testClock.tickSeconds("time-failed")
     databaseClient.write(listOf(computation, stage, attempt))
     database.insertComputationStat(
@@ -1297,11 +1531,16 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       FROM ComputationStats
       """.trimIndent(),
       Struct.newBuilder()
-        .set("ComputationId").to(localId)
-        .set("ComputationStage").toFakeStage(C)
-        .set("Attempt").to(2)
-        .set("MetricName").to("crypto_cpu_time_millis")
-        .set("MetricValue").to(3125)
+        .set("ComputationId")
+        .to(localId)
+        .set("ComputationStage")
+        .toFakeStage(C)
+        .set("Attempt")
+        .to(2)
+        .set("MetricName")
+        .to("crypto_cpu_time_millis")
+        .set("MetricValue")
+        .to(3125)
         .build()
     )
   }

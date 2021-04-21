@@ -29,8 +29,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatab
 
 @RunWith(JUnit4::class)
 class SpannerKingdomRelationalDatabaseTest : AbstractKingdomRelationalDatabaseTest() {
-  @get:Rule
-  val spannerEmulatorDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  @get:Rule val spannerEmulatorDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
   private lateinit var spannerKingdomDatabase: SpannerKingdomRelationalDatabase
   override val database: KingdomRelationalDatabase
@@ -49,10 +48,11 @@ class SpannerKingdomRelationalDatabaseTest : AbstractKingdomRelationalDatabaseTe
         spannerEmulatorDatabase.databaseClient
       )
 
-    spannerDatabaseTestHelper = SpannerDatabaseTestHelper(
-      Clock.systemUTC(),
-      RandomIdGenerator(),
-      spannerEmulatorDatabase.databaseClient
-    )
+    spannerDatabaseTestHelper =
+      SpannerDatabaseTestHelper(
+        Clock.systemUTC(),
+        RandomIdGenerator(),
+        spannerEmulatorDatabase.databaseClient
+      )
   }
 }

@@ -31,7 +31,8 @@ import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 abstract class AbstractStorageClientTest<T : StorageClient> {
   protected lateinit var storageClient: T
 
-  @Test fun `createBlob returns new readable blob`() = runBlocking {
+  @Test
+  fun `createBlob returns new readable blob`() = runBlocking {
     val blobKey = "new-blob"
 
     val blob = storageClient.createBlob(blobKey, testBlobContent)
@@ -39,12 +40,14 @@ abstract class AbstractStorageClientTest<T : StorageClient> {
     assertThat(blob).contentEqualTo(testBlobContent)
   }
 
-  @Test fun `getBlob returns null for non-existant blob`() {
+  @Test
+  fun `getBlob returns null for non-existant blob`() {
     val blobKey = "non-existant-blob"
     assertThat(storageClient.getBlob(blobKey)).isNull()
   }
 
-  @Test fun `getBlob returns readable Blob`() = runBlocking {
+  @Test
+  fun `getBlob returns readable Blob`() = runBlocking {
     val blobKey = "blob-to-get"
     storageClient.createBlob(blobKey, testBlobContent)
 
@@ -54,7 +57,8 @@ abstract class AbstractStorageClientTest<T : StorageClient> {
     assertThat(blob).contentEqualTo(testBlobContent)
   }
 
-  @Test fun `Blob size returns content size`() = runBlocking {
+  @Test
+  fun `Blob size returns content size`() = runBlocking {
     val blobKey = "blob-to-check-size"
 
     val blob = storageClient.createBlob(blobKey, testBlobContent)
@@ -62,7 +66,8 @@ abstract class AbstractStorageClientTest<T : StorageClient> {
     assertThat(blob).hasSize(testBlobContent.size)
   }
 
-  @Test fun `Blob delete deletes blob`() = runBlocking {
+  @Test
+  fun `Blob delete deletes blob`() = runBlocking {
     val blobKey = "blob-to-delete"
     val blob = storageClient.createBlob(blobKey, testBlobContent)
 

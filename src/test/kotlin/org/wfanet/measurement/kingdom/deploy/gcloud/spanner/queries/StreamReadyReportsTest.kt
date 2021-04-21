@@ -50,10 +50,7 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
 
   @Before
   fun populateDatabase() = runBlocking {
-    insertAdvertiser(
-      ADVERTISER_ID,
-      EXTERNAL_ADVERTISER_ID
-    )
+    insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
@@ -67,10 +64,7 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
       externalScheduleId = EXTERNAL_SCHEDULE_ID
     )
 
-    insertDataProvider(
-      DATA_PROVIDER_ID,
-      EXTERNAL_DATA_PROVIDER_ID
-    )
+    insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
 
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
@@ -100,30 +94,39 @@ class StreamReadyReportsTest : KingdomDatabaseTestBase() {
     databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("ReportRequisitions")
-          .set("AdvertiserId").to(ADVERTISER_ID)
-          .set("ReportConfigId").to(REPORT_CONFIG_ID)
-          .set("ScheduleId").to(SCHEDULE_ID)
-          .set("ReportId").to(REPORT_ID)
-          .set("DataProviderId").to(DATA_PROVIDER_ID)
-          .set("CampaignId").to(CAMPAIGN_ID)
-          .set("RequisitionId").to(REQUISITION_ID)
+          .set("AdvertiserId")
+          .to(ADVERTISER_ID)
+          .set("ReportConfigId")
+          .to(REPORT_CONFIG_ID)
+          .set("ScheduleId")
+          .to(SCHEDULE_ID)
+          .set("ReportId")
+          .to(REPORT_ID)
+          .set("DataProviderId")
+          .to(DATA_PROVIDER_ID)
+          .set("CampaignId")
+          .to(CAMPAIGN_ID)
+          .set("RequisitionId")
+          .to(REQUISITION_ID)
           .build()
       )
     )
   }
 
   @Test
-  fun success() = runBlocking<Unit> {
-    insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
-    insertRequisitionInState(RequisitionState.FULFILLED)
-    insertReportRequisition()
+  fun success() =
+    runBlocking<Unit> {
+      insertReportInState(ReportState.AWAITING_REQUISITION_CREATION)
+      insertRequisitionInState(RequisitionState.FULFILLED)
+      insertReportRequisition()
 
-    val expectedReport: Report = Report.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
+      val expectedReport: Report =
+        Report.newBuilder().setExternalReportId(EXTERNAL_REPORT_ID).build()
 
-    assertThat(streamReadyReportsToList())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expectedReport)
-  }
+      assertThat(streamReadyReportsToList())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(expectedReport)
+    }
 
   @Test
   fun `ignores Reports missing ReportRequisitions`() = runBlocking {

@@ -43,29 +43,23 @@ class GrpcTestServerRule(
   private val serverName = customServerName ?: InProcessServerBuilder.generateName()
 
   val channel: Channel =
-    grpcCleanupRule.register(
-      InProcessChannelBuilder
-        .forName(serverName)
-        .directExecutor()
-        .build()
-    )
+    grpcCleanupRule.register(InProcessChannelBuilder.forName(serverName).directExecutor().build())
 
   override fun apply(base: Statement, description: Description): Statement {
-    val newStatement = object : Statement() {
-      override fun evaluate() {
-        val serverBuilder =
-          InProcessServerBuilder.forName(serverName)
-            .directExecutor()
+    val newStatement =
+      object : Statement() {
+        override fun evaluate() {
+          val serverBuilder = InProcessServerBuilder.forName(serverName).directExecutor()
 
-        if (logAllRequests) {
-          serverBuilder.intercept(LoggingServerInterceptor())
+          if (logAllRequests) {
+            serverBuilder.intercept(LoggingServerInterceptor())
+          }
+
+          Builder(channel, serverBuilder).addServices()
+          grpcCleanupRule.register(serverBuilder.build().start())
+          base.evaluate()
         }
-
-        Builder(channel, serverBuilder).addServices()
-        grpcCleanupRule.register(serverBuilder.build().start())
-        base.evaluate()
       }
-    }
 
     return grpcCleanupRule.apply(newStatement, description)
   }

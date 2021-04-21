@@ -20,9 +20,8 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.Repor
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 
-class ReportConfigSchedulesService(
-  private val legacySchedulingDatabase: LegacySchedulingDatabase
-) : ReportConfigSchedulesCoroutineImplBase() {
+class ReportConfigSchedulesService(private val legacySchedulingDatabase: LegacySchedulingDatabase) :
+  ReportConfigSchedulesCoroutineImplBase() {
 
   override fun streamReadyReportConfigSchedules(
     request: StreamReadyReportConfigSchedulesRequest

@@ -35,27 +35,34 @@ class ComputationStatsServiceTest {
 
   @Test
   fun `createComputationStat throws INVALID_ARGUMENT when metric name not set`() = runBlocking {
-    val request = CreateComputationStatRequest.newBuilder().apply {
-      localComputationId = 1
-      computationStageBuilder.liquidLegionsSketchAggregationV2 = Stage.CONFIRM_REQUISITIONS_PHASE
-      attempt = 1
-      metricValue = 1234
-    }.build()
-    val e = assertFailsWith(StatusRuntimeException::class) {
-      service.createComputationStat(request)
-    }
+    val request =
+      CreateComputationStatRequest.newBuilder()
+        .apply {
+          localComputationId = 1
+          computationStageBuilder.liquidLegionsSketchAggregationV2 =
+            Stage.CONFIRM_REQUISITIONS_PHASE
+          attempt = 1
+          metricValue = 1234
+        }
+        .build()
+    val e =
+      assertFailsWith(StatusRuntimeException::class) { service.createComputationStat(request) }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `createComputationStat succeeds`() = runBlocking {
-    val request = CreateComputationStatRequest.newBuilder().apply {
-      localComputationId = 1
-      computationStageBuilder.liquidLegionsSketchAggregationV2 = Stage.CONFIRM_REQUISITIONS_PHASE
-      attempt = 1
-      metricName = "crypto_cpu_time_millis"
-      metricValue = 1234
-    }.build()
+    val request =
+      CreateComputationStatRequest.newBuilder()
+        .apply {
+          localComputationId = 1
+          computationStageBuilder.liquidLegionsSketchAggregationV2 =
+            Stage.CONFIRM_REQUISITIONS_PHASE
+          attempt = 1
+          metricName = "crypto_cpu_time_millis"
+          metricValue = 1234
+        }
+        .build()
     val response = service.createComputationStat(request)
     assertThat(response).isEqualTo(CreateComputationStatResponse.getDefaultInstance())
   }

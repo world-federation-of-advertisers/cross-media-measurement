@@ -56,16 +56,19 @@ private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
 
 private val REQUISITION_DETAILS = buildRequisitionDetails(10101)
 
-private val REQUISITION: Requisition = Requisition.newBuilder().apply {
-  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-  externalCampaignId = EXTERNAL_CAMPAIGN_ID
-  externalRequisitionId = EXTERNAL_REQUISITION_ID
-  windowStartTime = WINDOW_START_TIME.toProtoTime()
-  windowEndTime = WINDOW_END_TIME.toProtoTime()
-  state = RequisitionState.UNFULFILLED
-  requisitionDetails = REQUISITION_DETAILS
-  requisitionDetailsJson = REQUISITION_DETAILS.toJson()
-}.build()
+private val REQUISITION: Requisition =
+  Requisition.newBuilder()
+    .apply {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      externalCampaignId = EXTERNAL_CAMPAIGN_ID
+      externalRequisitionId = EXTERNAL_REQUISITION_ID
+      windowStartTime = WINDOW_START_TIME.toProtoTime()
+      windowEndTime = WINDOW_END_TIME.toProtoTime()
+      state = RequisitionState.UNFULFILLED
+      requisitionDetails = REQUISITION_DETAILS
+      requisitionDetailsJson = REQUISITION_DETAILS.toJson()
+    }
+    .build()
 
 private const val DUCHY_ID = "some-duchy-id"
 
@@ -74,20 +77,21 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   private suspend fun updateExistingRequisitionState(state: RequisitionState) {
     databaseClient.write(
       listOf(
-        Mutation
-          .newUpdateBuilder("Requisitions")
-          .set("DataProviderId").to(DATA_PROVIDER_ID)
-          .set("CampaignId").to(CAMPAIGN_ID)
-          .set("RequisitionId").to(REQUISITION_ID)
-          .set("State").toProtoEnum(state)
+        Mutation.newUpdateBuilder("Requisitions")
+          .set("DataProviderId")
+          .to(DATA_PROVIDER_ID)
+          .set("CampaignId")
+          .to(CAMPAIGN_ID)
+          .set("RequisitionId")
+          .to(REQUISITION_ID)
+          .set("State")
+          .toProtoEnum(state)
           .build()
       )
     )
   }
 
-  private suspend fun fulfillRequisition(
-    externalRequisitionId: Long
-  ): RequisitionUpdate {
+  private suspend fun fulfillRequisition(externalRequisitionId: Long): RequisitionUpdate {
     return FulfillRequisition(ExternalId(externalRequisitionId), DUCHY_ID).execute(databaseClient)
   }
 
@@ -108,88 +112,97 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() = runBlocking<Unit> {
-    updateExistingRequisitionState(RequisitionState.UNFULFILLED)
-    val requisition = fulfillRequisition(EXTERNAL_REQUISITION_ID).current
+  fun success() =
+    runBlocking<Unit> {
+      updateExistingRequisitionState(RequisitionState.UNFULFILLED)
+      val requisition = fulfillRequisition(EXTERNAL_REQUISITION_ID).current
 
-    val expectedRequisition: Requisition =
-      REQUISITION
-        .toBuilder()
-        .setState(RequisitionState.FULFILLED)
-        .setDuchyId(DUCHY_ID)
-        .build()
+      val expectedRequisition: Requisition =
+        REQUISITION.toBuilder().setState(RequisitionState.FULFILLED).setDuchyId(DUCHY_ID).build()
 
-    assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expectedRequisition)
-  }
-
-  @Test
-  fun `denormalizes duchy id to associated reports`() = runBlocking<Unit> {
-    updateExistingRequisitionState(RequisitionState.UNFULFILLED)
-
-    val reportDetails = ReportDetails.newBuilder().apply {
-      addRequisitionsBuilder().apply {
-        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-        externalCampaignId = EXTERNAL_CAMPAIGN_ID
-        externalRequisitionId = EXTERNAL_REQUISITION_ID
-      }
-    }.build()
-
-    insertReportWithParents(
-      ADVERTISER_ID, EXTERNAL_ADVERTISER_ID, REPORT_CONFIG_ID, EXTERNAL_REPORT_CONFIG_ID,
-      SCHEDULE_ID, EXTERNAL_SCHEDULE_ID, REPORT_ID, EXTERNAL_REPORT_ID,
-      state = ReportState.AWAITING_REQUISITION_CREATION,
-      reportDetails = reportDetails
-    )
-    insertReportRequisition(
-      ADVERTISER_ID,
-      REPORT_CONFIG_ID,
-      SCHEDULE_ID,
-      REPORT_ID,
-      DATA_PROVIDER_ID,
-      CAMPAIGN_ID,
-      REQUISITION_ID
-    )
-
-    fulfillRequisition(EXTERNAL_REQUISITION_ID)
-
-    assertThat(readAllReportsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(
-        Report.newBuilder().apply {
-          reportDetailsBuilder.addRequisitionsBuilder().apply {
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            externalCampaignId = EXTERNAL_CAMPAIGN_ID
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
-            duchyId = DUCHY_ID
-          }
-        }.build()
-      )
-  }
-
-  @Test
-  fun `already fulfilled`() = runBlocking<Unit> {
-    updateExistingRequisitionState(RequisitionState.FULFILLED)
-    val existingRequisitions = readAllRequisitionsInSpanner()
-
-    val transition = fulfillRequisition(EXTERNAL_REQUISITION_ID)
-
-    assertThat(transition.original).isEqualTo(transition.current)
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactlyElementsIn(existingRequisitions)
-  }
-
-  @Test
-  fun `missing requisition`() = runBlocking<Unit> {
-    val existingRequisitions = readAllRequisitionsInSpanner()
-    assertFails {
-      fulfillRequisition(EXTERNAL_REQUISITION_ID + 1)
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(expectedRequisition)
     }
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactlyElementsIn(existingRequisitions)
-  }
+
+  @Test
+  fun `denormalizes duchy id to associated reports`() =
+    runBlocking<Unit> {
+      updateExistingRequisitionState(RequisitionState.UNFULFILLED)
+
+      val reportDetails =
+        ReportDetails.newBuilder()
+          .apply {
+            addRequisitionsBuilder().apply {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              externalCampaignId = EXTERNAL_CAMPAIGN_ID
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+            }
+          }
+          .build()
+
+      insertReportWithParents(
+        ADVERTISER_ID,
+        EXTERNAL_ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        EXTERNAL_REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        EXTERNAL_SCHEDULE_ID,
+        REPORT_ID,
+        EXTERNAL_REPORT_ID,
+        state = ReportState.AWAITING_REQUISITION_CREATION,
+        reportDetails = reportDetails
+      )
+      insertReportRequisition(
+        ADVERTISER_ID,
+        REPORT_CONFIG_ID,
+        SCHEDULE_ID,
+        REPORT_ID,
+        DATA_PROVIDER_ID,
+        CAMPAIGN_ID,
+        REQUISITION_ID
+      )
+
+      fulfillRequisition(EXTERNAL_REQUISITION_ID)
+
+      assertThat(readAllReportsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(
+          Report.newBuilder()
+            .apply {
+              reportDetailsBuilder.addRequisitionsBuilder().apply {
+                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                externalCampaignId = EXTERNAL_CAMPAIGN_ID
+                externalRequisitionId = EXTERNAL_REQUISITION_ID
+                duchyId = DUCHY_ID
+              }
+            }
+            .build()
+        )
+    }
+
+  @Test
+  fun `already fulfilled`() =
+    runBlocking<Unit> {
+      updateExistingRequisitionState(RequisitionState.FULFILLED)
+      val existingRequisitions = readAllRequisitionsInSpanner()
+
+      val transition = fulfillRequisition(EXTERNAL_REQUISITION_ID)
+
+      assertThat(transition.original).isEqualTo(transition.current)
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactlyElementsIn(existingRequisitions)
+    }
+
+  @Test
+  fun `missing requisition`() =
+    runBlocking<Unit> {
+      val existingRequisitions = readAllRequisitionsInSpanner()
+      assertFails { fulfillRequisition(EXTERNAL_REQUISITION_ID + 1) }
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactlyElementsIn(existingRequisitions)
+    }
 }

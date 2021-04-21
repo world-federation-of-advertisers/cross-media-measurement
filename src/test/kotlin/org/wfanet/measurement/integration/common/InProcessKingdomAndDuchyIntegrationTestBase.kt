@@ -112,14 +112,15 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 300_000) {
-      kingdomRelationalDatabase
-        .streamReports(
-          filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
-          limit = 1
-        )
-        .singleOrNull()
-    }
+    val doneReport: Report =
+      pollFor(timeoutMillis = 300_000) {
+        kingdomRelationalDatabase
+          .streamReports(
+            filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
+            limit = 1
+          )
+          .singleOrNull()
+      }
 
     logger.info("Final Report: $doneReport")
 
@@ -127,16 +128,18 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
       .comparingExpectedFieldsOnly()
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        Report.newBuilder().apply {
-          reportDetailsBuilder.apply {
-            addAllConfirmedDuchies(DUCHY_IDS)
-            reportDetailsBuilder.resultBuilder.apply {
-              reach = 13L
-              putFrequency(6L, 0.3)
-              putFrequency(3L, 0.7)
+        Report.newBuilder()
+          .apply {
+            reportDetailsBuilder.apply {
+              addAllConfirmedDuchies(DUCHY_IDS)
+              reportDetailsBuilder.resultBuilder.apply {
+                reach = 13L
+                putFrequency(6L, 0.3)
+                putFrequency(3L, 0.7)
+              }
             }
           }
-        }.build()
+          .build()
       )
   }
 
@@ -166,14 +169,15 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     )
 
     // Now wait until the computation is done.
-    val doneReport: Report = pollFor(timeoutMillis = 300_000) {
-      kingdomRelationalDatabase
-        .streamReports(
-          filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
-          limit = 1
-        )
-        .singleOrNull()
-    }
+    val doneReport: Report =
+      pollFor(timeoutMillis = 300_000) {
+        kingdomRelationalDatabase
+          .streamReports(
+            filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
+            limit = 1
+          )
+          .singleOrNull()
+      }
 
     logger.info("Final Report: $doneReport")
 
@@ -181,16 +185,18 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
       .comparingExpectedFieldsOnly()
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        Report.newBuilder().apply {
-          reportDetailsBuilder.apply {
-            addAllConfirmedDuchies(DUCHY_IDS)
-            reportDetailsBuilder.resultBuilder.apply {
-              reach = 13L
-              putFrequency(6L, 0.3)
-              putFrequency(3L, 0.7)
+        Report.newBuilder()
+          .apply {
+            reportDetailsBuilder.apply {
+              addAllConfirmedDuchies(DUCHY_IDS)
+              reportDetailsBuilder.resultBuilder.apply {
+                reach = 13L
+                putFrequency(6L, 0.3)
+                putFrequency(3L, 0.7)
+              }
             }
           }
-        }.build()
+          .build()
       )
   }
 

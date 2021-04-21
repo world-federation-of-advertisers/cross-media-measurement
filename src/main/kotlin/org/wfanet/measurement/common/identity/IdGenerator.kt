@@ -14,17 +14,11 @@
 
 package org.wfanet.measurement.common.identity
 
-/**
- * Interface for ID generation.
- */
+/** Interface for ID generation. */
 interface IdGenerator {
-  /**
-   * Generates a random internal id.
-   */
+  /** Generates a random internal id. */
   fun generateInternalId(): InternalId
 
-  /**
-   * Generates a random external id.
-   */
+  /** Generates a random external id. */
   fun generateExternalId(): ExternalId
 }

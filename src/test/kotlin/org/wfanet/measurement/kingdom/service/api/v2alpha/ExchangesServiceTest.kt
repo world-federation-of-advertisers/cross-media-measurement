@@ -29,23 +29,24 @@ class ExchangesServiceTest {
   private val service = ExchangesService()
 
   @Test
-  fun getExchange() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.getExchange(GetExchangeRequest.getDefaultInstance())
+  fun getExchange() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.getExchange(GetExchangeRequest.getDefaultInstance())
+      }
     }
-  }
 
   @Test
-  fun listExchanges() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.listExchanges(ListExchangesRequest.getDefaultInstance())
+  fun listExchanges() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.listExchanges(ListExchangesRequest.getDefaultInstance())
+      }
     }
-  }
 
   @Test
-  fun uploadAuditTrail() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.uploadAuditTrail(emptyFlow())
+  fun uploadAuditTrail() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) { service.uploadAuditTrail(emptyFlow()) }
     }
-  }
 }
