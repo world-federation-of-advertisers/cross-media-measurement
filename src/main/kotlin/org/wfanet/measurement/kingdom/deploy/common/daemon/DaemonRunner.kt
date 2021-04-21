@@ -31,45 +31,27 @@ import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
 import picocli.CommandLine
 
 class DaemonFlags {
-  @set:CommandLine.Option(
-    names = ["--max-concurrency"],
-    defaultValue = "32"
-  )
+  @set:CommandLine.Option(names = ["--max-concurrency"], defaultValue = "32")
   var maxConcurrency by Delegates.notNull<Int>()
     private set
 
-  @CommandLine.Option(
-    names = ["--internal-services-target"],
-    required = true
-  )
+  @CommandLine.Option(names = ["--internal-services-target"], required = true)
   lateinit var internalServicesTarget: String
     private set
 
-  @set:CommandLine.Option(
-    names = ["--throttler-overload-factor"],
-    defaultValue = "1.2"
-  )
+  @set:CommandLine.Option(names = ["--throttler-overload-factor"], defaultValue = "1.2")
   var overloadFactor by Delegates.notNull<Double>()
     private set
 
-  @CommandLine.Option(
-    names = ["--throttler-time-horizon"],
-    defaultValue = "2m"
-  )
+  @CommandLine.Option(names = ["--throttler-time-horizon"], defaultValue = "2m")
   lateinit var timeHorizon: Duration
     private set
 
-  @CommandLine.Option(
-    names = ["--throttler-poll-delay"],
-    defaultValue = "1ms"
-  )
+  @CommandLine.Option(names = ["--throttler-poll-delay"], defaultValue = "1ms")
   lateinit var pollDelay: Duration
     private set
 
-  @CommandLine.Option(
-    names = ["--retry-poll-delay"],
-    defaultValue = "10s"
-  )
+  @CommandLine.Option(names = ["--retry-poll-delay"], defaultValue = "10s")
   lateinit var retryPollDelay: Duration
     private set
 
@@ -87,19 +69,16 @@ fun runDaemon(flags: DaemonFlags, block: suspend Daemon.() -> Unit) = runBlockin
     buildChannel(flags.internalServicesTarget)
       .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
-  val throttler = AdaptiveThrottler(
-    flags.overloadFactor,
-    Clock.systemUTC(),
-    flags.timeHorizon,
-    flags.pollDelay
-  )
+  val throttler =
+    AdaptiveThrottler(flags.overloadFactor, Clock.systemUTC(), flags.timeHorizon, flags.pollDelay)
 
-  val databaseClient = DaemonDatabaseServicesClientImpl(
-    ReportConfigsCoroutineStub(channel),
-    ReportConfigSchedulesCoroutineStub(channel),
-    ReportsCoroutineStub(channel),
-    RequisitionsCoroutineStub(channel)
-  )
+  val databaseClient =
+    DaemonDatabaseServicesClientImpl(
+      ReportConfigsCoroutineStub(channel),
+      ReportConfigSchedulesCoroutineStub(channel),
+      ReportsCoroutineStub(channel),
+      RequisitionsCoroutineStub(channel)
+    )
 
   Daemon(throttler, flags.maxConcurrency, databaseClient, flags.retryPollDelay).block()
 }

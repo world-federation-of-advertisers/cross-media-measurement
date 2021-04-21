@@ -23,8 +23,8 @@ import java.util.logging.Logger
 import kotlinx.coroutines.TimeoutCancellationException
 
 /**
- * Wraps a connection to a Spanner database for convenient access to an [AsyncDatabaseClient],
- * the [DatabaseId], waiting for the connection to be ready, etc.
+ * Wraps a connection to a Spanner database for convenient access to an [AsyncDatabaseClient], the
+ * [DatabaseId], waiting for the connection to be ready, etc.
  */
 class SpannerDatabaseConnector(
   private val instanceName: String,
@@ -36,8 +36,7 @@ class SpannerDatabaseConnector(
 
   private val spanner: Spanner = buildSpanner(projectName, emulatorHost)
 
-  val databaseId: DatabaseId =
-    DatabaseId.of(projectName, instanceName, databaseName)
+  val databaseId: DatabaseId = DatabaseId.of(projectName, instanceName, databaseName)
 
   private val internalDatabaseClient: DatabaseClient by lazy {
     spanner.getDatabaseClient(databaseId)
@@ -62,8 +61,7 @@ class SpannerDatabaseConnector(
 
   /**
    * Suspends until [databaseClient] is ready, throwing a
-   * [kotlinx.coroutines.TimeoutCancellationException] if [readyTimeout] is
-   * reached.
+   * [kotlinx.coroutines.TimeoutCancellationException] if [readyTimeout] is reached.
    */
   suspend fun waitUntilReady() {
     databaseClient.waitUntilReady(readyTimeout)

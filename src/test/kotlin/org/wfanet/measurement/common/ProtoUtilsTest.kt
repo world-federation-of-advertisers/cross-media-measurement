@@ -27,9 +27,10 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 class ProtoUtilsTest {
   @Test
   fun `truncateByteFields truncates if longer than threshold`() {
-    val message = AdvanceComputationRequest.newBuilder().apply {
-      bodyChunkBuilder.partialData = ByteString.copyFromUtf8("1234567890")
-    }.build()
+    val message =
+      AdvanceComputationRequest.newBuilder()
+        .apply { bodyChunkBuilder.partialData = ByteString.copyFromUtf8("1234567890") }
+        .build()
 
     val result = message.truncateByteFields(4)
 
@@ -38,9 +39,10 @@ class ProtoUtilsTest {
 
   @Test
   fun `truncateByteFields does not truncate if not longer than threshold`() {
-    val message = AdvanceComputationRequest.newBuilder().apply {
-      bodyChunkBuilder.partialData = ByteString.copyFromUtf8("123456")
-    }.build()
+    val message =
+      AdvanceComputationRequest.newBuilder()
+        .apply { bodyChunkBuilder.partialData = ByteString.copyFromUtf8("123456") }
+        .build()
 
     val result = message.truncateByteFields(10)
 
@@ -49,9 +51,10 @@ class ProtoUtilsTest {
 
   @Test
   fun `truncateByteFields truncates in embedded proto field`() {
-    val message = AdvanceComputationRequest.newBuilder().apply {
-      bodyChunkBuilder.partialData = ByteString.copyFromUtf8("1234567890")
-    }.build()
+    val message =
+      AdvanceComputationRequest.newBuilder()
+        .apply { bodyChunkBuilder.partialData = ByteString.copyFromUtf8("1234567890") }
+        .build()
 
     val result = message.truncateByteFields(4)
 
@@ -62,15 +65,18 @@ class ProtoUtilsTest {
   fun `truncateByteFields truncates in map field`() {
     val originalBytes = ByteString.copyFromUtf8("1234567890")
     val combinedPublicKeyId = "combined-public-key-1"
-    val message = DuchyPublicKeyConfig.newBuilder().apply {
-      putEntries(
-        combinedPublicKeyId,
-        DuchyPublicKeyConfig.Entry.newBuilder().apply {
-          putElGamalElements("duchy-1", originalBytes)
-          putElGamalElements("duchy-2", originalBytes)
-        }.build()
-      )
-    }
+    val message =
+      DuchyPublicKeyConfig.newBuilder().apply {
+        putEntries(
+          combinedPublicKeyId,
+          DuchyPublicKeyConfig.Entry.newBuilder()
+            .apply {
+              putElGamalElements("duchy-1", originalBytes)
+              putElGamalElements("duchy-2", originalBytes)
+            }
+            .build()
+        )
+      }
 
     val results = message.truncateByteFields(5)
 

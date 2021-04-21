@@ -55,22 +55,23 @@ private val NEW_REQUISITION_DETAILS = buildRequisitionDetails(20202L)
 private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
 private const val NEW_COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-2"
 
-private val REQUISITION: Requisition = Requisition.newBuilder().apply {
-  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-  externalCampaignId = EXTERNAL_CAMPAIGN_ID
-  externalRequisitionId = EXTERNAL_REQUISITION_ID
-  combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
-  windowStartTime = WINDOW_START_TIME.toProtoTime()
-  windowEndTime = WINDOW_END_TIME.toProtoTime()
-  state = RequisitionState.UNFULFILLED
-  requisitionDetails = REQUISITION_DETAILS
-  requisitionDetailsJson = REQUISITION_DETAILS.toJson()
-}.build()
+private val REQUISITION: Requisition =
+  Requisition.newBuilder()
+    .apply {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      externalCampaignId = EXTERNAL_CAMPAIGN_ID
+      externalRequisitionId = EXTERNAL_REQUISITION_ID
+      combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID
+      windowStartTime = WINDOW_START_TIME.toProtoTime()
+      windowEndTime = WINDOW_END_TIME.toProtoTime()
+      state = RequisitionState.UNFULFILLED
+      requisitionDetails = REQUISITION_DETAILS
+      requisitionDetailsJson = REQUISITION_DETAILS.toJson()
+    }
+    .build()
 
 private val INPUT_REQUISITION: Requisition =
-  REQUISITION.toBuilder()
-    .clearExternalRequisitionId()
-    .build()
+  REQUISITION.toBuilder().clearExternalRequisitionId().build()
 
 private val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
 
@@ -110,14 +111,13 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
     val timestampAfter = currentSpannerTimestamp
 
     val expectedRequisition =
-      REQUISITION.toBuilder()
+      REQUISITION
+        .toBuilder()
         .setExternalRequisitionId(NEW_EXTERNAL_REQUISITION_ID)
         .setCreateTime(requisition.createTime)
         .build()
 
-    assertThat(requisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedRequisition)
+    assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
 
     val createTime = requisition.createTime.toInstant()
     assertThat(createTime).isGreaterThan(timestampBefore)
@@ -129,99 +129,110 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `requisition already exists`() = runBlocking<Unit> {
-    insertTheRequisition()
-    val requisition = createRequisition(INPUT_REQUISITION)
+  fun `requisition already exists`() =
+    runBlocking<Unit> {
+      insertTheRequisition()
+      val requisition = createRequisition(INPUT_REQUISITION)
 
-    assertThat(requisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(REQUISITION)
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REQUISITION)
-  }
-
-  @Test
-  fun `start time used in idempotency`() = runBlocking<Unit> {
-    insertTheRequisition()
-
-    val newRequisition = INPUT_REQUISITION.toBuilder().apply {
-      externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
-      windowStartTime = NEW_TIMESTAMP.toProto()
-    }.build()
-    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
-
-    val requisition = createRequisition(newRequisitionWithoutId)
-
-    assertThat(requisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(newRequisition)
-
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REQUISITION, newRequisition)
-  }
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(REQUISITION)
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REQUISITION)
+    }
 
   @Test
-  fun `end time used in idempotency`() = runBlocking<Unit> {
-    insertTheRequisition()
+  fun `start time used in idempotency`() =
+    runBlocking<Unit> {
+      insertTheRequisition()
 
-    val newRequisition = INPUT_REQUISITION.toBuilder().apply {
-      externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
-      windowEndTime = NEW_TIMESTAMP.toProto()
-    }.build()
-    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
+      val newRequisition =
+        INPUT_REQUISITION
+          .toBuilder()
+          .apply {
+            externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
+            windowStartTime = NEW_TIMESTAMP.toProto()
+          }
+          .build()
+      val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
 
-    val requisition = createRequisition(newRequisitionWithoutId)
+      val requisition = createRequisition(newRequisitionWithoutId)
 
-    assertThat(requisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(newRequisition)
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(newRequisition)
 
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REQUISITION, newRequisition)
-  }
-
-  @Test
-  fun `details used in idempotency`() = runBlocking<Unit> {
-    insertTheRequisition()
-
-    val newRequisition = INPUT_REQUISITION.toBuilder().apply {
-      externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
-      requisitionDetails = NEW_REQUISITION_DETAILS
-    }.build()
-    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
-
-    val requisition = createRequisition(newRequisitionWithoutId)
-
-    assertThat(requisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(newRequisition)
-
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REQUISITION, newRequisition)
-  }
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REQUISITION, newRequisition)
+    }
 
   @Test
-  fun `combined public key ID used in idempotency`() = runBlocking<Unit> {
-    insertTheRequisition()
+  fun `end time used in idempotency`() =
+    runBlocking<Unit> {
+      insertTheRequisition()
 
-    val newRequisition = INPUT_REQUISITION.toBuilder().apply {
-      externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
-      combinedPublicKeyResourceId = NEW_COMBINED_PUBLIC_KEY_RESOURCE_ID
-    }.build()
-    val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
+      val newRequisition =
+        INPUT_REQUISITION
+          .toBuilder()
+          .apply {
+            externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
+            windowEndTime = NEW_TIMESTAMP.toProto()
+          }
+          .build()
+      val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
 
-    val requisition = createRequisition(newRequisitionWithoutId)
+      val requisition = createRequisition(newRequisitionWithoutId)
 
-    assertThat(requisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(newRequisition)
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(newRequisition)
 
-    assertThat(readAllRequisitionsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(REQUISITION, newRequisition)
-  }
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REQUISITION, newRequisition)
+    }
+
+  @Test
+  fun `details used in idempotency`() =
+    runBlocking<Unit> {
+      insertTheRequisition()
+
+      val newRequisition =
+        INPUT_REQUISITION
+          .toBuilder()
+          .apply {
+            externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
+            requisitionDetails = NEW_REQUISITION_DETAILS
+          }
+          .build()
+      val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
+
+      val requisition = createRequisition(newRequisitionWithoutId)
+
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(newRequisition)
+
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REQUISITION, newRequisition)
+    }
+
+  @Test
+  fun `combined public key ID used in idempotency`() =
+    runBlocking<Unit> {
+      insertTheRequisition()
+
+      val newRequisition =
+        INPUT_REQUISITION
+          .toBuilder()
+          .apply {
+            externalRequisitionId = NEW_EXTERNAL_REQUISITION_ID
+            combinedPublicKeyResourceId = NEW_COMBINED_PUBLIC_KEY_RESOURCE_ID
+          }
+          .build()
+      val newRequisitionWithoutId = newRequisition.toBuilder().clearExternalRequisitionId().build()
+
+      val requisition = createRequisition(newRequisitionWithoutId)
+
+      assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(newRequisition)
+
+      assertThat(readAllRequisitionsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(REQUISITION, newRequisition)
+    }
 }

@@ -43,15 +43,18 @@ import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 
-private val REPORT: Report = Report.newBuilder().apply {
-  externalAdvertiserId = 1
-  externalReportConfigId = 2
-  externalScheduleId = 3
-  externalReportId = 4
-  createTimeBuilder.seconds = 567
-  reportDetailsBuilder.combinedPublicKeyResourceId = "890"
-  state = ReportState.FAILED
-}.build()
+private val REPORT: Report =
+  Report.newBuilder()
+    .apply {
+      externalAdvertiserId = 1
+      externalReportConfigId = 2
+      externalScheduleId = 3
+      externalReportId = 4
+      createTimeBuilder.seconds = 567
+      reportDetailsBuilder.combinedPublicKeyResourceId = "890"
+      state = ReportState.FAILED
+    }
+    .build()
 
 @RunWith(JUnit4::class)
 class ReportsServiceTest {
@@ -59,132 +62,146 @@ class ReportsServiceTest {
   private val service = ReportsService(kingdomRelationalDatabase)
 
   @Test
-  fun getReport() = runBlocking<Unit> {
-    whenever(kingdomRelationalDatabase.getReport(any())).thenReturn(REPORT)
+  fun getReport() =
+    runBlocking<Unit> {
+      whenever(kingdomRelationalDatabase.getReport(any())).thenReturn(REPORT)
 
-    val request = GetReportRequest.newBuilder().setExternalReportId(12345).build()
+      val request = GetReportRequest.newBuilder().setExternalReportId(12345).build()
 
-    assertThat(service.getReport(request)).isEqualTo(REPORT)
-    verify(kingdomRelationalDatabase).getReport(ExternalId(12345))
-  }
-
-  @Test
-  fun createNextReport() = runBlocking<Unit> {
-    val combinedPublicKeyResourceId = REPORT.reportDetails.combinedPublicKeyResourceId
-    whenever(kingdomRelationalDatabase.createNextReport(any(), any())).thenReturn(REPORT)
-
-    val request: CreateNextReportRequest =
-      CreateNextReportRequest.newBuilder().apply {
-        externalScheduleId = 12345
-        this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
-      }.build()
-
-    assertThat(service.createNextReport(request)).isEqualTo(REPORT)
-
-    verify(kingdomRelationalDatabase).createNextReport(
-      ExternalId(12345),
-      combinedPublicKeyResourceId
-    )
-  }
+      assertThat(service.getReport(request)).isEqualTo(REPORT)
+      verify(kingdomRelationalDatabase).getReport(ExternalId(12345))
+    }
 
   @Test
-  fun updateReportState() = runBlocking<Unit> {
-    whenever(kingdomRelationalDatabase.updateReportState(any(), any())).thenReturn(REPORT)
+  fun createNextReport() =
+    runBlocking<Unit> {
+      val combinedPublicKeyResourceId = REPORT.reportDetails.combinedPublicKeyResourceId
+      whenever(kingdomRelationalDatabase.createNextReport(any(), any())).thenReturn(REPORT)
 
-    val request: UpdateReportStateRequest =
-      UpdateReportStateRequest.newBuilder().apply {
-        externalReportId = REPORT.externalReportId
-        state = REPORT.state
-      }.build()
+      val request: CreateNextReportRequest =
+        CreateNextReportRequest.newBuilder()
+          .apply {
+            externalScheduleId = 12345
+            this.combinedPublicKeyResourceId = combinedPublicKeyResourceId
+          }
+          .build()
 
-    assertThat(service.updateReportState(request)).isEqualTo(REPORT)
+      assertThat(service.createNextReport(request)).isEqualTo(REPORT)
 
-    verify(kingdomRelationalDatabase)
-      .updateReportState(ExternalId(REPORT.externalReportId), REPORT.state)
-  }
-
-  @Test
-  fun streamReports() = runBlocking<Unit> {
-    whenever(kingdomRelationalDatabase.streamReports(any(), any()))
-      .thenReturn(flowOf(REPORT, REPORT))
-
-    val request: StreamReportsRequest =
-      StreamReportsRequest.newBuilder().apply {
-        limit = 10
-        filterBuilder.apply {
-          addExternalAdvertiserIds(1)
-          addExternalReportConfigIds(2)
-          addExternalReportConfigIds(3)
-          addExternalScheduleIds(4)
-          addStates(ReportState.AWAITING_REQUISITION_CREATION)
-          updatedAfterBuilder.seconds = 12345
-        }
-      }.build()
-
-    assertThat(service.streamReports(request).toList())
-      .containsExactly(REPORT, REPORT)
-
-    val expectedFilter = streamReportsFilter(
-      externalAdvertiserIds = listOf(ExternalId(1)),
-      externalReportConfigIds = listOf(ExternalId(2), ExternalId(3)),
-      externalScheduleIds = listOf(ExternalId(4)),
-      states = listOf(ReportState.AWAITING_REQUISITION_CREATION),
-      updatedAfter = Instant.ofEpochSecond(12345)
-    )
-
-    verify(kingdomRelationalDatabase).streamReports(
-      check { assertThat(it.clauses).containsExactlyElementsIn(expectedFilter.clauses) },
-      eq(10)
-    )
-  }
+      verify(kingdomRelationalDatabase)
+        .createNextReport(ExternalId(12345), combinedPublicKeyResourceId)
+    }
 
   @Test
-  fun streamReadyReports() = runBlocking<Unit> {
-    whenever(kingdomRelationalDatabase.streamReadyReports(any()))
-      .thenReturn(flowOf(REPORT, REPORT))
+  fun updateReportState() =
+    runBlocking<Unit> {
+      whenever(kingdomRelationalDatabase.updateReportState(any(), any())).thenReturn(REPORT)
 
-    val request: StreamReadyReportsRequest =
-      StreamReadyReportsRequest.newBuilder().setLimit(10L).build()
+      val request: UpdateReportStateRequest =
+        UpdateReportStateRequest.newBuilder()
+          .apply {
+            externalReportId = REPORT.externalReportId
+            state = REPORT.state
+          }
+          .build()
 
-    assertThat(service.streamReadyReports(request).toList())
-      .containsExactly(REPORT, REPORT)
+      assertThat(service.updateReportState(request)).isEqualTo(REPORT)
 
-    verify(kingdomRelationalDatabase).streamReadyReports(10)
-  }
+      verify(kingdomRelationalDatabase)
+        .updateReportState(ExternalId(REPORT.externalReportId), REPORT.state)
+    }
+
+  @Test
+  fun streamReports() =
+    runBlocking<Unit> {
+      whenever(kingdomRelationalDatabase.streamReports(any(), any()))
+        .thenReturn(flowOf(REPORT, REPORT))
+
+      val request: StreamReportsRequest =
+        StreamReportsRequest.newBuilder()
+          .apply {
+            limit = 10
+            filterBuilder.apply {
+              addExternalAdvertiserIds(1)
+              addExternalReportConfigIds(2)
+              addExternalReportConfigIds(3)
+              addExternalScheduleIds(4)
+              addStates(ReportState.AWAITING_REQUISITION_CREATION)
+              updatedAfterBuilder.seconds = 12345
+            }
+          }
+          .build()
+
+      assertThat(service.streamReports(request).toList()).containsExactly(REPORT, REPORT)
+
+      val expectedFilter =
+        streamReportsFilter(
+          externalAdvertiserIds = listOf(ExternalId(1)),
+          externalReportConfigIds = listOf(ExternalId(2), ExternalId(3)),
+          externalScheduleIds = listOf(ExternalId(4)),
+          states = listOf(ReportState.AWAITING_REQUISITION_CREATION),
+          updatedAfter = Instant.ofEpochSecond(12345)
+        )
+
+      verify(kingdomRelationalDatabase)
+        .streamReports(
+          check { assertThat(it.clauses).containsExactlyElementsIn(expectedFilter.clauses) },
+          eq(10)
+        )
+    }
+
+  @Test
+  fun streamReadyReports() =
+    runBlocking<Unit> {
+      whenever(kingdomRelationalDatabase.streamReadyReports(any()))
+        .thenReturn(flowOf(REPORT, REPORT))
+
+      val request: StreamReadyReportsRequest =
+        StreamReadyReportsRequest.newBuilder().setLimit(10L).build()
+
+      assertThat(service.streamReadyReports(request).toList()).containsExactly(REPORT, REPORT)
+
+      verify(kingdomRelationalDatabase).streamReadyReports(10)
+    }
 
   @Test
   fun associateRequisition() = runBlocking {
-    val request = AssociateRequisitionRequest.newBuilder().apply {
-      externalReportId = 1
-      externalRequisitionId = 2
-    }.build()
+    val request =
+      AssociateRequisitionRequest.newBuilder()
+        .apply {
+          externalReportId = 1
+          externalRequisitionId = 2
+        }
+        .build()
 
     assertThat(service.associateRequisition(request))
       .isEqualTo(AssociateRequisitionResponse.getDefaultInstance())
 
-    verify(kingdomRelationalDatabase)
-      .associateRequisitionToReport(ExternalId(2), ExternalId(1))
+    verify(kingdomRelationalDatabase).associateRequisitionToReport(ExternalId(2), ExternalId(1))
   }
 
   @Test
-  fun confirmDuchyReadiness() = runBlocking<Unit> {
-    whenever(kingdomRelationalDatabase.confirmDuchyReadiness(any(), any(), any()))
-      .thenReturn(REPORT)
+  fun confirmDuchyReadiness() =
+    runBlocking<Unit> {
+      whenever(kingdomRelationalDatabase.confirmDuchyReadiness(any(), any(), any()))
+        .thenReturn(REPORT)
 
-    val request = ConfirmDuchyReadinessRequest.newBuilder().apply {
-      externalReportId = 1
-      duchyId = "some-duchy"
-      addAllExternalRequisitionIds(listOf(2, 3, 4))
-    }.build()
+      val request =
+        ConfirmDuchyReadinessRequest.newBuilder()
+          .apply {
+            externalReportId = 1
+            duchyId = "some-duchy"
+            addAllExternalRequisitionIds(listOf(2, 3, 4))
+          }
+          .build()
 
-    assertThat(service.confirmDuchyReadiness(request))
-      .isEqualTo(REPORT)
+      assertThat(service.confirmDuchyReadiness(request)).isEqualTo(REPORT)
 
-    verify(kingdomRelationalDatabase)
-      .confirmDuchyReadiness(
-        eq(ExternalId(1)),
-        eq("some-duchy"),
-        check { assertThat(it).containsExactly(ExternalId(2), ExternalId(3), ExternalId(4)) }
-      )
-  }
+      verify(kingdomRelationalDatabase)
+        .confirmDuchyReadiness(
+          eq(ExternalId(1)),
+          eq("some-duchy"),
+          check { assertThat(it).containsExactly(ExternalId(2), ExternalId(3), ExternalId(4)) }
+        )
+    }
 }

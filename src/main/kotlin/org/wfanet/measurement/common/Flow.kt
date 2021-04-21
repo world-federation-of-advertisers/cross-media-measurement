@@ -35,11 +35,15 @@ import kotlinx.coroutines.flow.transform
 /**
  * Pairs each item in a flow with all items produced by [block].
  *
- * For example, flowOf(1, 2, 3).pairAll { flowOf("a-$it", "b-$it") } would yield a flow with items:
- *   Pair(1, "a-1"), Pair(1, "b-1"), Pair(2, "a-2"), Pair(2, "b-2"), Pair(3, "a-3"), Pair(3, "b-3")
+ * For example, `flowOf(1, 2, 3).pairAll { flowOf("a-$it", "b-$it") }` would yield a flow with
+ * items:
+ * ```
+ * Pair(1, "a-1"), Pair(1, "b-1"), Pair(2, "a-2"), Pair(2, "b-2"), Pair(3, "a-3"), Pair(3, "b-3")
+ * ```
  */
-fun <T, R> Flow<T>.pairAll(block: suspend (T) -> Flow<R>): Flow<Pair<T, R>> =
-  transform { t -> emitAll(block(t).map { r -> Pair(t, r) }) }
+fun <T, R> Flow<T>.pairAll(block: suspend (T) -> Flow<R>): Flow<Pair<T, R>> = transform { t ->
+  emitAll(block(t).map { r -> Pair(t, r) })
+}
 
 /**
  * Executes [onEachBlock] for each item in the flow. When the block throws a [Throwable] it will be
@@ -52,17 +56,17 @@ fun <T, R> Flow<T>.pairAll(block: suspend (T) -> Flow<R>): Flow<Pair<T, R>> =
  * [retryPredicate], the exception is thrown to be handled by downstream collection of the flow.
  *
  * For example,
- *
+ * ```
  * flowOf(1,2,3).withRetriesOnEach(5, retryPredicate) {
  *   executeFlakyOperation(it)
  * }
- *
- * Will try to run the executeFlakyOperation on each item up to five times as long as the errors
+ * ```
+ * will try to run the executeFlakyOperation on each item up to five times as long as the errors
  * thrown match the [retryPredicate].
  *
  * @param maxAttempts maximum number of times to try executing [onEachBlock] of code
  * @param retryPredicate retry a failed attempt of [onEachBlock] if the throwable matches this
- *    predicate
+ * predicate
  * @param onEachBlock block of code to execute for each item in the flow.
  */
 fun <T> Flow<T>.withRetriesOnEach(
@@ -84,15 +88,15 @@ fun <T> Flow<T>.withRetriesOnEach(
  * Runs [transform] asynchronously, buffers at most [concurrency] [Deferred<R>]s, then awaits the
  * results sequentially.
  *
- * This has FIFO semantics: the order of results in the output flow is the same as the order of
- * the input. However, since [transform]'s results are run async, there is no guarantee that one will
+ * This has FIFO semantics: the order of results in the output flow is the same as the order of the
+ * input. However, since [transform]'s results are run async, there is no guarantee that one will
  * complete before the next. (However, an item [concurrency] + 2 positions ahead of another is
  * guaranteed to finish first.)
  *
  * See https://github.com/Kotlin/kotlinx.coroutines/issues/1147.
  *
  * @param scope the scope under which to launch [async] coroutines. This must contain the same
- *     [CoroutineContext][kotlin.coroutines.CoroutineContext] that the flow is collected in.
+ * [CoroutineContext][kotlin.coroutines.CoroutineContext] that the flow is collected in.
  * @param concurrency number of Deferred that can be awaiting at once
  * @param transform the mapping function
  * @return the output of mapping [transform] over the receiver
@@ -118,8 +122,8 @@ abstract class ConsumedFlowItem<T> : AutoCloseable {
 }
 
 /**
- * A [ConsumedFlowItem] wrapping a single item value, as if it was consumed from
- * a single-item [Flow].
+ * A [ConsumedFlowItem] wrapping a single item value, as if it was consumed from a single-item
+ * [Flow].
  */
 private class SingleConsumedFlowItem<T>(singleItem: T) : ConsumedFlowItem<T>() {
   override val item = singleItem
@@ -132,16 +136,14 @@ private class SingleConsumedFlowItem<T>(singleItem: T) : ConsumedFlowItem<T>() {
 }
 
 /**
- * Consumes the first item of the [Flow], producing a [Flow] for the remaining
- * items.
+ * Consumes the first item of the [Flow], producing a [Flow] for the remaining items.
  *
- * Note that this starts a new coroutine in a separate [CoroutineScope] to
- * produce the returned [Flow] items using a [Channel]. As a result, the
- * returned [Flow] is hot.
+ * Note that this starts a new coroutine in a separate [CoroutineScope] to produce the returned
+ * [Flow] items using a [Channel]. As a result, the returned [Flow] is hot.
  *
- * @return a [ConsumedFlowItem] containing the first item and the [Flow] of
- *     remaining items, or `null` if there is no first item. The caller must
- *     ensure that the returned object is [closed][ConsumedFlowItem.close].
+ * @return a [ConsumedFlowItem] containing the first item and the [Flow] of remaining items, or
+ * `null` if there is no first item. The caller must ensure that the returned object is [closed]
+ * [ConsumedFlowItem.close].
  */
 @OptIn(
   FlowPreview::class, // For `produceIn`
@@ -154,11 +156,12 @@ suspend fun <T> Flow<T>.consumeFirst(): ConsumedFlowItem<T>? {
   // We can't know whether the flow is empty until we start collecting. Since
   // we're using a rendezvous channel, this means the channel won't be closed
   // until after we attempt to receive the first item.
-  val item = try {
-    channel.receive()
-  } catch (e: ClosedReceiveChannelException) {
-    return null
-  }
+  val item =
+    try {
+      channel.receive()
+    } catch (e: ClosedReceiveChannelException) {
+      return null
+    }
 
   val hasRemaining = !channel.isClosedForReceive
   return object : ConsumedFlowItem<T>() {

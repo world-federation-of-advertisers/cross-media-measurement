@@ -8,12 +8,7 @@ We mostly adhere to the
 [Google Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
 The one exception is that we use two spaces instead of four for indentation.
 
-Please keep Kotlin code `ktlint`-formatted. Note that our `.editorconfig` file
-defines just a couple of overrides. This will produce code compliant with the
-style guide.
-
-In addition to the automatic linting and formatting, please observe these
-guidelines:
+In addition to the style guide, please observe these guidelines:
 
 1.  Write unit tests for all code.
     1.  Please only mock interfaces and abstract classes in tests.
@@ -55,13 +50,18 @@ your code prior to submitting.
 
 ### Kotlin
 
-Kotlin formatting is done by [`ktlint`](https://ktlint.github.io/).
+Kotlin formatting is done by
+[`ktfmt`](https://github.com/facebookincubator/ktfmt) with the `--google-style`
+option. Please keep code `ktlint`-formatted.
 
-You can set up `ktlint`-compatible formatting in IntelliJ by following
-[these instructions](https://github.com/pinterest/ktlint/blob/master/README.md#-with-intellij-idea).
-Once this is set up, entire directories can be formatted at once by
-right-clicking on the directory in the Project view and selecting "Reformat
-Code".
+[`ktlint`](https://ktlint.github.io/) is the Kotlin linter, which also has the
+ability to automatically apply some fixes. Our `.editorconfig` file has the
+appropriate settings to ensure that `ktlint` produces code that is compliant
+with the style guide and doesn't conflict with `ktfmt`.
+
+There is a
+[`ktfmt` IntelliJ plugin](https://plugins.jetbrains.com/plugin/14912-ktfmt) that
+you can install to replace the `Reformat Code` action in IntelliJ IDEs.
 
 ### BUILD and Starlark
 
@@ -92,8 +92,8 @@ additional context.
 
 Here is how to reference people or issues in different systems:
 
-*   Issue in this GitHub project
-    *   `TODO(gh/<issue ID>)`
+*   Issue in a GitHub repository
+    *   `TODO(<org>/<repo>#<number>)`
 *   GitHub user
     *   `TODO(@<GitHub username>)`
 *   Issue in internal [Google Issue Tracker](https://issuetracker.google.com)

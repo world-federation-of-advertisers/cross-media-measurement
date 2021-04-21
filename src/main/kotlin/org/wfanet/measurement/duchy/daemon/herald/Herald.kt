@@ -63,9 +63,9 @@ class Herald(
   private lateinit var startException: Throwable
 
   /**
-   * Syncs the status of computations stored at the kingdom with those stored locally continually
-   * in a forever loop. The [pollingThrottler] is used to limit how often the kingdom and
-   * local computation storage service are polled.
+   * Syncs the status of computations stored at the kingdom with those stored locally continually in
+   * a forever loop. The [pollingThrottler] is used to limit how often the kingdom and local
+   * computation storage service are polled.
    *
    * @param pollingThrottler throttles how often to get active computations from the Global
    * Computation Service
@@ -93,15 +93,18 @@ class Herald(
    * computations from the global computation service.
    */
   suspend fun syncStatuses(continuationToken: String): String {
-    if (this::startException.isInitialized) { throw startException }
+    if (this::startException.isInitialized) {
+      throw startException
+    }
 
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
-    globalComputationsClient.streamActiveGlobalComputations(
-      StreamActiveGlobalComputationsRequest.newBuilder()
-        .setContinuationToken(continuationToken)
-        .build()
-    )
+    globalComputationsClient
+      .streamActiveGlobalComputations(
+        StreamActiveGlobalComputationsRequest.newBuilder()
+          .setContinuationToken(continuationToken)
+          .build()
+      )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
         processGlobalComputationChange(response)
         lastProcessedContinuationToken = response.continuationToken
@@ -128,8 +131,7 @@ class Herald(
       State.RUNNING -> start(globalId)
       State.SUSPENDED ->
         logger.warning("Pause/Resume of computations based on kingdom state not yet supported.")
-      else ->
-        logger.warning("Unexpected global computation state '$state'")
+      else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
 
@@ -141,7 +143,10 @@ class Herald(
     try {
       // TODO: get the protocol from the kingdom's response and create a corresponding computation.
       LiquidLegionsV2Starter.createComputation(
-        computationStorageClient, globalComputation, protocolsSetupConfig, blobStorageBucket
+        computationStorageClient,
+        globalComputation,
+        protocolsSetupConfig,
+        blobStorageBucket
       )
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: Exception) {
@@ -156,8 +161,8 @@ class Herald(
   /**
    * Starts a computation that is in WAIT_TO_START.
    *
-   * This immediately attempts once and if that failes, launches a coroutine to continue retrying
-   * in the background.
+   * This immediately attempts once and if that failes, launches a coroutine to continue retrying in
+   * the background.
    */
   private suspend fun start(globalId: String) {
     val attempt: suspend () -> Boolean = { runCatching { startAttempt(globalId) }.isSuccess }
@@ -180,14 +185,14 @@ class Herald(
   /** Attempts to start a computation that is in WAIT_TO_START. */
   private suspend fun startAttempt(globalId: String) {
     logger.info("[id=$globalId]: Starting Computation")
-    val token =
-      computationStorageClient
-        .getComputationToken(globalId.toGetTokenRequest())
-        .token
+    val token = computationStorageClient.getComputationToken(globalId.toGetTokenRequest()).token
     when (token.computationDetails.detailsCase) {
       ComputationDetails.DetailsCase.LIQUID_LEGIONS_V2 ->
         LiquidLegionsV2Starter.startComputation(
-          token, computationStorageClient, computationProtocolStageDetails, logger
+          token,
+          computationStorageClient,
+          computationProtocolStageDetails,
+          logger
         )
       else -> error { "Unknown or unsupported protocol." }
     }
@@ -200,11 +205,13 @@ class Herald(
 
 fun GlobalComputation.toRequisitionKeys(): List<RequisitionKey> =
   metricRequisitionsList.map {
-    RequisitionKey.newBuilder().apply {
-      dataProviderId = it.dataProviderId
-      campaignId = it.campaignId
-      metricRequisitionId = it.metricRequisitionId
-    }.build()
+    RequisitionKey.newBuilder()
+      .apply {
+        dataProviderId = it.dataProviderId
+        campaignId = it.campaignId
+        metricRequisitionId = it.metricRequisitionId
+      }
+      .build()
   }
 
 /** Returns true if the error may be transient, i.e. retrying the request may succeed. */

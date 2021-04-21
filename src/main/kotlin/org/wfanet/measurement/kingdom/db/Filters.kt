@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 typealias StreamRequisitionsFilter = AllOfClause<StreamRequisitionsClause>
+
 typealias StreamReportsFilter = AllOfClause<StreamReportsClause>
 
 /**
@@ -34,11 +35,11 @@ typealias StreamReportsFilter = AllOfClause<StreamReportsClause>
  *
  * For example,
  *
- *   streamRequisitionsFilter(externalDataProviderIds = listOf(ID1, ID2), createdAfter = SOME_TIME)
+ * streamRequisitionsFilter(externalDataProviderIds = listOf(ID1, ID2), createdAfter = SOME_TIME)
  *
  * would match each Requisition that matches both these criteria:
- *   - it is associated with either ID1 or ID2, and
- *   - it was created after SOME_TIME.
+ * - it is associated with either ID1 or ID2, and
+ * - it was created after SOME_TIME.
  *
  * @param externalDataProviderIds a list of Data Providers
  * @param externalCampaignIds a list of Campaigns
@@ -67,11 +68,11 @@ fun streamRequisitionsFilter(
  *
  * For example,
  *
- *   streamReportsFilter(externalScheduleIds = listOf(ID1, ID2), createdAfter = SOME_TIME)
+ * streamReportsFilter(externalScheduleIds = listOf(ID1, ID2), createdAfter = SOME_TIME)
  *
  * would match each Report that matches both these criteria:
- *   - it is associated with a schedule with external id either ID1 or ID2, and
- *   - it was created after SOME_TIME.
+ * - it is associated with a schedule with external id either ID1 or ID2, and
+ * - it was created after SOME_TIME.
  *
  * @param externalAdvertiserIds a list of Advertisers
  * @param externalReportConfigIds a list of Report Configs

@@ -52,26 +52,17 @@ import org.wfanet.measurement.storage.StorageClient
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
-    ComputationType,
-    ComputationStage,
-    ComputationStageDetails,
-    ComputationDetails
-    >
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
 
-class DuchyDependencyProviderRule(
-  duchyIds: Iterable<String>
-) : ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> {
+class DuchyDependencyProviderRule(duchyIds: Iterable<String>) :
+  ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> {
   override val value: (String) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
 
   private val metricValueDatabaseRules =
-    duchyIds
-      .map { it to SpannerEmulatorDatabaseRule(METRIC_VALUES_SCHEMA) }
-      .toMap()
+    duchyIds.map { it to SpannerEmulatorDatabaseRule(METRIC_VALUES_SCHEMA) }.toMap()
 
   private val computationsDatabaseRules =
-    duchyIds
-      .map { it to SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA) }
-      .toMap()
+    duchyIds.map { it to SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA) }.toMap()
 
   override fun apply(base: Statement, description: Description): Statement {
     val rules = metricValueDatabaseRules.values + computationsDatabaseRules.values
@@ -79,10 +70,12 @@ class DuchyDependencyProviderRule(
   }
 
   private fun buildDuchyDependencies(duchyId: String): InProcessDuchy.DuchyDependencies {
-    val metricValueDatabase = metricValueDatabaseRules[duchyId]
-      ?: error("Missing MetricValue Spanner database for duchy $duchyId")
-    val computationsDatabase = computationsDatabaseRules[duchyId]
-      ?: error("Missing Computations Spanner database for duchy $duchyId")
+    val metricValueDatabase =
+      metricValueDatabaseRules[duchyId]
+        ?: error("Missing MetricValue Spanner database for duchy $duchyId")
+    val computationsDatabase =
+      computationsDatabaseRules[duchyId]
+        ?: error("Missing Computations Spanner database for duchy $duchyId")
 
     return InProcessDuchy.DuchyDependencies(
       buildComputationsDb(duchyId, computationsDatabase.databaseClient),
@@ -100,16 +93,13 @@ class DuchyDependencyProviderRule(
     val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
     val protocolStageEnumHelper = ComputationProtocolStages
     val stageDetails = ComputationProtocolStageDetails(otherDuchyNames)
-    val readOnlyDb = GcpSpannerComputationsDatabaseReader(
-      computationsDatabaseClient,
-      protocolStageEnumHelper
-    )
+    val readOnlyDb =
+      GcpSpannerComputationsDatabaseReader(computationsDatabaseClient, protocolStageEnumHelper)
     val computationsDb: ComputationsDb =
       GcpSpannerComputationsDatabaseTransactor(
         databaseClient = computationsDatabaseClient,
-        computationMutations = ComputationMutations(
-          ComputationTypes, protocolStageEnumHelper, stageDetails
-        ),
+        computationMutations =
+          ComputationMutations(ComputationTypes, protocolStageEnumHelper, stageDetails),
         lockDuration = Duration.ofSeconds(1)
       )
 
@@ -117,9 +107,8 @@ class DuchyDependencyProviderRule(
       ComputationsDatabase,
       ComputationsDatabaseReader by readOnlyDb,
       ComputationsDb by computationsDb,
-      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
-      by protocolStageEnumHelper {
-    }
+      ComputationProtocolStagesEnumHelper<
+        ComputationType, ComputationStage> by protocolStageEnumHelper {}
   }
 
   private fun buildMetricValueDb(databaseClient: AsyncDatabaseClient): MetricValueDatabase {
@@ -133,10 +122,14 @@ class DuchyDependencyProviderRule(
   private fun buildCryptoKeySet(duchyId: String): CryptoKeySet {
     val latestDuchyPublicKeys = DUCHY_PUBLIC_KEYS.latest
     return CryptoKeySet(
-      ownPublicAndPrivateKeys = ElGamalKeyPair.newBuilder().apply {
-        publicKey = latestDuchyPublicKeys.getValue(duchyId)
-        secretKey = checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
-      }.build(),
+      ownPublicAndPrivateKeys =
+        ElGamalKeyPair.newBuilder()
+          .apply {
+            publicKey = latestDuchyPublicKeys.getValue(duchyId)
+            secretKey =
+              checkNotNull(DUCHY_SECRET_KEYS[duchyId]) { "Secret key not found for $duchyId" }
+          }
+          .build(),
       allDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
       clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
       curveId = latestDuchyPublicKeys.curveId

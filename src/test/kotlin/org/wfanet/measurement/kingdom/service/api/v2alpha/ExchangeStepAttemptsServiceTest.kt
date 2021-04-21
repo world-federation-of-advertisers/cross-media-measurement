@@ -54,15 +54,42 @@ private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build(
 private const val EXCHANGE_ID = "2021-03-14"
 
 private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
-  InternalExchangeStepAttempt.newBuilder().apply {
-    externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-    date = DATE
-    stepIndex = STEP_INDEX
-    attemptNumber = ATTEMPT_NUMBER
-    state = InternalExchangeStepAttempt.State.ACTIVE
-    detailsBuilder.apply {
-      startTimeBuilder.seconds = 123
-      updateTimeBuilder.seconds = 456
+  InternalExchangeStepAttempt.newBuilder()
+    .apply {
+      externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = ATTEMPT_NUMBER
+      state = InternalExchangeStepAttempt.State.ACTIVE
+      detailsBuilder.apply {
+        startTimeBuilder.seconds = 123
+        updateTimeBuilder.seconds = 456
+        addDebugLogEntriesBuilder().apply {
+          time = DEBUG_LOG_1_TIME
+          message = DEBUG_LOG_1_MESSAGE
+        }
+        addDebugLogEntriesBuilder().apply {
+          time = DEBUG_LOG_2_TIME
+          message = DEBUG_LOG_2_MESSAGE
+        }
+        addSharedOutputs(ARBITRARY_BYTES)
+      }
+    }
+    .build()
+
+private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
+  ExchangeStepAttempt.newBuilder()
+    .apply {
+      keyBuilder.apply {
+        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
+        exchangeId = EXCHANGE_ID
+        stepId = externalIdToApiId(STEP_INDEX.toLong())
+        exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
+      }
+      state = ExchangeStepAttempt.State.ACTIVE
+      attemptNumber = ATTEMPT_NUMBER
+      startTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.startTime
+      updateTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.updateTime
       addDebugLogEntriesBuilder().apply {
         time = DEBUG_LOG_1_TIME
         message = DEBUG_LOG_1_MESSAGE
@@ -73,29 +100,7 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
       }
       addSharedOutputs(ARBITRARY_BYTES)
     }
-  }.build()
-
-private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt = ExchangeStepAttempt.newBuilder().apply {
-  keyBuilder.apply {
-    recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
-    exchangeId = EXCHANGE_ID
-    stepId = externalIdToApiId(STEP_INDEX.toLong())
-    exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
-  }
-  state = ExchangeStepAttempt.State.ACTIVE
-  attemptNumber = ATTEMPT_NUMBER
-  startTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.startTime
-  updateTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.updateTime
-  addDebugLogEntriesBuilder().apply {
-    time = DEBUG_LOG_1_TIME
-    message = DEBUG_LOG_1_MESSAGE
-  }
-  addDebugLogEntriesBuilder().apply {
-    time = DEBUG_LOG_2_TIME
-    message = DEBUG_LOG_2_MESSAGE
-  }
-  addSharedOutputs(ARBITRARY_BYTES)
-}.build()
+    .build()
 
 @RunWith(JUnit4::class)
 class ExchangeStepAttemptsServiceTest {
@@ -112,43 +117,51 @@ class ExchangeStepAttemptsServiceTest {
     ExchangeStepAttemptsService(ExchangeStepAttemptsCoroutineStub(grpcTestServerRule.channel))
 
   @Test
-  fun appendLogEntry() = runBlocking<Unit> {
-    whenever(mockInternalExchangeStepAttemptsService.appendLogEntry(any()))
-      .thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+  fun appendLogEntry() =
+    runBlocking<Unit> {
+      whenever(mockInternalExchangeStepAttemptsService.appendLogEntry(any()))
+        .thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
 
-    val request = AppendLogEntryRequest.newBuilder().apply {
-      key = EXCHANGE_STEP_ATTEMPT.key
-      addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
-    }.build()
+      val request =
+        AppendLogEntryRequest.newBuilder()
+          .apply {
+            key = EXCHANGE_STEP_ATTEMPT.key
+            addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
+          }
+          .build()
 
-    assertThat(service.appendLogEntry(request))
-      .isEqualTo(EXCHANGE_STEP_ATTEMPT)
+      assertThat(service.appendLogEntry(request)).isEqualTo(EXCHANGE_STEP_ATTEMPT)
 
-    verifyProtoArgument(
-      mockInternalExchangeStepAttemptsService,
-      ExchangeStepAttemptsCoroutineImplBase::appendLogEntry
-    ).isEqualTo(
-      InternalAppendLogEntryRequest.newBuilder().apply {
-        externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-        date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
-        stepIndex = STEP_INDEX
-        attemptNumber = ATTEMPT_NUMBER
-        addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
-      }.build()
-    )
-  }
+      verifyProtoArgument(
+          mockInternalExchangeStepAttemptsService,
+          ExchangeStepAttemptsCoroutineImplBase::appendLogEntry
+        )
+        .isEqualTo(
+          InternalAppendLogEntryRequest.newBuilder()
+            .apply {
+              externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+              date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
+              stepIndex = STEP_INDEX
+              attemptNumber = ATTEMPT_NUMBER
+              addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
+            }
+            .build()
+        )
+    }
 
   @Test
-  fun createExchangeStepAttempt() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.createExchangeStepAttempt(CreateExchangeStepAttemptRequest.getDefaultInstance())
+  fun createExchangeStepAttempt() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.createExchangeStepAttempt(CreateExchangeStepAttemptRequest.getDefaultInstance())
+      }
     }
-  }
 
   @Test
-  fun finishExchangeStepAttempt() = runBlocking<Unit> {
-    assertFailsWith(NotImplementedError::class) {
-      service.finishExchangeStepAttempt(FinishExchangeStepAttemptRequest.getDefaultInstance())
+  fun finishExchangeStepAttempt() =
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.finishExchangeStepAttempt(FinishExchangeStepAttemptRequest.getDefaultInstance())
+      }
     }
-  }
 }

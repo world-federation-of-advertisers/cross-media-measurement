@@ -38,25 +38,21 @@ private val REQUISITION2: Requisition = Requisition.newBuilder().setExternalRequ
 @RunWith(JUnit4::class)
 class RequisitionLinkerTest {
   private val daemonDatabaseServicesClient: DaemonDatabaseServicesClient = mock()
-  private val daemon =
-    Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
+  private val daemon = Daemon(FakeThrottler(), 100, daemonDatabaseServicesClient)
 
   @Test
   fun createRequisitions() = runBlocking {
     val latch = CountDownLatch(15)
 
     daemonDatabaseServicesClient.stub {
-      on { streamReportsInState(any()) }
-        .thenReturn(flowOf(REPORT, REPORT, REPORT))
+      on { streamReportsInState(any()) }.thenReturn(flowOf(REPORT, REPORT, REPORT))
 
       onBlocking { buildRequisitionsForReport(any()) }
         .thenReturn(listOf(REQUISITION1, REQUISITION1))
 
-      onBlocking { createRequisition(any()) }
-        .thenReturn(REQUISITION2)
+      onBlocking { createRequisition(any()) }.thenReturn(REQUISITION2)
 
-      onBlocking { associateRequisitionToReport(any(), any()) }
-        .then { latch.countDown() }
+      onBlocking { associateRequisitionToReport(any(), any()) }.then { latch.countDown() }
     }
 
     launchAndCancelWithLatch(latch) { daemon.runRequisitionLinker() }
@@ -65,11 +61,9 @@ class RequisitionLinkerTest {
     verify(daemonDatabaseServicesClient, atLeast(1))
       .streamReportsInState(Report.ReportState.AWAITING_REQUISITION_CREATION)
 
-    verify(daemonDatabaseServicesClient, atLeast(5))
-      .buildRequisitionsForReport(same(REPORT))
+    verify(daemonDatabaseServicesClient, atLeast(5)).buildRequisitionsForReport(same(REPORT))
 
-    verify(daemonDatabaseServicesClient, atLeast(15))
-      .createRequisition(same(REQUISITION1))
+    verify(daemonDatabaseServicesClient, atLeast(15)).createRequisition(same(REQUISITION1))
 
     verify(daemonDatabaseServicesClient, atLeast(15))
       .associateRequisitionToReport(same(REQUISITION2), same(REPORT))

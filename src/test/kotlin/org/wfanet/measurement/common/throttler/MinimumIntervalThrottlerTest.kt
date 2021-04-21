@@ -43,9 +43,7 @@ class MinimumIntervalThrottlerTest {
     val latch = CountDownLatch(1)
 
     withTimeout(Duration.ofSeconds(4).toMillis()) {
-      runBlockingTest {
-        throttler.onReady { latch.countDown() }
-      }
+      runBlockingTest { throttler.onReady { latch.countDown() } }
     }
 
     assertEquals(latch.count, 0)
@@ -93,8 +91,6 @@ class MinimumIntervalThrottlerTest {
     job2.join()
     job3.join()
 
-    assertThat(order)
-      .containsExactly("job3", "job2", "job1")
-      .inOrder()
+    assertThat(order).containsExactly("job3", "job2", "job1").inOrder()
   }
 }

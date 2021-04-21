@@ -27,13 +27,15 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class) // For `runBlockingTest`.
 class CountDownLatchTest {
-  @Test fun `latch count is equal to initial count`() {
+  @Test
+  fun `latch count is equal to initial count`() {
     val latch = CountDownLatch(10)
 
     assertThat(latch.count).isEqualTo(10)
   }
 
-  @Test fun `countDown decrements count`() {
+  @Test
+  fun `countDown decrements count`() {
     val latch = CountDownLatch(10)
 
     latch.countDown()
@@ -41,7 +43,8 @@ class CountDownLatchTest {
     assertThat(latch.count).isEqualTo(9)
   }
 
-  @Test fun `countDown is no-op when current count is zero`() {
+  @Test
+  fun `countDown is no-op when current count is zero`() {
     val latch = CountDownLatch(1)
 
     latch.countDown()
@@ -50,7 +53,8 @@ class CountDownLatchTest {
     assertThat(latch.count).isEqualTo(0)
   }
 
-  @Test fun `await suspends until count is zero`() = runBlockingTest {
+  @Test
+  fun `await suspends until count is zero`() = runBlockingTest {
     val latch = CountDownLatch(10)
 
     val job = launch { latch.await() }
@@ -65,14 +69,16 @@ class CountDownLatchTest {
     assertTrue(job.isCompleted)
   }
 
-  @Test fun `await resumes immediately when initial count is zero`() = runBlockingTest {
+  @Test
+  fun `await resumes immediately when initial count is zero`() = runBlockingTest {
     val latch = CountDownLatch(0)
 
     val job = launch { latch.await() }
     assertTrue(job.isCompleted)
   }
 
-  @Test fun `await resumes multiple coroutines when count reaches zero`() = runBlockingTest {
+  @Test
+  fun `await resumes multiple coroutines when count reaches zero`() = runBlockingTest {
     val latch = CountDownLatch(1)
 
     val job1 = launch { latch.await() }

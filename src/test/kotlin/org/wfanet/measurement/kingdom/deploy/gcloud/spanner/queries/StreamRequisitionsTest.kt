@@ -50,26 +50,29 @@ private const val EXTERNAL_REQUISITION_ID2 = 2003L
 private const val REQUISITION_ID3 = 2004L
 private const val EXTERNAL_REQUISITION_ID3 = 2005L
 
-private val REQUISITION1 = buildRequisition(
-  EXTERNAL_CAMPAIGN_ID1,
-  EXTERNAL_REQUISITION_ID1,
-  Instant.ofEpochSecond(100),
-  RequisitionState.FULFILLED
-)
+private val REQUISITION1 =
+  buildRequisition(
+    EXTERNAL_CAMPAIGN_ID1,
+    EXTERNAL_REQUISITION_ID1,
+    Instant.ofEpochSecond(100),
+    RequisitionState.FULFILLED
+  )
 
-private val REQUISITION2 = buildRequisition(
-  EXTERNAL_CAMPAIGN_ID1,
-  EXTERNAL_REQUISITION_ID2,
-  Instant.ofEpochSecond(200),
-  RequisitionState.UNFULFILLED
-)
+private val REQUISITION2 =
+  buildRequisition(
+    EXTERNAL_CAMPAIGN_ID1,
+    EXTERNAL_REQUISITION_ID2,
+    Instant.ofEpochSecond(200),
+    RequisitionState.UNFULFILLED
+  )
 
-private val REQUISITION3 = buildRequisition(
-  EXTERNAL_CAMPAIGN_ID2,
-  EXTERNAL_REQUISITION_ID3,
-  Instant.ofEpochSecond(300),
-  RequisitionState.FULFILLED
-)
+private val REQUISITION3 =
+  buildRequisition(
+    EXTERNAL_CAMPAIGN_ID2,
+    EXTERNAL_REQUISITION_ID3,
+    Instant.ofEpochSecond(300),
+    RequisitionState.FULFILLED
+  )
 
 @RunWith(JUnit4::class)
 class StreamRequisitionsTest : KingdomDatabaseTestBase() {
@@ -115,9 +118,9 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
   }
 
   private fun executeToList(filter: StreamRequisitionsFilter, limit: Long): List<Requisition> =
-    runBlocking {
-      StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
-    }
+      runBlocking {
+    StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
+  }
 
   @Test
   fun `create time filter`() {
@@ -135,8 +138,7 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION3)
 
-    assertThat(executeToList(filter(REQUISITION3.createTime.toInstant()), 10))
-      .isEmpty()
+    assertThat(executeToList(filter(REQUISITION3.createTime.toInstant()), 10)).isEmpty()
   }
 
   @Test
@@ -152,8 +154,7 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION1, REQUISITION2, REQUISITION3)
 
-    assertThat(executeToList(filter(EXTERNAL_DATA_PROVIDER_ID + 1), 10))
-      .isEmpty()
+    assertThat(executeToList(filter(EXTERNAL_DATA_PROVIDER_ID + 1), 10)).isEmpty()
   }
 
   @Test
@@ -209,8 +210,7 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
       .comparingExpectedFieldsOnly()
       .containsExactly(REQUISITION1)
 
-    assertThat(executeToList(streamRequisitionsFilter(), 0))
-      .isEmpty()
+    assertThat(executeToList(streamRequisitionsFilter(), 0)).isEmpty()
   }
 }
 
@@ -220,15 +220,17 @@ private fun buildRequisition(
   createTime: Instant,
   state: RequisitionState
 ): Requisition {
-  return Requisition.newBuilder().apply {
-    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    this.externalCampaignId = externalCampaignId
-    this.externalRequisitionId = externalRequisitionId
-    this.createTime = createTime.toProtoTime()
-    this.state = state
-    windowStartTime = WINDOW_START_TIME.toProtoTime()
-    windowEndTime = WINDOW_END_TIME.toProtoTime()
-    requisitionDetails = REQUISITION_DETAILS
-    requisitionDetailsJson = REQUISITION_DETAILS.toJson()
-  }.build()
+  return Requisition.newBuilder()
+    .apply {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      this.externalCampaignId = externalCampaignId
+      this.externalRequisitionId = externalRequisitionId
+      this.createTime = createTime.toProtoTime()
+      this.state = state
+      windowStartTime = WINDOW_START_TIME.toProtoTime()
+      windowEndTime = WINDOW_END_TIME.toProtoTime()
+      requisitionDetails = REQUISITION_DETAILS
+      requisitionDetailsJson = REQUISITION_DETAILS.toJson()
+    }
+    .build()
 }

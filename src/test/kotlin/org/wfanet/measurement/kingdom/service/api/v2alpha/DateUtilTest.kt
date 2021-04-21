@@ -29,11 +29,13 @@ class DateUtilTest {
   fun `conversion between protobuf Date and Java LocalDate`() {
     val localDate = LocalDate.of(2021, 3, 12)
     val date =
-      Date.newBuilder().apply {
-        year = 2021
-        month = 3
-        day = 12
-      }.build()
+      Date.newBuilder()
+        .apply {
+          year = 2021
+          month = 3
+          day = 12
+        }
+        .build()
     assertThat(localDate.toProtoDate()).isEqualTo(date)
     assertThat(date.toLocalDate()).isEqualTo(localDate)
   }

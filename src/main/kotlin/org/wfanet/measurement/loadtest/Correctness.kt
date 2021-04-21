@@ -50,12 +50,15 @@ interface Correctness {
   /** Instance of [StorageClient] to store sketches, estimates, and test results. */
   val storageClient: StorageClient
 
-  /** Instance of a [PublisherDataCoroutineStub] to send encrypted sketches to Publisher Data Service. */
+  /**
+   * Instance of a [PublisherDataCoroutineStub] to send encrypted sketches to Publisher Data
+   * Service.
+   */
   val publisherDataStub: PublisherDataCoroutineStub
 
   /**
-   * Generates a sequence of sets, each with [generatedSetSize] distinct values in
-   * [0, universeSize).
+   * Generates a sequence of sets, each with [generatedSetSize] distinct values in [0,
+   * universeSize).
    *
    * Each set is generated independently and may have non-empty intersections.
    *
@@ -108,16 +111,14 @@ interface Correctness {
   suspend fun storeEncryptedSketch(encryptedSketch: ByteString): String
 
   /**
-   * Stores a binary-serialized [GlobalComputation] message with reach and frequency estimation results into a blob.
+   * Stores a binary-serialized [GlobalComputation] message with reach and frequency estimation
+   * results into a blob.
    *
    * @param reach Long value of Estimated Cardinality
    * @param frequency Map<Long, Double> value of Estimated Frequency
    * @return blob key of the stored [GlobalComputation]
    */
-  suspend fun storeEstimationResults(
-    reach: Long,
-    frequency: Map<Long, Double>
-  ): String
+  suspend fun storeEstimationResults(reach: Long, frequency: Map<Long, Double>): String
 
   /**
    * Stores a binary-serialized [TestResult] message with all the blob keys into a blob.
@@ -128,10 +129,7 @@ interface Correctness {
   suspend fun storeTestResult(testResult: TestResult): String
 
   /** Sends encryptedSketch to Publisher Data Service. */
-  suspend fun uploadMetricValue(
-    metricValueKey: MetricRequisition.Key,
-    encryptedSketch: ByteString
-  )
+  suspend fun uploadMetricValue(metricValueKey: MetricRequisition.Key, encryptedSketch: ByteString)
 }
 
 fun AnySketch.toSketchProto(sketchConfig: SketchConfig): Sketch {

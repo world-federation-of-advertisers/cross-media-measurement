@@ -28,9 +28,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.truncateByteFields
 
-/**
- * Logs all gRPC requests and responses for clients.
- */
+/** Logs all gRPC requests and responses for clients. */
 class LoggingClientInterceptor : ClientInterceptor {
   override fun <ReqT, RespT> interceptCall(
     method: MethodDescriptor<ReqT, RespT>,
@@ -40,24 +38,20 @@ class LoggingClientInterceptor : ClientInterceptor {
     val nextCall = next.newCall(method, callOptions)
     return object : ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(nextCall) {
       override fun start(responseListener: Listener<RespT>?, headers: Metadata?) {
-        logger.logp(
-          Level.INFO,
-          method.fullMethodName,
-          "gRPC headers",
-          "[$threadName] $headers"
-        )
-        val listener = object : SimpleForwardingClientCallListener<RespT>(responseListener) {
-          override fun onMessage(message: RespT) {
-            val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
-            logger.logp(
-              Level.INFO,
-              method.fullMethodName,
-              "gRPC response",
-              "[$threadName] $messageToLog"
-            )
-            super.onMessage(message)
+        logger.logp(Level.INFO, method.fullMethodName, "gRPC headers", "[$threadName] $headers")
+        val listener =
+          object : SimpleForwardingClientCallListener<RespT>(responseListener) {
+            override fun onMessage(message: RespT) {
+              val messageToLog = (message as Message).truncateByteFields(BYTES_TO_LOG)
+              logger.logp(
+                Level.INFO,
+                method.fullMethodName,
+                "gRPC response",
+                "[$threadName] $messageToLog"
+              )
+              super.onMessage(message)
+            }
           }
-        }
         super.start(listener, headers)
       }
       override fun sendMessage(message: ReqT) {

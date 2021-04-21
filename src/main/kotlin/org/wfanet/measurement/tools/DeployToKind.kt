@@ -64,29 +64,15 @@ class DeployToKind : Callable<Int> {
     private const val yamlFile = "kingdom_and_three_duchies_from_cue_local.yaml"
     val manifestPath =
       checkNotNull(
-        getRuntimePath(
-          Paths.get(
-            "wfa_measurement_system",
-            "src",
-            "main",
-            "k8s",
-            yamlFile
-          )
-        )
+        getRuntimePath(Paths.get("wfa_measurement_system", "src", "main", "k8s", yamlFile))
       )
 
     fun loadImages(clusterName: String) {
       logger.info("*** LOADING ALL IMAGES ***")
 
       val runfiles =
-        checkNotNull(
-          getRuntimePath(
-            Paths.get(
-              "wfa_measurement_system",
-              kotlinRelativePath
-            )
-          )
-        ).toFile()
+        checkNotNull(getRuntimePath(Paths.get("wfa_measurement_system", kotlinRelativePath)))
+          .toFile()
 
       runBlocking {
         runfiles
@@ -109,9 +95,7 @@ class DeployToKind : Callable<Int> {
             val deleteWarning =
               "*** FYI: If the image doesn't exist the next command fails. " +
                 "This is expected and not a big deal. ***"
-            runSubprocess(
-              "echo \"$deleteWarning\" && docker rmi $imageName", exitOnFail = false
-            )
+            runSubprocess("echo \"$deleteWarning\" && docker rmi $imageName", exitOnFail = false)
 
             // Load the image into Docker.
             runSubprocess("docker load -i $absolutePath", redirectErrorStream = false)

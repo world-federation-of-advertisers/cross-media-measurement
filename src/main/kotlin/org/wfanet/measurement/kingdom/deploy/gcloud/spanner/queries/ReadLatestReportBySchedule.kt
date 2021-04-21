@@ -22,9 +22,8 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.SpannerReader
 
-class ReadLatestReportBySchedule(
-  externalScheduleId: ExternalId
-) : SpannerQuery<ReportReader.Result, Report>() {
+class ReadLatestReportBySchedule(externalScheduleId: ExternalId) :
+  SpannerQuery<ReportReader.Result, Report>() {
 
   override val reader: SpannerReader<ReportReader.Result> by lazy {
     val whereClause =
@@ -34,11 +33,10 @@ class ReadLatestReportBySchedule(
       LIMIT 1
       """.trimIndent()
 
-    ReportReader()
-      .withBuilder {
-        appendClause(whereClause)
-        bind("external_schedule_id").to(externalScheduleId.value)
-      }
+    ReportReader().withBuilder {
+      appendClause(whereClause)
+      bind("external_schedule_id").to(externalScheduleId.value)
+    }
   }
 
   override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }

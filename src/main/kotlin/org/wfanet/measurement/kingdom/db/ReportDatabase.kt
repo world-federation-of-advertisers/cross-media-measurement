@@ -43,14 +43,10 @@ interface ReportDatabase {
     combinedPublicKeyResourceId: String
   ): Report
 
-  /**
-   * Updates the state of a [Report].
-   */
+  /** Updates the state of a [Report]. */
   suspend fun updateReportState(externalReportId: ExternalId, state: ReportState): Report
 
-  /**
-   * Streams [Report]s ordered by ascending update time.
-   */
+  /** Streams [Report]s ordered by ascending update time. */
   fun streamReports(filter: StreamReportsFilter, limit: Long): Flow<Report>
 
   /**
@@ -59,9 +55,7 @@ interface ReportDatabase {
    */
   fun streamReadyReports(limit: Long): Flow<Report>
 
-  /**
-   * Associates a [Requisition] and a [Report].
-   */
+  /** Associates a [Requisition] and a [Report]. */
   suspend fun associateRequisitionToReport(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId
@@ -80,7 +74,7 @@ interface ReportDatabase {
    * @param externalRequisitionIds the [Requisition]s for which this Duchy is providing data
    * @return the modified Report
    * @throws IllegalArgumentException if [externalRequisitionIds] is not exactly what is expected
-   **/
+   */
   suspend fun confirmDuchyReadiness(
     externalReportId: ExternalId,
     duchyId: String,

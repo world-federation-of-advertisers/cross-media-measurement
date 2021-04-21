@@ -27,10 +27,8 @@ import kotlinx.coroutines.sync.withLock
  * @property[clock] the clock to use
  * @property[interval] the minimum interval between events
  */
-class MinimumIntervalThrottler(
-  private val clock: Clock,
-  private val interval: Duration
-) : Throttler {
+class MinimumIntervalThrottler(private val clock: Clock, private val interval: Duration) :
+  Throttler {
   private val mutex = Mutex(false) // Guarantees FIFO order.
   private var lastAttempt = Instant.EPOCH
 

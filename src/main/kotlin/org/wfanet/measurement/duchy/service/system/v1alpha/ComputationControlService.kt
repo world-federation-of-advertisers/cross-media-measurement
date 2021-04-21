@@ -41,19 +41,19 @@ class ComputationControlService(
   override suspend fun advanceComputation(
     requests: Flow<AdvanceComputationRequest>
   ): AdvanceComputationResponse {
-    grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }
-      .use { consumed: ConsumedFlowItem<AdvanceComputationRequest> ->
-        val header = consumed.item.header
-        val id = header.key.globalComputationId
-        logger.info("[id=$id]: Received request with header $header")
-        grpcRequire(id.isNotEmpty()) { "Cannot advance computation, missing computation ID" }
-        grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
-        if (header.isForAsyncComputation()) {
-          handleAsyncRequest(header, consumed.remaining.map { it.bodyChunk.partialData }, id)
-        } else {
-          failGrpc { "Synchronous computations are not yet supported." }
-        }
+    grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use {
+      consumed: ConsumedFlowItem<AdvanceComputationRequest> ->
+      val header = consumed.item.header
+      val id = header.key.globalComputationId
+      logger.info("[id=$id]: Received request with header $header")
+      grpcRequire(id.isNotEmpty()) { "Cannot advance computation, missing computation ID" }
+      grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
+      if (header.isForAsyncComputation()) {
+        handleAsyncRequest(header, consumed.remaining.map { it.bodyChunk.partialData }, id)
+      } else {
+        failGrpc { "Synchronous computations are not yet supported." }
       }
+    }
     return AdvanceComputationResponse.getDefaultInstance()
   }
 
@@ -69,33 +69,34 @@ class ComputationControlService(
       storageClient.createBlob(blobKey, blob)
     }
     val advanceAsyncComputationRequest =
-      AsyncAdvanceComputationRequest.newBuilder().apply {
-        globalComputationId = globalId
-        computationStage = header.stageExpectingInput()
-        blobPath = blobKey
-        dataOrigin = duchyIdentityProvider().id
-      }.build()
+      AsyncAdvanceComputationRequest.newBuilder()
+        .apply {
+          globalComputationId = globalId
+          computationStage = header.stageExpectingInput()
+          blobPath = blobKey
+          dataOrigin = duchyIdentityProvider().id
+        }
+        .build()
     asyncComputationControlClient.advanceComputation(advanceAsyncComputationRequest)
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    fun generateBlobKey(
-      header: AdvanceComputationRequest.Header,
-      sender: String
-    ): String = with(header) {
-      return listOf(
-        "/computations",
-        key.globalComputationId,
-        protocolCase.name,
-        when (protocolCase) {
-          AdvanceComputationRequest.Header.ProtocolCase.LIQUID_LEGIONS_V2 ->
-            liquidLegionsV2.description.name
-          else -> failGrpc { "Unknown protocol $protocolCase" }
-        },
-        sender
-      ).joinToString("/")
-    }
+    fun generateBlobKey(header: AdvanceComputationRequest.Header, sender: String): String =
+      with(header) {
+        return listOf(
+            "/computations",
+            key.globalComputationId,
+            protocolCase.name,
+            when (protocolCase) {
+              AdvanceComputationRequest.Header.ProtocolCase.LIQUID_LEGIONS_V2 ->
+                liquidLegionsV2.description.name
+              else -> failGrpc { "Unknown protocol $protocolCase" }
+            },
+            sender
+          )
+          .joinToString("/")
+      }
   }
 }

@@ -32,8 +32,7 @@ fun <T> logAndSuppressException(level: Level = Level.SEVERE, block: () -> T): T?
 suspend fun <T> logAndSuppressExceptionSuspend(
   level: Level = Level.SEVERE,
   block: suspend () -> T
-): T? =
-  runCatching { block() }.onFailure { logException(it, level) }.getOrNull()
+): T? = runCatching { block() }.onFailure { logException(it, level) }.getOrNull()
 
 private fun logException(throwable: Throwable, level: Level) {
   logger.log(level, "Exception:", throwable)

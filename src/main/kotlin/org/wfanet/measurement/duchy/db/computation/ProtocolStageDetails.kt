@@ -19,7 +19,7 @@ interface ProtocolStageDetails<StageT, StageDetailsT, ComputationDetailsT> {
   /** Creates the stage specific details for a given computation stage. */
   fun detailsFor(stage: StageT): StageDetailsT
 
-  /** Converts bytes into a [StageDetailsT] .*/
+  /** Converts bytes into a [StageDetailsT] . */
   fun parseDetails(bytes: ByteArray): StageDetailsT
 
   /** True if a computation with [ComputationDetailsT] can be at [StageT]. */

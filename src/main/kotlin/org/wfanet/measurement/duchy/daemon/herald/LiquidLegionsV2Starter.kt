@@ -38,24 +38,27 @@ object LiquidLegionsV2Starter : ProtocolStarter {
   ) {
     protocolsSetupConfig.liquidLegionsV2.role
     val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
-    val initialComputationDetails = ComputationDetails.newBuilder().apply {
-      liquidLegionsV2Builder.apply {
-        role = protocolsSetupConfig.liquidLegionsV2.role
-        totalRequisitionCount = globalComputation.totalRequisitionCount
-      }
-      blobsStoragePrefix = "$blobStorageBucket/$globalId"
-    }.build()
+    val initialComputationDetails =
+      ComputationDetails.newBuilder()
+        .apply {
+          liquidLegionsV2Builder.apply {
+            role = protocolsSetupConfig.liquidLegionsV2.role
+            totalRequisitionCount = globalComputation.totalRequisitionCount
+          }
+          blobsStoragePrefix = "$blobStorageBucket/$globalId"
+        }
+        .build()
 
     computationStorageClient.createComputation(
-      CreateComputationRequest.newBuilder().apply {
-        computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-        globalComputationId = globalId
-        stageDetailsBuilder
-          .liquidLegionsV2Builder
-          .toConfirmRequisitionsStageDetailsBuilder
-          .addAllKeys(globalComputation.toRequisitionKeys())
-        computationDetails = initialComputationDetails
-      }.build()
+      CreateComputationRequest.newBuilder()
+        .apply {
+          computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+          globalComputationId = globalId
+          stageDetailsBuilder.liquidLegionsV2Builder.toConfirmRequisitionsStageDetailsBuilder
+            .addAllKeys(globalComputation.toRequisitionKeys())
+          computationDetails = initialComputationDetails
+        }
+        .build()
     )
   }
 

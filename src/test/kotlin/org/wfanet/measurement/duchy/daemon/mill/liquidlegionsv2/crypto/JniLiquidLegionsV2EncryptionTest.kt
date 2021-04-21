@@ -24,11 +24,11 @@ class JniLiquidLegionsV2EncryptionTest {
   @Test
   fun `check JNI lib is loaded successfully`() {
     // Send an invalid request and check if we can get the error thrown inside JNI.
-    val e = assertFailsWith(RuntimeException::class) {
-      JniLiquidLegionsV2Encryption().completeExecutionPhaseTwo(
-        CompleteExecutionPhaseTwoRequest.getDefaultInstance()
-      )
-    }
+    val e =
+      assertFailsWith(RuntimeException::class) {
+        JniLiquidLegionsV2Encryption()
+          .completeExecutionPhaseTwo(CompleteExecutionPhaseTwoRequest.getDefaultInstance())
+      }
     assertThat(e.message).contains("Failed to create the protocol cipher")
   }
 }

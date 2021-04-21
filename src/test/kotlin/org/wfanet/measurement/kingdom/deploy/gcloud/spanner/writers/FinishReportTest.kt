@@ -38,11 +38,13 @@ private const val EXTERNAL_SCHEDULE_ID = 6L
 private const val REPORT_ID = 7L
 private const val EXTERNAL_REPORT_ID = 8L
 private val RESULT: ReportDetails.Result =
-  ReportDetails.Result.newBuilder().apply {
-    reach = 123
-    putFrequency(1, 0.4)
-    putFrequency(3, 0.6)
-  }.build()
+  ReportDetails.Result.newBuilder()
+    .apply {
+      reach = 123
+      putFrequency(1, 0.4)
+      putFrequency(3, 0.6)
+    }
+    .build()
 
 @RunWith(JUnit4::class)
 class FinishReportTest : KingdomDatabaseTestBase() {
@@ -65,11 +67,16 @@ class FinishReportTest : KingdomDatabaseTestBase() {
     databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("Reports")
-          .set("AdvertiserId").to(ADVERTISER_ID)
-          .set("ReportConfigId").to(REPORT_CONFIG_ID)
-          .set("ScheduleId").to(SCHEDULE_ID)
-          .set("ReportId").to(REPORT_ID)
-          .set("State").toProtoEnum(state)
+          .set("AdvertiserId")
+          .to(ADVERTISER_ID)
+          .set("ReportConfigId")
+          .to(REPORT_CONFIG_ID)
+          .set("ScheduleId")
+          .to(SCHEDULE_ID)
+          .set("ReportId")
+          .to(REPORT_ID)
+          .set("State")
+          .toProtoEnum(state)
           .build()
       )
     )
@@ -81,11 +88,8 @@ class FinishReportTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `report is in the wrong state`() = runBlocking {
-    val states = listOf(
-      ReportState.AWAITING_REQUISITION_CREATION,
-      ReportState.SUCCEEDED,
-      ReportState.FAILED
-    )
+    val states =
+      listOf(ReportState.AWAITING_REQUISITION_CREATION, ReportState.SUCCEEDED, ReportState.FAILED)
     for (state in states) {
       directlyUpdateState(state)
       assertFails { finishReport() }
@@ -93,25 +97,26 @@ class FinishReportTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() = runBlocking<Unit> {
-    directlyUpdateState(ReportState.IN_PROGRESS)
+  fun success() =
+    runBlocking<Unit> {
+      directlyUpdateState(ReportState.IN_PROGRESS)
 
-    val expectedReport =
-      Report.newBuilder().apply {
-        externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-        externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-        externalScheduleId = EXTERNAL_SCHEDULE_ID
-        externalReportId = EXTERNAL_REPORT_ID
-        state = ReportState.SUCCEEDED
-        reportDetailsBuilder.result = RESULT
-      }.build()
+      val expectedReport =
+        Report.newBuilder()
+          .apply {
+            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+            externalScheduleId = EXTERNAL_SCHEDULE_ID
+            externalReportId = EXTERNAL_REPORT_ID
+            state = ReportState.SUCCEEDED
+            reportDetailsBuilder.result = RESULT
+          }
+          .build()
 
-    assertThat(finishReport())
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedReport)
+      assertThat(finishReport()).comparingExpectedFieldsOnly().isEqualTo(expectedReport)
 
-    assertThat(readAllReportsInSpanner())
-      .comparingExpectedFieldsOnly()
-      .containsExactly(expectedReport)
-  }
+      assertThat(readAllReportsInSpanner())
+        .comparingExpectedFieldsOnly()
+        .containsExactly(expectedReport)
+    }
 }

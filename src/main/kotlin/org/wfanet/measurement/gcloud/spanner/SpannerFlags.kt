@@ -17,9 +17,7 @@ package org.wfanet.measurement.gcloud.spanner
 import java.time.Duration
 import picocli.CommandLine
 
-/**
- * Common command-line flags for connecting to a single Spanner database.
- */
+/** Common command-line flags for connecting to a single Spanner database. */
 class SpannerFlags {
   @CommandLine.Option(
     names = ["--spanner-project"],
@@ -61,9 +59,7 @@ class SpannerFlags {
   var spannerEmulatorHost: String? = null
     private set
 
-  /**
-   * Builds a [SpannerDatabaseConnector] from these flags.
-   */
+  /** Builds a [SpannerDatabaseConnector] from these flags. */
   private fun toSpannerDatabaseConnector(): SpannerDatabaseConnector {
     return SpannerDatabaseConnector(
       instanceName,
@@ -75,8 +71,8 @@ class SpannerFlags {
   }
 
   /**
-   * Executes [block] with a [SpannerDatabaseConnector] resource once it's ready,
-   * ensuring that the resource is closed.
+   * Executes [block] with a [SpannerDatabaseConnector] resource once it's ready, ensuring that the
+   * resource is closed.
    */
   suspend fun <R> usingSpanner(block: suspend (spanner: SpannerDatabaseConnector) -> R): R {
     return toSpannerDatabaseConnector().usingSpanner(block)

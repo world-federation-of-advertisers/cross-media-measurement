@@ -24,9 +24,7 @@ import com.google.cloud.spanner.Spanner
 import com.google.cloud.spanner.SpannerOptions
 import kotlinx.coroutines.runBlocking
 
-/**
- * [AutoCloseable] wrapping a [SpannerEmulator] with a single test [Instance].
- */
+/** [AutoCloseable] wrapping a [SpannerEmulator] with a single test [Instance]. */
 internal class EmulatorWithInstance : AutoCloseable {
   private val spannerEmulator = SpannerEmulator().apply { start() }
 
@@ -41,13 +39,17 @@ internal class EmulatorWithInstance : AutoCloseable {
 
   val instance: Instance
   init {
-    instance = spanner.instanceAdminClient.createInstance(
-      InstanceInfo.newBuilder(InstanceId.of(PROJECT_ID, INSTANCE_NAME))
-        .setDisplayName(INSTANCE_DISPLAY_NAME)
-        .setInstanceConfigId(InstanceConfigId.of(PROJECT_ID, INSTANCE_CONFIG))
-        .setNodeCount(1)
-        .build()
-    ).get()
+    instance =
+      spanner
+        .instanceAdminClient
+        .createInstance(
+          InstanceInfo.newBuilder(InstanceId.of(PROJECT_ID, INSTANCE_NAME))
+            .setDisplayName(INSTANCE_DISPLAY_NAME)
+            .setInstanceConfigId(InstanceConfigId.of(PROJECT_ID, INSTANCE_CONFIG))
+            .setNodeCount(1)
+            .build()
+        )
+        .get()
   }
 
   override fun close() {

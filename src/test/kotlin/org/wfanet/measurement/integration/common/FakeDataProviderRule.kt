@@ -75,22 +75,26 @@ class FakeDataProviderRule : TestRule {
     var lastPageToken = ""
 
     throttler.loopOnReady {
-      val request = ListMetricRequisitionsRequest.newBuilder().apply {
-        parentBuilder.apply {
-          dataProviderId = externalDataProviderId.apiId.value
-          campaignId = externalCampaignId.apiId.value
-        }
-        filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
-        pageToken = lastPageToken
-        pageSize = 1
-      }.build()
+      val request =
+        ListMetricRequisitionsRequest.newBuilder()
+          .apply {
+            parentBuilder.apply {
+              dataProviderId = externalDataProviderId.apiId.value
+              campaignId = externalCampaignId.apiId.value
+            }
+            filterBuilder.addStates(MetricRequisition.State.UNFULFILLED)
+            pageToken = lastPageToken
+            pageSize = 1
+          }
+          .build()
       val response = publisherDataStub.listMetricRequisitions(request)
       lastPageToken = response.nextPageToken
       for (metricRequisition in response.metricRequisitionsList) {
         val resourceKey = metricRequisition.combinedPublicKey
-        val combinedPublicKey = publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
-          publisherDataStub.getCombinedPublicKey(resourceKey)
-        }
+        val combinedPublicKey =
+          publicKeyCache.getOrPut(resourceKey.combinedPublicKeyId) {
+            publisherDataStub.getCombinedPublicKey(resourceKey)
+          }
         publisherDataStub.uploadMetricValue(
           makeMetricValueFlow(combinedPublicKey.encryptionKey, metricRequisition)
         )
@@ -103,60 +107,63 @@ class FakeDataProviderRule : TestRule {
     metricRequisition: MetricRequisition
   ): Flow<UploadMetricValueRequest> = flow {
     emit(
-      UploadMetricValueRequest.newBuilder().apply {
-        headerBuilder.apply {
-          key = metricRequisition.key
-        }
-      }.build()
+      UploadMetricValueRequest.newBuilder()
+        .apply { headerBuilder.apply { key = metricRequisition.key } }
+        .build()
     )
 
     emit(
-      UploadMetricValueRequest.newBuilder().apply {
-        chunkBuilder.data = generateFakeEncryptedSketch(combinedPublicKey)
-      }.build()
+      UploadMetricValueRequest.newBuilder()
+        .apply { chunkBuilder.data = generateFakeEncryptedSketch(combinedPublicKey) }
+        .build()
     )
   }
 
   private fun generateFakeEncryptedSketch(combinedElGamalKey: ElGamalPublicKey): ByteString {
-    val sketch = Sketch.newBuilder().apply {
-      config = sketchConfig
-      // Adds 7 normal registers with count 1
-      for (i in 1L..7L) {
-        addRegistersBuilder().apply {
-          index = i
-          addValues(i)
-          addValues(1)
+    val sketch =
+      Sketch.newBuilder()
+        .apply {
+          config = sketchConfig
+          // Adds 7 normal registers with count 1
+          for (i in 1L..7L) {
+            addRegistersBuilder().apply {
+              index = i
+              addValues(i)
+              addValues(1)
+            }
+          }
+          // Adds 3 normal registers with count 2
+          for (i in 11L..13L) {
+            addRegistersBuilder().apply {
+              index = i
+              addValues(i)
+              addValues(2)
+            }
+          }
+          // Adds another locally destroyed register.
+          addRegistersBuilder().apply {
+            index = 10
+            addValues(-1)
+            addValues(1) // this value doesn't matter
+          }
         }
-      }
-      // Adds 3 normal registers with count 2
-      for (i in 11L..13L) {
-        addRegistersBuilder().apply {
-          index = i
-          addValues(i)
-          addValues(2)
+        .build()
+    val request =
+      EncryptSketchRequest.newBuilder()
+        .apply {
+          this.sketch = sketch
+          curveId = combinedElGamalKey.ellipticCurveId.toLong()
+          maximumValue = 10
+          elGamalKeysBuilder.apply {
+            generator = combinedElGamalKey.generator
+            element = combinedElGamalKey.element
+          }
+          // TODO: choose strategy according to the protocol type.
+          destroyedRegisterStrategy = FLAGGED_KEY
         }
-      }
-      // Adds another locally destroyed register.
-      addRegistersBuilder().apply {
-        index = 10
-        addValues(-1)
-        addValues(1) // this value doesn't matter
-      }
-    }.build()
-    val request = EncryptSketchRequest.newBuilder().apply {
-      this.sketch = sketch
-      curveId = combinedElGamalKey.ellipticCurveId.toLong()
-      maximumValue = 10
-      elGamalKeysBuilder.apply {
-        generator = combinedElGamalKey.generator
-        element = combinedElGamalKey.element
-      }
-      // TODO: choose strategy according to the protocol type.
-      destroyedRegisterStrategy = FLAGGED_KEY
-    }.build()
-    val response = EncryptSketchResponse.parseFrom(
-      SketchEncrypterAdapter.EncryptSketch(request.toByteArray())
-    )
+        .build()
+    val response =
+      EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
     return response.encryptedSketch
   }
 
@@ -176,9 +183,7 @@ class FakeDataProviderRule : TestRule {
     resourceKey: CombinedPublicKey.Key
   ): CombinedPublicKey {
     return getCombinedPublicKey(
-      GetCombinedPublicKeyRequest.newBuilder().apply {
-        key = resourceKey
-      }.build()
+      GetCombinedPublicKeyRequest.newBuilder().apply { key = resourceKey }.build()
     )
   }
 
@@ -196,9 +201,10 @@ class FakeDataProviderRule : TestRule {
         "/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto"
       val resource = this::class.java.getResource(configPath)
 
-      sketchConfig = resource.openStream().use { input ->
-        parseTextProto(input.bufferedReader(), SketchConfig.getDefaultInstance())
-      }
+      sketchConfig =
+        resource.openStream().use { input ->
+          parseTextProto(input.bufferedReader(), SketchConfig.getDefaultInstance())
+        }
     }
   }
 }

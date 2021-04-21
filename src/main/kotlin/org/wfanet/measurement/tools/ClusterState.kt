@@ -35,16 +35,16 @@ class ClusterState(private val clusterName: String = "kind") {
   }
 
   /**
-   *
    */
   fun getNodeIp(): String =
     handleJson("kubectl get node $clusterName-control-plane -o json") { json ->
       json
         .getAsJsonObject("status")
         .getAsJsonArray("addresses")
-        .first { el ->
-          el.asJsonObject.getAsJsonPrimitive("type").asString == "InternalIP"
-        }.asJsonObject.getAsJsonPrimitive("address").asString
+        .first { el -> el.asJsonObject.getAsJsonPrimitive("type").asString == "InternalIP" }
+        .asJsonObject
+        .getAsJsonPrimitive("address")
+        .asString
     }
 
   /**
@@ -53,8 +53,8 @@ class ClusterState(private val clusterName: String = "kind") {
    * For example the following JSON would return the same Map as the Kotlin code:
    * mapOf(Pair("my-service", mapOf(Pair("grpc", 30001), Pair("http", 30002))))
    *
-   * {
-   *   "items": [
+   * { "items": [
+   * ```
    *     "kind": Service
    *     "metadata": {
    *       "name": "my-service"
@@ -72,11 +72,13 @@ class ClusterState(private val clusterName: String = "kind") {
    *         }
    *       ]
    *     }
-   *   ]
-   * }
+   * ```
+   * ] }
    *
    * @return Outer map contains one entry per NodePort type service keyed on the service name. The
+   * ```
    *     key of the inner map is the port name and the value is the port number.
+   * ```
    */
   fun getNodePorts(jobNames: List<String>): Map<String, Map<String, Int>> =
     handleJson(
@@ -89,20 +91,17 @@ class ClusterState(private val clusterName: String = "kind") {
         .map { it.asJsonObject }
         .filter { el ->
           el.getAsJsonPrimitive("kind").asString == "Service" &&
-            el.getAsJsonObject("spec")
-            .getAsJsonPrimitive("type").asString == "NodePort"
-        }.associate { el ->
+            el.getAsJsonObject("spec").getAsJsonPrimitive("type").asString == "NodePort"
+        }
+        .associate { el ->
           Pair(
-            el.getAsJsonObject("metadata")
-              .getAsJsonPrimitive("name").asString,
-            el.getAsJsonObject("spec")
-              .getAsJsonArray("ports")
-              .associate {
-                Pair(
-                  it.asJsonObject.getAsJsonPrimitive("name").asString,
-                  it.asJsonObject.getAsJsonPrimitive("nodePort").asInt
-                )
-              }
+            el.getAsJsonObject("metadata").getAsJsonPrimitive("name").asString,
+            el.getAsJsonObject("spec").getAsJsonArray("ports").associate {
+              Pair(
+                it.asJsonObject.getAsJsonPrimitive("name").asString,
+                it.asJsonObject.getAsJsonPrimitive("nodePort").asInt
+              )
+            }
           )
         }
     }
@@ -113,18 +112,19 @@ class ClusterState(private val clusterName: String = "kind") {
       jobNames.joinToString(" ")
       } -o json --context kind-$clusterName"
     ) { json ->
-      json
-        .getAsJsonArray("items")
-        .all { el ->
-          el.asJsonObject
-            .getAsJsonObject("status").has("succeeded")
-        }
+      json.getAsJsonArray("items").all { el ->
+        el.asJsonObject.getAsJsonObject("status").has("succeeded")
+      }
     }
 
   fun getPodStatuses(): Map<String, String> =
     exec(
       listOf(
-        "kubectl", "get", "pods", "--context", "kind-$clusterName",
+        "kubectl",
+        "get",
+        "pods",
+        "--context",
+        "kind-$clusterName",
         "-o=jsonpath={range .items[*]}{.metadata.name}{\"=\"}{.status.phase}{\"\\n\"}{end}"
       )
     ) { reader ->
@@ -143,10 +143,7 @@ private fun <T> handleJson(command: String, parse: (JsonObject) -> T): T =
   }
 
 /** Runs a subprocess and runs its stdout through the parser. */
-private fun <T> exec(
-  command: List<String>,
-  parse: (Reader) -> T
-): T {
+private fun <T> exec(command: List<String>, parse: (Reader) -> T): T {
   val process = ProcessBuilder(command).start()
   var errorMessage: String? = null
   var result: T? = null
@@ -154,12 +151,14 @@ private fun <T> exec(
   runBlocking {
     joinAll(
       launch {
-        errorMessage = process.errorStream.bufferedReader().lines()
-          .collect(Collectors.joining(System.lineSeparator()))
+        errorMessage =
+          process
+            .errorStream
+            .bufferedReader()
+            .lines()
+            .collect(Collectors.joining(System.lineSeparator()))
       },
-      launch {
-        result = parse(process.inputStream.bufferedReader())
-      }
+      launch { result = parse(process.inputStream.bufferedReader()) }
     )
   }
 

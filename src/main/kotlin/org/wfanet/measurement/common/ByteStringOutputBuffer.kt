@@ -19,12 +19,11 @@ import java.nio.ByteBuffer
 import java.nio.channels.Channels
 import java.nio.channels.WritableByteChannel
 
-/**
- * Fixed capacity [ByteString.Output] buffer for outputting [ByteString]
- * instances.
- */
+/** Fixed capacity [ByteString.Output] buffer for outputting [ByteString] instances. */
 class ByteStringOutputBuffer(private val capacity: Int) : AutoCloseable {
-  init { require(capacity > 0) }
+  init {
+    require(capacity > 0)
+  }
 
   private val output = ByteString.newOutput(capacity)
   private val channel: WritableByteChannel = Channels.newChannel(output)
@@ -41,9 +40,8 @@ class ByteStringOutputBuffer(private val capacity: Int) : AutoCloseable {
   fun clear() = output.reset()
 
   /**
-   * Puts the remaining bytes from the source buffer into this buffer until
-   * either there are no more remaining bytes in the source or this buffer
-   * is full.
+   * Puts the remaining bytes from the source buffer into this buffer until either there are no more
+   * remaining bytes in the source or this buffer is full.
    */
   fun putUntilFull(source: ByteBuffer) {
     if (full) return

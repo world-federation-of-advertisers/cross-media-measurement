@@ -121,15 +121,14 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
     )
   }
 
-  private fun confirmDuchyReadiness(
-    duchyId: String,
-    vararg requisitions: Long
-  ): Report = runBlocking {
-    val writer = ConfirmDuchyReadiness(
-      ExternalId(EXTERNAL_REPORT_ID),
-      duchyId,
-      requisitions.map(::ExternalId).toSet()
-    )
+  private fun confirmDuchyReadiness(duchyId: String, vararg requisitions: Long): Report =
+      runBlocking {
+    val writer =
+      ConfirmDuchyReadiness(
+        ExternalId(EXTERNAL_REPORT_ID),
+        duchyId,
+        requisitions.map(::ExternalId).toSet()
+      )
 
     writer.execute(databaseClient)
   }
@@ -209,18 +208,14 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
 
-    assertFails {
-      confirmDuchyReadiness(DUCHY_ID)
-    }
+    assertFails { confirmDuchyReadiness(DUCHY_ID) }
     assertReportInDatabaseIs(originalReportBuilder)
   }
 
   @Test
   fun `call has extra Requisitions that it owns but not linked`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, DUCHY_ID)
-    assertFails {
-      confirmDuchyReadiness(DUCHY_ID, EXTERNAL_REQUISITION_ID1)
-    }
+    assertFails { confirmDuchyReadiness(DUCHY_ID, EXTERNAL_REQUISITION_ID1) }
     assertReportInDatabaseIs(originalReportBuilder)
   }
 
@@ -228,9 +223,7 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   fun `call has extra Requisitions that another Duchy owns`() = runBlocking {
     insertFulfilledRequisition(REQUISITION_ID1, EXTERNAL_REQUISITION_ID1, OTHER_DUCHY_ID)
     linkRequisitionToReport(REQUISITION_ID1)
-    assertFails {
-      confirmDuchyReadiness(DUCHY_ID, EXTERNAL_REQUISITION_ID1)
-    }
+    assertFails { confirmDuchyReadiness(DUCHY_ID, EXTERNAL_REQUISITION_ID1) }
     assertReportInDatabaseIs(originalReportBuilder)
   }
 
@@ -239,19 +232,22 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
     databaseClient.write(
       listOf(
         Mutation.newUpdateBuilder("Reports")
-          .set("AdvertiserId").to(ADVERTISER_ID)
-          .set("ReportConfigId").to(REPORT_CONFIG_ID)
-          .set("ScheduleId").to(SCHEDULE_ID)
-          .set("ReportId").to(REPORT_ID)
-          .set("State").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
+          .set("AdvertiserId")
+          .to(ADVERTISER_ID)
+          .set("ReportConfigId")
+          .to(REPORT_CONFIG_ID)
+          .set("ScheduleId")
+          .to(SCHEDULE_ID)
+          .set("ReportId")
+          .to(REPORT_ID)
+          .set("State")
+          .toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
           .build()
       )
     )
     originalReport = readAllReportsInSpanner().single()
 
-    assertFails {
-      confirmDuchyReadiness(DUCHY_ID)
-    }
+    assertFails { confirmDuchyReadiness(DUCHY_ID) }
 
     assertReportInDatabaseIs(originalReportBuilder)
   }

@@ -34,37 +34,39 @@ object ComputationProtocolStages :
     }
   }
 
-  override fun computationStageEnumToLongValues(value: ComputationStage):
-    ComputationStageLongValues {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return when (value.stageCase) {
-        ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-          ComputationStageLongValues(
-            ComputationTypes.protocolEnumToLong(LIQUID_LEGIONS_SKETCH_AGGREGATION_V2),
-            LiquidLegionsSketchAggregationV2Protocol.EnumStages.enumToLong(
-              value.liquidLegionsSketchAggregationV2
-            )
+  override fun computationStageEnumToLongValues(
+    value: ComputationStage
+  ): ComputationStageLongValues {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (value.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        ComputationStageLongValues(
+          ComputationTypes.protocolEnumToLong(LIQUID_LEGIONS_SKETCH_AGGREGATION_V2),
+          LiquidLegionsSketchAggregationV2Protocol.EnumStages.enumToLong(
+            value.liquidLegionsSketchAggregationV2
           )
-        ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
-      }
+        )
+      ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
+  }
 
-  override fun longValuesToComputationStageEnum(value: ComputationStageLongValues):
-    ComputationStage {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return when (ComputationTypes.longToProtocolEnum(value.protocol)) {
-        LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-        -> LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
+  override fun longValuesToComputationStageEnum(
+    value: ComputationStageLongValues
+  ): ComputationStage {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (ComputationTypes.longToProtocolEnum(value.protocol)) {
+      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
           .toProtocolStage()
-        UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
-      }
+      UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
     }
+  }
 
   override fun getValidInitialStage(protocol: ComputationType): Set<ComputationStage> {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (protocol) {
-      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-      -> LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
+      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
       UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
     }
   }
@@ -72,8 +74,8 @@ object ComputationProtocolStages :
   override fun getValidTerminalStages(protocol: ComputationType): Set<ComputationStage> {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (protocol) {
-      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-      -> LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
+      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
       UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
     }
   }
@@ -84,13 +86,16 @@ object ComputationProtocolStages :
   override fun validTerminalStage(protocol: ComputationType, stage: ComputationStage): Boolean =
     stage in getValidTerminalStages(protocol)
 
-  override fun validTransition(currentStage: ComputationStage, nextStage: ComputationStage):
-    Boolean {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      return nextStage in when (currentStage.stageCase) {
+  override fun validTransition(
+    currentStage: ComputationStage,
+    nextStage: ComputationStage
+  ): Boolean {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return nextStage in
+      when (currentStage.stageCase) {
         ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
       }.getOrDefault(currentStage, setOf())
-    }
+  }
 }

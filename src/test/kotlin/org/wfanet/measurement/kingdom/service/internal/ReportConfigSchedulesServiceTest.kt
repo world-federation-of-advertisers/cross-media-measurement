@@ -33,21 +33,20 @@ private val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(
 
 @RunWith(JUnit4::class)
 class ReportConfigSchedulesServiceTest {
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock() {
-    on { streamReadySchedules(any()) }
-      .thenReturn(flowOf(SCHEDULE1, SCHEDULE2))
-  }
+  private val kingdomRelationalDatabase: KingdomRelationalDatabase =
+    mock() { on { streamReadySchedules(any()) }.thenReturn(flowOf(SCHEDULE1, SCHEDULE2)) }
 
   private val service = ReportConfigSchedulesService(kingdomRelationalDatabase)
 
   @Test
-  fun streamReadySchedules() = runBlocking<Unit> {
-    val limit = 123L
-    val request = StreamReadyReportConfigSchedulesRequest.newBuilder().setLimit(limit).build()
+  fun streamReadySchedules() =
+    runBlocking<Unit> {
+      val limit = 123L
+      val request = StreamReadyReportConfigSchedulesRequest.newBuilder().setLimit(limit).build()
 
-    assertThat(service.streamReadyReportConfigSchedules(request).toList())
-      .containsExactly(SCHEDULE1, SCHEDULE2)
+      assertThat(service.streamReadyReportConfigSchedules(request).toList())
+        .containsExactly(SCHEDULE1, SCHEDULE2)
 
-    verify(kingdomRelationalDatabase).streamReadySchedules(limit)
-  }
+      verify(kingdomRelationalDatabase).streamReadySchedules(limit)
+    }
 }

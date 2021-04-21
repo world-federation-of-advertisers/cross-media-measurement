@@ -52,11 +52,42 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
-private val EL_GAMAL_GENERATOR = byteStringOf(
-  0x03, 0x6B, 0x17, 0xD1, 0xF2, 0xE1, 0x2C, 0x42, 0x47, 0xF8, 0xBC, 0xE6, 0xE5, 0x63, 0xA4, 0x40,
-  0xF2, 0x77, 0x03, 0x7D, 0x81, 0x2D, 0xEB, 0x33, 0xA0, 0xF4, 0xA1, 0x39, 0x45, 0xD8, 0x98, 0xC2,
-  0x96
-)
+private val EL_GAMAL_GENERATOR =
+  byteStringOf(
+    0x03,
+    0x6B,
+    0x17,
+    0xD1,
+    0xF2,
+    0xE1,
+    0x2C,
+    0x42,
+    0x47,
+    0xF8,
+    0xBC,
+    0xE6,
+    0xE5,
+    0x63,
+    0xA4,
+    0x40,
+    0xF2,
+    0x77,
+    0x03,
+    0x7D,
+    0x81,
+    0x2D,
+    0xEB,
+    0x33,
+    0xA0,
+    0xF4,
+    0xA1,
+    0x39,
+    0x45,
+    0xD8,
+    0x98,
+    0xC2,
+    0x96
+  )
 private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "456"
 private const val ID_WHERE_ALSACE_IS_PRIMARY = "123"
 private const val ALSACE = "Alsace"
@@ -72,50 +103,45 @@ class ComputationDataClientsTest {
   val grpcTestServerRule = GrpcTestServerRule {
     globalComputationClient = GlobalComputationsCoroutineStub(channel)
     addService(
-      ComputationsService(
-        fakeDatabase,
-        globalComputationClient,
-        ALSACE,
-        Clock.systemUTC()
-      )
+      ComputationsService(fakeDatabase, globalComputationClient, ALSACE, Clock.systemUTC())
     )
   }
 
   private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
 
-  private val dummyStorageClient = object : StorageClient {
-    override val defaultBufferSizeBytes: Int
-      get() {
+  private val dummyStorageClient =
+    object : StorageClient {
+      override val defaultBufferSizeBytes: Int
+        get() {
+          throw NotImplementedError("Unused by test")
+        }
+
+      override suspend fun createBlob(
+        blobKey: String,
+        content: Flow<ByteString>
+      ): StorageClient.Blob {
         throw NotImplementedError("Unused by test")
       }
 
-    override suspend fun createBlob(
-      blobKey: String,
-      content: Flow<ByteString>
-    ): StorageClient.Blob {
-      throw NotImplementedError("Unused by test")
+      override fun getBlob(blobKey: String): StorageClient.Blob? {
+        throw NotImplementedError("Unused by test")
+      }
     }
-
-    override fun getBlob(blobKey: String): StorageClient.Blob? {
-      throw NotImplementedError("Unused by test")
-    }
-  }
 
   @Test
   fun runProtocolAtNonPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleLiquidLegionsV2Computation(
-      ComputationDataClients(
-        ComputationsCoroutineStub(
-          channel = grpcTestServerRule.channel
+    val computation =
+      SingleLiquidLegionsV2Computation(
+        ComputationDataClients(
+          ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
+          storageClient = dummyStorageClient,
+          otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
         ),
-        storageClient = dummyStorageClient,
-        otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
-      ),
-      ID_WHERE_ALSACE_IS_NOT_PRIMARY,
-      LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR,
-      testClock
-    )
+        ID_WHERE_ALSACE_IS_NOT_PRIMARY,
+        LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR,
+        testClock
+      )
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
     computation.claimWorkFor("mill-1")
@@ -149,27 +175,25 @@ class ComputationDataClientsTest {
   @Test
   fun runProtocolAtPrimaryWorker() = runBlocking {
     val testClock = TestClockWithNamedInstants(Instant.ofEpochMilli(100L))
-    val computation = SingleLiquidLegionsV2Computation(
-      ComputationDataClients(
-        ComputationsCoroutineStub(
-          channel = grpcTestServerRule.channel
+    val computation =
+      SingleLiquidLegionsV2Computation(
+        ComputationDataClients(
+          ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
+          storageClient = dummyStorageClient,
+          otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
         ),
-        storageClient = dummyStorageClient,
-        otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
-      ),
-      ID_WHERE_ALSACE_IS_PRIMARY,
-      LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR,
-      testClock
-    )
+        ID_WHERE_ALSACE_IS_PRIMARY,
+        LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR,
+        testClock
+      )
     val fakeRpcService = computation.FakeRpcService()
 
     computation.enqueue()
     computation.claimWorkFor("mill-1")
     computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
     computation.waitForSketches(
-      LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3)).detailsFor(
-        Stage.WAIT_SETUP_PHASE_INPUTS
-      )
+      LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3))
+        .detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS)
     )
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
@@ -197,16 +221,21 @@ class ComputationDataClientsTest {
 
   companion object {
     private val publicKeysMap: DuchyPublicKeyMap =
-      DUCHIES.mapIndexed { idx, name ->
-        name to ElGamalPublicKey.newBuilder().apply {
-          generator = EL_GAMAL_GENERATOR
-          element = byteStringOf(idx).withPadding(33)
-        }.build()
-      }.toMap()
+      DUCHIES
+        .mapIndexed { idx, name ->
+          name to
+            ElGamalPublicKey.newBuilder()
+              .apply {
+                generator = EL_GAMAL_GENERATOR
+                element = byteStringOf(idx).withPadding(33)
+              }
+              .build()
+        }
+        .toMap()
   }
 }
 
-/** Data about a single step of a computation. .*/
+/** Data about a single step of a computation. . */
 data class ComputationStep(
   val token: org.wfanet.measurement.internal.duchy.ComputationToken,
   val inputs: List<ComputationStageBlobMetadata>,
@@ -230,15 +259,16 @@ class SingleLiquidLegionsV2Computation(
 
   private var token: org.wfanet.measurement.internal.duchy.ComputationToken = runBlocking {
     dataClients.computationsClient.createComputation(
-      CreateComputationRequest.newBuilder().apply {
-        globalComputationId = globalId
-        computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-        // For the purpose of this test, only set role in the computationDetails.
-        computationDetailsBuilder.liquidLegionsV2Builder.apply {
-          role = roleInComputation
-        }
-      }.build()
-    ).token
+        CreateComputationRequest.newBuilder()
+          .apply {
+            globalComputationId = globalId
+            computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+            // For the purpose of this test, only set role in the computationDetails.
+            computationDetailsBuilder.liquidLegionsV2Builder.apply { role = roleInComputation }
+          }
+          .build()
+      )
+      .token
   }
 
   suspend fun writeOutputs(stage: Stage) {
@@ -246,17 +276,17 @@ class SingleLiquidLegionsV2Computation(
     testClock.tickSeconds(
       "${token.computationStage.liquidLegionsSketchAggregationV2}_$token.attempt_outputs"
     )
-    token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
-      .forEach {
-        token =
-          dataClients.computationsClient.recordOutputBlobPath(
+    token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }.forEach {
+      token =
+        dataClients.computationsClient.recordOutputBlobPath(
             RecordOutputBlobPathRequest.newBuilder()
               .setToken(token)
               .setOutputBlobId(it.blobId)
               .setBlobPath("unused_output_${it.blobId}")
               .build()
-          ).token
-      }
+          )
+          .token
+    }
   }
 
   /** Runs an operation and checks the returned token from the operation matches the expected. */
@@ -268,10 +298,9 @@ class SingleLiquidLegionsV2Computation(
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed
     // they will be fetched.
     val inputsToCurrentStage = token.blobsList.ofType(ComputationBlobDependency.INPUT)
-    val outputsToCurrentStage = (
-      token.blobsList.ofType(ComputationBlobDependency.OUTPUT) +
-        token.blobsList.ofType(ComputationBlobDependency.PASS_THROUGH)
-      )
+    val outputsToCurrentStage =
+      (token.blobsList.ofType(ComputationBlobDependency.OUTPUT) +
+        token.blobsList.ofType(ComputationBlobDependency.PASS_THROUGH))
     val result = run(ComputationStep(token, inputsToCurrentStage, outputsToCurrentStage))
     ProtoTruth.assertThat(result)
       .isEqualTo(expected.toBuilder().setVersion(token.version + 1).build())
@@ -284,8 +313,9 @@ class SingleLiquidLegionsV2Computation(
       dataClients.computationsClient.enqueueComputation(
         EnqueueComputationRequest.newBuilder().setToken(token).build()
       )
-      dataClients.computationsClient
-        .getComputationToken(token.globalComputationId.toGetTokenRequest())
+      dataClients.computationsClient.getComputationToken(
+          token.globalComputationId.toGetTokenRequest()
+        )
         .token
     }
   }
@@ -293,12 +323,13 @@ class SingleLiquidLegionsV2Computation(
   /** Get computation from work queue and verify it is owned by the [workerId]. */
   suspend fun claimWorkFor(workerId: String) {
     assertTokenChangesTo(token.toBuilder().setAttempt(1).build()) {
-      val claimed = dataClients.computationsClient.claimWork(
-        ClaimWorkRequest.newBuilder()
-          .setOwner(workerId)
-          .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
-          .build()
-      )
+      val claimed =
+        dataClients.computationsClient.claimWork(
+          ClaimWorkRequest.newBuilder()
+            .setOwner(workerId)
+            .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
+            .build()
+        )
       ProtoTruth.assertThat(claimed).isNotEqualToDefaultInstance()
       claimed.token
     }
@@ -306,35 +337,37 @@ class SingleLiquidLegionsV2Computation(
 
   inner class FakeRpcService {
     /**
-     * Fake receiving a sketch from a [sender], if all sketches have been received
-     * set stage to [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
+     * Fake receiving a sketch from a [sender], if all sketches have been received set stage to
+     * [TO_BLIND_POSITIONS_AND_JOIN_REGISTERS].
      */
     suspend fun receiveSketch(sender: String) {
       val stageDetails = token.stageSpecificDetails.liquidLegionsV2.waitSetupPhaseInputsDetails
 
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
       val path = "unused_${sender}_$blobId"
-      token = dataClients.computationsClient.recordOutputBlobPath(
-        RecordOutputBlobPathRequest.newBuilder()
-          .setToken(token)
-          .setOutputBlobId(blobId)
-          .setBlobPath(path)
-          .build()
-      ).token
+      token =
+        dataClients.computationsClient.recordOutputBlobPath(
+            RecordOutputBlobPathRequest.newBuilder()
+              .setToken(token)
+              .setOutputBlobId(blobId)
+              .setBlobPath(path)
+              .build()
+          )
+          .token
 
       val notWritten =
         token.blobsList.count {
-          it.dependencyType == ComputationBlobDependency.OUTPUT &&
-            it.path.isEmpty()
+          it.dependencyType == ComputationBlobDependency.OUTPUT && it.path.isEmpty()
         }
       if (notWritten == 0) {
         assertTokenChangesTo(
-          token.outputBlobsToInputBlobs(keepInputs = true)
+          token
+            .outputBlobsToInputBlobs(keepInputs = true)
             .addEmptyOutputs(1)
             .clearStageSpecificDetails()
-            .setComputationStage(
-              Stage.SETUP_PHASE.toProtocolStage()
-            ).setAttempt(0).build()
+            .setComputationStage(Stage.SETUP_PHASE.toProtocolStage())
+            .setAttempt(0)
+            .build()
         ) {
           dataClients.transitionComputationToStage(
             computationToken = it.token,
@@ -351,7 +384,8 @@ class SingleLiquidLegionsV2Computation(
       val nextStage =
         LiquidLegionsSketchAggregationV2Protocol.EnumStages.validSuccessors[currentStage]?.first()!!
       assertTokenChangesTo(
-        token.outputBlobsToInputBlobs()
+        token
+          .outputBlobsToInputBlobs()
           .addBlobs(newEmptyOutputBlobMetadata(1))
           .setComputationStage(nextStage.toProtocolStage())
           .setAttempt(0)
@@ -408,7 +442,8 @@ class SingleLiquidLegionsV2Computation(
       token
         .outputBlobsToInputBlobs()
         .addEmptyOutputs(numOfOutput)
-        .setComputationStage(stage.toProtocolStage()).setAttempt(1)
+        .setComputationStage(stage.toProtocolStage())
+        .setAttempt(1)
         .build()
     ) {
       dataClients.transitionComputationToStage(
@@ -420,41 +455,46 @@ class SingleLiquidLegionsV2Computation(
   }
 
   suspend fun end(reason: CompletedReason) {
-    token = dataClients.computationsClient.finishComputation(
-      FinishComputationRequest.newBuilder()
-        .setToken(token)
-        .setEndingComputationStage(Stage.COMPLETE.toProtocolStage())
-        .setReason(reason)
-        .build()
-    ).token
+    token =
+      dataClients.computationsClient.finishComputation(
+          FinishComputationRequest.newBuilder()
+            .setToken(token)
+            .setEndingComputationStage(Stage.COMPLETE.toProtocolStage())
+            .setReason(reason)
+            .build()
+        )
+        .token
   }
 }
 
 fun List<ComputationStageBlobMetadata>.paths() = map { it.path }
-fun List<ComputationStageBlobMetadata>.ofType(dependencyType: ComputationBlobDependency) =
-  filter { it.dependencyType == dependencyType }
+
+fun List<ComputationStageBlobMetadata>.ofType(dependencyType: ComputationBlobDependency) = filter {
+  it.dependencyType == dependencyType
+}
 
 fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlobs(
   keepInputs: Boolean = false
-):
-  org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
-    return toBuilder().clearBlobs().addAllBlobs(
-      blobsList.filter { keepInputs || it.dependencyType == ComputationBlobDependency.OUTPUT }
+): org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
+  return toBuilder()
+    .clearBlobs()
+    .addAllBlobs(
+      blobsList
+        .filter { keepInputs || it.dependencyType == ComputationBlobDependency.OUTPUT }
         .mapIndexed { index, blob ->
-          blob.toBuilder()
+          blob
+            .toBuilder()
             .setDependencyType(ComputationBlobDependency.INPUT)
             .setBlobId(index.toLong())
             .build()
         }
     )
-  }
+}
 
 fun org.wfanet.measurement.internal.duchy.ComputationToken.Builder.addEmptyOutputs(
   n: Int
 ): org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
   val currentMaxIndex = blobsCount.toLong()
-  (0 until n).forEach {
-    addBlobs(newEmptyOutputBlobMetadata(currentMaxIndex + it))
-  }
+  (0 until n).forEach { addBlobs(newEmptyOutputBlobMetadata(currentMaxIndex + it)) }
   return this
 }

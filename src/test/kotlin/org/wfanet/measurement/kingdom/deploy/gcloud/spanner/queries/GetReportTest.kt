@@ -51,28 +51,26 @@ class GetReportTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `the Report exists`() = runBlocking {
-    val report =
-      GetReport(ExternalId(EXTERNAL_REPORT_ID)).executeSingle(databaseClient.singleUse())
+    val report = GetReport(ExternalId(EXTERNAL_REPORT_ID)).executeSingle(databaseClient.singleUse())
 
-    val expected = Report.newBuilder().apply {
-      externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-      externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-      externalScheduleId = EXTERNAL_SCHEDULE_ID
-      externalReportId = EXTERNAL_REPORT_ID
-      state = ReportState.IN_PROGRESS
-    }.build()
+    val expected =
+      Report.newBuilder()
+        .apply {
+          externalAdvertiserId = EXTERNAL_ADVERTISER_ID
+          externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
+          externalScheduleId = EXTERNAL_SCHEDULE_ID
+          externalReportId = EXTERNAL_REPORT_ID
+          state = ReportState.IN_PROGRESS
+        }
+        .build()
 
-    assertThat(report)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expected)
+    assertThat(report).comparingExpectedFieldsOnly().isEqualTo(expected)
   }
 
   @Test
   fun `the Report does not exist`() = runBlocking {
     val reports =
-      GetReport(ExternalId(EXTERNAL_SCHEDULE_ID))
-        .execute(databaseClient.singleUse())
-        .toList()
+      GetReport(ExternalId(EXTERNAL_SCHEDULE_ID)).execute(databaseClient.singleUse()).toList()
     assertThat(reports).isEmpty()
   }
 }

@@ -29,9 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AdvertiserReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CampaignReader
 
-/**
- * Creates ReportConfigs.
- */
+/** Creates ReportConfigs. */
 class CreateReportConfig(
   private val reportConfig: ReportConfig,
   private val campaigns: List<ExternalId>
@@ -42,12 +40,16 @@ class CreateReportConfig(
         .readExternalId(transactionContext, ExternalId(reportConfig.externalAdvertiserId))
         .advertiserId
 
-    val actualReportConfig = reportConfig.toBuilder().apply {
-      externalReportConfigId = idGenerator.generateExternalId().value
-      numRequisitions = (campaigns.size * reportConfigDetails.metricDefinitionsCount).toLong()
-      state = ReportConfig.ReportConfigState.ACTIVE
-      reportConfigDetailsJson = reportConfigDetails.toJson()
-    }.build()
+    val actualReportConfig =
+      reportConfig
+        .toBuilder()
+        .apply {
+          externalReportConfigId = idGenerator.generateExternalId().value
+          numRequisitions = (campaigns.size * reportConfigDetails.metricDefinitionsCount).toLong()
+          state = ReportConfig.ReportConfigState.ACTIVE
+          reportConfigDetailsJson = reportConfigDetails.toJson()
+        }
+        .build()
 
     val reportConfigId = idGenerator.generateInternalId().value
     insertReportConfig(actualReportConfig, advertiserId, reportConfigId)
@@ -79,13 +81,20 @@ class CreateReportConfig(
     reportConfigId: Long
   ) {
     Mutation.newInsertBuilder("ReportConfigs")
-      .set("AdvertiserId").to(advertiserId)
-      .set("ReportConfigId").to(reportConfigId)
-      .set("ExternalReportConfigId").to(reportConfig.externalReportConfigId)
-      .set("NumRequisitions").to(reportConfig.numRequisitions)
-      .set("State").toProtoEnum(reportConfig.state)
-      .set("ReportConfigDetails").toProtoBytes(reportConfig.reportConfigDetails)
-      .set("ReportConfigDetailsJson").toProtoJson(reportConfig.reportConfigDetails)
+      .set("AdvertiserId")
+      .to(advertiserId)
+      .set("ReportConfigId")
+      .to(reportConfigId)
+      .set("ExternalReportConfigId")
+      .to(reportConfig.externalReportConfigId)
+      .set("NumRequisitions")
+      .to(reportConfig.numRequisitions)
+      .set("State")
+      .toProtoEnum(reportConfig.state)
+      .set("ReportConfigDetails")
+      .toProtoBytes(reportConfig.reportConfigDetails)
+      .set("ReportConfigDetailsJson")
+      .toProtoJson(reportConfig.reportConfigDetails)
       .build()
       .bufferTo(transactionContext)
   }
@@ -95,10 +104,14 @@ class CreateReportConfig(
     campaignReadResult: CampaignReader.Result
   ) {
     Mutation.newInsertBuilder("ReportConfigCampaigns")
-      .set("AdvertiserId").to(campaignReadResult.advertiserId)
-      .set("ReportConfigId").to(reportConfigId)
-      .set("DataProviderId").to(campaignReadResult.dataProviderId)
-      .set("CampaignId").to(campaignReadResult.campaignId)
+      .set("AdvertiserId")
+      .to(campaignReadResult.advertiserId)
+      .set("ReportConfigId")
+      .to(reportConfigId)
+      .set("DataProviderId")
+      .to(campaignReadResult.dataProviderId)
+      .set("CampaignId")
+      .to(campaignReadResult.campaignId)
       .build()
       .bufferTo(transactionContext)
   }

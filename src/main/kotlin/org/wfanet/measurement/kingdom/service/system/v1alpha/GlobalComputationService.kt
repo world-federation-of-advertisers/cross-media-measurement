@@ -75,14 +75,14 @@ class GlobalComputationService(
     return renewedFlow(Duration.ofHours(1), Duration.ofSeconds(1)) {
       logger.info("Streaming active global computations since $lastUpdateTime")
       streamActiveReports(lastUpdateTime)
-        .onEach {
-          lastUpdateTime = maxOf(lastUpdateTime, it.updateTime.toInstant())
-        }
+        .onEach { lastUpdateTime = maxOf(lastUpdateTime, it.updateTime.toInstant()) }
         .map { report ->
-          StreamActiveGlobalComputationsResponse.newBuilder().apply {
-            continuationToken = ContinuationTokenConverter.encode(report.updateTime.toInstant())
-            globalComputation = report.toGlobalComputation()
-          }.build()
+          StreamActiveGlobalComputationsResponse.newBuilder()
+            .apply {
+              continuationToken = ContinuationTokenConverter.encode(report.updateTime.toInstant())
+              globalComputation = report.toGlobalComputation()
+            }
+            .build()
         }
     }
   }
@@ -90,34 +90,37 @@ class GlobalComputationService(
   override suspend fun createGlobalComputationStatusUpdate(
     request: CreateGlobalComputationStatusUpdateRequest
   ): GlobalComputationStatusUpdate {
-    val reportLogEntry = ReportLogEntry.newBuilder().apply {
-      externalReportId = getExternalReportId(request.parent.globalComputationId).value
-      sourceBuilder.duchyBuilder.duchyId = duchyIdentityProvider().id
-      reportLogDetailsBuilder.apply {
-        duchyLogDetailsBuilder.apply {
-          reportedDuchyId = request.statusUpdate.selfReportedIdentifier
+    val reportLogEntry =
+      ReportLogEntry.newBuilder()
+        .apply {
+          externalReportId = getExternalReportId(request.parent.globalComputationId).value
+          sourceBuilder.duchyBuilder.duchyId = duchyIdentityProvider().id
+          reportLogDetailsBuilder.apply {
+            duchyLogDetailsBuilder.apply {
+              reportedDuchyId = request.statusUpdate.selfReportedIdentifier
 
-          val stageDetails = request.statusUpdate.stageDetails
-          algorithm = stageDetails.algorithm.toStorageMpcAlgorithm()
-          stageNumber = stageDetails.stageNumber
-          stageName = stageDetails.stageName
-          stageStart = stageDetails.start
-          stageAttemptNumber = stageDetails.attemptNumber
-        }
+              val stageDetails = request.statusUpdate.stageDetails
+              algorithm = stageDetails.algorithm.toStorageMpcAlgorithm()
+              stageNumber = stageDetails.stageNumber
+              stageName = stageDetails.stageName
+              stageStart = stageDetails.start
+              stageAttemptNumber = stageDetails.attemptNumber
+            }
 
-        reportMessage = request.statusUpdate.updateMessage
+            reportMessage = request.statusUpdate.updateMessage
 
-        if (request.statusUpdate.hasErrorDetails()) {
-          val errorDetails = request.statusUpdate.errorDetails
-          errorDetailsBuilder.apply {
-            errorTime = errorDetails.errorTime
-            errorMessage = errorDetails.errorMessage
-            stacktrace = "TODO: propagate stack trace"
-            errorType = errorDetails.errorType.toStorageErrorType()
+            if (request.statusUpdate.hasErrorDetails()) {
+              val errorDetails = request.statusUpdate.errorDetails
+              errorDetailsBuilder.apply {
+                errorTime = errorDetails.errorTime
+                errorMessage = errorDetails.errorMessage
+                stacktrace = "TODO: propagate stack trace"
+                errorType = errorDetails.errorType.toStorageErrorType()
+              }
+            }
           }
         }
-      }
-    }.build()
+        .build()
     val createdReportLogEntry = reportLogEntriesStub.createReportLogEntry(reportLogEntry)
     return request.statusUpdate.toBuilder().setCreateTime(createdReportLogEntry.createTime).build()
   }
@@ -125,13 +128,16 @@ class GlobalComputationService(
   override suspend fun confirmGlobalComputation(
     request: ConfirmGlobalComputationRequest
   ): GlobalComputation {
-    val confirmDuchyReadinessRequest = ConfirmDuchyReadinessRequest.newBuilder().apply {
-      externalReportId = ApiId(request.key.globalComputationId).externalId.value
-      duchyId = duchyIdentityProvider().id
-      addAllExternalRequisitionIds(
-        request.readyRequisitionsList.map { ApiId(it.metricRequisitionId).externalId.value }
-      )
-    }.build()
+    val confirmDuchyReadinessRequest =
+      ConfirmDuchyReadinessRequest.newBuilder()
+        .apply {
+          externalReportId = ApiId(request.key.globalComputationId).externalId.value
+          duchyId = duchyIdentityProvider().id
+          addAllExternalRequisitionIds(
+            request.readyRequisitionsList.map { ApiId(it.metricRequisitionId).externalId.value }
+          )
+        }
+        .build()
     val report = reportsStub.confirmDuchyReadiness(confirmDuchyReadinessRequest)
     return report.toGlobalComputation()
   }
@@ -139,23 +145,23 @@ class GlobalComputationService(
   override suspend fun finishGlobalComputation(
     request: FinishGlobalComputationRequest
   ): GlobalComputation {
-    val finishReportRequest = FinishReportRequest.newBuilder().apply {
-      externalReportId = ApiId(request.key.globalComputationId).externalId.value
-      resultBuilder.apply {
-        reach = request.result.reach
-        putAllFrequency(request.result.frequencyMap)
-      }
-    }.build()
+    val finishReportRequest =
+      FinishReportRequest.newBuilder()
+        .apply {
+          externalReportId = ApiId(request.key.globalComputationId).externalId.value
+          resultBuilder.apply {
+            reach = request.result.reach
+            putAllFrequency(request.result.frequencyMap)
+          }
+        }
+        .build()
 
     val report = reportsStub.finishReport(finishReportRequest)
     return report.toGlobalComputation()
   }
 
   private suspend fun getReport(externalReportId: ExternalId): Report {
-    val request =
-      GetReportRequest.newBuilder()
-        .setExternalReportId(externalReportId.value)
-        .build()
+    val request = GetReportRequest.newBuilder().setExternalReportId(externalReportId.value).build()
 
     return reportsStub.getReport(request)
   }
@@ -165,38 +171,43 @@ class GlobalComputationService(
   }
 
   private fun streamActiveReports(lastUpdateTime: Instant): Flow<Report> {
-    val request = StreamReportsRequest.newBuilder().apply {
-      filterBuilder.apply {
-        updatedAfter = lastUpdateTime.toProtoTime()
-        addAllStates(ReportState.values().filter { getStateType(it) == StateType.INTERMEDIATE })
-      }
-    }.build()
+    val request =
+      StreamReportsRequest.newBuilder()
+        .apply {
+          filterBuilder.apply {
+            updatedAfter = lastUpdateTime.toProtoTime()
+            addAllStates(ReportState.values().filter { getStateType(it) == StateType.INTERMEDIATE })
+          }
+        }
+        .build()
 
     return reportsStub.streamReports(request)
   }
 
   private fun Report.toGlobalComputation(): GlobalComputation {
-    return GlobalComputation.newBuilder().apply {
-      keyBuilder.globalComputationId = ExternalId(externalReportId).apiId.value
-      state = translateState(this@toGlobalComputation.state)
-      totalRequisitionCount = reportDetails.requisitionsList.size
-      if (state == State.SUCCEEDED) {
-        resultBuilder.apply {
-          reach = reportDetails.result.reach
-          putAllFrequency(reportDetails.result.frequencyMap)
+    return GlobalComputation.newBuilder()
+      .apply {
+        keyBuilder.globalComputationId = ExternalId(externalReportId).apiId.value
+        state = translateState(this@toGlobalComputation.state)
+        totalRequisitionCount = reportDetails.requisitionsList.size
+        if (state == State.SUCCEEDED) {
+          resultBuilder.apply {
+            reach = reportDetails.result.reach
+            putAllFrequency(reportDetails.result.frequencyMap)
+          }
         }
-      }
 
-      for (requisition in reportDetails.requisitionsList) {
-        if (requisition.duchyId == duchyIdentityProvider().id) {
-          addMetricRequisitionsBuilder().apply {
-            dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
-            campaignId = ExternalId(requisition.externalCampaignId).apiId.value
-            metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
+        for (requisition in reportDetails.requisitionsList) {
+          if (requisition.duchyId == duchyIdentityProvider().id) {
+            addMetricRequisitionsBuilder().apply {
+              dataProviderId = ExternalId(requisition.externalDataProviderId).apiId.value
+              campaignId = ExternalId(requisition.externalCampaignId).apiId.value
+              metricRequisitionId = ExternalId(requisition.externalRequisitionId).apiId.value
+            }
           }
         }
       }
-    }.build()
+      .build()
   }
 
   companion object {
@@ -217,40 +228,35 @@ private fun translateState(reportState: ReportState): State =
     ReportState.SUCCEEDED -> State.SUCCEEDED
     ReportState.FAILED -> State.FAILED
     ReportState.CANCELLED -> State.CANCELLED
-    ReportState.REPORT_STATE_UNKNOWN,
-    ReportState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
+    ReportState.REPORT_STATE_UNKNOWN, ReportState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
-private enum class StateType { TERMINAL, INTERMEDIATE, INVALID }
+private enum class StateType {
+  TERMINAL,
+  INTERMEDIATE,
+  INVALID
+}
+
 private fun getStateType(reportState: ReportState): StateType =
   when (reportState) {
     ReportState.AWAITING_REQUISITION_CREATION,
     ReportState.AWAITING_DUCHY_CONFIRMATION,
     ReportState.IN_PROGRESS -> StateType.INTERMEDIATE
-    ReportState.SUCCEEDED,
-    ReportState.FAILED,
-    ReportState.CANCELLED -> StateType.TERMINAL
-    ReportState.REPORT_STATE_UNKNOWN,
-    ReportState.UNRECOGNIZED -> StateType.INVALID
+    ReportState.SUCCEEDED, ReportState.FAILED, ReportState.CANCELLED -> StateType.TERMINAL
+    ReportState.REPORT_STATE_UNKNOWN, ReportState.UNRECOGNIZED -> StateType.INVALID
   }
 
 private fun ApiMpcAlgorithm.toStorageMpcAlgorithm(): MpcAlgorithm =
   when (this) {
     ApiMpcAlgorithm.LIQUID_LEGIONS_V2 -> MpcAlgorithm.LIQUID_LEGIONS_V2
-    ApiMpcAlgorithm.UNRECOGNIZED,
-    ApiMpcAlgorithm.MPC_ALGORITHM_UNKNOWN ->
-      throw Status.INVALID_ARGUMENT
-        .withDescription("Invalid algorithm: $this")
-        .asException()
+    ApiMpcAlgorithm.UNRECOGNIZED, ApiMpcAlgorithm.MPC_ALGORITHM_UNKNOWN ->
+      throw Status.INVALID_ARGUMENT.withDescription("Invalid algorithm: $this").asException()
   }
 
 private fun ApiErrorType.toStorageErrorType(): ErrorType =
   when (this) {
     ApiErrorType.TRANSIENT -> ErrorType.TRANSIENT
     ApiErrorType.PERMANENT -> ErrorType.PERMANENT
-    ApiErrorType.ERROR_TYPE_UNKNOWN,
-    ApiErrorType.UNRECOGNIZED ->
-      throw Status.INVALID_ARGUMENT
-        .withDescription("Invalid error_type: $this")
-        .asException()
+    ApiErrorType.ERROR_TYPE_UNKNOWN, ApiErrorType.UNRECOGNIZED ->
+      throw Status.INVALID_ARGUMENT.withDescription("Invalid error_type: $this").asException()
   }

@@ -50,11 +50,13 @@ class AsyncComputationControlService(
     logger.info(
       "[id=${request.globalComputationId}]: Received input from from ${request.dataOrigin}."
     )
-    val context: SingleRequestContext = when (val type = request.computationStage.stageCase) {
-      LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsSketchAggregationV2Context(request)
-      else -> failGrpc { "Unrecognized computation type: $type" }
-    }
-    val tokenForRecordingPath = getComputationToken(context).checkStageIn(context)
+    val context: SingleRequestContext =
+      when (val type = request.computationStage.stageCase) {
+        LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> LiquidLegionsSketchAggregationV2Context(request)
+        else -> failGrpc { "Unrecognized computation type: $type" }
+      }
+    val tokenForRecordingPath =
+      getComputationToken(context).checkStageIn(context)
       // token is null if the request is not an error but is no longer relevant.
       ?: return AdvanceComputationResponse.getDefaultInstance()
     // Record the key provided as the path to the output blob. If this causes an edit to the
@@ -70,72 +72,77 @@ class AsyncComputationControlService(
    *
    * @throws StatusException if the computation doesn't exist.
    */
-  private suspend fun getComputationToken(
-    context: SingleRequestContext
-  ): ComputationToken = with(context) {
-    val getTokenRequest = GetComputationTokenRequest.newBuilder()
-      .setGlobalComputationId(request.globalComputationId)
-      .build()
+  private suspend fun getComputationToken(context: SingleRequestContext): ComputationToken =
+    with(context) {
+      val getTokenRequest =
+        GetComputationTokenRequest.newBuilder()
+          .setGlobalComputationId(request.globalComputationId)
+          .build()
 
-    val getTokenResponse = try {
-      computationsClient.getComputationToken(getTokenRequest)
-    } catch (e: StatusException) {
-      val status = e.status.withCause(e).apply {
-        if (code != Status.Code.NOT_FOUND) {
-          withDescription("Unable to retrieve token for ${request.globalComputationId}.")
+      val getTokenResponse =
+        try {
+          computationsClient.getComputationToken(getTokenRequest)
+        } catch (e: StatusException) {
+          val status =
+            e.status.withCause(e).apply {
+              if (code != Status.Code.NOT_FOUND) {
+                withDescription("Unable to retrieve token for ${request.globalComputationId}.")
+              }
+            }
+          throw status.asRuntimeException()
         }
-      }
-      throw status.asRuntimeException()
+      return getTokenResponse.token
     }
-    return getTokenResponse.token
-  }
 
   /**
    * Checks the stage of a [ComputationToken] against expected stage of a [context].
    *
-   * @return original computation token when there is work to be done on the cmoputation,
-   *   or null if the message should be acked.
+   * @return original computation token when there is work to be done on the cmoputation, or null if
+   * the message should be acked.
    *
    * @throws StatusException if the payload for [context] is unexpected based on the current token.
    */
-  private fun ComputationToken.checkStageIn(
-    context: SingleRequestContext
-  ): ComputationToken? = with(context) {
-    if (computationStage != request.computationStage) {
-      // If the computation is in the next stage, return a null token value which means the
-      // rpc should be acked.
-      if (computationStage == nextStage(computationDetails, request.computationStage)) return null
-      failGrpc {
-        val err =
-          "Actual stage from computation ($computationStage) did not match the expected " +
-            "stage from request (${request.computationStage})."
-        logger.info("[id=$globalComputationId]: $err.")
-        err
+  private fun ComputationToken.checkStageIn(context: SingleRequestContext): ComputationToken? =
+    with(context) {
+      if (computationStage != request.computationStage) {
+        // If the computation is in the next stage, return a null token value which means the
+        // rpc should be acked.
+        if (computationStage == nextStage(computationDetails, request.computationStage)) return null
+        failGrpc {
+          val err =
+            "Actual stage from computation ($computationStage) did not match the expected " +
+              "stage from request (${request.computationStage})."
+          logger.info("[id=$globalComputationId]: $err.")
+          err
+        }
       }
+      return this@checkStageIn
     }
-    return this@checkStageIn
-  }
 
   /**
    * Records the blob key for the output blob of a stage for a [SingleRequestContext]
    *
    * @return the [ComputationToken] after recording the output path. If the output was already
-   *   recorded in the token, then the token itself is returned.
+   * recorded in the token, then the token itself is returned.
    */
   private suspend fun recordOutputBlobPath(
     context: SingleRequestContext,
     token: ComputationToken
-  ): ComputationToken = with(context) {
-    val blob = outputBlob(token)
-    if (blob.path.isNotEmpty()) return token
-    return computationsClient.recordOutputBlobPath(
-      RecordOutputBlobPathRequest.newBuilder().apply {
-        setToken(token)
-        outputBlobId = blob.blobId
-        blobPath = request.blobPath
-      }.build()
-    ).token
-  }
+  ): ComputationToken =
+    with(context) {
+      val blob = outputBlob(token)
+      if (blob.path.isNotEmpty()) return token
+      return computationsClient.recordOutputBlobPath(
+          RecordOutputBlobPathRequest.newBuilder()
+            .apply {
+              setToken(token)
+              outputBlobId = blob.blobId
+              blobPath = request.blobPath
+            }
+            .build()
+        )
+        .token
+    }
 
   private suspend fun advanceIfAllOutputsPresent(
     context: SingleRequestContext,

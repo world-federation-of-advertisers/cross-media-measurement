@@ -25,8 +25,7 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 class ForwardedStorageLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
-  @CommandLine.Mixin
-  private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
+  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
     run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)

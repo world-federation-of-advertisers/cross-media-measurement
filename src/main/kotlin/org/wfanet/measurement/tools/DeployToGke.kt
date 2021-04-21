@@ -22,10 +22,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import picocli.CommandLine
 import picocli.CommandLine.Command
 
-@Command(
-  name = "deploy_to_kind",
-  description = ["Deploys containers on gcr.io to GKE"]
-)
+@Command(name = "deploy_to_kind", description = ["Deploys containers on gcr.io to GKE"])
 class DeployToGke() : Callable<Int> {
   private val yamlFile = "kingdom_and_three_duchies_from_cue_gke.yaml"
   private val clusterName = "om-test-cluster"
@@ -33,15 +30,7 @@ class DeployToGke() : Callable<Int> {
   override fun call(): Int {
     val manifestPath =
       checkNotNull(
-        getRuntimePath(
-          Paths.get(
-            "wfa_measurement_system",
-            "src",
-            "main",
-            "k8s",
-            yamlFile
-          )
-        )
+        getRuntimePath(Paths.get("wfa_measurement_system", "src", "main", "k8s", yamlFile))
       )
     logger.info("*** STARTING ***")
 

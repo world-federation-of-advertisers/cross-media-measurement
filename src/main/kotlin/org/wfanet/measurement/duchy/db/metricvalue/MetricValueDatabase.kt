@@ -22,29 +22,25 @@ interface MetricValueDatabase {
   /**
    * Inserts the specified [MetricValue] into the database.
    *
-   * @param metricValue the [MetricValue] to insert. The
-   *     [externalId][MetricValue.getExternalId] field will be ignored.
-   * @return the inserted [MetricValue] with a new
-   *     [externalId][MetricValue.getExternalId] assigned.
+   * @param metricValue the [MetricValue] to insert. The [externalId][MetricValue.getExternalId]
+   * field will be ignored.
+   * @return the inserted [MetricValue] with a new [externalId][MetricValue.getExternalId] assigned.
    */
   suspend fun insertMetricValue(metricValue: MetricValue): MetricValue
 
   /**
-   * Returns the [MetricValue] corresponding to the specified lookup key, or
-   * `null` if not found.
+   * Returns the [MetricValue] corresponding to the specified lookup key, or `null` if not found.
    */
   suspend fun getMetricValue(externalId: ExternalId): MetricValue?
 
   /**
-   * Returns the [MetricValue] corresponding to the specified lookup key, or
-   * `null` if not found.
+   * Returns the [MetricValue] corresponding to the specified lookup key, or `null` if not found.
    */
   suspend fun getMetricValue(resourceKey: MetricValue.ResourceKey): MetricValue?
 
   /**
-   * Returns the [blobStorageKey][MetricValue.getBlobStorageKey] corresponding
-   * to the [MetricValue] with the specified lookup key, or `null` if the
-   * [MetricValue] isn't found.
+   * Returns the [blobStorageKey][MetricValue.getBlobStorageKey] corresponding to the [MetricValue]
+   * with the specified lookup key, or `null` if the [MetricValue] isn't found.
    */
   suspend fun getBlobStorageKey(resourceKey: MetricValue.ResourceKey): String?
 }

@@ -23,9 +23,8 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
 
-class DatabaseTestHelperProviderRule(
-  private val spannerDatabase: SpannerEmulatorDatabaseRule
-) : ProviderRule<DatabaseTestHelper> {
+class DatabaseTestHelperProviderRule(private val spannerDatabase: SpannerEmulatorDatabaseRule) :
+  ProviderRule<DatabaseTestHelper> {
 
   override val value: DatabaseTestHelper by lazy {
     SpannerDatabaseTestHelper(

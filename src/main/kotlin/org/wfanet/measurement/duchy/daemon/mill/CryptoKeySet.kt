@@ -18,9 +18,7 @@ import org.wfanet.common.ElGamalKeyPair
 import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.hexAsByteString
 
-/**
- * All crypto keys necessary for the computations in the mill.
- */
+/** All crypto keys necessary for the computations in the mill. */
 data class CryptoKeySet(
   // The public and private ElGamal keys of the duchy that owns the mill.
   val ownPublicAndPrivateKeys: ElGamalKeyPair,
@@ -38,9 +36,7 @@ const val BYTES_PER_PRIVATE_KEY = 32
 const val BYTES_OF_EL_GAMAL_PUBLIC_KEYS = BYTES_PER_PUBLIC_KEY * 2
 const val BYTES_OF_EL_GAMAL_KEYS = BYTES_OF_EL_GAMAL_PUBLIC_KEYS + BYTES_PER_PRIVATE_KEY
 
-/**
- * Converts a hexString to its equivalent ElGamalKeyPair proto object.
- */
+/** Converts a hexString to its equivalent ElGamalKeyPair proto object. */
 fun String.toElGamalKeyPair(): ElGamalKeyPair {
   require(length == BYTES_OF_EL_GAMAL_KEYS * 2) {
     "Expected string size : ${BYTES_OF_EL_GAMAL_KEYS * 2}, actual size $length."
@@ -51,9 +47,7 @@ fun String.toElGamalKeyPair(): ElGamalKeyPair {
     .build()
 }
 
-/**
- * Converts a hexString to its equivalent ElGamalPublicKey proto object.
- */
+/** Converts a hexString to its equivalent ElGamalPublicKey proto object. */
 fun String.toElGamalPublicKey(): ElGamalPublicKey {
   require(length == BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2) {
     "Expected string size : ${BYTES_OF_EL_GAMAL_PUBLIC_KEYS * 2}, actual size $length."

@@ -56,52 +56,49 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
     val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
     val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
-    val dataClients = ComputationDataClients(
-      ComputationsCoroutineStub(computationsServiceChannel)
-        .withDuchyId(duchyName),
-      storageClient,
-      otherDuchyNames
-    )
+    val dataClients =
+      ComputationDataClients(
+        ComputationsCoroutineStub(computationsServiceChannel).withDuchyId(duchyName),
+        storageClient,
+        otherDuchyNames
+      )
 
-    val computationControlClientMap = flags.computationControlServiceTargets
-      .filterKeys { it != duchyName }
-      .mapValues {
+    val computationControlClientMap =
+      flags.computationControlServiceTargets.filterKeys { it != duchyName }.mapValues {
         val otherDuchyChannel = buildChannel(it.value)
         ComputationControlCoroutineStub(otherDuchyChannel).withDuchyId(duchyName)
       }
 
     val globalComputationsClient =
-      GlobalComputationsCoroutineStub(
-        buildChannel(flags.globalComputationsServiceTarget)
-      ).withDuchyId(duchyName)
-    val computationStatsClient =
-      ComputationStatsCoroutineStub(computationsServiceChannel)
+      GlobalComputationsCoroutineStub(buildChannel(flags.globalComputationsServiceTarget))
+        .withDuchyId(duchyName)
+    val computationStatsClient = ComputationStatsCoroutineStub(computationsServiceChannel)
     val metricValuesClient =
       MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
         .withDuchyId(duchyName)
 
-    val mill = LiquidLegionsV2Mill(
-      millId = flags.millId,
-      duchyId = flags.duchyId,
-      dataClients = dataClients,
-      metricValuesClient = metricValuesClient,
-      globalComputationsClient = globalComputationsClient,
-      computationStatsClient = computationStatsClient,
-      workerStubs = computationControlClientMap,
-      cryptoKeySet = newCryptoKeySet(),
-      cryptoWorker = JniLiquidLegionsV2Encryption(),
-      throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
-      requestChunkSizeBytes = flags.requestChunkSizeBytes,
-      maxFrequency = flags.sketchMaxFrequency,
-      liquidLegionsConfig = LiquidLegionsConfig(
-        flags.liquidLegionsDecayRate,
-        flags.liquidLegionsSize
-      ),
-      noiseConfig = flags.noiseConfig.reader().use {
-        parseTextProto(it, LiquidLegionsV2NoiseConfig.getDefaultInstance())
-      },
-      aggregatorId = flags.aggregatorId
-    )
+    val mill =
+      LiquidLegionsV2Mill(
+        millId = flags.millId,
+        duchyId = flags.duchyId,
+        dataClients = dataClients,
+        metricValuesClient = metricValuesClient,
+        globalComputationsClient = globalComputationsClient,
+        computationStatsClient = computationStatsClient,
+        workerStubs = computationControlClientMap,
+        cryptoKeySet = newCryptoKeySet(),
+        cryptoWorker = JniLiquidLegionsV2Encryption(),
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
+        requestChunkSizeBytes = flags.requestChunkSizeBytes,
+        maxFrequency = flags.sketchMaxFrequency,
+        liquidLegionsConfig =
+          LiquidLegionsConfig(flags.liquidLegionsDecayRate, flags.liquidLegionsSize),
+        noiseConfig =
+          flags.noiseConfig.reader().use {
+            parseTextProto(it, LiquidLegionsV2NoiseConfig.getDefaultInstance())
+          },
+        aggregatorId = flags.aggregatorId
+      )
 
     runBlocking { mill.continuallyProcessComputationQueue() }
   }
@@ -109,10 +106,13 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
   private fun newCryptoKeySet(): CryptoKeySet {
     val latestDuchyPublicKeys = duchyPublicKeys.latest
     return CryptoKeySet(
-      ownPublicAndPrivateKeys = ElGamalKeyPair.newBuilder().apply {
-        publicKey = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
-        secretKey = flags.duchySecretKey.hexAsByteString()
-      }.build(),
+      ownPublicAndPrivateKeys =
+        ElGamalKeyPair.newBuilder()
+          .apply {
+            publicKey = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
+            secretKey = flags.duchySecretKey.hexAsByteString()
+          }
+          .build(),
       allDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
       clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
       curveId = latestDuchyPublicKeys.curveId

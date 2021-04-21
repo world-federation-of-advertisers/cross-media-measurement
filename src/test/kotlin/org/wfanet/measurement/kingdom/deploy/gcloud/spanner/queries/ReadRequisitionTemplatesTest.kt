@@ -38,34 +38,31 @@ private const val EXTERNAL_CAMPAIGN_ID1 = 8L
 private const val CAMPAIGN_ID2 = 9L
 private const val EXTERNAL_CAMPAIGN_ID2 = 10L
 
-private val METRIC_DEFINITIONS: List<MetricDefinition> = listOf(
-  MetricDefinition.newBuilder().apply { sketchBuilder.sketchConfigId = 11 }.build(),
-  MetricDefinition.newBuilder().apply { sketchBuilder.sketchConfigId = 12 }.build(),
-  MetricDefinition.newBuilder().apply { sketchBuilder.sketchConfigId = 13 }.build()
-)
+private val METRIC_DEFINITIONS: List<MetricDefinition> =
+  listOf(
+    MetricDefinition.newBuilder().apply { sketchBuilder.sketchConfigId = 11 }.build(),
+    MetricDefinition.newBuilder().apply { sketchBuilder.sketchConfigId = 12 }.build(),
+    MetricDefinition.newBuilder().apply { sketchBuilder.sketchConfigId = 13 }.build()
+  )
 
 private val REPORT_CONFIG_DETAILS: ReportConfigDetails =
-  ReportConfigDetails.newBuilder()
-    .addAllMetricDefinitions(METRIC_DEFINITIONS)
-    .build()
+  ReportConfigDetails.newBuilder().addAllMetricDefinitions(METRIC_DEFINITIONS).build()
 
-private val REQUISITION_TEMPLATES: List<RequisitionTemplate> = listOf(
-  buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID1, METRIC_DEFINITIONS[0]),
-  buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID1, METRIC_DEFINITIONS[1]),
-  buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID1, METRIC_DEFINITIONS[2]),
-  buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID2, METRIC_DEFINITIONS[0]),
-  buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID2, METRIC_DEFINITIONS[1]),
-  buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID2, METRIC_DEFINITIONS[2])
-)
+private val REQUISITION_TEMPLATES: List<RequisitionTemplate> =
+  listOf(
+    buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID1, METRIC_DEFINITIONS[0]),
+    buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID1, METRIC_DEFINITIONS[1]),
+    buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID1, METRIC_DEFINITIONS[2]),
+    buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID2, METRIC_DEFINITIONS[0]),
+    buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID2, METRIC_DEFINITIONS[1]),
+    buildRequisitionTemplate(EXTERNAL_CAMPAIGN_ID2, METRIC_DEFINITIONS[2])
+  )
 
 @RunWith(JUnit4::class)
 class ReadRequisitionTemplatesTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
-    insertAdvertiser(
-      ADVERTISER_ID,
-      EXTERNAL_ADVERTISER_ID
-    )
+    insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertReportConfig(
       ADVERTISER_ID,
       REPORT_CONFIG_ID,
@@ -73,10 +70,7 @@ class ReadRequisitionTemplatesTest : KingdomDatabaseTestBase() {
       numRequisitions = 6,
       reportConfigDetails = REPORT_CONFIG_DETAILS
     )
-    insertDataProvider(
-      DATA_PROVIDER_ID,
-      EXTERNAL_DATA_PROVIDER_ID
-    )
+    insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID1, EXTERNAL_CAMPAIGN_ID1, ADVERTISER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID2, EXTERNAL_CAMPAIGN_ID2, ADVERTISER_ID)
     insertReportConfigCampaign(ADVERTISER_ID, REPORT_CONFIG_ID, DATA_PROVIDER_ID, CAMPAIGN_ID1)
@@ -84,24 +78,26 @@ class ReadRequisitionTemplatesTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun success() = runBlocking<Unit> {
-    val results =
-      ReadRequisitionTemplates(ExternalId(EXTERNAL_REPORT_CONFIG_ID))
-        .execute(databaseClient.singleUse())
-        .toList()
+  fun success() =
+    runBlocking<Unit> {
+      val results =
+        ReadRequisitionTemplates(ExternalId(EXTERNAL_REPORT_CONFIG_ID))
+          .execute(databaseClient.singleUse())
+          .toList()
 
-    assertThat(results)
-      .containsExactlyElementsIn(REQUISITION_TEMPLATES)
-  }
+      assertThat(results).containsExactlyElementsIn(REQUISITION_TEMPLATES)
+    }
 }
 
 private fun buildRequisitionTemplate(
   externalCampaignId: Long,
   metricDefinition: MetricDefinition
 ): RequisitionTemplate {
-  return RequisitionTemplate.newBuilder().apply {
-    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    this.externalCampaignId = externalCampaignId
-    requisitionDetailsBuilder.metricDefinition = metricDefinition
-  }.build()
+  return RequisitionTemplate.newBuilder()
+    .apply {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      this.externalCampaignId = externalCampaignId
+      requisitionDetailsBuilder.metricDefinition = metricDefinition
+    }
+    .build()
 }

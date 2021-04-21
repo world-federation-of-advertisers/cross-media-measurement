@@ -16,9 +16,7 @@ package org.wfanet.measurement.common.identity
 
 import picocli.CommandLine
 
-/**
- * Global singleton listing all the valid duchy ids, configurable by a flag.
- */
+/** Global singleton listing all the valid duchy ids, configurable by a flag. */
 object DuchyIds {
   lateinit var ALL: Set<String>
     private set
@@ -41,10 +39,12 @@ object DuchyIds {
  * Flag for setting global [DuchyIds.ALL].
  *
  * Usage:
+ * ```
  *   fun run(@CommandLine.Mixin duchyIdFlags: DuchyIdFlags, ...) {
  *     DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
  *     ...
  *   }
+ * ```
  */
 class DuchyIdFlags {
   @CommandLine.Option(

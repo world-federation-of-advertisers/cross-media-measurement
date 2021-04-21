@@ -21,9 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.Report
 
-/**
- * Reads [Report] protos from Spanner via the ReportRequisitions table.
- */
+/** Reads [Report] protos from Spanner via the ReportRequisitions table. */
 class ReportRequisitionReader : SpannerReader<ReportReader.Result>() {
   override val baseSql: String =
     """

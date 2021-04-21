@@ -36,14 +36,9 @@ import org.wfanet.measurement.storage.StorageClient
  */
 private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
 
-/**
- * Google Cloud Storage (GCS) implementation of [StorageClient] for a single
- * bucket.
- */
-class GcsStorageClient(
-  private val storage: Storage,
-  private val bucketName: String
-) : StorageClient {
+/** Google Cloud Storage (GCS) implementation of [StorageClient] for a single bucket. */
+class GcsStorageClient(private val storage: Storage, private val bucketName: String) :
+  StorageClient {
 
   override val defaultBufferSizeBytes: Int
     get() = BYTE_BUFFER_SIZE

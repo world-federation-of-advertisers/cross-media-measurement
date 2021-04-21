@@ -36,17 +36,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  *
  * Idempotency is determined by the Data Provider, Campaign, time window, and RequisitionDetails.
  *
- * This does not enforce any preconditions on [requisition]. For example, there is no guarantee
- * that the startTime is before the endTime or the state is valid.
+ * This does not enforce any preconditions on [requisition]. For example, there is no guarantee that
+ * the startTime is before the endTime or the state is valid.
  */
-class CreateRequisition(
-  private val requisition: Requisition
-) : SpannerWriter<Requisition, Requisition>() {
-  data class Parent(
-    val dataProviderId: Long,
-    val campaignId: Long,
-    val providedCampaignId: String
-  )
+class CreateRequisition(private val requisition: Requisition) :
+  SpannerWriter<Requisition, Requisition>() {
+  data class Parent(val dataProviderId: Long, val campaignId: Long, val providedCampaignId: String)
 
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val existing = findExistingRequisition()
@@ -55,11 +50,15 @@ class CreateRequisition(
     }
 
     val parent = findParent(requisition.externalCampaignId)
-    val actualRequisition = requisition.toBuilder().apply {
-      externalRequisitionId = idGenerator.generateExternalId().value
-      providedCampaignId = parent.providedCampaignId
-      state = Requisition.RequisitionState.UNFULFILLED
-    }.build()
+    val actualRequisition =
+      requisition
+        .toBuilder()
+        .apply {
+          externalRequisitionId = idGenerator.generateExternalId().value
+          providedCampaignId = parent.providedCampaignId
+          state = Requisition.RequisitionState.UNFULFILLED
+        }
+        .build()
     actualRequisition
       .toInsertMutation(parent, idGenerator.generateInternalId())
       .bufferTo(transactionContext)
@@ -72,9 +71,7 @@ class CreateRequisition(
     return if (requisition.hasCreateTime()) {
       requisition
     } else {
-      requisition.toBuilder().apply {
-        createTime = commitTimestamp.toProto()
-      }.build()
+      requisition.toBuilder().apply { createTime = commitTimestamp.toProto() }.build()
     }
   }
 
@@ -87,9 +84,7 @@ class CreateRequisition(
       """.trimIndent()
 
     val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("external_campaign_id").to(externalCampaignId)
-        .build()
+      Statement.newBuilder(sql).bind("external_campaign_id").to(externalCampaignId).build()
 
     val row: Struct = transactionContext.executeQuery(statement).single()
 
@@ -127,17 +122,28 @@ class CreateRequisition(
 
   private fun Requisition.toInsertMutation(parent: Parent, requisitionId: InternalId): Mutation {
     return Mutation.newInsertBuilder("Requisitions")
-      .set("DataProviderId").to(parent.dataProviderId)
-      .set("CampaignId").to(parent.campaignId)
-      .set("RequisitionId").to(requisitionId.value)
-      .set("ExternalRequisitionId").to(externalRequisitionId)
-      .set("CombinedPublicKeyResourceId").to(combinedPublicKeyResourceId)
-      .set("WindowStartTime").to(windowStartTime.toGcloudTimestamp())
-      .set("WindowEndTime").to(windowEndTime.toGcloudTimestamp())
-      .set("CreateTime").to(Value.COMMIT_TIMESTAMP)
-      .set("State").toProtoEnum(state)
-      .set("RequisitionDetails").toProtoBytes(requisitionDetails)
-      .set("RequisitionDetailsJson").to(requisitionDetailsJson)
+      .set("DataProviderId")
+      .to(parent.dataProviderId)
+      .set("CampaignId")
+      .to(parent.campaignId)
+      .set("RequisitionId")
+      .to(requisitionId.value)
+      .set("ExternalRequisitionId")
+      .to(externalRequisitionId)
+      .set("CombinedPublicKeyResourceId")
+      .to(combinedPublicKeyResourceId)
+      .set("WindowStartTime")
+      .to(windowStartTime.toGcloudTimestamp())
+      .set("WindowEndTime")
+      .to(windowEndTime.toGcloudTimestamp())
+      .set("CreateTime")
+      .to(Value.COMMIT_TIMESTAMP)
+      .set("State")
+      .toProtoEnum(state)
+      .set("RequisitionDetails")
+      .toProtoBytes(requisitionDetails)
+      .set("RequisitionDetailsJson")
+      .to(requisitionDetailsJson)
       .build()
   }
 }

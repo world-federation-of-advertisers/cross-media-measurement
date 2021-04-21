@@ -21,9 +21,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
-/**
- * Returns the results of a spanner query as a list of [Struct].
- */
+/** Returns the results of a spanner query as a list of [Struct]. */
 suspend fun queryForResults(dbClient: AsyncDatabaseClient, sqlQuery: String): List<Struct> {
   return dbClient.singleUse().executeQuery(Statement.of(sqlQuery)).toList()
 }
@@ -42,18 +40,22 @@ suspend fun assertQueryReturns(
 
   val results: List<Struct> = queryForResults(dbClient, sqlQuery)
   val resultsColumns = results.map { it.type.toString() }.toSet()
-  assertWithMessage("All query results should have the same column headings").that(resultsColumns)
+  assertWithMessage("All query results should have the same column headings")
+    .that(resultsColumns)
     .hasSize(1)
   assertThat(resultsColumns).isEqualTo(expectedColumns)
   assertWithMessage(
-    """
+      """
     Query did not return expected results:
     '$sqlQuery'
 
     Columns:
     $expectedColumns
     """.trimIndent()
-  ).that(results).containsExactlyElementsIn(expected).inOrder()
+    )
+    .that(results)
+    .containsExactlyElementsIn(expected)
+    .inOrder()
 }
 
 /** Asserts that a query returns the expected results. */

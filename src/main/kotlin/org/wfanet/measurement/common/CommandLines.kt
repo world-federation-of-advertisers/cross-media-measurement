@@ -23,9 +23,8 @@ import picocli.CommandLine
 /**
  * A `main` function for a [CommandLine] application.
  *
- * @param command A function annotated with [@Command][CommandLine.Command]
- *     to execute.
- * @param args Command-line arguments.
+ * @param command a function annotated with [@Command][CommandLine.Command] to execute
+ * @param args command-line arguments
  */
 fun commandLineMain(command: KFunction<*>, args: Array<String>) {
   exitProcess(command.toCommandLine().execute(*args))
@@ -34,9 +33,8 @@ fun commandLineMain(command: KFunction<*>, args: Array<String>) {
 /**
  * A `main` function for a [CommandLine] application.
  *
- * @param command A [Runnable] annotated with [@Command][CommandLine.Command] to
- *     execute.
- * @param args Command-line arguments.
+ * @param command a [Runnable] annotated with [@Command][CommandLine.Command] to execute
+ * @param args command-line arguments
  */
 fun commandLineMain(command: Runnable, args: Array<String>) {
   exitProcess(command.toCommandLine().execute(*args))

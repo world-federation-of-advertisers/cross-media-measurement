@@ -36,11 +36,7 @@ import picocli.CommandLine
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
-    ComputationType,
-    ComputationStage,
-    ComputationStageDetails,
-    ComputationDetails
-    >
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
 
 /** gRPC server for Computations service. */
 abstract class ComputationsServer : Runnable {
@@ -48,9 +44,7 @@ abstract class ComputationsServer : Runnable {
   protected lateinit var flags: Flags
     private set
 
-  protected val duchyPublicKeys by lazy {
-    DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
-  }
+  protected val duchyPublicKeys by lazy { DuchyPublicKeys.fromFlags(flags.duchyPublicKeys) }
 
   abstract val protocolStageEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
@@ -64,20 +58,22 @@ abstract class ComputationsServer : Runnable {
   ) {
     val channel = buildChannel(flags.globalComputationsServiceTarget, flags.channelShutdownTimeout)
 
-    val globalComputationsClient = GlobalComputationsCoroutineStub(channel)
-      .withDuchyId(flags.duchy.duchyName)
+    val globalComputationsClient =
+      GlobalComputationsCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
     CommonServer.fromFlags(
-      flags.server,
-      javaClass.name,
-      ComputationsService(
-        computationsDatabase = computationsDatabase,
-        globalComputationsClient = globalComputationsClient,
-        duchyName = flags.duchy.duchyName
-      ),
-      ComputationStatsService(computationsDatabase)
-    ).start().blockUntilShutdown()
+        flags.server,
+        javaClass.name,
+        ComputationsService(
+          computationsDatabase = computationsDatabase,
+          globalComputationsClient = globalComputationsClient,
+          duchyName = flags.duchy.duchyName
+        ),
+        ComputationStatsService(computationsDatabase)
+      )
+      .start()
+      .blockUntilShutdown()
   }
 
   private fun newComputationsDatabase(
@@ -88,9 +84,8 @@ abstract class ComputationsServer : Runnable {
       ComputationsDatabase,
       ComputationsDatabaseReader by computationsDatabaseReader,
       ComputationsDb by computationDb,
-      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
-      by protocolStageEnumHelper {
-    }
+      ComputationProtocolStagesEnumHelper<
+        ComputationType, ComputationStage> by protocolStageEnumHelper {}
   }
 
   protected class Flags {

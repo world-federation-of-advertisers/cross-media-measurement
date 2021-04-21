@@ -21,39 +21,34 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /**
- * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer
- * ([ComputationsDatabaseTransactor]) to interact with a database for all types of computations.
+ * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer (
+ * [ComputationsDatabaseTransactor]) to interact with a database for all types of computations.
  */
 interface ComputationsDatabase :
   ComputationsDatabaseReader,
   ComputationsDatabaseTransactor<
-    ComputationType,
-    ComputationStage,
-    ComputationStageDetails,
-    ComputationDetails>,
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>,
   ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
-/**
- * Performs read operations on a relational database of computations.
- */
+/** Performs read operations on a relational database of computations. */
 interface ComputationsDatabaseReader {
 
   /** Gets a [ComputationToken] for the current state of a computation if it exists. */
   suspend fun readComputationToken(globalId: String): ComputationToken?
 
   /**
-   * Gets a collection of all the global computation ids for a computation in the database
-   * which are in a one of the provided stages.
+   * Gets a collection of all the global computation ids for a computation in the database which are
+   * in a one of the provided stages.
    */
   suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String>
 }
 
 /**
- * Relational database for keeping track of Computations of a single protocol type as they
- * progress through stages of a Computation within a Duchy.
+ * Relational database for keeping track of Computations of a single protocol type as they progress
+ * through stages of a Computation within a Duchy.
  *
- * The database must have strong consistency guarantees as it is used to
- * coordinate assignment of work by pulling jobs.
+ * The database must have strong consistency guarantees as it is used to coordinate assignment of
+ * work by pulling jobs.
  *
  * @param ProtocolT Object representing different protocols (computation types)
  * @param StageT Object representing stages of the computation protocol.
@@ -96,12 +91,12 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    *
    * @param token The token for the computation
    * @param nextStage Stage this computation should transition to.
-   * @param inputBlobPaths References to BLOBs that are inputs to this computation stage, all
-   *    inputs should be written on transition and should not change.
-   * @param passThroughBlobPaths References to BLOBs that are outputs of this computation stage,
-   *    but were written before the start of the computation stage.
-   * @param outputBlobs Number of BLOBs this computation outputs. These are created as
-   *    part of the computation so they do not have a reference to the real storage location.
+   * @param inputBlobPaths References to BLOBs that are inputs to this computation stage, all inputs
+   * should be written on transition and should not change.
+   * @param passThroughBlobPaths References to BLOBs that are outputs of this computation stage, but
+   * were written before the start of the computation stage.
+   * @param outputBlobs Number of BLOBs this computation outputs. These are created as part of the
+   * computation so they do not have a reference to the real storage location.
    * @param afterTransition The work to be do with the computation after a successful transition.
    * @param nextStageDetails Details specific to the next stage.
    */
@@ -142,9 +137,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     metric: ComputationStatMetric
   )
 
-  /**
-   * Information about a computation needed to edit a computation.
-   */
+  /** Information about a computation needed to edit a computation. */
   data class ComputationEditToken<ProtocolT, StageT>(
     /** The identifier for the computation used locally. */
     val localId: Long,
@@ -155,9 +148,9 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     /** The number of the current attempt of this stage for this computation. */
     val attempt: Int,
     /**
-     * The version number of the last known edit to the computation.
-     * The version is a monotonically increasing number used as a guardrail to protect against
-     * concurrent edits to the same computation.
+     * The version number of the last known edit to the computation. The version is a monotonically
+     * increasing number used as a guardrail to protect against concurrent edits to the same
+     * computation.
      */
     val editVersion: Long
   )
@@ -166,7 +159,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
 /**
  * Reference to a BLOB's storage location (key).
  *
- * @param idInRelationalDatabase identifier of the blob as stored in the [ComputationsDatabaseTransactor]
+ * @param idInRelationalDatabase identifier of the blob as stored in the
+ * [ComputationsDatabaseTransactor]
  * @param key object key of the the blob which can be used to retrieve it from the BLOB storage.
  */
 data class BlobRef(val idInRelationalDatabase: Long, val key: String)
@@ -189,16 +183,15 @@ enum class AfterTransition {
   CONTINUE_WORKING,
 
   /**
-   * Add the computation to the work queue, but in an unclaimed stage for some
-   * worker to claim at a later time.
+   * Add the computation to the work queue, but in an unclaimed stage for some worker to claim at a
+   * later time.
    */
   ADD_UNCLAIMED_TO_QUEUE,
 
   /**
-   * Do not add to the work queue, and release any lock on the computation.
-   * There is no work to be done on the computation at this time.
-   * Examples for when to set this include the computation finished or
-   * input from another source is required before continuing.
+   * Do not add to the work queue, and release any lock on the computation. There is no work to be
+   * done on the computation at this time. Examples for when to set this include the computation
+   * finished or input from another source is required before continuing.
    */
   DO_NOT_ADD_TO_QUEUE
 }
@@ -216,8 +209,8 @@ enum class EndComputationReason {
   FAILED,
 
   /**
-   * The computation was canceled. There were not known issues when it was ended, but results
-   * will not be obtained.
+   * The computation was canceled. There were not known issues when it was ended, but results will
+   * not be obtained.
    */
   CANCELED
 }

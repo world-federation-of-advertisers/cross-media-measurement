@@ -38,28 +38,18 @@ class IdentifiersTest {
 
   @Test
   fun `negative numbers are invalid`() {
-    assertFailsWith<IllegalArgumentException> {
-      ExternalId(-1)
-    }
+    assertFailsWith<IllegalArgumentException> { ExternalId(-1) }
   }
 
   @Test
   fun `invalid ApiId length`() {
-    assertFailsWith<IllegalArgumentException> {
-      ApiId("jNQXAC9IVRw")
-    }
-    assertFailsWith<IllegalArgumentException> {
-      ApiId("")
-    }
+    assertFailsWith<IllegalArgumentException> { ApiId("jNQXAC9IVRw") }
+    assertFailsWith<IllegalArgumentException> { ApiId("") }
   }
 
   @Test
   fun `invalid base64 string`() {
-    assertFailsWith<IllegalArgumentException> {
-      ApiId("12345678!")
-    }
-    assertFailsWith<IllegalArgumentException> {
-      ApiId("012345678")
-    }
+    assertFailsWith<IllegalArgumentException> { ApiId("12345678!") }
+    assertFailsWith<IllegalArgumentException> { ApiId("012345678") }
   }
 }

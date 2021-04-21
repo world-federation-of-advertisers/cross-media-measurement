@@ -42,17 +42,16 @@ class StreamReadyReports(limit: Long) : SpannerQuery<ReportReader.Result, Report
       HAVING COUNT(ReportRequisitions.RequisitionId) = ReportConfigs.NumRequisitions
       """.trimIndent()
 
-    ReportReader(index = ReportReader.Index.STATE)
-      .withBuilder {
-        appendClause(sql)
-        bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
-        bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
+    ReportReader(index = ReportReader.Index.STATE).withBuilder {
+      appendClause(sql)
+      bind("requisition_state").toProtoEnum(RequisitionState.FULFILLED)
+      bind("report_state").toProtoEnum(ReportState.AWAITING_REQUISITION_CREATION)
 
-        if (limit > 0) {
-          appendClause("LIMIT @limit")
-          bind("limit").to(limit)
-        }
+      if (limit > 0) {
+        appendClause("LIMIT @limit")
+        bind("limit").to(limit)
       }
+    }
   }
 
   override fun Flow<ReportReader.Result>.transform(): Flow<Report> = map { it.report }

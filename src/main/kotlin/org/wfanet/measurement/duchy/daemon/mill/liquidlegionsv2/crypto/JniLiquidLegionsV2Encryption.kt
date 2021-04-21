@@ -43,29 +43,29 @@ class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
     )
   }
 
-  override fun completeExecutionPhaseOne(request: CompleteExecutionPhaseOneRequest):
-    CompleteExecutionPhaseOneResponse {
-      return CompleteExecutionPhaseOneResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(request.toByteArray())
-      )
-    }
+  override fun completeExecutionPhaseOne(
+    request: CompleteExecutionPhaseOneRequest
+  ): CompleteExecutionPhaseOneResponse {
+    return CompleteExecutionPhaseOneResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOne(request.toByteArray())
+    )
+  }
 
   override fun completeExecutionPhaseOneAtAggregator(
     request: CompleteExecutionPhaseOneAtAggregatorRequest
   ): CompleteExecutionPhaseOneAtAggregatorResponse {
     return CompleteExecutionPhaseOneAtAggregatorResponse.parseFrom(
-      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOneAtAggregator(
-        request.toByteArray()
-      )
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseOneAtAggregator(request.toByteArray())
     )
   }
 
-  override fun completeExecutionPhaseTwo(request: CompleteExecutionPhaseTwoRequest):
-    CompleteExecutionPhaseTwoResponse {
-      return CompleteExecutionPhaseTwoResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(request.toByteArray())
-      )
-    }
+  override fun completeExecutionPhaseTwo(
+    request: CompleteExecutionPhaseTwoRequest
+  ): CompleteExecutionPhaseTwoResponse {
+    return CompleteExecutionPhaseTwoResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseTwo(request.toByteArray())
+    )
+  }
 
   override fun completeExecutionPhaseTwoAtAggregator(
     request: CompleteExecutionPhaseTwoAtAggregatorRequest
@@ -75,12 +75,13 @@ class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
     )
   }
 
-  override fun completeExecutionPhaseThree(request: CompleteExecutionPhaseThreeRequest):
-    CompleteExecutionPhaseThreeResponse {
-      return CompleteExecutionPhaseThreeResponse.parseFrom(
-        LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(request.toByteArray())
-      )
-    }
+  override fun completeExecutionPhaseThree(
+    request: CompleteExecutionPhaseThreeRequest
+  ): CompleteExecutionPhaseThreeResponse {
+    return CompleteExecutionPhaseThreeResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeExecutionPhaseThree(request.toByteArray())
+    )
+  }
 
   override fun completeExecutionPhaseThreeAtAggregator(
     request: CompleteExecutionPhaseThreeAtAggregatorRequest
@@ -96,9 +97,7 @@ class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
     init {
       loadLibrary(
         name = "liquid_legions_v2_encryption_utility",
-        directoryPath = Paths.get(
-          "wfa_measurement_system/src/main/swig/protocol/liquidlegionsv2"
-        )
+        directoryPath = Paths.get("wfa_measurement_system/src/main/swig/protocol/liquidlegionsv2")
       )
     }
   }

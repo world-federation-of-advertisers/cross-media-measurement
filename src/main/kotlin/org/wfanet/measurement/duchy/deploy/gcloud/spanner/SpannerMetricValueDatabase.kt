@@ -81,84 +81,100 @@ class SpannerMetricValueDatabase(
 
     val id = idGenerator.generateInternalId()
     val externalId = idGenerator.generateExternalId()
-    val insertMutation = with(MetricValuesTable) {
-      Mutation.newInsertBuilder(TABLE_NAME)
-        .set(columns.METRIC_VALUE_ID).to(id.value)
-        .set(columns.EXTERNAL_METRIC_VALUE_ID).to(externalId.value)
-        .set(columns.DATA_PROVIDER_RESOURCE_ID).to(resourceKey.dataProviderResourceId)
-        .set(columns.CAMPAIGN_RESOURCE_ID).to(resourceKey.campaignResourceId)
-        .set(columns.METRIC_REQUISITION_RESOURCE_ID).to(resourceKey.metricRequisitionResourceId)
-        .set(columns.BLOB_STORAGE_KEY).to(metricValue.blobStorageKey)
-        .set(columns.BLOB_FINGERPRINT).to(metricValue.blobFingerprint.toGcloudByteArray())
-        .build()
-    }
+    val insertMutation =
+      with(MetricValuesTable) {
+        Mutation.newInsertBuilder(TABLE_NAME)
+          .set(columns.METRIC_VALUE_ID)
+          .to(id.value)
+          .set(columns.EXTERNAL_METRIC_VALUE_ID)
+          .to(externalId.value)
+          .set(columns.DATA_PROVIDER_RESOURCE_ID)
+          .to(resourceKey.dataProviderResourceId)
+          .set(columns.CAMPAIGN_RESOURCE_ID)
+          .to(resourceKey.campaignResourceId)
+          .set(columns.METRIC_REQUISITION_RESOURCE_ID)
+          .to(resourceKey.metricRequisitionResourceId)
+          .set(columns.BLOB_STORAGE_KEY)
+          .to(metricValue.blobStorageKey)
+          .set(columns.BLOB_FINGERPRINT)
+          .to(metricValue.blobFingerprint.toGcloudByteArray())
+          .build()
+      }
 
-    dbClient.readWriteTransaction().execute { txn ->
-      txn.buffer(insertMutation)
-    }
+    dbClient.readWriteTransaction().execute { txn -> txn.buffer(insertMutation) }
 
     return metricValue.toBuilder().setExternalId(externalId.value).build()
   }
 
   override suspend fun getMetricValue(externalId: ExternalId): MetricValue? {
-    val sql = with(MetricValuesTable) {
-      """
+    val sql =
+      with(MetricValuesTable) {
+        """
       SELECT * FROM $TABLE_NAME@{FORCE_INDEX=${indexes.METRIC_VALUES_BY_EXTERNAL_ID}}
       WHERE ${columns.EXTERNAL_METRIC_VALUE_ID} = @externalId
       """.trimIndent()
-    }
-    val query = Statement.newBuilder(sql)
-      .bind("externalId").to(externalId.value)
-      .build()
+      }
+    val query = Statement.newBuilder(sql).bind("externalId").to(externalId.value).build()
 
     return dbClient.singleUse().executeQuery(query).singleOrNull()?.toMetricValue()
   }
 
   override suspend fun getMetricValue(resourceKey: MetricValue.ResourceKey): MetricValue? {
-    val sql = with(MetricValuesTable) {
-      """
+    val sql =
+      with(MetricValuesTable) {
+        """
       SELECT * FROM $TABLE_NAME@{FORCE_INDEX=${indexes.METRIC_VALUES_BY_RESOURCE_KEY}}
       WHERE
         ${columns.DATA_PROVIDER_RESOURCE_ID} = @dataProviderResourceId
         AND ${columns.CAMPAIGN_RESOURCE_ID} = @campaignResourceId
         AND ${columns.METRIC_REQUISITION_RESOURCE_ID} = @metricRequisitionResourceId
       """.trimIndent()
-    }
-    val query = with(resourceKey) {
-      Statement.newBuilder(sql)
-        .bind("dataProviderResourceId").to(dataProviderResourceId)
-        .bind("campaignResourceId").to(campaignResourceId)
-        .bind("metricRequisitionResourceId").to(metricRequisitionResourceId)
-        .build()
-    }
+      }
+    val query =
+      with(resourceKey) {
+        Statement.newBuilder(sql)
+          .bind("dataProviderResourceId")
+          .to(dataProviderResourceId)
+          .bind("campaignResourceId")
+          .to(campaignResourceId)
+          .bind("metricRequisitionResourceId")
+          .to(metricRequisitionResourceId)
+          .build()
+      }
 
     return dbClient.singleUse().executeQuery(query).singleOrNull()?.toMetricValue()
   }
 
   override suspend fun getBlobStorageKey(resourceKey: MetricValue.ResourceKey): String? =
     with(MetricValuesTable) {
-      val indexRow: Struct? = dbClient.singleUse().readRowUsingIndex(
-        TABLE_NAME,
-        indexes.METRIC_VALUES_BY_RESOURCE_KEY,
-        resourceKey.toSpannerKey(),
-        columns.BLOB_STORAGE_KEY
-      )
+      val indexRow: Struct? =
+        dbClient
+          .singleUse()
+          .readRowUsingIndex(
+            TABLE_NAME,
+            indexes.METRIC_VALUES_BY_RESOURCE_KEY,
+            resourceKey.toSpannerKey(),
+            columns.BLOB_STORAGE_KEY
+          )
       indexRow?.getString(columns.BLOB_STORAGE_KEY)
     }
 }
 
-private fun Struct.toMetricValue(): MetricValue = with(MetricValuesTable.Columns) {
-  MetricValue.newBuilder().apply {
-    externalId = getLong(EXTERNAL_METRIC_VALUE_ID)
-    resourceKeyBuilder.apply {
-      dataProviderResourceId = getString(DATA_PROVIDER_RESOURCE_ID)
-      campaignResourceId = getString(CAMPAIGN_RESOURCE_ID)
-      metricRequisitionResourceId = getString(METRIC_REQUISITION_RESOURCE_ID)
-    }
-    blobStorageKey = getString(BLOB_STORAGE_KEY)
-    blobFingerprint = getBytesAsByteString(BLOB_FINGERPRINT)
-  }.build()
-}
+private fun Struct.toMetricValue(): MetricValue =
+  with(MetricValuesTable.Columns) {
+    MetricValue.newBuilder()
+      .apply {
+        externalId = getLong(EXTERNAL_METRIC_VALUE_ID)
+        resourceKeyBuilder.apply {
+          dataProviderResourceId = getString(DATA_PROVIDER_RESOURCE_ID)
+          campaignResourceId = getString(CAMPAIGN_RESOURCE_ID)
+          metricRequisitionResourceId = getString(METRIC_REQUISITION_RESOURCE_ID)
+        }
+        blobStorageKey = getString(BLOB_STORAGE_KEY)
+        blobFingerprint = getBytesAsByteString(BLOB_FINGERPRINT)
+      }
+      .build()
+  }
 
 private fun MetricValue.ResourceKey.toSpannerKey(): Key {
   return Key.of(dataProviderResourceId, campaignResourceId, metricRequisitionResourceId)
