@@ -19,34 +19,27 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
-import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
+import org.wfanet.measurement.integration.common.InProcessKingdom
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
 
-class KingdomDatabasesProviderRule :
-  ProviderRule<Pair<KingdomRelationalDatabase, DatabaseTestHelper>> {
+class KingdomDatabasesProviderRule : ProviderRule<InProcessKingdom.Databases> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  private val clock = Clock.systemUTC()
+  private val idGenerator = RandomIdGenerator(clock)
+  private val databaseClient: AsyncDatabaseClient by lazy { spannerDatabase.databaseClient }
 
-  private val kingdomRelationalDatabase by lazy {
-    SpannerKingdomRelationalDatabase(
-      Clock.systemUTC(),
-      RandomIdGenerator(Clock.systemUTC()),
-      spannerDatabase.databaseClient
+  override val value by lazy {
+    InProcessKingdom.Databases(
+      SpannerKingdomRelationalDatabase(clock, idGenerator, databaseClient),
+      SpannerKingdomRelationalDatabase(clock, idGenerator, databaseClient),
+      SpannerKingdomRelationalDatabase(clock, idGenerator, databaseClient),
+      SpannerDatabaseTestHelper(clock, idGenerator, databaseClient)
     )
   }
-
-  private val databaseTestHelper by lazy {
-    SpannerDatabaseTestHelper(
-      Clock.systemUTC(),
-      RandomIdGenerator(Clock.systemUTC()),
-      spannerDatabase.databaseClient
-    )
-  }
-
-  override val value by lazy { Pair(kingdomRelationalDatabase, databaseTestHelper) }
 
   override fun apply(base: Statement, description: Description): Statement {
     return spannerDatabase.apply(base, description)
