@@ -20,7 +20,6 @@ package k8s
 objectSets: [
 		fake_service,
 		fake_pod,
-		setup_job,
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
@@ -164,16 +163,4 @@ kingdom: #Kingdom & {
 	}
 	_kingdom_image_pull_policy: "Never"
 	_verbose_grpc_logging:      "true"
-}
-
-setup_job: "correctness-test-job": #CorrectnessTest & {
-	_image:           "bazel/src/main/kotlin/org/wfanet/measurement/loadtest:filesystem_storage_correctness_runner_image"
-	_imagePullPolicy: "Never"
-	_args: [
-		"--output-directory=correctness",
-		"--spanner-database=kingdom",
-		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-		"--spanner-instance=emulator-instance",
-		"--spanner-project=cross-media-measurement-system",
-	]
 }
