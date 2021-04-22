@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -74,9 +75,11 @@ message RequisitionSpec {
   // as this `Requisition`.
   repeated EventGroupEntry event_group_entries = 1;
 
-  // Encryption public key for the `Measurement` that this `RequisitionSpec` is
-  // associated with. Required. Immutable.
-  bytes measurement_public_key = 2;
+  // Serialized `EncryptionPublicKey` for the `Measurement` that this
+  // `RequisitionSpec` is associated with, which can be verified using the
+  // `measurement_consumer_certificate` of the `Measurement`. Required.
+  // Immutable.
+  SignedData measurement_public_key = 2;
 
   // SHA256 hash of the concatenation of `serialized_data_provider_list` and
   // `data_provider_list_salt` from the `Measurement` that this

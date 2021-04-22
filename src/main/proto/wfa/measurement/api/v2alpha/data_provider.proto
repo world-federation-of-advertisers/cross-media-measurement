@@ -43,7 +43,7 @@ message DataProvider {
   // The `certificate` field of this resource matches `preferred_certificate`.
   DataProviderCertificate.Key preferred_data_provider_certificate = 3;
 
-  // Encryption public key for this `DataProvider` in DER format, which can be
+  // Serialized `EncryptionPublicKey` for this `DataProvider`, which can be
   // verified using `preferred_certificate`. Required.
   SignedData public_key = 4;
 
@@ -74,12 +74,12 @@ message DataProviderPublicKey {
   // Resource key.
   DataProvider.Key key = 1;
 
-  // Encryption public key for this `DataProvider`, which can be verified using
-  // `data_provider_certificate`. Required.
+  // Serialized `EncryptionPublicKey` for this `DataProvider`, which can be
+  // verified using `data_provider_certificate`. Required.
   SignedData public_key = 2;
 
   // Resource key of the `DataProviderCertificate` that can be used to verify
-  // `public_key`.
+  // `public_key`. Required.
   DataProviderCertificate.Key data_provider_certificate = 3;
 }
 

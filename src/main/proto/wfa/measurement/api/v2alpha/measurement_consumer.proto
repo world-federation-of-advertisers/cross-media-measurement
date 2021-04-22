@@ -42,8 +42,8 @@ message MeasurementConsumer {
   MeasurementConsumerCertificate.Key
       preferred_measurement_consumer_certificate = 3;
 
-  // Encryption public key for this `MeasurementConsumer` in DER format, which
-  // can be verified using `preferred_certificate`. Required.
+  // Serialized `EncryptionPublicKey` for this `MeasurementConsumer`, which can
+  // be verified using `preferred_certificate`. Required.
   SignedData public_key = 4;
 
   // Official name of the `MeasurementConsumer`.
@@ -73,11 +73,11 @@ message MeasurementConsumerPublicKey {
   // Resource key.
   MeasurementConsumer.Key key = 1;
 
-  // Encryption public key for this `MeasurementConsumer`, which can be verified
-  // using `measurement_consumer_certificate`. Required.
+  // Serialized `EncryptionPublicKey` for this `MeasurementConsumer`, which can
+  // be verified using `measurement_consumer_certificate`. Required.
   SignedData public_key = 2;
 
   // Resource key of the `MeasurementConsumerCertificate` that can be used to
-  // verify `public_key`.
+  // verify `public_key`. Required.
   MeasurementConsumerCertificate.Key measurement_consumer_certificate = 3;
 }

@@ -70,7 +70,7 @@ message Measurement {
     // Resource key of the DataProviderCertificate. Required. Immutable.
     DataProviderCertificate.Key data_provider_certificate = 2;
 
-    // Pre-shared encryption public key, which can be verified using
+    // Pre-shared serialized `EncryptionPublicKey`, which can be verified using
     // `data_provider_certificate`. Required. Immutable.
     SignedData data_provider_public_key = 3;
 
@@ -135,8 +135,10 @@ message Measurement {
   // `SUCCEEDED`.
   bytes aggregator_certificate = 9;
 
-  // Encryption public key for the `Result`, which can be verified using
-  // `aggregator_certificate`. Output-only. Only set if `state` is `SUCCEEDED`.
+  // Serialized `EncryptionPublicKey` for the `Result`, which can be verified
+  // using `aggregator_certificate`. Output-only.
+  //
+  // Only set if `state` is `SUCCEEDED`.
   SignedData result_public_key = 10;
 
   // Encrypted `SignedData` containing the serialized `Result`, which can be
@@ -157,8 +159,8 @@ message Measurement {
 
 // Specification for a `Measurement`. Immutable.
 message MeasurementSpec {
-  // Encryption public key for the `Measurement` that this `MeasurementSpec` is
-  // associated with. Required.
+  // Serialized `EncryptionPublicKey` for the `Measurement` that this
+  // `MeasurementSpec` is associated with. Required.
   bytes measurement_public_key = 1;
 
   message EncryptedSketch {

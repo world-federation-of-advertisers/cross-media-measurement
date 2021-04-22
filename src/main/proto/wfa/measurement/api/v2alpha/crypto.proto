@@ -41,3 +41,24 @@ message SignedData {
   // Cryptographic digital signature of `data`.
   bytes signature = 2;
 }
+
+// A public key for asymmetric encryption.
+message EncryptionPublicKey {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+
+    // Elliptic curve key on the NIST P-256 curve.
+    //
+    // Algorithm identifier:
+    //   id-ecPublicKey
+    //   prime256v1
+    EC_P256 = 1;
+  }
+  // Type of encryption key. Required.
+  Type type = 1;
+
+  // The ASN.1 SubjectPublicKeyInfo in DER format. Required.
+  //
+  // The AlgorithmIdentifier must match `key_type`.
+  bytes public_key_info = 2;
+}
