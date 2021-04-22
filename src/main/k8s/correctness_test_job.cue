@@ -37,7 +37,7 @@ package k8s
 						"--universe-size=10000000000",
 						"--run-id=",
 						"--sketch-config-file=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto",
-						"--publisher-data-service-target=" + (#Target & {name: "a-publisher-data-server"}).target,
+						"--publisher-data-service-target=" + (#Target & {name: "worker-1-publisher-data-server"}).target,
 			] + _args
 			volumeMounts: [{
 				name:      "cache-volume"
@@ -45,9 +45,9 @@ package k8s
 			}]
 		}]
 		initContainers: [{
-			name:  "init-a-publisher-data-server"
+			name:  "init-worker-1-publisher-data-server"
 			image: "busybox:1.28"
-			command: ['sh', '-c', "until nslookup a-publisher-data-server; do echo waiting for a-publisher-data-server; sleep 2; done"]
+			command: ['sh', '-c', "until nslookup worker-1-publisher-data-server; do echo waiting for worker-1-publisher-data-server; sleep 2; done"]
 		}]
 		restartPolicy: "OnFailure"
 		volumes: [{

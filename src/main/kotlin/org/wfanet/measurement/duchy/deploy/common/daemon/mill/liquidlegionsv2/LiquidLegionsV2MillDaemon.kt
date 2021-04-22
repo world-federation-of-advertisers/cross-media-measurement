@@ -80,7 +80,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     val mill =
       LiquidLegionsV2Mill(
         millId = flags.millId,
-        duchyId = flags.duchyId,
+        duchyId = flags.duchy.duchyName,
         dataClients = dataClients,
         metricValuesClient = metricValuesClient,
         globalComputationsClient = globalComputationsClient,
