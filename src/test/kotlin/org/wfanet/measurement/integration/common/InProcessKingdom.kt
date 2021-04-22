@@ -15,17 +15,9 @@
 package org.wfanet.measurement.integration.common
 
 import io.grpc.Channel
-import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.supervisorScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -33,27 +25,16 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.testing.launchAsAutoCloseable
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.kingdom.daemon.Daemon
-import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
-import org.wfanet.measurement.kingdom.daemon.runReportMaker
-import org.wfanet.measurement.kingdom.daemon.runReportStarter
-import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
 import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
@@ -118,49 +99,12 @@ class InProcessKingdom(verboseGrpcLogging: Boolean = true, databasesProvider: ()
       )
     }
 
-  private val daemonRunner = CloseableResource {
-    GlobalScope.launchAsAutoCloseable {
-      logger.info("Launching Kingdom's daemons")
-      val exceptionHandler = CoroutineExceptionHandler { context, exception ->
-        val name = context[CoroutineName.Key]
-        if (exception is CancellationException) {
-          logger.warning("Daemon $name cancelled")
-        } else {
-          logger.warning("Daemon $name exception: $exception")
-        }
-      }
-      supervisorScope {
-        val reportConfigStorage = ReportConfigsCoroutineStub(databaseServices.channel)
-        val reportConfigScheduleStorage =
-          ReportConfigSchedulesCoroutineStub(databaseServices.channel)
-        val reportStorage = ReportsCoroutineStub(databaseServices.channel)
-        val requisitionStorage = RequisitionsCoroutineStub(databaseServices.channel)
-        val daemonThrottler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(200))
-        val daemonDatabaseServicesClient =
-          DaemonDatabaseServicesClientImpl(
-            reportConfigStorage,
-            reportConfigScheduleStorage,
-            reportStorage,
-            requisitionStorage
-          )
-        val daemon = Daemon(daemonThrottler, 1, daemonDatabaseServicesClient)
-        launch(exceptionHandler + CoroutineName("RequisitionLinker")) {
-          daemon.runRequisitionLinker()
-        }
-        launch(exceptionHandler + CoroutineName("ReportStarter")) { daemon.runReportStarter() }
-        launch(exceptionHandler + CoroutineName("ReportMaker")) {
-          daemon.runReportMaker(DUCHY_PUBLIC_KEYS.latest.combinedPublicKeyId)
-        }
-      }
-    }
-  }
-
   /** Provides a gRPC channel to the Kingdom's public APIs. */
   val publicApiChannel: Channel
     get() = kingdomApiServices.channel
 
   override fun apply(statement: Statement, description: Description): Statement {
-    return chainRulesSequentially(databaseServices, kingdomApiServices, daemonRunner)
+    return chainRulesSequentially(databaseServices, kingdomApiServices)
       .apply(statement, description)
   }
 

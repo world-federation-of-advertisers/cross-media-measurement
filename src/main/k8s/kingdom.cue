@@ -70,42 +70,6 @@ import ("strings")
 	}
 
 	kingdom_pod: {
-		"report-maker-daemon-pod": #Pod & {
-			_args: [
-				_debug_verbose_grpc_client_logging_flag,
-				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-				"--max-concurrency=32",
-				"--throttler-overload-factor=1.2",
-				"--throttler-poll-delay=1ms",
-				"--throttler-time-horizon=2m",
-				"--combined-public-key-id=combined-public-key-1",
-			]
-			_dependencies: ["gcp-kingdom-data-server"]
-		}
-
-		"report-starter-daemon-pod": #Pod & {
-			_args: [
-				_debug_verbose_grpc_client_logging_flag,
-				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-				"--max-concurrency=32",
-				"--throttler-overload-factor=1.2",
-				"--throttler-poll-delay=1ms",
-				"--throttler-time-horizon=2m",
-			]
-			_dependencies: ["gcp-kingdom-data-server"]
-		}
-
-		"requisition-linker-daemon-pod": #Pod & {
-			_args: [
-				_debug_verbose_grpc_client_logging_flag,
-				"--internal-services-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-				"--max-concurrency=32",
-				"--throttler-overload-factor=1.2",
-				"--throttler-poll-delay=1ms",
-				"--throttler-time-horizon=2m",
-			]
-			_dependencies: ["gcp-kingdom-data-server"]
-		}
 
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [

@@ -52,21 +52,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/global-computation",
     ),
     struct(
-        name = "kingdom_report_maker_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image",
-        repository = _PREFIX + "/kingdom/report-maker",
-    ),
-    struct(
-        name = "kingdom_report_starter_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image",
-        repository = _PREFIX + "/kingdom/report-starter",
-    ),
-    struct(
-        name = "kingdom_requisition_linker_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image",
-        repository = _PREFIX + "/kingdom/requisition-linker",
-    ),
-    struct(
         name = "kingdom_requisition_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image",
         repository = _PREFIX + "/kingdom/requisition",
