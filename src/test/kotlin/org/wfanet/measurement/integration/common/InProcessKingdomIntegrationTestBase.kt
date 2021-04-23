@@ -37,8 +37,6 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.testing.pollFor
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
-import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionRequest
@@ -56,23 +54,16 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsReque
  * same tests easily.
  */
 abstract class InProcessKingdomIntegrationTestBase {
-  /** Provides a [KingdomRelationalDatabase] and a [DatabaseTestHelper] to the test. */
-  abstract val kingdomDatabasesRule:
-    ProviderRule<Pair<KingdomRelationalDatabase, DatabaseTestHelper>>
+  /** Provides database wrappers to the test. */
+  abstract val kingdomDatabasesRule: ProviderRule<InProcessKingdom.Databases>
 
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
-    get() = kingdomDatabasesRule.value.first
-
-  private val databaseTestHelper: DatabaseTestHelper
-    get() = kingdomDatabasesRule.value.second
-
-  private var duchyId: String = "some-duchy"
+  private val kingdomDatabases: InProcessKingdom.Databases
+    get() = kingdomDatabasesRule.value
 
   private val kingdom =
-    InProcessKingdom(
-      kingdomRelationalDatabaseProvider = { kingdomRelationalDatabase },
-      databaseTestHelperProvider = { databaseTestHelper }
-    )
+    InProcessKingdom(verboseGrpcLogging = true, databasesProvider = { kingdomDatabases })
+
+  private var duchyId: String = "some-duchy"
 
   private val globalComputations = mutableListOf<GlobalComputation>()
   private val globalComputationsMutex = Mutex()
@@ -119,7 +110,7 @@ abstract class InProcessKingdomIntegrationTestBase {
 
   @Test
   fun `entire computation`() = runBlocking {
-    val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
+    val (dataProviders, campaigns) = kingdom.populateDatabases()
     val (externalDataProviderId1, externalDataProviderId2) = dataProviders
     val (externalCampaignId1, externalCampaignId2, externalCampaignId3) = campaigns
     logger.info("Database is populated")
