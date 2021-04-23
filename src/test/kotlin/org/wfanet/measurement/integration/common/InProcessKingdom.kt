@@ -54,7 +54,9 @@ import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
 import org.wfanet.measurement.kingdom.daemon.runReportMaker
 import org.wfanet.measurement.kingdom.daemon.runReportStarter
 import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
+import org.wfanet.measurement.kingdom.db.ReportDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
@@ -64,24 +66,28 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService 
 /**
  * TestRule that starts and stops all Kingdom gRPC services and daemons.
  *
- * @param kingdomRelationalDatabaseProvider called exactly once to produce KingdomRelationalDatabase
+ * @param verboseGrpcLogging whether to log all gRPCs
+ * @param databasesProvider called once to get the Kingdom's database wrappers
  */
-class InProcessKingdom(
-  verboseGrpcLogging: Boolean = true,
-  kingdomRelationalDatabaseProvider: () -> KingdomRelationalDatabase,
-  databaseTestHelperProvider: () -> DatabaseTestHelper
-) : TestRule {
-  private val kingdomRelationalDatabase by lazy { kingdomRelationalDatabaseProvider() }
-  private val databaseTestHelper by lazy { databaseTestHelperProvider() }
+class InProcessKingdom(verboseGrpcLogging: Boolean = true, databasesProvider: () -> Databases) :
+  TestRule {
+  data class Databases(
+    val legacySchedulingDatabase: LegacySchedulingDatabase,
+    val reportDatabase: ReportDatabase,
+    val requisitionDatabase: RequisitionDatabase,
+    val databaseTestHelper: DatabaseTestHelper
+  )
+
+  private val databases by lazy { databasesProvider() }
 
   private val databaseServices =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal services")
       val services =
         buildDataServices(
-          kingdomRelationalDatabase,
-          kingdomRelationalDatabase,
-          kingdomRelationalDatabase
+          databases.legacySchedulingDatabase,
+          databases.reportDatabase,
+          databases.requisitionDatabase
         )
       for (service in services) {
         addService(service.withVerboseLogging(verboseGrpcLogging))
@@ -165,9 +171,11 @@ class InProcessKingdom(
 
   /**
    * Adds an Advertiser, two DataProviders, two Campaigns, a ReportConfig, and a
-   * ReportConfigSchedule to [kingdomRelationalDatabase].
+   * ReportConfigSchedule to the database.
    */
-  fun populateKingdomRelationalDatabase(): SetupIdentifiers = runBlocking {
+  fun populateDatabases(): SetupIdentifiers = runBlocking {
+    val databaseTestHelper = databases.databaseTestHelper
+
     val advertiser = databaseTestHelper.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
 

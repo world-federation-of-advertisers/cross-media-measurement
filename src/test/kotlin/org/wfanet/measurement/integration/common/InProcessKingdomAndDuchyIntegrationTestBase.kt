@@ -29,9 +29,7 @@ import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.integration.common.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
-import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 
 /**
  * Test that everything is wired up properly.
@@ -40,25 +38,17 @@ import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
  * easily.
  */
 abstract class InProcessKingdomAndDuchyIntegrationTestBase {
-  /** Provides a [KingdomRelationalDatabase] and a [DatabaseTestHelper] to the test. */
-  abstract val kingdomDatabasesRule:
-    ProviderRule<Pair<KingdomRelationalDatabase, DatabaseTestHelper>>
+  /** Provides database wrappers to the test. */
+  abstract val kingdomDatabasesRule: ProviderRule<InProcessKingdom.Databases>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
   abstract val duchyDependenciesRule: ProviderRule<(String) -> DuchyDependencies>
 
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase
-    get() = kingdomDatabasesRule.value.first
-
-  private val databaseTestHelper: DatabaseTestHelper
-    get() = kingdomDatabasesRule.value.second
+  private val kingdomDatabases: InProcessKingdom.Databases
+    get() = kingdomDatabasesRule.value
 
   private val kingdom =
-    InProcessKingdom(
-      verboseGrpcLogging = true,
-      kingdomRelationalDatabaseProvider = { kingdomRelationalDatabase },
-      databaseTestHelperProvider = { databaseTestHelper }
-    )
+    InProcessKingdom(verboseGrpcLogging = true, databasesProvider = { kingdomDatabases })
 
   private val duchies: List<InProcessDuchy> by lazy {
     DUCHY_PUBLIC_KEYS.latest.map { duchy ->
@@ -88,7 +78,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
 
   @Test
   fun `LiquidLegionV2 computation, 1 requisition per duchy`() = runBlocking {
-    val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
+    val (dataProviders, campaigns) = kingdom.populateDatabases()
 
     logger.info("Starting first data provider")
     dataProviderRule.startDataProviderForCampaign(
@@ -114,7 +104,8 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     // Now wait until the computation is done.
     val doneReport: Report =
       pollFor(timeoutMillis = 300_000) {
-        kingdomRelationalDatabase
+        kingdomDatabases
+          .reportDatabase
           .streamReports(
             filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
             limit = 1
@@ -145,7 +136,7 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
 
   @Test
   fun `LiquidLegionV2 computation, all requisitions at the same duchy`() = runBlocking {
-    val (dataProviders, campaigns) = kingdom.populateKingdomRelationalDatabase()
+    val (dataProviders, campaigns) = kingdom.populateDatabases()
 
     logger.info("Starting first data provider")
     dataProviderRule.startDataProviderForCampaign(
@@ -171,7 +162,8 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     // Now wait until the computation is done.
     val doneReport: Report =
       pollFor(timeoutMillis = 300_000) {
-        kingdomRelationalDatabase
+        kingdomDatabases
+          .reportDatabase
           .streamReports(
             filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
             limit = 1
