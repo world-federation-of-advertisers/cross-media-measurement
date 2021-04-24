@@ -20,6 +20,7 @@ import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/duchy.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
+import "wfa/measurement/api/v2alpha/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -51,13 +52,17 @@ message Requisition {
   // Immutable.
   SignedData measurement_spec = 4;
 
+  // Denormalized `protocol_config` field from `measurement`. Required.
+  // Immutable.
+  ProtocolConfig.Key protocol_config = 5;
+
   // Denormalized `data_provider_public_key` field from the corresponding
   // `DataProviderEntry` in `measurement`.  Required. Immutable.
-  SignedData data_provider_public_key = 5;
+  SignedData data_provider_public_key = 6;
 
   // Denormalized `encrypted_requisition_spec` field from the corresponding
   // `DataProviderEntry` in `measurement`.  Required. Immutable.
-  bytes encrypted_requisition_spec = 6;
+  bytes encrypted_requisition_spec = 7;
 
   message DuchyEntry {
     // Resource key of the `Duchy` that this entry is for. Required. Immutable.
@@ -73,7 +78,7 @@ message Requisition {
   }
   // The  entry for each `Duchy`. This can be logically represented as a map
   // uniquely keyed by `Duchy.Key`. Required. Immutable.
-  repeated DuchyEntry duchy_entries = 7;
+  repeated DuchyEntry duchy_entries = 8;
 
   // State of a `Requisition`.
   enum State {
@@ -88,7 +93,7 @@ message Requisition {
     UNFULFILLABLE = 3;
   }
   // The state of this `Requisition`.
-  State state = 8;
+  State state = 9;
 
   message Refusal {
     enum Justification {
@@ -134,6 +139,6 @@ message Requisition {
   }
   // Details on why the requisition is in the `UNFULFILLABLE` state.
   oneof unfulfillable_details {
-    Refusal refusal = 9;
+    Refusal refusal = 10;
   }
 }

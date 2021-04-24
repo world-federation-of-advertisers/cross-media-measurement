@@ -19,7 +19,7 @@ package wfa.measurement.api.v2alpha;
 import "wfa/measurement/api/v2alpha/crypto.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
-import "wfa/measurement/api/v2alpha/sketch.proto";
+import "wfa/measurement/api/v2alpha/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -99,6 +99,10 @@ message Measurement {
   // Immutable.
   repeated DataProviderEntry data_provider_entries = 6;
 
+  // Resource key of the well-known `ProtocolConfig` selected for
+  // `measurement_spec`. Output-only. Immutable.
+  ProtocolConfig.Key protocol_config = 7;
+
   enum State {
     STATE_UNSPECIFIED = 0;
     // Waiting for all linked `Requisition`s to be fulfilled.
@@ -155,23 +159,4 @@ message Measurement {
   // `Measurement` to aid in filtering and identifying later on.
   // Do not put sensitive data in this field.
   map<string, string> tags = 12;
-}
-
-// Specification for a `Measurement`. Immutable.
-message MeasurementSpec {
-  // Serialized `EncryptionPublicKey` for the `Measurement` that this
-  // `MeasurementSpec` is associated with. Required.
-  bytes measurement_public_key = 1;
-
-  message EncryptedSketch {
-    // Resource key of the sketch configuration. Required.
-    SketchConfig.Key sketch_config = 1;
-  }
-
-  // What data the requisition is for, i.e. what data is being requisitioned.
-  // Required.
-  oneof for {
-    // The data being requisitioned is an encrypted sketch.
-    EncryptedSketch encrypted_sketch = 2;
-  }
 }

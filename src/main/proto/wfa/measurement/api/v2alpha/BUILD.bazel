@@ -1,4 +1,3 @@
-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -9,22 +8,6 @@ proto_library(
     name = "encrypted_sketch_proto",
     srcs = ["encrypted_sketch.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-)
-
-cc_proto_library(
-    name = "encrypted_sketch_cc_proto",
-    deps = [":encrypted_sketch_proto"],
-)
-
-proto_library(
-    name = "sketch_proto",
-    srcs = ["sketch.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-cc_proto_library(
-    name = "sketch_cc_proto",
-    deps = [":sketch_proto"],
 )
 
 proto_library(
@@ -53,6 +36,7 @@ proto_library(
         ":duchy_proto",
         ":measurement_consumer_proto",
         ":measurement_proto",
+        ":protocol_config_proto",
     ],
 )
 
@@ -86,6 +70,30 @@ proto_library(
         ":account_proto",
         ":crypto_proto",
         ":measurement_consumer_proto",
+    ],
+)
+
+proto_library(
+    name = "differential_privacy_proto",
+    srcs = ["differential_privacy.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
+    name = "measurement_spec_proto",
+    srcs = ["measurement_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":differential_privacy_proto",
+    ],
+)
+
+proto_library(
+    name = "protocol_config_proto",
+    srcs = ["protocol_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":differential_privacy_proto",
     ],
 )
 
@@ -156,10 +164,10 @@ proto_library(
 )
 
 proto_library(
-    name = "sketch_configs_service_proto",
-    srcs = ["sketch_configs_service.proto"],
+    name = "protocol_configs_service_proto",
+    srcs = ["protocol_configs_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":sketch_proto"],
+    deps = [":protocol_config_proto"],
 )
 
 proto_library(
@@ -170,7 +178,7 @@ proto_library(
         ":crypto_proto",
         ":data_provider_proto",
         ":measurement_consumer_proto",
-        ":sketch_proto",
+        ":protocol_config_proto",
     ],
 )
 
