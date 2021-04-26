@@ -161,7 +161,6 @@ class ExchangeStepAttemptsServiceTest {
               externalRecurringExchangeId = RECURRING_EXCHANGE_ID
               date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
               stepIndex = STEP_INDEX
-              attemptNumber = 1
               state = InternalExchangeStepAttempt.State.ACTIVE
             }
           }
@@ -177,6 +176,7 @@ class ExchangeStepAttemptsServiceTest {
           exchangeStepAttemptBuilder.apply {
             key = EXCHANGE_STEP_ATTEMPT.key
             state = ExchangeStepAttempt.State.FAILED
+            attemptNumber = 12345
             addSharedOutputs(ByteString.copyFromUtf8("some-shared-output"))
             addAllDebugLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
           }
@@ -195,7 +195,6 @@ class ExchangeStepAttemptsServiceTest {
               externalRecurringExchangeId = RECURRING_EXCHANGE_ID
               date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
               stepIndex = STEP_INDEX
-              attemptNumber = 1
               state = InternalExchangeStepAttempt.State.ACTIVE
               detailsBuilder.addAllDebugLogEntries(
                 INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList

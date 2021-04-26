@@ -64,7 +64,7 @@ class ExchangeStepAttemptsService(
         .exchangeStepAttempt
         .toBuilder()
         .apply {
-          attemptNumber = 1
+          clearAttemptNumber()
           state = ExchangeStepAttempt.State.ACTIVE
           clearSharedOutputs()
           clearStartTime()
