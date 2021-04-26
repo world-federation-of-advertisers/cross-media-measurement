@@ -18,13 +18,13 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.kingdom.db.testing.AbstractDatabasesTest
-import org.wfanet.measurement.kingdom.db.testing.Databases
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabasesProviderRule
 
 @RunWith(JUnit4::class)
 class SpannerDatabasesTest : AbstractDatabasesTest() {
   @get:Rule val spannerDatabasesProviderRule = KingdomDatabasesProviderRule()
 
-  override val databases: Databases
+  override val databases: KingdomDatabases
     get() = spannerDatabasesProviderRule.value
 }

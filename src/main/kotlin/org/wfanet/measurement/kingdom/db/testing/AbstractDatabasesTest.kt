@@ -64,8 +64,8 @@ val REFUSAL: Refusal =
 /** Abstract base class for testing Kingdom database wrappers. */
 @RunWith(JUnit4::class)
 abstract class AbstractDatabasesTest {
-  /** [Databases] instance to test. */
-  abstract val databases: Databases
+  /** [KingdomDatabases] instance to test. */
+  abstract val databases: KingdomDatabases
 
   protected suspend fun buildRequisitionWithParents(): RequisitionWithParents {
     val advertiser = databases.databaseTestHelper.createAdvertiser()

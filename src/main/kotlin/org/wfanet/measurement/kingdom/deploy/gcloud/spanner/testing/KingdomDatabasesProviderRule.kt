@@ -21,9 +21,9 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.kingdom.db.testing.Databases
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 
-class KingdomDatabasesProviderRule : ProviderRule<Databases> {
+class KingdomDatabasesProviderRule : ProviderRule<KingdomDatabases> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock)

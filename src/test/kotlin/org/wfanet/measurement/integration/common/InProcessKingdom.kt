@@ -54,7 +54,7 @@ import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
 import org.wfanet.measurement.kingdom.daemon.runReportMaker
 import org.wfanet.measurement.kingdom.daemon.runReportStarter
 import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
-import org.wfanet.measurement.kingdom.db.testing.Databases
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
@@ -66,8 +66,10 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService 
  * @param verboseGrpcLogging whether to log all gRPCs
  * @param databasesProvider called once to get the Kingdom's database wrappers
  */
-class InProcessKingdom(verboseGrpcLogging: Boolean = true, databasesProvider: () -> Databases) :
-  TestRule {
+class InProcessKingdom(
+  verboseGrpcLogging: Boolean = true,
+  databasesProvider: () -> KingdomDatabases
+) : TestRule {
   private val databases by lazy { databasesProvider() }
 
   private val databaseServices =

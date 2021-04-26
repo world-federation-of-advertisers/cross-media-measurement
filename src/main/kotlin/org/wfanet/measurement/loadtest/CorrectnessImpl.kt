@@ -68,7 +68,7 @@ import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
-import org.wfanet.measurement.kingdom.db.testing.Databases
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
@@ -94,7 +94,7 @@ class CorrectnessImpl(
   /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
   private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
-  suspend fun process(kingdomDatabases: Databases) {
+  suspend fun process(kingdomDatabases: KingdomDatabases) {
     logger.info("Starting with RunID: $runId ...")
     val testResult = TestResult.newBuilder().setRunId(runId)
 
