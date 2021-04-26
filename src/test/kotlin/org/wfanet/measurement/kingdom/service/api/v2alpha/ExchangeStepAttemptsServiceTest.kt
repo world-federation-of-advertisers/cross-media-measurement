@@ -21,7 +21,6 @@ import com.google.type.Date
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -36,8 +35,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.CreateExchangeStepAttemptRequest as InternalCreateExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 
 private const val RECURRING_EXCHANGE_ID = 1L
@@ -105,57 +105,106 @@ private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
 @RunWith(JUnit4::class)
 class ExchangeStepAttemptsServiceTest {
 
-  private val mockInternalExchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val internalService: InternalExchangeStepAttempts =
+    mock(useConstructor = UseConstructor.parameterless()) {
+      onBlocking { appendLogEntry(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+      onBlocking { createExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+    }
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(mockInternalExchangeStepAttemptsService)
-  }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
 
   private val service =
     ExchangeStepAttemptsService(ExchangeStepAttemptsCoroutineStub(grpcTestServerRule.channel))
 
   @Test
-  fun appendLogEntry() =
-    runBlocking<Unit> {
-      whenever(mockInternalExchangeStepAttemptsService.appendLogEntry(any()))
-        .thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+  fun appendLogEntry() {
+    val request =
+      AppendLogEntryRequest.newBuilder()
+        .apply {
+          key = EXCHANGE_STEP_ATTEMPT.key
+          addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
+        }
+        .build()
 
-      val request =
-        AppendLogEntryRequest.newBuilder()
+    assertThat(runBlocking { service.appendLogEntry(request) }).isEqualTo(EXCHANGE_STEP_ATTEMPT)
+
+    verifyProtoArgument(internalService, InternalExchangeStepAttempts::appendLogEntry)
+      .isEqualTo(
+        InternalAppendLogEntryRequest.newBuilder()
           .apply {
-            key = EXCHANGE_STEP_ATTEMPT.key
-            addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
+            externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+            date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
+            stepIndex = STEP_INDEX
+            attemptNumber = ATTEMPT_NUMBER
+            addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
           }
           .build()
+      )
+  }
 
-      assertThat(service.appendLogEntry(request)).isEqualTo(EXCHANGE_STEP_ATTEMPT)
+  @Test
+  fun `createExchangeStepAttempt with minimal request`() {
+    val request =
+      CreateExchangeStepAttemptRequest.newBuilder()
+        .apply { exchangeStepAttemptBuilder.apply { key = EXCHANGE_STEP_ATTEMPT.key } }
+        .build()
 
-      verifyProtoArgument(
-          mockInternalExchangeStepAttemptsService,
-          ExchangeStepAttemptsCoroutineImplBase::appendLogEntry
-        )
-        .isEqualTo(
-          InternalAppendLogEntryRequest.newBuilder()
-            .apply {
+    assertThat(runBlocking { service.createExchangeStepAttempt(request) })
+      .isEqualTo(EXCHANGE_STEP_ATTEMPT)
+
+    verifyProtoArgument(internalService, InternalExchangeStepAttempts::createExchangeStepAttempt)
+      .ignoringFieldAbsence()
+      .isEqualTo(
+        InternalCreateExchangeStepAttemptRequest.newBuilder()
+          .apply {
+            exchangeStepAttemptBuilder.apply {
               externalRecurringExchangeId = RECURRING_EXCHANGE_ID
               date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
               stepIndex = STEP_INDEX
-              attemptNumber = ATTEMPT_NUMBER
-              addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
+              attemptNumber = 1
+              state = InternalExchangeStepAttempt.State.ACTIVE
             }
-            .build()
-        )
-    }
+          }
+          .build()
+      )
+  }
 
   @Test
-  fun createExchangeStepAttempt() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
-        service.createExchangeStepAttempt(CreateExchangeStepAttemptRequest.getDefaultInstance())
-      }
-    }
+  fun `createExchangeStepAttempt with extra fields set`() {
+    val request =
+      CreateExchangeStepAttemptRequest.newBuilder()
+        .apply {
+          exchangeStepAttemptBuilder.apply {
+            key = EXCHANGE_STEP_ATTEMPT.key
+            state = ExchangeStepAttempt.State.FAILED
+            addSharedOutputs(ByteString.copyFromUtf8("some-shared-output"))
+            addAllDebugLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
+          }
+        }
+        .build()
+
+    assertThat(runBlocking { service.createExchangeStepAttempt(request) })
+      .isEqualTo(EXCHANGE_STEP_ATTEMPT)
+
+    verifyProtoArgument(internalService, InternalExchangeStepAttempts::createExchangeStepAttempt)
+      .ignoringFieldAbsence()
+      .isEqualTo(
+        InternalCreateExchangeStepAttemptRequest.newBuilder()
+          .apply {
+            exchangeStepAttemptBuilder.apply {
+              externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+              date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
+              stepIndex = STEP_INDEX
+              attemptNumber = 1
+              state = InternalExchangeStepAttempt.State.ACTIVE
+              detailsBuilder.addAllDebugLogEntries(
+                INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList
+              )
+            }
+          }
+          .build()
+      )
+  }
 
   @Test
   fun finishExchangeStepAttempt() =

@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.CreateExchangeStepAttemptRequest as InternalCreateExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
@@ -58,7 +59,25 @@ class ExchangeStepAttemptsService(
   override suspend fun createExchangeStepAttempt(
     request: CreateExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
-    TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
+    val sanitizedExchangeStepAttempt =
+      request
+        .exchangeStepAttempt
+        .toBuilder()
+        .apply {
+          attemptNumber = 1
+          state = ExchangeStepAttempt.State.ACTIVE
+          clearSharedOutputs()
+          clearStartTime()
+          clearUpdateTime()
+        }
+        .build()
+
+    val internalRequest =
+      InternalCreateExchangeStepAttemptRequest.newBuilder()
+        .setExchangeStepAttempt(sanitizedExchangeStepAttempt.toInternal())
+        .build()
+    val response = internalExchangeStepAttempts.createExchangeStepAttempt(internalRequest)
+    return response.toV2Alpha()
   }
 
   override suspend fun finishExchangeStepAttempt(
@@ -105,6 +124,16 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
   }
 }
 
+private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
+  return when (this) {
+    ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
+      failGrpc { "Invalid State: $this" }
+    ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
+    ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
+    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
+  }
+}
+
 private fun InternalExchangeStepAttempt.toV2AlphaKey(): ExchangeStepAttempt.Key {
   return ExchangeStepAttempt.Key.newBuilder()
     .apply {
@@ -121,6 +150,39 @@ private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt
     .also {
       it.time = time
       it.message = message
+    }
+    .build()
+}
+
+private fun ExchangeStepAttempt.DebugLog.toInternal(): ExchangeStepAttemptDetails.DebugLog {
+  return ExchangeStepAttemptDetails.DebugLog.newBuilder()
+    .also {
+      it.time = time
+      it.message = message
+    }
+    .build()
+}
+
+private fun ExchangeStepAttempt.toInternal(): InternalExchangeStepAttempt {
+  return InternalExchangeStepAttempt.newBuilder()
+    .also { builder ->
+      builder.externalRecurringExchangeId = apiIdToExternalId(key.recurringExchangeId)
+      builder.date = LocalDate.parse(key.exchangeId).toProtoDate()
+      builder.stepIndex = apiIdToExternalId(key.stepId).toInt()
+      builder.attemptNumber = attemptNumber
+      builder.state = state.toInternal()
+      builder.details = toInternalDetails()
+    }
+    .build()
+}
+
+private fun ExchangeStepAttempt.toInternalDetails(): ExchangeStepAttemptDetails {
+  return ExchangeStepAttemptDetails.newBuilder()
+    .also { builder ->
+      builder.addAllDebugLogEntries(debugLogEntriesList.map { it.toInternal() })
+      builder.addAllSharedOutputs(sharedOutputsList)
+      builder.startTime = startTime
+      builder.updateTime = updateTime
     }
     .build()
 }
