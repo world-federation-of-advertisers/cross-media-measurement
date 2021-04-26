@@ -1,0 +1,145 @@
+# proto-file: src/main/proto/wfa/measurement/api/v2alpha/exchange_workflow.proto
+# proto-message: ExchangeWorkflow
+
+################################################################################
+# This is an example protocol for a Panel Match exchange.                      #
+#                                                                              #
+# * For details on each field, see the ExchangeWorkflow message definition.    #
+# * Each step is run on hardware controlled by the `party` given in each step. #
+################################################################################
+
+
+# Get the MP's private key as input.
+steps {
+  step_id: "mp-input-commutative-deterministic-key"
+  party: MODEL_PROVIDER
+
+  input {}
+
+  output_labels { key: "input" value: "mp-commutative-deterministic-key" }
+}
+
+# Get the MP's unencrypted joinkeys as input.
+steps {
+  step_id: "mp-input-raw-joinkeys"
+  party: MODEL_PROVIDER
+
+  input {}
+
+  output_labels { key: "input" value: "raw-joinkeys" }
+}
+
+# Get the EDP's private key as input.
+steps {
+  step_id: "edp-input-commutative-deterministic-key"
+  party: DATA_PROVIDER
+
+  input {}
+
+  output_labels { key: "input" value: "edp-commutative-deterministic-key" }
+}
+
+# Get the EDP's event data as input.
+steps {
+  step_id: "edp-input-event-data"
+  party: DATA_PROVIDER
+
+  input {}
+
+  output_labels { key: "input" value: "event-data" }
+}
+
+# Get the previous protocol execution's blinded joinkeys as input.
+#
+# These are used to validate that the new single-blinded joinkeys derived in
+# this protocol don't deviate too much.
+steps {
+  step_id: "edp-input-previous-single-blinded-joinkeys"
+  party: DATA_PROVIDER
+
+  input {}
+
+  output_labels { key: "input" value: "previous-single-blinded-joinkeys" }
+}
+
+# MP wraps their panelist identifiers in a layer of deterministic commutative
+# encryption.
+steps {
+  step_id: "single-blind"
+  party: MODEL_PROVIDER
+
+  encrypt_and_share {
+    input_format: PLAINTEXT
+  }
+
+  input_labels { key: "data" value: "raw-joinkeys" }
+  input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
+
+  output_labels { key: "output" value: "single-blinded-joinkeys" }
+}
+
+# EDP validates that the single-encrypted panelist identifiers are sufficiently
+# similar to the previous execution's single-encrypted panelist identifiers.
+steps {
+  step_id: "validate-single-blinded-joinkeys"
+  party: DATA_PROVIDER
+
+  # Ensure there are at most 10,000 panelists and 99% of them appeared in the
+  # previous protocol.
+  intersect_and_validate {
+    max_size: 10000
+    minimum_overlap: 0.99
+  }
+
+  input_labels { key: "current-data" value: "single-blinded-joinkeys" }
+  input_labels {
+    key: "previous-data"
+    value: "previous-single-blinded-joinkeys"
+  }
+
+  # Outputs "current-data" as a local copy for long-term auditing storage.
+  output_labels { key: "output" value: "single-blinded-joinkeys-edp-copy" }
+}
+
+# EDP wraps the single-encrypted panelist identifiers in another layer of
+# commutative deterministic encryption.
+steps {
+  step_id: "double-blind"
+  party: DATA_PROVIDER
+
+  encrypt_and_share {
+    input_format: CIPHERTEXT
+  }
+
+  input_labels { key: "data" value: "single-blinded-joinkeys-edp-copy" }
+  input_labels { key: "crypto-key" value: "edp-commutative-deterministic-key" }
+
+  output_labels { key: "output" value: "double-blinded-joinkeys" }
+}
+
+# MP removes their layer of commutative, deterministic encryption.
+steps {
+  step_id: "prepare-lookup-keys"
+  party: MODEL_PROVIDER
+
+  decrypt {}
+
+  input_labels { key: "data" value: "double-blinded-joinkeys" }
+  input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
+
+  output_labels { key: "output" value: "lookup-keys" }
+}
+
+# MP performs the lookup to get event-level data.
+steps {
+  step_id: "lookup"
+  party: MODEL_PROVIDER
+
+  table_query {}
+
+  input_labels { key: "table" value: "event-data" }
+  input_labels { key: "keys" value: "lookup-keys" }
+
+  output_labels { key: "output" value: "encrypted-results" }
+}
+
