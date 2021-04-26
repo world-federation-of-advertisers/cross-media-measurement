@@ -198,24 +198,6 @@ load(
 
 java_image_repositories()
 
-# gflags
-# Needed for glog
-http_archive(
-    name = "com_github_gflags_gflags",
-    sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
-    strip_prefix = "gflags-2.2.2",
-    urls = ["https://github.com/gflags/gflags/archive/v2.2.2.tar.gz"],
-)
-
-# glog
-# Needed for private-join-and-compute
-http_archive(
-    name = "com_github_glog_glog",
-    sha256 = "f28359aeba12f30d73d9e4711ef356dc842886968112162bc73002645139c39c",
-    strip_prefix = "glog-0.4.0",
-    urls = ["https://github.com/google/glog/archive/v0.4.0.tar.gz"],
-)
-
 # gRPC
 http_archive(
     name = "com_github_grpc_grpc",
@@ -232,13 +214,11 @@ load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 
 grpc_extra_deps()
 
-http_archive(
-    name = "com_google_private_join_and_compute",
+load("//build/com_google_private_join_and_compute:repo.bzl", "private_join_and_compute_repo")
+
+private_join_and_compute_repo(
+    commit = "89c8d0aae070b9c282043af419e47d7ef897f460",
     sha256 = "13e0414220a2709b0dbeefafe5a4d1b3f3261a541d0405c844857521d5f25f32",
-    strip_prefix = "private-join-and-compute-89c8d0aae070b9c282043af419e47d7ef897f460",
-    urls = [
-        "https://github.com/google/private-join-and-compute/archive/89c8d0aae070b9c282043af419e47d7ef897f460.zip",
-    ],
 )
 
 # @cloud_spanner_emulator
