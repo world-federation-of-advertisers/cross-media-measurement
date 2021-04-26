@@ -165,8 +165,8 @@ load("//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
 rules_docker_repo(
     name = "io_bazel_rules_docker",
-    commit = "7da0de3d094aae5601c45ae0855b64fb2771cd72",
-    sha256 = "c15ef66698f5d2122a3e875c327d9ecd34a231a9dc4753b9500e70518464cc21",
+    commit = "f929d80c5a4363994968248d87a892b1c2ef61d4",
+    sha256 = "efda18e39a63ee3c1b187b1349f61c48c31322bf84227d319b5dece994380bb6",
 )
 
 load(
