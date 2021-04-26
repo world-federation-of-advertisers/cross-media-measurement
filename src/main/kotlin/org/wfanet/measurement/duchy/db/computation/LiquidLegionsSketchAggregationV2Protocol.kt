@@ -26,11 +26,13 @@ import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CO
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 
@@ -57,6 +59,8 @@ object LiquidLegionsSketchAggregationV2Protocol {
 
     override val validSuccessors =
       mapOf(
+        INITIALIZATION_PHASE to setOf(WAIT_REQUISITIONS_AND_KEY_SET),
+        WAIT_REQUISITIONS_AND_KEY_SET to setOf(CONFIRM_REQUISITIONS_PHASE),
         CONFIRM_REQUISITIONS_PHASE to setOf(WAIT_TO_START, WAIT_SETUP_PHASE_INPUTS),
         WAIT_TO_START to setOf(SETUP_PHASE),
         WAIT_SETUP_PHASE_INPUTS to setOf(SETUP_PHASE),
@@ -79,7 +83,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
       return LiquidLegionsSketchAggregationV2.Stage.forNumber(value.toInt()) ?: UNRECOGNIZED
     }
 
-    /** Translates [LiquidLegionsSketchAggregationV2.Stage]s into [ComputationStageDetails]. */
+    /** Translates [LiquidLegionsSketchAggregationV2.Stage] s into [ComputationStageDetails]. */
     class Details(val otherDuchies: List<String>) :
       ProtocolStageDetails<
         LiquidLegionsSketchAggregationV2.Stage,
@@ -102,10 +106,12 @@ object LiquidLegionsSketchAggregationV2Protocol {
       ): AfterTransition {
         return when (stage) {
           // Stages of computation mapping some number of inputs to single output.
+          CONFIRM_REQUISITIONS_PHASE,
           SETUP_PHASE,
           EXECUTION_PHASE_ONE,
           EXECUTION_PHASE_TWO,
           EXECUTION_PHASE_THREE -> AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+          WAIT_REQUISITIONS_AND_KEY_SET,
           WAIT_TO_START,
           WAIT_SETUP_PHASE_INPUTS,
           WAIT_EXECUTION_PHASE_ONE_INPUTS,
@@ -115,15 +121,13 @@ object LiquidLegionsSketchAggregationV2Protocol {
           // Stages that we can't transition to ever.
           UNRECOGNIZED,
           LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
-          CONFIRM_REQUISITIONS_PHASE -> error("Cannot make transition function to stage $stage")
+          INITIALIZATION_PHASE -> error("Cannot make transition function to stage $stage")
         }
       }
 
       override fun outputBlobNumbersForStage(stage: LiquidLegionsSketchAggregationV2.Stage): Int {
         return when (stage) {
-          WAIT_TO_START ->
-            // There is no output in this stage, the input is forwarded to the next stage as input.
-            0
+          WAIT_REQUISITIONS_AND_KEY_SET, CONFIRM_REQUISITIONS_PHASE, WAIT_TO_START -> 0
           WAIT_EXECUTION_PHASE_ONE_INPUTS,
           WAIT_EXECUTION_PHASE_TWO_INPUTS,
           WAIT_EXECUTION_PHASE_THREE_INPUTS,
@@ -142,7 +146,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
           // Stages that we can't transition to ever.
           UNRECOGNIZED,
           LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
-          CONFIRM_REQUISITIONS_PHASE -> error("Cannot make transition function to stage $stage")
+          INITIALIZATION_PHASE -> error("Cannot make transition function to stage $stage")
         }
       }
 
@@ -192,7 +196,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
       EnumStages.longToEnum(value).toProtocolStage()
 
     /**
-     * Translates [LiquidLegionsSketchAggregationV2.Stage]s wrapped in a [ComputationStage] into
+     * Translates [LiquidLegionsSketchAggregationV2.Stage] s wrapped in a [ComputationStage] into
      * [ComputationStageDetails].
      */
     class Details(otherDuchies: List<String>) :

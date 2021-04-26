@@ -23,6 +23,7 @@ proto_library(
     deps = [
         ":requisition",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+        "@any_sketch//src/main/proto/wfa/common:el_gamal_key_proto",
     ],
 )
 
