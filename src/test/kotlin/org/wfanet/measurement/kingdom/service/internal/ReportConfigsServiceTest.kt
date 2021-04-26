@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
 import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 
 private const val EXTERNAL_REPORT_CONFIG_ID = 1L
 
@@ -52,13 +52,13 @@ private val REQUISITION_TEMPLATE2: RequisitionTemplate =
 @RunWith(JUnit4::class)
 class ReportConfigsServiceTest {
 
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase =
+  private val legacySchedulingDatabase: LegacySchedulingDatabase =
     mock() {
       on { listRequisitionTemplates(any()) }
         .thenReturn(flowOf(REQUISITION_TEMPLATE1, REQUISITION_TEMPLATE2))
     }
 
-  private val service = ReportConfigsService(kingdomRelationalDatabase)
+  private val service = ReportConfigsService(legacySchedulingDatabase)
 
   @Test
   fun listRequisitionTemplates() =
@@ -78,7 +78,7 @@ class ReportConfigsServiceTest {
         .ignoringRepeatedFieldOrder()
         .isEqualTo(expectedResponse)
 
-      verify(kingdomRelationalDatabase)
+      verify(legacySchedulingDatabase)
         .listRequisitionTemplates(ExternalId(EXTERNAL_REPORT_CONFIG_ID))
     }
 }

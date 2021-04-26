@@ -26,17 +26,17 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 
 private val SCHEDULE1 = ReportConfigSchedule.newBuilder().setExternalScheduleId(1).build()
 private val SCHEDULE2 = ReportConfigSchedule.newBuilder().setExternalScheduleId(2).build()
 
 @RunWith(JUnit4::class)
 class ReportConfigSchedulesServiceTest {
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase =
+  private val legacySchedulingDatabase: LegacySchedulingDatabase =
     mock() { on { streamReadySchedules(any()) }.thenReturn(flowOf(SCHEDULE1, SCHEDULE2)) }
 
-  private val service = ReportConfigSchedulesService(kingdomRelationalDatabase)
+  private val service = ReportConfigSchedulesService(legacySchedulingDatabase)
 
   @Test
   fun streamReadySchedules() =
@@ -47,6 +47,6 @@ class ReportConfigSchedulesServiceTest {
       assertThat(service.streamReadyReportConfigSchedules(request).toList())
         .containsExactly(SCHEDULE1, SCHEDULE2)
 
-      verify(kingdomRelationalDatabase).streamReadySchedules(limit)
+      verify(legacySchedulingDatabase).streamReadySchedules(limit)
     }
 }

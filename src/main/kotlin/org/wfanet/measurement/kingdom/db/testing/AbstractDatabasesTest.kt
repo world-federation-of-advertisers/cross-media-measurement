@@ -38,7 +38,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails.Refusal
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 
 const val DUCHY_ID = "duchy-1"
 const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
@@ -62,18 +61,17 @@ val REFUSAL: Refusal =
     }
     .build()
 
-/** Abstract base class for [KingdomRelationalDatabase] tests. */
+/** Abstract base class for testing Kingdom database wrappers. */
 @RunWith(JUnit4::class)
-abstract class AbstractKingdomRelationalDatabaseTest {
-  /** [KingdomRelationalDatabase] instance. */
-  abstract val database: KingdomRelationalDatabase
-  abstract val databaseTestHelper: DatabaseTestHelper
+abstract class AbstractDatabasesTest {
+  /** [Databases] instance to test. */
+  abstract val databases: Databases
 
   protected suspend fun buildRequisitionWithParents(): RequisitionWithParents {
-    val advertiser = databaseTestHelper.createAdvertiser()
-    val dataProvider = databaseTestHelper.createDataProvider()
+    val advertiser = databases.databaseTestHelper.createAdvertiser()
+    val dataProvider = databases.databaseTestHelper.createDataProvider()
     val campaign =
-      databaseTestHelper.createCampaign(
+      databases.databaseTestHelper.createCampaign(
         ExternalId(dataProvider.externalDataProviderId),
         ExternalId(advertiser.externalAdvertiserId),
         PROVIDED_CAMPAIGN_ID
@@ -102,7 +100,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
 
   protected suspend fun createRequisitionWithParents(): RequisitionWithParents {
     val input = buildRequisitionWithParents()
-    val requisition = database.createRequisition(input.requisition)
+    val requisition = databases.requisitionDatabase.createRequisition(input.requisition)
     return RequisitionWithParents(input.advertiser, input.dataProvider, input.campaign, requisition)
   }
 
@@ -111,7 +109,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     vararg campaignIds: ExternalId
   ): Report {
     val reportConfig =
-      databaseTestHelper.createReportConfig(
+      databases.databaseTestHelper.createReportConfig(
         ReportConfig.newBuilder()
           .apply {
             externalAdvertiserId = advertiserId.value
@@ -127,7 +125,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
         campaignIds.asList()
       )
     val schedule =
-      databaseTestHelper.createSchedule(
+      databases.databaseTestHelper.createSchedule(
         ReportConfigSchedule.newBuilder()
           .apply {
             externalAdvertiserId = reportConfig.externalAdvertiserId
@@ -139,7 +137,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
           }
           .build()
       )
-    return database.createNextReport(
+    return databases.reportDatabase.createNextReport(
       ExternalId(schedule.externalScheduleId),
       COMBINED_PUBLIC_KEY_RESOURCE_ID
     )
@@ -149,7 +147,7 @@ abstract class AbstractKingdomRelationalDatabaseTest {
   fun `createRequisition returns new Requisition`() = runBlocking {
     val inputRequisition = buildRequisitionWithParents().requisition
 
-    val requisition = database.createRequisition(inputRequisition)
+    val requisition = databases.requisitionDatabase.createRequisition(inputRequisition)
 
     assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(inputRequisition)
     assertThat(requisition.externalRequisitionId).isNotEqualTo(0L)
@@ -161,9 +159,9 @@ abstract class AbstractKingdomRelationalDatabaseTest {
   @Test
   fun `createRequisition returns existing Requisition`() = runBlocking {
     val inputRequisition = buildRequisitionWithParents().requisition
-    val insertedRequisition = database.createRequisition(inputRequisition)
+    val insertedRequisition = databases.requisitionDatabase.createRequisition(inputRequisition)
 
-    val requisition = database.createRequisition(insertedRequisition)
+    val requisition = databases.requisitionDatabase.createRequisition(insertedRequisition)
 
     assertThat(requisition).isEqualTo(insertedRequisition)
   }
@@ -172,7 +170,10 @@ abstract class AbstractKingdomRelationalDatabaseTest {
   fun `getRequisition returns inserted Requisition`() = runBlocking {
     val insertedRequisition = createRequisitionWithParents().requisition
 
-    val requisition = database.getRequisition(ExternalId(insertedRequisition.externalRequisitionId))
+    val requisition =
+      databases.requisitionDatabase.getRequisition(
+        ExternalId(insertedRequisition.externalRequisitionId)
+      )
 
     assertThat(requisition).isEqualTo(insertedRequisition)
   }
@@ -182,11 +183,12 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     val insertedRequisition = createRequisitionWithParents().requisition
     val externalRequisitionId = ExternalId(insertedRequisition.externalRequisitionId)
 
-    val update = database.fulfillRequisition(externalRequisitionId, DUCHY_ID)
+    val update = databases.requisitionDatabase.fulfillRequisition(externalRequisitionId, DUCHY_ID)
 
     assertThat(update.original).isEqualTo(insertedRequisition)
     assertThat(update.current.state).isEqualTo(RequisitionState.FULFILLED)
-    assertThat(update.current).isEqualTo(database.getRequisition(externalRequisitionId))
+    assertThat(update.current)
+      .isEqualTo(databases.requisitionDatabase.getRequisition(externalRequisitionId))
   }
 
   @Test
@@ -199,11 +201,11 @@ abstract class AbstractKingdomRelationalDatabaseTest {
       )
     val externalReportId = ExternalId(insertedReport.externalReportId)
     val externalRequisitionId = ExternalId(requisition.externalRequisitionId)
-    database.associateRequisitionToReport(externalRequisitionId, externalReportId)
+    databases.reportDatabase.associateRequisitionToReport(externalRequisitionId, externalReportId)
 
-    database.fulfillRequisition(externalRequisitionId, DUCHY_ID)
+    databases.requisitionDatabase.fulfillRequisition(externalRequisitionId, DUCHY_ID)
 
-    val report = database.getReport(externalReportId)
+    val report = databases.reportDatabase.getReport(externalReportId)
     assertThat(report.reportDetails.requisitionsList)
       .containsExactly(
         ReportDetails.ExternalRequisitionKey.newBuilder()
@@ -223,12 +225,13 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     val insertedRequisition = createRequisitionWithParents().requisition
     val externalRequisitionId = ExternalId(insertedRequisition.externalRequisitionId)
 
-    val update = database.refuseRequisition(externalRequisitionId, REFUSAL)
+    val update = databases.requisitionDatabase.refuseRequisition(externalRequisitionId, REFUSAL)
 
     assertThat(update.original).isEqualTo(insertedRequisition)
     assertThat(update.current.state).isEqualTo(RequisitionState.PERMANENTLY_UNAVAILABLE)
     assertThat(update.current.requisitionDetails.refusal).isEqualTo(REFUSAL)
-    assertThat(update.current).isEqualTo(database.getRequisition(externalRequisitionId))
+    assertThat(update.current)
+      .isEqualTo(databases.requisitionDatabase.getRequisition(externalRequisitionId))
   }
 
   @Test
@@ -236,11 +239,12 @@ abstract class AbstractKingdomRelationalDatabaseTest {
     val insertedRequisition = createRequisitionWithParents().requisition
     val externalRequisitionId = ExternalId(insertedRequisition.externalRequisitionId)
 
-    database.fulfillRequisition(externalRequisitionId, DUCHY_ID)
-    val update = database.refuseRequisition(externalRequisitionId, REFUSAL)
+    databases.requisitionDatabase.fulfillRequisition(externalRequisitionId, DUCHY_ID)
+    val update = databases.requisitionDatabase.refuseRequisition(externalRequisitionId, REFUSAL)
 
     assertThat(update.current).isEqualTo(update.original)
-    assertThat(update.current).isEqualTo(database.getRequisition(externalRequisitionId))
+    assertThat(update.current)
+      .isEqualTo(databases.requisitionDatabase.getRequisition(externalRequisitionId))
   }
 
   @Test
@@ -253,11 +257,11 @@ abstract class AbstractKingdomRelationalDatabaseTest {
       )
     val externalReportId = ExternalId(insertedReport.externalReportId)
     val externalRequisitionId = ExternalId(requisition.externalRequisitionId)
-    database.associateRequisitionToReport(externalRequisitionId, externalReportId)
+    databases.reportDatabase.associateRequisitionToReport(externalRequisitionId, externalReportId)
 
-    database.refuseRequisition(externalRequisitionId, REFUSAL)
+    databases.requisitionDatabase.refuseRequisition(externalRequisitionId, REFUSAL)
 
-    val report = database.getReport(externalReportId)
+    val report = databases.reportDatabase.getReport(externalReportId)
     assertThat(report.state).isEqualTo(ReportState.FAILED)
     assertThat(report.updateTime.toInstant()).isGreaterThan(insertedReport.updateTime.toInstant())
   }
@@ -273,12 +277,12 @@ abstract class AbstractKingdomRelationalDatabaseTest {
         )
 
       val externalReportId = ExternalId(insertedReport.externalReportId)
-      database.associateRequisitionToReport(
+      databases.reportDatabase.associateRequisitionToReport(
         ExternalId(requisition.externalRequisitionId),
         externalReportId
       )
 
-      val report = database.getReport(externalReportId)
+      val report = databases.reportDatabase.getReport(externalReportId)
       assertThat(report.reportDetails.requisitionsList)
         .containsExactly(
           ReportDetails.ExternalRequisitionKey.newBuilder()

@@ -6,7 +6,6 @@ kt_jvm_library(
     testonly = True,
     srcs = [
         "DuchyDependencyProviderRule.kt",
-        "KingdomDatabasesProviderRule.kt",
     ],
     deps = [
         "//imports/java/com/google/cloud/spanner",
@@ -22,7 +21,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:spanner_database_test_helper",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:testing_nontestonly",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
         "//src/test/kotlin/org/wfanet/measurement/integration/common",
     ],

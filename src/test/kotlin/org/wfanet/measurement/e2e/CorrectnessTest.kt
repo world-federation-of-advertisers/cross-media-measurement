@@ -34,7 +34,7 @@ import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.makeSpannerKingdomDatabases
 import org.wfanet.measurement.loadtest.CorrectnessImpl
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -123,13 +123,6 @@ class CorrectnessTest {
           readyTimeout = Duration.ofSeconds(10L)
         )
         .use { spanner ->
-          val relationalDatabase =
-            SpannerKingdomRelationalDatabase(
-              clock,
-              RandomIdGenerator(clock),
-              spanner.databaseClient
-            )
-
           val correctness =
             CorrectnessImpl(
               dataProviderCount = dataProviderCount,
@@ -142,7 +135,11 @@ class CorrectnessTest {
               publisherDataStub = publisherDataStub
             )
 
-          correctness.process(relationalDatabase)
+          val idGenerator = RandomIdGenerator(clock)
+          val client = spanner.databaseClient
+          val kingdomDatabases = makeSpannerKingdomDatabases(clock, idGenerator, client)
+
+          correctness.process(kingdomDatabases)
         }
     }
   }

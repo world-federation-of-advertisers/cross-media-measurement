@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.testing.pollFor
+import org.wfanet.measurement.kingdom.db.testing.Databases
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FulfillMetricRequisitionRequest
@@ -55,9 +56,9 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsReque
  */
 abstract class InProcessKingdomIntegrationTestBase {
   /** Provides database wrappers to the test. */
-  abstract val kingdomDatabasesRule: ProviderRule<InProcessKingdom.Databases>
+  abstract val kingdomDatabasesRule: ProviderRule<Databases>
 
-  private val kingdomDatabases: InProcessKingdom.Databases
+  private val kingdomDatabases: Databases
     get() = kingdomDatabasesRule.value
 
   private val kingdom =

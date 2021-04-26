@@ -65,10 +65,10 @@ import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.loadtest.TestResult
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
 import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
+import org.wfanet.measurement.kingdom.db.testing.Databases
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
@@ -94,27 +94,24 @@ class CorrectnessImpl(
   /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
   private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
-  suspend fun process(
-    relationalDatabase: KingdomRelationalDatabase,
-    relationalDatabaseTestHelper: DatabaseTestHelper
-  ) {
+  suspend fun process(kingdomDatabases: Databases) {
     logger.info("Starting with RunID: $runId ...")
     val testResult = TestResult.newBuilder().setRunId(runId)
 
-    val advertiser = relationalDatabaseTestHelper.createAdvertiser()
+    val advertiser = kingdomDatabases.databaseTestHelper.createAdvertiser()
     logger.info("Created an Advertiser: $advertiser")
     val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
 
     val generatedCampaigns =
       List(dataProviderCount) {
-          relationalDatabaseTestHelper.createDataProvider(externalAdvertiserId).toList()
+          kingdomDatabases.databaseTestHelper.createDataProvider(externalAdvertiserId).toList()
         }
         .flatten()
 
     // Schedule a report before loading the metric requisitions.
     val campaignIds = generatedCampaigns.map { it.campaignId }
     val reportConfigAndScheduleId =
-      relationalDatabaseTestHelper.scheduleReport(externalAdvertiserId, campaignIds)
+      kingdomDatabases.databaseTestHelper.scheduleReport(externalAdvertiserId, campaignIds)
 
     val anySketches = generatedCampaigns.map { it.sketch }
     val combinedAnySketch = SketchProtos.toAnySketch(sketchConfig).apply { mergeAll(anySketches) }
@@ -135,7 +132,7 @@ class CorrectnessImpl(
     logger.info("Waiting 2 min...")
     delay(Duration.ofMinutes(2).toMillis())
     val finishedReport =
-      relationalDatabase.getFinishedReport(
+      kingdomDatabases.reportDatabase.getFinishedReport(
         reportConfigAndScheduleId.reportConfig,
         reportConfigAndScheduleId.schedule
       )

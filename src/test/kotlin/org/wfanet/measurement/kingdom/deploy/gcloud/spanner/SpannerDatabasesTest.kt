@@ -12,12 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.gcloud
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import org.wfanet.measurement.integration.common.InProcessKingdomIntegrationTestBase
+import org.junit.Rule
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.kingdom.db.testing.AbstractDatabasesTest
+import org.wfanet.measurement.kingdom.db.testing.Databases
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabasesProviderRule
 
-/** Implementation of [InProcessKingdomIntegrationTestBase] for GCP backends (Spanner, GCS). */
-class InProcessKingdomIntegrationTest : InProcessKingdomIntegrationTestBase() {
-  override val kingdomDatabasesRule by lazy { KingdomDatabasesProviderRule() }
+@RunWith(JUnit4::class)
+class SpannerDatabasesTest : AbstractDatabasesTest() {
+  @get:Rule val spannerDatabasesProviderRule = KingdomDatabasesProviderRule()
+
+  override val databases: Databases
+    get() = spannerDatabasesProviderRule.value
 }

@@ -11,12 +11,17 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(
         ["*.kt"],
-        exclude = ["SpannerDatabaseTestHelper.kt"],
+        exclude = [
+            "SpannerDatabaseTestHelper.kt",
+            "KingdomDatabases.kt",
+        ],
     ),
     data = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl"],
     deps = [
+        ":testing_nontestonly",
         "//imports/java/com/google/cloud/spanner",
         "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
@@ -27,8 +32,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "spanner_database_test_helper",
-    srcs = ["SpannerDatabaseTestHelper.kt"],
+    name = "testing_nontestonly",
+    srcs = [
+        "KingdomDatabases.kt",
+        "SpannerDatabaseTestHelper.kt",
+    ],
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",

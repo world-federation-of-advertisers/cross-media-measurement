@@ -54,10 +54,7 @@ import org.wfanet.measurement.kingdom.daemon.DaemonDatabaseServicesClientImpl
 import org.wfanet.measurement.kingdom.daemon.runReportMaker
 import org.wfanet.measurement.kingdom.daemon.runReportStarter
 import org.wfanet.measurement.kingdom.daemon.runRequisitionLinker
-import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
-import org.wfanet.measurement.kingdom.db.ReportDatabase
-import org.wfanet.measurement.kingdom.db.RequisitionDatabase
-import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
+import org.wfanet.measurement.kingdom.db.testing.Databases
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
@@ -71,13 +68,6 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService 
  */
 class InProcessKingdom(verboseGrpcLogging: Boolean = true, databasesProvider: () -> Databases) :
   TestRule {
-  data class Databases(
-    val legacySchedulingDatabase: LegacySchedulingDatabase,
-    val reportDatabase: ReportDatabase,
-    val requisitionDatabase: RequisitionDatabase,
-    val databaseTestHelper: DatabaseTestHelper
-  )
-
   private val databases by lazy { databasesProvider() }
 
   private val databaseServices =

@@ -25,8 +25,7 @@ import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCorou
 import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.makeSpannerKingdomDatabases
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -47,15 +46,8 @@ abstract class CorrectnessRunner : Runnable {
           .format(Instant.now())
     }
     val sketchConfig = parseTextProto(flags.sketchConfigFile, SketchConfig.getDefaultInstance())
-    val clock = Clock.systemUTC()
     runBlocking {
       flags.spannerFlags.usingSpanner { spanner ->
-        val relationalDatabase =
-          SpannerKingdomRelationalDatabase(clock, RandomIdGenerator(clock), spanner.databaseClient)
-
-        val databaseTestHelper =
-          SpannerDatabaseTestHelper(clock, RandomIdGenerator(clock), spanner.databaseClient)
-
         val correctness =
           CorrectnessImpl(
             dataProviderCount = flags.dataProviderCount,
@@ -68,7 +60,10 @@ abstract class CorrectnessRunner : Runnable {
             publisherDataStub = publisherDataStub
           )
 
-        correctness.process(relationalDatabase, databaseTestHelper)
+        val clock = Clock.systemUTC()
+        val idGenerator = RandomIdGenerator(clock)
+        val databases = makeSpannerKingdomDatabases(clock, idGenerator, spanner.databaseClient)
+        correctness.process(databases)
       }
     }
   }
