@@ -26,7 +26,6 @@ _repository_prefix:         string @tag("repository_prefix")
 _container_registry_prefix: _container_registry + "/" + _repository_prefix
 
 objectSets: [
-		setup_job,
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
@@ -106,16 +105,4 @@ kingdom: #Kingdom & {
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"
-}
-
-setup_job: "correctness-test-job": #CorrectnessTest & {
-	_image:           "\(_container_registry_prefix)/loadtest/correctness-test"
-	_imagePullPolicy: "Always"
-	_args: [
-		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
-		"--google-cloud-storage-project=\(_cloud_storage_project)",
-		"--spanner-database=kingdom",
-		"--spanner-instance=\(_spanner_instance)",
-		"--spanner-project=\(_spanner_project)",
-	]
 }

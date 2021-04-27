@@ -46,7 +46,6 @@ CUE_LIBRARIES = [
     ":duchy_public_key_config.cue",
     ":liquid_legions_v2_noise_config.cue",
     "base.cue",
-    "correctness_test_job.cue",
     "duchy.cue",
     "kingdom.cue",
 ]
