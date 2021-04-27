@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -34,7 +33,7 @@ interface ReportDatabase {
   suspend fun getReport(externalId: ExternalId): Report
 
   /**
-   * Creates the next [Report] for a [ReportConfigSchedule].
+   * Creates the next [Report] for a ReportConfigSchedule.
    *
    * If the report start window would be in the future, this does nothing.
    */

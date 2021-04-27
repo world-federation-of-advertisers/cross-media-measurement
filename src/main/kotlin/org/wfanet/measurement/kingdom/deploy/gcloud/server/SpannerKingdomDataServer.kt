@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerLegacySchedulingDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerReportDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerRequisitionDatabase
 import picocli.CommandLine
@@ -42,7 +41,6 @@ class SpannerKingdomDataServer : KingdomDataServer() {
       val client = spanner.databaseClient
 
       run(
-        SpannerLegacySchedulingDatabase(clock, idGenerator, client),
         SpannerReportDatabase(clock, idGenerator, client),
         SpannerRequisitionDatabase(clock, idGenerator, client)
       )

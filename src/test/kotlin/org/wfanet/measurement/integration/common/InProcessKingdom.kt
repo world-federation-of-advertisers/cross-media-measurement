@@ -56,12 +56,7 @@ class InProcessKingdom(
   private val databaseServices =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal services")
-      val services =
-        buildDataServices(
-          databases.legacySchedulingDatabase,
-          databases.reportDatabase,
-          databases.requisitionDatabase
-        )
+      val services = buildDataServices(databases.reportDatabase, databases.requisitionDatabase)
       for (service in services) {
         addService(service.withVerboseLogging(verboseGrpcLogging))
       }
