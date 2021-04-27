@@ -52,21 +52,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/global-computation",
     ),
     struct(
-        name = "kingdom_report_maker_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image",
-        repository = _PREFIX + "/kingdom/report-maker",
-    ),
-    struct(
-        name = "kingdom_report_starter_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image",
-        repository = _PREFIX + "/kingdom/report-starter",
-    ),
-    struct(
-        name = "kingdom_requisition_linker_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image",
-        repository = _PREFIX + "/kingdom/requisition-linker",
-    ),
-    struct(
         name = "kingdom_requisition_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image",
         repository = _PREFIX + "/kingdom/requisition",
@@ -97,11 +82,6 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/computation-control",
     ),
     struct(
-        name = "gcs_correctness_test_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest:gcs_correctness_runner_image",
-        repository = _PREFIX + "/loadtest/correctness-test",
-    ),
-    struct(
         name = "duchy_metric_values_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcp_server_image",
         repository = _PREFIX + "/duchy/metric-values",
@@ -121,10 +101,6 @@ LOCAL_IMAGES = [
     struct(
         name = "spanner_forwarded_storage_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image",
-    ),
-    struct(
-        name = "filesystem_storage_correctness_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest:filesystem_storage_correctness_runner_image",
     ),
     struct(
         name = "fake_storage_server_image",

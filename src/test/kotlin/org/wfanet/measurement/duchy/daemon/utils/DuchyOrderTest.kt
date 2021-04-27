@@ -14,8 +14,9 @@
 
 package org.wfanet.measurement.duchy.daemon.utils
 
+import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertEquals
-import org.junit.Assert
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -54,42 +55,22 @@ class DuchyOrderTest {
   @Test
   fun `all orders are equally possible`() {
     val histogram = mutableMapOf<List<String>, Int>()
-    val trails = 10000
-    for (i in 1..trails) {
+    val trials = 100000
+    for (i in 1..trials) {
       val globalComputationId = Math.random().toString()
-      val temp = getDuchyOrderByPublicKeysAndComputationId(duchies, globalComputationId)
-      histogram[temp] = histogram.getOrDefault(temp, 0) + 1
+      val order = getDuchyOrderByPublicKeysAndComputationId(duchies, globalComputationId)
+      histogram.merge(order, 1, Int::plus)
     }
-    Assert.assertEquals(
-      1.0 / 6,
-      histogram[listOf(SALZBURG, BOHEMIA, AUSTRIA)]!!.toDouble() / trails,
-      0.01
-    )
-    Assert.assertEquals(
-      1.0 / 6,
-      histogram[listOf(SALZBURG, AUSTRIA, BOHEMIA)]!!.toDouble() / trails,
-      0.01
-    )
-    Assert.assertEquals(
-      1.0 / 6,
-      histogram[listOf(BOHEMIA, SALZBURG, AUSTRIA)]!!.toDouble() / trails,
-      0.01
-    )
-    Assert.assertEquals(
-      1.0 / 6,
-      histogram[listOf(BOHEMIA, AUSTRIA, SALZBURG)]!!.toDouble() / trails,
-      0.01
-    )
-    Assert.assertEquals(
-      1.0 / 6,
-      histogram[listOf(AUSTRIA, BOHEMIA, SALZBURG)]!!.toDouble() / trails,
-      0.01
-    )
-    Assert.assertEquals(
-      1.0 / 6,
-      histogram[listOf(AUSTRIA, SALZBURG, BOHEMIA)]!!.toDouble() / trails,
-      0.01
-    )
+    assertThat(histogram).hasSize(6)
+
+    val frequency: (List<String>) -> Double = { histogram[it]!!.toDouble() / trials }
+
+    assertEquals(1.0 / 6, frequency(listOf(SALZBURG, BOHEMIA, AUSTRIA)), 0.01)
+    assertEquals(1.0 / 6, frequency(listOf(SALZBURG, AUSTRIA, BOHEMIA)), 0.01)
+    assertEquals(1.0 / 6, frequency(listOf(BOHEMIA, SALZBURG, AUSTRIA)), 0.01)
+    assertEquals(1.0 / 6, frequency(listOf(BOHEMIA, AUSTRIA, SALZBURG)), 0.01)
+    assertEquals(1.0 / 6, frequency(listOf(AUSTRIA, BOHEMIA, SALZBURG)), 0.01)
+    assertEquals(1.0 / 6, frequency(listOf(AUSTRIA, SALZBURG, BOHEMIA)), 0.01)
   }
 
   @Test
@@ -101,12 +82,11 @@ class DuchyOrderTest {
 
   @Test
   fun `getFollowingDuchies returns the following duchies`() {
-    assertEquals(
-      getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), BOHEMIA),
-      listOf(SALZBURG, AUSTRIA)
-    )
-    assertEquals(getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), SALZBURG), listOf(AUSTRIA))
-    assertEquals(getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), AUSTRIA), emptyList())
+    assertThat(getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), BOHEMIA))
+      .containsExactly(SALZBURG, AUSTRIA)
+    assertThat(getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), SALZBURG))
+      .containsExactly(AUSTRIA)
+    assertThat(getFollowingDuchies(listOf(BOHEMIA, SALZBURG, AUSTRIA), AUSTRIA)).isEmpty()
   }
 
   companion object {
