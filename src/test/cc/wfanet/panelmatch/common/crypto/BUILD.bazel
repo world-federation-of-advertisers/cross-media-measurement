@@ -1,0 +1,13 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "cryptor_test",
+    srcs = ["cryptor_test.cc"],
+    deps = [
+        "//src/main/cc/wfanet/panelmatch/common/crypto:cryptor",
+        "//src/test/cc/testutil:matchers",
+        "//src/test/cc/testutil:status_macros",
+        "@com_google_absl//absl/memory",
+        "@googletest//:gtest_main",
+    ],
+)

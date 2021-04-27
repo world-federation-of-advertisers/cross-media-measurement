@@ -1,0 +1,13 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "macros",
+    hdrs = [
+        "macros.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+)
