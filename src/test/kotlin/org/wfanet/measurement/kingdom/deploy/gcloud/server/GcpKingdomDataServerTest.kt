@@ -67,8 +67,8 @@ import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.makeSpannerKingdomDatabases
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 
 private const val ADVERTISER_ID = 1L
@@ -113,21 +113,23 @@ private val REPETITION_SPEC: RepetitionSpec =
  * Integration test for Kingdom internal services + Spanner.
  *
  * This minimally tests each RPC method. Edge cases are tested in individual unit tests for the
- * services. This focuses on ensuring that [SpannerKingdomRelationalDatabase] integrates with the
- * gRPC services.
+ * services. This focuses on ensuring that the databases integrate with the gRPC services.
  */
 class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   @get:Rule
   val grpcTestServer =
     GrpcTestServerRule(logAllRequests = true) {
-      val database =
-        SpannerKingdomRelationalDatabase(
-          Clock.systemUTC(),
-          RandomIdGenerator(Clock.systemUTC()),
-          databaseClient
+      val clock = Clock.systemUTC()
+      val databases = makeSpannerKingdomDatabases(clock, RandomIdGenerator(clock), databaseClient)
+
+      val services =
+        buildDataServices(
+          databases.legacySchedulingDatabase,
+          databases.reportDatabase,
+          databases.requisitionDatabase
         )
 
-      buildDataServices(database, database, database).forEach(this::addService)
+      services.forEach(this::addService)
     }
 
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)

@@ -38,7 +38,7 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
 import org.wfanet.measurement.kingdom.db.to
 
@@ -57,13 +57,13 @@ private val FULFILLED_REQUISITION: Requisition =
 
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase =
+  private val requisitionDatabase: RequisitionDatabase =
     mock() {
       onBlocking { createRequisition(any()) }.thenReturn(REQUISITION)
       on { streamRequisitions(any(), any()) }.thenReturn(flowOf(REQUISITION, REQUISITION))
     }
 
-  private val service = RequisitionsService(kingdomRelationalDatabase)
+  private val service = RequisitionsService(requisitionDatabase)
 
   @Test
   fun `createRequisition fails with id`() =
@@ -110,13 +110,13 @@ class RequisitionsServiceTest {
 
       assertThat(service.createRequisition(inputRequisition)).isEqualTo(REQUISITION)
 
-      verify(kingdomRelationalDatabase).createRequisition(inputRequisition)
+      verify(requisitionDatabase).createRequisition(inputRequisition)
     }
 
   @Test
   fun fulfillRequisition() =
     runBlocking<Unit> {
-      kingdomRelationalDatabase.stub {
+      requisitionDatabase.stub {
         onBlocking { fulfillRequisition(any(), any()) }
           .thenReturn(REQUISITION to FULFILLED_REQUISITION)
       }
@@ -129,12 +129,12 @@ class RequisitionsServiceTest {
 
       assertThat(service.fulfillRequisition(request)).isEqualTo(FULFILLED_REQUISITION)
 
-      verify(kingdomRelationalDatabase).fulfillRequisition(ExternalId(12345), "some-duchy")
+      verify(requisitionDatabase).fulfillRequisition(ExternalId(12345), "some-duchy")
     }
 
   @Test
   fun `fulfillRequisition fails with FAILED_PRECONDITION with incorrect state`() = runBlocking {
-    kingdomRelationalDatabase.stub {
+    requisitionDatabase.stub {
       onBlocking { fulfillRequisition(any(), any()) }
         .thenReturn(FULFILLED_REQUISITION to FULFILLED_REQUISITION)
     }
@@ -178,7 +178,7 @@ class RequisitionsServiceTest {
           createdAfter = Instant.ofEpochSecond(12345)
         )
 
-      verify(kingdomRelationalDatabase)
+      verify(requisitionDatabase)
         .streamRequisitions(
           check { assertThat(it.clauses).containsExactlyElementsIn(expectedFilter.clauses) },
           eq(10)

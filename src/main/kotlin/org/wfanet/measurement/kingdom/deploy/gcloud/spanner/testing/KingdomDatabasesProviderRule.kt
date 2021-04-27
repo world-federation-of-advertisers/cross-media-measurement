@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.gcloud
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 
 import java.time.Clock
 import org.junit.runner.Description
@@ -21,25 +21,15 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.integration.common.InProcessKingdom
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerKingdomRelationalDatabase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.SpannerDatabaseTestHelper
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 
-class KingdomDatabasesProviderRule : ProviderRule<InProcessKingdom.Databases> {
+class KingdomDatabasesProviderRule : ProviderRule<KingdomDatabases> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock)
   private val databaseClient: AsyncDatabaseClient by lazy { spannerDatabase.databaseClient }
 
-  override val value by lazy {
-    InProcessKingdom.Databases(
-      SpannerKingdomRelationalDatabase(clock, idGenerator, databaseClient),
-      SpannerKingdomRelationalDatabase(clock, idGenerator, databaseClient),
-      SpannerKingdomRelationalDatabase(clock, idGenerator, databaseClient),
-      SpannerDatabaseTestHelper(clock, idGenerator, databaseClient)
-    )
-  }
+  override val value by lazy { makeSpannerKingdomDatabases(clock, idGenerator, databaseClient) }
 
   override fun apply(base: Statement, description: Description): Statement {
     return spannerDatabase.apply(base, description)

@@ -35,10 +35,7 @@ import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogE
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
-import org.wfanet.measurement.kingdom.db.ReportDatabase
-import org.wfanet.measurement.kingdom.db.RequisitionDatabase
-import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
@@ -50,15 +47,10 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService 
  * @param verboseGrpcLogging whether to log all gRPCs
  * @param databasesProvider called once to get the Kingdom's database wrappers
  */
-class InProcessKingdom(verboseGrpcLogging: Boolean = true, databasesProvider: () -> Databases) :
-  TestRule {
-  data class Databases(
-    val legacySchedulingDatabase: LegacySchedulingDatabase,
-    val reportDatabase: ReportDatabase,
-    val requisitionDatabase: RequisitionDatabase,
-    val databaseTestHelper: DatabaseTestHelper
-  )
-
+class InProcessKingdom(
+  verboseGrpcLogging: Boolean = true,
+  databasesProvider: () -> KingdomDatabases
+) : TestRule {
   private val databases by lazy { databasesProvider() }
 
   private val databaseServices =

@@ -16,6 +16,7 @@ package org.wfanet.measurement.integration.gcloud
 
 import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.integration.common.InProcessKingdomAndDuchyIntegrationTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabasesProviderRule
 
 /**
  * Implementation of [InProcessKingdomAndDuchyIntegrationTestBase] for GCP backends (Spanner, GCS).

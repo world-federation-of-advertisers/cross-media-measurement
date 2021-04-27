@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
+package org.wfanet.measurement.kingdom.db.testing
 
-import java.time.Clock
-import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
-class SpannerKingdomRelationalDatabase(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
-) :
-  LegacySchedulingDatabase by SpannerLegacySchedulingDatabase(clock, idGenerator, client),
-  ReportDatabase by SpannerReportDatabase(clock, idGenerator, client),
-  RequisitionDatabase by SpannerRequisitionDatabase(clock, idGenerator, client),
-  KingdomRelationalDatabase
+data class KingdomDatabases(
+  val legacySchedulingDatabase: LegacySchedulingDatabase,
+  val reportDatabase: ReportDatabase,
+  val requisitionDatabase: RequisitionDatabase,
+  val databaseTestHelper: DatabaseTestHelper
+)

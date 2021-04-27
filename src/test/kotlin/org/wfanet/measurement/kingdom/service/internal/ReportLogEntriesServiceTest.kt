@@ -24,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
-import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
+import org.wfanet.measurement.kingdom.db.ReportDatabase
 
 private const val EXTERNAL_REPORT_ID = 123L
 private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()
@@ -32,13 +32,13 @@ private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).buil
 @RunWith(JUnit4::class)
 class ReportLogEntriesServiceTest {
 
-  private val kingdomRelationalDatabase: KingdomRelationalDatabase = mock()
+  private val reportDatabase: ReportDatabase = mock()
 
-  private val service = ReportLogEntriesService(kingdomRelationalDatabase)
+  private val service = ReportLogEntriesService(reportDatabase)
 
   @Test
   fun success() = runBlocking {
-    whenever(kingdomRelationalDatabase.addReportLogEntry(any())).thenAnswer {
+    whenever(reportDatabase.addReportLogEntry(any())).thenAnswer {
       it.getArgument<ReportLogEntry>(0).toBuilder().setCreateTime(CREATE_TIME).build()
     }
 

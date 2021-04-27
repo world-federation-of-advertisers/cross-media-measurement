@@ -30,6 +30,7 @@ import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.integration.common.InProcessDuchy.DuchyDependencies
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
+import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 
 /**
  * Test that everything is wired up properly.
@@ -39,12 +40,12 @@ import org.wfanet.measurement.kingdom.db.streamReportsFilter
  */
 abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   /** Provides database wrappers to the test. */
-  abstract val kingdomDatabasesRule: ProviderRule<InProcessKingdom.Databases>
+  abstract val kingdomDatabasesRule: ProviderRule<KingdomDatabases>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
   abstract val duchyDependenciesRule: ProviderRule<(String) -> DuchyDependencies>
 
-  private val kingdomDatabases: InProcessKingdom.Databases
+  private val kingdomDatabases: KingdomDatabases
     get() = kingdomDatabasesRule.value
 
   private val kingdom =
