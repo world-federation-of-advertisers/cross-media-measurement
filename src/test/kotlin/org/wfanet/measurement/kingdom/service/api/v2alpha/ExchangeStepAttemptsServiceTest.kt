@@ -21,7 +21,6 @@ import com.google.type.Date
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -39,6 +38,7 @@ import org.wfanet.measurement.internal.kingdom.CreateExchangeStepAttemptRequest 
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest as InternalFinishExchangeStepAttemptRequest
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private const val STEP_INDEX = 1
@@ -109,6 +109,7 @@ class ExchangeStepAttemptsServiceTest {
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { appendLogEntry(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
       onBlocking { createExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+      onBlocking { finishExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
@@ -206,10 +207,33 @@ class ExchangeStepAttemptsServiceTest {
   }
 
   @Test
-  fun finishExchangeStepAttempt() =
-    runBlocking<Unit> {
-      assertFailsWith(NotImplementedError::class) {
-        service.finishExchangeStepAttempt(FinishExchangeStepAttemptRequest.getDefaultInstance())
-      }
-    }
+  fun finishExchangeStepAttempt() {
+    val request =
+      FinishExchangeStepAttemptRequest.newBuilder()
+        .apply {
+          key = EXCHANGE_STEP_ATTEMPT.key
+          finalState = ExchangeStepAttempt.State.FAILED
+          addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
+        }
+        .build()
+
+    val response = runBlocking { service.finishExchangeStepAttempt(request) }
+
+    assertThat(response).isEqualTo(EXCHANGE_STEP_ATTEMPT)
+
+    verifyProtoArgument(internalService, InternalExchangeStepAttempts::finishExchangeStepAttempt)
+      .ignoringFieldAbsence()
+      .isEqualTo(
+        InternalFinishExchangeStepAttemptRequest.newBuilder()
+          .apply {
+            externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+            date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
+            stepIndex = STEP_INDEX
+            attemptNumber = ATTEMPT_NUMBER
+            state = InternalExchangeStepAttempt.State.FAILED
+            addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
+          }
+          .build()
+      )
+  }
 }

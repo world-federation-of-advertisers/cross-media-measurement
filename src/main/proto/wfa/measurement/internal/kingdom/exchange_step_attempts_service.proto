@@ -74,7 +74,7 @@ message AppendLogEntryRequest {
   int32 step_index = 3;
   int32 attempt_number = 4;
 
-  // Log entry to append.
+  // Log entries to append.
   repeated ExchangeStepAttemptDetails.DebugLog debug_log_entries = 5;
 }
 
@@ -90,4 +90,7 @@ message FinishExchangeStepAttemptRequest {
 
   // Final state for the `ExchangeStepAttempt`.
   ExchangeStepAttempt.State state = 5;
+
+  // Final log entries.
+  repeated ExchangeStepAttemptDetails.DebugLog debug_log_entries = 6;
 }
