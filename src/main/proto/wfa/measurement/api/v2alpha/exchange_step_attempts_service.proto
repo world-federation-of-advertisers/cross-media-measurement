@@ -41,6 +41,9 @@ service ExchangeStepAttempts {
   rpc AppendLogEntry(AppendLogEntryRequest) returns (ExchangeStepAttempt);
 
   // Marks an `ExchangeStepAttempt` as finished (either successfully or not).
+  //
+  // It is an error to have more than one `SUCCEEDED` `ExchangeStepAttempt` for
+  // any given `ExchangeStep`.
   rpc FinishExchangeStepAttempt(FinishExchangeStepAttemptRequest)
       returns (ExchangeStepAttempt);
 }
@@ -112,4 +115,11 @@ message FinishExchangeStepAttemptRequest {
 
   // Final debug log entries to append concurrently with the state transition.
   repeated ExchangeStepAttempt.DebugLog log_entries = 3;
+
+  // Contains an entry for each output accessible to the other party among those
+  // in the ExchangeStep's `step.output_labels` map. The keys here are values
+  // from `output_labels`.
+  //
+  // This field will be ignored if the `final_state` is `FAILED`.
+  map<string, ExchangeStep.SharedData> shared_outputs = 4;
 }

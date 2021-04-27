@@ -48,7 +48,7 @@ message ExchangeStepAttempt {
     // Terminal state.
     SUCCEEDED = 3;
 
-    // THe attempt has failed. The step should be retried unless it is in a
+    // The attempt has failed. The step should be retried unless it is in a
     // terminal state.
     FAILED = 4;
   }
@@ -66,38 +66,9 @@ message ExchangeStepAttempt {
   // Warnings, errors, and other messages for debugging purposes. Append-only.
   repeated DebugLog debug_log_entries = 4;
 
-  // Paths, tables, etc. accessible to the other party.
-  // Each of these is an encrypted SignedData. Each SignedData holds a
-  // serialized SharedOutput protocol buffer.
-  repeated bytes shared_outputs = 5;
-
   // When the ExchangeStepAttempt was created. Output-only.
   google.protobuf.Timestamp start_time = 6;
 
   // When the ExchangeStepAttempt was last updated. Output-only.
   google.protobuf.Timestamp update_time = 7;
-
-  message SharedOutput {
-    string label = 1;
-
-    oneof location {
-      // Represents a file to download over HTTPS. Since SharedOutput is only
-      // shared via an encrypted SignedData message, it is safe to put URLs
-      // with access tokens in here.
-      string https_uri = 2;
-
-      // Represents a query to execute under BigQuery.
-      string big_query = 3;
-
-      // Represents a file accessible via Google Cloud Storage. While sometimes
-      // HTTPS can be used directly, some may prefer to use ACLs rather than
-      // access tokens. This should be a standard GCS path of the format
-      // "gcs://bucket-name/and/some/path".
-      string google_cloud_storage = 4;
-
-      // Represents a file accessible via AWS S3. While sometimes HTTPS can be
-      // used directly, some may prefer to use ACLs rather than access tokens.
-      string amazon_s3 = 5;
-    }
-  }
 }
