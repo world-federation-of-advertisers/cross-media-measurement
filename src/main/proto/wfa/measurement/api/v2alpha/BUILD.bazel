@@ -111,6 +111,7 @@ proto_library(
     deps = [
         ":data_provider_proto",
         ":measurement_consumer_proto",
+        ":measurement_proto",
         ":requisition_proto",
     ],
 )
