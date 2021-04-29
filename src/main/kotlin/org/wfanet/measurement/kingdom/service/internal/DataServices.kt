@@ -15,19 +15,15 @@
 package org.wfanet.measurement.kingdom.service.internal
 
 import io.grpc.BindableService
-import org.wfanet.measurement.kingdom.db.LegacySchedulingDatabase
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
 /** Builds a list of all the Kingdom's internal data-layer services. */
 fun buildDataServices(
-  legacySchedulingDatabase: LegacySchedulingDatabase,
   reportDatabase: ReportDatabase,
   requisitionDatabase: RequisitionDatabase
 ): List<BindableService> {
   return listOf(
-    ReportConfigSchedulesService(legacySchedulingDatabase),
-    ReportConfigsService(legacySchedulingDatabase),
     ReportsService(reportDatabase),
     ReportLogEntriesService(reportDatabase),
     RequisitionsService(requisitionDatabase)

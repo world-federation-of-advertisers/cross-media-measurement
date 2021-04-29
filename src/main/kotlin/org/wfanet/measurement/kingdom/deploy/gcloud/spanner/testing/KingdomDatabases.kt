@@ -18,7 +18,6 @@ import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerLegacySchedulingDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerReportDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerRequisitionDatabase
 
@@ -28,7 +27,6 @@ fun makeSpannerKingdomDatabases(
   databaseClient: AsyncDatabaseClient
 ): KingdomDatabases {
   return KingdomDatabases(
-    SpannerLegacySchedulingDatabase(clock, idGenerator, databaseClient),
     SpannerReportDatabase(clock, idGenerator, databaseClient),
     SpannerRequisitionDatabase(clock, idGenerator, databaseClient),
     SpannerDatabaseTestHelper(clock, idGenerator, databaseClient)

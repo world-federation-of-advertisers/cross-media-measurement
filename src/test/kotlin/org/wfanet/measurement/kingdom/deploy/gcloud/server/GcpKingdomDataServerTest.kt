@@ -41,17 +41,10 @@ import org.wfanet.measurement.internal.kingdom.CreateNextReportRequest
 import org.wfanet.measurement.internal.kingdom.FinishReportRequest
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.GetReportRequest
-import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesRequest
-import org.wfanet.measurement.internal.kingdom.ListRequisitionTemplatesResponse
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedulesGrpcKt.ReportConfigSchedulesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt
-import org.wfanet.measurement.internal.kingdom.ReportConfigsGrpcKt.ReportConfigsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
@@ -61,7 +54,6 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.StreamReadyReportConfigSchedulesRequest
 import org.wfanet.measurement.internal.kingdom.StreamReadyReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
@@ -121,22 +113,13 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
     GrpcTestServerRule(logAllRequests = true) {
       val clock = Clock.systemUTC()
       val databases = makeSpannerKingdomDatabases(clock, RandomIdGenerator(clock), databaseClient)
-
-      val services =
-        buildDataServices(
-          databases.legacySchedulingDatabase,
-          databases.reportDatabase,
-          databases.requisitionDatabase
-        )
-
+      val services = buildDataServices(databases.reportDatabase, databases.requisitionDatabase)
       services.forEach(this::addService)
     }
 
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
 
   private val channel by lazy { grpcTestServer.channel }
-  private val reportConfigsStub by lazy { ReportConfigsCoroutineStub(channel) }
-  private val reportConfigSchedulesStub by lazy { ReportConfigSchedulesCoroutineStub(channel) }
   private val reportsStub by lazy { ReportsCoroutineStub(channel) }
   private val reportLogEntriesStub by lazy { ReportLogEntriesCoroutineStub(channel) }
   private val requisitionsStub by lazy { RequisitionsCoroutineStub(channel) }
@@ -179,8 +162,6 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   fun coverage() {
     val serviceDescriptors =
       listOf(
-        ReportConfigsGrpcKt.serviceDescriptor,
-        ReportConfigSchedulesGrpcKt.serviceDescriptor,
         ReportsGrpcKt.serviceDescriptor,
         ReportLogEntriesGrpcKt.serviceDescriptor,
         RequisitionsGrpcKt.serviceDescriptor
@@ -196,47 +177,6 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
 
     assertThat(actualTests).containsAtLeastElementsIn(expectedTests)
   }
-
-  @Test
-  fun `ReportConfigs ListRequisitionTemplates`() = runBlocking {
-    val request =
-      ListRequisitionTemplatesRequest.newBuilder()
-        .apply { externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID }
-        .build()
-
-    val expected =
-      ListRequisitionTemplatesResponse.newBuilder()
-        .apply {
-          addRequisitionTemplatesBuilder().apply {
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            externalCampaignId = EXTERNAL_CAMPAIGN_ID
-            requisitionDetailsBuilder.metricDefinition =
-              REPORT_CONFIG_DETAILS.getMetricDefinitions(0)
-          }
-        }
-        .build()
-
-    val result = reportConfigsStub.listRequisitionTemplates(request)
-    assertThat(result).isEqualTo(expected)
-  }
-
-  @Test
-  fun `ReportConfigSchedules StreamReadyReportConfigSchedules`() =
-    runBlocking<Unit> {
-      val request = StreamReadyReportConfigSchedulesRequest.getDefaultInstance()
-
-      val expected =
-        ReportConfigSchedule.newBuilder()
-          .apply {
-            externalAdvertiserId = EXTERNAL_ADVERTISER_ID
-            externalReportConfigId = EXTERNAL_REPORT_CONFIG_ID
-            externalScheduleId = EXTERNAL_SCHEDULE_ID
-          }
-          .build()
-
-      val result = reportConfigSchedulesStub.streamReadyReportConfigSchedules(request)
-      assertThat(result.toList()).comparingExpectedFieldsOnly().containsExactly(expected)
-    }
 
   @Test
   fun `Reports ConfirmDuchyReadiness`() =
