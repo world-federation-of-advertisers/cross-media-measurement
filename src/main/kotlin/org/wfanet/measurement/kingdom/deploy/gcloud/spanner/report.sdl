@@ -59,6 +59,7 @@
 -- Once all Requisitions for a Report have been fulfilled, the multi-party
 -- computation can begin.
 
+
 CREATE TABLE Advertisers (
   AdvertiserId          INT64 NOT NULL,
 
