@@ -133,8 +133,7 @@ CREATE TABLE Measurements (
   -- ReportDetails serialized proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
   MeasurementsDetailsJson STRING(MAX) NOT NULL,
-) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
-  INTERLEAVE IN PARENT ReportConfigSchedules ON DELETE CASCADE;
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId);
 
 -- Enable finding Measurements ready to be worked on.
 CREATE INDEX MeasurementsByState ON Measurements(State, UpdateTime ASC);
