@@ -394,7 +394,7 @@ CREATE TABLE ExchangeSteps (
   State                INT64 NOT NULL,
 
   -- Denormalized "party" from the parent RecurringExchange.
-  -- One one of ModelProviderId and DataProviderId will be set.
+  -- Exactly one of ModelProviderId and DataProviderId will be set.
   ModelProviderId      INT64,
   DataProviderId       INT64,
 
