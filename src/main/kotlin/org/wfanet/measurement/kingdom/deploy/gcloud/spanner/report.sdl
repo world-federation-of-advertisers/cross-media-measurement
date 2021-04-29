@@ -119,9 +119,9 @@ CREATE INDEX EventGroupsByProvidedId ON EventGroups(ProvidedEventGroupId);
 
 CREATE TABLE Measurements (
   MeasurementConsumerId      INT64 NOT NULL,
-  MeasurementId          INT64 NOT NULL,
+  MeasurementId              INT64 NOT NULL,
 
-  MeasurementsReportId  INT64 NOT NULL,
+  ExternalMeasurementId      INT64 NOT NULL,
 
   CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
