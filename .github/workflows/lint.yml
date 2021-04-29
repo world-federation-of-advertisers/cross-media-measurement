@@ -26,10 +26,10 @@ jobs:
         architecture: x64
 
     - name: Set up linters
-      uses: world-federation-of-advertisers/actions/setup-linters@v1.3.0
+      uses: world-federation-of-advertisers/actions/setup-linters@v1
 
     - name: Lint
-      uses: world-federation-of-advertisers/actions/lint@v1.3.0
+      uses: world-federation-of-advertisers/actions/lint@v1
       with:
         license-type: apache
         copyright-holder: The Cross-Media Measurement Authors
