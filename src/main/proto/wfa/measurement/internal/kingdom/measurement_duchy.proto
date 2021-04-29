@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,30 +21,20 @@ import "google/protobuf/timestamp.proto";
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-message Requisition {
+message MeasurementDuchy {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
-  fixed64 external_requisition_id = 3;
+  fixed64 external_duchy_id = 3;
 
-  fixed64 external_data_provider_id = 4;
-  fixed64 external_data_provider_certificate_id = 5;
+  fixed64 external_duchy_certificate_id = 4;
 
-  google.protobuf.Timestamp update_time = 6;
-
-  enum State {
-    STATE_UNSPECIFIED = 0;
-    UNFULFILLED = 1;
-    FULFILLED = 2;
-    UNFULFILLABLE = 3;
-  }
-  State state = 7;
+  google.protobuf.Timestamp update_time = 5;
 
   message Details {
-    bytes data_provider_public_key = 1;
-    bytes data_provider_public_key_signature = 2;
-
-    bytes data_provider_participation_signature = 3;
+    // Serialized `ElGamalPublicKey` message from public API.
+    bytes el_gamal_public_key = 1;
+    bytes el_gamal_public_key_signature = 2;
   }
-  Details details = 8;
-  string details_json = 9;
+  Details details = 6;
+  string details_json = 7;
 }
