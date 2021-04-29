@@ -158,7 +158,9 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
       failGrpc(Status.INTERNAL) { "Invalid State: $this" }
     InternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
     InternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
-    InternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
+    // TODO: update public API version to support new [ExchangeStepAttempt] states.
+    InternalExchangeStepAttempt.State.TEMPORARILY_FAILED -> ExchangeStepAttempt.State.FAILED
+    InternalExchangeStepAttempt.State.PERMANENTLY_FAILED -> ExchangeStepAttempt.State.FAILED
   }
 }
 
@@ -168,7 +170,8 @@ private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.
       failGrpc { "Invalid State: $this" }
     ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
     ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
-    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
+    // TODO: update public API version to support new [ExchangeStepAttempt] states.
+    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.TEMPORARILY_FAILED
   }
 }
 
