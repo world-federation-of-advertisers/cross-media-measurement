@@ -80,11 +80,11 @@ CREATE UNIQUE INDEX DataProvidersByExternalId ON DataProviders(ExternalDataProvi
 --     EventGroups and which MeasurementConsumers they belong to. The identifier
 --     provided by the Data Provider for the EventGroup is stored as
 --     ProvidedEventGroupId.
---   * The system generates the EventGroupnId and ExternalEventGroupId.
+--   * The system generates the EventGroupId and ExternalEventGroupId.
 --   * MeasurementConsumers, when setting up MeasurementSpecs, select a subset of the
 --     EventGroups that belong to them.
 --   * Each Requisition is a calculation for a specific set of EventGroups over
---     a time window.
+--     a time window and filtering criteria for each EventGroup.
 --
 -- This is interleaved under Data Providers to make bulk operations from Data
 -- Provider APIs more efficient.
@@ -112,10 +112,29 @@ CREATE TABLE EventGroups (
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
 -- Used for MeasurementConsumer APIs, e.g. to support UIs showing all
--- EventGroups that an MeasurementConsumer owns.
+-- EventGroups that a MeasurementConsumer owns.
 CREATE INDEX EventGroupsByMeasurementConsumer ON EventGroups(MeasurementConsumerId);
 CREATE UNIQUE INDEX EventGroupsByExternalId ON EventGroups(ExternalEventGroupId);
 CREATE INDEX EventGroupsByProvidedId ON EventGroups(ProvidedEventGroupId);
+
+CREATE TABLE Measurements (
+  MeasurementConsumerId      INT64 NOT NULL,
+  MeasurementId          INT64 NOT NULL,
+
+  MeasurementsReportId  INT64 NOT NULL,
+
+  CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+  UpdateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  WindowStartTime   TIMESTAMP NOT NULL,
+  WindowEndTime     TIMESTAMP NOT NULL,
+  State             INT64 NOT NULL,  -- Proto enum encoded as int
+
+  -- ReportDetails serialized proto
+  MeasurementDetails     BYTES(MAX) NOT NULL,
+  MeasurementsDetailsJson STRING(MAX) NOT NULL,
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
+  INTERLEAVE IN PARENT ReportConfigSchedules ON DELETE CASCADE;
 
 -- Enable finding Measurements ready to be worked on.
 CREATE INDEX MeasurementsByState ON Measurements(State, UpdateTime ASC);
