@@ -143,9 +143,11 @@ message Measurement {
   // `result_public_key`.
   bytes encrypted_result = 11;
 
-  // Map of caller-defined tag keys to values for this `Measurement`.
-  // These are to enable `MeasurementConsumer`s to apply labels to the
-  // `Measurement` to aid in filtering and identifying later on.
-  // Do not put sensitive data in this field.
-  map<string, string> tags = 12;
+  // ID referencing the `Measurement` in an external system, provided by the
+  // Measurement Consumer.
+  //
+  // If set, this value must be unique among `Measurement`s for the parent
+  // `MeasurementConsumer`. This serves as an idempotency key for the
+  // `Measurement`.
+  string measurement_reference_id = 12;
 }
