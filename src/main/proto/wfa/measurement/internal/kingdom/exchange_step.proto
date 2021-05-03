@@ -17,13 +17,12 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/type/date.proto";
-import "src/main/proto/wfa/measurement/internal/kingdom/exchange_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// An `Exchange` is a `RecurringExchange` on a particular date.
-message Exchange {
+// A manifestation of an ExchangeWorkflow.Step for a particular Exchange.
+message ExchangeStep {
   // Internal identifier of the parent `RecurringExchange`.
   fixed64 external_recurring_exchange_id = 1;
 
@@ -32,21 +31,39 @@ message Exchange {
   // the `Exchange`'s primary key.
   google.type.Date date = 2;
 
-  // This will be SUCCEEDED if there is an ExchangeStepAttempt for each
-  // `ExchangeWorkflow.Step` in state SUCCEEDED. If any ExchangeStepAttempt is
-  // PERMANENTLY_FAILED then this will be FAILED.
+  // Which step this is (indexing into the `RecurringExchange`'s
+  // `ExchangeWorkflow`).
+  int32 step_index = 3;
+
+  // State of the ExchangeStep.
   enum State {
     STATE_UNSPECIFIED = 0;
-    ACTIVE = 1;
-    SUCCEEDED = 2;
-    FAILED = 3;
+
+    // Some predecessor ExchangeStep is not in state SUCCEEDED.
+    BLOCKED = 1;
+
+    // All predecessor ExchangeSteps are in state `SUCCEEDED` and all associated
+    // ExchangeStepAttempts, if there are any, are in a `TEMPORARILY_FAILED`
+    // state.
+    READY = 2;
+
+    // All predecessor ExchangeSteps are in state `SUCCEEDED` and an associated
+    // ExchangeStepAttempt is in state `ACTIVE`.
+    IN_PROGRESS = 3;
+
+    // The step has succeeded. Terminal state. This implies that an associated
+    // ExchangeStepAttempt is in state `SUCCEEDED`.
+    SUCCEEDED = 4;
+
+    // The step has permanently failed. Terminal state. This implies that an
+    // associated ExchangeStepAttempt is in state `PERMANENTLY_FAILED`.
+    FAILED = 5;
   }
-  State state = 3;
+  State state = 4;
 
-  // Additional metadata about the Exchange.
-  ExchangeDetails details = 4;
-
-  // Serialized ExchangeWorkflow message denormalized from the parent
-  // `RecurringExchange`'s `RecurringExchangeDetails`.
-  bytes serialized_recurring_exchange = 5;
+  // Denormalized party that executes this ExchangeStep.
+  oneof party {
+    fixed64 external_data_provider_id = 5;
+    fixed64 external_model_provider_id = 6;
+  }
 }

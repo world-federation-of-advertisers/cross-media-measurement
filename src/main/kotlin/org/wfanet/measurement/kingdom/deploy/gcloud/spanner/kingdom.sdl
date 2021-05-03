@@ -29,7 +29,8 @@
 --   ├── ModelProviders
 --   └── RecurringExchanges
 --       └── Exchanges
---           └── ExchangeStepAttempts
+--           └── ExchangeSteps
+--               └── ExchangeStepAttempts
 --
 -- The important foreign key relationships between the tables are:
 --
@@ -384,15 +385,35 @@ CREATE TABLE Exchanges (
 
 CREATE INDEX ExchangesByDate ON Exchanges(Date);
 
--- ExchangeSteps (the public API resource) are not explicitly modeled in this
--- database. Instead, they are inferred from the ExchangeWorkflow (available in
--- RecurringExchangeDetails).
---
--- The current state of the ExchangeStep is inferred from ExchangeStepAttempts.
--- By looking at the state of the lexicographically last row for a given
--- Exchange parent row, the state can be determined: the current step is the max
--- step index in an ExchangeStepAttempt row for the Exchange, or that + 1,
---  depending on whether the attempt is marked successful or not.
+CREATE TABLE ExchangeSteps (
+  RecurringExchangeId  INT64 NOT NULL,
+  Date                 DATE NOT NULL,
+  StepIndex            INT64 NOT NULL,
+
+  -- ExchangeStep.State enum as int.
+  State                INT64 NOT NULL,
+
+  -- Denormalized "party" from the parent RecurringExchange.
+  -- Exactly one of ModelProviderId and DataProviderId will be set.
+  ModelProviderId      INT64,
+  DataProviderId       INT64,
+
+  CONSTRAINT FK_ModelProvider
+    FOREIGN KEY (ModelProviderId)
+    REFERENCES ModelProviders(ModelProviderId),
+
+  CONSTRAINT FK_DataProvider
+    FOREIGN KEY (DataProviderId)
+    REFERENCES DataProviders(DataProviderId),
+) PRIMARY KEY (RecurringExchangeId, Date, StepIndex),
+  INTERLEAVE IN PARENT Exchanges ON DELETE CASCADE;
+
+CREATE NULL_FILTERED INDEX ExchangeStepsByModelProviderId
+  ON ExchangeSteps(ModelProviderId, State);
+
+CREATE NULL_FILTERED INDEX ExchangeStepsByDataProviderId
+  ON ExchangeSteps(DataProviderId, State);
+
 CREATE TABLE ExchangeStepAttempts (
   RecurringExchangeId  INT64 NOT NULL,
   Date                 DATE NOT NULL,
@@ -403,4 +424,4 @@ CREATE TABLE ExchangeStepAttempts (
   ExchangeStepAttemptDetails      BYTES(MAX) NOT NULL,
   ExchangeStepAttemptDetailsJson  STRING(MAX) NOT NULL,
 ) PRIMARY KEY (RecurringExchangeId, Date, StepIndex, AttemptIndex),
-  INTERLEAVE IN PARENT Exchanges ON DELETE CASCADE;
+  INTERLEAVE IN PARENT ExchangeSteps ON DELETE CASCADE;
