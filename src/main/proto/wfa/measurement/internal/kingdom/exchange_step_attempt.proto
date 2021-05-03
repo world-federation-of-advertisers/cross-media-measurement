@@ -55,11 +55,11 @@ message ExchangeStepAttempt {
     SUCCEEDED = 2;
 
     // The attempt has failed. The step should be retried. Terminal state.
-    TEMPORARILY_FAILED = 3;
+    FAILED = 3;
 
     // The attempt has failed permanently and the step should not be retried.
     // Terminal state.
-    PERMANENTLY_FAILED = 4;
+    FAILED_STEP = 4;
   }
 
   // State of the ExchangeStepAttempt.
