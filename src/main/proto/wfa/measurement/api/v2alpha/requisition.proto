@@ -93,9 +93,10 @@ message Requisition {
     UNFULFILLED = 1;
     // The `Requisition` has been fulfilled. Terminal state.
     FULFILLED = 2;
-    // The `Requisition` cannot be fulfilled. Terminal state. Any `Measurement`s
-    // using this `Requisition` will be put into the `FAILED` state.
-    UNFULFILLABLE = 3;
+    // The `Requisition` has been refused by the `DataProvider`. Terminal state.
+    //
+    // `measurement` will be in the `FAILED` state.
+    REFUSED = 3;
   }
   // The state of this `Requisition`.
   State state = 10;
@@ -152,8 +153,6 @@ message Requisition {
     // Example: "Data Provider X does not support Virtual ID model line Y".
     string message = 2;
   }
-  // Details on why the requisition is in the `UNFULFILLABLE` state.
-  oneof unfulfillable_details {
-    Refusal refusal = 12;
-  }
+  // The refusal that put this `Requisition` into the `REFUSED` state.
+  Refusal refusal = 12;
 }

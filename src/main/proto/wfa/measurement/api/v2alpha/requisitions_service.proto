@@ -30,10 +30,11 @@ service Requisitions {
   rpc ListRequisitions(ListRequisitionsRequest)
       returns (ListRequisitionsResponse);
 
-  // Marks a `Requisition` as unfulfillable, transitioning it to the
-  // `UNFULFILLABLE` state. This is a terminal state for the `Requisition` and
-  // all computations that rely on the `Requisition` will fail. Consequently,
-  // this should only be used for permanent failures and not transient errors.
+  // Transitions a `Requisition` to the `REFUSED` state.
+  //
+  // This is a terminal state for the `Requisition` and all computations that
+  // rely on the `Requisition` will fail. Consequently, this should only be used
+  // for permanent failures and not transient errors.
   //
   // This is a state transition method (see https://aip.dev/216).
   rpc RefuseRequisition(RefuseRequisitionRequest) returns (Requisition);
@@ -82,6 +83,6 @@ message RefuseRequisitionRequest {
   // Resource key of the `Requisition` to mark as `UNFILLABLE`. Required.
   Requisition.Key key = 1;
 
-  // Details about the refusal.
+  // Details about the refusal. Required.
   Requisition.Refusal refusal = 2;
 }
