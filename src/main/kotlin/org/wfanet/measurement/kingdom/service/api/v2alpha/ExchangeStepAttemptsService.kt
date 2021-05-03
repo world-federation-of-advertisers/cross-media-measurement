@@ -159,8 +159,8 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
     InternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
     InternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
     // TODO: update public API version to support new [ExchangeStepAttempt] states.
-    InternalExchangeStepAttempt.State.TEMPORARILY_FAILED -> ExchangeStepAttempt.State.FAILED
-    InternalExchangeStepAttempt.State.PERMANENTLY_FAILED -> ExchangeStepAttempt.State.FAILED
+    InternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
+    InternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED
   }
 }
 
@@ -171,7 +171,7 @@ private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.
     ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
     ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
     // TODO: update public API version to support new [ExchangeStepAttempt] states.
-    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.TEMPORARILY_FAILED
+    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
   }
 }
 

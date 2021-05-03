@@ -230,7 +230,7 @@ class ExchangeStepAttemptsServiceTest {
             date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
             stepIndex = STEP_INDEX
             attemptNumber = ATTEMPT_NUMBER
-            state = InternalExchangeStepAttempt.State.TEMPORARILY_FAILED
+            state = InternalExchangeStepAttempt.State.FAILED
             addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
           }
           .build()
