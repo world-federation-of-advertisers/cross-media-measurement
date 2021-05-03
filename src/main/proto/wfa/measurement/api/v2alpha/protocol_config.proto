@@ -47,11 +47,15 @@ message ProtocolConfig {
     LiquidLegionsSketchParams sketch_params = 1;
 
     // Differential privacy parameters for data provider noise registers.
-    // Required.  Immutable.
+    // Required. Immutable.
     //
     // Each of these registers contains a well-known constant register ID, and
     // arbitrary key and count values.
     DifferentialPrivacyParams data_provider_noise = 2;
+
+    // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
+    // prime256v1 curve. Required. Immutable.
+    int32 elliptic_curve_id = 3;
   }
   // Configuration for the specific protocol. Required. Immutable.
   oneof protocol {
