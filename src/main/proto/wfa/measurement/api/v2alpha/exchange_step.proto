@@ -57,17 +57,29 @@ message ExchangeStep {
   enum State {
     STATE_UNSPECIFIED = 0;
 
-    // There are no ExchangeStepAttempts associated with this ExchangeStep.
-    NOT_STARTED = 1;
+    // Some predecessor ExchangeStep is not in state SUCCEEDED.
+    BLOCKED = 1;
 
-    // The step is currently being processed.
-    IN_PROGRESS = 2;
+    // All predecessor ExchangeSteps are in state `SUCCEEDED` and there are no
+    // associated ExchangeStepAttempts.
+    READY = 2;
 
-    // The step has succeeded. Terminal state.
-    SUCCEEDED = 3;
+    // All predecessor ExchangeSteps are in state `SUCCEEDED` and there is at
+    // least one associated ExchangeStepAttempt and all associated
+    // ExchangeStepAttempts are in state `FAILED`.
+    READY_FOR_RETRY = 3;
 
-    // The step has permanently failed. Terminal state.
-    FAILED = 4;
+    // All predecessor ExchangeSteps are in state `SUCCEEDED` and an associated
+    // ExchangeStepAttempt is in state `ACTIVE`.
+    IN_PROGRESS = 4;
+
+    // The step has succeeded. Terminal state. This implies that an associated
+    // ExchangeStepAttempt is in state `SUCCEEDED`.
+    SUCCEEDED = 5;
+
+    // The step has permanently failed. Terminal state. This implies that an
+    // associated ExchangeStepAttempt is in state `FAILED_STEP`.
+    FAILED = 6;
   }
 
   // Represents how to access an output/input.

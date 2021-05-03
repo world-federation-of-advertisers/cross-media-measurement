@@ -48,9 +48,13 @@ message ExchangeStepAttempt {
     // Terminal state.
     SUCCEEDED = 3;
 
-    // The attempt has failed. The step should be retried unless it is in a
-    // terminal state.
+    // The attempt has failed but the `ExchangeStep` can be retried.
+    // Terminal state.
     FAILED = 4;
+
+    // The attempt has failed and the `ExchangeStep` should not be retried.
+    // Terminal state.
+    FAILED_STEP = 5;
   }
 
   // State of the ExchangeStepAttempt. Output-only.

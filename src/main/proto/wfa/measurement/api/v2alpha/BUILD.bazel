@@ -260,8 +260,9 @@ proto_library(
     name = "exchange_steps_service_proto",
     srcs = ["exchange_steps_service.proto"],
     deps = [
-        ":exchange_proto",
+        ":data_provider_proto",
         ":exchange_step_proto",
+        ":model_provider_proto",
     ],
 )
 

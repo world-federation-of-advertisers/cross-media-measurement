@@ -16,8 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/exchange.proto";
+import "wfa/measurement/api/v2alpha/data_provider.proto";
 import "wfa/measurement/api/v2alpha/exchange_step.proto";
+import "wfa/measurement/api/v2alpha/model_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -28,13 +29,16 @@ service ExchangeSteps {
   // Returns the `ExchangeStep` with the specified resource key.
   rpc GetExchangeStep(GetExchangeStepRequest) returns (ExchangeStep);
 
-  // Lists `ExchangeSteps`.
+  // Finds a single ExchangeStep that is ready to be worked on.
   //
-  // This method is critical to the core "flow" of the system: clients will call
-  // "/ExchangeSteps.ListExchangeSteps" with a filter for the NOT_STARTED state
-  // and then create new `ExchangeStepAttempts` for those.
-  rpc ListExchangeSteps(ListExchangeStepsRequest)
-      returns (ListExchangeStepsResponse);
+  // This could be emulated with a single standard List RPC endpoint with
+  // appropriate filters, but that adds unnecessary complexity to the API.
+  //
+  // If there are no ready ExchangeSteps, this will return an empty response.
+  // Since this is expected, normal behavior, it does NOT return a NOT_FOUND
+  // error.
+  rpc FindReadyExchangeStep(FindReadyExchangeStepRequest)
+      returns (FindReadyExchangeStepResponse);
 }
 
 // Request message for `GetExchangeStep` method.
@@ -43,45 +47,17 @@ message GetExchangeStepRequest {
   ExchangeStep.Key key = 1;
 }
 
-// Request message for `ListExchangeSteps` method.
-message ListExchangeStepsRequest {
-  // The Exchange that the ExchangeSteps belong to.
-  //
-  // Optional: if not provided, this will list ExchangeSteps from all Exchanges
-  // that the caller has access to.
-  Exchange.Key parent = 1;
-
-  // The maximum number of `ExchangeStep`s to return.
-  // The service may return fewer than this value.
-  // If unspecified, at most 50 `ExchangeStep`s will be returned.
-  // The maximum value is 1000; values above 1000 will be coerced to 1000.
-  //
-  // Since most protocols will have fewer than 50 ExchangeSteps, this can
-  // typically be left unset.
-  int32 page_size = 2;
-
-  // A page token, received from a previous `ListExchangeStepsRequest` call.
-  // Provide this to retrieve the subsequent page.
-  //
-  // When paginating, all other parameters provided to
-  // `ListExchangeStepsRequest` must match the call that provided the page
-  // token.
-  string page_token = 3;
-
-  // Filter for results. The API will return ExchangeSteps that match ALL of the
-  // given conditions. Repeated fields are treated as disjunctions.
-  message Filter {
-    repeated ExchangeStep.State states = 1;
+// Request message for `FindReadyExchangeStep` method.
+message FindReadyExchangeStepRequest {
+  // Required. Only includes steps belonging to this party.
+  oneof party {
+    DataProvider.Key data_provider = 1;
+    ModelProvider.Key model_provider = 2;
   }
-  Filter filter = 4;
 }
 
-// Response message for `ListExchangeSteps` method.
-message ListExchangeStepsResponse {
-  // Page of `ExchangeStep`s.
-  repeated ExchangeStep exchange_steps = 1;
-
-  // A token, which can be sent as `page_token` to retrieve the next page.
-  // If this field is omitted, there are no subsequent pages.
-  string next_page_token = 2;
+// Response message for `FindReadyExchangeStep` method.
+message FindReadyExchangeStepResponse {
+  // If unset, there was no ready `ExchangeStep`.
+  ExchangeStep exchange_step = 1;
 }
