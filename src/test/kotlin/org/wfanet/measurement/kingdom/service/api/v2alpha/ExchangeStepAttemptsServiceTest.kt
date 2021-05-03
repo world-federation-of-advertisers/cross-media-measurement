@@ -98,7 +98,6 @@ private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
         time = DEBUG_LOG_2_TIME
         message = DEBUG_LOG_2_MESSAGE
       }
-      addSharedOutputs(ARBITRARY_BYTES)
     }
     .build()
 
@@ -178,7 +177,6 @@ class ExchangeStepAttemptsServiceTest {
             key = EXCHANGE_STEP_ATTEMPT.key
             state = ExchangeStepAttempt.State.FAILED
             attemptNumber = 12345
-            addSharedOutputs(ByteString.copyFromUtf8("some-shared-output"))
             addAllDebugLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
           }
         }

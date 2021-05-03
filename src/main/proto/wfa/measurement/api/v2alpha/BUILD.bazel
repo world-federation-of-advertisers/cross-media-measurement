@@ -52,6 +52,13 @@ kt_jvm_grpc_and_java_proto_library(
 )
 
 java_proto_library(
+    name = "differential_privacy_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:differential_privacy_proto",
+    ],
+)
+
+java_proto_library(
     name = "duchy_java_proto",
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:duchy_proto",
@@ -157,6 +164,13 @@ kt_jvm_grpc_and_java_proto_library(
     srcs = [":measurement_consumers_service_proto"],
 )
 
+java_proto_library(
+    name = "measurement_spec_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_proto",
+    ],
+)
+
 alias(
     name = "measurements_service_proto",
     actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
@@ -172,6 +186,23 @@ java_proto_library(
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_provider_proto",
     ],
+)
+
+java_proto_library(
+    name = "protocol_config_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_proto",
+    ],
+)
+
+alias(
+    name = "protocol_configs_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:protocol_configs_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "protocol_configs_service_kt_jvm_grpc",
+    srcs = [":protocol_configs_service_proto"],
 )
 
 java_proto_library(
@@ -223,21 +254,4 @@ alias(
 kt_jvm_grpc_and_java_proto_library(
     name = "requisitions_service_kt_jvm_grpc",
     srcs = [":requisitions_service_proto"],
-)
-
-java_proto_library(
-    name = "sketch_java_proto",
-    deps = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:sketch_proto",
-    ],
-)
-
-alias(
-    name = "sketch_configs_service_proto",
-    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:sketch_configs_service_proto",
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "sketch_configs_service_kt_jvm_grpc",
-    srcs = [":sketch_configs_service_proto"],
 )
