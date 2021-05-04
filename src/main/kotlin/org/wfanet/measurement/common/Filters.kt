@@ -31,10 +31,6 @@ data class AllOfClause<V : TerminalClause>(val clauses: Iterable<V>) {
 
 interface TerminalClause
 
-interface AnyOfClause : TerminalClause
-
-interface GreaterThanClause : TerminalClause
-
 fun <V : TerminalClause> allOf(clauses: Iterable<V>): AllOfClause<V> = AllOfClause(clauses)
 
 fun <V : TerminalClause> allOf(vararg clauses: V): AllOfClause<V> =

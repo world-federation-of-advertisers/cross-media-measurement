@@ -22,25 +22,23 @@ import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.AnyOfClause
-import org.wfanet.measurement.common.GreaterThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.allOf
 
 @RunWith(JUnit4::class)
 class FiltersTest {
   sealed class Foo : TerminalClause {
-    data class A(val a: List<Long>) : Foo(), AnyOfClause
-    data class B(val b: List<String>) : Foo(), AnyOfClause
-    data class C(val c: Long) : Foo(), GreaterThanClause
+    data class A(val a: List<Long>) : Foo()
+    data class B(val b: List<String>) : Foo()
+    data class C(val c: Long) : Foo()
   }
 
   object FooSqlConverter : SqlConverter<Foo> {
-    override fun sqlData(v: Foo): SqlConverter.SqlData =
+    override fun sqlData(v: Foo): SqlData =
       when (v) {
-        is Foo.A -> SqlConverter.SqlData("fieldA", "bindingA", Value.int64Array(v.a))
-        is Foo.B -> SqlConverter.SqlData("fieldB", "bindingB", Value.stringArray(v.b))
-        is Foo.C -> SqlConverter.SqlData("fieldC", "bindingC", Value.int64(v.c))
+        is Foo.A -> "Foo.fieldA" containedIn Value.int64Array(v.a)
+        is Foo.B -> "Foo.fieldB" containedIn Value.stringArray(v.b)
+        is Foo.C -> "Foo.fieldC" greaterThan Value.int64(v.c)
       }
   }
 
@@ -57,9 +55,8 @@ class FiltersTest {
     filter.toSql(queryBuilder, FooSqlConverter)
     val query: Statement = queryBuilder.build()
 
-    assertThat(query.sql).isEqualTo("WHERE (fieldA IN UNNEST(@bindingA))")
-
-    assertThat(query.parameters).containsExactly("bindingA", Value.int64Array(listOf(1L, 2L, 3L)))
+    assertThat(query.sql).isEqualTo("WHERE (Foo.fieldA IN UNNEST(@Foo_fieldA))")
+    assertThat(query.parameters).containsExactly("Foo_fieldA", Value.int64Array(listOf(1L, 2L, 3L)))
   }
 
   @Test
@@ -72,19 +69,19 @@ class FiltersTest {
     assertThat(query.sql)
       .isEqualTo(
         """
-      |WHERE (fieldA IN UNNEST(@bindingA))
-      |  AND (fieldB IN UNNEST(@bindingB))
-      |  AND (fieldC > @bindingC)
+      |WHERE (Foo.fieldA IN UNNEST(@Foo_fieldA))
+      |  AND (Foo.fieldB IN UNNEST(@Foo_fieldB))
+      |  AND (Foo.fieldC > @Foo_fieldC)
       """.trimMargin()
       )
 
     assertThat(query.parameters)
       .containsExactly(
-        "bindingA",
+        "Foo_fieldA",
         Value.int64Array(listOf(1L, 2L, 3L)),
-        "bindingB",
+        "Foo_fieldB",
         Value.stringArray(listOf("a", "b", "c")),
-        "bindingC",
+        "Foo_fieldC",
         Value.int64(456)
       )
   }
