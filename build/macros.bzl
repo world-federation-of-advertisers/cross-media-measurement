@@ -58,7 +58,7 @@ def kt_jvm_grpc_library(
         name = name,
         exports = [
             internal_name,
-            "//imports/java/io/grpc/stub",
+            "@wfa_measurement_system//imports/java/io/grpc/stub",
         ] + deps,
         visibility = visibility,
         **kwargs
