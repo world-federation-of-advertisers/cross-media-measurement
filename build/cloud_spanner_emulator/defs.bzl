@@ -24,7 +24,11 @@ def _cloud_spanner_emulator_impl(rctx):
         url = url,
         sha256 = sha256,
     )
-    rctx.template("BUILD.bazel", Label("//build/cloud_spanner_emulator:BUILD.external"), executable = False)
+    rctx.template(
+        "BUILD.bazel",
+        Label("@wfa_measurement_system//build/cloud_spanner_emulator:BUILD.external"),
+        executable = False,
+    )
 
 cloud_spanner_emulator_binaries = repository_rule(
     implementation = _cloud_spanner_emulator_impl,

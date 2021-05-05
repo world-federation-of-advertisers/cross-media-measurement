@@ -75,7 +75,7 @@ def cue_string_field(name, src, identifier, package = None, **kwargs):
         identifier = identifier,
         package = package,
         output = name + ".cue",
-        tool = "//build/cue:gen-cue-string-field",
+        tool = "@wfa_measurement_system//build/cue:gen-cue-string-field",
         **kwargs
     )
 
