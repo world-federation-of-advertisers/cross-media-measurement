@@ -24,13 +24,12 @@ option java_multiple_files = true;
 option java_outer_classname = "ExchangeStepAttemptsServiceProto";
 
 // Service for interacting with `ExchangeStepAttempt` resources.
+//
+// The only way to create an ExchangeStepAttempt is through the
+// /ExchangeSteps.ClaimReadyExchangeStep method.
 service ExchangeStepAttempts {
   // Returns the `ExchangeStepAttempt` with the specified resource key.
   rpc GetExchangeStepAttempt(GetExchangeStepAttemptRequest)
-      returns (ExchangeStepAttempt);
-
-  // Creates a `ExchangeStepAttempt`.
-  rpc CreateExchangeStepAttempt(CreateExchangeStepAttemptRequest)
       returns (ExchangeStepAttempt);
 
   // Lists `ExchangeStepAttempts`.
@@ -52,13 +51,6 @@ service ExchangeStepAttempts {
 message GetExchangeStepAttemptRequest {
   // Resource key.
   ExchangeStepAttempt.Key key = 1;
-}
-
-// Request message for `CreateExchangeStepAttempt` method.
-message CreateExchangeStepAttemptRequest {
-  // The `ExchangeStepAttempt` to create. Required. The `key` field will be
-  // ignored, and the system will assign an ID.
-  ExchangeStepAttempt exchange_step_attempt = 1;
 }
 
 // Request message for `ListExchangeStepAttempts` method.

@@ -18,6 +18,7 @@ package wfa.measurement.api.v2alpha;
 
 import "wfa/measurement/api/v2alpha/data_provider.proto";
 import "wfa/measurement/api/v2alpha/exchange_step.proto";
+import "wfa/measurement/api/v2alpha/exchange_step_attempt.proto";
 import "wfa/measurement/api/v2alpha/model_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -29,16 +30,14 @@ service ExchangeSteps {
   // Returns the `ExchangeStep` with the specified resource key.
   rpc GetExchangeStep(GetExchangeStepRequest) returns (ExchangeStep);
 
-  // Finds a single ExchangeStep that is ready to be worked on.
-  //
-  // This could be emulated with a single standard List RPC endpoint with
-  // appropriate filters, but that adds unnecessary complexity to the API.
+  // Claims a single ExchangeStep that is ready to be worked on and creates an
+  // initial ExchangeStepAttempt for it.
   //
   // If there are no ready ExchangeSteps, this will return an empty response.
   // Since this is expected, normal behavior, it does NOT return a NOT_FOUND
   // error.
-  rpc FindReadyExchangeStep(FindReadyExchangeStepRequest)
-      returns (FindReadyExchangeStepResponse);
+  rpc ClaimReadyExchangeStep(ClaimReadyExchangeStepRequest)
+      returns (ClaimReadyExchangeStepResponse);
 }
 
 // Request message for `GetExchangeStep` method.
@@ -47,17 +46,22 @@ message GetExchangeStepRequest {
   ExchangeStep.Key key = 1;
 }
 
-// Request message for `FindReadyExchangeStep` method.
-message FindReadyExchangeStepRequest {
-  // Required. Only includes steps belonging to this party.
+// Request message for `ClaimReadyExchangeStep` method.
+message ClaimReadyExchangeStepRequest {
+  // If an `ExchangeStep` is returned, it should be executed by this party.
+  // Required.
   oneof party {
     DataProvider.Key data_provider = 1;
     ModelProvider.Key model_provider = 2;
   }
 }
 
-// Response message for `FindReadyExchangeStep` method.
-message FindReadyExchangeStepResponse {
-  // If unset, there was no ready `ExchangeStep`.
+// Response message for `ClaimReadyExchangeStep` method.
+// If there are no ready `ExchangeSteps`, all fields will be unset.
+message ClaimReadyExchangeStepResponse {
+  // The `ExchangeStep`.
   ExchangeStep exchange_step = 1;
+
+  // Resource key of a new ExchangeStepAttempt for `exchange_step`.
+  ExchangeStepAttempt.Key exchange_step_attempt = 2;
 }
