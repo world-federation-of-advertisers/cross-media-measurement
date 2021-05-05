@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wfanet.panelmatch.protocol.common
+package org.wfanet.panelmatch.protocol.common
 
 import java.nio.file.Paths
-import wfanet.panelmatch.common.loadLibrary
+import org.wfanet.panelmatch.common.loadLibrary
 import wfanet.panelmatch.protocol.crypto.CommutativeEncryptionUtility
 import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeDecryptionRequest
 import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeDecryptionResponse

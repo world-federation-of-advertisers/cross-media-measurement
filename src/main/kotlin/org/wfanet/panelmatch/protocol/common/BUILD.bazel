@@ -9,7 +9,7 @@ kt_jvm_library(
         "JniCommutativeEncryption.kt",
     ],
     deps = [
-        "//src/main/kotlin/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/proto/wfanet/panelmatch/protocol/crypto:cryptor_java_proto",
         "//src/main/swig/wfanet/panelmatch/protocol/crypto:commutative_encryption_utility",
         "@wfa_measurement_system//imports/java/com/google/protobuf",

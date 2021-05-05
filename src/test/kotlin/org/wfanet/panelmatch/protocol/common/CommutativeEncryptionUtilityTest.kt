@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wfanet.panelmatch.protocol.common
+package org.wfanet.panelmatch.protocol.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
