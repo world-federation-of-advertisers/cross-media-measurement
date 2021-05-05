@@ -24,7 +24,11 @@ def _cue_binaries_impl(rctx):
         url = url,
         sha256 = sha256,
     )
-    rctx.template("BUILD.bazel", Label("//build/cue:BUILD.external"), executable = False)
+    rctx.template(
+        "BUILD.bazel",
+        Label("@wfa_measurement_system//build/cue:BUILD.external"),
+        executable = False,
+    )
 
 cue_binaries = repository_rule(
     implementation = _cue_binaries_impl,
