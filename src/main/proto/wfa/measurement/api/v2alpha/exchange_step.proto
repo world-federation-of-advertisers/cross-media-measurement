@@ -40,19 +40,23 @@ message ExchangeStep {
   // that this ExchangeStep corresponds to. Output-only.
   ExchangeWorkflow.Step step = 3;
 
-  // Output-only. Once predecessor steps complete, this will contain an entry
-  // for each `step.input_labels` entry produced by the other party. The keys
-  // here are the values of that map.
-  map<string, SharedData> inputs = 4;
-
-  // Output-only. This will be populated only if `state` is `SUCCEEDED`.
-  // The keys of `outputs` are the subset of values of `step.output_labels`
-  // that are also values of `input_labels` of some `ExchangeWorkflow.Step` to
-  // be executed by the other party.
+  // Output-only.
   //
-  // Intuitively, these are the output labels that that other party needs to
-  // access.
-  map<string, SharedData> outputs = 5;
+  // Once predecessor steps complete, this will contain an entry for each
+  // `step.input_labels` entry produced by the other party.
+  //
+  // The keys of this map are the values of the `step.input_labels` map.
+  //
+  // The values of this map are serialized SignedData. Each SignedData's payload
+  // is a byte string of concatenated encrypted values of uniform length.
+  //
+  // When ExchangeStepAttempts are completed successfully,
+  // `/ExchangeStepAttempts.FinishExchangeStepAttempt` is provided
+  // with outputs via its `shared_outputs` field. To populate this field, all of
+  // the shared_outputs are (logically) aggregated into one map, and then
+  // `shared_inputs` is the subset of that map consisting of labels from
+  // `step.input_labels`.
+  map<string, bytes> shared_inputs = 4;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -80,43 +84,5 @@ message ExchangeStep {
     // The step has permanently failed. Terminal state. This implies that an
     // associated ExchangeStepAttempt is in state `FAILED_STEP`.
     FAILED = 6;
-  }
-
-  // Represents how to access an output/input.
-  message SharedData {
-    // Encrypted, serialized `SignedData` messages containing serialized
-    // `Location` payloads.
-    bytes encrypted_signed_location = 1;
-
-    // TODO(@efoxepstein): refactor to use a resource URI or something generic.
-    message Location {
-      // This should correspond to one of the values in the
-      // `ExchangeWorkflow.Step.output_labels` map for a step.
-      string label = 1;
-
-      oneof location {
-        // Represents a file to download over HTTPS. Since SharedOutput is only
-        // shared via an encrypted SignedData message, it is safe to put URLs
-        // with access tokens in here.
-        string https_uri = 2;
-
-        // Represents a query to execute under Google Cloud's BigQuery.
-        // The exact details are TBD but this may end up being the name of an
-        // AuthorizedView from which all rows should be read.
-        string google_big_query = 3;
-
-        // Represents a file accessible via Google Cloud Storage. While
-        // sometime HTTPS can be used directly, some may prefer to use ACLs
-        // rather than access tokens. This should be a standard GCS path of the
-        // format "gcs://bucket-name/and/some/path".
-        string google_cloud_storage = 4;
-
-        // Represents a file accessible via AWS S3. While sometimes HTTPS can be
-        // used directly, some may prefer to use ACLs rather than access tokens.
-        // This should be a standard S3 path of the format
-        // "s3://bucket-name/and/some/path".
-        string amazon_s3 = 5;
-      }
-    }
   }
 }
