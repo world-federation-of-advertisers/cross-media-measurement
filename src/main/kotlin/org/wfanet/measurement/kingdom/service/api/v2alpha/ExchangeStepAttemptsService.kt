@@ -69,7 +69,6 @@ class ExchangeStepAttemptsService(
           keyBuilder.clearExchangeStepAttemptId()
           clearAttemptNumber()
           state = ExchangeStepAttempt.State.ACTIVE
-          clearSharedOutputs()
           clearStartTime()
           clearUpdateTime()
         }
@@ -144,7 +143,6 @@ private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
       builder.attemptNumber = attemptNumber
       builder.state = state.toV2Alpha()
       builder.addAllDebugLogEntries(details.debugLogEntriesList.map { it.toV2Alpha() })
-      builder.addAllSharedOutputs(details.sharedOutputsList)
       builder.startTime = details.startTime
       builder.updateTime = details.updateTime
     }
@@ -158,9 +156,8 @@ private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.S
       failGrpc(Status.INTERNAL) { "Invalid State: $this" }
     InternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
     InternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
-    // TODO: update public API version to support new [ExchangeStepAttempt] states.
     InternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
-    InternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED
+    InternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED_STEP
   }
 }
 
@@ -170,8 +167,8 @@ private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.
       failGrpc { "Invalid State: $this" }
     ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
     ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
-    // TODO: update public API version to support new [ExchangeStepAttempt] states.
     ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
+    ExchangeStepAttempt.State.FAILED_STEP -> InternalExchangeStepAttempt.State.FAILED_STEP
   }
 }
 
@@ -226,7 +223,6 @@ private fun ExchangeStepAttempt.toInternalDetails(): ExchangeStepAttemptDetails 
   return ExchangeStepAttemptDetails.newBuilder()
     .also { builder ->
       builder.addAllDebugLogEntries(debugLogEntriesList.toInternal())
-      builder.addAllSharedOutputs(sharedOutputsList)
       builder.startTime = startTime
       builder.updateTime = updateTime
     }

@@ -19,8 +19,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.FindReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
-import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
 
 @RunWith(JUnit4::class)
 class ExchangeStepsServiceTest {
@@ -36,10 +36,10 @@ class ExchangeStepsServiceTest {
     }
 
   @Test
-  fun listExchangeSteps() =
+  fun findReadyExchangeStep() =
     runBlocking<Unit> {
       assertFailsWith(NotImplementedError::class) {
-        service.listExchangeSteps(ListExchangeStepsRequest.getDefaultInstance())
+        service.findReadyExchangeStep(FindReadyExchangeStepRequest.getDefaultInstance())
       }
     }
 }
