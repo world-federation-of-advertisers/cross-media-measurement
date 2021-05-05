@@ -128,15 +128,13 @@ message Measurement {
   // `SUCCEEDED`.
   bytes aggregator_certificate = 9;
 
-  // Serialized `EncryptionPublicKey` for the `Result`, which can be verified
-  // using `aggregator_certificate`. Output-only.
-  //
-  // Only set if `state` is `SUCCEEDED`.
-  SignedData result_public_key = 10;
+  // Public key for this `Measurement` used to encrypt the result. Output-only.
+  // Must be set if `state` is `SUCCEEDED`.
+  EncryptionPublicKey result_public_key = 10;
 
   // Encrypted `SignedData` containing the serialized `Result`, which can be
-  // verified using `aggregator_certificate`. Output-only. Only set if `state`
-  // is `SUCCEEDED`.
+  // verified using `aggregator_certificate`. Output-only. Must be set if
+  // `state` is `SUCCEEDED`.
   //
   // The symmetric encryption key is derived using a key-agreement protocol
   // between `measurement_public_key` in `measurement_spec` and
