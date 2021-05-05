@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wfanet.panelmatch.common
+package org.wfanet.panelmatch.common
 
 import com.google.devtools.build.runfiles.Runfiles
 import java.nio.file.Path
