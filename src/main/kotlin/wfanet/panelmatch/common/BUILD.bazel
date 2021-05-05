@@ -1,0 +1,18 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/wfanet/panelmatch:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "common",
+    srcs = [
+        "Runfiles.kt",
+    ],
+    deps = [
+        "@wfa_measurement_system//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_measurement_system//imports/java/com/google/protobuf",
+        "@wfa_measurement_system//imports/java/com/google/protobuf/util",
+    ],
+)
