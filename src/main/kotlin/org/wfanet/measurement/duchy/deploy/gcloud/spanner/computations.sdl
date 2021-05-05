@@ -17,6 +17,7 @@
 -- Table hierarchy:
 --  Root
 --  └── Computations
+--      ├── Requisitions
 --      └── ComputationStages
 --          ├── ComputationBlobReferences
 --          └── ComputationStageAttempts
@@ -113,6 +114,34 @@ CREATE INDEX ComputationsByLockOwner ON Computations(LockOwner);
 -- Enable querying by global computation id.
 CREATE UNIQUE INDEX ComputationsByGlobalId ON Computations(GlobalComputationId);
 
+-- Requisitions
+--   All requisitions used in a particular computation. The data is store in
+--   the BLOB store, and the path to the BLOB is recorded in this table.
+--   If the path is set, the requisition is fulfilled at this duchy. Otherwise,
+--   it is not fulfilled yet or fulfilled at other duchies.
+CREATE TABLE Requisitions (
+  -- The local identifier of the parent computation.
+  ComputationId INT64 NOT NULL,
+
+  -- The local identifier of this requisition.
+  RequisitionId INT64 NOT NULL,
+
+  -- The external data provider id.
+  ExternalDataProviderId STRING(MAX) NOT NULL,
+
+  -- The external requisition id.
+  ExternalRequisitionId STRING(MAX) NOT NULL,
+
+  -- A reference to the BLOB. If empty, then the requisition is unfulfilled
+  PathToBlob STRING(MAX),
+) PRIMARY KEY (ComputationId, RequisitionId),
+INTERLEAVE IN PARENT Computations ON DELETE CASCADE;
+
+-- Enable querying by ExternalDataProviderId and ExternalRequisitionId.
+CREATE UNIQUE INDEX RequisitionsByExternalId ON Requisitions(
+  ExternalDataProviderId,
+  ExternalRequisitionId
+);
 
 -- ComputationStages
 --   Running history of stage transitions for a computation. A stage may
