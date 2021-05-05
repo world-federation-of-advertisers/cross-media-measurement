@@ -5,6 +5,17 @@ package(default_visibility = ["//visibility:public"])
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
+    name = "encryption_utility_helper",
+    hdrs = [
+        "encryption_utility_helper.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "cryptor",
     srcs = [
         "cryptor.cc",

@@ -15,6 +15,8 @@
 #ifndef SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_CRYPTOR_H_
 #define SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_CRYPTOR_H_
 
+#include <google/protobuf/repeated_field.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -39,6 +41,11 @@ class Cryptor {
   virtual absl::StatusOr<std::vector<std::string>> BatchProcess(
       const std::vector<std::string>& plaintexts_or_ciphertexts,
       Action action) = 0;
+
+  virtual absl::StatusOr<google::protobuf::RepeatedPtrField<std::string>>
+  BatchProcess(const google::protobuf::RepeatedPtrField<std::string>&
+                   plaintexts_or_ciphertexts,
+               Action action) = 0;
 
  protected:
   Cryptor() = default;

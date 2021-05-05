@@ -14,4 +14,4 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-class ExchangeStepLauncher {}
+class ExchangeStepLauncher
