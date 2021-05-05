@@ -17,49 +17,82 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
-import "src/main/proto/wfa/measurement/internal/kingdom/requisition_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message Requisition {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_campaign_id = 2;
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
   fixed64 external_requisition_id = 3;
 
-  // See `provided_campaign_id` in the Campaign message.
-  string provided_campaign_id = 11;
+  fixed64 external_data_provider_id = 4;
+  fixed64 external_data_provider_certificate_id = 5;
 
-  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp create_time = 6;
 
-  google.protobuf.Timestamp window_start_time = 5;
-  google.protobuf.Timestamp window_end_time = 6;
-
-  RequisitionState state = 7;
-  string duchy_id = 10;
-
-  RequisitionDetails requisition_details = 8;
-  string requisition_details_json = 9;
-
-  // ID of the CombinedPublicKey resource for the encryption key used to encrypt
-  // the metric value.
-  string combined_public_key_resource_id = 12;
-
-  enum RequisitionState {
-    REQUISITION_STATE_UNKNOWN = 0;
-
-    // Initial state of a Requisition. This means that the Requisition is
-    // created but there is no guarantee that the data requested in the
-    // Requisition has been computed or is available.
+  enum State {
+    STATE_UNSPECIFIED = 0;
     UNFULFILLED = 1;
-
-    // Data for the Requisition has been computed and is ready to be used in
-    // computations.
     FULFILLED = 2;
-
-    // A Data Provider has indicated that the data for the Requisition cannot be
-    // computed. This is a terminal state; any Reports using this Requisition
-    // will be placed in a permanent failure state as well.
-    PERMANENTLY_UNAVAILABLE = 3;
+    REFUSED = 3;
   }
+  State state = 7;
+
+  // The external ID of the Duchy that marked this `Requisition` as `FULFILLED`.
+  fixed64 external_fulfilling_duchy_id = 8;
+
+  message Refusal {
+    enum Justification {
+      JUSTIFICATION_UNSPECIFIED = 0;
+
+      // The `EventGroup` is not known to the `DataProvider`. This should only
+      // happen if the corresponding event group in the `DataProvider`'s system
+      // previously existed but has been deleted.
+      UNKNOWN_EVENT_GROUP = 1;
+
+      // The `MeasurementSpec` specifies a configuration that the
+      // `DataProvider` does not and will never support for this `EventGroup`.
+      MEASUREMENT_SPEC_UNSUPPORTED = 2;
+
+      // The collection interval covers a range that is sufficiently long ago
+      // that the DataProvider no longer retains the underlying data.
+      COLLECTION_INTERVAL_TOO_DISTANT = 3;
+
+      // Validation of the `measurement_spec` or `encrypted_requisition_spec`
+      // signature failed.
+      SIGNATURE_INVALID = 4;
+
+      // There is insufficient remaining privacy budget to fulfill this
+      // `Requisition`.
+      INSUFFICIENT_PRIVACY_BUDGET = 5;
+
+      // The `DataProvider` has declined to fulfill this `Requisition`. The data
+      // required to fulfill this request may or may not be available.
+      DECLINED = 6;
+
+      // The data required to fulfill this `Requisition` is inaccessible or
+      // lost. This should only be used when there is no other `Justification`
+      // that is more specific.
+      DATA_UNAVAILABLE = 7;
+    }
+    Justification justification = 1;
+
+    // Human-readable string adding more context to the provided
+    // `Justification`. This should NOT include sensitive information.
+    //
+    // Example: "Data Provider X does not support Virtual ID model line Y".
+    string message = 2;
+  }
+
+  message Details {
+    bytes data_provider_public_key = 1;
+    bytes data_provider_public_key_signature = 2;
+
+    bytes data_provider_participation_signature = 3;
+
+    Refusal refusal = 4;
+  }
+  Details details = 9;
+  string details_json = 10;
 }
