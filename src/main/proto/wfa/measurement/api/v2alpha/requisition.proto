@@ -112,39 +112,50 @@ message Requisition {
   bytes data_provider_participation_signature = 11;
 
   message Refusal {
+    // Justification for refusing to fulfill a `Requisition`.
+    //
+    // The number of values should be kept small and communicate only the
+    // granularity necessary for automated downstream consumption and
+    // statistics. Each value attempts to map to a specific stage of
+    // `Requisition` handling by a `DataProvider`.
     enum Justification {
+      // Default value if a `Justification` field has not been specified. Should
+      // never be used.
       JUSTIFICATION_UNSPECIFIED = 0;
 
-      // The `EventGroup` is not known to the `DataProvider`. This should only
-      // happen if the corresponding event group in the `DataProvider`'s system
-      // previously existed but has been deleted.
-      UNKNOWN_EVENT_GROUP = 1;
+      // At least one cryptographic consent signal (digital signature or
+      // encrypted value) in the `Requisition` is invalid.
+      //
+      // This means either that a digital signature cannot be verified using the
+      // specified certificate or an encrypted value cannot be decrypted using
+      // the specified key.
+      CONSENT_SIGNAL_INVALID = 1;
 
-      // The `MeasurementSpec` specifies a configuration that the
-      // `DataProvider` does not and will never support for this `EventGroup`.
-      MEASUREMENT_SPEC_UNSUPPORTED = 2;
+      // The specification/configuration for the `Requisition` is invalid.
+      //
+      // For example, `encrypted_requisition_spec` includes an invalid
+      // `TimeInterval` (with `end_time` before `start_time`) or some
+      // configuration that the `DataProvider` does not support.
+      SPECIFICATION_INVALID = 2;
 
-      // The collection interval covers a range that is sufficiently long ago
-      // that the DataProvider no longer retains the underlying data.
-      COLLECTION_INTERVAL_TOO_DISTANT = 3;
-
-      // Validation of the `measurement_spec` or `encrypted_requisition_spec`
-      // signature failed.
-      SIGNATURE_INVALID = 4;
-
-      // There is insufficient remaining privacy budget to fulfill this
+      // There is insufficient remaining privacy budget to fulfill the
       // `Requisition`.
-      INSUFFICIENT_PRIVACY_BUDGET = 5;
+      INSUFFICIENT_PRIVACY_BUDGET = 3;
 
-      // The `DataProvider` has declined to fulfill this `Requisition`. The data
-      // required to fulfill this request may or may not be available.
-      DECLINED = 6;
+      // The `Requisition` cannot be fulfilled by the `DataProvider` for a
+      // reason that is not more clearly indicated by another `Justification`.
+      //
+      // This implies that the `DataProvider` *should* be able to fulfill the
+      // `Requisition`, but something went irrecoverably wrong. For example, the
+      // `DataProvider` encountered corruption of the underlying data.
+      UNFULFILLABLE = 4;
 
-      // The data required to fulfill this `Requisition` is inaccessible or
-      // lost. This should only be used when there is no other `Justification`
-      // that is more specific.
-      DATA_UNAVAILABLE = 7;
+      // The `DataProvider` has declined to fulfill this `Requisition`
+      // regardless of whether any of the other `Justification` conditions
+      // apply.
+      DECLINED = 5;
     }
+    // Justification for refusing to fulfill this `Requisition`. Required.
     Justification justification = 1;
 
     // Human-readable string adding more context to the provided
@@ -153,6 +164,7 @@ message Requisition {
     // Example: "Data Provider X does not support Virtual ID model line Y".
     string message = 2;
   }
-  // The refusal that put this `Requisition` into the `REFUSED` state.
+  // The refusal that put this `Requisition` into the `REFUSED` state. Must be
+  // set when `state` is `REFUSED`.
   Refusal refusal = 12;
 }
