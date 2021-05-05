@@ -31,38 +31,43 @@ message LabeledEvent {
 
   // Type of sex.
   enum Sex {
-    MALE = 0;
-    FEMALE = 1;
+    SEX_UNSPECIFIED = 0;
+    MALE = 1;
+    FEMALE = 2;
   }
   // Sex of the person.
-  Sex gender = 3;
+  Sex sex = 3;
 
   // Type of Age Group.
   enum AgeGroup {
+    AGE_GROUP_UNSPECIFIED = 0;
+
     // Ages between 18 to 34 inclusive.
-    _18_34 = 0;
+    _18_34 = 1;
 
     // Ages between 35 to 54 inclusive.
-    _35_54 = 1;
+    _35_54 = 2;
 
     // Ages 55 and older.
-    _55 = 2;
+    _55 = 3;
   }
   // Age group of the person.
   AgeGroup age_group = 4;
 
   // Type of Social Grade.
   enum SocialGrade {
-    ABC1 = 0;
-    C2DE = 1;
+    SOCIAL_GRADE_UNSPECIFIED = 0;
+    ABC1 = 1;
+    C2DE = 2;
   }
   // Social grade of the person.
   SocialGrade social_grade = 5;
 
   // Type of Complete.
   enum Complete {
-    INCOMPLETE = 0;
-    COMPLETE = 1;
+    COMPLETE_UNSPECIFIED = 0;
+    INCOMPLETE = 1;
+    COMPLETE = 2;
   }
   Complete complete = 6;
 
