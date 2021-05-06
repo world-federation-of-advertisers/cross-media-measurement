@@ -14,20 +14,20 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.FindReadyExchangeStepRequest
-import org.wfanet.measurement.api.v2alpha.FindReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 
 class ExchangeStepsService : ExchangeStepsCoroutineImplBase() {
-  override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
+  override suspend fun claimReadyExchangeStep(
+    request: ClaimReadyExchangeStepRequest
+  ): ClaimReadyExchangeStepResponse {
     TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
 
-  override suspend fun findReadyExchangeStep(
-    request: FindReadyExchangeStepRequest
-  ): FindReadyExchangeStepResponse {
+  override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
     TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
 }
