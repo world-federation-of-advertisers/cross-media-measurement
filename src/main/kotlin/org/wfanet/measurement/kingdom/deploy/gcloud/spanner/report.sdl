@@ -42,9 +42,8 @@
 -- In the long run, we intend to deduplicate this. However, in the short term,
 -- JSON provides debugging value.
 --
--- Data Providers fetch the unfulfilled Requisitions for EventGroups in their
--- systems, compute the underlying data, and upload it via the Publisher Data
--- Service.
+-- Data Providers fetch the unfulfilled Requisitions in their systems, compute
+-- the underlying data, and upload it via the Publisher Data Service.
 --
 -- Once all Requisitions for a Measurement have been fulfilled, the multi-party
 -- computation can begin.
@@ -75,7 +74,7 @@ CREATE TABLE DataProviders (
 CREATE UNIQUE INDEX DataProvidersByExternalId
   ON DataProviders(ExternalDataProviderId);
 
--- Each EventGroup belongs to both an MeasurementConsumer and a Data Provider.
+-- Each EventGroup belongs to both a MeasurementConsumer and a Data Provider.
 --
 -- This table is used as follows:
 --   * Data Providers inform the Local Measurement Provider of all of their
@@ -204,18 +203,25 @@ CREATE TABLE ComputationParticipants (
 
 CREATE UNIQUE INDEX ComputationParticipantsByExternalId
     ON ComputationParticipants(DuchyId, MeasurementId);
-    
--- Contains status updates from the Duchies and within the Kingdom for a
--- particular Measurement. For any given Measurement, each Duchy might send many updates
--- (one or more per stage of the MPC protocol). This is used to give a bird's
--- eye view of the state of the computations to help debug and track progress.
-CREATE TABLE MeasurementLogEntries (
-  DataProviderId    INT64 NOT NULL,
-  MeasurementId        INT64 NOT NULL,
-  CreateTime      TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
-  -- MeasurementLogDetails serialized proto.
-  MeasurementLogDetails      BYTES(MAX) NOT NULL,
-  MeasurementLogDetailsJson  STRING(MAX) NOT NULL,
-) PRIMARY KEY (AdvertiserId, MeasurementConfigId, ScheduleId, MeasurementId, CreateTime),
+-- Contains status updates from the Duchies and within the Kingdom for a
+-- particular computation for a Measurement. For any given Measurement, each
+-- Duchy might send many updates (one or more per stage of the MPC protocol).
+-- This is used to give a bird's eye view of the state of the computations to
+-- help debug and track progress.
+CREATE TABLE ComputationLogEntries (
+  DataProviderId                  INT64 NOT NULL,
+  MeasurementId                   INT64 NOT NULL,
+  ExternalComputationLogEntryId   INT64 NOT NULL,
+
+  CreateTime                      TIMESTAMP NOT NULL
+                                  OPTIONS (allow_commit_timestamp = true),
+
+  -- ComputationLogDetails serialized proto.
+  ComputationLogDetails      BYTES(MAX) NOT NULL,
+  ComputationLogDetailsJson  STRING(MAX) NOT NULL,
+) PRIMARY KEY (MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX ComputationLogEntriesByExternalId
+  ON ComputationLogEntries(ExternalComputationLogEntryId);
