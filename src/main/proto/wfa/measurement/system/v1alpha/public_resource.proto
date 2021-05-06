@@ -23,6 +23,9 @@ option java_multiple_files = true;
 option java_outer_classname = "PublicResourceProto";
 
 // Key for MetricRequisition resource in public API.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#53): Delete once
+// `Computation` resource is being used instead of `GlobalComputation`.
 message MetricRequisitionKey {
   string data_provider_id = 1;
   string campaign_id = 2;
