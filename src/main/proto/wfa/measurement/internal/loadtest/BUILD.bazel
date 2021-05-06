@@ -1,14 +1,14 @@
-load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
+load("//src/main/proto/wfa/measurement/internal/kingdom:macros.bzl", "proto_and_java_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
-proto_library(
-    name = "test_result_proto",
-    srcs = ["test_result.proto"],
+proto_and_java_proto_library(
+    name = "test_result",
 )
 
-java_proto_library(
-    name = "test_result_java_proto",
-    deps = [":test_result_proto"],
+proto_and_java_proto_library(
+    name = "labeled_event",
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+    ],
 )
