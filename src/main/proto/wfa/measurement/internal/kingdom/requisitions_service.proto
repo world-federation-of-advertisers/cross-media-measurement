@@ -53,7 +53,7 @@ message StreamRequisitionsRequest {
   message Filter {
     repeated int64 external_data_provider_ids = 1;
     repeated int64 external_campaign_ids = 2;
-    repeated Requisition.RequisitionState states = 3;
+    repeated Requisition.State states = 3;
 
     google.protobuf.Timestamp created_after = 4;
   }
