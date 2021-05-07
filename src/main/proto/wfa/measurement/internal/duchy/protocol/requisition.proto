@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2020 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,24 +14,15 @@
 
 syntax = "proto3";
 
-package wfa.measurement.protocol;
+package wfa.measurement.internal.duchy.protocol;
 
-option java_package = "org.wfanet.measurement.protocol";
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
-// Public keys of the ElGamal cipher.
-message ElGamalPublicKey {
-  // Public key generator `g`.
-  bytes generator = 1;
-  // Public key element `y = g^x`, where `g` is the generator and `x` is the
-  // secret key.
-  bytes element = 2;
-}
-
-// Keys of the ElGamal cipher.
-message ElGamalKeyPair {
-  // Secret key of the ElGamal cipher.
-  bytes secret_key = 1;
-  // Public key of the ElGamal cipher.
-  ElGamalPublicKey public_key = 2;
+// The keys to identity a requisition in the MetricValue database
+// TODO(wangyaopw): delete when v2 alpha is done.
+message RequisitionKey {
+  string data_provider_id = 1;
+  string campaign_id = 2;
+  string metric_requisition_id = 3;
 }

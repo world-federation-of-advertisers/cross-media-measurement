@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
-import "wfa/measurement/protocol/liquid_legions_sketch_aggregation_v2.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_aggregation_v2.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -42,16 +42,24 @@ message ComputationDetails {
 
   // The Computation obtained from the Kingdom system API.
   // This field is written by the herald, and consumed by mills.
-  message KingdomComputation {
-    // Version the system API for serialized message definitions.
-    string api_version = 1;
-    // Serialized `Computation` from system API.
-    bytes serialized_data = 2;
+  message KingdomComputationDetails {
+
+    // Serialized `MeasurementSpec` from public API.
+    // For consent signaling verification only.
+    bytes measurement_spec = 1;
+    // Serialized `DataProviderList` from public API.
+    // For consent signaling verification only.
+    bytes data_provider_list = 2;
+    // Salt for SHA256 hash of `data_provider_list`.
+    // For consent signaling verification only.
+    bytes data_provider_list_salt = 3;
+
+
   }
-  KingdomComputation kingdom_computation = 3;
+  KingdomComputationDetails kingdom_computation = 3;
 
   // Protocol Specific Details
-  oneof details {
+  oneof protocol {
     // Details specific to the liquidLegionV2 protocol.
     protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
         liquid_legions_v2 = 4;

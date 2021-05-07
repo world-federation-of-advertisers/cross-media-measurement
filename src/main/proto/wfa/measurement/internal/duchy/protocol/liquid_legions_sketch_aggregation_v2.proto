@@ -14,14 +14,14 @@
 
 syntax = "proto3";
 
-package wfa.measurement.protocol;
+package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
-import "wfa/measurement/protocol/differential_privacy.proto";
-import "wfa/measurement/protocol/el_gamal_key.proto";
-import "wfa/measurement/protocol/requisition.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/protocol/requisition.proto";
 
-option java_package = "org.wfanet.measurement.protocol";
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
 // LiquidLegionsSketchAggregationV2 (3-round MPC) protocol.
@@ -148,17 +148,23 @@ message LiquidLegionsSketchAggregationV2 {
     }
     Parameters parameters = 2;
 
-    message DuchyPublicKey {
+    message ComputationParticipant {
       // Name of the duchy who owns the key.
       string duchy_id = 1;
       // The ElGamal public key.
       ElGamalPublicKey public_key = 2;
+      // Serialized `ElGamalPublicKey` message from public API.
+      // For consent signaling verification only.
+      bytes el_gamal_public_key = 3;
+      // Cryptographic digital signature of `el_gamal_public_key`.
+      // For consent signaling verification only.
+      bytes el_gamal_public_key_signature = 4;
     }
-    // The list of duchy public keys used in this computation.
+    // The list of duchies participating this computation.
     // The list is sorted by the duchy order in the MPC ring, with the first
     // element being the first non-aggregator and the last element being the
     // aggregator.
-    repeated DuchyPublicKey duchy_keys = 3;
+    repeated ComputationParticipant participant = 3;
 
     message ReachEstimate {
       int64 reach = 1;

@@ -1,0 +1,88 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy;
+
+option java_package = "org.wfanet.measurement.internal.duchy";
+option java_multiple_files = true;
+
+// Public keys of the ElGamal cipher.
+message ElGamalPublicKey {
+  // Public key generator `g`.
+  bytes generator = 1;
+  // Public key element `y = g^x`, where `g` is the generator and `x` is the
+  // secret key.
+  bytes element = 2;
+}
+
+// Keys of the ElGamal cipher.
+message ElGamalKeyPair {
+  // Secret key of the ElGamal cipher.
+  bytes secret_key = 1;
+  // Public key of the ElGamal cipher.
+  ElGamalPublicKey public_key = 2;
+}
+
+message SignedData {
+  // Arbitrary data to sign.
+  bytes data = 1;
+
+  // Cryptographic digital signature of `data`.
+  bytes signature = 2;
+}
+
+// A public key for asymmetric encryption.
+message EncryptionPublicKey {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+
+    // Elliptic curve key on the NIST P-256 curve.
+    //
+    // Algorithm identifier:
+    //   id-ecPublicKey
+    //   prime256v1
+    EC_P256 = 1;
+  }
+  // Type of encryption key. Required.
+  Type type = 1;
+
+  // The ASN.1 SubjectPublicKeyInfo in DER format. Required.
+  //
+  // The AlgorithmIdentifier must match `key_type`.
+  bytes public_key_info = 2;
+}
+
+// Description of a cipher suite for hybrid encryption using the KEM/DEM
+// paradigm.
+message HybridCipherSuite {
+  enum KeyEncapsulationMechanism {
+    KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED = 0;
+
+    // ECDH over NIST P-256 with HKDF using HMAC-SHA256.
+    ECDH_P256_HKDF_HMAC_SHA256 = 1;
+  }
+  // The KEM for this cipher suite.
+  KeyEncapsulationMechanism kem = 1;
+
+  enum DataEncapsulationMechanism {
+    DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED = 0;
+
+    // AES-128 with GCM.
+    AES_128_GCM = 1;
+  }
+  // The DEM for this cipher suite.
+  DataEncapsulationMechanism dem = 2;
+}

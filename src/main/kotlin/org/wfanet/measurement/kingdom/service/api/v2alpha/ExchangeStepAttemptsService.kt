@@ -18,7 +18,6 @@ import com.google.type.Date
 import io.grpc.Status
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
-import org.wfanet.measurement.api.v2alpha.CreateExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
@@ -29,7 +28,6 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
-import org.wfanet.measurement.internal.kingdom.CreateExchangeStepAttemptRequest as InternalCreateExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
@@ -55,30 +53,6 @@ class ExchangeStepAttemptsService(
         }
         .build()
     val response = internalExchangeStepAttempts.appendLogEntry(internalRequest)
-    return response.toV2Alpha()
-  }
-
-  override suspend fun createExchangeStepAttempt(
-    request: CreateExchangeStepAttemptRequest
-  ): ExchangeStepAttempt {
-    val sanitizedExchangeStepAttempt =
-      request
-        .exchangeStepAttempt
-        .toBuilder()
-        .apply {
-          keyBuilder.clearExchangeStepAttemptId()
-          clearAttemptNumber()
-          state = ExchangeStepAttempt.State.ACTIVE
-          clearStartTime()
-          clearUpdateTime()
-        }
-        .build()
-
-    val internalRequest =
-      InternalCreateExchangeStepAttemptRequest.newBuilder()
-        .setExchangeStepAttempt(sanitizedExchangeStepAttempt.toInternal())
-        .build()
-    val response = internalExchangeStepAttempts.createExchangeStepAttempt(internalRequest)
     return response.toV2Alpha()
   }
 
