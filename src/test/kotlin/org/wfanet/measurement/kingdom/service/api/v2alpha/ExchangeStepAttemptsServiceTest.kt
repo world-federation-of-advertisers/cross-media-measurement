@@ -27,14 +27,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
-import org.wfanet.measurement.api.v2alpha.CreateExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
-import org.wfanet.measurement.internal.kingdom.CreateExchangeStepAttemptRequest as InternalCreateExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
@@ -107,7 +105,6 @@ class ExchangeStepAttemptsServiceTest {
   private val internalService: InternalExchangeStepAttempts =
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { appendLogEntry(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
-      onBlocking { createExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
       onBlocking { finishExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
     }
 
@@ -137,68 +134,6 @@ class ExchangeStepAttemptsServiceTest {
             stepIndex = STEP_INDEX
             attemptNumber = ATTEMPT_NUMBER
             addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
-          }
-          .build()
-      )
-  }
-
-  @Test
-  fun `createExchangeStepAttempt with minimal request`() {
-    val request =
-      CreateExchangeStepAttemptRequest.newBuilder()
-        .apply { exchangeStepAttemptBuilder.apply { key = EXCHANGE_STEP_ATTEMPT.key } }
-        .build()
-
-    assertThat(runBlocking { service.createExchangeStepAttempt(request) })
-      .isEqualTo(EXCHANGE_STEP_ATTEMPT)
-
-    verifyProtoArgument(internalService, InternalExchangeStepAttempts::createExchangeStepAttempt)
-      .ignoringFieldAbsence()
-      .isEqualTo(
-        InternalCreateExchangeStepAttemptRequest.newBuilder()
-          .apply {
-            exchangeStepAttemptBuilder.apply {
-              externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-              date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
-              stepIndex = STEP_INDEX
-              state = InternalExchangeStepAttempt.State.ACTIVE
-            }
-          }
-          .build()
-      )
-  }
-
-  @Test
-  fun `createExchangeStepAttempt with extra fields set`() {
-    val request =
-      CreateExchangeStepAttemptRequest.newBuilder()
-        .apply {
-          exchangeStepAttemptBuilder.apply {
-            key = EXCHANGE_STEP_ATTEMPT.key
-            state = ExchangeStepAttempt.State.FAILED
-            attemptNumber = 12345
-            addAllDebugLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
-          }
-        }
-        .build()
-
-    assertThat(runBlocking { service.createExchangeStepAttempt(request) })
-      .isEqualTo(EXCHANGE_STEP_ATTEMPT)
-
-    verifyProtoArgument(internalService, InternalExchangeStepAttempts::createExchangeStepAttempt)
-      .ignoringFieldAbsence()
-      .isEqualTo(
-        InternalCreateExchangeStepAttemptRequest.newBuilder()
-          .apply {
-            exchangeStepAttemptBuilder.apply {
-              externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-              date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
-              stepIndex = STEP_INDEX
-              state = InternalExchangeStepAttempt.State.ACTIVE
-              detailsBuilder.addAllDebugLogEntries(
-                INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList
-              )
-            }
           }
           .build()
       )

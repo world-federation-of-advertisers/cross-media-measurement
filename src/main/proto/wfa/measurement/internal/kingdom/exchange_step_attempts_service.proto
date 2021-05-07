@@ -25,12 +25,6 @@ option java_multiple_files = true;
 
 // Internal service for managing `ExchangeStepAttempt` resources.
 service ExchangeStepAttempts {
-  // Creates an `ExchangeStepAttempt`.
-  //
-  // This should not specify the attempt number.
-  rpc CreateExchangeStepAttempt(CreateExchangeStepAttemptRequest)
-      returns (ExchangeStepAttempt);
-
   // Streams `ExchangeStepAttempt`s.
   rpc StreamExchangeStepAttempts(StreamExchangeStepAttemptsRequest)
       returns (stream ExchangeStepAttempt);
