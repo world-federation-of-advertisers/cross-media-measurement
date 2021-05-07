@@ -23,6 +23,7 @@ option java_multiple_files = true;
 
 // Noise parameters selected for the LiquidLegionV2 MPC protocol.
 // Only used as the configuration file consumed by the LiquidLegionV2Mill.
+// TODO(wangyaopw): delete this one when not used after v2 alpha is done.
 message LiquidLegionsV2NoiseConfig {
   message ReachNoiseConfig {
     // DP params for the blind histogram noise register.

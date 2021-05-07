@@ -23,16 +23,9 @@ option java_multiple_files = true;
 
 // Details about a computation at a MPC Worker Node.
 message ComputationDetails {
-  // Protocol Specific Details
-  oneof details {
-    // Details specific to the liquidLegionV2 protocol.
-    protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
-        liquid_legions_v2 = 1;
-  }
-
   // A prefix of all the BLOBs stored for this computation. This is used for
   // cleaning up after a computation when the BLOBs are no longer needed.
-  string blobs_storage_prefix = 3;
+  string blobs_storage_prefix = 1;
 
   enum CompletedReason {
     UNSPECIFIED = 0;
@@ -45,7 +38,24 @@ message ComputationDetails {
   }
   // The final state of the computation at this duchy. This is only set
   // when the protocol has finished for the computation.
-  CompletedReason ending_state = 4;
+  CompletedReason ending_state = 2;
+
+  // The Computation obtained from the Kingdom system API.
+  // This field is written by the herald, and consumed by mills.
+  message KingdomComputation {
+    // Version the system API for serialized message definitions.
+    string api_version = 1;
+    // Serialized `Computation` from system API.
+    bytes serialized_data = 2;
+  }
+  KingdomComputation kingdom_computation = 3;
+
+  // Protocol Specific Details
+  oneof details {
+    // Details specific to the liquidLegionV2 protocol.
+    protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
+        liquid_legions_v2 = 4;
+  }
 }
 
 // Details about a single attempt of a computation stage.

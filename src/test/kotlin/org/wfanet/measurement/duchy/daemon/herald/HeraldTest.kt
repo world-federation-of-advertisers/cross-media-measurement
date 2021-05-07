@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.protocol.RequisitionKey
@@ -138,7 +138,7 @@ internal class HeraldTest {
 
     fakeComputationStorage.addComputation(
       globalId = confirmingKnown.globalId,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = aggregatorComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
@@ -152,9 +152,9 @@ internal class HeraldTest {
       )
       .containsExactly(
         confirmingKnown.globalId.toLong(),
-        CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+        CONFIRMATION_PHASE.toProtocolStage(),
         confirmingUnknown.globalId.toLong(),
-        CONFIRM_REQUISITIONS_PHASE.toProtocolStage()
+        CONFIRMATION_PHASE.toProtocolStage()
       )
 
     assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
@@ -227,7 +227,7 @@ internal class HeraldTest {
 
     fakeComputationStorage.addComputation(
       globalId = computation.globalId,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
@@ -240,7 +240,7 @@ internal class HeraldTest {
           fakeComputation.computationStage
         }
       )
-      .containsExactly(computation.globalId.toLong(), CONFIRM_REQUISITIONS_PHASE.toProtocolStage())
+      .containsExactly(computation.globalId.toLong(), CONFIRMATION_PHASE.toProtocolStage())
 
     // Update the state.
     fakeComputationStorage.remove(computation.globalId.toLong())
@@ -282,7 +282,7 @@ internal class HeraldTest {
 
       fakeComputationStorage.addComputation(
         globalId = computation.globalId,
-        stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+        stage = CONFIRMATION_PHASE.toProtocolStage(),
         computationDetails = nonAggregatorComputationDetails,
         blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
       )

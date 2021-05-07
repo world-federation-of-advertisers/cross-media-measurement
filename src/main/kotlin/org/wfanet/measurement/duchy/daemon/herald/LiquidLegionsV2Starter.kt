@@ -88,10 +88,12 @@ object LiquidLegionsV2Starter : ProtocolStarter {
       }
 
       // For past stages, we throw.
-      Stage.CONFIRM_REQUISITIONS_PHASE -> {
+      Stage.INITIALIZATION_PHASE,
+      Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      Stage.CONFIRMATION_PHASE -> {
         error(
           "[id=${token.globalComputationId}]: cannot start a computation still" +
-            " in state CONFIRM_REQUISITIONS_PHASE"
+            " in state ${stage.name}"
         )
       }
 

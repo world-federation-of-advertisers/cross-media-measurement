@@ -145,7 +145,7 @@ class ComputationDataClientsTest {
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
+    computation.writeOutputs(Stage.CONFIRMATION_PHASE)
     computation.runWaitStage(Stage.WAIT_TO_START, numOfOutput = 0)
     computation.start()
 
@@ -190,7 +190,7 @@ class ComputationDataClientsTest {
 
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
+    computation.writeOutputs(Stage.CONFIRMATION_PHASE)
     computation.waitForSketches(
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3))
         .detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS)

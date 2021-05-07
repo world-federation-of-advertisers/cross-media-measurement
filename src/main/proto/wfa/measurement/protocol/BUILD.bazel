@@ -1,3 +1,4 @@
+load("//tools/build_defs/proto/cpp:cc_proto_library.bzl", "cc_proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -21,12 +22,41 @@ proto_library(
     srcs = ["liquid_legions_sketch_aggregation_v2.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":differential_privacy_proto",
         ":requisition",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+        "//src/main/proto/wfa/measurement/protocol:el_gamal_key_proto",
     ],
 )
 
 java_proto_library(
     name = "liquid_legions_v2_java_proto",
     deps = [":liquid_legions_v2_proto"],
+)
+
+proto_library(
+    name = "differential_privacy_proto",
+    srcs = ["differential_privacy.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "differential_privacy_java_proto",
+    deps = [":differential_privacy_proto"],
+)
+
+proto_library(
+    name = "el_gamal_key_proto",
+    srcs = ["el_gamal_key.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "el_gamal_key_cc_proto",
+    deps = [":el_gamal_key_proto"],
+)
+
+java_proto_library(
+    name = "el_gamal_key_java_proto",
+    deps = [":el_gamal_key_proto"],
 )

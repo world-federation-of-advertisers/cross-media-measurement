@@ -17,6 +17,8 @@ syntax = "proto3";
 package wfa.measurement.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
+import "wfa/measurement/protocol/differential_privacy.proto";
+import "wfa/measurement/protocol/el_gamal_key.proto";
 import "wfa/measurement/protocol/requisition.proto";
 
 option java_package = "org.wfanet.measurement.protocol";
@@ -28,31 +30,44 @@ message LiquidLegionsSketchAggregationV2 {
     // The computation stage is unknown. This is never set intentionally.
     STAGE_UNKNOWN = 0;
 
-    // The computation is known and the worker should confirm all required local
-    // requisitions are available. After confirmation, the computation enters
-    // WAIT_TO_START at non-aggregator workers or WAIT_SETUP_PHASE_INPUTS at the
-    // aggregator worker.
-    CONFIRM_REQUISITIONS_PHASE = 1;
+    // The worker is in the initialization phase.
+    // More specifically, each worker will create a new ElGamal key pair solely
+    // used in this computation, and report the public key to the Kingdom.
+    INITIALIZATION_PHASE = 1;
+
+    // The computation is initialized locally. The worker is waiting for the
+    // list of local requisitions and the public ElGamal key set used in this
+    // computation from the Kingdom.
+    WAIT_REQUISITIONS_AND_KEY_SET = 2;
+
+    // The worker is in the confirmation phase.
+    // More specifically, the worker should confirm
+    //   1. All data providers' participation_signatures are valid.
+    //   2. All duchies' ElGamal public keys are valid.
+    //   3. All local fulfilled requisitions are available.
+    // After confirmation, the computation enters WAIT_SETUP_PHASE_INPUTS at the
+    // aggregator worker and WAIT_TO_START at non-aggregator workers.
+    CONFIRMATION_PHASE = 3;
 
     // The computation is confirmed locally, and the non-aggregator worker is
     // waiting for the signal from the kingdom to start the MPC protocol.
-    WAIT_TO_START = 2;
+    WAIT_TO_START = 4;
 
     // The aggregator worker is waiting for other MPC workers' local combined
     // register vector (CRV) to start working on the setup phase.
-    WAIT_SETUP_PHASE_INPUTS = 3;
+    WAIT_SETUP_PHASE_INPUTS = 5;
 
     // The worker is in the setup phase.
     // More specifically, a non-aggregator worker will add noise to its local
     // CRV, and send the noised CRV to the aggregator. The aggregator worker
     // will add noise to its local CRV, and then combine it together with CRVs
     // received from all other non-aggregator workers and create a global CRV.
-    SETUP_PHASE = 4;
+    SETUP_PHASE = 6;
 
     // The worker is waiting to receive a copy of global CRV from the previous
     // worker in the ring of workers to start working on the execution phase
     // one.
-    WAIT_EXECUTION_PHASE_ONE_INPUTS = 5;
+    WAIT_EXECUTION_PHASE_ONE_INPUTS = 7;
 
     // The worker is in the execution phase one.
     // More specifically, a non-aggregator worker will re-encrypt its positional
@@ -62,12 +77,12 @@ message LiquidLegionsSketchAggregationV2 {
     // re-encrypted positional values. Combining is via the same key aggregation
     // method to create the encrypted flag and count tuples. Then, the
     // aggregator adds noise to the flag count tuples.
-    EXECUTION_PHASE_ONE = 6;
+    EXECUTION_PHASE_ONE = 8;
 
     // The worker is waiting to receive a copy of the flag and count tuples from
     // the previous worker in the ring of workers to start working on the
     // execution phase two.
-    WAIT_EXECUTION_PHASE_TWO_INPUTS = 7;
+    WAIT_EXECUTION_PHASE_TWO_INPUTS = 9;
 
     // The worker is in the execution phase two.
     // More specifically, a non-aggregator worker decrypts the flag and add
@@ -75,22 +90,22 @@ message LiquidLegionsSketchAggregationV2 {
     // decrypts the flags and filters out non-DP noises and then estimates the
     // reach, then discards the destroyed registers and creates a 2-D
     // SameKeyAggregator (SKA) matrix for the un-destroyed counters.
-    EXECUTION_PHASE_TWO = 8;
+    EXECUTION_PHASE_TWO = 10;
 
     // The worker is waiting to receive a copy of the SKA matrix from the
     // previous worker in the ring of workers to start working on the execution
     // phase three.
-    WAIT_EXECUTION_PHASE_THREE_INPUTS = 9;
+    WAIT_EXECUTION_PHASE_THREE_INPUTS = 11;
 
     // The worker is in the execution phase three.
     // More specifically, a non-aggregator worker decrypts the SKA matrix, and
     // the aggregator worker decrypts the SKA matrix and computes the final
     // frequency histogram.
-    EXECUTION_PHASE_THREE = 10;
+    EXECUTION_PHASE_THREE = 12;
 
     // The computation is done the worker can remove BLOBs that are no longer
     // needed.
-    COMPLETE = 11;
+    COMPLETE = 13;
   }
 
   // Computation details specific to the LiquidLegions V2 protocol.
@@ -99,9 +114,51 @@ message LiquidLegionsSketchAggregationV2 {
     org.wfa.measurement.config.LiquidLegionsV2SetupConfig.RoleInComputation
         role = 1;
 
-    // The list of ordered duchy ids in the MPC ring, with the first element
-    // being the first non-aggregator and the last element being the aggregator.
-    repeated string duchy_order = 2;
+    // Parameters used in this computation.
+    message Parameters {
+      // The maximum frequency to reveal in the histogram.
+      int32 maximum_frequency = 1;
+      // The decay rate of the Liquid Legions sketch.
+      double decay_rate = 2;
+      // The maximum size of the Liquid Legions sketch.
+      int64 max_size = 3;
+      // Noise parameters selected for the LiquidLegionV2 MPC protocol.
+      // Only used as the configuration file consumed by the LiquidLegionV2Mill.
+      message NoiseConfig {
+        // DP params for the blind histogram noise register.
+        // Each of these registers contains a random register id, the same
+        // constant key indicating that the register is destroyed, and an
+        // arbitrary count value.
+        DifferentialPrivacyParams blind_histogram_noise = 1;
+        // DP params for the noise for the publisher noise registers.
+        // Each of these registers contains a well-known constant register id,
+        // and arbitrary key and count values.
+        DifferentialPrivacyParams noise_for_publisher_noise = 2;
+        // DP params for the global reach DP noise registers.
+        // Each of these registers contains a random register id which is out of
+        // bounds of the normal id space, the same constant key indicating that
+        // the register is destroyed, and an arbitrary count value.
+        DifferentialPrivacyParams global_reach_dp_noise = 3;
+        // Differential privacy parameters for noise tuples.
+        // Same value is used for both (0, R, R) and (R, R, R) tuples.
+        DifferentialPrivacyParams frequency_noise_config = 4;
+      }
+      // Noise parameters selected for the LiquidLegionV2 MPC protocol.
+      NoiseConfig noise = 4;
+    }
+    Parameters parameters = 2;
+
+    message DuchyPublicKey {
+      // Name of the duchy who owns the key.
+      string duchy_id = 1;
+      // The ElGamal public key.
+      ElGamalPublicKey public_key = 2;
+    }
+    // The list of duchy public keys used in this computation.
+    // The list is sorted by the duchy order in the MPC ring, with the first
+    // element being the first non-aggregator and the last element being the
+    // aggregator.
+    repeated DuchyPublicKey duchy_keys = 3;
 
     message ReachEstimate {
       int64 reach = 1;
@@ -111,11 +168,12 @@ message LiquidLegionsSketchAggregationV2 {
     // the aggregator. It is only set at the aggregator and is not shared with
     // non-aggregator nodes. The value will be included in the result for the
     // computation.
-    ReachEstimate reach_estimate = 3;
+    ReachEstimate reach_estimate = 4;
 
     // Total number of MetricRequisitions across all duchies used in this
     // computation.
-    int32 total_requisition_count = 4;
+    // TODO(wangyaopw): delete after v2alpha is done
+    int32 total_requisition_count = 5;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2
@@ -124,6 +182,7 @@ message LiquidLegionsSketchAggregationV2 {
     oneof detail {
       // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
       WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
+      // TODO(wangyaopw): delete after v2alpha is done.
       // Details specific to the TO_CONFIRM_REQUISITIONS stage.
       ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details =
           2;
@@ -144,6 +203,7 @@ message LiquidLegionsSketchAggregationV2 {
     map<string, int64> external_duchy_local_blob_id = 1;
   }
 
+  // TODO(wangyaopw): delete after v2alpha is done
   // The details used to run a TO_CONFIRM_REQUISITIONS stage.
   message ToConfirmRequisitionsStageDetails {
     // list of local requisitions that are required for this computation.

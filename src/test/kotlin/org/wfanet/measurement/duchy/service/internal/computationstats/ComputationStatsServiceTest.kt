@@ -39,8 +39,7 @@ class ComputationStatsServiceTest {
       CreateComputationStatRequest.newBuilder()
         .apply {
           localComputationId = 1
-          computationStageBuilder.liquidLegionsSketchAggregationV2 =
-            Stage.CONFIRM_REQUISITIONS_PHASE
+          computationStageBuilder.liquidLegionsSketchAggregationV2 = Stage.CONFIRMATION_PHASE
           attempt = 1
           metricValue = 1234
         }
@@ -56,8 +55,7 @@ class ComputationStatsServiceTest {
       CreateComputationStatRequest.newBuilder()
         .apply {
           localComputationId = 1
-          computationStageBuilder.liquidLegionsSketchAggregationV2 =
-            Stage.CONFIRM_REQUISITIONS_PHASE
+          computationStageBuilder.liquidLegionsSketchAggregationV2 = Stage.CONFIRMATION_PHASE
           attempt = 1
           metricName = "crypto_cpu_time_millis"
           metricValue = 1234

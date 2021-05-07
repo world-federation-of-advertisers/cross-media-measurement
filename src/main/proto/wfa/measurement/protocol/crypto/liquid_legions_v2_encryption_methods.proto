@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.protocol;
 
+// TODO(wangyaopw): use local protos insteaded from common.
 import "wfa/common/el_gamal_key.proto";
 import "wfa/common/liquid_legions.proto";
 import "wfa/common/noise_parameters.proto";
@@ -82,6 +83,20 @@ message PerBucketFrequencyDpNoiseBaseline {
   int32 contributors_count = 1;
   // DP parameters used when adding noise.
   wfa.common.DifferentialPrivacyParams dp_params = 2;
+}
+
+// The request to complete work in the initialization phase.
+message CompleteInitializationPhaseRequest {
+  // The elliptical curve to work on.
+  int64 curve_id = 1;
+}
+
+// Response of the CompleteInitializationPhase method.
+message CompleteInitializationPhaseResponse {
+  // A randomly created ElGamal Key pair.
+  wfa.common.ElGamalKeyPair el_gamal_key_pair = 1;
+  // The CPU time of processing the request.
+  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to complete work in the setup phase.

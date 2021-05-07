@@ -99,7 +99,7 @@ import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
 import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
@@ -355,7 +355,7 @@ class LiquidLegionsV2MillTest {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = aggregatorComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L))
     )
@@ -410,7 +410,7 @@ class LiquidLegionsV2MillTest {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L)),
       stageDetails =
@@ -493,7 +493,7 @@ class LiquidLegionsV2MillTest {
       val requisition2 = "2"
       fakeComputationDb.addComputation(
         globalId = GLOBAL_ID,
-        stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+        stage = CONFIRMATION_PHASE.toProtocolStage(),
         computationDetails = nonAggregatorComputationDetails,
         blobs = listOf(newEmptyOutputBlobMetadata(0L)),
         stageDetails =
@@ -573,13 +573,12 @@ class LiquidLegionsV2MillTest {
                   selfReportedIdentifier = MILL_ID
                   stageDetailsBuilder.apply {
                     algorithm = MpcAlgorithm.LIQUID_LEGIONS_V2
-                    stageNumber = CONFIRM_REQUISITIONS_PHASE.number.toLong()
-                    stageName = CONFIRM_REQUISITIONS_PHASE.name
+                    stageNumber = CONFIRMATION_PHASE.number.toLong()
+                    stageName = CONFIRMATION_PHASE.name
                     attemptNumber = 1
                   }
                   updateMessage =
-                    "Computation $GLOBAL_ID at stage CONFIRM_REQUISITIONS_PHASE," +
-                      " attempt 1 failed."
+                    "Computation $GLOBAL_ID at stage CONFIRMATION_PHASE," + " attempt 1 failed."
                   errorDetailsBuilder.apply { errorType = ErrorType.PERMANENT }
                 }
               }

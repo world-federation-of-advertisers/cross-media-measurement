@@ -131,8 +131,8 @@ class LiquidLegionsV2Mill(
 
   private val actions =
     mapOf(
-      Pair(Stage.CONFIRM_REQUISITIONS_PHASE, AGGREGATOR) to ::confirmRequisitions,
-      Pair(Stage.CONFIRM_REQUISITIONS_PHASE, NON_AGGREGATOR) to ::confirmRequisitions,
+      Pair(Stage.CONFIRMATION_PHASE, AGGREGATOR) to ::confirmRequisitions,
+      Pair(Stage.CONFIRMATION_PHASE, NON_AGGREGATOR) to ::confirmRequisitions,
       Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeSetupPhaseAtAggregator,
       Pair(Stage.SETUP_PHASE, NON_AGGREGATOR) to ::completeSetupPhaseAtNonAggregator,
       Pair(Stage.EXECUTION_PHASE_ONE, AGGREGATOR) to ::completeExecutionPhaseOneAtAggregator,
