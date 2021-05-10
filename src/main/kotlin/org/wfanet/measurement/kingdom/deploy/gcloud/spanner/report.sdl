@@ -136,7 +136,7 @@ CREATE TABLE Measurements (
   WindowEndTime     TIMESTAMP NOT NULL,
   State             INT64 NOT NULL,  -- Proto enum encoded as int
 
-  -- ReportDetails serialized proto
+  -- MeasurementDetails serialized proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
   MeasurementsDetailsJson STRING(MAX) NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId);
@@ -216,10 +216,10 @@ CREATE UNIQUE INDEX ComputationParticipantsByExternalId
 CREATE TABLE MeasurementLogEntries (
   MeasurementConsumerId           INT64 NOT NULL,
   MeasurementId                   INT64 NOT NULL,
-  ExternalComputationLogEntryId   INT64,
 
+  ExternalComputationId           INT64 NOT NULL,
+  ExternalComputationLogEntryId   INT64,
   ExternalDuchyId                 INT64,
-  ExternalComputationId           INT64,
 
   CreateTime                      TIMESTAMP NOT NULL
                                   OPTIONS (allow_commit_timestamp = true),
