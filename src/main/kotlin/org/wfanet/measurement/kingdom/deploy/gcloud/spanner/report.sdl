@@ -177,7 +177,7 @@ CREATE TABLE Requisitions (
   -- RequisitionDetails serialized proto
   RequisitionDetails          BYTES(MAX),
   RequisitionDetailsJson      STRING(MAX),
-) PRIMARY KEY (MeasurementId, RequisitionId),
+) PRIMARY KEY (MeasurementId, MeasurementConsumerId, RequisitionId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX RequisitionsByExternalId
@@ -196,15 +196,17 @@ CREATE TABLE ComputationParticipants (
 
   State                       INT64 NOT NULL,  -- ParticipantState proto enum
 
+  ExternalDuchyId             INT64 NOT NULL,
+  ExternalComputationId       INT64 NOT NULL,
   -- ParticipantDetails serialized proto
   ParticipantDetails          BYTES(MAX),
   ParticipantDetailsJson      STRING(MAX),
 
-) PRIMARY KEY (MeasurementId, DuchyId),
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DuchyId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX ComputationParticipantsByExternalId
-    ON ComputationParticipants(DuchyId, MeasurementId);
+    ON ComputationParticipants(ExternalComputationId, ExternalDuchyId);
 
 -- Contains status updates from the Duchies and within the Kingdom for a
 -- particular computation for a Measurement. For any given Measurement, each
@@ -214,23 +216,32 @@ CREATE UNIQUE INDEX ComputationParticipantsByExternalId
 CREATE TABLE MeasurementLogEntries (
   MeasurementConsumerId           INT64 NOT NULL,
   MeasurementId                   INT64 NOT NULL,
-  ExternalComputationLogEntryId   INT64 NOT NULL,
+  ExternalComputationLogEntryId   INT64,
+
+  ExternalDuchyId                 INT64,
+  ExternalComputationId           INT64,
 
   CreateTime                      TIMESTAMP NOT NULL
                                   OPTIONS (allow_commit_timestamp = true),
 
-  -- ComputationLogDetails serialized proto.
-  ComputationLogDetails      BYTES(MAX) NOT NULL,
-  ComputationLogDetailsJson  STRING(MAX) NOT NULL,
+  -- MeasurementLogDetails serialized proto.
+  MeasurementLogDetails      BYTES(MAX) NOT NULL,
+  MeasurementLogDetailsJson  STRING(MAX) NOT NULL,
 ) PRIMARY KEY (MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
+<<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/report.sdl
 <<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/report.sdl
 CREATE UNIQUE INDEX ComputationLogEntriesByExternalId
   ON ComputationLogEntries(ExternalComputationLogEntryId);
 =======
 CREATE UNIQUE INDEX MeasurementLogEntriesByExternalId
   ON MeasurementLogEntries(ExternalComputationLogEntryId);
+=======
+CREATE NULL_FILTERED INDEX MeasurementLogEntriesByExternalId
+  ON MeasurementLogEntries(ExternalComputationId, ExternalDuchyId,
+                           ExternalComputationLogEntryId);
+>>>>>>> e5eec1a0 (addressed comments):src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl
 
 
 CREATE TABLE ModelProviders (
