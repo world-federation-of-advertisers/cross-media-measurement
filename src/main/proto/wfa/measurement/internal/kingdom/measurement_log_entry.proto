@@ -1,0 +1,86 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Log entry for a Measurement.
+//
+// Each entry includes information about an event that may be interesting, e.g.
+// for debugging. The set of log entries is intended to provide a holistic view
+// of these events for a Measurement. As such, log entries may come from
+// different sources, and each entry may contain information specific to the
+// source.
+message MeasurementLogEntry {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+  google.protobuf.Timestamp create_time = 3;
+
+  message ErrorDetails {
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+      TRANSIENT = 1;
+      PERMANENT = 2;
+    }
+    Type type = 1;
+
+    // Time that the error occurred.
+    google.protobuf.Timestamp error_time = 2;
+
+    // Human-readable error message. This should not include any sensitive info.
+    string error_message = 3;
+  }
+
+  message DuchyDetails {
+    fixed64 external_duchy_id = 1;
+    // External ID for the entry in the system API.
+    fixed64 external_computation_log_entry_id = 2;
+
+    // Tag number of the stage enum value from an external system.
+    int32 stage = 3;
+
+    // Name of the stage enum value from an external system.
+    //
+    // This is for human readability only.
+    string stage_name = 4;
+
+    // Time the stage started.
+    google.protobuf.Timestamp stage_start_time = 5;
+
+    // The attempt number for this stage, with 1 being the first attempt.
+    //
+    // This value should be strictly monotonically increasing for each
+    // subsequent log entry for a Duchy with the same stage.
+    int64 attempt_number = 6;
+  }
+
+  message Details {
+    // Human-readable log message.
+    string log_message = 1;
+
+    // Details about an error. Only set if the log entry is for an error event.
+    ErrorDetails error = 2;
+
+    oneof source {
+      DuchyDetails duchy = 3;
+    }
+  }
+  Details details = 4;
+}

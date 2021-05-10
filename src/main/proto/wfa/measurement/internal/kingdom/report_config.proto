@@ -22,6 +22,9 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Proto representation of the internal ReportConfig entity type.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#52): Delete once
+// Measurement is being used instead of Report.
 message ReportConfig {
   fixed64 external_advertiser_id = 1;
   fixed64 external_report_config_id = 2;
