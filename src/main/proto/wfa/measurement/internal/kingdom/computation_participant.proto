@@ -1,0 +1,65 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message ComputationParticipant {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+  fixed64 external_duchy_id = 3;
+
+  fixed64 external_duchy_certificate_id = 4;
+
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp update_time = 6;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+
+    // The `ComputationParticipant` has been created.
+    CREATED = 1;
+
+    // Requisition params have been set, but the `ComputationParticipant` is
+    // not yet ready to participate.
+    REQUISITION_PARAMS_SET = 2;
+
+    // The `ComputationParticipant` is ready to participate. Terminal state.
+    READY = 3;
+
+    // The `ComputationParticipant` has refused to participate. Terminal state.
+    REFUSED = 4;
+  }
+  State state = 7;
+
+  message LiquidLegionsV2Details {
+    // Serialized `ElGamalPublicKey` message from public API.
+    bytes el_gamal_public_key = 1;
+    bytes el_gamal_public_key_signature = 2;
+  }
+
+  message Details {
+    oneof protocol {
+      LiquidLegionsV2Details liquid_legions_v2 = 1;
+    }
+  }
+  Details details = 8;
+  string details_json = 9;
+}

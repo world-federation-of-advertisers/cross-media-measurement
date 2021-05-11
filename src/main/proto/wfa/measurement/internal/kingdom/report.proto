@@ -23,6 +23,9 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Proto representation of the internal Report entity type.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#52): Delete once
+// Measurement is being used instead.
 message Report {
   enum ReportState {
     REPORT_STATE_UNKNOWN = 0;

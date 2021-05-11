@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "src/main/proto/wfa/measurement/internal/kingdom/time_period.proto";
-import "src/main/proto/wfa/measurement/internal/metric_definition.proto";
-
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// TODO(world-federation-of-advertisers/cross-media-measurement#52): Delete once
-// Measurement is being used instead of Report.
-message ReportConfigDetails {
-  TimePeriod report_duration = 1;
-  repeated MetricDefinition metric_definitions = 2;
+// Parameters for differential privacy (DP).
+//
+// For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
+// foundations of differential privacy. Foundations and Trends in Theoretical
+// Computer Science, 9(3-4), pp.211-407."
+message DifferentialPrivacyParams {
+  double epsilon = 1;
+  double delta = 2;
 }

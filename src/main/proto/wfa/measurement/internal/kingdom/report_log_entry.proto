@@ -35,6 +35,9 @@ option java_multiple_files = true;
 // A ReportLogEntry specifies a Report and a stage that the computations for the
 // Report are in, as well as an "Event". These Events include a freeform debug
 // message and a list of errors that occurred.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#52): Delete once
+// MeasurementLogEntry is being used instead.
 message ReportLogEntry {
   int64 external_report_id = 1;
   Principal source = 2;
