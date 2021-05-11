@@ -23,9 +23,9 @@ option java_multiple_files = true;
 
 // Internal service for managing `ExchangeStep` resources.
 service ExchangeSteps {
-  // Finds an ExchangeStep in state `READY` and then creates a new
-  // ExchangeStepAttempt for it. If none exist in this state, returns an empty
-  // response.
+  // Finds an ExchangeStep in state `READY` or `READY_FOR_RETRY` and then
+  // creates a new ExchangeStepAttempt for it. If none exist in this state,
+  // returns an empty response.
   rpc ClaimReadyExchangeStep(ClaimReadyExchangeStepRequest)
       returns (ClaimReadyExchangeStepResponse);
 }
