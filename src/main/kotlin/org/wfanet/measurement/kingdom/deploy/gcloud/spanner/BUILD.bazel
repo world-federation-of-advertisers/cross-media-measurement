@@ -26,15 +26,13 @@ kt_jvm_library(
     ],
 )
 
-
 genrule(
     name = "concat_kingdom_legacy",
     srcs = [
         "exchange.sdl",
         "report.sdl",
     ],
-   visibility = ["//visibility:public"],
     outs = ["kingdom_legacy.sdl"],
     cmd = "cat $(location exchange.sdl) $(location report.sdl) > $@",
+    visibility = ["//visibility:public"],
 )
-
