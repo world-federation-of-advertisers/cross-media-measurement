@@ -33,6 +33,6 @@ genrule(
         "report.sdl",
     ],
     outs = ["kingdom_legacy.sdl"],
-    cmd = "cat $(location exchange.sdl) $(location report.sdl) > $@",
+    cmd = "cat $(SRCS) > $@",
     visibility = ["//visibility:public"],
 )
