@@ -25,6 +25,9 @@ option java_multiple_files = true;
 option java_outer_classname = "GlobalComputationServiceProto";
 
 // Kingdom service for Duchies to use to access GlobalComputations.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#53): Delete once
+// `Computations` service is used instead.
 service GlobalComputations {
   // Point lookup for GlobalComputation resources.
   rpc GetGlobalComputation(GetGlobalComputationRequest)

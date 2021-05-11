@@ -1,0 +1,88 @@
+// Copyright 2020 The Measurement Proto Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.system.v1alpha;
+
+import "wfa/measurement/system/v1alpha/computation.proto";
+
+option java_package = "org.wfanet.measurement.system.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ComputationsServiceProto";
+
+// Kingdom service for Duchies to use to interact with `Computation` resources.
+service Computations {
+  // Returns the `Computation` for the specified resource key.
+  rpc GetComputation(GetComputationRequest) returns (Computation);
+
+  // Streams `Computation`s in ascending update-time order. `Computation`s may
+  // appear multiple times in the stream if they are updated during the life of
+  // the RPC.
+  //
+  // The stream excludes `Computation`s in a terminal state (as defined in the
+  // documentation of the `state` field type). An individual `Computation` in a
+  // terminal state can still be obtained by resource key using the
+  // `GetComputation` method.
+  //
+  // Since these events are relatively infrequent but also can come in bursts,
+  // we use a streaming RPC to avoid frequent polling for rare events, yet
+  // still have a prompt reaction when they do occur.
+  rpc StreamActiveComputations(StreamActiveComputationsRequest)
+      returns (stream StreamActiveComputationsResponse);
+
+  // Sets the result of a `Computation`.
+  //
+  // This is a [state transition method](https://google.aip.dev/216) that
+  // transitions the `Computation` from the `PENDING_COMPUTATION` state to the
+  // `SUCCEEDED` state.
+  rpc SetComputationResult(SetComputationResultRequest) returns (Computation);
+}
+
+// Request message for `GetComputation` method.
+message GetComputationRequest {
+  Computation.Key key = 1;
+}
+
+// Request message for `StreamActiveComputations` method.
+message StreamActiveComputationsRequest {
+  // If empty, streams from the least recently updated Computation.
+  string continuation_token = 1;
+}
+
+// Response message for `StreamActiveComputations` method.
+message StreamActiveComputationsResponse {
+  // An active `Computation.`
+  Computation computation = 1;
+
+  string continuation_token = 2;
+}
+
+// Request message for `SetComputationResult` method.
+message SetComputationResultRequest {
+  // Resource key of the `Computation`. Required.
+  Computation.Key key = 1;
+
+  // X.509 certificate in DER format which can be verified using the
+  // Aggregator's root certificate. Required.
+  bytes aggregator_certificate = 2;
+
+  // Serialized `EncryptionPublicKey` message from the public API. Required.
+  bytes result_public_key = 3;
+
+  // Encrypted `SignedData` message from the public API containing a serialized
+  // `Result` message from the public API, which can be verified using
+  // `aggregator_certificate`. Required.
+  bytes encrypted_result = 4;
+}
