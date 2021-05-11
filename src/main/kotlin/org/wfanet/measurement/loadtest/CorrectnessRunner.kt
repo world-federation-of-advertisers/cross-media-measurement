@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.loadtest
 
+import com.google.cloud.bigquery.BigQuery
+import com.google.cloud.bigquery.BigQueryOptions
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import java.time.Clock
@@ -68,8 +70,15 @@ abstract class CorrectnessRunner : Runnable {
             publisherDataStub = publisherDataStub
           )
 
-        correctness.process(relationalDatabase, databaseTestHelper)
+        val bigQuery = buildBigQuery(flags.spannerFlags.projectName)
+
+        correctness.process(relationalDatabase, databaseTestHelper, bigQuery)
       }
     }
+  }
+
+  /** Constructs a [BigQuery]. */
+  private fun buildBigQuery(projectName: String): BigQuery {
+    return BigQueryOptions.newBuilder().apply { setProjectId(projectName) }.build().service
   }
 }

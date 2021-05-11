@@ -1,0 +1,10 @@
+load("@rules_java//java:defs.bzl", "java_library")
+
+package(default_visibility = ["//visibility:public"])
+
+java_library(
+    name = "bigquery",
+    exports = [
+        "@maven//:com_google_cloud_google_cloud_bigquery",
+    ],
+)
