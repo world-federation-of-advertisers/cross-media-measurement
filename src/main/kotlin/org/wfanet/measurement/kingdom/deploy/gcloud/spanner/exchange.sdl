@@ -12,7 +12,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Cloud Spanner database schema for the Kingdom.
+-- Cloud Spanner database schema for the Kingdom exchange related tables.
 --
 -- Table hierarchy:
 --   Root
@@ -24,7 +24,7 @@
 --
 -- The important foreign key relationships between the tables are:
 --
---   RecurringExchanges <- many:many -> DataProviders
+--   RecurringExchanges <- many:many -> DataProviders (Defined in report.sdl)
 --   RecurringExchanges <- many:many -> ModelProviders
 --
 -- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
