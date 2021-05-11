@@ -1,0 +1,49 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "src/main/proto/wfa/measurement/internal/kingdom/differential_privacy.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Protocol configuration that need only be known by Duchies.
+message DuchyProtocolConfig {
+  message LiquidLegionsV2 {
+    // The maximum frequency to reveal in the histogram.
+    int32 maximum_frequency = 1;
+
+    // Configuration for noises added by the MPC workers to protect intermediate
+    // results. These noises don't affect the final output.
+    message MpcNoise {
+      // DP params for the blind histogram noise register.
+      // Each of these registers contains a random register id, the same
+      // constant key indicating that the register is destroyed, and an
+      // arbitrary count value.
+      DifferentialPrivacyParams blinded_histogram_noise = 1;
+      // DP params for the noise for the publisher noise registers.
+      // Each of these registers contains a well-known constant register id, and
+      // arbitrary key and count values.
+      DifferentialPrivacyParams noise_for_publisher_noise = 2;
+    }
+    MpcNoise mpc_noise = 2;
+  }
+
+  oneof protocol {
+    LiquidLegionsV2 liquid_legions_v2 = 1;
+  }
+}
