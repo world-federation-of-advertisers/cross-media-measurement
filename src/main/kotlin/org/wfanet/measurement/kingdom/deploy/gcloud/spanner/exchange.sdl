@@ -1,0 +1,129 @@
+-- Copyright 2020 The Cross-Media Measurement Authors
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Cloud Spanner database schema for the Kingdom.
+--
+-- Table hierarchy:
+--   Root
+--   ├── ModelProviders
+--   └── RecurringExchanges
+--       └── Exchanges
+--           └── ExchangeSteps
+--               └── ExchangeStepAttempts
+--
+-- The important foreign key relationships between the tables are:
+--
+--   RecurringExchanges <- many:many -> DataProviders
+--   RecurringExchanges <- many:many -> ModelProviders
+--
+-- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
+-- expose only External identifiers, and ideally only web-safe base64 versions
+-- of them without padding (e.g. RFC4648's base64url encoding without padding).
+--
+-- The schema contains many serialized protocol buffers, usually in two formats:
+-- JSON and binary. This may be a little surprising that the data is duplicated.
+-- In the long run, we intend to deduplicate this. However, in the short term,
+-- JSON provides debugging value.
+
+CREATE TABLE ModelProviders (
+  ModelProviderId INT64 NOT NULL,
+
+  ExternalModelProviderId INT64 NOT NULL,
+) PRIMARY KEY (ModelProviderId);
+
+CREATE UNIQUE INDEX ModelProvidersByExternalId
+  ON ModelProviders(ExternalModelProviderId);
+
+CREATE TABLE RecurringExchanges (
+  RecurringExchangeId           INT64 NOT NULL,
+
+  ExternalRecurringExchangeId   INT64 NOT NULL,
+
+  ModelProviderId               INT64 NOT NULL,
+  DataProviderId                INT64 NOT NULL,
+
+  -- Serialized RecurringExchangeDetails protocol buffer
+  RecurringExchangeDetails      BYTES(MAX) NOT NULL,
+  RecurringExchangeDetailsJson  STRING(MAX) NOT NULL,
+
+  CONSTRAINT FK_ModelProvider
+    FOREIGN KEY (ModelProviderId)
+    REFERENCES ModelProviders(ModelProviderId),
+
+  CONSTRAINT FK_DataProvider
+    FOREIGN KEY (DataProviderId)
+    REFERENCES DataProviders(DataProviderId),
+) PRIMARY KEY (RecurringExchangeId);
+
+CREATE UNIQUE INDEX RecurringExchangesByExternalId
+  ON RecurringExchanges(ExternalRecurringExchangeId);
+
+CREATE INDEX RecurringExchangesByDataProviderId
+  ON RecurringExchanges(DataProviderId);
+
+CREATE INDEX RecurringExchangesByModelProviderId
+  ON RecurringExchanges(ModelProviderId);
+
+CREATE TABLE Exchanges (
+  RecurringExchangeId  INT64 NOT NULL,
+  Date                 DATE NOT NULL,
+
+  -- Serialized ExchangeDetails protocol buffer
+  ExchangeDetails      BYTES(MAX) NOT NULL,
+  ExchangeDetailsJson  STRING(MAX) NOT NULL,
+) PRIMARY KEY (RecurringExchangeId, Date),
+  INTERLEAVE IN PARENT RecurringExchanges ON DELETE CASCADE;
+
+CREATE INDEX ExchangesByDate ON Exchanges(Date);
+
+CREATE TABLE ExchangeSteps (
+  RecurringExchangeId  INT64 NOT NULL,
+  Date                 DATE NOT NULL,
+  StepIndex            INT64 NOT NULL,
+
+  -- ExchangeStep.State enum as int.
+  State                INT64 NOT NULL,
+
+  -- Denormalized "party" from the parent RecurringExchange.
+  -- Exactly one of ModelProviderId and DataProviderId will be set.
+  ModelProviderId      INT64,
+  DataProviderId       INT64,
+
+  CONSTRAINT FK_ModelProvider
+    FOREIGN KEY (ModelProviderId)
+    REFERENCES ModelProviders(ModelProviderId),
+
+  CONSTRAINT FK_DataProvider
+    FOREIGN KEY (DataProviderId)
+    REFERENCES DataProviders(DataProviderId),
+) PRIMARY KEY (RecurringExchangeId, Date, StepIndex),
+  INTERLEAVE IN PARENT Exchanges ON DELETE CASCADE;
+
+CREATE NULL_FILTERED INDEX ExchangeStepsByModelProviderId
+  ON ExchangeSteps(ModelProviderId, State);
+
+CREATE NULL_FILTERED INDEX ExchangeStepsByDataProviderId
+  ON ExchangeSteps(DataProviderId, State);
+
+CREATE TABLE ExchangeStepAttempts (
+  RecurringExchangeId  INT64 NOT NULL,
+  Date                 DATE NOT NULL,
+  StepIndex            INT64 NOT NULL,
+  AttemptIndex         INT64 NOT NULL,
+
+  -- Serialized ExchangeStepAttemptDetails protocol buffer
+  ExchangeStepAttemptDetails      BYTES(MAX) NOT NULL,
+  ExchangeStepAttemptDetailsJson  STRING(MAX) NOT NULL,
+) PRIMARY KEY (RecurringExchangeId, Date, StepIndex, AttemptIndex),
+  INTERLEAVE IN PARENT ExchangeSteps ON DELETE CASCADE;

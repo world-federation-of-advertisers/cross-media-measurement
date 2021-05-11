@@ -26,6 +26,17 @@ kt_jvm_library(
     ],
 )
 
+
+genrule(
+    name = "concat_kingdom_legacy",
+    srcs = [
+        "//some:files",  # a filegroup with multiple files in it ==> $(locations)
+        "//other:gen",   # a genrule with a single output ==> $(location)
+    ],
+    outs = ["kingdom_legacy.sdl"],
+    cmd = "cat $(locations //some:files) $(location //other:gen) > $@",
+)
+
 exports_files([
     "kingdom.sdl",
 ])
