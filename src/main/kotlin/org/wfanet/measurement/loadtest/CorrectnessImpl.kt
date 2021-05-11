@@ -104,6 +104,20 @@ class CorrectnessImpl(
   /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
   private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
+  // TODO(@yunyeng): Move parameter mappings to flag level.
+  private val sexMap: Map<String, LabeledEvent.Sex> =
+    mapOf("M" to LabeledEvent.Sex.MALE, "F" to LabeledEvent.Sex.FEMALE)
+  private val ageGroupMap: Map<String, LabeledEvent.AgeGroup> =
+    mapOf(
+      "18_34" to LabeledEvent.AgeGroup._18_34,
+      "35_54" to LabeledEvent.AgeGroup._35_54,
+      "55+" to LabeledEvent.AgeGroup._55
+    )
+  private val socialGradeMap: Map<String, LabeledEvent.SocialGrade> =
+    mapOf("ABC1" to LabeledEvent.SocialGrade.ABC1, "C2DE" to LabeledEvent.SocialGrade.C2DE)
+  private val completeMap: Map<String, LabeledEvent.Complete> =
+    mapOf("0" to LabeledEvent.Complete.INCOMPLETE, "1" to LabeledEvent.Complete.COMPLETE)
+
   suspend fun process(
     relationalDatabase: KingdomRelationalDatabase,
     relationalDatabaseTestHelper: DatabaseTestHelper,
@@ -118,16 +132,17 @@ class CorrectnessImpl(
     val complete: Array<String> = arrayOf("0", "1")
     val startDate: String = "2021-03-15"
     val endDate: String = "2021-03-22"
-    val events: List<LabeledEvent> =
+    val events: Map<Long, List<LabeledEvent>> =
       bigQuery.getLabeledEvents(
-        publisher = publisher,
-        sex = sex,
-        ageGroup = ageGroup,
-        socialGrade = socialGrade,
-        complete = complete,
-        startDate = startDate,
-        endDate = endDate
-      )
+          publisher = publisher,
+          sex = sex,
+          ageGroup = ageGroup,
+          socialGrade = socialGrade,
+          complete = complete,
+          startDate = startDate,
+          endDate = endDate
+        )
+        .groupBy { it.publisherId }
 
     logger.info("Starting with RunID: $runId ...")
     val testResult = TestResult.newBuilder().setRunId(runId)
@@ -268,47 +283,42 @@ class CorrectnessImpl(
     return LabeledEvent.newBuilder()
       .setEventId(row.get("event_id").longValue)
       .setPublisherId(row.get("publisher_id").longValue)
-      .setSex(selectSex(row.get("sex").stringValue))
-      .setAgeGroup(selectAgeGroup(row.get("age_group").stringValue))
-      .setSocialGrade(LabeledEvent.SocialGrade.valueOf(row.get("social_grade").stringValue))
-      .setComplete(selectComplete(row.get("complete").stringValue))
+      .setSex(row.get("sex").stringValue.toSex())
+      .setAgeGroup(row.get("age_group").stringValue.toAgeGroup())
+      .setSocialGrade(row.get("social_grade").stringValue.toSocialGrade())
+      .setComplete(row.get("complete").stringValue.toComplete())
       .setVid(row.get("vid").longValue)
-      .setDate(buildDate(row.get("date").stringValue))
+      .setDate(row.get("date").stringValue.toDate())
       .build()
   }
 
   // Converts String SQL date format into Date.
-  private fun buildDate(dateStr: String): Date {
-    val date = com.google.cloud.Date.parseDate(dateStr)
+  private fun String.toDate(): Date {
+    val date = com.google.cloud.Date.parseDate(this)
     return Date.newBuilder().setDay(date.dayOfMonth).setMonth(date.month).setYear(date.year).build()
   }
 
   // Converts String Sex into enum Sex.
-  private fun selectSex(sex: String): LabeledEvent.Sex {
-    return when (sex) {
-      "M" -> LabeledEvent.Sex.MALE
-      "F" -> LabeledEvent.Sex.FEMALE
-      else -> LabeledEvent.Sex.SEX_UNSPECIFIED
-    }
+  private fun String.toSex(): LabeledEvent.Sex {
+    return sexMap[this] ?: throw IllegalArgumentException("Unsupported value for Sex parameter.")
   }
 
   // Converts String Age group into enum AgeGroup.
-  private fun selectAgeGroup(ageGroup: String): LabeledEvent.AgeGroup {
-    return when (ageGroup) {
-      "18_34" -> LabeledEvent.AgeGroup._18_34
-      "35_54" -> LabeledEvent.AgeGroup._35_54
-      "55+" -> LabeledEvent.AgeGroup._55
-      else -> LabeledEvent.AgeGroup.AGE_GROUP_UNSPECIFIED
-    }
+  private fun String.toAgeGroup(): LabeledEvent.AgeGroup {
+    return ageGroupMap[this]
+      ?: throw IllegalArgumentException("Unsupported value for Age Group parameter.")
+  }
+
+  // Converts String Social grade into enum SocialGrade.
+  private fun String.toSocialGrade(): LabeledEvent.SocialGrade {
+    return socialGradeMap[this]
+      ?: throw IllegalArgumentException("Unsupported value for Social Grade parameter.")
   }
 
   // Converts String Complete into enum Complete.
-  private fun selectComplete(complete: String): LabeledEvent.Complete {
-    return when (complete) {
-      "0" -> LabeledEvent.Complete.INCOMPLETE
-      "1" -> LabeledEvent.Complete.COMPLETE
-      else -> LabeledEvent.Complete.COMPLETE_UNSPECIFIED
-    }
+  private fun String.toComplete(): LabeledEvent.Complete {
+    return completeMap[this]
+      ?: throw IllegalArgumentException("Unsupported value for Complete parameter.")
   }
 
   private suspend fun ReportDatabase.getFinishedReport(
