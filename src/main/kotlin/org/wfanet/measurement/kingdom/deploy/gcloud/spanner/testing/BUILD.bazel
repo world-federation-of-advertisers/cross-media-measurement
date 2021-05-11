@@ -16,7 +16,7 @@ kt_jvm_library(
             "KingdomDatabases.kt",
         ],
     ),
-    data = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl"],
+    data = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:concat_kingdom_legacy"],
     deps = [
         ":testing_nontestonly",
         "//imports/java/com/google/cloud/spanner",
