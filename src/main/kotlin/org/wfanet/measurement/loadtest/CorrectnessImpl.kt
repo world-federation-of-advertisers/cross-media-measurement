@@ -110,7 +110,8 @@ class CorrectnessImpl(
     bigQuery: BigQuery
   ) {
 
-    // TODO(@yunyeng): Move these sample parameters into README.
+    // TODO(@yunyeng): Move parameters into flags and document them.
+    val publisher: Array<Long> = arrayOf(1L, 2L, 5L)
     val sex: Array<String> = arrayOf("M", "F")
     val ageGroup: Array<String> = arrayOf("18_34", "35_54", "55+")
     val socialGrade: Array<String> = arrayOf("ABC1", "C2DE")
@@ -119,6 +120,7 @@ class CorrectnessImpl(
     val endDate: String = "2021-03-22"
     val events: List<LabeledEvent> =
       bigQuery.getLabeledEvents(
+        publisher = publisher,
         sex = sex,
         ageGroup = ageGroup,
         socialGrade = socialGrade,
@@ -190,6 +192,7 @@ class CorrectnessImpl(
    * @return List of [LabeledEvent]s from the executed query.
    */
   private fun BigQuery.getLabeledEvents(
+    publisher: Array<Long>,
     sex: Array<String>,
     ageGroup: Array<String>,
     socialGrade: Array<String>,
@@ -197,7 +200,8 @@ class CorrectnessImpl(
     startDate: String,
     endDate: String
   ): List<LabeledEvent> {
-    val queryConfig = buildQueryConfig(sex, ageGroup, socialGrade, complete, startDate, endDate)
+    val queryConfig =
+      buildQueryConfig(publisher, sex, ageGroup, socialGrade, complete, startDate, endDate)
     val jobId: JobId = JobId.of(UUID.randomUUID().toString())
     var queryJob: Job = this.create(JobInfo.newBuilder(queryConfig).setJobId(jobId).build())
     logger.info("Connected to BigQuery Successfully.")
@@ -223,6 +227,7 @@ class CorrectnessImpl(
 
   // Builds a query based on the parameters given.
   private fun buildQueryConfig(
+    publisher: Array<Long>,
     sex: Array<String>,
     ageGroup: Array<String>,
     socialGrade: Array<String>,
@@ -234,7 +239,8 @@ class CorrectnessImpl(
       """
       SELECT publisher_id, event_id, sex, age_group, social_grade, complete, vid, date
       FROM `ads-open-measurement.demo.labelled_events`
-      WHERE sex IN UNNEST(@sex)
+      WHERE publisher_id IN UNNEST(@publisher)
+      AND sex IN UNNEST(@sex)
       AND age_group IN UNNEST(@age_group)
       AND social_grade IN UNNEST(@social_grade)
       AND complete IN UNNEST(@complete)
@@ -243,6 +249,7 @@ class CorrectnessImpl(
       """.trimIndent()
     val queryConfig: QueryJobConfiguration =
       QueryJobConfiguration.newBuilder(query)
+        .addNamedParameter("publisher", QueryParameterValue.array(publisher, Long::class.java))
         .addNamedParameter("sex", QueryParameterValue.array(sex, String::class.java))
         .addNamedParameter("age_group", QueryParameterValue.array(ageGroup, String::class.java))
         .addNamedParameter(
