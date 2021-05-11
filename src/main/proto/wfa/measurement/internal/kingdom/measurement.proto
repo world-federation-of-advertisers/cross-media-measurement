@@ -1,0 +1,94 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+import "src/main/proto/wfa/measurement/internal/kingdom/duchy_protocol_config.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Representation of the internal Measurement entity type.
+message Measurement {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+
+  // ID that's unique across all Measurements and exposed via system services.
+  fixed64 external_computation_id = 3;
+
+  // Reference ID provided by the Measurement Consumer.
+  string provided_measurement_id = 4;
+
+  fixed64 external_measurement_consumer_certificate_id = 5;
+  string external_protocol_config_id = 6;
+
+  google.protobuf.Timestamp create_time = 7;
+  google.protobuf.Timestamp update_time = 8;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+
+    // Awaiting the necessary parameters from computation participants (Duchies)
+    // before Requisitions may be made available in the public API.
+    PENDING_REQUISITION_PARAMS = 1;
+
+    // Awaiting fulfillment of all Requisitions by Data Providers.
+    //
+    // Requisitions are available in the public API at this state.
+    PENDING_REQUISITION_FULFILLMENT = 2;
+
+    // Awaiting confirmation from computation participants (Duchies).
+    //
+    // Requisitions are all fulfilled at this state.
+    PENDING_PARTICIPANT_CONFIRMATION = 3;
+
+    // Awaiting completion of computation by participants (Duchies).
+    //
+    // Requisitions are all fulfilled at this state.
+    PENDING_COMPUTATION = 4;
+
+    // Succeeded (has a result). Terminal state.
+    SUCCEEDED = 5;
+
+    // Failed. Terminal state.
+    FAILED = 6;
+
+    // Cancelled by Measurement Consumer. Terminal state.
+    CANCELLED = 7;
+  }
+  State state = 9;
+
+  message Details {
+    // Version the public API for serialized message definitions.
+    string api_version = 1;
+
+    // Serialized `MeasurementSpec` from public API.
+    bytes measurement_spec = 2;
+    bytes measurement_spec_signature = 3;
+    // Serialized `DataProviderList` from public API.
+    bytes data_provider_list = 4;
+    bytes data_provider_list_salt = 5;
+
+    DuchyProtocolConfig duchy_protocol_config = 6;
+
+    bytes aggregator_certificate = 7;
+    bytes result_public_key = 8;
+    bytes encrypted_result = 9;
+  }
+  Details details = 10;
+  string details_json = 11;
+}
