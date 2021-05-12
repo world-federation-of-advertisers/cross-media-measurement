@@ -22,6 +22,8 @@ option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "GlobalComputationProto";
 
+// TODO(world-federation-of-advertisers/cross-media-measurement#53): Delete once
+// `Computation` resource is used instead.
 message GlobalComputation {
   // Resource key message.
   message Key {
