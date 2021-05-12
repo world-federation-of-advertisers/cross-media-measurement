@@ -79,6 +79,17 @@ java_proto_library(
 )
 
 proto_library(
+    name = "requisition_details_proto",
+    srcs = ["requisition_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "requisition_details_java_proto",
+    deps = [":requisition_details_proto"],
+)
+
+proto_library(
     name = "metric_value_proto",
     srcs = ["metric_value.proto"],
     strip_import_prefix = IMPORT_PREFIX,

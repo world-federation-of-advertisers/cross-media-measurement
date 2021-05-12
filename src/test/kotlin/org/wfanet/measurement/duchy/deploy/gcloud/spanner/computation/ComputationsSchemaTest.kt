@@ -80,6 +80,10 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .to("567")
         .set("PathToBlob")
         .to("a/b/c")
+        .set("Details")
+        .to(ByteArray.copyFrom("123456"))
+        .set("DetailsJSON")
+        .to("123456")
         .build()
     dbClient.write(listOf(mutation, computationStageChildMutation, requisitionsChildMutation))
     assertQueryReturns(
@@ -96,7 +100,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
     )
     assertQueryReturns(
       dbClient,
-      "SELECT ComputationId, RequisitionId, PathToBlob FROM Requisitions",
+      "SELECT ComputationId, RequisitionId, PathToBlob, Details, DetailsJSON FROM Requisitions",
       Struct.newBuilder()
         .set("ComputationId")
         .to(computationId)
@@ -104,6 +108,10 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .to(2)
         .set("PathToBlob")
         .to("a/b/c")
+        .set("Details")
+        .to(ByteArray.copyFrom("123456"))
+        .set("DetailsJSON")
+        .to("123456")
         .build()
     )
   }
