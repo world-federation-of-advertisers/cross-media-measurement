@@ -17,8 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
-import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
 import "wfa/measurement/internal/duchy/protocol/requisition.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
@@ -145,6 +145,9 @@ message LiquidLegionsSketchAggregationV2 {
       }
       // Noise parameters selected for the LiquidLegionV2 MPC protocol.
       NoiseConfig noise = 4;
+      // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
+      // prime256v1 curve. Required. Immutable.
+      int32 elliptic_curve_id = 5;
     }
     Parameters parameters = 2;
 

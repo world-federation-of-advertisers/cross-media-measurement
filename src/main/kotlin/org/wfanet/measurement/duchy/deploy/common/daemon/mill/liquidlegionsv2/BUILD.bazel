@@ -25,7 +25,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
     ],

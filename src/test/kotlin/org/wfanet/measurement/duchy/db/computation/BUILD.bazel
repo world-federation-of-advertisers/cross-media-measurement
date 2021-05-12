@@ -49,7 +49,7 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
     ],
 )
 
@@ -63,6 +63,6 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
     ],
 )
