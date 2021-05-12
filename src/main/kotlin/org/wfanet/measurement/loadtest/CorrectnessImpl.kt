@@ -14,8 +14,17 @@
 
 package org.wfanet.measurement.loadtest
 
+import com.google.cloud.bigquery.BigQuery
+import com.google.cloud.bigquery.FieldValueList
+import com.google.cloud.bigquery.Job
+import com.google.cloud.bigquery.JobId
+import com.google.cloud.bigquery.JobInfo
+import com.google.cloud.bigquery.QueryJobConfiguration
+import com.google.cloud.bigquery.QueryParameterValue
+import com.google.cloud.bigquery.TableResult
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.type.Date
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
@@ -64,6 +73,7 @@ import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.TimePeriod
+import org.wfanet.measurement.internal.loadtest.LabeledEvent
 import org.wfanet.measurement.internal.loadtest.TestResult
 import org.wfanet.measurement.kingdom.db.KingdomRelationalDatabase
 import org.wfanet.measurement.kingdom.db.ReportDatabase
@@ -94,10 +104,46 @@ class CorrectnessImpl(
   /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
   private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
+  // TODO(@yunyeng): Move parameter mappings to flag level.
+  private val sexMap: Map<String, LabeledEvent.Sex> =
+    mapOf("M" to LabeledEvent.Sex.MALE, "F" to LabeledEvent.Sex.FEMALE)
+  private val ageGroupMap: Map<String, LabeledEvent.AgeGroup> =
+    mapOf(
+      "18_34" to LabeledEvent.AgeGroup._18_34,
+      "35_54" to LabeledEvent.AgeGroup._35_54,
+      "55+" to LabeledEvent.AgeGroup._55
+    )
+  private val socialGradeMap: Map<String, LabeledEvent.SocialGrade> =
+    mapOf("ABC1" to LabeledEvent.SocialGrade.ABC1, "C2DE" to LabeledEvent.SocialGrade.C2DE)
+  private val completeMap: Map<String, LabeledEvent.Complete> =
+    mapOf("0" to LabeledEvent.Complete.INCOMPLETE, "1" to LabeledEvent.Complete.COMPLETE)
+
   suspend fun process(
     relationalDatabase: KingdomRelationalDatabase,
-    relationalDatabaseTestHelper: DatabaseTestHelper
+    relationalDatabaseTestHelper: DatabaseTestHelper,
+    bigQuery: BigQuery
   ) {
+
+    // TODO(@yunyeng): Move parameters into flags and document them.
+    val publisher: Array<Long> = arrayOf(1L, 2L, 5L)
+    val sex: Array<String> = arrayOf("M", "F")
+    val ageGroup: Array<String> = arrayOf("18_34", "35_54", "55+")
+    val socialGrade: Array<String> = arrayOf("ABC1", "C2DE")
+    val complete: Array<String> = arrayOf("0", "1")
+    val startDate: String = "2021-03-15"
+    val endDate: String = "2021-03-22"
+    val events: Map<Long, List<LabeledEvent>> =
+      bigQuery.getLabeledEvents(
+          publisher = publisher,
+          sex = sex,
+          ageGroup = ageGroup,
+          socialGrade = socialGrade,
+          complete = complete,
+          startDate = startDate,
+          endDate = endDate
+        )
+        .groupBy { it.publisherId }
+
     logger.info("Starting with RunID: $runId ...")
     val testResult = TestResult.newBuilder().setRunId(runId)
 
@@ -147,6 +193,132 @@ class CorrectnessImpl(
     val blobKey = storeTestResult(testResult.build())
     println("Test Result saved with blob key: $blobKey")
     logger.info("Correctness Test passes with manifest: $blobKey.")
+  }
+
+  /**
+   * Get demo data from BigQuery table.
+   *
+   * @param sex Array of sexes to filter in query.
+   * @param ageGroup Array of age groups to filter in query.
+   * @param socialGrade Array of age social grades to filter in query.
+   * @param complete Array of completion to filter in query.
+   * @param startDate String of start date to filter in query.
+   * @param endDate String of end date to filter in query.
+   * @return List of [LabeledEvent]s from the executed query.
+   */
+  private fun BigQuery.getLabeledEvents(
+    publisher: Array<Long>,
+    sex: Array<String>,
+    ageGroup: Array<String>,
+    socialGrade: Array<String>,
+    complete: Array<String>,
+    startDate: String,
+    endDate: String
+  ): List<LabeledEvent> {
+    val queryConfig =
+      buildQueryConfig(publisher, sex, ageGroup, socialGrade, complete, startDate, endDate)
+    val jobId: JobId = JobId.of(UUID.randomUUID().toString())
+    var queryJob: Job = this.create(JobInfo.newBuilder(queryConfig).setJobId(jobId).build())
+    logger.info("Connected to BigQuery Successfully.")
+    queryJob = queryJob.waitFor()
+
+    if (queryJob == null || queryJob.status.error != null) {
+      throw RuntimeException()
+    }
+    logger.info("Running query on BigQuery table.")
+    val result: TableResult = queryJob.getQueryResults()
+
+    val labeledEvents = mutableListOf<LabeledEvent>()
+    for (row: FieldValueList in result.iterateAll()) {
+      val event = buildLabeledEvent(row)
+      println(event)
+      logger.info(event.toString())
+      labeledEvents.add(event)
+    }
+    logger.info("Query executed successfully.!")
+
+    return labeledEvents
+  }
+
+  // Builds a query based on the parameters given.
+  private fun buildQueryConfig(
+    publisher: Array<Long>,
+    sex: Array<String>,
+    ageGroup: Array<String>,
+    socialGrade: Array<String>,
+    complete: Array<String>,
+    startDate: String,
+    endDate: String
+  ): QueryJobConfiguration {
+    val query =
+      """
+      SELECT publisher_id, event_id, sex, age_group, social_grade, complete, vid, date
+      FROM `ads-open-measurement.demo.labelled_events`
+      WHERE publisher_id IN UNNEST(@publisher)
+      AND sex IN UNNEST(@sex)
+      AND age_group IN UNNEST(@age_group)
+      AND social_grade IN UNNEST(@social_grade)
+      AND complete IN UNNEST(@complete)
+      AND date BETWEEN @start_date AND @end_date
+      LIMIT 100
+      """.trimIndent()
+    val queryConfig: QueryJobConfiguration =
+      QueryJobConfiguration.newBuilder(query)
+        .addNamedParameter("publisher", QueryParameterValue.array(publisher, Long::class.java))
+        .addNamedParameter("sex", QueryParameterValue.array(sex, String::class.java))
+        .addNamedParameter("age_group", QueryParameterValue.array(ageGroup, String::class.java))
+        .addNamedParameter(
+          "social_grade",
+          QueryParameterValue.array(socialGrade, String::class.java)
+        )
+        .addNamedParameter("complete", QueryParameterValue.array(complete, String::class.java))
+        .addNamedParameter("start_date", QueryParameterValue.date(startDate))
+        .addNamedParameter("end_date", QueryParameterValue.date(endDate))
+        .build()
+    return queryConfig
+  }
+
+  // Converts BigQuery table row into LabeledEvent proto.
+  private fun buildLabeledEvent(row: FieldValueList): LabeledEvent {
+    return LabeledEvent.newBuilder()
+      .setEventId(row.get("event_id").longValue)
+      .setPublisherId(row.get("publisher_id").longValue)
+      .setSex(row.get("sex").stringValue.toSex())
+      .setAgeGroup(row.get("age_group").stringValue.toAgeGroup())
+      .setSocialGrade(row.get("social_grade").stringValue.toSocialGrade())
+      .setComplete(row.get("complete").stringValue.toComplete())
+      .setVid(row.get("vid").longValue)
+      .setDate(row.get("date").stringValue.toDate())
+      .build()
+  }
+
+  // Converts String SQL date format into Date.
+  private fun String.toDate(): Date {
+    val date = com.google.cloud.Date.parseDate(this)
+    return Date.newBuilder().setDay(date.dayOfMonth).setMonth(date.month).setYear(date.year).build()
+  }
+
+  // Converts String Sex into enum Sex.
+  private fun String.toSex(): LabeledEvent.Sex {
+    return sexMap[this] ?: throw IllegalArgumentException("Unsupported value for Sex parameter.")
+  }
+
+  // Converts String Age group into enum AgeGroup.
+  private fun String.toAgeGroup(): LabeledEvent.AgeGroup {
+    return ageGroupMap[this]
+      ?: throw IllegalArgumentException("Unsupported value for Age Group parameter.")
+  }
+
+  // Converts String Social grade into enum SocialGrade.
+  private fun String.toSocialGrade(): LabeledEvent.SocialGrade {
+    return socialGradeMap[this]
+      ?: throw IllegalArgumentException("Unsupported value for Social Grade parameter.")
+  }
+
+  // Converts String Complete into enum Complete.
+  private fun String.toComplete(): LabeledEvent.Complete {
+    return completeMap[this]
+      ?: throw IllegalArgumentException("Unsupported value for Complete parameter.")
   }
 
   private suspend fun ReportDatabase.getFinishedReport(

@@ -129,6 +129,7 @@ MAVEN_ARTIFACTS.update({
     "com.google.api.grpc:grpc-google-cloud-pubsub-v1": "0.1.24",
     "com.google.cloud:google-cloud-nio": "0.122.0",
     "com.google.cloud:google-cloud-spanner": "3.0.3",
+    "com.google.cloud:google-cloud-bigquery": "1.124.0",
     "com.google.code.gson:gson": "2.8.6",
     "com.google.guava:guava": "30.0-jre",
     "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
