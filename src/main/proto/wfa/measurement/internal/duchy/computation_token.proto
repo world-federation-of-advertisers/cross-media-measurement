@@ -19,6 +19,7 @@ package wfa.measurement.internal.duchy;
 import "wfa/measurement/internal/duchy/computation_blob_dependency.proto";
 import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
+import "wfa/measurement/internal/duchy/requisition_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -57,9 +58,8 @@ message ComputationToken {
   // all stages will have details.
   ComputationStageDetails stage_specific_details = 8;
 
-  // Metadata about requisition blobs used in this computation.
-  // Only requisitions fulfilled at this duchy are included.
-  repeated RequisitionBlobMetadata local_requisition_blobs = 9;
+  // Metadata about requisition used in this computation.
+  repeated RequisitionMetadata requisitions = 9;
 }
 
 // Metadata about a blob for a particular stage of the computation.
@@ -77,9 +77,13 @@ message ComputationStageBlobMetadata {
 }
 
 // Metadata about a blob for a particular requisition.
-message RequisitionBlobMetadata {
+message RequisitionMetadata {
+  // External ID of the data provider.
+  string external_data_provider_id = 1;
   // External ID of the requisition.
-  string external_requisition_id = 1;
-  // The path to the blob.
-  string path = 2;
+  string external_requisition_id = 2;
+  // The path to the blob if fulfilled locally. Otherwise empty.
+  string path = 3;
+  // Detail of the requisition.
+  RequisitionDetails details = 4;
 }

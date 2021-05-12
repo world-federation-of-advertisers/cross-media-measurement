@@ -62,34 +62,6 @@ message ComputationDetails {
 
     // HybridCipherSuite used when encrypting the final result.
     HybridCipherSuite cipher_suite = 5;
-
-    // The information of requisition used in this computation.
-    // For consent signaling verification only.
-    message Requisition {
-      // ID of the DataProvider.
-      string external_data_provider_id = 1;
-      // ID of the Requisition.
-      string external_requisition_id = 2;
-      // X.509 certificate in DER format which can be verified using the
-      // `DataProvider`'s root certificate. Required. Immutable.
-      bytes data_provider_certificate = 3;
-      // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
-      // Immutable.
-      bytes requisition_spec_hash = 4;
-      // Cryptographic digital signature of the "requisition fingerprint" which
-      // can be verified using `data_provider_certificate`. Set when `state` is
-      // `FULFILLED`.
-      //
-      // The requisition fingerprint is defined as the concatenation of:
-      // 1. `requisition_spec_hash`
-      // 2. The SHA256 hash of the concatenation of `data_provider_list` and
-      //    `data_provider_list_salt` from the parent `Computation`.
-      // 3. `measurement_spec` from the parent `Computation`.
-      bytes data_provider_participation_signature = 5;
-      // External ID of the duchy where this requisition is fulfilled.
-      string external_fulfilling_duchy_id = 6;
-    }
-    repeated Requisition requisitions = 6;
   }
   KingdomComputationDetails kingdom_computation = 3;
 
@@ -97,7 +69,7 @@ message ComputationDetails {
   oneof protocol {
     // Details specific to the liquidLegionV2 protocol.
     protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
-        liquid_legions_v2 = 5;
+        liquid_legions_v2 = 4;
   }
 }
 

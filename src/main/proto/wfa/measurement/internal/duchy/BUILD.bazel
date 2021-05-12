@@ -70,12 +70,24 @@ proto_library(
         ":computation_blob_dependency_proto",
         ":computation_details_proto",
         ":computation_protocols_proto",
+        ":requisition_details_proto",
     ],
 )
 
 java_proto_library(
     name = "computation_token_java_proto",
     deps = [":computation_token_proto"],
+)
+
+proto_library(
+    name = "requisition_details_proto",
+    srcs = ["requisition_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "requisition_details_java_proto",
+    deps = [":requisition_details_proto"],
 )
 
 proto_library(
