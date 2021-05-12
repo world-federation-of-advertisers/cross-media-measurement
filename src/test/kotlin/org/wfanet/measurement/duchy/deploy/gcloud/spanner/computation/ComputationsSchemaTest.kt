@@ -53,7 +53,7 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
   fun insertChild() = runBlocking {
     val dbClient = databaseClient
     val mutation = makeInsertMutation()
-    val childMutation =
+    val computationStageChildMutation =
       Mutation.newInsertOrUpdateBuilder("ComputationStages")
         .set("ComputationId")
         .to(computationId)
@@ -68,7 +68,20 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .set("DetailsJSON")
         .to("123")
         .build()
-    dbClient.write(listOf(mutation, childMutation))
+    val requisitionsChildMutation =
+      Mutation.newInsertOrUpdateBuilder("Requisitions")
+        .set("ComputationId")
+        .to(computationId)
+        .set("RequisitionId")
+        .to(2)
+        .set("ExternalDataProviderId")
+        .to("123")
+        .set("ExternalRequisitionId")
+        .to("567")
+        .set("PathToBlob")
+        .to("a/b/c")
+        .build()
+    dbClient.write(listOf(mutation, computationStageChildMutation, requisitionsChildMutation))
     assertQueryReturns(
       dbClient,
       "SELECT ComputationId, ComputationStage, NextAttempt FROM ComputationStages",
@@ -79,6 +92,18 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .to(2)
         .set("NextAttempt")
         .to(3)
+        .build()
+    )
+    assertQueryReturns(
+      dbClient,
+      "SELECT ComputationId, RequisitionId, PathToBlob FROM Requisitions",
+      Struct.newBuilder()
+        .set("ComputationId")
+        .to(computationId)
+        .set("RequisitionId")
+        .to(2)
+        .set("PathToBlob")
+        .to("a/b/c")
         .build()
     )
   }
