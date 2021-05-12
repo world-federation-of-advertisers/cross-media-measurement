@@ -4,9 +4,12 @@ load("//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
+IMPORT_PREFIX = "/src/main/proto"
+
 proto_library(
     name = "computation_blob_dependency_proto",
     srcs = ["computation_blob_dependency.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 java_proto_library(
@@ -17,6 +20,7 @@ java_proto_library(
 proto_library(
     name = "computation_protocols_proto",
     srcs = ["computation_protocols.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_proto",
     ],
@@ -30,6 +34,7 @@ java_proto_library(
 proto_library(
     name = "computation_details_proto",
     srcs = ["computation_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "//src/main/proto/wfa/measurement/protocol:liquid_legions_v2_proto",
     ],
@@ -43,7 +48,7 @@ java_proto_library(
 proto_library(
     name = "computations_service_proto",
     srcs = ["computations_service.proto"],
-    strip_import_prefix = "/src/main/proto",
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_details_proto",
         ":computation_protocols_proto",
@@ -59,6 +64,7 @@ kt_jvm_grpc_and_java_proto_library(
 proto_library(
     name = "computation_token_proto",
     srcs = ["computation_token.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_blob_dependency_proto",
         ":computation_details_proto",
@@ -74,6 +80,7 @@ java_proto_library(
 proto_library(
     name = "metric_value_proto",
     srcs = ["metric_value.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 java_proto_library(
@@ -84,6 +91,7 @@ java_proto_library(
 proto_library(
     name = "metric_values_service_proto",
     srcs = ["metric_values_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [":metric_value_proto"],
 )
 
@@ -95,6 +103,7 @@ kt_jvm_grpc_and_java_proto_library(
 proto_library(
     name = "computation_stats_service_proto",
     srcs = ["computation_stats_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [":computation_protocols_proto"],
 )
 
@@ -106,6 +115,7 @@ kt_jvm_grpc_and_java_proto_library(
 proto_library(
     name = "async_computation_control_service_proto",
     srcs = ["async_computation_control_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [":computation_protocols_proto"],
 )
 

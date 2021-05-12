@@ -9,9 +9,12 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
 
+IMPORT_PREFIX = "/src/main/proto"
+
 proto_library(
     name = "metric_definition_proto",
     srcs = ["metric_definition.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [],
 )
 
