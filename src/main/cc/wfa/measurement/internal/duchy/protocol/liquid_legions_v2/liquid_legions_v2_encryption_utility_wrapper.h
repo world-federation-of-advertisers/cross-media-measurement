@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
-#define SRC_MAIN_CC_WFA_MEASUREMENT_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
 
 #include <string>
 
@@ -23,7 +23,7 @@
 // The only functionality of these methods are converting between proto messages
 // and their corresponding serialized strings, and then calling into the
 // liquid_legions_v2_encryption_utility methods.
-namespace wfa::measurement::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 absl::StatusOr<std::string> CompleteSetupPhase(
     const std::string& serialized_request);
@@ -46,6 +46,6 @@ absl::StatusOr<std::string> CompleteExecutionPhaseThree(
 absl::StatusOr<std::string> CompleteExecutionPhaseThreeAtAggregator(
     const std::string& serialized_request);
 
-}  // namespace wfa::measurement::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
-#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_WRAPPER_H_

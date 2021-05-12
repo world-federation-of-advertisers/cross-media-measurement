@@ -33,6 +33,7 @@ proto_library(
     name = "computation_details_proto",
     srcs = ["computation_details.proto"],
     deps = [
+        ":crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_proto",
     ],
 )

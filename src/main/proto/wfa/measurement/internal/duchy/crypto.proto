@@ -36,14 +36,6 @@ message ElGamalKeyPair {
   ElGamalPublicKey public_key = 2;
 }
 
-message SignedData {
-  // Arbitrary data to sign.
-  bytes data = 1;
-
-  // Cryptographic digital signature of `data`.
-  bytes signature = 2;
-}
-
 // A public key for asymmetric encryption.
 message EncryptionPublicKey {
   enum Type {

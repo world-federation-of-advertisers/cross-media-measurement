@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
+import "wfa/measurement/internal/duchy/crypto.proto";
 import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_aggregation_v2.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
@@ -23,8 +24,8 @@ option java_multiple_files = true;
 
 // Details about a computation at a MPC Worker Node.
 message ComputationDetails {
-  // A prefix of all the BLOBs stored for this computation. This is used for
-  // cleaning up after a computation when the BLOBs are no longer needed.
+  // A prefix of all the blobs stored for this computation. This is used for
+  // cleaning up after a computation when the blobs are no longer needed.
   string blobs_storage_prefix = 1;
 
   enum CompletedReason {
@@ -43,18 +44,52 @@ message ComputationDetails {
   // The Computation obtained from the Kingdom system API.
   // This field is written by the herald, and consumed by mills.
   message KingdomComputationDetails {
-
     // Serialized `MeasurementSpec` from public API.
     // For consent signaling verification only.
     bytes measurement_spec = 1;
+
     // Serialized `DataProviderList` from public API.
     // For consent signaling verification only.
     bytes data_provider_list = 2;
+
     // Salt for SHA256 hash of `data_provider_list`.
     // For consent signaling verification only.
     bytes data_provider_list_salt = 3;
 
+    // Public key for asymmetric encryption. Used when encrypting the final
+    // result.
+    EncryptionPublicKey measurement_public_key = 4;
 
+    // HybridCipherSuite used when encrypting the final result.
+    HybridCipherSuite cipher_suite = 5;
+
+    // The information of requisition used in this computation.
+    // For consent signaling verification only.
+    message Requisition {
+      // ID of the DataProvider.
+      string external_data_provider_id = 1;
+      // ID of the Requisition.
+      string external_requisition_id = 2;
+      // X.509 certificate in DER format which can be verified using the
+      // `DataProvider`'s root certificate. Required. Immutable.
+      bytes data_provider_certificate = 3;
+      // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
+      // Immutable.
+      bytes requisition_spec_hash = 4;
+      // Cryptographic digital signature of the "requisition fingerprint" which
+      // can be verified using `data_provider_certificate`. Set when `state` is
+      // `FULFILLED`.
+      //
+      // The requisition fingerprint is defined as the concatenation of:
+      // 1. `requisition_spec_hash`
+      // 2. The SHA256 hash of the concatenation of `data_provider_list` and
+      //    `data_provider_list_salt` from the parent `Computation`.
+      // 3. `measurement_spec` from the parent `Computation`.
+      bytes data_provider_participation_signature = 5;
+      // External ID of the duchy where this requisition is fulfilled.
+      string external_fulfilling_duchy_id = 6;
+    }
+    repeated Requisition requisitions = 6;
   }
   KingdomComputationDetails kingdom_computation = 3;
 
@@ -62,7 +97,7 @@ message ComputationDetails {
   oneof protocol {
     // Details specific to the liquidLegionV2 protocol.
     protocol.LiquidLegionsSketchAggregationV2.ComputationDetails
-        liquid_legions_v2 = 4;
+        liquid_legions_v2 = 5;
   }
 }
 

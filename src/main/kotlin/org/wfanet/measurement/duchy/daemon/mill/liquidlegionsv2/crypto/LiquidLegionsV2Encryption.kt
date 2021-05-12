@@ -14,20 +14,20 @@
 
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
-import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
-import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 
 /**
  * Crypto operations for the Liquid Legions v2 protocol. check

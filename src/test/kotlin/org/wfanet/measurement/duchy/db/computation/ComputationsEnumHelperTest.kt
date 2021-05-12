@@ -18,7 +18,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import org.junit.Test
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 
 class ComputationsEnumHelperTest {
 

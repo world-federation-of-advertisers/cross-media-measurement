@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package wfa.measurement.protocol;
+package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/common/noise_parameters.proto";
 
-option java_package = "org.wfanet.measurement.protocol";
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
 // Noise parameters selected for the LiquidLegionV2 MPC protocol.
