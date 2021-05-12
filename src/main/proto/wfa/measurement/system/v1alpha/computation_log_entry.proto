@@ -1,0 +1,93 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.system.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.system.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ComputationLogEntryProto";
+
+// Resource representing a log entry for a `ComputationParticipant`. Immutable.
+message ComputationLogEntry {
+  message Key {
+    string computation_id = 1;
+    string computation_participant_id = 2;
+    string computation_log_entry_id = 3;
+  }
+  // Resource key.
+  Key key = 1;
+
+  // ID of some child of the `ComputationParticipant` from an external system.
+  //
+  // For example, this may identify a specific job or task.
+  string participant_child_reference_id = 2;
+
+  // Free-form human-readable log message.
+  string log_message = 3;
+
+  message StageAttempt {
+    // Tag number of the stage enum value from an external system. Required.
+    int32 stage = 1;
+
+    // Name of the stage enum value from an external system.
+    //
+    // This is for human readability only.
+    string stage_name = 2;
+
+    // Time the stage started.
+    google.protobuf.Timestamp stage_start_time = 3;
+
+    // The attempt number for this stage, with 1 being the first attempt.
+    //
+    // This value should be strictly monotonically increasing for each
+    // subsequent `ComputationLogEntry` for a `ComputationParticipant` with the
+    // same `stage`.
+    int64 attempt_number = 4;
+  }
+  // Information about the stage attempt.
+  StageAttempt stage_attempt = 4;
+
+  message ErrorDetails {
+    // Type of error for a `ComputationLogEntry`.
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+
+      // Transient error.
+      //
+      // The parent `Computation` may not be in the `FAILED` state. The stage
+      // may be reattempted.
+      TRANSIENT = 1;
+
+      // Permanent error.
+      //
+      // The parent `Computation` will be in the `FAILED` state.
+      PERMANENT = 2;
+    }
+    // Type of error for this `ComputationLogEntry`. Required. Immutable.
+    Type type = 1;
+
+    // Time that the error occurred.
+    google.protobuf.Timestamp error_time = 2;
+
+    // Human-readable error message. This should not include any sensitive info.
+    string error_message = 3;
+  }
+  // Details for a computation error. Only set if this `ComputationLogEntry` is
+  // for an error event.
+  ErrorDetails error_details = 5;
+}

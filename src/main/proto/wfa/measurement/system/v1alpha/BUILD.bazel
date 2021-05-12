@@ -5,6 +5,65 @@ load("//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "computation_proto",
+    srcs = ["computation.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":computation_participant_proto",
+        ":requisition_proto",
+    ],
+)
+
+java_proto_library(
+    name = "computation_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [":computation_proto"],
+)
+
+proto_library(
+    name = "computation_participant_proto",
+    srcs = ["computation_participant.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+java_proto_library(
+    name = "computation_participant_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [":computation_participant_proto"],
+)
+
+proto_library(
+    name = "computation_log_entry_proto",
+    srcs = ["computation_log_entry.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+java_proto_library(
+    name = "computation_log_entry_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [":computation_log_entry_proto"],
+)
+
+proto_library(
+    name = "requisition_proto",
+    srcs = ["requisition.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [":computation_participant_proto"],
+)
+
+java_proto_library(
+    name = "requisition_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [":requisition_proto"],
+)
+
+proto_library(
     name = "public_resource_proto",
     srcs = ["public_resource.proto"],
     strip_import_prefix = IMPORT_PREFIX,

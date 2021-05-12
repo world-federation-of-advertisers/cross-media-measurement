@@ -1,0 +1,73 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.system.v1alpha;
+
+import "wfa/measurement/system/v1alpha/computation_participant.proto";
+
+option java_package = "org.wfanet.measurement.system.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionProto";
+
+message Requisition {
+  message Key {
+    string computation_id = 1;
+    string requisition_id = 2;
+  }
+  Key key = 1;
+
+  // ID of the `DataProvider` in the public API. Required. Immutable.
+  string data_provider_id = 2;
+
+  // X.509 certificate in DER format which can be verified using the
+  // `DataProvider`'s root certificate. Required. Immutable.
+  bytes data_provider_certificate = 3;
+
+  // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
+  // Immutable.
+  bytes requisition_spec_hash = 4;
+
+  // State of a `Requisition`.
+  enum State {
+    // Default value if state is omitted. Should never be used.
+    STATE_UNSPECIFIED = 0;
+    // The `Requisition` has not yet been fulfilled.
+    UNFULFILLED = 1;
+    // The `Requisition` has been fulfilled. Terminal state.
+    FULFILLED = 2;
+    // The `Requisition` has been refused by the `DataProvider`. Terminal state.
+    //
+    // The parent `Computation` will be in the `FAILED` state.
+    REFUSED = 3;
+  }
+  // The state of this `Requisition`.
+  State state = 5;
+
+  // Cryptographic digital signature of the "requisition fingerprint" which
+  // can be verified using `data_provider_certificate`. Set when `state` is
+  // `FULFILLED`.
+  //
+  // The requisition fingerprint is defined as the concatenation of:
+  // 1. `requisition_spec_hash`
+  // 2. The SHA256 hash of the concatenation of `data_provider_list` and
+  //    `data_provider_list_salt` from the parent `Computation`.
+  // 3. `measurement_spec` from the parent `Computation`.
+  bytes data_provider_participation_signature = 6;
+
+  // Resource key of the `ComputationParticipant` that marked this `Requisition`
+  // as `FULFILLED`. Output-only.
+  ComputationParticipant.Key fulfilling_computation_participant = 7;
+}
