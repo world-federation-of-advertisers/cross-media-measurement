@@ -19,7 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 
 @RunWith(JUnit4::class)
 class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {

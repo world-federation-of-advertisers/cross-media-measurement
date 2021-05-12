@@ -14,14 +14,14 @@
 
 syntax = "proto3";
 
-package wfa.measurement.protocol;
+package wfa.measurement.internal.duchy.protocol;
 
 // TODO(wangyaopw): use local protos insteaded from common.
 import "wfa/common/el_gamal_key.proto";
 import "wfa/common/liquid_legions.proto";
 import "wfa/common/noise_parameters.proto";
 
-option java_package = "org.wfanet.measurement.protocol";
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
 // Proto messages wrapping the input arguments or output results of the liquid

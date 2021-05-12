@@ -46,7 +46,7 @@ import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncA
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse as AsyncAdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest

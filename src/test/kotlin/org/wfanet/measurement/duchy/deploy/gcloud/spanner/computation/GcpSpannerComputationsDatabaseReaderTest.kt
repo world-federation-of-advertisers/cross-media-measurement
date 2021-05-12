@@ -38,7 +38,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
 class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {

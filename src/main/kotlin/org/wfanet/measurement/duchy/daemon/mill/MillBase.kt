@@ -60,7 +60,7 @@ import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
 import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
-import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
