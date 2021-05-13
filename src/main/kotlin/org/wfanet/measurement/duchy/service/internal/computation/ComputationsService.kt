@@ -47,8 +47,12 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.LookupRequisitionRequest
+import org.wfanet.measurement.internal.duchy.LookupRequisitionResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
@@ -204,6 +208,18 @@ class ComputationsService(
     }
     computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
     return EnqueueComputationResponse.getDefaultInstance()
+  }
+
+  override suspend fun lookupRequisition(
+    request: LookupRequisitionRequest
+  ): LookupRequisitionResponse {
+    TODO("unimplemented.")
+  }
+
+  override suspend fun recordRequisitionBlobPath(
+    request: RecordRequisitionBlobPathRequest
+  ): RecordRequisitionBlobPathResponse {
+    TODO("unimplemented")
   }
 
   private fun newStatusUpdateRequest(
