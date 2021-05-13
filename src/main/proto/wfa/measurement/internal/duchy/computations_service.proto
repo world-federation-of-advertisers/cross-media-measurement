@@ -68,6 +68,14 @@ service Computations {
   // Enqueues a computation for work by a Mill.
   rpc EnqueueComputation(EnqueueComputationRequest)
       returns (EnqueueComputationResponse);
+
+  // Looks up a requisition by external requisition key.
+  rpc LookupRequisition(LookupRequisitionRequest)
+      returns (LookupRequisitionResponse);
+
+  // Records the blob path where the data of a requisition is stored.
+  rpc RecordRequisitionBlobPath(RecordRequisitionBlobPathRequest)
+      returns (RecordRequisitionBlobPathResponse);
 }
 
 // Request to create a new computation.
@@ -81,6 +89,8 @@ message CreateComputationRequest {
   // Initial computation details.
   // If set, the protocol should match computation_type.
   ComputationDetails computation_details = 4;
+  // External keys of the Requisitions used in this computation.
+  repeated ExternalRequisitionKey requisitions = 5;
 }
 
 message CreateComputationResponse {
@@ -230,4 +240,37 @@ message EnqueueComputationRequest {
 // enqueued.
 message EnqueueComputationResponse {
   // Intentionally blank
+}
+
+// External key of a requisition.
+message ExternalRequisitionKey {
+  // External id of the data provider. Assigned by the kingdom.
+  string external_data_provider_id = 1;
+  // External id of the requisition. Assigned by the kingdom.
+  string external_requisition_id = 2;
+}
+
+// Request to look up a requisition by external requisition key.
+message LookupRequisitionRequest {
+  // The key of the requisition to look up. Required.
+  ExternalRequisitionKey key = 1;
+}
+message LookupRequisitionResponse {
+  // The computationToken of the parent computation.
+  ComputationToken token = 1;
+}
+
+// Request to record the blob path where the data of a requisition is stored.
+message RecordRequisitionBlobPathRequest {
+  // Token for the computation to update. Required.
+  ComputationToken token = 1;
+  // The key of the requisition to update. Required.
+  ExternalRequisitionKey key = 2;
+  // The blob path where the data of the requisition is stored.
+  // Required. Must be non-empty.
+  string blob_path_added = 3;
+}
+message RecordRequisitionBlobPathResponse {
+  // The computationToken of the parent computation after updating.
+  ComputationToken token = 1;
 }
