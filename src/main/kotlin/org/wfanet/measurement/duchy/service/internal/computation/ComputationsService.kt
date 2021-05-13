@@ -46,9 +46,12 @@ import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
@@ -131,8 +134,14 @@ class ComputationsService(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
     val computationToken =
-      computationsDatabase.readComputationToken(request.globalComputationId)
-        ?: throw Status.NOT_FOUND.asRuntimeException()
+      when (request.keyCase) {
+        KeyCase.GLOBAL_COMPUTATION_ID ->
+          computationsDatabase.readComputationToken(request.globalComputationId)
+            ?: throw Status.NOT_FOUND.asRuntimeException()
+        KeyCase.REQUISITION_KEY -> TODO("not implemented.")
+        KeyCase.KEY_NOT_SET ->
+          throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
+      }
     return computationToken.toGetComputationTokenResponse()
   }
 
@@ -204,6 +213,12 @@ class ComputationsService(
     }
     computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
     return EnqueueComputationResponse.getDefaultInstance()
+  }
+
+  override suspend fun recordRequisitionBlobPath(
+    request: RecordRequisitionBlobPathRequest
+  ): RecordRequisitionBlobPathResponse {
+    TODO("unimplemented")
   }
 
   private fun newStatusUpdateRequest(
