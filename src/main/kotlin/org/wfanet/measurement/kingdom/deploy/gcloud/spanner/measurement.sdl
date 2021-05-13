@@ -184,7 +184,7 @@ CREATE TABLE Requisitions (
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX RequisitionsByExternalId
-  ON Requisitions(ExternalDataProviderId, ExternalRequisitionId);
+  ON Requisitions(ExternalRequisitionId);
 
 -- Used to effectively list requisitions that a DataProvider would need to
 -- fulfill
@@ -221,7 +221,6 @@ CREATE TABLE MeasurementLogEntries (
   MeasurementConsumerId           INT64 NOT NULL,
   MeasurementId                   INT64 NOT NULL,
 
-  ExternalComputationId           INT64 NOT NULL,
   ExternalComputationLogEntryId   INT64,
   ExternalDuchyId                 INT64,
 
@@ -235,5 +234,4 @@ CREATE TABLE MeasurementLogEntries (
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE NULL_FILTERED INDEX MeasurementLogEntriesByExternalId
-  ON MeasurementLogEntries(ExternalComputationId, ExternalDuchyId,
-                           ExternalComputationLogEntryId);
+  ON MeasurementLogEntries(ExternalDuchyId, ExternalComputationLogEntryId);
