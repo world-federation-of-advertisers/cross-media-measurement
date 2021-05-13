@@ -33,6 +33,6 @@ private val SCHEMA_DIR =
     "spanner"
   )
 private val KINGDOM_SCHEMA_FILE =
-  checkNotNull(getRuntimePath(SCHEMA_DIR.resolve("kingdom.sdl"))).toFile()
+  checkNotNull(getRuntimePath(SCHEMA_DIR.resolve("kingdom_legacy.sdl"))).toFile()
 
 val KINGDOM_SCHEMA = SpannerSchema(KINGDOM_SCHEMA_FILE)
