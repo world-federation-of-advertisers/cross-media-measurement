@@ -335,7 +335,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   }
 
   /**
-   * Creates an insertion to the ComputationBlobReferences spanner table.
+   * Creates an update to the ComputationBlobReferences spanner table.
    *
    * Fields required for the write are non-nullable. Any param set to null will be excluded from the
    * update mutation. Writing null values to the column is not supported
@@ -402,6 +402,70 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       attempt,
       metricName,
       metricValue
+    )
+  }
+
+  /** Creates a write a mutation for the Requisitions spanner table. */
+  fun requisition(
+    newBuilderFunction: MutationBuilderFunction,
+    localComputationId: Long,
+    requisitionId: Long,
+    externalDataProviderId: String,
+    externalRequisitionId: String,
+    pathToBlob: String? = null
+  ): Mutation {
+    val m = newBuilderFunction("Requisitions")
+    m.set("ComputationId").to(localComputationId)
+    m.set("RequisitionId").to(requisitionId)
+    m.set("ExternalDataProviderId").to(externalDataProviderId)
+    m.set("ExternalRequisitionId").to(externalRequisitionId)
+    pathToBlob?.let { m.set("PathToBlob").to(nonNullValueString(it)) }
+    return m.build()
+  }
+
+  /**
+   * Creates an insertion to the Requisitions spanner table.
+   *
+   * Fields required for the write are non-nullable. Any param set to null will be excluded from the
+   * update mutation. Writing null values to the column is not supported
+   */
+  fun insertRequisition(
+    localComputationId: Long,
+    requisitionId: Long,
+    externalDataProviderId: String,
+    externalRequisitionId: String,
+    pathToBlob: String? = null
+  ): Mutation {
+    return requisition(
+      Mutation::newInsertBuilder,
+      localComputationId,
+      requisitionId,
+      externalDataProviderId,
+      externalRequisitionId,
+      pathToBlob
+    )
+  }
+
+  /**
+   * Creates an update to the Requisitions spanner table.
+   *
+   * Fields required for the write are non-nullable. Any param set to null will be excluded from the
+   * update mutation. Writing null values to the column is not supported
+   */
+  fun updateRequisition(
+    localComputationId: Long,
+    requisitionId: Long,
+    externalDataProviderId: String,
+    externalRequisitionId: String,
+    pathToBlob: String? = null
+  ): Mutation {
+    return requisition(
+      Mutation::newUpdateBuilder,
+      localComputationId,
+      requisitionId,
+      externalDataProviderId,
+      externalRequisitionId,
+      pathToBlob
     )
   }
 }

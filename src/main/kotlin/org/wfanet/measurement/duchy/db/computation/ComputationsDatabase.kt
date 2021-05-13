@@ -37,6 +37,14 @@ interface ComputationsDatabaseReader {
   suspend fun readComputationToken(globalId: String): ComputationToken?
 
   /**
+   * Gets a [ComputationToken] for the current state of a computation who owns a particular
+   * requisition if it exists.
+   */
+  suspend fun readComputationToken(
+    externalRequisitionKey: ExternalRequisitionKey
+  ): ComputationToken?
+
+  /**
    * Gets a collection of all the global computation ids for a computation in the database which are
    * in a one of the provided stages.
    */
@@ -67,7 +75,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     protocol: ProtocolT,
     initialStage: StageT,
     stageDetails: StageDetailsT,
-    computationDetails: ComputationDetailsT
+    computationDetails: ComputationDetailsT,
+    requisitions: List<ExternalRequisitionKey> = listOf()
   )
 
   /**
@@ -91,11 +100,11 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    *
    * @param token The token for the computation
    * @param nextStage Stage this computation should transition to.
-   * @param inputBlobPaths References to BLOBs that are inputs to this computation stage, all inputs
+   * @param inputBlobPaths References to blobs that are inputs to this computation stage, all inputs
    * should be written on transition and should not change.
-   * @param passThroughBlobPaths References to BLOBs that are outputs of this computation stage, but
+   * @param passThroughBlobPaths References to blobs that are outputs of this computation stage, but
    * were written before the start of the computation stage.
-   * @param outputBlobs Number of BLOBs this computation outputs. These are created as part of the
+   * @param outputBlobs Number of blobs this computation outputs. These are created as part of the
    * computation so they do not have a reference to the real storage location.
    * @param afterTransition The work to be do with the computation after a successful transition.
    * @param nextStageDetails Details specific to the next stage.
@@ -123,10 +132,17 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     computationDetails: ComputationDetailsT
   )
 
-  /** Writes the reference to a BLOB needed for an output blob from a stage. */
+  /** Writes the reference to a blob needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(
     token: ComputationEditToken<ProtocolT, StageT>,
     blobRef: BlobRef
+  )
+
+  /** Writes the path to a blob needed for an output blob from a stage. */
+  suspend fun writeRequisitionBlobPath(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    pathToBlob: String
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */
@@ -156,12 +172,18 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   )
 }
 
+/** public API resource key of a requisition. */
+data class ExternalRequisitionKey(
+  val externalDataProviderId: String,
+  val externalRequisitionId: String
+)
+
 /**
- * Reference to a BLOB's storage location (key).
+ * Reference to a blob's storage location (key).
  *
  * @param idInRelationalDatabase identifier of the blob as stored in the
  * [ComputationsDatabaseTransactor]
- * @param key object key of the the blob which can be used to retrieve it from the BLOB storage.
+ * @param key object key of the the blob which can be used to retrieve it from the blob storage.
  */
 data class BlobRef(val idInRelationalDatabase: Long, val key: String)
 

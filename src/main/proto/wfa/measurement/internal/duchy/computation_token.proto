@@ -56,18 +56,30 @@ message ComputationToken {
   // Details pertinent to the specific stage of a computation. Not
   // all stages will have details.
   ComputationStageDetails stage_specific_details = 8;
+
+  // Metadata about requisition blobs used in this computation.
+  // Only requisitions fulfilled at this duchy are included.
+  repeated RequisitionBlobMetadata local_requisition_blobs = 9;
 }
 
-// Metadata about a BLOb for a particular stage of the computation.
+// Metadata about a blob for a particular stage of the computation.
 message ComputationStageBlobMetadata {
   // The way in which the stage depends upon the blob.
   ComputationBlobDependency dependency_type = 1;
 
-  // The path to the BLOb if it exists. This is always set for an
+  // The path to the blob if it exists. This is always set for an
   // input blob because all inputs must be written before a stage can begin,
   // but may not be set for an output blob.
   string path = 2;
 
   // The identifier of the blob.
   int64 blob_id = 3;
+}
+
+// Metadata about a blob for a particular requisition.
+message RequisitionBlobMetadata {
+  // External ID of the requisition.
+  string external_requisition_id = 1;
+  // The path to the blob.
+  string path = 2;
 }

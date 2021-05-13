@@ -37,6 +37,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.A
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.B
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.C
@@ -1236,6 +1237,133 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         .toProtoBytes(newComputationDetails)
         .set("ComputationDetailsJSON")
         .toProtoJson(newComputationDetails)
+        .build()
+    )
+  }
+
+  @Test
+  fun `write requisition blob path`() = runBlocking {
+    val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val lockExpires = Instant.now().plusSeconds(300)
+    val token =
+      ComputationEditToken(
+        localId = 4315,
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        attempt = 2,
+        editVersion = lastUpdated.toEpochMilli()
+      )
+    val computation =
+      computationMutations.insertComputation(
+        localId = token.localId,
+        updateTime = lastUpdated.toGcloudTimestamp(),
+        protocol = token.protocol,
+        stage = token.stage,
+        globalId = "55",
+        lockOwner = "PeterSpacemen",
+        lockExpirationTime = lockExpires.toGcloudTimestamp(),
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val requisition1 =
+      computationMutations.insertRequisition(
+        localComputationId = token.localId,
+        requisitionId = 1L,
+        externalDataProviderId = "A",
+        externalRequisitionId = "11111",
+        pathToBlob = "foo/A"
+      )
+    val requisition2 =
+      computationMutations.insertRequisition(
+        localComputationId = token.localId,
+        requisitionId = 2L,
+        externalDataProviderId = "B",
+        externalRequisitionId = "22222"
+      )
+
+    testClock.tickSeconds("time-ended")
+    databaseClient.write(listOf(computation, requisition1, requisition2))
+
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT r.ComputationId, r.RequisitionId, r.ExternalDataProviderId, r.ExternalRequisitionId, r.PathToBlob,
+             c.UpdateTime
+      FROM Requisitions AS r
+      JOIN Computations AS c USING(ComputationId)
+      ORDER BY RequisitionId
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("RequisitionId")
+        .to(1)
+        .set("ExternalDataProviderId")
+        .to("A")
+        .set("ExternalRequisitionId")
+        .to("11111")
+        .set("PathToBlob")
+        .to("foo/A")
+        .set("UpdateTime")
+        .to(lastUpdated.toGcloudTimestamp())
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("RequisitionId")
+        .to(2)
+        .set("ExternalDataProviderId")
+        .to("B")
+        .set("ExternalRequisitionId")
+        .to("22222")
+        .set("PathToBlob")
+        .to(null as String?)
+        .set("UpdateTime")
+        .to(lastUpdated.toGcloudTimestamp())
+        .build()
+    )
+
+    database.writeRequisitionBlobPath(
+      token,
+      ExternalRequisitionKey("B", "22222"),
+      "this is a new path"
+    )
+
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT r.ComputationId, r.RequisitionId, r.ExternalDataProviderId, r.ExternalRequisitionId, r.PathToBlob,
+             c.UpdateTime
+      FROM Requisitions AS r
+      JOIN Computations AS c USING(ComputationId)
+      ORDER BY RequisitionId
+      """.trimIndent(),
+      Struct.newBuilder()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("RequisitionId")
+        .to(1)
+        .set("ExternalDataProviderId")
+        .to("A")
+        .set("ExternalRequisitionId")
+        .to("11111")
+        .set("PathToBlob")
+        .to("foo/A")
+        .set("UpdateTime")
+        .to(testClock.last().toGcloudTimestamp())
+        .build(),
+      Struct.newBuilder()
+        .set("ComputationId")
+        .to(token.localId)
+        .set("RequisitionId")
+        .to(2)
+        .set("ExternalDataProviderId")
+        .to("B")
+        .set("ExternalRequisitionId")
+        .to("22222")
+        .set("PathToBlob")
+        .to("this is a new path")
+        .set("UpdateTime")
+        .to(testClock.last().toGcloudTimestamp())
         .build()
     )
   }

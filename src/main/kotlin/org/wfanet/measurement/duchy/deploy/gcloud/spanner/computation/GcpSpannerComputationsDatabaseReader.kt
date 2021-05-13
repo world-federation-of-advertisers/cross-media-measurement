@@ -21,6 +21,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -33,13 +34,25 @@ class GcpSpannerComputationsDatabaseReader(
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) : ComputationsDatabaseReader {
 
-  override suspend fun readComputationToken(globalId: String): ComputationToken? =
-    ComputationTokenProtoQuery(
-        computationProtocolStagesHelper::longValuesToComputationStageEnum,
-        globalId
+  override suspend fun readComputationToken(globalId: String): ComputationToken? {
+    return ComputationTokenProtoQuery(
+        parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        globalId = globalId
       )
       .execute(databaseClient)
       .singleOrNull()
+  }
+
+  override suspend fun readComputationToken(
+    externalRequisitionKey: ExternalRequisitionKey
+  ): ComputationToken? {
+    return ComputationTokenProtoQuery(
+        parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        externalRequisitionKey = externalRequisitionKey
+      )
+      .execute(databaseClient)
+      .singleOrNull()
+  }
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> {
     val computationTypes = stages.map { stageToProtocol(it) }.distinct()
