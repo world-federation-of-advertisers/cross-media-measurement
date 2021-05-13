@@ -149,7 +149,8 @@ CREATE INDEX MeasurementsByProvidedMeasurementId
   ON Measurements(ExternalMeasurementConsumerId, ProvidedMeasurementId);
 
 CREATE UNIQUE INDEX MeasurementsByExternalId
-  ON Measurements(ExternalMeasurementId, CreateTime DESC);
+  ON Measurements(ExternalMeasurementConsumerId,
+                  ExternalMeasurementId, CreateTime DESC);
 
 CREATE UNIQUE INDEX MeasurementsByExternalComputationId
   ON Measurements(ExternalComputationId);
