@@ -26,16 +26,20 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
@@ -76,13 +80,39 @@ class ComputationsServiceTest {
   }
 
   @Test
+  fun `get computation token`() = runBlocking {
+    val id = "1234"
+    fakeDatabase.addComputation(
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = aggregatorComputationDetails,
+      requisitions = listOf(ExternalRequisitionKey("edp1", "1234"))
+    )
+
+    val expectedToken =
+      ComputationToken.newBuilder()
+        .apply {
+          localComputationId = 1234
+          globalComputationId = "1234"
+          computationStageBuilder.liquidLegionsSketchAggregationV2 =
+            LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+          computationDetails = aggregatorComputationDetails
+        }
+        .build()
+
+    assertThat(fakeService.getComputationToken(id.toGetTokenRequest()))
+      .isEqualTo(expectedToken.toGetComputationTokenResponse())
+    assertThat(fakeService.getComputationToken(id.toGetTokenRequest()))
+      .isEqualTo(expectedToken.toGetComputationTokenResponse())
+  }
+
+  @Test
   fun `update computationDetails successfully`() = runBlocking {
     val id = "1234"
     fakeDatabase.addComputation(
-      id,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      aggregatorComputationDetails,
-      listOf()
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = aggregatorComputationDetails
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
@@ -115,10 +145,9 @@ class ComputationsServiceTest {
   fun `end failed computation`() = runBlocking {
     val id = "1234"
     fakeDatabase.addComputation(
-      id,
-      LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
-      aggregatorComputationDetails,
-      listOf()
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+      computationDetails = aggregatorComputationDetails
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val request =
@@ -171,13 +200,14 @@ class ComputationsServiceTest {
   fun `write reference to output blob and advance stage`() = runBlocking {
     val id = "67890"
     fakeDatabase.addComputation(
-      id,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      nonAggregatorComputationDetails,
-      listOf(
-        newInputBlobMetadata(id = 0L, key = "an_input_blob"),
-        newEmptyOutputBlobMetadata(id = 1L)
-      )
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = nonAggregatorComputationDetails,
+      blobs =
+        listOf(
+          newInputBlobMetadata(id = 0L, key = "an_input_blob"),
+          newEmptyOutputBlobMetadata(id = 1L)
+        )
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
 
@@ -257,10 +287,9 @@ class ComputationsServiceTest {
     val completedId = "12341"
     val decryptId = "4342242"
     fakeDatabase.addComputation(
-      blindId,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      nonAggregatorComputationDetails,
-      listOf()
+      globalId = blindId,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = nonAggregatorComputationDetails
     )
     fakeDatabase.addComputation(
       completedId,
@@ -298,10 +327,9 @@ class ComputationsServiceTest {
     val unclaimed = "12345678"
     val claimed = "23456789"
     fakeDatabase.addComputation(
-      unclaimed,
-      LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      nonAggregatorComputationDetails,
-      listOf()
+      globalId = unclaimed,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = nonAggregatorComputationDetails
     )
     val unclaimedAtStart = fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
@@ -348,6 +376,48 @@ class ComputationsServiceTest {
             }
           }
           .build()
+      )
+  }
+
+  @Test
+  fun `record requisition blob path`() = runBlocking {
+    val id = "1234"
+    fakeDatabase.addComputation(
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = aggregatorComputationDetails,
+      requisitions = listOf(ExternalRequisitionKey("edp1", "1234"))
+    )
+
+    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+
+    val request =
+      RecordRequisitionBlobPathRequest.newBuilder()
+        .apply {
+          token = tokenAtStart
+          keyBuilder.apply {
+            externalDataProviderId = "edp1"
+            externalRequisitionId = "1234"
+          }
+          blobPath = "this is a new path"
+        }
+        .build()
+
+    assertThat(fakeService.recordRequisitionBlobPath(request))
+      .isEqualTo(
+        tokenAtStart
+          .toBuilder()
+          .apply {
+            version = 1
+            addRequisitions(
+              RequisitionMetadata.newBuilder().apply {
+                externalRequisitionId = "1234"
+                path = "this is a new path"
+              }
+            )
+          }
+          .build()
+          .toRecordRequisitionBlobPathResponse()
       )
   }
 }
