@@ -139,13 +139,14 @@ CREATE TABLE Measurements (
   -- MeasurementDetails serialized proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
   MeasurementsDetailsJson STRING(MAX) NOT NULL,
-) PRIMARY KEY (MeasurementConsumerId, MeasurementId);
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
+  INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
 -- Enable finding Measurements ready to be worked on.
 CREATE INDEX MeasurementsByState ON Measurements(State, UpdateTime ASC);
 
 -- Enable finding Measurements by externally generated Foreign ids
-CREATE INDEX MeasurementsByProvidedMeasurementId
+CREATE UNIQUE INDEX MeasurementsByProvidedMeasurementId
   ON Measurements(MeasurementConsumerId, ProvidedMeasurementId);
 
 CREATE UNIQUE INDEX MeasurementsByExternalId
@@ -198,8 +199,6 @@ CREATE TABLE ComputationParticipants (
 
   State                       INT64 NOT NULL,  -- ParticipantState proto enum
 
-  ExternalDuchyId             INT64 NOT NULL,
-  ExternalComputationId       INT64 NOT NULL,
   -- ParticipantDetails serialized proto
   ParticipantDetails          BYTES(MAX),
   ParticipantDetailsJson      STRING(MAX),
@@ -208,7 +207,7 @@ CREATE TABLE ComputationParticipants (
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX ComputationParticipantsByExternalId
-    ON ComputationParticipants(ExternalComputationId, ExternalDuchyId);
+    ON ComputationParticipants(MeasurementId, DuchyId);
 
 
 -- Contains status updates from the Duchies and within the Kingdom for a
@@ -221,7 +220,7 @@ CREATE TABLE MeasurementLogEntries (
   MeasurementId                   INT64 NOT NULL,
 
   ExternalComputationLogEntryId   INT64,
-  ExternalDuchyId                 INT64,
+  DuchyId                         INT64,
 
   CreateTime                      TIMESTAMP NOT NULL
                                   OPTIONS (allow_commit_timestamp = true),
@@ -233,4 +232,4 @@ CREATE TABLE MeasurementLogEntries (
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE NULL_FILTERED INDEX MeasurementLogEntriesByExternalId
-  ON MeasurementLogEntries(ExternalDuchyId, ExternalComputationLogEntryId);
+  ON MeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
