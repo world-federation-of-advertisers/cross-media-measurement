@@ -23,6 +23,9 @@ option java_multiple_files = true;
 option java_outer_classname = "RequisitionServiceProto";
 
 // System API service for interacting with MetricRequisition resources.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#53): Delete once
+// `Requisitions` service is used instead.
 service Requisition {
   // Changes the state of a MetricRequisition to FULFILLED.
   //
