@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "src/main/proto/wfa/measurement/internal/kingdom/protocol_metadata.proto";
+import "wfa/measurement/internal/kingdom/protocol_metadata.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
