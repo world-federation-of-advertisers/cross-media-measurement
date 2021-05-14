@@ -68,6 +68,10 @@ service Computations {
   // Enqueues a computation for work by a Mill.
   rpc EnqueueComputation(EnqueueComputationRequest)
       returns (EnqueueComputationResponse);
+
+  // Records the blob path where the data of a requisition is stored.
+  rpc RecordRequisitionBlobPath(RecordRequisitionBlobPathRequest)
+      returns (RecordRequisitionBlobPathResponse);
 }
 
 // Request to create a new computation.
@@ -81,6 +85,8 @@ message CreateComputationRequest {
   // Initial computation details.
   // If set, the protocol should match computation_type.
   ComputationDetails computation_details = 4;
+  // The public API resource keys of the requisitions used in this computation.
+  repeated ExternalRequisitionKey requisitions = 5;
 }
 
 message CreateComputationResponse {
@@ -90,8 +96,12 @@ message CreateComputationResponse {
 
 // Request for a ComputationToken for a specific computation.
 message GetComputationTokenRequest {
-  // The global identifier of the computation.
-  string global_computation_id = 1;
+  oneof key {
+    // The global identifier of the computation.
+    string global_computation_id = 1;
+    // The public API resource key of a requisition owned by this computation.
+    ExternalRequisitionKey requisition_key = 2;
+  }
 }
 message GetComputationTokenResponse {
   // Token for the computation.
@@ -230,4 +240,27 @@ message EnqueueComputationRequest {
 // enqueued.
 message EnqueueComputationResponse {
   // Intentionally blank
+}
+
+// The resource key of a requisition from the public API.
+message ExternalRequisitionKey {
+  // External id of the data provider. Assigned by the kingdom.
+  string external_data_provider_id = 1;
+  // External id of the requisition. Assigned by the kingdom.
+  string external_requisition_id = 2;
+}
+
+// Request to record the blob path where the data of a requisition is stored.
+message RecordRequisitionBlobPathRequest {
+  // Token for the computation to update. Required.
+  ComputationToken token = 1;
+  // The public API resource key of the requisition to update. Required.
+  ExternalRequisitionKey key = 2;
+  // The blob path where the data of the requisition is stored.
+  // Required. Must be non-empty.
+  string blob_path = 3;
+}
+message RecordRequisitionBlobPathResponse {
+  // The computationToken of the parent computation after updating.
+  ComputationToken token = 1;
 }
