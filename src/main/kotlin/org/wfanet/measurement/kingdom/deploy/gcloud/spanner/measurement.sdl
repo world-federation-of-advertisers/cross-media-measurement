@@ -108,9 +108,6 @@ CREATE TABLE EventGroups (
 ) PRIMARY KEY (DataProviderId, EventGroupId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
--- Used for MeasurementConsumer APIs, e.g. to support UIs showing all
--- EventGroups that a MeasurementConsumer owns.
-CREATE INDEX EventGroupsByMeasurementConsumer ON EventGroups(MeasurementConsumerId);
 CREATE UNIQUE INDEX EventGroupsByExternalId ON EventGroups(ExternalEventGroupId);
 CREATE UNIQUE INDEX EventGroupsByProvidedId
   ON EventGroups(DataProviderId, ProvidedEventGroupId);
@@ -150,8 +147,7 @@ CREATE UNIQUE INDEX MeasurementsByProvidedMeasurementId
   ON Measurements(MeasurementConsumerId, ProvidedMeasurementId);
 
 CREATE UNIQUE INDEX MeasurementsByExternalId
-  ON Measurements(MeasurementConsumerId,
-                  ExternalMeasurementId, CreateTime DESC);
+  ON Measurements(MeasurementConsumerId, ExternalMeasurementId);
 
 CREATE UNIQUE INDEX MeasurementsByExternalComputationId
   ON Measurements(ExternalComputationId);
@@ -183,7 +179,7 @@ CREATE TABLE Requisitions (
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX RequisitionsByExternalId
-  ON Requisitions(ExternalRequisitionId);
+  ON Requisitions(MeasurementConsumerId, MeasurementId, ExternalRequisitionId);
 
 -- Used to effectively list requisitions that a DataProvider would need to
 -- fulfill
@@ -206,10 +202,6 @@ CREATE TABLE ComputationParticipants (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DuchyId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
-CREATE UNIQUE INDEX ComputationParticipantsByExternalId
-    ON ComputationParticipants(MeasurementId, DuchyId);
-
-
 -- Contains status updates from the Duchies and within the Kingdom for a
 -- particular computation for a Measurement. For any given Measurement, each
 -- Duchy might send many updates (one or more per stage of the MPC protocol).
@@ -231,5 +223,5 @@ CREATE TABLE MeasurementLogEntries (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
-CREATE NULL_FILTERED INDEX MeasurementLogEntriesByExternalId
+CREATE NULL_FILTERED UNIQUE INDEX MeasurementLogEntriesByExternalId
   ON MeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
