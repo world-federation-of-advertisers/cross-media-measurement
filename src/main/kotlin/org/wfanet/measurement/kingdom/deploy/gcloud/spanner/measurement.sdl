@@ -175,6 +175,10 @@ CREATE TABLE Requisitions (
   -- RequisitionDetails serialized proto
   RequisitionDetails          BYTES(MAX),
   RequisitionDetailsJson      STRING(MAX),
+
+  CONSTRAINT FK_DataProvider
+    FOREIGN KEY (DataProviderId)
+    REFERENCES DataProviders(DataProviderId),
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, RequisitionId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
@@ -223,5 +227,5 @@ CREATE TABLE MeasurementLogEntries (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
-CREATE NULL_FILTERED UNIQUE INDEX MeasurementLogEntriesByExternalId
+CREATE UNIQUE NULL_FILTERED  INDEX MeasurementLogEntriesByExternalId
   ON MeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
