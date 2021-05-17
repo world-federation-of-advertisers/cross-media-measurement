@@ -134,6 +134,19 @@ CREATE TABLE Requisitions (
 
   -- A reference to the BLOB. If empty, then the requisition is unfulfilled
   PathToBlob STRING(MAX),
+
+  -- Serialized bytes of a proto3 protobuf with details about the requisition.
+  -- The details are obtained from the Kingdom's ComputationsService.
+  --
+  -- See the wfa.measurement.internal.RequisitionDetails Proto
+  RequisitionDetails BYTES(MAX) NOT NULL,
+
+  -- Canonical JSON string of a proto3 protobuf with details about the
+  -- requisition. The details are obtained from the Kingdom's
+  -- ComputationsService.
+  --
+  -- See the wfa.measurement.internal.RequisitionDetails Proto
+  RequisitionDetailsJSON STRING(MAX) NOT NULL,
 ) PRIMARY KEY (ComputationId, RequisitionId),
 INTERLEAVE IN PARENT Computations ON DELETE CASCADE;
 

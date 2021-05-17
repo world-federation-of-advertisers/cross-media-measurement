@@ -15,7 +15,7 @@
 package org.wfanet.measurement.duchy
 
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
 
 val ComputationStage.name: String

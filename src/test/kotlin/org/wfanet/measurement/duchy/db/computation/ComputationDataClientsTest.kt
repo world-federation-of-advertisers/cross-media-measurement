@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 
@@ -145,7 +145,7 @@ class ComputationDataClientsTest {
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
+    computation.writeOutputs(Stage.CONFIRMATION_PHASE)
     computation.runWaitStage(Stage.WAIT_TO_START, numOfOutput = 0)
     computation.start()
 
@@ -190,7 +190,7 @@ class ComputationDataClientsTest {
 
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(Stage.CONFIRM_REQUISITIONS_PHASE)
+    computation.writeOutputs(Stage.CONFIRMATION_PHASE)
     computation.waitForSketches(
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3))
         .detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS)

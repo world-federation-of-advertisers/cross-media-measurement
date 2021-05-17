@@ -84,33 +84,33 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoRequest
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoResponse
-import org.wfanet.measurement.protocol.CompleteSetupPhaseRequest
-import org.wfanet.measurement.protocol.CompleteSetupPhaseResponse
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
-import org.wfanet.measurement.protocol.LiquidLegionsV2NoiseConfig
-import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -355,7 +355,7 @@ class LiquidLegionsV2MillTest {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = aggregatorComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L))
     )
@@ -410,7 +410,7 @@ class LiquidLegionsV2MillTest {
     // Stage 0. preparing the storage and set up mock
     fakeComputationDb.addComputation(
       globalId = GLOBAL_ID,
-      stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
       computationDetails = nonAggregatorComputationDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(0L)),
       stageDetails =
@@ -493,7 +493,7 @@ class LiquidLegionsV2MillTest {
       val requisition2 = "2"
       fakeComputationDb.addComputation(
         globalId = GLOBAL_ID,
-        stage = CONFIRM_REQUISITIONS_PHASE.toProtocolStage(),
+        stage = CONFIRMATION_PHASE.toProtocolStage(),
         computationDetails = nonAggregatorComputationDetails,
         blobs = listOf(newEmptyOutputBlobMetadata(0L)),
         stageDetails =
@@ -573,13 +573,12 @@ class LiquidLegionsV2MillTest {
                   selfReportedIdentifier = MILL_ID
                   stageDetailsBuilder.apply {
                     algorithm = MpcAlgorithm.LIQUID_LEGIONS_V2
-                    stageNumber = CONFIRM_REQUISITIONS_PHASE.number.toLong()
-                    stageName = CONFIRM_REQUISITIONS_PHASE.name
+                    stageNumber = CONFIRMATION_PHASE.number.toLong()
+                    stageName = CONFIRMATION_PHASE.name
                     attemptNumber = 1
                   }
                   updateMessage =
-                    "Computation $GLOBAL_ID at stage CONFIRM_REQUISITIONS_PHASE," +
-                      " attempt 1 failed."
+                    "Computation $GLOBAL_ID at stage CONFIRMATION_PHASE," + " attempt 1 failed."
                   errorDetailsBuilder.apply { errorType = ErrorType.PERMANENT }
                 }
               }

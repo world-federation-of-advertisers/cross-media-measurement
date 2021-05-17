@@ -26,7 +26,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationStatResponse
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
 class ComputationStatsServiceTest {
@@ -39,8 +39,7 @@ class ComputationStatsServiceTest {
       CreateComputationStatRequest.newBuilder()
         .apply {
           localComputationId = 1
-          computationStageBuilder.liquidLegionsSketchAggregationV2 =
-            Stage.CONFIRM_REQUISITIONS_PHASE
+          computationStageBuilder.liquidLegionsSketchAggregationV2 = Stage.CONFIRMATION_PHASE
           attempt = 1
           metricValue = 1234
         }
@@ -56,8 +55,7 @@ class ComputationStatsServiceTest {
       CreateComputationStatRequest.newBuilder()
         .apply {
           localComputationId = 1
-          computationStageBuilder.liquidLegionsSketchAggregationV2 =
-            Stage.CONFIRM_REQUISITIONS_PHASE
+          computationStageBuilder.liquidLegionsSketchAggregationV2 = Stage.CONFIRMATION_PHASE
           attempt = 1
           metricName = "crypto_cpu_time_millis"
           metricValue = 1234
