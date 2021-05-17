@@ -19,6 +19,7 @@ package wfa.measurement.internal.duchy;
 import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
 import "wfa/measurement/internal/duchy/computation_token.proto";
+import "wfa/measurement/internal/duchy/requisition_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -115,6 +116,16 @@ message UpdateComputationDetailsRequest {
   // New value of the computation_details.
   // Note that the protocol type can not be changed in the details.
   ComputationDetails details = 2;
+  // Updated requisition details.
+  message RequisitionDetailUpdate {
+    // External ID of the data provider.
+    string external_data_provider_id = 1;
+    // External ID of the requisition.
+    string external_requisition_id = 2;
+    // New value of the requisition details.
+    RequisitionDetails details = 3;
+  }
+  repeated RequisitionDetailUpdate requisition_detail_update = 3;
 }
 message UpdateComputationDetailsResponse {
   // Token for the computation.
