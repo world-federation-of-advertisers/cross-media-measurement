@@ -25,6 +25,7 @@
 -- IDs are only guaranteed to be unique among their siblings under the same
 -- parent.
 
+-- TODO(wangyaopw): delete this table when v2alpha is done.
 -- Represents `MetricValue` API resources.
 CREATE TABLE MetricValues (
   MetricValueId INT64 NOT NULL,

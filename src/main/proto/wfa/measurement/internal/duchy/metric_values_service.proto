@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
-import "src/main/proto/wfa/measurement/internal/duchy/metric_value.proto";
+import "wfa/measurement/internal/duchy/metric_value.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
