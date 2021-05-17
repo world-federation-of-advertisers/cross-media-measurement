@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
 object LiquidLegionsV2Starter : ProtocolStarter {
@@ -88,10 +88,12 @@ object LiquidLegionsV2Starter : ProtocolStarter {
       }
 
       // For past stages, we throw.
-      Stage.CONFIRM_REQUISITIONS_PHASE -> {
+      Stage.INITIALIZATION_PHASE,
+      Stage.WAIT_REQUISITIONS_AND_KEY_SET,
+      Stage.CONFIRMATION_PHASE -> {
         error(
           "[id=${token.globalComputationId}]: cannot start a computation still" +
-            " in state CONFIRM_REQUISITIONS_PHASE"
+            " in state ${stage.name}"
         )
       }
 

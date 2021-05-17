@@ -9,8 +9,8 @@ java_wrap_cc(
     name = "liquid_legions_v2_encryption_utility",
     src = "liquid_legions_v2_encryption_utility.swig",
     module = "LiquidLegionsV2EncryptionUtility",
-    package = "org.wfanet.measurement.protocol.liquidlegionsv2",
+    package = "org.wfanet.measurement.internal.duchy.protocol.liquidlegionsv2",
     deps = [
-        "//src/main/cc/wfa/measurement/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility_wrapper",
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility_wrapper",
     ],
 )

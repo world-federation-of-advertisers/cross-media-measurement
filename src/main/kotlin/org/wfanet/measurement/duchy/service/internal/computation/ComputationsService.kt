@@ -148,7 +148,7 @@ class ComputationsService(
   override suspend fun updateComputationDetails(
     request: UpdateComputationDetailsRequest
   ): UpdateComputationDetailsResponse {
-    require(request.token.computationDetails.detailsCase == request.details.detailsCase) {
+    require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
       "The protocol type cannot change."
     }
     computationsDatabase.updateComputationDetails(

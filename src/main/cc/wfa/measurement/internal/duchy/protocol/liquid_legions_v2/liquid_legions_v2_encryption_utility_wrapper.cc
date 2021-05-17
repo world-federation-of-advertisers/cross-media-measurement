@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/measurement/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_wrapper.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_wrapper.h"
 
 #include "absl/status/statusor.h"
 #include "util/status_macros.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/macros.h"
-#include "wfa/measurement/protocol/crypto/liquid_legions_v2_encryption_methods.pb.h"
-#include "wfa/measurement/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
-namespace wfa::measurement::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 using ::wfa::measurement::common::crypto::ParseRequestFromString;
 
@@ -89,4 +89,4 @@ absl::StatusOr<std::string> CompleteExecutionPhaseThreeAtAggregator(
   return result.SerializeAsString();
 }
 
-}  // namespace wfa::measurement::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2

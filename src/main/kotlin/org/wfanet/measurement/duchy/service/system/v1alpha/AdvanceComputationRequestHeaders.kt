@@ -17,7 +17,7 @@ package org.wfanet.measurement.duchy.service.system.v1alpha
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest.Header.ProtocolCase
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
