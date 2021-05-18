@@ -1,10 +1,10 @@
-load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
 
-package(default_visibility = [
-    "//visibility:public",
-])
+package(default_visibility = ["//:__subpackages__"])
+
+IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
     name = "liquid_legions_v2_encryption_methods_proto",
@@ -41,4 +41,32 @@ proto_library(
 java_proto_library(
     name = "liquid_legions_v2_noise_config_java_proto",
     deps = [":liquid_legions_v2_noise_config_proto"],
+)
+
+proto_library(
+    name = "requisition",
+    srcs = ["requisition.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "requisition_java_proto",
+    deps = [":requisition"],
+)
+
+proto_library(
+    name = "liquid_legions_v2_proto",
+    srcs = ["liquid_legions_sketch_aggregation_v2.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":requisition",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+    ],
+)
+
+java_proto_library(
+    name = "liquid_legions_v2_java_proto",
+    deps = [":liquid_legions_v2_proto"],
 )

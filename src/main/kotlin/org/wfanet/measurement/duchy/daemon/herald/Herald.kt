@@ -31,7 +31,7 @@ import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenReque
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
-import org.wfanet.measurement.protocol.RequisitionKey
+import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
@@ -186,8 +186,8 @@ class Herald(
   private suspend fun startAttempt(globalId: String) {
     logger.info("[id=$globalId]: Starting Computation")
     val token = computationStorageClient.getComputationToken(globalId.toGetTokenRequest()).token
-    when (token.computationDetails.detailsCase) {
-      ComputationDetails.DetailsCase.LIQUID_LEGIONS_V2 ->
+    when (token.computationDetails.protocolCase) {
+      ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
         LiquidLegionsV2Starter.startComputation(
           token,
           computationStorageClient,

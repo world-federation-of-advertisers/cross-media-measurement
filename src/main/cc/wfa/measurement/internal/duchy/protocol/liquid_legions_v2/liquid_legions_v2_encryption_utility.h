@@ -12,32 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_H_
-#define SRC_MAIN_CC_WFA_MEASUREMENT_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_H_
 
 #include "absl/status/statusor.h"
-#include "wfa/measurement/protocol/crypto/liquid_legions_v2_encryption_methods.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
-namespace wfa::measurement::protocol::liquid_legions_v2 {
+namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
-using ::wfa::measurement::protocol::
+using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseOneAtAggregatorRequest;
-using ::wfa::measurement::protocol::
+using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseOneAtAggregatorResponse;
-using ::wfa::measurement::protocol::CompleteExecutionPhaseOneRequest;
-using ::wfa::measurement::protocol::CompleteExecutionPhaseOneResponse;
-using ::wfa::measurement::protocol::
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseOneRequest;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseOneResponse;
+using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseThreeAtAggregatorRequest;
-using ::wfa::measurement::protocol::
+using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseThreeAtAggregatorResponse;
-using ::wfa::measurement::protocol::CompleteExecutionPhaseThreeRequest;
-using ::wfa::measurement::protocol::CompleteExecutionPhaseThreeResponse;
-using ::wfa::measurement::protocol::
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseThreeRequest;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseThreeResponse;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseTwoAtAggregatorRequest;
+using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseTwoAtAggregatorResponse;
-using ::wfa::measurement::protocol::CompleteExecutionPhaseTwoRequest;
-using ::wfa::measurement::protocol::CompleteExecutionPhaseTwoResponse;
-using ::wfa::measurement::protocol::CompleteSetupPhaseRequest;
-using ::wfa::measurement::protocol::CompleteSetupPhaseResponse;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseTwoRequest;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteExecutionPhaseTwoResponse;
+using ::wfa::measurement::internal::duchy::protocol::CompleteSetupPhaseRequest;
+using ::wfa::measurement::internal::duchy::protocol::CompleteSetupPhaseResponse;
 
 // Complete work in the setup phase at both the aggregator and non-aggregator
 // workers. More specifically, the worker would
@@ -102,6 +110,6 @@ absl::StatusOr<CompleteExecutionPhaseThreeAtAggregatorResponse>
 CompleteExecutionPhaseThreeAtAggregator(
     const CompleteExecutionPhaseThreeAtAggregatorRequest& request);
 
-}  // namespace wfa::measurement::protocol::liquid_legions_v2
+}  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
-#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_LIQUID_LEGIONS_V2_ENCRYPTION_UTILITY_H_

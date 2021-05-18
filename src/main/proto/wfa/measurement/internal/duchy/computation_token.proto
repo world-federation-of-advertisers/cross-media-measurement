@@ -16,9 +16,10 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
-import "src/main/proto/wfa/measurement/internal/duchy/computation_blob_dependency.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_details.proto";
-import "src/main/proto/wfa/measurement/internal/duchy/computation_protocols.proto";
+import "wfa/measurement/internal/duchy/computation_blob_dependency.proto";
+import "wfa/measurement/internal/duchy/computation_details.proto";
+import "wfa/measurement/internal/duchy/computation_protocols.proto";
+import "wfa/measurement/internal/duchy/requisition_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -56,18 +57,33 @@ message ComputationToken {
   // Details pertinent to the specific stage of a computation. Not
   // all stages will have details.
   ComputationStageDetails stage_specific_details = 8;
+
+  // Metadata about requisition used in this computation.
+  repeated RequisitionMetadata requisitions = 9;
 }
 
-// Metadata about a BLOb for a particular stage of the computation.
+// Metadata about a blob for a particular stage of the computation.
 message ComputationStageBlobMetadata {
   // The way in which the stage depends upon the blob.
   ComputationBlobDependency dependency_type = 1;
 
-  // The path to the BLOb if it exists. This is always set for an
+  // The path to the blob if it exists. This is always set for an
   // input blob because all inputs must be written before a stage can begin,
   // but may not be set for an output blob.
   string path = 2;
 
   // The identifier of the blob.
   int64 blob_id = 3;
+}
+
+// Metadata about a blob for a particular requisition.
+message RequisitionMetadata {
+  // External ID of the data provider.
+  string external_data_provider_id = 1;
+  // External ID of the requisition.
+  string external_requisition_id = 2;
+  // The path to the blob if fulfilled locally. Otherwise empty.
+  string path = 3;
+  // Detail of the requisition.
+  RequisitionDetails details = 4;
 }

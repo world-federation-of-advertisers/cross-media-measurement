@@ -17,7 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.protocol.CompleteExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 
 class JniLiquidLegionsV2EncryptionTest {
 

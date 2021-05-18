@@ -17,10 +17,13 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 
+IMPORT_PREFIX = "/src/main/proto"
+
 def proto_and_java_proto_library(name, deps = []):
     proto_library(
         name = "%s_proto" % name,
         srcs = ["%s.proto" % name],
+        strip_import_prefix = IMPORT_PREFIX,
         deps = deps,
     )
     java_proto_library(

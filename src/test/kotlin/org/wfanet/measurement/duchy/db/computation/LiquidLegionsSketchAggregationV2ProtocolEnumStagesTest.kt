@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 
 @RunWith(JUnit4::class)
 class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
@@ -29,7 +29,7 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
   fun `verify initial stage`() {
     assertTrue {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validInitialStage(
-        LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
       )
     }
     assertFalse {
@@ -87,14 +87,14 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
     assertFalse {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
         LiquidLegionsSketchAggregationV2.Stage.STAGE_UNKNOWN,
-        LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
       )
     }
 
     assertFalse {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(
         LiquidLegionsSketchAggregationV2.Stage.UNRECOGNIZED,
-        LiquidLegionsSketchAggregationV2.Stage.CONFIRM_REQUISITIONS_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
       )
     }
   }
