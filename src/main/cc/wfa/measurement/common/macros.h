@@ -15,16 +15,44 @@
 #ifndef WFA_MEASUREMENT_COMMON_MACROS_H_
 #define WFA_MEASUREMENT_COMMON_MACROS_H_
 
+#ifndef RETURN_IF_ERROR
+#define RETURN_IF_ERROR(expr)                                                \
+  WFA_MEASUREMENT_COMMON__RETURN_IF_ERROR_IMPL_(                             \
+      WFA_MEASUREMENT_COMMON_MACROS_IMPL_CONCAT_(status, __LINE__), expr)
+#endif
+
+// Internal helper.
+#define WFA_MEASUREMENT_COMMON__RETURN_IF_ERROR_IMPL_(status, expr)          \
+  auto status = (expr);                                                      \
+  if (ABSL_PREDICT_FALSE(!status.ok())) {                                    \
+    return status;                                                           \
+  }
+
+#ifndef ASSIGN_OR_RETURN
+#define ASSIGN_OR_RETURN(lhs, rexpr)                                         \
+  WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_IMPL_(                            \
+      WFA_MEASUREMENT_COMMON_MACROS_IMPL_CONCAT_(status_or_value, __LINE__), \
+      lhs, rexpr)
+#endif
+
+// Internal helper.
+#define WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_IMPL_(statusor, lhs, rexpr) \
+  auto statusor = (rexpr);                                                   \
+  if (ABSL_PREDICT_FALSE(!statusor.ok())) {                                  \
+    return std::move(statusor).status();                                     \
+  }                                                                          \
+  lhs = std::move(statusor).value()
+
 #ifndef ASSIGN_OR_RETURN_ERROR
 #define ASSIGN_OR_RETURN_ERROR(lhs, rexpr, message)                          \
-  WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_IMPL_(                            \
+  WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_ERROR_IMPL_(                      \
       WFA_MEASUREMENT_COMMON_MACROS_IMPL_CONCAT_(status_or_value, __LINE__), \
       lhs, rexpr, message)
 #endif
 
 // Internal helper.
-#define WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_IMPL_(statusor, lhs, rexpr, \
-                                                       message)              \
+#define WFA_MEASUREMENT_COMMON__ASSIGN_OR_RETURN_ERROR_IMPL_(                \
+    statusor, lhs, rexpr, message)                                           \
   auto statusor = (rexpr);                                                   \
   if (ABSL_PREDICT_FALSE(!statusor.ok())) {                                  \
     return absl::InvalidArgumentError(message);                              \

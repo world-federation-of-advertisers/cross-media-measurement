@@ -19,5 +19,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computation_blob_dependency_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_java_proto",
     ],
 )
