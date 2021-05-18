@@ -47,4 +47,3 @@ genrule(
     cmd = "cat $(SRCS) > $@",
     visibility = ["//visibility:public"],
 )
-
