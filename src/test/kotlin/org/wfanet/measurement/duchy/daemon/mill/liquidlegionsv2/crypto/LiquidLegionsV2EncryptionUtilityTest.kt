@@ -29,6 +29,8 @@ import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.duchy.daemon.mill.toAnySketchElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.mill.toCmmsElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
@@ -264,7 +266,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           sketch = rawSketch
           curveId = CURVE_ID
           maximumValue = MAX_COUNTER_VALUE
-          elGamalKeys = CLIENT_EL_GAMAL_KEYS
+          elGamalKeys = CLIENT_EL_GAMAL_KEYS.toAnySketchElGamalPublicKey()
           destroyedRegisterStrategy = FLAGGED_KEY
         }
         .build()
@@ -405,28 +407,30 @@ class LiquidLegionsV2EncryptionUtilityTest {
             CombineElGamalPublicKeysRequest.newBuilder()
               .apply {
                 curveId = CURVE_ID
-                addElGamalKeys(DUCHY_1_EL_GAMAL_KEYS.publicKey)
-                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey)
-                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey)
+                addElGamalKeys(DUCHY_1_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
               }
               .build()
               .toByteArray()
           )
         )
         .elGamalKeys
+        .toCmmsElGamalPublicKey()
     private val DUCHY_2_3_COMBINED_EL_GAMAL_KEYS =
       CombineElGamalPublicKeysResponse.parseFrom(
           SketchEncrypterAdapter.CombineElGamalPublicKeys(
             CombineElGamalPublicKeysRequest.newBuilder()
               .apply {
                 curveId = CURVE_ID
-                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey)
-                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey)
+                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
+                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey.toAnySketchElGamalPublicKey())
               }
               .build()
               .toByteArray()
           )
         )
         .elGamalKeys
+        .toCmmsElGamalPublicKey()
   }
 }

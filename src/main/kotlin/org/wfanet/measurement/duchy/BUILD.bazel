@@ -23,6 +23,6 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
-        "@any_sketch_java//src/main/proto/wfa/common:el_gamal_key_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_java_proto",
     ],
 )

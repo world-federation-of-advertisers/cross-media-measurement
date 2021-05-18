@@ -25,7 +25,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
@@ -44,6 +43,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
+import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest

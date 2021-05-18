@@ -18,7 +18,6 @@ import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import java.time.Duration
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.common.ElGamalKeyPair
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -48,6 +47,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.storage.StorageClient
 
 private typealias ComputationsDb =

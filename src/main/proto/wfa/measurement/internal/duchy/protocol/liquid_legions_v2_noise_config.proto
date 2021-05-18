@@ -16,34 +16,33 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy.protocol;
 
-import "wfa/common/noise_parameters.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
 
-// Noise parameters selected for the LiquidLegionV2 MPC protocol.
-// Only used as the configuration file consumed by the LiquidLegionV2Mill.
-// TODO(wangyaopw): delete this one when not used after v2 alpha is done.
+// Configuration for various noises added by the MPC workers in the
+// LiquidLegionV2 protocol.
 message LiquidLegionsV2NoiseConfig {
   message ReachNoiseConfig {
     // DP params for the blind histogram noise register.
     // Each of these registers contains a random register id, the same constant
     // key indicating that the register is destroyed, and an arbitrary count
     // value.
-    wfa.common.DifferentialPrivacyParams blind_histogram_noise = 1;
+    DifferentialPrivacyParams blind_histogram_noise = 1;
     // DP params for the noise for the publisher noise registers.
     // Each of these registers contains a well-known constant register id, and
     // arbitrary key and count values.
-    wfa.common.DifferentialPrivacyParams noise_for_publisher_noise = 2;
+    DifferentialPrivacyParams noise_for_publisher_noise = 2;
     // DP params for the global reach DP noise registers.
     // Each of these registers contains a random register id which is out of
     // bounds of the normal id space, the same constant key indicating that the
     // register is destroyed, and an arbitrary count value.
-    wfa.common.DifferentialPrivacyParams global_reach_dp_noise = 3;
+    DifferentialPrivacyParams global_reach_dp_noise = 3;
   }
   ReachNoiseConfig reach_noise_config = 1;
 
   // Differential privacy parameters for noise tuples.
   // Same value is used for both (0, R, R) and (R, R, R) tuples.
-  wfa.common.DifferentialPrivacyParams frequency_noise_config = 2;
+  DifferentialPrivacyParams frequency_noise_config = 2;
 }

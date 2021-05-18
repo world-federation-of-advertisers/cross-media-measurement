@@ -3,8 +3,8 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target(":__pkg__"),
-    "//src/main/kotlin/org/wfanet/measurement/duchy:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -13,6 +13,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_java_proto",
         "@any_sketch_java//src/main/proto/wfa/common:el_gamal_key_java_proto",
     ],
 )

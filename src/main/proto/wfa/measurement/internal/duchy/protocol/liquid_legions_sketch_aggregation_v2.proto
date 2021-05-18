@@ -18,7 +18,8 @@ package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/crypto.proto";
-import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.proto";
 import "wfa/measurement/internal/duchy/protocol/requisition.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
@@ -118,36 +119,13 @@ message LiquidLegionsSketchAggregationV2 {
     message Parameters {
       // The maximum frequency to reveal in the histogram.
       int32 maximum_frequency = 1;
-      // The decay rate of the Liquid Legions sketch.
-      double decay_rate = 2;
-      // The maximum size of the Liquid Legions sketch.
-      int64 max_size = 3;
+      // Parameters used for liquidLegions sketch creation and estimation.
+      LiquidLegionsSketchParameters liquid_legions_sketch = 2;
       // Noise parameters selected for the LiquidLegionV2 MPC protocol.
-      // Only used as the configuration file consumed by the LiquidLegionV2Mill.
-      message NoiseConfig {
-        // DP params for the blind histogram noise register.
-        // Each of these registers contains a random register id, the same
-        // constant key indicating that the register is destroyed, and an
-        // arbitrary count value.
-        DifferentialPrivacyParams blind_histogram_noise = 1;
-        // DP params for the noise for the publisher noise registers.
-        // Each of these registers contains a well-known constant register id,
-        // and arbitrary key and count values.
-        DifferentialPrivacyParams noise_for_publisher_noise = 2;
-        // DP params for the global reach DP noise registers.
-        // Each of these registers contains a random register id which is out of
-        // bounds of the normal id space, the same constant key indicating that
-        // the register is destroyed, and an arbitrary count value.
-        DifferentialPrivacyParams global_reach_dp_noise = 3;
-        // Differential privacy parameters for noise tuples.
-        // Same value is used for both (0, R, R) and (R, R, R) tuples.
-        DifferentialPrivacyParams frequency_noise_config = 4;
-      }
-      // Noise parameters selected for the LiquidLegionV2 MPC protocol.
-      NoiseConfig noise = 4;
+      LiquidLegionsV2NoiseConfig noise = 3;
       // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
       // prime256v1 curve. Required. Immutable.
-      int32 elliptic_curve_id = 5;
+      int32 elliptic_curve_id = 4;
     }
     Parameters parameters = 2;
 
