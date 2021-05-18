@@ -25,6 +25,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -37,6 +38,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
@@ -202,6 +204,29 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         blobId = 44L,
         dependencyType = ComputationBlobDependency.OUTPUT
       )
+    val fulfilledRequisitionRowOne =
+      computationMutations.insertRequisition(
+        localComputationId = localId,
+        requisitionId = 1L,
+        externalDataProviderId = "A",
+        externalRequisitionId = "111",
+        pathToBlob = "foo/111"
+      )
+    val fulfilledRequisitionRowTwo =
+      computationMutations.insertRequisition(
+        localComputationId = localId,
+        requisitionId = 2L,
+        externalDataProviderId = "B",
+        externalRequisitionId = "222",
+        pathToBlob = "foo/222"
+      )
+    val unfulfilledRequisitionRowOne =
+      computationMutations.insertRequisition(
+        localComputationId = localId,
+        requisitionId = 3L,
+        externalDataProviderId = "C",
+        externalRequisitionId = "333"
+      )
     databaseClient.write(
       listOf(
         computationRow,
@@ -209,7 +234,10 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         outputBlobForToSetupPhaseComputationStageRow,
         waitExecutionPhaseOneInputStageRow,
         inputBlobForWaitExecutionPhaseOneInputStageRow,
-        outputBlobForWaitExecutionPhaseOneInputStageRow
+        outputBlobForWaitExecutionPhaseOneInputStageRow,
+        fulfilledRequisitionRowOne,
+        fulfilledRequisitionRowTwo,
+        unfulfilledRequisitionRowOne
       )
     )
     val expectedTokenWhenOutputNotWritten =
@@ -228,10 +256,34 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
             computationMutations.detailsFor(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage())
           addBlobs(newInputBlobMetadata(33L, "blob-key"))
           addBlobs(newEmptyOutputBlobMetadata(44L))
+          addRequisitionsBuilder().apply {
+            externalDataProviderId = "A"
+            externalRequisitionId = "111"
+            path = "foo/111"
+            details = RequisitionDetails.getDefaultInstance()
+          }
+          addRequisitionsBuilder().apply {
+            externalDataProviderId = "B"
+            externalRequisitionId = "222"
+            path = "foo/222"
+            details = RequisitionDetails.getDefaultInstance()
+          }
+          addRequisitionsBuilder().apply {
+            externalDataProviderId = "C"
+            externalRequisitionId = "333"
+            path = ""
+            details = RequisitionDetails.getDefaultInstance()
+          }
         }
         .build()
 
     assertThat(liquidLegionsSketchAggregationSpannerReader.readComputationToken(globalId))
+      .isEqualTo(expectedTokenWhenOutputNotWritten)
+    assertThat(
+        liquidLegionsSketchAggregationSpannerReader.readComputationToken(
+          ExternalRequisitionKey("A", "111")
+        )
+      )
       .isEqualTo(expectedTokenWhenOutputNotWritten)
 
     val writenOutputBlobForWaitExecutionPhaseOneStageRow =
