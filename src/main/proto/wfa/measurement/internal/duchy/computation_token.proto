@@ -58,7 +58,6 @@ message ComputationToken {
   // all stages will have details.
   ComputationStageDetails stage_specific_details = 8;
 
-  // Metadata about requisition used in this computation.
   repeated RequisitionMetadata requisitions = 9;
 }
 
@@ -76,7 +75,7 @@ message ComputationStageBlobMetadata {
   int64 blob_id = 3;
 }
 
-// Metadata about a blob for a particular requisition.
+// Metadata about requisition used in this computation.
 message RequisitionMetadata {
   // External ID of the data provider.
   string external_data_provider_id = 1;
