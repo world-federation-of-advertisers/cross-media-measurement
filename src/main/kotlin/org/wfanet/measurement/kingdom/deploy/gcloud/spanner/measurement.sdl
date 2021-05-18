@@ -1,4 +1,4 @@
--- Copyright 2020 The Cross-Media Measurement Authors
+-- Copyright 2021 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -16,10 +16,11 @@
 --
 -- Table hierarchy:
 --   Root
---   ├── Measurements
---   │   ├── Requisitions
---   │   └── ComputationParticipants
---   │   └── MeasurementLogEntries
+--   ├───MeasurementConsumers
+--   │   └─ Measurements
+--   │      ├─ Requisitions
+--   │      ├── ComputationParticipants
+--   │      └── MeasurementLogEntries
 --   │
 --   └── DataProviders
 --       └── EventGroups
@@ -131,9 +132,13 @@ CREATE TABLE Measurements (
 
   WindowStartTime   TIMESTAMP NOT NULL,
   WindowEndTime     TIMESTAMP NOT NULL,
-  State             INT64 NOT NULL,  -- Proto enum encoded as int
 
-  -- MeasurementDetails serialized proto
+  -- org.wfanet.measurement.internal.kingdom.Measurement.State Proto enum
+  -- encoded as int
+  State             INT64 NOT NULL,
+
+  -- org.wfanet.measurement.internal.kingdom.Measurement.Details serialized
+  -- proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
   MeasurementsDetailsJson STRING(MAX) NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
@@ -166,13 +171,14 @@ CREATE TABLE Requisitions (
 
   ExternalRequisitionId       INT64 NOT NULL,
 
-  State                       INT64 NOT NULL,  -- Requisition.State proto enum
+  -- org.wfanet.measurement.internal.kingdom.Requisition.State proto enum
+  State                       INT64 NOT NULL,
 
-  -- When a Requisition is fulfilled, this is set to the Duchy that fulfilled
-  -- the Requisition.
+  -- The id of the Duchy where the requisition is fulfilled. Otherwise NULL if
+  -- the requisition is not yet fulfilled.
   FulfillingDuchyId           STRING(MAX),
 
-  -- RequisitionDetails serialized proto
+  -- org.wfanet.measurement.internal.kingdom.RequisitionDetails serialized proto
   RequisitionDetails          BYTES(MAX),
   RequisitionDetailsJson      STRING(MAX),
 
