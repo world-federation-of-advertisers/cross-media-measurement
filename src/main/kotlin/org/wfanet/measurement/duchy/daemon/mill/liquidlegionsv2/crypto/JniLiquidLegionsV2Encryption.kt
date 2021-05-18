@@ -28,6 +28,8 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoA
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.liquidlegionsv2.LiquidLegionsV2EncryptionUtility
@@ -36,6 +38,14 @@ import org.wfanet.measurement.internal.duchy.protocol.liquidlegionsv2.LiquidLegi
  * A [LiquidLegionsV2Encryption] implementation using the JNI [LiquidLegionsV2EncryptionUtility].
  */
 class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
+
+  override fun completeInitializationPhase(
+    request: CompleteInitializationPhaseRequest
+  ): CompleteInitializationPhaseResponse {
+    return CompleteInitializationPhaseResponse.parseFrom(
+      LiquidLegionsV2EncryptionUtility.completeInitializationPhase(request.toByteArray())
+    )
+  }
 
   override fun completeSetupPhase(request: CompleteSetupPhaseRequest): CompleteSetupPhaseResponse {
     return CompleteSetupPhaseResponse.parseFrom(

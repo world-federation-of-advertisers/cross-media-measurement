@@ -29,6 +29,7 @@ cc_library(
         "@any_sketch//src/main/cc/math:distributions",
         "@any_sketch//src/main/cc/math:noise_parameters_computation",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//util:status_includes",
     ],
 )

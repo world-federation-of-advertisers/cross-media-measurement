@@ -26,6 +26,8 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoA
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 
@@ -35,6 +37,10 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
  * descriptions.
  */
 interface LiquidLegionsV2Encryption {
+
+  fun completeInitializationPhase(
+    request: CompleteInitializationPhaseRequest
+  ): CompleteInitializationPhaseResponse
 
   fun completeSetupPhase(request: CompleteSetupPhaseRequest): CompleteSetupPhaseResponse
 

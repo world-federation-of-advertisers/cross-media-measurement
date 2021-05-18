@@ -25,6 +25,9 @@
 // liquid_legions_v2_encryption_utility methods.
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
+absl::StatusOr<std::string> CompleteInitializationPhase(
+    const std::string& serialized_request);
+
 absl::StatusOr<std::string> CompleteSetupPhase(
     const std::string& serialized_request);
 
