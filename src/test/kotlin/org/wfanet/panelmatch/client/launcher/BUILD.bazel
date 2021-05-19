@@ -3,8 +3,20 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "ExchangeStepLauncherTest",
     srcs = ["ExchangeStepLauncherTest.kt"],
-    friends = ["//src/main/kotlin/org/wfanet/panelmatch/client/launcher"],
     test_class = "org.wfanet.panelmatch.client.launcher.ExchangeStepLauncherTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
+        "@wfa_measurement_system//imports/java/com/google/common/truth",
+        "@wfa_measurement_system//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_measurement_system//imports/kotlin/com/nhaarman/mockitokotlin2",
+    ],
+)
+
+kt_jvm_test(
+    name = "GrpcApiClientTest",
+    srcs = ["GrpcApiClientTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.launcher.GrpcApiClientTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
@@ -13,6 +25,7 @@ kt_jvm_test(
         "@wfa_measurement_system//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_measurement_system//imports/java/org/junit",
         "@wfa_measurement_system//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "@wfa_measurement_system//imports/kotlin/kotlin/test",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
 )
