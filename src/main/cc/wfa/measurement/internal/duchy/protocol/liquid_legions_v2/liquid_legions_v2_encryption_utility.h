@@ -44,8 +44,18 @@ using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseTwoRequest;
 using ::wfa::measurement::internal::duchy::protocol::
     CompleteExecutionPhaseTwoResponse;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteInitializationPhaseRequest;
+using ::wfa::measurement::internal::duchy::protocol::
+    CompleteInitializationPhaseResponse;
 using ::wfa::measurement::internal::duchy::protocol::CompleteSetupPhaseRequest;
 using ::wfa::measurement::internal::duchy::protocol::CompleteSetupPhaseResponse;
+
+// Complete work in the initialization phase at both the aggregator and
+// non-aggregator workers. More specifically, the worker would generate a random
+// set of ElGamal Key pair.
+absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
+    const CompleteInitializationPhaseRequest& request);
 
 // Complete work in the setup phase at both the aggregator and non-aggregator
 // workers. More specifically, the worker would

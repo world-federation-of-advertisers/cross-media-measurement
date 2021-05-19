@@ -20,15 +20,14 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
-import org.wfanet.common.ElGamalKeyPair
-import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.api.v1alpha.Sketch
 import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
-import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
@@ -42,6 +41,8 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoA
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.liquidlegionsv2.LiquidLegionsV2EncryptionUtility
@@ -373,67 +374,59 @@ class LiquidLegionsV2EncryptionUtilityTest {
 
     private const val CURVE_ID = 415L // NID_X9_62_prime256v1
     private const val MAX_COUNTER_VALUE = 10
-    private const val COMMON_PK_G =
-      "036b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"
-    private const val DUCHY_1_PK_Y =
-      "02d1432ca007a6c6d739fce2d21feb56d9a2c35cf968265f9093c4b691e11386b3"
-    private const val DUCHY_1_SK =
-      "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
-    private const val DUCHY_2_PK_Y =
-      "039ef370ff4d216225401781d88a03f5a670a5040e6333492cb4e0cd991abbd5a3"
-    private const val DUCHY_2_SK =
-      "31cc32e7cd53ff24f2b64ae8c531099af9867ebf5d9a659f742459947caa29b0"
-    private const val DUCHY_3_PK_Y =
-      "02d0f25ab445fc9c29e7e2509adc93308430f432522ffa93c2ae737ceb480b66d7"
-    private const val DUCHY_3_SK =
-      "338cce0306416b70e901436cb9eca5ac758e8ff41d7b58dabadf8726608ca6cc"
-    private const val CLIENT_PK_Y =
-      "02505d7b3ac4c3c387c74132ab677a3421e883b90d4c83dc766e400fe67acc1f04"
-    private const val DUCHY_2_3_COMBINED_PK_Y =
-      "031887eb8e4d4290fa97601c1ef6cda80ab3d2fe82da39ef8ed2e846cc7866a3b0"
+
+    private val COMPLETE_INITIALIZATION_REQUEST =
+      CompleteInitializationPhaseRequest.newBuilder().apply { curveId = CURVE_ID }.build()
     private val DUCHY_1_EL_GAMAL_KEYS =
-      ElGamalKeyPair.newBuilder()
-        .apply {
-          publicKeyBuilder.apply {
-            generator = COMMON_PK_G.hexAsByteString()
-            element = DUCHY_1_PK_Y.hexAsByteString()
-          }
-          secretKey = DUCHY_1_SK.hexAsByteString()
-        }
-        .build()
+      CompleteInitializationPhaseResponse.parseFrom(
+          LiquidLegionsV2EncryptionUtility.completeInitializationPhase(
+            COMPLETE_INITIALIZATION_REQUEST.toByteArray()
+          )
+        )
+        .elGamalKeyPair
     private val DUCHY_2_EL_GAMAL_KEYS =
-      ElGamalKeyPair.newBuilder()
-        .apply {
-          publicKeyBuilder.apply {
-            generator = COMMON_PK_G.hexAsByteString()
-            element = DUCHY_2_PK_Y.hexAsByteString()
-          }
-          secretKey = DUCHY_2_SK.hexAsByteString()
-        }
-        .build()
+      CompleteInitializationPhaseResponse.parseFrom(
+          LiquidLegionsV2EncryptionUtility.completeInitializationPhase(
+            COMPLETE_INITIALIZATION_REQUEST.toByteArray()
+          )
+        )
+        .elGamalKeyPair
     private val DUCHY_3_EL_GAMAL_KEYS =
-      ElGamalKeyPair.newBuilder()
-        .apply {
-          publicKeyBuilder.apply {
-            generator = COMMON_PK_G.hexAsByteString()
-            element = DUCHY_3_PK_Y.hexAsByteString()
-          }
-          secretKey = DUCHY_3_SK.hexAsByteString()
-        }
-        .build()
+      CompleteInitializationPhaseResponse.parseFrom(
+          LiquidLegionsV2EncryptionUtility.completeInitializationPhase(
+            COMPLETE_INITIALIZATION_REQUEST.toByteArray()
+          )
+        )
+        .elGamalKeyPair
+
     private val CLIENT_EL_GAMAL_KEYS =
-      ElGamalPublicKey.newBuilder()
-        .apply {
-          generator = COMMON_PK_G.hexAsByteString()
-          element = CLIENT_PK_Y.hexAsByteString()
-        }
-        .build()
+      CombineElGamalPublicKeysResponse.parseFrom(
+          SketchEncrypterAdapter.CombineElGamalPublicKeys(
+            CombineElGamalPublicKeysRequest.newBuilder()
+              .apply {
+                curveId = CURVE_ID
+                addElGamalKeys(DUCHY_1_EL_GAMAL_KEYS.publicKey)
+                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey)
+                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey)
+              }
+              .build()
+              .toByteArray()
+          )
+        )
+        .elGamalKeys
     private val DUCHY_2_3_COMBINED_EL_GAMAL_KEYS =
-      ElGamalPublicKey.newBuilder()
-        .apply {
-          generator = COMMON_PK_G.hexAsByteString()
-          element = DUCHY_2_3_COMBINED_PK_Y.hexAsByteString()
-        }
-        .build()
+      CombineElGamalPublicKeysResponse.parseFrom(
+          SketchEncrypterAdapter.CombineElGamalPublicKeys(
+            CombineElGamalPublicKeysRequest.newBuilder()
+              .apply {
+                curveId = CURVE_ID
+                addElGamalKeys(DUCHY_2_EL_GAMAL_KEYS.publicKey)
+                addElGamalKeys(DUCHY_3_EL_GAMAL_KEYS.publicKey)
+              }
+              .build()
+              .toByteArray()
+          )
+        )
+        .elGamalKeys
   }
 }

@@ -15,6 +15,7 @@
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "crypto/commutative_elgamal.h"
 #include "math/distributions.h"
 #include "math/noise_parameters_computation.h"
 #include "src/main/cc/estimation/estimators.h"
@@ -38,6 +40,7 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 namespace {
 
+using ::private_join_and_compute::CommutativeElGamal;
 using ::wfa::common::ElGamalPublicKey;
 using ::wfa::math::GetBlindHistogramNoiseOptions;
 using ::wfa::math::GetFrequencyNoiseOptions;
@@ -564,6 +567,27 @@ absl::Status AddAllFrequencyNoise(
 }
 
 }  // namespace
+
+absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
+    const CompleteInitializationPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+
+  ASSIGN_OR_RETURN(
+      std::unique_ptr<CommutativeElGamal> cipher,
+      CommutativeElGamal::CreateWithNewKeyPair(request.curve_id()));
+  ASSIGN_OR_RETURN(ElGamalCiphertext public_key, cipher->GetPublicKeyBytes());
+  ASSIGN_OR_RETURN(std::string private_key, cipher->GetPrivateKeyBytes());
+
+  CompleteInitializationPhaseResponse response;
+  response.mutable_el_gamal_key_pair()->mutable_public_key()->set_generator(
+      public_key.first);
+  response.mutable_el_gamal_key_pair()->mutable_public_key()->set_element(
+      public_key.second);
+  response.mutable_el_gamal_key_pair()->set_secret_key(private_key);
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  return response;
+}
 
 absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     const CompleteSetupPhaseRequest& request) {
