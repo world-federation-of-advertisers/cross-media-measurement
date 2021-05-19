@@ -18,3 +18,16 @@ cc_test(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v1alpha:sketch_cc_proto",
     ],
 )
+
+cc_test(
+    name = "noise_parameters_computation_test",
+    size = "small",
+    srcs = [
+        "noise_parameters_computation_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:noise_parameters_computation",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

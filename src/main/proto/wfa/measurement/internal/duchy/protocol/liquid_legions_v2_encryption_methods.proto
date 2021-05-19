@@ -16,10 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy.protocol;
 
-// TODO(wangyaopw): use local protos insteaded from common.
-import "wfa/common/el_gamal_key.proto";
-import "wfa/common/liquid_legions.proto";
-import "wfa/common/noise_parameters.proto";
+import "wfa/measurement/internal/duchy/crypto.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/protocol/liquid_legions_sketch_parameter.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
 option java_multiple_files = true;
@@ -35,22 +34,22 @@ message ReachNoiseDifferentialPrivacyParams {
   // Each of these registers contains a random register id, the same constant
   // key indicating that the register is destroyed, and an arbitrary count
   // value.
-  wfa.common.DifferentialPrivacyParams blind_histogram = 1;
+  DifferentialPrivacyParams blind_histogram = 1;
   // DP params for the noise for the publisher noise registers.
   // Each of these registers contains a well-known constant register id, and
   // arbitrary key and count values.
-  wfa.common.DifferentialPrivacyParams noise_for_publisher_noise = 2;
+  DifferentialPrivacyParams noise_for_publisher_noise = 2;
   // DP params for the global reach DP noise registers.
   // Each of these registers contains a random register id which is out of
   // bounds of the normal id space, the same constant key indicating that the
   // register is destroyed, and an arbitrary count value.
-  wfa.common.DifferentialPrivacyParams global_reach_dp_noise = 3;
+  DifferentialPrivacyParams global_reach_dp_noise = 3;
 }
 
 message RegisterNoiseGenerationParameters {
   // Public keys of the composite ElGamal cipher. Used to encrypt the added
   // noise.
-  wfa.common.ElGamalPublicKey composite_el_gamal_public_key = 1;
+  ElGamalPublicKey composite_el_gamal_public_key = 1;
   // The elliptical curve to work on.
   int64 curve_id = 2;
   // The number of honest parties contributing their noise.
@@ -68,21 +67,21 @@ message FlagCountTupleNoiseGenerationParameters {
   int32 contributors_count = 2;
   // Differential privacy parameters for noise tuples.
   // Same value is used for both (0, R, R) and (R, R, R) tuples.
-  wfa.common.DifferentialPrivacyParams dp_params = 3;
+  DifferentialPrivacyParams dp_params = 3;
 }
 
 message GlobalReachDpNoiseBaseline {
   // The number of honest parties contributing their noise.
   int32 contributors_count = 1;
   // DP parameters used when adding the global reach DP noise registers.
-  wfa.common.DifferentialPrivacyParams global_reach_dp_noise = 2;
+  DifferentialPrivacyParams global_reach_dp_noise = 2;
 }
 
 message PerBucketFrequencyDpNoiseBaseline {
   // The number of honest parties contributing their noise.
   int32 contributors_count = 1;
   // DP parameters used when adding noise.
-  wfa.common.DifferentialPrivacyParams dp_params = 2;
+  DifferentialPrivacyParams dp_params = 2;
 }
 
 // The request to complete work in the initialization phase.
@@ -94,7 +93,7 @@ message CompleteInitializationPhaseRequest {
 // Response of the CompleteInitializationPhase method.
 message CompleteInitializationPhaseResponse {
   // A randomly created ElGamal Key pair.
-  wfa.common.ElGamalKeyPair el_gamal_key_pair = 1;
+  ElGamalKeyPair el_gamal_key_pair = 1;
   // The CPU time of processing the request.
   int64 elapsed_cpu_time_millis = 2;
 }
@@ -131,10 +130,10 @@ message CompleteExecutionPhaseOneRequest {
   // divisible by 66*3.
   bytes combined_register_vector = 1;
   // Key pair of the local ElGamal cipher. Required.
-  wfa.common.ElGamalKeyPair local_el_gamal_key_pair = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Public Key of the composite ElGamal cipher. Used to re-randomize the keys
   // and counts.
-  wfa.common.ElGamalPublicKey composite_el_gamal_public_key = 3;
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
 }
@@ -161,10 +160,10 @@ message CompleteExecutionPhaseOneAtAggregatorRequest {
   // on the register indexes.
   bytes combined_register_vector = 1;
   // Key pair of the local ElGamal cipher. Required.
-  wfa.common.ElGamalKeyPair local_el_gamal_key_pair = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Public Key of the composite ElGamal cipher. Used to encrypt the random
   // numbers in SameKeyAggregation.
-  wfa.common.ElGamalPublicKey composite_el_gamal_public_key = 3;
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on.
   int64 curve_id = 4;
   // The parameters required for generating noise flag count tuples.
@@ -192,15 +191,15 @@ message CompleteExecutionPhaseTwoRequest {
   // flag_count_tuples should be divisible by 264.
   bytes flag_count_tuples = 1;
   // Key pair of the local ElGamal cipher. Required.
-  wfa.common.ElGamalKeyPair local_el_gamal_key_pair = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
   // Public Key of the composite ElGamal cipher. Used to re-randomize the
   // counts.
-  wfa.common.ElGamalPublicKey composite_el_gamal_public_key = 4;
+  ElGamalPublicKey composite_el_gamal_public_key = 4;
   // Public key of the partial composite ElGamal cipher. Used to encrypt the
   // added noise flags.
-  wfa.common.ElGamalPublicKey partial_composite_el_gamal_public_key = 5;
+  ElGamalPublicKey partial_composite_el_gamal_public_key = 5;
   // The parameters required for generating noise flag count tuples.
   // if unset, no noise would be added.
   FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
@@ -224,17 +223,17 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // flag_count_tuples should be divisible by 264.
   bytes flag_count_tuples = 1;
   // Key pair of the local ElGamal cipher. Required.
-  wfa.common.ElGamalKeyPair local_el_gamal_key_pair = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // Public key of the composite ElGamal cipher. Used to generate the 2-D same
   // key aggregator (SKA) matrix.
-  wfa.common.ElGamalPublicKey composite_el_gamal_public_key = 3;
+  ElGamalPublicKey composite_el_gamal_public_key = 3;
   // The elliptical curve to work on for SKA generation.
   int64 curve_id = 4;
   // Maximum frequency to measure. At least 2.
   // (maximum_frequency-1) will be the row dimension of the 2-D SKA matrix.
   int32 maximum_frequency = 5;
   // LiquidLegions parameters used for reach estimation.
-  wfa.common.LiquidLegionsParameters liquid_legions_parameters = 6;
+  LiquidLegionsSketchParameters liquid_legions_parameters = 6;
   // Parameters for computing the noise baseline of the global reach DP noise
   // registers added in the setup phase.
   // The baseline is subtracted before reach is estimated.
@@ -267,7 +266,7 @@ message CompleteExecutionPhaseThreeRequest {
   // matrix is equal to the number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
   // Key pair of the local ElGamal cipher. Required.
-  wfa.common.ElGamalKeyPair local_el_gamal_key_pair = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
 }
@@ -292,7 +291,7 @@ message CompleteExecutionPhaseThreeAtAggregatorRequest {
   // the number of un-destroyed flags.
   bytes same_key_aggregator_matrix = 1;
   // Key pair of the local ElGamal cipher. Required.
-  wfa.common.ElGamalKeyPair local_el_gamal_key_pair = 2;
+  ElGamalKeyPair local_el_gamal_key_pair = 2;
   // The elliptical curve to work on.
   int64 curve_id = 3;
   // Maximum frequency to output in the result. At least 2.

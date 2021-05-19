@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.flattenConcat
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
-import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -32,6 +31,8 @@ import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
+import org.wfanet.measurement.duchy.daemon.mill.toAnySketchElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.mill.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.daemon.utils.Duchy
 import org.wfanet.measurement.duchy.daemon.utils.getDuchyOrderByPublicKeysAndComputationId
@@ -46,6 +47,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
@@ -612,7 +614,8 @@ class LiquidLegionsV2Mill(
             curveId = cryptoKeySet.curveId.toLong()
             addAllElGamalKeys(
               partialList.map {
-                cryptoKeySet.allDuchyPublicKeys[it] ?: error("$it is not in the key set.")
+                cryptoKeySet.allDuchyPublicKeys[it]?.toAnySketchElGamalPublicKey()
+                  ?: error("$it is not in the key set.")
               }
             )
           }
@@ -621,7 +624,7 @@ class LiquidLegionsV2Mill(
         CombineElGamalPublicKeysResponse.parseFrom(
           SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
         )
-      response.elGamalKeys
+      response.elGamalKeys.toCmmsElGamalPublicKey()
     }
   }
 

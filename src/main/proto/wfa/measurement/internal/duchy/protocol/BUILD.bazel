@@ -10,11 +10,10 @@ proto_library(
     name = "liquid_legions_v2_encryption_methods_proto",
     srcs = ["liquid_legions_v2_encryption_methods.proto"],
     strip_import_prefix = "/src/main/proto",
-    visibility = ["//visibility:private"],
     deps = [
-        "@any_sketch//src/main/proto/wfa/common:el_gamal_key_proto",
-        "@any_sketch//src/main/proto/wfa/common:liquid_legions_proto",
-        "@any_sketch//src/main/proto/wfa/common:noise_parameters_proto",
+        ":liquid_legions_sketch_parameter_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
     ],
 )
 
@@ -32,9 +31,8 @@ proto_library(
     name = "liquid_legions_v2_noise_config_proto",
     srcs = ["liquid_legions_v2_noise_config.proto"],
     strip_import_prefix = "/src/main/proto",
-    visibility = ["//visibility:private"],
     deps = [
-        "@any_sketch//src/main/proto/wfa/common:noise_parameters_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
     ],
 )
 
@@ -55,10 +53,23 @@ java_proto_library(
 )
 
 proto_library(
+    name = "liquid_legions_sketch_parameter_proto",
+    srcs = ["liquid_legions_sketch_parameter.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "liquid_legions_sketch_parameter_java_proto",
+    deps = [":liquid_legions_sketch_parameter_proto"],
+)
+
+proto_library(
     name = "liquid_legions_v2_proto",
     srcs = ["liquid_legions_sketch_aggregation_v2.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":liquid_legions_sketch_parameter_proto",
+        ":liquid_legions_v2_noise_config_proto",
         ":requisition",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
