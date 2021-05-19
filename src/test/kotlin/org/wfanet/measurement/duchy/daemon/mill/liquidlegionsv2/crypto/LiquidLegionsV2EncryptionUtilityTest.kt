@@ -20,14 +20,14 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.anysketch.Sketch
+import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
-import org.wfanet.measurement.api.v1alpha.Sketch
-import org.wfanet.measurement.api.v1alpha.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.duchy.daemon.mill.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.toCmmsElGamalPublicKey

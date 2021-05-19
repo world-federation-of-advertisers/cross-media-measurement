@@ -36,8 +36,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:global_computation_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:requisition_service",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "//src/main/proto/wfa/measurement/api/v1alpha:sketch_java_proto",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch:sketch_java_proto",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
     ],
 )

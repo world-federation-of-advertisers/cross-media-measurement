@@ -27,7 +27,7 @@
 #include "src/main/cc/estimation/estimators.h"
 #include "src/test/cc/testutil/matchers.h"
 #include "src/test/cc/testutil/status_macros.h"
-#include "wfa/measurement/api/v1alpha/sketch.pb.h"
+#include "wfa/any_sketch/sketch.pb.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
@@ -46,8 +46,8 @@ using ::testing::DoubleNear;
 using ::testing::Pair;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
-using ::wfa::measurement::api::v1alpha::Sketch;
-using ::wfa::measurement::api::v1alpha::SketchConfig;
+using ::wfa::any_sketch::Sketch;
+using ::wfa::any_sketch::SketchConfig;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
 using ::wfa::measurement::common::crypto::ExtractElGamalCiphertextFromString;
 using ::wfa::measurement::common::crypto::GetCountValuesPlaintext;
@@ -84,14 +84,16 @@ void AddRegister(Sketch* sketch, const int index, const int key,
   register_ptr->add_values(count);
 }
 
-::wfa::common::ElGamalPublicKey ToAnysketchElGamalKey(ElGamalPublicKey key) {
-  ::wfa::common::ElGamalPublicKey result;
+::wfa::any_sketch::crypto::ElGamalPublicKey ToAnysketchElGamalKey(
+    ElGamalPublicKey key) {
+  ::wfa::any_sketch::crypto::ElGamalPublicKey result;
   result.set_generator(key.generator());
   result.set_element(key.element());
   return result;
 }
 
-ElGamalPublicKey ToCmmElGamalKey(::wfa::common::ElGamalPublicKey key) {
+ElGamalPublicKey ToCmmsElGamalKey(
+    ::wfa::any_sketch::crypto::ElGamalPublicKey key) {
   ElGamalPublicKey result;
   result.set_generator(key.generator());
   result.set_element(key.element());
@@ -274,14 +276,14 @@ class TestData {
 
     // Combine the el_gamal keys from all duchies to generate the data provider
     // el_gamal key.
-    client_el_gamal_public_key_ = ToCmmElGamalKey(
+    client_el_gamal_public_key_ = ToCmmsElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
             {ToAnysketchElGamalKey(duchy_1_el_gamal_key_pair_.public_key()),
              ToAnysketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
              ToAnysketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
             .value());
-    duchy_2_3_composite_public_key_ = ToCmmElGamalKey(
+    duchy_2_3_composite_public_key_ = ToCmmsElGamalKey(
         any_sketch::crypto::CombineElGamalPublicKeys(
             kTestCurveId,
             {ToAnysketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
