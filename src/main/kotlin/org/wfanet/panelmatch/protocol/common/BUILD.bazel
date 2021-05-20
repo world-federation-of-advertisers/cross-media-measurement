@@ -15,3 +15,14 @@ kt_jvm_library(
         "@wfa_measurement_system//imports/java/com/google/protobuf",
     ],
 )
+
+kt_jvm_library(
+    name = "protocolutils",
+    srcs = [
+        "Utils.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfanet/panelmatch/protocol/exchangesteps:exchangesteps_java_proto",
+        "@wfa_measurement_system//imports/java/com/google/protobuf",
+    ],
+)

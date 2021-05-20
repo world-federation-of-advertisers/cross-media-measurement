@@ -15,22 +15,18 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 
 /** Interface for ExchangeTask. */
 interface ExchangeTask {
 
   /**
-   * Executes given [ExchangeWorkflow.Step] and returns the output.
+   * Executes subclass on input map and returns the output.
    *
-   * @param step a [ExchangeWorkflow.Step] to be executed.
-   * @param input inputs specified by [step].
+   * @param input inputs specified by [task].
    * @param sendDebugLog function which writes logs happened during execution.
    * @return Executed output. It is a map from the labels to the payload associated with the label.
-   * @throws ExchangeTaskRumtimeException if any failures during the execution.
    */
   suspend fun execute(
-    step: ExchangeWorkflow.Step,
     input: Map<String, ByteString>,
     sendDebugLog: suspend (String) -> Unit
   ): Map<String, ByteString>

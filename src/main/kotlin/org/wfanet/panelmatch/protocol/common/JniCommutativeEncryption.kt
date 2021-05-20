@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media panelmatch Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.protocol.common
 
+import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import org.wfanet.panelmatch.common.loadLibrary
 import wfanet.panelmatch.protocol.crypto.CommutativeEncryptionUtility
@@ -60,4 +61,37 @@ class JniCommutativeEncryption : CommutativeEncryption {
       )
     }
   }
+}
+
+fun applyCommutativeEncryption(key: ByteString, plaintexts: List<ByteString>): List<ByteString> {
+  val request =
+    ApplyCommutativeEncryptionRequest.newBuilder()
+      .setEncryptionKey(key)
+      .addAllPlaintexts(plaintexts)
+      .build()
+  return JniCommutativeEncryption().applyCommutativeEncryption(request).getEncryptedTextsList()
+}
+
+fun reApplyCommutativeEncryption(
+  key: ByteString,
+  encryptedTexts: List<ByteString>
+): List<ByteString> {
+  val request =
+    ReApplyCommutativeEncryptionRequest.newBuilder()
+      .setEncryptionKey(key)
+      .addAllEncryptedTexts(encryptedTexts)
+      .build()
+  return JniCommutativeEncryption().reApplyCommutativeEncryption(request).getReencryptedTextsList()
+}
+
+fun applyCommutativeDecryption(
+  key: ByteString,
+  encryptedTexts: List<ByteString>
+): List<ByteString> {
+  val request =
+    ApplyCommutativeDecryptionRequest.newBuilder()
+      .setEncryptionKey(key)
+      .addAllEncryptedTexts(encryptedTexts)
+      .build()
+  return JniCommutativeEncryption().applyCommutativeDecryption(request).getDecryptedTextsList()
 }
