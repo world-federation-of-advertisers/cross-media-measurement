@@ -39,7 +39,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
-import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
@@ -97,6 +97,10 @@ class ComputationsServiceTest {
           computationStageBuilder.liquidLegionsSketchAggregationV2 =
             LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
           computationDetails = aggregatorComputationDetails
+          addRequisitionsBuilder().apply {
+            externalDataProviderId = "edp1"
+            externalRequisitionId = "1234"
+          }
         }
         .build()
 
@@ -135,6 +139,68 @@ class ComputationsServiceTest {
           .apply {
             version = 1
             computationDetails = newComputationDetails
+          }
+          .build()
+          .toUpdateComputationDetailsResponse()
+      )
+  }
+
+  @Test
+  fun `update computations details and requisition details`() = runBlocking {
+    val id = "1234"
+    fakeDatabase.addComputation(
+      globalId = id,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = aggregatorComputationDetails,
+      requisitions =
+        listOf(ExternalRequisitionKey("edp1", "1234"), ExternalRequisitionKey("edp2", "5678"))
+    )
+    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val newComputationDetails =
+      aggregatorComputationDetails
+        .toBuilder()
+        .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
+        .build()
+    val requisitionDetails1 =
+      RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "duchy-1" }.build()
+    val requisitionDetails2 =
+      RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "duchy-2" }.build()
+    val request =
+      UpdateComputationDetailsRequest.newBuilder()
+        .apply {
+          token = tokenAtStart
+          details = newComputationDetails
+          addRequisitionDetailUpdatesBuilder().apply {
+            externalDataProviderId = "edp1"
+            externalRequisitionId = "1234"
+            details = requisitionDetails1
+          }
+          addRequisitionDetailUpdatesBuilder().apply {
+            externalDataProviderId = "edp2"
+            externalRequisitionId = "5678"
+            details = requisitionDetails2
+          }
+        }
+        .build()
+
+    assertThat(fakeService.updateComputationDetails(request))
+      .isEqualTo(
+        tokenAtStart
+          .toBuilder()
+          .clearRequisitions()
+          .apply {
+            version = 1
+            computationDetails = newComputationDetails
+            addRequisitionsBuilder().apply {
+              externalDataProviderId = "edp1"
+              externalRequisitionId = "1234"
+              details = requisitionDetails1
+            }
+            addRequisitionsBuilder().apply {
+              externalDataProviderId = "edp2"
+              externalRequisitionId = "5678"
+              details = requisitionDetails2
+            }
           }
           .build()
           .toUpdateComputationDetailsResponse()
@@ -407,14 +473,14 @@ class ComputationsServiceTest {
       .isEqualTo(
         tokenAtStart
           .toBuilder()
+          .clearRequisitions()
           .apply {
             version = 1
-            addRequisitions(
-              RequisitionMetadata.newBuilder().apply {
-                externalRequisitionId = "1234"
-                path = "this is a new path"
-              }
-            )
+            addRequisitionsBuilder().apply {
+              externalDataProviderId = "edp1"
+              externalRequisitionId = "1234"
+              path = "this is a new path"
+            }
           }
           .build()
           .toRecordRequisitionBlobPathResponse()
