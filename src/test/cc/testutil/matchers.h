@@ -15,6 +15,8 @@
 #ifndef SRC_TEST_CC_TESTUTIL_MATCHERS_H_
 #define SRC_TEST_CC_TESTUTIL_MATCHERS_H_
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "gtest/gtest.h"
