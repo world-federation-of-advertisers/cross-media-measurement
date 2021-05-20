@@ -63,8 +63,6 @@ CREATE TABLE DataProviders (
   DataProviderId          INT64 NOT NULL,
   ExternalDataProviderId  INT64 NOT NULL,
 
-  DataProviderDetails     BYTES(MAX) NOT NULL,
-  DataProviderDetailsJson STRING(MAX) NOT NULL,
 ) PRIMARY KEY (DataProviderId);
 
 -- For data provider APIs.
@@ -99,9 +97,6 @@ CREATE TABLE EventGroups (
 
   -- Provided by the Data Provider.
   ProvidedEventGroupId  STRING(MAX) NOT NULL,
-
-  EventGroupDetails         BYTES(MAX) NOT NULL,
-  EventGroupDetailsJson     STRING(MAX) NOT NULL,
 
   CONSTRAINT FK_MeasurementConsumer
     FOREIGN KEY (MeasurementConsumerId)

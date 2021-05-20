@@ -32,8 +32,10 @@ class KingdomSchemaTest : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   fun `insert single MeasurementConsumer`() = runBlocking {
     val mutation =
       Mutation.newInsertBuilder("MeasurementConsumers")
-        .set("MeasurementConsumerId").to(3011)
-        .set("ExternalMeasurementConsumerId").to(1)
+        .set("MeasurementConsumerId")
+        .to(3011)
+        .set("ExternalMeasurementConsumerId")
+        .to(1)
         .set("MeasurementConsumerDetails")
         .to(ByteArray.copyFrom("123"))
         .set("MeasurementConsumerDetailsJSON")
