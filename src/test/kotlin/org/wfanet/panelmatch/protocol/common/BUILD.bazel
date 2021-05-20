@@ -28,3 +28,15 @@ kt_jvm_test(
         "@wfa_measurement_system//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "UtilsTest",
+    srcs = ["UtilsTest.kt"],
+    test_class = "org.wfanet.panelmatch.protocol.common.UtilsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/protocol/common:protocolutils",
+        "@wfa_measurement_system//imports/java/com/google/common/truth",
+        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_measurement_system//imports/kotlin/kotlin/test",
+    ],
+)

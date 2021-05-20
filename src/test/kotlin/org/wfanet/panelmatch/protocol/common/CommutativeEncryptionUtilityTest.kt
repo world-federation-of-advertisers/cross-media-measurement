@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,50 +19,9 @@ import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeDecryptionRequest
-import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeEncryptionRequest
-import wfanet.panelmatch.protocol.protobuf.ReApplyCommutativeEncryptionRequest
 
 @RunWith(JUnit4::class)
 class CommutativeEncryptionUtilityTest {
-
-  private fun applyCommutativeEncryption(
-    key: ByteString,
-    plaintexts: List<ByteString>
-  ): List<ByteString> {
-    val request =
-      ApplyCommutativeEncryptionRequest.newBuilder()
-        .setEncryptionKey(key)
-        .addAllPlaintexts(plaintexts)
-        .build()
-    return JniCommutativeEncryption().applyCommutativeEncryption(request).getEncryptedTextsList()
-  }
-
-  private fun reApplyCommutativeEncryption(
-    key: ByteString,
-    encryptedTexts: List<ByteString>
-  ): List<ByteString> {
-    val request =
-      ReApplyCommutativeEncryptionRequest.newBuilder()
-        .setEncryptionKey(key)
-        .addAllEncryptedTexts(encryptedTexts)
-        .build()
-    return JniCommutativeEncryption()
-      .reApplyCommutativeEncryption(request)
-      .getReencryptedTextsList()
-  }
-
-  private fun applyCommutativeDecryption(
-    key: ByteString,
-    encryptedTexts: List<ByteString>
-  ): List<ByteString> {
-    val request =
-      ApplyCommutativeDecryptionRequest.newBuilder()
-        .setEncryptionKey(key)
-        .addAllEncryptedTexts(encryptedTexts)
-        .build()
-    return JniCommutativeEncryption().applyCommutativeDecryption(request).getDecryptedTextsList()
-  }
 
   @Test
   fun testCommutativeEncryption() {

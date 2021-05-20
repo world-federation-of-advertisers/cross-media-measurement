@@ -15,20 +15,23 @@
 package org.wfanet.panelmatch.protocol.common
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
+import com.google.protobuf.ByteString
 import org.junit.Test
-import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeEncryptionRequest
 
-class JniCommutativeEncryptionUtilityTest {
+class UtilsTest {
 
   @Test
-  fun `check JNI lib is loaded successfully`() {
-    // Send an invalid request and check if we can get the error thrown inside JNI.
-    val e =
-      assertFailsWith(RuntimeException::class) {
-        JniCommutativeEncryption()
-          .applyCommutativeEncryption(ApplyCommutativeEncryptionRequest.getDefaultInstance())
-      }
-    assertThat(e.message).contains("Failed to create the protocol cipher")
+  fun `check Shared Inputs serializer and parser`() {
+    val someListOfByteString =
+      listOf<ByteString>(
+        ByteString.copyFromUtf8("some plaintext0"),
+        ByteString.copyFromUtf8("some plaintext1"),
+        ByteString.copyFromUtf8("some plaintext2"),
+        ByteString.copyFromUtf8("some plaintext3"),
+        ByteString.copyFromUtf8("some plaintext4")
+      )
+    assertThat(makeSerializedSharedInputs(someListOfByteString)).isNotEqualTo(someListOfByteString)
+    assertThat(parseSerializedSharedInputs(makeSerializedSharedInputs(someListOfByteString)))
+      .isEqualTo(someListOfByteString)
   }
 }

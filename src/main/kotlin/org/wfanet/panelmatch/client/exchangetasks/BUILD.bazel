@@ -9,6 +9,8 @@ kt_jvm_library(
     name = "exchangetasks",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/protocol/common:commutativeencryption",
+        "//src/main/kotlin/org/wfanet/panelmatch/protocol/common:protocolutils",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_steps_service_kt_jvm_grpc",
     ],
