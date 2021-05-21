@@ -49,6 +49,7 @@ main() {
 
   local -a docker_options=(
     '-it'
+    '--rm'
     '--network=host'
     '--entrypoint=/usr/bin/bazel'
     "--volume=${PWD}:${PWD}"
