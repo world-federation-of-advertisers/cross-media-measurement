@@ -19,26 +19,31 @@ import io.grpc.Server
 import io.grpc.ServerBuilder
 import io.grpc.ServerServiceDefinition
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import io.grpc.netty.NettyServerBuilder
 import io.grpc.services.HealthStatusManager
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
+import javax.net.ssl.SSLContext
 import kotlin.properties.Delegates
 import picocli.CommandLine
+import io.netty.handler.ssl.SslContext
 
 class CommonServer
 private constructor(
   private val nameForLogging: String,
   private val port: Int,
-  services: Iterable<ServerServiceDefinition>
+  services: Iterable<ServerServiceDefinition>,
+  private val useSSLContext: SslContext?
 ) {
   private val healthStatusManager = HealthStatusManager()
 
-  private val server: Server by lazy {
-    ServerBuilder.forPort(port)
-      .apply {
-        addService(healthStatusManager.healthService)
-        services.forEach { addService(it) }
+  val server: Server by lazy {
+    val srvr = if (useSSLContext != null) NettyServerBuilder.forPort(port).sslContext(useSSLContext) else NettyServerBuilder.forPort(port)
+
+    srvr.apply {
+          addService(healthStatusManager.healthService)
+          services.forEach { addService(it) }
       }
       .build()
   }
@@ -75,12 +80,40 @@ private constructor(
   }
 
   class Flags {
+    constructor(p: Int, d: Boolean) {
+      port = p
+      debugVerboseGrpcLogging = d
+    }
     @set:CommandLine.Option(
       names = ["--port", "-p"],
       description = ["TCP port for gRPC server."],
       defaultValue = "8080"
     )
     var port by Delegates.notNull<Int>()
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--cert-file"],
+      description = ["cert file."],
+      defaultValue = ""
+    )
+    var certFile by Delegates.notNull<String>()
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--private-key-file"],
+      description = ["private key file."],
+      defaultValue = ""
+    )
+    var privateKeyFile by Delegates.notNull<String>()
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--cert-collection-file"],
+      description = ["cert collection file."],
+      defaultValue = ""
+    )
+    var certCollectionFile by Delegates.notNull<String>()
       private set
 
     @set:CommandLine.Option(
@@ -100,14 +133,16 @@ private constructor(
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
-      services: Iterable<ServerServiceDefinition>
+      services: Iterable<ServerServiceDefinition>,
+      useSSLContext: SslContext?
     ): CommonServer {
       return CommonServer(
         nameForLogging,
         flags.port,
         services.run {
           if (flags.debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this
-        }
+        },
+        useSSLContext
       )
     }
 
@@ -116,20 +151,28 @@ private constructor(
       flags: Flags,
       nameForLogging: String,
       vararg services: ServerServiceDefinition
-    ): CommonServer = fromFlags(flags, nameForLogging, services.asIterable())
+    ): CommonServer = fromFlags(flags, nameForLogging, services.asIterable(), null)
 
     /** Constructs a [CommonServer] from command-line flags. */
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
       services: Iterable<BindableService>
-    ): CommonServer = fromFlags(flags, nameForLogging, services.map { it.bindService() })
+    ): CommonServer = fromFlags(flags, nameForLogging, services.map { it.bindService() }, null)
 
     /** Constructs a [CommonServer] from command-line flags. */
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
       vararg services: BindableService
-    ): CommonServer = fromFlags(flags, nameForLogging, services.map { it.bindService() })
+    ): CommonServer = fromFlags(flags, nameForLogging, services.map { it.bindService() }, null)
+
+    /** Constructs a [CommonServer] from command-line flags. */
+    fun fromFlags(
+      flags: Flags,
+      nameForLogging: String,
+      useSSLContext: SslContext?,
+      vararg services: ServerServiceDefinition
+    ): CommonServer = fromFlags(flags, nameForLogging, services.asIterable(), useSSLContext)
   }
 }

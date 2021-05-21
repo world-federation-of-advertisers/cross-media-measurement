@@ -36,6 +36,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.SigningCerts
+import picocli.CommandLine
 
 private const val ALGORITHM = "ec"
 private const val CURVE = "prime256v1"
@@ -65,13 +66,14 @@ class TransportSecurityTest {
   @get:Rule val grpcCleanup = GrpcCleanupRule()
 
   private fun startServer(clientAuth: ClientAuth): Server {
+
     val server =
       grpcCleanup
         .register(
           NettyServerBuilder.forPort(0)
-            .sslContext(serverCerts.toServerTlsContext(clientAuth))
-            .addService(healthStatusManager.healthService.withVerboseLogging())
-            .build()
+              .sslContext(serverCerts.toServerTlsContext(clientAuth))
+              .addService(healthStatusManager.healthService.withVerboseLogging())
+                .build()
         )
         .start()
     healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)
@@ -79,9 +81,27 @@ class TransportSecurityTest {
     return server
   }
 
+  private fun startCommonServer(clientAuth: ClientAuth): Server {
+
+    var serverFlags: CommonServer.Flags = CommonServer.Flags(8080, true)
+
+    val server = CommonServer.fromFlags(
+      serverFlags,
+
+      "test",
+      serverCerts.toServerTlsContext(clientAuth),
+      healthStatusManager.healthService.withVerboseLogging()).start()
+
+      grpcCleanup.register(server.server)
+
+
+    return server.server
+  }
+
+
   @Test
   fun `TLS server valid`() {
-    val server = startServer(ClientAuth.NONE)
+    val server = startCommonServer(ClientAuth.NONE)
 
     // Verify server using openssl s_client.
     runBlocking {
@@ -89,7 +109,7 @@ class TransportSecurityTest {
         "openssl",
         "s_client",
         "-connect",
-        "$HOSTNAME:${server.port}",
+        "$HOSTNAME:8080",
         "-verify_return_error",
         "-CAfile",
         "server-root.pem",
@@ -102,7 +122,7 @@ class TransportSecurityTest {
 
   @Test
   fun `mTLS server valid`() {
-    val server = startServer(ClientAuth.REQUIRE)
+    val server = startCommonServer(ClientAuth.REQUIRE)
 
     // Verify server using openssl s_client.
     runBlocking {
@@ -110,7 +130,7 @@ class TransportSecurityTest {
         "openssl",
         "s_client",
         "-connect",
-        "$HOSTNAME:${server.port}",
+        "$HOSTNAME:8080",
         "-verify_return_error",
         "-cert",
         "client.pem",
