@@ -26,6 +26,12 @@ The entire suite of tests can be run using the following command:
 bazel test //src/test/...
 ```
 
+### MacOS
+
+To build on MacOS you need to run the bazel build/test in a docker container using
+`tools/bazel-container build "//..."`
+
+
 ### Local Kubernetes
 
 You can bring up a minimal testing environment in a local Kubernetes environment
