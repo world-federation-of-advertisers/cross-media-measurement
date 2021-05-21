@@ -96,7 +96,10 @@ class ComputationsService(
       request.computationType,
       computationsDatabase.getValidInitialStage(request.computationType).first(),
       request.stageDetails,
-      request.computationDetails
+      request.computationDetails,
+      request.requisitionsList.map {
+        ExternalRequisitionKey(it.externalDataProviderId, it.externalRequisitionId)
+      }
     )
 
     sendStatusUpdateToKingdom(
