@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
@@ -28,6 +29,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as publicApiHybridCipherSuite
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
@@ -38,45 +43,125 @@ import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMet
 import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.HybridCipherSuite
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
-import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
-import org.wfanet.measurement.system.v1alpha.GlobalComputation
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
-import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
+import org.wfanet.measurement.system.v1alpha.Requisition
+import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+
+private const val PUBLIC_API_VERSION = "v2alpha"
+private const val EMPTY_TOKEN = ""
+private const val DUCHY_NAME = "BOHEMIA"
+private val OTHER_DUCHY_NAMES = listOf("SALZBURG", "AUSTRIA")
+
+private const val PUBLIC_PROTOCOL_CONFIG_ID_1 = "config_1"
+private val PUBLIC_PROTOCOL_CONFIG_1 =
+  ProtocolConfig.newBuilder()
+    .apply {
+      keyBuilder.protocolConfigId = PUBLIC_PROTOCOL_CONFIG_ID_1
+      measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+      liquidLegionsV2Builder.apply {
+        sketchParamsBuilder.apply {
+          decayRate = 12.0
+          maxSize = 100_000L
+          samplingIndicatorSize = 10_000_000L
+        }
+        dataProviderNoiseBuilder.apply {
+          epsilon = 1.0
+          delta = 2.0
+        }
+        ellipticCurveId = 415
+      }
+    }
+    .build()
+
+private val PUBLIC_PROTOCOL_CONFIG_MAP =
+  mapOf(PUBLIC_PROTOCOL_CONFIG_ID_1 to PUBLIC_PROTOCOL_CONFIG_1)
+
+private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY =
+  EncryptionPublicKey.newBuilder()
+    .apply {
+      type = EncryptionPublicKey.Type.EC_P256
+      publicKeyInfo = ByteString.copyFromUtf8("A nice encryption public key.")
+    }
+    .build()
+
+private val PUBLIC_API_MEASUREMENT_SPEC =
+  MeasurementSpec.newBuilder()
+    .apply {
+      measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
+      cipherSuiteBuilder.apply {
+        kem = publicApiHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+        dem = publicApiHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+      }
+      reachAndFrequencyBuilder.apply {
+        reachPrivacyParamsBuilder.apply {
+          epsilon = 1.1
+          delta = 1.2
+        }
+        frequencyPrivacyParamsBuilder.apply {
+          epsilon = 2.1
+          delta = 2.2
+        }
+      }
+    }
+    .build()
+private val DATA_PROVIDER_LIST = ByteString.copyFromUtf8("This is a data provider list.")
+private val DATA_PROVIDER_LIST_SALT = ByteString.copyFromUtf8("This is a data provider list salt.")
+
+private val DUCHY_PROTOCOL_CONFIG =
+  Computation.DuchyProtocolConfig.newBuilder()
+    .apply {
+      liquidLegionsV2Builder.apply {
+        maximumFrequency = 10
+        mpcNoiseBuilder.apply {
+          blindedHistogramNoiseBuilder.apply {
+            epsilon = 3.1
+            delta = 3.2
+          }
+          noiseForPublisherNoiseBuilder.apply {
+            epsilon = 4.1
+            delta = 4.2
+          }
+        }
+      }
+    }
+    .build()
+
+private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
+  ProtocolsSetupConfig.newBuilder()
+    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+    .build()
+private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
+  ProtocolsSetupConfig.newBuilder()
+    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+    .build()
+
+private val AGGREGATOR_COMPUTATION_DETAILS =
+  ComputationDetails.newBuilder()
+    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+    .build()
+private val NON_AGGREGATOR_COMPUTATION_DETAILS =
+  ComputationDetails.newBuilder()
+    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+    .build()
 
 @RunWith(JUnit4::class)
-internal class HeraldTest {
+class HeraldTest {
 
-  private val globalComputations: GlobalComputationsCoroutineImplBase =
+  private val globalComputations: ComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {}
-  private val duchyName = "BOHEMIA"
-  private val otherDuchyNames = listOf("SALZBURG", "AUSTRIA")
-  private val fakeComputationStorage = FakeComputationsDatabase()
-  private val aggregatorProtocolsSetupConfig =
-    ProtocolsSetupConfig.newBuilder()
-      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
-      .build()
-  private val nonAggregatorProtocolsSetupConfig =
-    ProtocolsSetupConfig.newBuilder()
-      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
-      .build()
 
-  private val aggregatorComputationDetails =
-    ComputationDetails.newBuilder()
-      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
-      .build()
-  private val nonAggregatorComputationDetails =
-    ComputationDetails.newBuilder()
-      .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
-      .build()
+  private val fakeComputationStorage = FakeComputationsDatabase()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -84,19 +169,24 @@ internal class HeraldTest {
     addService(
       ComputationsService(
         fakeComputationStorage,
-        globalComputationsStub,
-        duchyName,
+        computationLogEntriesCoroutineStub,
+        DUCHY_NAME,
         Clock.systemUTC()
       )
     )
   }
 
-  private val storageServiceStub: ComputationsCoroutineStub by lazy {
-    ComputationsCoroutineStub(grpcTestServerRule.channel)
+  private val storageServiceStub: DuchyComputationsCoroutineStub by lazy {
+    DuchyComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val globalComputationsStub: GlobalComputationsCoroutineStub by lazy {
+  // TODO(wangyaopw): replace this with the ComputationLogEntriesCoroutineStub
+  private val computationLogEntriesCoroutineStub: GlobalComputationsCoroutineStub by lazy {
     GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val globalComputationsStub: ComputationsCoroutineStub by lazy {
+    ComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private lateinit var aggregatorHerald: Herald
@@ -106,17 +196,19 @@ internal class HeraldTest {
   fun initHerald() {
     aggregatorHerald =
       Herald(
-        otherDuchyNames,
+        OTHER_DUCHY_NAMES,
         storageServiceStub,
         globalComputationsStub,
-        aggregatorProtocolsSetupConfig
+        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        PUBLIC_PROTOCOL_CONFIG_MAP
       )
     nonAggregatorHerald =
       Herald(
-        otherDuchyNames,
+        OTHER_DUCHY_NAMES,
         storageServiceStub,
         globalComputationsStub,
-        nonAggregatorProtocolsSetupConfig
+        NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        PUBLIC_PROTOCOL_CONFIG_MAP
       )
   }
 
@@ -130,54 +222,126 @@ internal class HeraldTest {
 
   @Test
   fun `syncStatuses creates new computations`() = runBlocking {
-    val confirmingKnown = ComputationAtKingdom("454647484950", GlobalComputation.State.CONFIRMING)
-    val newComputationsRequisitions = listOf("alice/a/1234", "bob/bb/abc", "caroline/ccc/234567")
+    val confirmingKnown =
+      buildComputationAtKingdom("454647484950", Computation.State.PENDING_REQUISITION_PARAMS)
+    val systemApiRequisitions1 =
+      Requisition.newBuilder()
+        .apply {
+          keyBuilder.apply {
+            computationId = "321"
+            requisitionId = "1"
+          }
+          dataProviderId = "A"
+        }
+        .build()
+    val systemApiRequisitions2 =
+      Requisition.newBuilder()
+        .apply {
+          keyBuilder.apply {
+            computationId = "321"
+            requisitionId = "2"
+          }
+          dataProviderId = "B"
+        }
+        .build()
     val confirmingUnknown =
-      ComputationAtKingdom("321", GlobalComputation.State.CONFIRMING, newComputationsRequisitions)
+      buildComputationAtKingdom(
+        "321",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        listOf(systemApiRequisitions1, systemApiRequisitions2)
+      )
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
     fakeComputationStorage.addComputation(
-      globalId = confirmingKnown.globalId,
+      globalId = confirmingKnown.key.computationId,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
 
     assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
-      .isEqualTo(confirmingUnknown.continuationToken)
+      .isEqualTo(confirmingUnknown.continuationToken())
     assertThat(
         fakeComputationStorage.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
       .containsExactly(
-        confirmingKnown.globalId.toLong(),
+        confirmingKnown.key.computationId.toLong(),
         CONFIRMATION_PHASE.toProtocolStage(),
-        confirmingUnknown.globalId.toLong(),
+        confirmingUnknown.key.computationId.toLong(),
         CONFIRMATION_PHASE.toProtocolStage()
       )
 
-    assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.stageSpecificDetails)
-      .isEqualTo(
-        ComputationStageDetails.newBuilder()
+    assertThat(
+        fakeComputationStorage[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        RequisitionMetadata.newBuilder()
           .apply {
-            liquidLegionsV2Builder.toConfirmRequisitionsStageDetailsBuilder.apply {
-              addKeys(requisitionKey("alice", "a", "1234"))
-              addKeys(requisitionKey("bob", "bb", "abc"))
-              addKeys(requisitionKey("caroline", "ccc", "234567"))
-            }
+            externalDataProviderId = "A"
+            externalRequisitionId = "1"
+          }
+          .build(),
+        RequisitionMetadata.newBuilder()
+          .apply {
+            externalDataProviderId = "B"
+            externalRequisitionId = "2"
           }
           .build()
       )
-    assertThat(fakeComputationStorage[confirmingUnknown.globalId.toLong()]?.computationDetails)
+    assertThat(
+        fakeComputationStorage[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      )
       .isEqualTo(
         ComputationDetails.newBuilder()
           .apply {
+            blobsStoragePrefix = "computation-blob-storage/321"
+            kingdomComputationBuilder.apply {
+              publicApiVersion = PUBLIC_API_VERSION
+              measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
+              dataProviderList = DATA_PROVIDER_LIST
+              dataProviderListSalt = DATA_PROVIDER_LIST_SALT
+              measurementPublicKeyBuilder.apply {
+                type = org.wfanet.measurement.internal.duchy.EncryptionPublicKey.Type.EC_P256
+                publicKeyInfo = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.publicKeyInfo
+              }
+              cipherSuiteBuilder.apply {
+                kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+                dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+              }
+            }
             liquidLegionsV2Builder.apply {
               role = RoleInComputation.AGGREGATOR
-              totalRequisitionCount = 10
+              parametersBuilder.apply {
+                maximumFrequency = 10
+                liquidLegionsSketchBuilder.apply {
+                  decayRate = 12.0
+                  size = 100_000L
+                }
+                noiseBuilder.apply {
+                  reachNoiseConfigBuilder.apply {
+                    blindHistogramNoiseBuilder.apply {
+                      epsilon = 3.1
+                      delta = 3.2
+                    }
+                    noiseForPublisherNoiseBuilder.apply {
+                      epsilon = 4.1
+                      delta = 4.2
+                    }
+                    globalReachDpNoiseBuilder.apply {
+                      epsilon = 1.1
+                      delta = 1.2
+                    }
+                  }
+                  frequencyNoiseConfigBuilder.apply {
+                    epsilon = 2.1
+                    delta = 2.2
+                  }
+                }
+                ellipticCurveId = 415
+              }
             }
-            blobsStoragePrefix = "computation-blob-storage/321"
           }
           .build()
       )
@@ -186,75 +350,77 @@ internal class HeraldTest {
   @Test
   fun `syncStatuses starts computations in wait_to_start`() =
     runBlocking<Unit> {
-      val waitingToStart = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
-      val addingNoise = ComputationAtKingdom("231313", GlobalComputation.State.RUNNING)
+      val waitingToStart =
+        buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
+      val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
       mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
 
       fakeComputationStorage.addComputation(
-        globalId = waitingToStart.globalId,
+        globalId = waitingToStart.key.computationId,
         stage = WAIT_TO_START.toProtocolStage(),
-        computationDetails = nonAggregatorComputationDetails,
+        computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
         blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
       )
 
       fakeComputationStorage.addComputation(
-        globalId = addingNoise.globalId,
+        globalId = addingNoise.key.computationId,
         stage = SETUP_PHASE.toProtocolStage(),
-        computationDetails = aggregatorComputationDetails,
+        computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
         blobs =
           listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
       )
 
       assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
-        .isEqualTo(addingNoise.continuationToken)
+        .isEqualTo(addingNoise.continuationToken())
       assertThat(
           fakeComputationStorage.mapValues { (_, fakeComputation) ->
             fakeComputation.computationStage
           }
         )
         .containsExactly(
-          waitingToStart.globalId.toLong(),
+          waitingToStart.key.computationId.toLong(),
           SETUP_PHASE.toProtocolStage(),
-          addingNoise.globalId.toLong(),
+          addingNoise.key.computationId.toLong(),
           SETUP_PHASE.toProtocolStage()
         )
     }
 
   @Test
   fun `syncStatuses starts computations with retries`() = runBlocking {
-    val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+    val computation =
+      buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
     mockStreamActiveComputationsToReturn(computation)
 
     fakeComputationStorage.addComputation(
-      globalId = computation.globalId,
+      globalId = computation.key.computationId,
       stage = CONFIRMATION_PHASE.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
     assertThat(nonAggregatorHerald.syncStatuses(EMPTY_TOKEN))
-      .isEqualTo(computation.continuationToken)
+      .isEqualTo(computation.continuationToken())
 
     assertThat(
         fakeComputationStorage.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
-      .containsExactly(computation.globalId.toLong(), CONFIRMATION_PHASE.toProtocolStage())
+      .containsExactly(computation.key.computationId.toLong(), CONFIRMATION_PHASE.toProtocolStage())
 
     // Update the state.
-    fakeComputationStorage.remove(computation.globalId.toLong())
+    fakeComputationStorage.remove(computation.key.computationId.toLong())
     fakeComputationStorage.addComputation(
-      globalId = computation.globalId,
+      globalId = computation.key.computationId,
       stage = WAIT_TO_START.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
     // Wait for the background retry to fix the state.
     val finalComputation =
       pollFor(timeoutMillis = 10_000L) {
-        val c = fakeComputationStorage[computation.globalId.toLong()]
+        val c = fakeComputationStorage[computation.key.computationId.toLong()]
         if (c?.computationStage == SETUP_PHASE.toProtocolStage()) {
           c
         } else {
@@ -270,75 +436,69 @@ internal class HeraldTest {
     runBlocking<Unit> {
       val heraldWithOneRetry =
         Herald(
-          otherDuchyNames,
+          OTHER_DUCHY_NAMES,
           storageServiceStub,
           globalComputationsStub,
-          nonAggregatorProtocolsSetupConfig,
+          NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+          PUBLIC_PROTOCOL_CONFIG_MAP,
           maxStartAttempts = 2
         )
 
-      val computation = ComputationAtKingdom("42314125676756", GlobalComputation.State.RUNNING)
+      val computation =
+        buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
       mockStreamActiveComputationsToReturn(computation)
 
       fakeComputationStorage.addComputation(
-        globalId = computation.globalId,
+        globalId = computation.key.computationId,
         stage = CONFIRMATION_PHASE.toProtocolStage(),
-        computationDetails = nonAggregatorComputationDetails,
+        computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
         blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
       )
 
       assertFails { heraldWithOneRetry.continuallySyncStatuses(FakeThrottler()) }
     }
 
-  private fun mockStreamActiveComputationsToReturn(vararg computations: ComputationAtKingdom) =
+  private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
     globalComputations.stub {
-      onBlocking { streamActiveGlobalComputations(any()) }
-        .thenReturn(computations.toList().map { it.streamedResponse }.asFlow())
+      onBlocking { streamActiveComputations(any()) }
+        .thenReturn(
+          computations
+            .toList()
+            .map {
+              StreamActiveComputationsResponse.newBuilder()
+                .apply {
+                  computation = it
+                  continuationToken = it.continuationToken()
+                }
+                .build()
+            }
+            .asFlow()
+        )
     }
 
-  companion object {
-    const val EMPTY_TOKEN = ""
-  }
-}
-
-/** Simple representation of a computation at the kingdom for testing. */
-data class ComputationAtKingdom(
-  val globalId: String,
-  val stateAtKingdom: GlobalComputation.State,
-  val requisitionResourceKeys: List<String> = listOf(),
-  val totalRequisitionCount: Int = 10
-) {
-  private fun parseResourceKey(stringKey: String): MetricRequisitionKey {
-    val (provider, campaign, requisition) = stringKey.split("/")
-    return MetricRequisitionKey.newBuilder()
-      .apply {
-        dataProviderId = provider
-        campaignId = campaign
-        metricRequisitionId = requisition
+  /**
+   * Builds a kingdom system Api Computation using default values for fields not included in the
+   * parameters.
+   */
+  private fun buildComputationAtKingdom(
+    globalId: String,
+    stateAtKingdom: Computation.State,
+    systemApiRequisitions: List<Requisition> = listOf()
+  ): Computation {
+    return Computation.newBuilder()
+      .also {
+        it.keyBuilder.computationId = globalId
+        it.publicApiVersion = PUBLIC_API_VERSION
+        it.measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
+        it.dataProviderList = DATA_PROVIDER_LIST
+        it.dataProviderListSalt = DATA_PROVIDER_LIST_SALT
+        it.protocolConfigId = PUBLIC_PROTOCOL_CONFIG_ID_1
+        it.state = stateAtKingdom
+        it.addAllRequisitions(systemApiRequisitions)
+        it.duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
       }
       .build()
   }
 
-  val continuationToken = "token_for_$globalId"
-  val streamedResponse: StreamActiveGlobalComputationsResponse =
-    StreamActiveGlobalComputationsResponse.newBuilder()
-      .apply {
-        globalComputationBuilder.apply {
-          keyBuilder.apply { globalComputationId = globalId }
-          state = stateAtKingdom
-          addAllMetricRequisitions(requisitionResourceKeys.map { parseResourceKey(it) })
-          totalRequisitionCount = this@ComputationAtKingdom.totalRequisitionCount
-        }
-        continuationToken = this@ComputationAtKingdom.continuationToken
-      }
-      .build()
+  private fun Computation.continuationToken(): String = "token_for_${key.computationId}"
 }
-
-private fun requisitionKey(provider: String, campaign: String, requisition: String) =
-  RequisitionKey.newBuilder()
-    .apply {
-      dataProviderId = provider
-      campaignId = campaign
-      metricRequisitionId = requisition
-    }
-    .build()
