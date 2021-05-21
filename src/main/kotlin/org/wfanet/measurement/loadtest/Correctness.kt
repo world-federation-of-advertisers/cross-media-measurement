@@ -70,10 +70,10 @@ interface Correctness {
    * Creates an [AnySketch] object and calls its [insert][AnySketch.insert] method with a set of
    * reach given.
    *
-   * @param reach list of [Long]s sized [generatedSetSize]
+   * @param reach collection of [Long]s sized [generatedSetSize]
    * @return an [AnySketch] object with at most [generatedSetSize] number of registers
    */
-  fun generateSketch(reach: List<Long>): AnySketch
+  fun generateSketch(reach: Collection<Long>): AnySketch
 
   /** Encrypts the [Sketch] proto. */
   fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): ByteString

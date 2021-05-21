@@ -177,7 +177,7 @@ class CorrectnessImplTest {
         generatedSetSize = generatedSetSize,
         universeSize = 10_000_000_000L
       )
-    val reach = listOf(100L, 30L, 500L, 13L, 813L)
+    val reach = setOf(100L, 30L, 500L, 13L, 813L)
     val actualSketch = correctness.generateSketch(reach).toSketchProto(sketchConfig)
     var minIndex: Long = Long.MAX_VALUE
     var maxIndex: Long = Long.MIN_VALUE
@@ -207,7 +207,7 @@ class CorrectnessImplTest {
         universeSize = 10_000_000_000L
       )
     val reaches =
-      sequenceOf(listOf(100L, 30L, 500L, 13L, 813L), listOf(2L, 7169L, 9999L, 130L, 28193L))
+      sequenceOf(setOf(100L, 30L, 500L, 13L, 813L), setOf(2L, 7169L, 9999L, 130L, 28193L))
     reaches.forEach {
       val actualSketch = correctness.generateSketch(it).toSketchProto(sketchConfig)
       assertThat(actualSketch.registersCount).isEqualTo(generatedSetSize)
@@ -224,7 +224,7 @@ class CorrectnessImplTest {
         generatedSetSize = generatedSetSize,
         universeSize = 10_000_000_000L
       )
-    val reach = correctness.generateReach().first().toList()
+    val reach = correctness.generateReach().first()
     val actualSketch = correctness.generateSketch(reach).toSketchProto(sketchConfig)
     assertThat(actualSketch.registersCount).isLessThan(generatedSetSize)
   }

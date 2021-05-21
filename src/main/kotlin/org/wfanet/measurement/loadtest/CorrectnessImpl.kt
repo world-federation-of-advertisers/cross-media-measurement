@@ -414,12 +414,12 @@ class CorrectnessImpl(
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
 
     return generateReach().asFlow().map { reach ->
-      createCampaign(reach.toList(), externalAdvertiserId, externalDataProviderId)
+      createCampaign(reach, externalAdvertiserId, externalDataProviderId)
     }
   }
 
   private suspend fun DatabaseTestHelper.createCampaign(
-    reach: List<Long>,
+    reach: Collection<Long>,
     externalAdvertiserId: ExternalId,
     externalDataProviderId: ExternalId,
     campaignName: String = "Campaign name"
@@ -540,7 +540,7 @@ class CorrectnessImpl(
     return generateIndependentSets(universeSize, generatedSetSize).take(campaignCount)
   }
 
-  override fun generateSketch(reach: List<Long>): AnySketch {
+  override fun generateSketch(reach: Collection<Long>): AnySketch {
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     for (value: Long in reach) {
       anySketch.insert(value, mapOf("frequency" to 1L))
