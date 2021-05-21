@@ -44,24 +44,27 @@ message ComputationDetails {
   // The Computation obtained from the Kingdom system API.
   // This field is written by the herald, and consumed by mills.
   message KingdomComputationDetails {
+    // Public API version for all serialized messages used in this computation.
+    string public_api_version = 1;
+
     // Serialized `MeasurementSpec` from public API.
     // For consent signaling verification only.
-    bytes measurement_spec = 1;
+    bytes measurement_spec = 2;
 
     // Serialized `DataProviderList` from public API.
     // For consent signaling verification only.
-    bytes data_provider_list = 2;
+    bytes data_provider_list = 3;
 
     // Salt for SHA256 hash of `data_provider_list`.
     // For consent signaling verification only.
-    bytes data_provider_list_salt = 3;
+    bytes data_provider_list_salt = 4;
 
     // Public key for asymmetric encryption. Used when encrypting the final
     // result.
-    EncryptionPublicKey measurement_public_key = 4;
+    EncryptionPublicKey measurement_public_key = 5;
 
     // HybridCipherSuite used when encrypting the final result.
-    HybridCipherSuite cipher_suite = 5;
+    HybridCipherSuite cipher_suite = 6;
   }
   KingdomComputationDetails kingdom_computation = 3;
 

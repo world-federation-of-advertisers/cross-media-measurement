@@ -12,6 +12,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_participant_proto",
+        ":differential_privacy_proto",
         ":requisition_proto",
     ],
 )
@@ -35,6 +36,18 @@ java_proto_library(
     name = "computation_participant_java_proto",
     visibility = ["//visibility:public"],
     deps = [":computation_participant_proto"],
+)
+
+proto_library(
+    name = "differential_privacy_proto",
+    srcs = ["differential_privacy.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "differential_privacy_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [":differential_privacy_proto"],
 )
 
 proto_library(
