@@ -16,10 +16,12 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.BindableService
 import io.grpc.Channel
+import io.netty.handler.ssl.ClientAuth
+import java.io.File
+import java.security.cert.X509Certificate
 import kotlin.properties.Delegates
-import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
-import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.*
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyIdentities
@@ -42,7 +44,7 @@ class KingdomApiServerFlags {
     private set
 }
 
-fun runKingdomApiServer(
+fun runKingdomApiServer_____old(
   kingdomApiServerFlags: KingdomApiServerFlags,
   duchyIdFlags: DuchyIdFlags,
   commonServerFlags: CommonServer.Flags,
@@ -58,4 +60,30 @@ fun runKingdomApiServer(
   val name = service.serviceDescriptor.name + "Server"
 
   CommonServer.fromFlags(commonServerFlags, name, service).start().blockUntilShutdown()
+}
+
+fun runKingdomApiServer(
+  kingdomApiServerFlags: KingdomApiServerFlags,
+  duchyIdFlags: DuchyIdFlags,
+  commonServerFlags: CommonServer.Flags,
+  serviceFactory: (Channel) -> BindableService
+) {
+  DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+
+  val serverCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = File(commonServerFlags.certFile),
+      privateKeyFile = File(commonServerFlags.privateKeyFile),
+      trustedCertCollectionFile = File(commonServerFlags.certCollectionFile)
+    )
+
+
+  val channel: Channel =
+    buildTLSChannel(kingdomApiServerFlags.internalApiTarget)
+      .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+
+  val service = serviceFactory(channel).withDuchyIdentities()
+  val name = service.serviceDescriptor.name + "Server"
+
+  CommonServer.fromFlags(commonServerFlags, name, serverCerts.toServerTlsContext(clientAuth = ClientAuth.NONE), service).start().blockUntilShutdown()
 }

@@ -30,6 +30,14 @@ fun buildChannel(target: String): ManagedChannel {
     .build()
 }
 
+
+fun buildTLSChannel(
+  target: String
+): ManagedChannel {
+  return ManagedChannelBuilder.forTarget(target)
+    .build()
+}
+
 /**
  * Builds a [ManagedChannel] for the specified target.
  *
