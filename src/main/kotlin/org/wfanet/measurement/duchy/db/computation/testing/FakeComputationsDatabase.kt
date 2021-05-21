@@ -23,6 +23,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
@@ -32,19 +33,25 @@ import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 
 /** In-memory [ComputationsDatabase] */
 class FakeComputationsDatabase
 private constructor(
   /** Map of local computation ID to [ComputationToken]. */
-  private val tokens: MutableMap<Long, ComputationToken>
+  private val tokens: MutableMap<Long, ComputationToken>,
+  /**
+   * Map of external_requisition_id to local computation id. External_data_provider_id is ignored in
+   * this fake implementation.
+   */
+  private val requisitionMap: MutableMap<String, Long>
 ) :
   Map<Long, ComputationToken> by tokens,
   ComputationsDatabase,
   ComputationProtocolStagesEnumHelper<
     ComputationType, ComputationStage> by ComputationProtocolStages {
 
-  constructor() : this(mutableMapOf())
+  constructor() : this(tokens = mutableMapOf(), requisitionMap = mutableMapOf())
 
   val claimedComputationIds = mutableSetOf<String>()
 
@@ -55,7 +62,8 @@ private constructor(
     protocol: ComputationType,
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails,
-    computationDetails: ComputationDetails
+    computationDetails: ComputationDetails,
+    requisitions: List<ExternalRequisitionKey>
   ) {
     if (globalId.toLong() in tokens) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
@@ -65,7 +73,8 @@ private constructor(
       stage = initialStage,
       computationDetails = computationDetails,
       stageDetails = stageDetails,
-      blobs = listOf(newEmptyOutputBlobMetadata(id = 0L))
+      blobs = listOf(newEmptyOutputBlobMetadata(id = 0L)),
+      requisitions = requisitions
     )
   }
 
@@ -74,8 +83,9 @@ private constructor(
     localId: Long,
     stage: ComputationStage,
     computationDetails: ComputationDetails,
-    blobs: List<ComputationStageBlobMetadata>,
-    stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
+    blobs: List<ComputationStageBlobMetadata> = listOf(),
+    stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance(),
+    requisitions: List<ExternalRequisitionKey> = listOf()
   ) {
     require(localId !in tokens) { "Cannot add multiple computations with the same id. $localId" }
     require(blobs.distinctBy { it.blobId }.size == blobs.size) { "Blobs must have distinct IDs" }
@@ -90,6 +100,10 @@ private constructor(
           }
         }
         .build()
+    requisitions.forEach {
+      // externalDataProviderId is ignored in this fake implementation.
+      requisitionMap[it.externalRequisitionId] = localId
+    }
   }
 
   /** @see addComputation */
@@ -97,8 +111,9 @@ private constructor(
     globalId: String,
     stage: ComputationStage,
     computationDetails: ComputationDetails,
-    blobs: List<ComputationStageBlobMetadata>,
-    stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance()
+    blobs: List<ComputationStageBlobMetadata> = listOf(),
+    stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance(),
+    requisitions: List<ExternalRequisitionKey> = listOf()
   ) {
     addComputation(
       // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long and
@@ -107,7 +122,8 @@ private constructor(
       stage = stage,
       computationDetails = computationDetails,
       blobs = blobs,
-      stageDetails = stageDetails
+      stageDetails = stageDetails,
+      requisitions = requisitions
     )
   }
 
@@ -240,6 +256,23 @@ private constructor(
     }
   }
 
+  override suspend fun writeRequisitionBlobPath(
+    token: ComputationEditToken<ComputationType, ComputationStage>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    pathToBlob: String
+  ) {
+    updateToken(token) { existing ->
+      existing
+        .toBuilder()
+        .addRequisitions(
+          RequisitionMetadata.newBuilder().also {
+            it.externalRequisitionId = externalRequisitionKey.externalRequisitionId
+            it.path = pathToBlob
+          }
+        )
+    }
+  }
+
   override suspend fun enqueue(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     delaySecond: Int
@@ -283,6 +316,10 @@ private constructor(
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? =
     tokens[globalId.toLong()]
+
+  override suspend fun readComputationToken(
+    externalRequisitionKey: ExternalRequisitionKey
+  ): ComputationToken? = tokens[requisitionMap[externalRequisitionKey.externalRequisitionId]]
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
     tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()

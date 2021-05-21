@@ -25,6 +25,16 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 using ::wfa::measurement::common::crypto::ParseRequestFromString;
 
+absl::StatusOr<std::string> CompleteInitializationPhase(
+    const std::string& serialized_request) {
+  CompleteInitializationPhaseRequest request_proto;
+
+  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
+  ASSIGN_OR_RETURN(CompleteInitializationPhaseResponse result,
+                   CompleteInitializationPhase(request_proto));
+  return result.SerializeAsString();
+}
+
 absl::StatusOr<std::string> CompleteSetupPhase(
     const std::string& serialized_request) {
   CompleteSetupPhaseRequest request_proto;

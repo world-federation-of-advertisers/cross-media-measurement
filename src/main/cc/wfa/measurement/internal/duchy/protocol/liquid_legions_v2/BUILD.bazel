@@ -19,6 +19,7 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        ":noise_parameters_computation",
         "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common/crypto:constants",
         "//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
@@ -27,8 +28,8 @@ cc_library(
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_cc_proto",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@any_sketch//src/main/cc/math:distributions",
-        "@any_sketch//src/main/cc/math:noise_parameters_computation",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_private_join_and_compute//crypto:commutative_elgamal",
         "@com_google_private_join_and_compute//util:status_includes",
     ],
 )
@@ -48,5 +49,20 @@ cc_library(
         "//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_cc_proto",
         "@com_google_private_join_and_compute//util:status_includes",
+    ],
+)
+
+cc_library(
+    name = "noise_parameters_computation",
+    srcs = [
+        "noise_parameters_computation.cc",
+    ],
+    hdrs = [
+        "noise_parameters_computation.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_cc_proto",
+        "@any_sketch//src/main/cc/math:distributions",
     ],
 )

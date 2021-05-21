@@ -15,6 +15,7 @@
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,8 +25,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "crypto/commutative_elgamal.h"
 #include "math/distributions.h"
-#include "math/noise_parameters_computation.h"
 #include "src/main/cc/estimation/estimators.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
@@ -33,16 +34,13 @@
 #include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/common/string_block_sorter.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 namespace {
 
-using ::wfa::common::ElGamalPublicKey;
-using ::wfa::math::GetBlindHistogramNoiseOptions;
-using ::wfa::math::GetFrequencyNoiseOptions;
-using ::wfa::math::GetGlobalReachDpNoiseOptions;
-using ::wfa::math::GetNoiseForPublisherNoiseOptions;
+using ::private_join_and_compute::CommutativeElGamal;
 using ::wfa::measurement::common::SortStringByBlock;
 using ::wfa::measurement::common::crypto::Action;
 using ::wfa::measurement::common::crypto::CompositeType;
@@ -71,6 +69,7 @@ using ::wfa::measurement::common::crypto::kUnitECPointSeed;
 using ::wfa::measurement::common::crypto::MultiplyEcPointPairByScalar;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::common::crypto::StartedThreadCpuTimer;
+using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
@@ -564,6 +563,27 @@ absl::Status AddAllFrequencyNoise(
 }
 
 }  // namespace
+
+absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
+    const CompleteInitializationPhaseRequest& request) {
+  StartedThreadCpuTimer timer;
+
+  ASSIGN_OR_RETURN(
+      std::unique_ptr<CommutativeElGamal> cipher,
+      CommutativeElGamal::CreateWithNewKeyPair(request.curve_id()));
+  ASSIGN_OR_RETURN(ElGamalCiphertext public_key, cipher->GetPublicKeyBytes());
+  ASSIGN_OR_RETURN(std::string private_key, cipher->GetPrivateKeyBytes());
+
+  CompleteInitializationPhaseResponse response;
+  response.mutable_el_gamal_key_pair()->mutable_public_key()->set_generator(
+      public_key.first);
+  response.mutable_el_gamal_key_pair()->mutable_public_key()->set_element(
+      public_key.second);
+  response.mutable_el_gamal_key_pair()->set_secret_key(private_key);
+
+  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
+  return response;
+}
 
 absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     const CompleteSetupPhaseRequest& request) {

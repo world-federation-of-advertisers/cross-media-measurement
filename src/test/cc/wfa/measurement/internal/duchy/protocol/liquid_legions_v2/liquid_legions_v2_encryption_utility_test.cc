@@ -46,9 +46,6 @@ using ::testing::DoubleNear;
 using ::testing::Pair;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
-using ::wfa::common::DifferentialPrivacyParams;
-using ::wfa::common::ElGamalKeyPair;
-using ::wfa::common::ElGamalPublicKey;
 using ::wfa::measurement::api::v1alpha::Sketch;
 using ::wfa::measurement::api::v1alpha::SketchConfig;
 using ::wfa::measurement::common::crypto::ElGamalCiphertext;
@@ -59,6 +56,9 @@ using ::wfa::measurement::common::crypto::kBytesPerCipherRegister;
 using ::wfa::measurement::common::crypto::kDestroyedRegisterKey;
 using ::wfa::measurement::common::crypto::kPaddingNoiseRegisterId;
 using ::wfa::measurement::common::crypto::kPublisherNoiseRegisterId;
+using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
+using ::wfa::measurement::internal::duchy::ElGamalKeyPair;
+using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
 constexpr int kWorkerCount = 3;
 constexpr int kPublisherCount = 3;
@@ -76,25 +76,26 @@ struct MpcResult {
   absl::flat_hash_map<int64_t, double> frequency_distribution;
 };
 
-ElGamalKeyPair GenerateRandomElGamalKeyPair(const int curve_id) {
-  ElGamalKeyPair el_gamal_key_pair;
-  auto el_gamal_cipher =
-      CommutativeElGamal::CreateWithNewKeyPair(curve_id).value();
-  *el_gamal_key_pair.mutable_secret_key() =
-      el_gamal_cipher.get()->GetPrivateKeyBytes().value();
-  *el_gamal_key_pair.mutable_public_key()->mutable_generator() =
-      el_gamal_cipher.get()->GetPublicKeyBytes().value().first;
-  *el_gamal_key_pair.mutable_public_key()->mutable_element() =
-      el_gamal_cipher.get()->GetPublicKeyBytes().value().second;
-  return el_gamal_key_pair;
-}
-
 void AddRegister(Sketch* sketch, const int index, const int key,
                  const int count) {
   auto register_ptr = sketch->add_registers();
   register_ptr->set_index(index);
   register_ptr->add_values(key);
   register_ptr->add_values(count);
+}
+
+::wfa::common::ElGamalPublicKey ToAnysketchElGamalKey(ElGamalPublicKey key) {
+  ::wfa::common::ElGamalPublicKey result;
+  result.set_generator(key.generator());
+  result.set_element(key.element());
+  return result;
+}
+
+ElGamalPublicKey ToCmmElGamalKey(::wfa::common::ElGamalPublicKey key) {
+  ElGamalPublicKey result;
+  result.set_generator(key.generator());
+  result.set_element(key.element());
+  return result;
 }
 
 Sketch CreateEmptyLiquidLegionsSketch() {
@@ -258,41 +259,34 @@ class TestData {
   std::unique_ptr<any_sketch::crypto::SketchEncrypter> sketch_encrypter_;
 
   TestData() {
-    duchy_1_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
-    duchy_2_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
-    duchy_3_el_gamal_key_pair_ = GenerateRandomElGamalKeyPair(kTestCurveId);
+    CompleteInitializationPhaseRequest complete_initialization_phase_request;
+    complete_initialization_phase_request.set_curve_id(kTestCurveId);
+
+    duchy_1_el_gamal_key_pair_ =
+        CompleteInitializationPhase(complete_initialization_phase_request)
+            ->el_gamal_key_pair();
+    duchy_2_el_gamal_key_pair_ =
+        CompleteInitializationPhase(complete_initialization_phase_request)
+            ->el_gamal_key_pair();
+    duchy_3_el_gamal_key_pair_ =
+        CompleteInitializationPhase(complete_initialization_phase_request)
+            ->el_gamal_key_pair();
 
     // Combine the el_gamal keys from all duchies to generate the data provider
     // el_gamal key.
-    Context ctx;
-    ECGroup ec_group = ECGroup::Create(kTestCurveId, &ctx).value();
-    ECPoint duchy_1_public_el_gamal_y_ec =
-        ec_group
-            .CreateECPoint(duchy_1_el_gamal_key_pair_.public_key().element())
-            .value();
-    ECPoint duchy_2_public_el_gamal_y_ec =
-        ec_group
-            .CreateECPoint(duchy_2_el_gamal_key_pair_.public_key().element())
-            .value();
-    ECPoint duchy_3_public_el_gamal_y_ec =
-        ec_group
-            .CreateECPoint(duchy_3_el_gamal_key_pair_.public_key().element())
-            .value();
-    ECPoint client_public_el_gamal_y_ec =
-        duchy_1_public_el_gamal_y_ec.Add(duchy_2_public_el_gamal_y_ec)
-            .value()
-            .Add(duchy_3_public_el_gamal_y_ec)
-            .value();
-    std::string common_generator =
-        duchy_1_el_gamal_key_pair_.public_key().generator();
-    client_el_gamal_public_key_.set_generator(common_generator);
-    client_el_gamal_public_key_.set_element(
-        client_public_el_gamal_y_ec.ToBytesCompressed().value());
-    ECPoint duchy_2_3_composite_public_el_gamal_y_ec =
-        duchy_2_public_el_gamal_y_ec.Add(duchy_3_public_el_gamal_y_ec).value();
-    duchy_2_3_composite_public_key_.set_generator(common_generator);
-    duchy_2_3_composite_public_key_.set_element(
-        duchy_2_3_composite_public_el_gamal_y_ec.ToBytesCompressed().value());
+    client_el_gamal_public_key_ = ToCmmElGamalKey(
+        any_sketch::crypto::CombineElGamalPublicKeys(
+            kTestCurveId,
+            {ToAnysketchElGamalKey(duchy_1_el_gamal_key_pair_.public_key()),
+             ToAnysketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
+             ToAnysketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
+            .value());
+    duchy_2_3_composite_public_key_ = ToCmmElGamalKey(
+        any_sketch::crypto::CombineElGamalPublicKeys(
+            kTestCurveId,
+            {ToAnysketchElGamalKey(duchy_2_el_gamal_key_pair_.public_key()),
+             ToAnysketchElGamalKey(duchy_3_el_gamal_key_pair_.public_key())})
+            .value());
 
     any_sketch::crypto::CiphertextString client_public_key = {
         .u = client_el_gamal_public_key_.generator(),

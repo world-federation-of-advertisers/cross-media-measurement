@@ -14,9 +14,9 @@
 
 package org.wfanet.measurement.duchy.daemon.mill
 
-import org.wfanet.common.ElGamalKeyPair
-import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.hexAsByteString
+import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
+import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 
 /** All crypto keys necessary for the computations in the mill. */
 data class CryptoKeySet(
@@ -55,5 +55,32 @@ fun String.toElGamalPublicKey(): ElGamalPublicKey {
   return ElGamalPublicKey.newBuilder()
     .setGenerator(substring(0, BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
     .setElement(substring(BYTES_PER_PUBLIC_KEY * 2).hexAsByteString())
+    .build()
+}
+
+fun org.wfanet.common.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
+  return ElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = generator
+      it.element = element
+    }
+    .build()
+}
+
+fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): org.wfanet.common.ElGamalPublicKey {
+  return org.wfanet.common.ElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = generator
+      it.element = element
+    }
+    .build()
+}
+
+fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.common.ElGamalKeyPair {
+  return org.wfanet.common.ElGamalKeyPair.newBuilder()
+    .also {
+      it.publicKey = publicKey.toAnySketchElGamalPublicKey()
+      it.secretKey = secretKey
+    }
     .build()
 }

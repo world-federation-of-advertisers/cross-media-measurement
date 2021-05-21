@@ -23,6 +23,26 @@
 
 namespace wfa {
 
+MATCHER(IsOk, "") {
+  return testing::ExplainMatchResult(true, arg.ok(), result_listener);
+}
+
+MATCHER(IsNotOk, "") {
+  return testing::ExplainMatchResult(testing::Not(IsOk()), arg,
+                                     result_listener);
+}
+
+MATCHER_P(IsOkAndHolds, value, "") {
+  if (arg.ok()) {
+    return testing::ExplainMatchResult(value, arg.value(), result_listener);
+  }
+
+  *result_listener << "expected OK status instead of error code "
+                   << absl::StatusCodeToString(arg.status().code())
+                   << " and message " << arg.status();
+  return false;
+}
+
 MATCHER_P2(StatusIs, code, message, "") {
   if (arg.code() != code) {
     *result_listener << "Expected code: " << code << " but got code "

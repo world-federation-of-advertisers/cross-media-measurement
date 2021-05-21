@@ -33,6 +33,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
@@ -62,7 +63,8 @@ class GcpSpannerComputationsDatabaseTransactor<
     protocol: ProtocolT,
     initialStage: StageT,
     stageDetails: StageDT,
-    computationDetails: ComputationDT
+    computationDetails: ComputationDT,
+    requisitions: List<ExternalRequisitionKey>
   ) {
     require(computationMutations.validInitialStage(protocol, initialStage)) {
       "Invalid initial stage $initialStage"
@@ -100,7 +102,17 @@ class GcpSpannerComputationsDatabaseTransactor<
         dependencyType = ComputationBlobDependency.OUTPUT
       )
 
-    databaseClient.write(computationRow, computationStageRow, blobRefRow)
+    val requisitionRows =
+      requisitions.map {
+        computationMutations.insertRequisition(
+          localComputationId = localId,
+          requisitionId = requisitions.indexOf(it).toLong(),
+          externalDataProviderId = it.externalDataProviderId,
+          externalRequisitionId = it.externalRequisitionId
+        )
+      }
+
+    databaseClient.write(listOf(computationRow, computationStageRow, blobRefRow) + requisitionRows)
   }
 
   override suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int) {
@@ -573,6 +585,47 @@ class GcpSpannerComputationsDatabaseTransactor<
             stage = token.stage,
             blobId = blobRef.idInRelationalDatabase,
             pathToBlob = blobRef.key
+          )
+        )
+      )
+    }
+  }
+
+  override suspend fun writeRequisitionBlobPath(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    pathToBlob: String
+  ) {
+    require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
+    runIfTokenFromLastUpdate(token) { ctx ->
+      val row =
+        ctx.readRowUsingIndex(
+          "Requisitions",
+          "RequisitionsByExternalId",
+          Key.of(
+            externalRequisitionKey.externalDataProviderId,
+            externalRequisitionKey.externalRequisitionId
+          ),
+          listOf("ComputationId", "RequisitionId")
+        )
+          ?: error("No Computation found row for this requisition: $externalRequisitionKey")
+      val localComputationId = row.getLong("ComputationId")
+      val requisitionId = row.getLong("RequisitionId")
+      require(localComputationId == token.localId) {
+        "The token doesn't match the computation owns the requisition."
+      }
+      ctx.buffer(
+        listOf(
+          computationMutations.updateComputation(
+            localId = localComputationId,
+            updateTime = clock.gcloudTimestamp()
+          ),
+          computationMutations.updateRequisition(
+            localComputationId = localComputationId,
+            requisitionId = requisitionId,
+            externalDataProviderId = externalRequisitionKey.externalDataProviderId,
+            externalRequisitionId = externalRequisitionKey.externalRequisitionId,
+            pathToBlob = pathToBlob
           )
         )
       )

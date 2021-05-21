@@ -14,9 +14,9 @@
 
 package org.wfanet.measurement.duchy
 
-import org.wfanet.common.ElGamalPublicKey
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyPublicKeyConfig
+import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import picocli.CommandLine
 
 private typealias ConfigMapEntry = Map.Entry<String, DuchyPublicKeyConfig.Entry>

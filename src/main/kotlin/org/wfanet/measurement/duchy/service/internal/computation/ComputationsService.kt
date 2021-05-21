@@ -25,6 +25,7 @@ import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
+import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
@@ -134,14 +135,22 @@ class ComputationsService(
     request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
     val computationToken =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
           computationsDatabase.readComputationToken(request.globalComputationId)
-            ?: throw Status.NOT_FOUND.asRuntimeException()
-        KeyCase.REQUISITION_KEY -> TODO("not implemented.")
+        KeyCase.REQUISITION_KEY ->
+          computationsDatabase.readComputationToken(
+            ExternalRequisitionKey(
+              request.requisitionKey.externalDataProviderId,
+              request.requisitionKey.externalRequisitionId
+            )
+          )
         KeyCase.KEY_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
       }
+        ?: throw Status.NOT_FOUND.asRuntimeException()
+
     return computationToken.toGetComputationTokenResponse()
   }
 
@@ -218,7 +227,15 @@ class ComputationsService(
   override suspend fun recordRequisitionBlobPath(
     request: RecordRequisitionBlobPathRequest
   ): RecordRequisitionBlobPathResponse {
-    TODO("unimplemented")
+    val requisitionKey =
+      ExternalRequisitionKey(request.key.externalDataProviderId, request.key.externalRequisitionId)
+    computationsDatabase.writeRequisitionBlobPath(
+      request.token.toDatabaseEditToken(),
+      requisitionKey,
+      request.blobPath
+    )
+    return computationsDatabase.readComputationToken(requisitionKey)!!
+      .toRecordRequisitionBlobPathResponse()
   }
 
   private fun newStatusUpdateRequest(
