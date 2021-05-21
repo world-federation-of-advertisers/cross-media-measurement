@@ -18,7 +18,7 @@ import io.grpc.BindableService
 import io.grpc.Channel
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
@@ -51,7 +51,7 @@ fun runKingdomApiServer(
   DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
 
   val channel: Channel =
-    buildChannel(kingdomApiServerFlags.internalApiTarget)
+    buildTlsChannel(kingdomApiServerFlags.internalApiTarget)
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
 
   val service = serviceFactory(channel).withDuchyIdentities()
