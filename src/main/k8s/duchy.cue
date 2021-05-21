@@ -100,6 +100,7 @@ import ("strings")
 				"--duchy-secret-key=\(_key)",
 				"--liquid-legions-decay-rate=23.0",
 				"--liquid-legions-size=330000",
+				"--sketch-max-frequency=5",
 				"--aggregator-id=\(_aggregator_name)",
 				"--mill-id=\(_name)-liquid-legions-v2-mill-1",
 				"--polling-interval=1s",

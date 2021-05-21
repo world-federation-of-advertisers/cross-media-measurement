@@ -34,4 +34,5 @@ TEST_GOOGLE_CLOUD_SETTINGS = struct(
     spanner_instance = "",
     cloud_storage_project = "",
     cloud_storage_bucket = "",
+    bigquery_table = "",
 )

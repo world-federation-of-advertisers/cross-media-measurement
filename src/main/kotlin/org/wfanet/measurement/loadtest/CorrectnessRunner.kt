@@ -70,9 +70,28 @@ abstract class CorrectnessRunner : Runnable {
             publisherDataStub = publisherDataStub
           )
 
-        val bigQuery = buildBigQuery(flags.spannerFlags.projectName)
+        val eventDataGeneration = flags.eventDataGeneration
 
-        correctness.process(relationalDatabase, databaseTestHelper, bigQuery)
+        if (eventDataGeneration == "random") {
+          correctness.process(relationalDatabase, databaseTestHelper)
+        } else if (eventDataGeneration == "query") {
+          correctness.process(
+            databaseTestHelper,
+            buildBigQuery(flags.spannerFlags.projectName),
+            flags.tableName,
+            QueryParameter(
+              publisherIds = flags.publisherIds,
+              sex = flags.sex,
+              ageGroups = flags.ageGroup,
+              socialGrades = flags.socialGrade,
+              complete = flags.complete,
+              beginDate = flags.beginDate,
+              endDate = flags.endDate
+            )
+          )
+        } else {
+          throw IllegalArgumentException("Unknown or unsupported data generation type.")
+        }
       }
     }
   }

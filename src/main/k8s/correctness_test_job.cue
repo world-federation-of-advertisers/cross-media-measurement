@@ -38,6 +38,12 @@ package k8s
 						"--run-id=",
 						"--sketch-config-file=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/loadtest/config/liquid_legions_sketch_config.textproto",
 						"--publisher-data-service-target=" + (#Target & {name: "worker-1-publisher-data-server"}).target,
+						"--event-data-generation=random",
+						// Below parameters are applicable when only event-data-generation=query
+						// "--begin-date=2021-03-01",
+						// "--end-date=2021-03-28",
+						// "--age-groups=35_54",
+						// "--publisher-ids=1,2,3,4,5,6",
 			] + _args
 			volumeMounts: [{
 				name:      "cache-volume"

@@ -66,6 +66,7 @@ cue_dump(
         "repository_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "spanner_instance": TEST_GOOGLE_CLOUD_SETTINGS.spanner_instance,
         "spanner_project": TEST_GOOGLE_CLOUD_SETTINGS.spanner_project,
+        "bigquery_table": TEST_GOOGLE_CLOUD_SETTINGS.bigquery_table,
     },
 )
 
