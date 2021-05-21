@@ -25,6 +25,14 @@ class CorrectnessFlags {
   lateinit var spannerFlags: SpannerFlags
     private set
 
+  @CommandLine.Option(
+    names = ["--bigquery-table"],
+    description = ["Name of the BigQuery table."],
+    required = true
+  )
+  lateinit var tableName: String
+    private set
+
   @set:CommandLine.Option(
     names = ["--data-provider-count"],
     description = ["Number of Data Providers."],
@@ -79,5 +87,69 @@ class CorrectnessFlags {
     required = false
   )
   lateinit var runId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--event-data-generation"],
+    description = ["Event data generation type."],
+    defaultValue = "query"
+  )
+  lateinit var eventDataGeneration: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--publisher-ids"],
+    description = ["Publisher Ids."],
+    defaultValue = "1,2,3,4,5,6",
+    split = ","
+  )
+  lateinit var publisherIds: Array<String>
+    private set
+
+  @CommandLine.Option(names = ["--sex"], description = ["Sex."], defaultValue = "M,F", split = ",")
+  lateinit var sex: Array<String>
+    private set
+
+  @CommandLine.Option(
+    names = ["--age-groups"],
+    description = ["Age Group."],
+    defaultValue = "18_34,35_54,55+",
+    split = ","
+  )
+  lateinit var ageGroup: Array<String>
+    private set
+
+  @CommandLine.Option(
+    names = ["--social-grades"],
+    description = ["Social Grade."],
+    defaultValue = "ABC1,C2DE",
+    split = ","
+  )
+  lateinit var socialGrade: Array<String>
+    private set
+
+  @CommandLine.Option(
+    names = ["--complete"],
+    description = ["Complete."],
+    defaultValue = "0,1",
+    split = ","
+  )
+  lateinit var complete: Array<String>
+    private set
+
+  @CommandLine.Option(
+    names = ["--begin-date"],
+    description = ["Begin Date."],
+    defaultValue = "2021-03-01"
+  )
+  lateinit var beginDate: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--end-date"],
+    description = ["End Date."],
+    defaultValue = "2021-03-28"
+  )
+  lateinit var endDate: String
     private set
 }

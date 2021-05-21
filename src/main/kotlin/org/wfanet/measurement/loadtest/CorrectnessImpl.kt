@@ -21,6 +21,7 @@ import com.google.cloud.bigquery.JobId
 import com.google.cloud.bigquery.JobInfo
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.QueryParameterValue
+import com.google.cloud.bigquery.StandardSQLTypeName
 import com.google.cloud.bigquery.TableResult
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -83,7 +84,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.system.v1alpha.GlobalComputation
 
-private const val MAX_COUNTER_VALUE = 10
+private const val MAX_COUNTER_VALUE = 5
 private const val DECAY_RATE = 23.0
 private const val INDEX_SIZE = 330_000L
 private const val GLOBAL_COMPUTATION_ID = "1"
@@ -104,52 +105,14 @@ class CorrectnessImpl(
   /** Cache of [CombinedPublicKey] resource ID to [CombinedPublicKey]. */
   private val publicKeyCache = mutableMapOf<String, CombinedPublicKey>()
 
-  // TODO(@yunyeng): Move parameter mappings to flag level.
-  private val sexMap: Map<String, LabeledEvent.Sex> =
-    mapOf("M" to LabeledEvent.Sex.MALE, "F" to LabeledEvent.Sex.FEMALE)
-  private val ageGroupMap: Map<String, LabeledEvent.AgeGroup> =
-    mapOf(
-      "18_34" to LabeledEvent.AgeGroup._18_34,
-      "35_54" to LabeledEvent.AgeGroup._35_54,
-      "55+" to LabeledEvent.AgeGroup._55
-    )
-  private val socialGradeMap: Map<String, LabeledEvent.SocialGrade> =
-    mapOf("ABC1" to LabeledEvent.SocialGrade.ABC1, "C2DE" to LabeledEvent.SocialGrade.C2DE)
-  private val completeMap: Map<String, LabeledEvent.Complete> =
-    mapOf("0" to LabeledEvent.Complete.INCOMPLETE, "1" to LabeledEvent.Complete.COMPLETE)
-
   suspend fun process(
     relationalDatabase: KingdomRelationalDatabase,
-    relationalDatabaseTestHelper: DatabaseTestHelper,
-    bigQuery: BigQuery
+    relationalDatabaseTestHelper: DatabaseTestHelper
   ) {
-
-    // TODO(@yunyeng): Move parameters into flags and document them.
-    val publisher: Array<Long> = arrayOf(1L, 2L, 5L)
-    val sex: Array<String> = arrayOf("M", "F")
-    val ageGroup: Array<String> = arrayOf("18_34", "35_54", "55+")
-    val socialGrade: Array<String> = arrayOf("ABC1", "C2DE")
-    val complete: Array<String> = arrayOf("0", "1")
-    val startDate: String = "2021-03-15"
-    val endDate: String = "2021-03-22"
-    val events: Map<Long, List<LabeledEvent>> =
-      bigQuery.getLabeledEvents(
-          publisher = publisher,
-          sex = sex,
-          ageGroup = ageGroup,
-          socialGrade = socialGrade,
-          complete = complete,
-          startDate = startDate,
-          endDate = endDate
-        )
-        .groupBy { it.publisherId }
-
     logger.info("Starting with RunID: $runId ...")
     val testResult = TestResult.newBuilder().setRunId(runId)
 
-    val advertiser = relationalDatabaseTestHelper.createAdvertiser()
-    logger.info("Created an Advertiser: $advertiser")
-    val externalAdvertiserId = ExternalId(advertiser.externalAdvertiserId)
+    val externalAdvertiserId = createAdvertiser(relationalDatabaseTestHelper)
 
     val generatedCampaigns =
       List(dataProviderCount) {
@@ -195,29 +158,107 @@ class CorrectnessImpl(
     logger.info("Correctness Test passes with manifest: $blobKey.")
   }
 
+  suspend fun process(
+    relationalDatabaseTestHelper: DatabaseTestHelper,
+    bigQuery: BigQuery,
+    tableName: String,
+    queryParameter: QueryParameter
+  ) {
+    logger.info("Starting with RunID: $runId ...")
+    val testResult = TestResult.newBuilder().setRunId(runId)
+
+    // Validate all the parameters.
+    validateParameters(queryParameter)
+    val events: Map<Long, List<Long>> =
+      bigQuery
+        .getLabeledEvents(
+          tableName = tableName,
+          publisher = queryParameter.publisherIds.map { it.toInt() }.toTypedArray(),
+          sex = queryParameter.sex,
+          ageGroup = queryParameter.ageGroups,
+          socialGrade = queryParameter.socialGrades,
+          complete = queryParameter.complete,
+          beginDate = queryParameter.beginDate,
+          endDate = queryParameter.endDate
+        )
+        .groupBy({ it.publisherId }, { it.vid })
+
+    val externalAdvertiserId = createAdvertiser(relationalDatabaseTestHelper)
+
+    val campaigns = mutableListOf<GeneratedCampaign>()
+    events.forEach { event ->
+      val dataProvider = relationalDatabaseTestHelper.createDataProvider()
+      logger.info(
+        "PublisherId: ${event.key} written to Spanner as ${dataProvider.externalDataProviderId}."
+      )
+      val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
+      campaigns.add(
+        relationalDatabaseTestHelper.createCampaign(
+          event.value,
+          externalAdvertiserId,
+          externalDataProviderId,
+          "Publisher ${event.key} Campaign"
+        )
+      )
+    }
+
+    // Schedule a report before loading the metric requisitions.
+    val campaignIds = campaigns.map { it.campaignId }
+    relationalDatabaseTestHelper.scheduleReport(externalAdvertiserId, campaignIds)
+
+    // Finally, we are sending encrypted sketches to the PublisherDataService.
+    coroutineScope { campaigns.forEach { launch { encryptAndSend(it, testResult) } } }
+  }
+
+  /**
+   * Validates the given query parameters.
+   *
+   * @param queryParameter a [QueryParameter] consists of all parameters to query.
+   * @throws IllegalArgumentException
+   */
+  private fun validateParameters(queryParameter: QueryParameter) {
+    queryParameter.sex.forEach { it.toSex() }
+    queryParameter.socialGrades.forEach { it.toSocialGrade() }
+    queryParameter.ageGroups.forEach { it.toAgeGroup() }
+    queryParameter.complete.forEach { it.toComplete() }
+  }
+
   /**
    * Get demo data from BigQuery table.
    *
+   * @param tableName name of the BigQuery table to query.
+   * @param publisher Array of publisher ids to filter in query.
    * @param sex Array of sexes to filter in query.
    * @param ageGroup Array of age groups to filter in query.
    * @param socialGrade Array of age social grades to filter in query.
    * @param complete Array of completion to filter in query.
-   * @param startDate String of start date to filter in query.
+   * @param beginDate String of begin date to filter in query.
    * @param endDate String of end date to filter in query.
    * @return List of [LabeledEvent]s from the executed query.
    */
   private fun BigQuery.getLabeledEvents(
-    publisher: Array<Long>,
+    tableName: String,
+    publisher: Array<Int>,
     sex: Array<String>,
     ageGroup: Array<String>,
     socialGrade: Array<String>,
     complete: Array<String>,
-    startDate: String,
+    beginDate: String,
     endDate: String
   ): List<LabeledEvent> {
     val queryConfig =
-      buildQueryConfig(publisher, sex, ageGroup, socialGrade, complete, startDate, endDate)
+      buildQueryConfig(
+        tableName,
+        publisher,
+        sex,
+        ageGroup,
+        socialGrade,
+        complete,
+        beginDate,
+        endDate
+      )
     val jobId: JobId = JobId.of(UUID.randomUUID().toString())
+
     var queryJob: Job = this.create(JobInfo.newBuilder(queryConfig).setJobId(jobId).build())
     logger.info("Connected to BigQuery Successfully.")
     queryJob = queryJob.waitFor()
@@ -231,48 +272,56 @@ class CorrectnessImpl(
     val labeledEvents = mutableListOf<LabeledEvent>()
     for (row: FieldValueList in result.iterateAll()) {
       val event = buildLabeledEvent(row)
-      println(event)
-      logger.info(event.toString())
       labeledEvents.add(event)
     }
-    logger.info("Query executed successfully.!")
+    logger.info("Query executed successfully!")
+    logger.info("Events size: ${labeledEvents.size}")
 
     return labeledEvents
   }
 
   // Builds a query based on the parameters given.
   private fun buildQueryConfig(
-    publisher: Array<Long>,
+    tableName: String,
+    publisher: Array<Int>,
     sex: Array<String>,
     ageGroup: Array<String>,
     socialGrade: Array<String>,
     complete: Array<String>,
-    startDate: String,
+    beginDate: String,
     endDate: String
   ): QueryJobConfiguration {
     val query =
       """
       SELECT publisher_id, event_id, sex, age_group, social_grade, complete, vid, date
-      FROM `ads-open-measurement.demo.labelled_events`
+      FROM `$tableName`
       WHERE publisher_id IN UNNEST(@publisher)
       AND sex IN UNNEST(@sex)
       AND age_group IN UNNEST(@age_group)
       AND social_grade IN UNNEST(@social_grade)
       AND complete IN UNNEST(@complete)
-      AND date BETWEEN @start_date AND @end_date
-      LIMIT 100
+      AND date BETWEEN @begin_date AND @end_date
       """.trimIndent()
     val queryConfig: QueryJobConfiguration =
       QueryJobConfiguration.newBuilder(query)
-        .addNamedParameter("publisher", QueryParameterValue.array(publisher, Long::class.java))
-        .addNamedParameter("sex", QueryParameterValue.array(sex, String::class.java))
-        .addNamedParameter("age_group", QueryParameterValue.array(ageGroup, String::class.java))
+        .addNamedParameter(
+          "publisher",
+          QueryParameterValue.array(publisher, StandardSQLTypeName.INT64)
+        )
+        .addNamedParameter("sex", QueryParameterValue.array(sex, StandardSQLTypeName.STRING))
+        .addNamedParameter(
+          "age_group",
+          QueryParameterValue.array(ageGroup, StandardSQLTypeName.STRING)
+        )
         .addNamedParameter(
           "social_grade",
-          QueryParameterValue.array(socialGrade, String::class.java)
+          QueryParameterValue.array(socialGrade, StandardSQLTypeName.STRING)
         )
-        .addNamedParameter("complete", QueryParameterValue.array(complete, String::class.java))
-        .addNamedParameter("start_date", QueryParameterValue.date(startDate))
+        .addNamedParameter(
+          "complete",
+          QueryParameterValue.array(complete, StandardSQLTypeName.STRING)
+        )
+        .addNamedParameter("begin_date", QueryParameterValue.date(beginDate))
         .addNamedParameter("end_date", QueryParameterValue.date(endDate))
         .build()
     return queryConfig
@@ -292,30 +341,42 @@ class CorrectnessImpl(
       .build()
   }
 
-  // Converts String SQL date format into Date.
+  // Utility function that converts String SQL date format into Date.
   private fun String.toDate(): Date {
     val date = com.google.cloud.Date.parseDate(this)
     return Date.newBuilder().setDay(date.dayOfMonth).setMonth(date.month).setYear(date.year).build()
   }
 
-  // Converts String Sex into enum Sex.
+  // Utility function that converts String Sex into enum Sex.
+  private val sexMap: Map<String, LabeledEvent.Sex> =
+    mapOf("M" to LabeledEvent.Sex.MALE, "F" to LabeledEvent.Sex.FEMALE)
   private fun String.toSex(): LabeledEvent.Sex {
     return sexMap[this] ?: throw IllegalArgumentException("Unsupported value for Sex parameter.")
   }
 
-  // Converts String Age group into enum AgeGroup.
+  // Utility function that converts String AgeGroup into enum AgeGroup.
+  private val ageGroupMap: Map<String, LabeledEvent.AgeGroup> =
+    mapOf(
+      "18_34" to LabeledEvent.AgeGroup._18_34,
+      "35_54" to LabeledEvent.AgeGroup._35_54,
+      "55+" to LabeledEvent.AgeGroup._55
+    )
   private fun String.toAgeGroup(): LabeledEvent.AgeGroup {
     return ageGroupMap[this]
       ?: throw IllegalArgumentException("Unsupported value for Age Group parameter.")
   }
 
-  // Converts String Social grade into enum SocialGrade.
+  // Utility function that converts String Social grade into enum SocialGrade.
+  private val socialGradeMap: Map<String, LabeledEvent.SocialGrade> =
+    mapOf("ABC1" to LabeledEvent.SocialGrade.ABC1, "C2DE" to LabeledEvent.SocialGrade.C2DE)
   private fun String.toSocialGrade(): LabeledEvent.SocialGrade {
     return socialGradeMap[this]
       ?: throw IllegalArgumentException("Unsupported value for Social Grade parameter.")
   }
 
-  // Converts String Complete into enum Complete.
+  // Utility function that converts String Complete into enum Complete.
+  private val completeMap: Map<String, LabeledEvent.Complete> =
+    mapOf("0" to LabeledEvent.Complete.INCOMPLETE, "1" to LabeledEvent.Complete.COMPLETE)
   private fun String.toComplete(): LabeledEvent.Complete {
     return completeMap[this]
       ?: throw IllegalArgumentException("Unsupported value for Complete parameter.")
@@ -339,6 +400,12 @@ class CorrectnessImpl(
       .first()
   }
 
+  private suspend fun createAdvertiser(databaseTestHelper: DatabaseTestHelper): ExternalId {
+    val advertiser = databaseTestHelper.createAdvertiser()
+    logger.info("Created an Advertiser: $advertiser")
+    return ExternalId(advertiser.externalAdvertiserId)
+  }
+
   private suspend fun DatabaseTestHelper.createDataProvider(
     externalAdvertiserId: ExternalId
   ): Flow<GeneratedCampaign> {
@@ -347,16 +414,17 @@ class CorrectnessImpl(
     val externalDataProviderId = ExternalId(dataProvider.externalDataProviderId)
 
     return generateReach().asFlow().map { reach ->
-      createCampaign(reach, externalAdvertiserId, externalDataProviderId)
+      createCampaign(reach.toList(), externalAdvertiserId, externalDataProviderId)
     }
   }
 
   private suspend fun DatabaseTestHelper.createCampaign(
-    reach: Set<Long>,
+    reach: List<Long>,
     externalAdvertiserId: ExternalId,
-    externalDataProviderId: ExternalId
+    externalDataProviderId: ExternalId,
+    campaignName: String = "Campaign name"
   ): GeneratedCampaign {
-    val campaign = createCampaign(externalDataProviderId, externalAdvertiserId, "Campaign name")
+    val campaign = createCampaign(externalDataProviderId, externalAdvertiserId, campaignName)
     logger.info("Created a Campaign $campaign")
     val externalCampaignId = ExternalId(campaign.externalCampaignId)
     val anySketch = generateSketch(reach)
@@ -472,7 +540,7 @@ class CorrectnessImpl(
     return generateIndependentSets(universeSize, generatedSetSize).take(campaignCount)
   }
 
-  override fun generateSketch(reach: Set<Long>): AnySketch {
+  override fun generateSketch(reach: List<Long>): AnySketch {
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     for (value: Long in reach) {
       anySketch.insert(value, mapOf("frequency" to 1L))
@@ -487,9 +555,14 @@ class CorrectnessImpl(
 
   override fun estimateFrequency(anySketch: AnySketch): Map<Long, Double> {
     val valueIndex = anySketch.getValueIndex("SamplingIndicator").asInt
-    return ValueHistogram.calculateHistogram(anySketch, "Frequency") {
-      it.values[valueIndex] != -1L
+    val actualHistogram =
+      ValueHistogram.calculateHistogram(anySketch, "Frequency") { it.values[valueIndex] != -1L }
+    val result = mutableMapOf<Long, Double>()
+    actualHistogram.forEach {
+      val key = minOf(it.key, MAX_COUNTER_VALUE.toLong())
+      result[key] = result.getOrDefault(key, 0.0) + it.value
     }
+    return result
   }
 
   override fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): ByteString {
@@ -614,6 +687,16 @@ class CorrectnessImpl(
     }
   }
 }
+
+data class QueryParameter(
+  val publisherIds: Array<String>,
+  val sex: Array<String>,
+  val ageGroups: Array<String>,
+  val socialGrades: Array<String>,
+  val complete: Array<String>,
+  val beginDate: String,
+  val endDate: String
+)
 
 private data class GeneratedCampaign(
   val dataProviderId: ExternalId,

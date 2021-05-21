@@ -21,6 +21,7 @@ _spanner_project:           string @tag("spanner_project")
 _spanner_instance:          string @tag("spanner_instance")
 _cloud_storage_project:     string @tag("cloud_storage_project")
 _cloud_storage_bucket:      string @tag("cloud_storage_bucket")
+_bigquery_table:            string @tag("bigquery_table")
 _container_registry:        string @tag("container_registry")
 _repository_prefix:         string @tag("repository_prefix")
 _container_registry_prefix: _container_registry + "/" + _repository_prefix
@@ -117,5 +118,6 @@ setup_job: "correctness-test-job": #CorrectnessTest & {
 		"--spanner-database=kingdom",
 		"--spanner-instance=\(_spanner_instance)",
 		"--spanner-project=\(_spanner_project)",
+		"--bigquery-table=\(_bigquery_table)",
 	]
 }

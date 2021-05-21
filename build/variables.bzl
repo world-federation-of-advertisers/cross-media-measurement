@@ -23,7 +23,6 @@ It is in .gitignore; please don't commit your local changes.
 IMAGE_REPOSITORY_SETTINGS = struct(
     # URL of the container registry.
     container_registry = "",
-
     # Common prefix of all images.
     repository_prefix = "",
 )
@@ -34,4 +33,5 @@ TEST_GOOGLE_CLOUD_SETTINGS = struct(
     spanner_instance = "",
     cloud_storage_project = "",
     cloud_storage_bucket = "",
+    bigquery_table = "",
 )

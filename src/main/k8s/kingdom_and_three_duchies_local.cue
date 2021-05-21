@@ -175,5 +175,6 @@ setup_job: "correctness-test-job": #CorrectnessTest & {
 		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
 		"--spanner-instance=emulator-instance",
 		"--spanner-project=cross-media-measurement-system",
+		"--bigquery-table=",
 	]
 }
