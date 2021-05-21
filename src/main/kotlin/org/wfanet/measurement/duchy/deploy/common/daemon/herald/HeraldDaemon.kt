@@ -23,12 +23,13 @@ import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
 private class Flags {
@@ -60,7 +61,7 @@ private class Flags {
 
   @CommandLine.Option(
     names = ["--global-computation-service-target"],
-    description = ["Address and port of the Global Computation Service"],
+    description = ["Address and port of the kingdom system Computations Service"],
     required = true
   )
   lateinit var globalComputationsServiceTarget: String
@@ -81,6 +82,14 @@ private class Flags {
   )
   lateinit var protocolsSetupConfig: String
     private set
+
+  @CommandLine.Option(
+    names = ["--public-api-protocol-configs"],
+    description = ["PublicApiProtocolConfigs proto message in text format."],
+    required = true
+  )
+  lateinit var publicApiProtocolConfigs: String
+    private set
 }
 
 @CommandLine.Command(
@@ -96,13 +105,19 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   }
   val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
 
-  val channel = buildChannel(flags.globalComputationsServiceTarget)
-  addChannelShutdownHooks(Runtime.getRuntime(), flags.channelShutdownTimeout, channel)
-
+  val globalComputationServiceChannel = buildChannel(flags.globalComputationsServiceTarget)
   val globalComputationsClient =
-    GlobalComputationsCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
+    SystemComputationsCoroutineStub(globalComputationServiceChannel)
+      .withDuchyId(flags.duchy.duchyName)
 
   val storageChannel = buildChannel(flags.computationsServiceTarget)
+
+  addChannelShutdownHooks(
+    Runtime.getRuntime(),
+    flags.channelShutdownTimeout,
+    globalComputationServiceChannel,
+    storageChannel
+  )
 
   val herald =
     Herald(
@@ -112,7 +127,13 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-        }
+        },
+      configMaps =
+        flags
+          .publicApiProtocolConfigs
+          .reader()
+          .use { parseTextProto(it, PublicApiProtocolConfigs.getDefaultInstance()) }
+          .configsMap
     )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }
