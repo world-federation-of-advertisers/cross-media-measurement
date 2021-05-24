@@ -58,7 +58,7 @@ fun String.toElGamalPublicKey(): ElGamalPublicKey {
     .build()
 }
 
-fun org.wfanet.common.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
+fun org.wfanet.anysketch.crypto.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
   return ElGamalPublicKey.newBuilder()
     .also {
       it.generator = generator
@@ -67,8 +67,8 @@ fun org.wfanet.common.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKe
     .build()
 }
 
-fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): org.wfanet.common.ElGamalPublicKey {
-  return org.wfanet.common.ElGamalPublicKey.newBuilder()
+fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): org.wfanet.anysketch.crypto.ElGamalPublicKey {
+  return org.wfanet.anysketch.crypto.ElGamalPublicKey.newBuilder()
     .also {
       it.generator = generator
       it.element = element
@@ -76,8 +76,8 @@ fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): org.wfanet.common.ElGamalPub
     .build()
 }
 
-fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.common.ElGamalKeyPair {
-  return org.wfanet.common.ElGamalKeyPair.newBuilder()
+fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.anysketch.crypto.ElGamalKeyPair {
+  return org.wfanet.anysketch.crypto.ElGamalKeyPair.newBuilder()
     .also {
       it.publicKey = publicKey.toAnySketchElGamalPublicKey()
       it.secretKey = secretKey

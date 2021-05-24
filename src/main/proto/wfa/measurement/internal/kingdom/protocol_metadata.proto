@@ -16,8 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "wfa/common/el_gamal_key.proto";
-import "wfa/common/noise_parameters.proto";
+import "wfa/measurement/internal/kingdom/crypto.proto";
+import "wfa/measurement/internal/kingdom/differential_privacy.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -28,7 +28,7 @@ message LiquidLegionsV2MetaData {
   // Initial configurations
   LiquidLegionsV2Config config = 1;
   // ElGamal keys used for a certain report.
-  map<string, wfa.common.ElGamalPublicKey> duchy_keys = 2;
+  map<string, ElGamalPublicKey> duchy_keys = 2;
 }
 
 // Protocol-specific configuration for the Liquid Legions V2 Protocol.
@@ -54,7 +54,7 @@ message LiquidLegionsV2Config {
       // DP params for the publisher noise registers.
       // Each of these registers contains a well-known constant register id, and
       // arbitrary key and count values.
-      wfa.common.DifferentialPrivacyParams publisher_noise = 1;
+      DifferentialPrivacyParams publisher_noise = 1;
     }
     InputNoise input_noise = 1;
 
@@ -65,11 +65,11 @@ message LiquidLegionsV2Config {
       // Each of these registers contains a random register id, the same
       // constant key indicating that the register is destroyed, and an
       // arbitrary count value.
-      wfa.common.DifferentialPrivacyParams blinded_histogram_noise = 1;
+      DifferentialPrivacyParams blinded_histogram_noise = 1;
       // DP params for the noise for the publisher noise registers.
       // Each of these registers contains a well-known constant register id, and
       // arbitrary key and count values.
-      wfa.common.DifferentialPrivacyParams noise_for_publisher_noise = 2;
+      DifferentialPrivacyParams noise_for_publisher_noise = 2;
     }
     MpcNoise mpc_noise = 2;
 
@@ -80,10 +80,10 @@ message LiquidLegionsV2Config {
       // Each of these registers contains a random register id which is out of
       // bounds of the normal id space, the same constant key indicating that
       // the register is destroyed, and an arbitrary count value.
-      wfa.common.DifferentialPrivacyParams global_reach_noise = 1;
+      DifferentialPrivacyParams global_reach_noise = 1;
       // Differential privacy parameters for noise tuples.
       // Same value is used for both (0, R, R) and (R, R, R) tuples.
-      wfa.common.DifferentialPrivacyParams global_frequency_noise = 2;
+      DifferentialPrivacyParams global_frequency_noise = 2;
     }
     OutputNoise output_noise = 3;
   }
