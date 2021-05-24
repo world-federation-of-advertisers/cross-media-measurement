@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "wfa/measurement/api/v2alpha/event_group.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
 

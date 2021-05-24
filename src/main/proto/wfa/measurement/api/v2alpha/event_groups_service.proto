@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "wfa/measurement/api/v2alpha/event_group.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";

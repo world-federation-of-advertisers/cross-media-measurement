@@ -18,7 +18,6 @@ package wfa.measurement.api.v2alpha;
 
 import "wfa/measurement/api/v2alpha/account.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
-import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -81,28 +80,6 @@ message DataProviderPublicKey {
   // Resource key of the `DataProviderCertificate` that can be used to verify
   // `public_key`. Required.
   DataProviderCertificate.Key data_provider_certificate = 3;
-}
-
-// A grouping of events defined by a DataProvider. For example, a single
-// campaign or creative defined in a publisher's ad system.
-message EventGroup {
-  message Key {
-    string data_provider_id = 1;
-    string event_group_id = 2;
-  }
-  // Resource key.
-  Key key = 1;
-
-  // Resource key of the `MeasurementConsumer` associated with this
-  // `EventGroup`.
-  MeasurementConsumer.Key measurement_consumer = 2;
-
-  // Display name.
-  string display_name = 3;
-
-  // ID referencing the `EventGroup` in an external system, provided by the data
-  // provider.
-  string event_group_reference_id = 4;
 }
 
 // Wrapper for a list of `DataProvider` resource keys.
