@@ -14,7 +14,7 @@
 
 package org.wfanet.panelmatch.protocol.common
 
-import com.google.protobuf.ByteString
+import java.lang.RuntimeException
 import java.nio.file.Paths
 import org.wfanet.panelmatch.common.loadLibrary
 import wfanet.panelmatch.protocol.crypto.CommutativeEncryptionUtility
@@ -27,29 +27,45 @@ import wfanet.panelmatch.protocol.protobuf.ReApplyCommutativeEncryptionResponse
 
 /** A [CommutativeEncryption] implementation using the JNI [CommutativeEncryptionUtility]. */
 class JniCommutativeEncryption : CommutativeEncryption {
+  /** Indicates something went wrong in C++. */
+  class JniException(cause: Throwable) : RuntimeException(cause)
 
-  override fun applyCommutativeEncryption(
+  private fun <T> wrapJniException(block: () -> T): T {
+    return try {
+      block()
+    } catch (e: RuntimeException) {
+      throw JniException(e)
+    }
+  }
+
+  override fun encrypt(
     request: ApplyCommutativeEncryptionRequest
   ): ApplyCommutativeEncryptionResponse {
-    return ApplyCommutativeEncryptionResponse.parseFrom(
-      CommutativeEncryptionUtility.applyCommutativeEncryptionWrapper(request.toByteArray())
-    )
+    return wrapJniException {
+      ApplyCommutativeEncryptionResponse.parseFrom(
+        CommutativeEncryptionUtility.applyCommutativeEncryptionWrapper(request.toByteArray())
+      )
+    }
   }
 
-  override fun reApplyCommutativeEncryption(
+  override fun reEncrypt(
     request: ReApplyCommutativeEncryptionRequest
   ): ReApplyCommutativeEncryptionResponse {
-    return ReApplyCommutativeEncryptionResponse.parseFrom(
-      CommutativeEncryptionUtility.reApplyCommutativeEncryptionWrapper(request.toByteArray())
-    )
+    return wrapJniException {
+      ReApplyCommutativeEncryptionResponse.parseFrom(
+        CommutativeEncryptionUtility.reApplyCommutativeEncryptionWrapper(request.toByteArray())
+      )
+    }
   }
 
-  override fun applyCommutativeDecryption(
+  override fun decrypt(
     request: ApplyCommutativeDecryptionRequest
   ): ApplyCommutativeDecryptionResponse {
-    return ApplyCommutativeDecryptionResponse.parseFrom(
-      CommutativeEncryptionUtility.applyCommutativeDecryptionWrapper(request.toByteArray())
-    )
+    return wrapJniException {
+      ApplyCommutativeDecryptionResponse.parseFrom(
+        CommutativeEncryptionUtility.applyCommutativeDecryptionWrapper(request.toByteArray())
+      )
+    }
   }
 
   companion object {
@@ -61,37 +77,4 @@ class JniCommutativeEncryption : CommutativeEncryption {
       )
     }
   }
-}
-
-fun applyCommutativeEncryption(key: ByteString, plaintexts: List<ByteString>): List<ByteString> {
-  val request =
-    ApplyCommutativeEncryptionRequest.newBuilder()
-      .setEncryptionKey(key)
-      .addAllPlaintexts(plaintexts)
-      .build()
-  return JniCommutativeEncryption().applyCommutativeEncryption(request).getEncryptedTextsList()
-}
-
-fun reApplyCommutativeEncryption(
-  key: ByteString,
-  encryptedTexts: List<ByteString>
-): List<ByteString> {
-  val request =
-    ReApplyCommutativeEncryptionRequest.newBuilder()
-      .setEncryptionKey(key)
-      .addAllEncryptedTexts(encryptedTexts)
-      .build()
-  return JniCommutativeEncryption().reApplyCommutativeEncryption(request).getReencryptedTextsList()
-}
-
-fun applyCommutativeDecryption(
-  key: ByteString,
-  encryptedTexts: List<ByteString>
-): List<ByteString> {
-  val request =
-    ApplyCommutativeDecryptionRequest.newBuilder()
-      .setEncryptionKey(key)
-      .addAllEncryptedTexts(encryptedTexts)
-      .build()
-  return JniCommutativeEncryption().applyCommutativeDecryption(request).getDecryptedTextsList()
 }

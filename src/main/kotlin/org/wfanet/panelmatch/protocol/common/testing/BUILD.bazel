@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//src/test/kotlin/org/wfanet/panelmatch/protocol/common:__subpackages__"])
+
+kt_jvm_library(
+    name = "testing",
+    testonly = True,
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
+        "@wfa_measurement_system//imports/java/com/google/common/truth",
+        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_measurement_system//imports/kotlin/kotlin/test",
+    ],
+)
