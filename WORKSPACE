@@ -286,14 +286,14 @@ wfa_repo_archive(
 
 wfa_repo_archive(
     name = "any_sketch",
-    commit = "c8af6252d16096796ac40545756a3b9cf752ed6d",
+    commit = "995fe42006a56f926e568c0b02adae5f834a813d",
     repo = "any-sketch",
-    sha256 = "809853931d28a3a954bfda198871befc7de101934587c98d3e303498030ee399",
+    sha256 = "2477a9cb52a6a415b0d498f7ba19010965145af4a449029df2e64d2379d3cc01",
 )
 
 wfa_repo_archive(
     name = "any_sketch_java",
-    commit = "eb25d29f19f2ed6a4198988af4a09f8c300061b2",
+    commit = "a63d47ace86d025ec3330f341d1ba4b5573fe756",
     repo = "any-sketch-java",
-    sha256 = "e5e4f9dcc8984e98883aa9077163bfabb33ea9f2ec3eb9d5476c4babbcca2adc",
+    sha256 = "9dc3cea71dfeecad40ef67a6198846177d750d84401336d196d4d83059e8301e",
 )
