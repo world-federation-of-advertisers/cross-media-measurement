@@ -24,7 +24,7 @@ option java_multiple_files = true;
 message ComputationParticipant {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
-  fixed64 external_duchy_id = 3;
+  string external_duchy_id = 3;
 
   fixed64 external_duchy_certificate_id = 4;
 
