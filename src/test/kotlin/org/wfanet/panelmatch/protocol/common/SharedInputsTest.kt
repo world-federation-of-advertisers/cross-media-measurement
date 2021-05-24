@@ -18,7 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import org.junit.Test
 
-class UtilsTest {
+class SharedInputsTest {
 
   @Test
   fun `check Shared Inputs serializer and parser`() {

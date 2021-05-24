@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.protocol.common
 
+import com.google.protobuf.ByteString
 import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeDecryptionRequest
 import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeDecryptionResponse
 import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeEncryptionRequest
@@ -21,22 +22,45 @@ import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeEncryptionResponse
 import wfanet.panelmatch.protocol.protobuf.ReApplyCommutativeEncryptionRequest
 import wfanet.panelmatch.protocol.protobuf.ReApplyCommutativeEncryptionResponse
 
-/**
- * Crypto operations for Commutative Encryption. check
- * src/main/cc/wfanet/panelmatch/common/crypto/commutative_encryption_utilty.h for more
- * descriptions.
- */
+/** Core deterministic, commutative cryptographic operations. */
 interface CommutativeEncryption {
 
-  fun applyCommutativeEncryption(
-    request: ApplyCommutativeEncryptionRequest
-  ): ApplyCommutativeEncryptionResponse
+  /** Encrypts plaintexts. */
+  fun encrypt(request: ApplyCommutativeEncryptionRequest): ApplyCommutativeEncryptionResponse
 
-  fun reApplyCommutativeEncryption(
-    request: ReApplyCommutativeEncryptionRequest
-  ): ReApplyCommutativeEncryptionResponse
+  /** Adds an additional layer of encryption to ciphertexts. */
+  fun reEncrypt(request: ReApplyCommutativeEncryptionRequest): ReApplyCommutativeEncryptionResponse
 
-  fun applyCommutativeDecryption(
-    request: ApplyCommutativeDecryptionRequest
-  ): ApplyCommutativeDecryptionResponse
+  /** Removes a layer of encryption from ciphertexts. */
+  fun decrypt(request: ApplyCommutativeDecryptionRequest): ApplyCommutativeDecryptionResponse
+
+  /** Encrypts plaintexts. */
+  fun encrypt(key: ByteString, plaintexts: List<ByteString>): List<ByteString> {
+    val request =
+      ApplyCommutativeEncryptionRequest.newBuilder()
+        .setEncryptionKey(key)
+        .addAllPlaintexts(plaintexts)
+        .build()
+    return encrypt(request).encryptedTextsList
+  }
+
+  /** Adds an additional layer of encryption to ciphertexts. */
+  fun reEncrypt(key: ByteString, encryptedTexts: List<ByteString>): List<ByteString> {
+    val request =
+      ReApplyCommutativeEncryptionRequest.newBuilder()
+        .setEncryptionKey(key)
+        .addAllEncryptedTexts(encryptedTexts)
+        .build()
+    return reEncrypt(request).reencryptedTextsList
+  }
+
+  /** Encrypts plaintexts. */
+  fun decrypt(key: ByteString, encryptedTexts: List<ByteString>): List<ByteString> {
+    val request =
+      ApplyCommutativeDecryptionRequest.newBuilder()
+        .setEncryptionKey(key)
+        .addAllEncryptedTexts(encryptedTexts)
+        .build()
+    return decrypt(request).decryptedTextsList
+  }
 }
