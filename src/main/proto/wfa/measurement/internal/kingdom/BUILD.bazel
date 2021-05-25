@@ -26,6 +26,10 @@ proto_and_java_proto_library(
 )
 
 proto_and_java_proto_library(
+    name = "crypto",
+)
+
+proto_and_java_proto_library(
     name = "differential_privacy",
 )
 
@@ -46,8 +50,8 @@ proto_and_java_proto_library(
 proto_and_java_proto_library(
     name = "protocol_metadata",
     deps = [
-        "@any_sketch//src/main/proto/wfa/common:el_gamal_key_proto",
-        "@any_sketch//src/main/proto/wfa/common:noise_parameters_proto",
+        ":crypto_proto",
+        ":differential_privacy_proto",
     ],
 )
 

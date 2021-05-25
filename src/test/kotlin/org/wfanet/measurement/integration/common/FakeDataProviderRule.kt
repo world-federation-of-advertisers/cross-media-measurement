@@ -28,6 +28,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.anysketch.Sketch
+import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
@@ -38,8 +40,6 @@ import org.wfanet.measurement.api.v1alpha.GetCombinedPublicKeyRequest
 import org.wfanet.measurement.api.v1alpha.ListMetricRequisitionsRequest
 import org.wfanet.measurement.api.v1alpha.MetricRequisition
 import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
-import org.wfanet.measurement.api.v1alpha.Sketch
-import org.wfanet.measurement.api.v1alpha.SketchConfig
 import org.wfanet.measurement.api.v1alpha.UploadMetricValueRequest
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.loadLibrary
