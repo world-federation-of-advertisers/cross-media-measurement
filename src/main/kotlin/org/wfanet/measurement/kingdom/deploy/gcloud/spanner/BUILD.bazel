@@ -36,3 +36,14 @@ genrule(
     cmd = "cat $(SRCS) > $@",
     visibility = ["//visibility:public"],
 )
+
+genrule(
+    name = "concat_kingdom",
+    srcs = [
+        "exchange.sdl",
+        "measurement.sdl",
+    ],
+    outs = ["kingdom.sdl"],
+    cmd = "cat $(SRCS) > $@",
+    visibility = ["//visibility:public"],
+)

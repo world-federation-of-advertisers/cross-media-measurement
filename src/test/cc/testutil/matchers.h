@@ -15,6 +15,8 @@
 #ifndef SRC_TEST_CC_TESTUTIL_MATCHERS_H_
 #define SRC_TEST_CC_TESTUTIL_MATCHERS_H_
 
+#include <string>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "gmock/gmock.h"

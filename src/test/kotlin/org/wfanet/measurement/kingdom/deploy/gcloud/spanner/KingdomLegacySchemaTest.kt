@@ -23,34 +23,29 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_LEGACY_SCHEMA
 
 @RunWith(JUnit4::class)
-class KingdomSchemaTest : UsingSpannerEmulator(KINGDOM_SCHEMA) {
+class KingdomLegacySchemaTest : UsingSpannerEmulator(KINGDOM_LEGACY_SCHEMA) {
 
   @Test
-  fun `insert single MeasurementConsumer`() = runBlocking {
+  fun `insert single Advertiser`() = runBlocking {
     val mutation =
-      Mutation.newInsertBuilder("MeasurementConsumers")
-        .set("MeasurementConsumerId")
+      Mutation.newInsertBuilder("Advertisers")
+        .set("AdvertiserId")
         .to(3011)
-        .set("ExternalMeasurementConsumerId")
+        .set("ExternalAdvertiserId")
         .to(1)
-        .set("MeasurementConsumerDetails")
+        .set("AdvertiserDetails")
         .to(ByteArray.copyFrom("123"))
-        .set("MeasurementConsumerDetailsJSON")
+        .set("AdvertiserDetailsJSON")
         .to(ByteArray.copyFrom("123"))
         .build()
     databaseClient.write(listOf(mutation))
     assertQueryReturns(
       databaseClient,
-      "SELECT MeasurementConsumerId, ExternalMeasurementConsumerId FROM MeasurementConsumers",
-      Struct.newBuilder()
-        .set("MeasurementConsumerId")
-        .to(3011)
-        .set("ExternalMeasurementConsumerId")
-        .to(1)
-        .build()
+      "SELECT AdvertiserId, ExternalAdvertiserId FROM Advertisers",
+      Struct.newBuilder().set("AdvertiserId").to(3011).set("ExternalAdvertiserId").to(1).build()
     )
   }
 }
