@@ -24,6 +24,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
+import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
@@ -97,6 +98,14 @@ private constructor(
           addAllBlobs(blobs)
           if (stageDetails !== ComputationStageDetails.getDefaultInstance()) {
             stageSpecificDetails = stageDetails
+          }
+          requisitions.forEach { key ->
+            addRequisitions(
+              RequisitionMetadata.newBuilder().also {
+                it.externalDataProviderId = key.externalDataProviderId
+                it.externalRequisitionId = key.externalRequisitionId
+              }
+            )
           }
         }
         .build()
@@ -222,10 +231,18 @@ private constructor(
 
   override suspend fun updateComputationDetails(
     token: ComputationEditToken<ComputationType, ComputationStage>,
-    computationDetails: ComputationDetails
+    computationDetails: ComputationDetails,
+    requisitionDetailUpdates: List<RequisitionDetailUpdate>
   ) {
     updateToken(token) { existing ->
-      existing.toBuilder().setComputationDetails(computationDetails)
+      val tokenBuilder = existing.toBuilder().setComputationDetails(computationDetails)
+      val requisitionBuildersByExternalId =
+        tokenBuilder.requisitionsBuilderList.associateBy { it.externalRequisitionId }
+      for (update in requisitionDetailUpdates) {
+        requisitionBuildersByExternalId[update.key.externalRequisitionId]?.setDetails(update.detail)
+          ?: error("requisition not found")
+      }
+      tokenBuilder
     }
   }
 
@@ -262,14 +279,13 @@ private constructor(
     pathToBlob: String
   ) {
     updateToken(token) { existing ->
-      existing
-        .toBuilder()
-        .addRequisitions(
-          RequisitionMetadata.newBuilder().also {
-            it.externalRequisitionId = externalRequisitionKey.externalRequisitionId
-            it.path = pathToBlob
-          }
-        )
+      val tokenBuilder = existing.toBuilder()
+      tokenBuilder
+        .requisitionsBuilderList
+        .find { it.externalRequisitionId == externalRequisitionKey.externalRequisitionId }
+        ?.setPath(pathToBlob)
+        ?: error("requisition not found")
+      tokenBuilder
     }
   }
 

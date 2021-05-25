@@ -34,6 +34,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransacto
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
+import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
@@ -373,9 +374,29 @@ class GcpSpannerComputationsDatabaseTransactor<
 
   override suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
-    computationDetails: ComputationDT
+    computationDetails: ComputationDT,
+    requisitionDetailUpdates: List<RequisitionDetailUpdate>
   ) {
     runIfTokenFromLastUpdate(token) { ctx ->
+      requisitionDetailUpdates.forEach {
+        val row =
+          ctx.readRowUsingIndex(
+            "Requisitions",
+            "RequisitionsByExternalId",
+            Key.of(it.key.externalDataProviderId, it.key.externalRequisitionId),
+            listOf("ComputationId", "RequisitionId")
+          )
+            ?: error("No Computation found row for this requisition: ${it.key}")
+        ctx.buffer(
+          computationMutations.updateRequisition(
+            localComputationId = row.getLong("ComputationId"),
+            requisitionId = row.getLong("RequisitionId"),
+            externalDataProviderId = it.key.externalDataProviderId,
+            externalRequisitionId = it.key.externalRequisitionId,
+            requisitionDetails = it.detail
+          )
+        )
+      }
       val writeTime = clock.gcloudTimestamp()
       ctx.buffer(
         computationMutations.updateComputation(
