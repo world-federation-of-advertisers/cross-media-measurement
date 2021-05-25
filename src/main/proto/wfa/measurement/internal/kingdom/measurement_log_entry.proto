@@ -49,7 +49,7 @@ message MeasurementLogEntry {
   }
 
   message DuchyDetails {
-    fixed64 external_duchy_id = 1;
+    string external_duchy_id = 1;
     // External ID for the entry in the system API.
     fixed64 external_computation_log_entry_id = 2;
 
