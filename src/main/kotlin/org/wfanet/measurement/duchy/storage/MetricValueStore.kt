@@ -29,6 +29,7 @@ private typealias BlobKeyGenerator = () -> String
  * @param storageClient the blob storage client.
  * @param generateBlobKey a function to generate unique blob keys.
  */
+// TODO(wangyaopw): rename to RequisitionStore after metricValueService is deleted.
 class MetricValueStore
 private constructor(
   private val storageClient: StorageClient,
