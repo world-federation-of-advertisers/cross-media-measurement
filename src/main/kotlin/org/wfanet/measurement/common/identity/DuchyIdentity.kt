@@ -26,6 +26,10 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import org.wfanet.measurement.common.grpc.DuchyInfo
+import io.grpc.Grpc
+import javax.net.ssl.SSLSession
+
 
 /**
  * Details about an authenticated Duchy.
@@ -80,6 +84,38 @@ class DuchyServerIdentityInterceptor : ServerInterceptor {
     return Contexts.interceptCall(context, call, headers, next)
   }
 }
+
+class DuchyInfoInterceptor(info: DuchyInfo) : ServerInterceptor {
+  override fun <ReqT, RespT> interceptCall(
+    call: ServerCall<ReqT, RespT>,
+    headers: Metadata,
+    next: ServerCallHandler<ReqT, RespT>
+  ): ServerCall.Listener<ReqT> {
+    val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
+    if (sslSession == null) {
+      call.close(
+        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing sslSession"),
+        Metadata()
+      )
+      return object : ServerCall.Listener<ReqT>() {}
+    }
+
+    val certs = sslSession.peerCertificates
+
+    // todo: iterate over certs and find one we know and use the duchyId of that cert
+    val duchyId = "123"
+
+    val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
+    return Contexts.interceptCall(context, call, headers, next)
+  }
+}
+
+
+/** Convenience helper for [DuchyServerIdentityInterceptor]. */
+fun BindableService.withDuchyInfo(info: DuchyInfo): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(this, DuchyInfoInterceptor(info))
+
+
 
 /** Convenience helper for [DuchyServerIdentityInterceptor]. */
 fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
