@@ -16,14 +16,19 @@ package org.wfanet.panelmatch.client.storage
 
 import com.google.protobuf.ByteString
 
-/** Interface for OutputWriter adapter. */
-interface OutputWriter {
+/**
+ * Stores everything in memory. Nothing is persistent. Use with caution. Uses a simple hashmap to
+ * storage everything where path is the key.
+ */
+class InMemoryStorage : Storage {
+  private var inMemoryStorage = HashMap<String, ByteString>()
 
-  /**
-   * Writes output data into given path.
-   *
-   * @param path String location of data to write to.
-   * @throws IOException
-   */
-  suspend fun write(path: String, data: ByteString)
+  override suspend fun read(path: String): ByteString {
+    return requireNotNull(inMemoryStorage[path]) { "Key does not exist in storage: $path" }
+  }
+
+  override suspend fun write(path: String, data: ByteString) {
+    require(path !in inMemoryStorage) { "Cannot write to an existing key: $path" }
+    inMemoryStorage.put(path, data)
+  }
 }

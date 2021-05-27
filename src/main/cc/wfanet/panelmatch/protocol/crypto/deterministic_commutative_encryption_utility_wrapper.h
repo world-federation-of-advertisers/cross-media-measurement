@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_COMMUTATIVE_ENCRYPTION_UTILITY_WRAPPER_H_
-#define SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_COMMUTATIVE_ENCRYPTION_UTILITY_WRAPPER_H_
+#ifndef SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_DETERMINISTIC_COMMUTATIVE_ENCRYPTION_UTILITY_WRAPPER_H_
+#define SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_DETERMINISTIC_COMMUTATIVE_ENCRYPTION_UTILITY_WRAPPER_H_
 
 #include <string>
 
@@ -27,15 +27,15 @@
 // commutative_encryption methods.
 namespace wfanet::panelmatch::protocol::crypto {
 
-absl::StatusOr<std::string> ApplyCommutativeEncryptionWrapper(
+absl::StatusOr<std::string> DeterministicCommutativeEncryptWrapper(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> ReApplyCommutativeEncryptionWrapper(
+absl::StatusOr<std::string> DeterministicCommutativeReEncryptWrapper(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> ApplyCommutativeDecryptionWrapper(
+absl::StatusOr<std::string> DeterministicCommutativeDecryptWrapper(
     const std::string& serialized_request);
 
 }  // namespace wfanet::panelmatch::protocol::crypto
 
-#endif  // SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_COMMUTATIVE_ENCRYPTION_UTILITY_WRAPPER_H_
+#endif  // SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_DETERMINISTIC_COMMUTATIVE_ENCRYPTION_UTILITY_WRAPPER_H_

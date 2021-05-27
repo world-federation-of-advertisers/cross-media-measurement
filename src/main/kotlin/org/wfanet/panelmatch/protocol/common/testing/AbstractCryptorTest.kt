@@ -20,10 +20,10 @@ import java.lang.RuntimeException
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.panelmatch.protocol.common.CommutativeEncryption
-import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeDecryptionRequest
-import wfanet.panelmatch.protocol.protobuf.ApplyCommutativeEncryptionRequest
-import wfanet.panelmatch.protocol.protobuf.ReApplyCommutativeEncryptionRequest
+import org.wfanet.panelmatch.protocol.common.Cryptor
+import wfanet.panelmatch.protocol.protobuf.CryptorDecryptRequest
+import wfanet.panelmatch.protocol.protobuf.CryptorEncryptRequest
+import wfanet.panelmatch.protocol.protobuf.CryptorReEncryptRequest
 
 private val PLAINTEXTS: List<ByteString> =
   listOf<ByteString>(
@@ -40,31 +40,31 @@ private val CIPHERTEXTS: List<ByteString> =
     ByteString.copyFromUtf8("some ciphertext1")
   )
 
-/** Abstract base class for testing implementations of [CommutativeEncryption]. */
-abstract class AbstractCommutativeEncryptionTest {
-  abstract val commutativeEncryption: CommutativeEncryption
+/** Abstract base class for testing implementations of [Cryptor]. */
+abstract class AbstractCryptorTest {
+  abstract val Cryptor: Cryptor
 
   @Test
-  fun testCommutativeEncryption() {
+  fun testCryptor() {
     val randomKey1: ByteString = ByteString.copyFromUtf8("random-key-00")
     val randomKey2: ByteString = ByteString.copyFromUtf8("random-key-222")
 
-    val encryptedTexts1 = commutativeEncryption.encrypt(randomKey1, PLAINTEXTS)
-    val encryptedTexts2 = commutativeEncryption.encrypt(randomKey2, PLAINTEXTS)
+    val encryptedTexts1 = Cryptor.encrypt(randomKey1, PLAINTEXTS)
+    val encryptedTexts2 = Cryptor.encrypt(randomKey2, PLAINTEXTS)
     assertThat(encryptedTexts1).isNotEqualTo(encryptedTexts2)
 
-    val reEncryptedTexts1 = commutativeEncryption.reEncrypt(randomKey1, encryptedTexts2)
-    val reEncryptedTexts2 = commutativeEncryption.reEncrypt(randomKey2, encryptedTexts1)
+    val reEncryptedTexts1 = Cryptor.reEncrypt(randomKey1, encryptedTexts2)
+    val reEncryptedTexts2 = Cryptor.reEncrypt(randomKey2, encryptedTexts1)
     assertThat(reEncryptedTexts1).isNotEqualTo(encryptedTexts2)
     assertThat(reEncryptedTexts2).isNotEqualTo(encryptedTexts1)
 
-    val decryptedTexts1 = commutativeEncryption.decrypt(randomKey1, reEncryptedTexts1)
-    val decryptedTexts2 = commutativeEncryption.decrypt(randomKey1, reEncryptedTexts2)
+    val decryptedTexts1 = Cryptor.decrypt(randomKey1, reEncryptedTexts1)
+    val decryptedTexts2 = Cryptor.decrypt(randomKey1, reEncryptedTexts2)
     assertThat(decryptedTexts1).isEqualTo(encryptedTexts2)
     assertThat(decryptedTexts2).isEqualTo(encryptedTexts2)
 
-    val decryptedTexts3 = commutativeEncryption.decrypt(randomKey2, reEncryptedTexts1)
-    val decryptedTexts4 = commutativeEncryption.decrypt(randomKey2, reEncryptedTexts2)
+    val decryptedTexts3 = Cryptor.decrypt(randomKey2, reEncryptedTexts1)
+    val decryptedTexts4 = Cryptor.decrypt(randomKey2, reEncryptedTexts2)
     assertThat(decryptedTexts3).isEqualTo(encryptedTexts1)
     assertThat(decryptedTexts4).isEqualTo(encryptedTexts1)
   }
@@ -72,40 +72,37 @@ abstract class AbstractCommutativeEncryptionTest {
   @Test
   fun `invalid key`() {
     val key: ByteString = ByteString.copyFromUtf8("this key is too long so it causes problems")
-    assertFails { commutativeEncryption.encrypt(key, PLAINTEXTS) }
-    assertFails { commutativeEncryption.decrypt(key, PLAINTEXTS) }
-    assertFails { commutativeEncryption.reEncrypt(key, PLAINTEXTS) }
+    assertFails { Cryptor.encrypt(key, PLAINTEXTS) }
+    assertFails { Cryptor.decrypt(key, PLAINTEXTS) }
+    assertFails { Cryptor.reEncrypt(key, PLAINTEXTS) }
   }
 
   @Test
-  fun `invalid ApplyCommutativeEncryption proto`() {
+  fun `invalid CryptorEncrypt proto`() {
     val missingKeyException =
       assertFailsWith(RuntimeException::class) {
-        val request =
-          ApplyCommutativeEncryptionRequest.newBuilder().addAllPlaintexts(PLAINTEXTS).build()
-        commutativeEncryption.encrypt(request)
+        val request = CryptorEncryptRequest.newBuilder().addAllPlaintexts(PLAINTEXTS).build()
+        Cryptor.encrypt(request)
       }
     assertThat(missingKeyException.message).contains("Failed to create the protocol cipher")
   }
 
   @Test
-  fun `invalid ApplyCommutativeDecryption proto`() {
+  fun `invalid CryptorDecrypt proto`() {
     val missingKeyException =
       assertFailsWith(RuntimeException::class) {
-        val request =
-          ApplyCommutativeDecryptionRequest.newBuilder().addAllEncryptedTexts(CIPHERTEXTS).build()
-        commutativeEncryption.decrypt(request)
+        val request = CryptorDecryptRequest.newBuilder().addAllEncryptedTexts(CIPHERTEXTS).build()
+        Cryptor.decrypt(request)
       }
     assertThat(missingKeyException.message).contains("Failed to create the protocol cipher")
   }
 
   @Test
-  fun `invalid ReApplyCommutativeEncryption proto`() {
+  fun `invalid CryptorReEncrypt proto`() {
     val missingKeyException =
       assertFailsWith(RuntimeException::class) {
-        val request =
-          ReApplyCommutativeEncryptionRequest.newBuilder().addAllEncryptedTexts(CIPHERTEXTS).build()
-        commutativeEncryption.reEncrypt(request)
+        val request = CryptorReEncryptRequest.newBuilder().addAllEncryptedTexts(CIPHERTEXTS).build()
+        Cryptor.reEncrypt(request)
       }
     assertThat(missingKeyException.message).contains("Failed to create the protocol cipher")
   }

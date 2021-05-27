@@ -15,13 +15,13 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.protocol.common.CommutativeEncryption
+import org.wfanet.panelmatch.protocol.common.Cryptor
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputs
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
 private const val DEFAULT_INPUT_KEY_LABEL: String = "encryption-key"
 
-class CommutativeEncryptionExchangeTask
+class CryptorExchangeTask
 internal constructor(
   private val operation: (ByteString, List<ByteString>) -> List<ByteString>,
   private val inputDataLabel: String,
@@ -43,31 +43,28 @@ internal constructor(
   }
 
   companion object {
-    /** Returns an [ExchangeTask] that removes deterministic commutative encryption from data. */
-    fun forDecryption(commutativeEncryption: CommutativeEncryption): ExchangeTask {
-      return CommutativeEncryptionExchangeTask(
-        operation = commutativeEncryption::decrypt,
+    /** Returns an [ExchangeTask] that removes encryption from data. */
+    fun forDecryption(Cryptor: Cryptor): ExchangeTask {
+      return CryptorExchangeTask(
+        operation = Cryptor::decrypt,
         inputDataLabel = "encrypted-data",
         outputDataLabel = "decrypted-data"
       )
     }
 
-    /** Returns an [ExchangeTask] that adds deterministic commutative encryption to plaintext. */
-    fun forEncryption(commutativeEncryption: CommutativeEncryption): ExchangeTask {
-      return CommutativeEncryptionExchangeTask(
-        operation = commutativeEncryption::encrypt,
+    /** Returns an [ExchangeTask] that adds encryption to plaintext. */
+    fun forEncryption(Cryptor: Cryptor): ExchangeTask {
+      return CryptorExchangeTask(
+        operation = Cryptor::encrypt,
         inputDataLabel = "unencrypted-data",
         outputDataLabel = "encrypted-data"
       )
     }
 
-    /**
-     * Returns an [ExchangeTask] that adds another layer of deterministic commutative encryption to
-     * data.
-     */
-    fun forReEncryption(commutativeEncryption: CommutativeEncryption): ExchangeTask {
-      return CommutativeEncryptionExchangeTask(
-        operation = commutativeEncryption::reEncrypt,
+    /** Returns an [ExchangeTask] that adds another layer of encryption to data. */
+    fun forReEncryption(Cryptor: Cryptor): ExchangeTask {
+      return CryptorExchangeTask(
+        operation = Cryptor::reEncrypt,
         inputDataLabel = "encrypted-data",
         outputDataLabel = "reencrypted-data"
       )
