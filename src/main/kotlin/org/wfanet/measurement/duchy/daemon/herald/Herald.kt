@@ -23,20 +23,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
+import org.wfanet.measurement.duchy.daemon.herald.LiquidLegionsV2Starter.updateRequisitionsAndKeySets
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
-import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
-import org.wfanet.measurement.system.v1alpha.GlobalComputation
-import org.wfanet.measurement.system.v1alpha.GlobalComputation.State
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRequest
-import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsResponse
+import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.State
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
+import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -46,13 +47,19 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveGlobalComputationsRespo
  * they are able to start the computation.
  *
  * @param computationStorageClient manages interactions with computations storage service.
- * @param globalComputationsClient stub for communicating with the Global Computations Service
+ * @param globalComputationsClient stub for communicating with the Kingdom's system Computations
+ * Service.
+ * @param protocolsSetupConfig duchy's local protocolsSetupConfig
+ * @param configMaps a map of public Api ProtocolConfigIds to the configs.
+ * @param blobStorageBucket blob storage path prefix.
+ * @param maxStartAttempts maximum number of attempts to start a computation.
  */
 class Herald(
   otherDuchiesInComputation: List<String>,
   private val computationStorageClient: ComputationsCoroutineStub,
   private val globalComputationsClient: GlobalComputationsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
+  private val configMaps: Map<String, ProtocolConfig>,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxStartAttempts: Int = 10
 ) {
@@ -100,10 +107,8 @@ class Herald(
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
     globalComputationsClient
-      .streamActiveGlobalComputations(
-        StreamActiveGlobalComputationsRequest.newBuilder()
-          .setContinuationToken(continuationToken)
-          .build()
+      .streamActiveComputations(
+        StreamActiveComputationsRequest.newBuilder().setContinuationToken(continuationToken).build()
       )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
         processGlobalComputationChange(response)
@@ -114,38 +119,36 @@ class Herald(
       // syncStatuses() may be successful if the state at the kingdom and/or this duchy was updated.
       .catch { e -> logger.log(Level.SEVERE, "Exception:", e) }
       .collect()
+
     return lastProcessedContinuationToken
   }
 
-  private suspend fun processGlobalComputationChange(
-    response: StreamActiveGlobalComputationsResponse
-  ) {
+  private suspend fun processGlobalComputationChange(response: StreamActiveComputationsResponse) {
     // TODO: create computation according to the protocol specified by the kingdom.
-    val globalId: String = checkNotNull(response.globalComputation.key?.globalComputationId)
+    val globalId: String = checkNotNull(response.computation.key?.computationId)
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
-    when (val state = response.globalComputation.state) {
+    when (val state = response.computation.state) {
       // Create a new computation if it is not already present in the database.
-      State.CONFIRMING -> create(response.globalComputation)
+      State.PENDING_REQUISITION_PARAMS -> create(response.computation)
+      State.PENDING_PARTICIPANT_CONFIRMATION -> updateRequisitionsAndKeySets()
       // Start the computation if it is in WAIT_TO_START.
-      // TODO: Resume a computation that was once SUSPENDED.
-      State.RUNNING -> start(globalId)
-      State.SUSPENDED ->
-        logger.warning("Pause/Resume of computations based on kingdom state not yet supported.")
+      State.PENDING_COMPUTATION -> start(globalId)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
 
   /** Creates a new computation. */
   // TODO: create Computation of type mapping the protocol specified by the kingdom.
-  private suspend fun create(globalComputation: GlobalComputation) {
-    val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
+  private suspend fun create(globalComputation: Computation) {
+    val globalId: String = checkNotNull(globalComputation.key?.computationId)
     logger.info("[id=$globalId] Creating Computation")
     try {
       // TODO: get the protocol from the kingdom's response and create a corresponding computation.
       LiquidLegionsV2Starter.createComputation(
         computationStorageClient,
         globalComputation,
-        protocolsSetupConfig,
+        protocolsSetupConfig.liquidLegionsV2,
+        configMaps,
         blobStorageBucket
       )
       logger.info("[id=$globalId]: Created Computation")
@@ -202,17 +205,6 @@ class Herald(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-fun GlobalComputation.toRequisitionKeys(): List<RequisitionKey> =
-  metricRequisitionsList.map {
-    RequisitionKey.newBuilder()
-      .apply {
-        dataProviderId = it.dataProviderId
-        campaignId = it.campaignId
-        metricRequisitionId = it.metricRequisitionId
-      }
-      .build()
-  }
 
 /** Returns true if the error may be transient, i.e. retrying the request may succeed. */
 fun mayBeTransientGrpcError(error: Throwable): Boolean {

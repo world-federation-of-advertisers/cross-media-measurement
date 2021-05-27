@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 
@@ -88,8 +89,12 @@ class InProcessDuchy(
 
   private val duchyDependencies by lazy { duchyDependenciesProvider() }
 
-  private val kingdomGlobalComputationsStub by lazy {
+  private val legacyGlobalComputationsStub by lazy {
     GlobalComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+  }
+
+  private val systemGlobalComputationsStub by lazy {
+    SystemComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
   }
 
   private val computationStatsStub by lazy {
@@ -101,7 +106,7 @@ class InProcessDuchy(
       addService(
         ComputationsService(
           duchyDependencies.computationsDatabase,
-          kingdomGlobalComputationsStub,
+          legacyGlobalComputationsStub,
           duchyId,
           Clock.systemUTC()
         )
@@ -139,8 +144,9 @@ class InProcessDuchy(
         Herald(
           otherDuchyIds,
           computationStorageServiceStub,
-          kingdomGlobalComputationsStub,
-          protocolsSetupConfig
+          systemGlobalComputationsStub,
+          protocolsSetupConfig,
+          mapOf() // TODO(wangyaopw): used a test PublicApiProtocolConfigs.
         )
 
       herald.continuallySyncStatuses(throttler)
@@ -224,7 +230,7 @@ class InProcessDuchy(
           duchyId = duchyId,
           dataClients = computationDataClients,
           metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
-          globalComputationsClient = kingdomGlobalComputationsStub,
+          globalComputationsClient = legacyGlobalComputationsStub,
           computationStatsClient = computationStatsStub,
           workerStubs = workerStubs,
           cryptoKeySet = duchyDependencies.cryptoKeySet,
