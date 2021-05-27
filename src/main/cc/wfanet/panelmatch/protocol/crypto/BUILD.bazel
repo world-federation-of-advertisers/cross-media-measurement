@@ -5,12 +5,12 @@ package(default_visibility = ["//visibility:public"])
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
-    name = "commutative_encryption_utility",
+    name = "deterministic_commutative_encryption_utility",
     srcs = [
-        "commutative_encryption_utility.cc",
+        "deterministic_commutative_encryption_utility.cc",
     ],
     hdrs = [
-        "commutative_encryption_utility.h",
+        "deterministic_commutative_encryption_utility.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
@@ -23,16 +23,16 @@ cc_library(
 )
 
 cc_library(
-    name = "commutative_encryption_utility_wrapper",
+    name = "deterministic_commutative_encryption_utility_wrapper",
     srcs = [
-        "commutative_encryption_utility_wrapper.cc",
+        "deterministic_commutative_encryption_utility_wrapper.cc",
     ],
     hdrs = [
-        "commutative_encryption_utility_wrapper.h",
+        "deterministic_commutative_encryption_utility_wrapper.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        ":commutative_encryption_utility",
+        ":deterministic_commutative_encryption_utility",
         "//src/main/proto/wfanet/panelmatch/protocol/crypto:cryptor_cc_proto",
     ],
 )
