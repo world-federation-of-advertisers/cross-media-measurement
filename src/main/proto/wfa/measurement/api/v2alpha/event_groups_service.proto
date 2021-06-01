@@ -16,9 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/event_group.proto";
-import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -41,14 +40,16 @@ service EventGroups {
 
 // Request message for `GetEventGroup` method.
 message GetEventGroupRequest {
-  // Resource key.
-  EventGroup.Key key = 1;
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/EventGroup"];
 }
 
 // Request message for `CreateEventGroup` method.
 message CreateEventGroupRequest {
-  // Resource key of the parent `DataProvider`. Required.
-  DataProvider.Key parent = 1;
+  // Resource name of the parent `DataProvider`. Required.
+  string parent = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // The `EventGroup` to create. Required.
   //
@@ -59,10 +60,11 @@ message CreateEventGroupRequest {
 }
 
 message ListEventGroupsRequest {
-  // Resource key of the parent `DataProvider`. The `DataProvider` ID may be
-  // omitted to list across `DataProvider`s, in which case a filter should be
-  // specified.
-  DataProvider.Key parent = 1;
+  // Resource key of the parent `DataProvider`. The wildcard ID (`-`) may be
+  // used in place of the `DataProvider` ID to list across `DataProvider`s, in
+  // which case a filter should be specified.
+  string parent = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // The maximum number of resources to return. See https://aip.dev/158.
   int32 page_size = 2;
@@ -73,7 +75,9 @@ message ListEventGroupsRequest {
   // Filter criteria. Repeated fields are treated as logical ORs, and multiple
   // fields specified as logical ANDs.
   message Filter {
-    repeated MeasurementConsumer.Key measurement_consumers = 1;
+    repeated string measurement_consumers = 1
+        [(google.api.resource_reference).type =
+             "halo.wfanet.org/MeasurementConsumer"];
   }
   // Result filter.
   Filter filter = 4;

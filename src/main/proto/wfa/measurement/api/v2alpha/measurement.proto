@@ -16,27 +16,26 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
-import "wfa/measurement/api/v2alpha/data_provider.proto";
-import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
-import "wfa/measurement/api/v2alpha/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "MeasurementProto";
 
 message Measurement {
-  message Key {
-    // ID of the parent `MeasurementConsumer`.
-    string measurement_consumer_id = 1;
-    // ID of this `Measurement`.
-    string measurement_id = 2;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/Measurement"
+    pattern: "measurementConsumers/{measurement_consumer}/measurements/{measurement}"
+  };
 
-  // Resource key of the `MeasurementConsumerCertificate`. Required. Immutable.
-  MeasurementConsumerCertificate.Key measurement_consumer_certificate = 2;
+  // Resource name.
+  string name = 1;
+
+  // Resource name of the `Certificate` belonging to the parent
+  // `MeasurementConsumer`. Required. Immutable.
+  string measurement_consumer_certificate = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `MeasurementSpec` for requisitions, which can be verified using
   // `measurement_consumer_certificate`. Required. Immutable.
@@ -63,34 +62,41 @@ message Measurement {
   // the private keys for each `Measurement`.
 
   message DataProviderEntry {
-    // Resource key of the `DataProvider` that this entry is for. Required.
-    // Immutable.
-    DataProvider.Key data_provider = 1;
+    // Key of the map entry, which is a `DataProvider` resource name. Required.
+    string key = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-    // Resource key of the DataProviderCertificate. Required. Immutable.
-    DataProviderCertificate.Key data_provider_certificate = 2;
+    message Value {
+      // Resource key of the `Certificate` belonging to `data_provider`.
+      // Required.
+      string data_provider_certificate = 1
+          [(google.api.resource_reference).type =
+               "halo.wfanet.org/Certificate"];
 
-    // Pre-shared serialized `EncryptionPublicKey`, which can be verified using
-    // `data_provider_certificate`. Required. Immutable.
-    SignedData data_provider_public_key = 3;
+      // Pre-shared serialized `EncryptionPublicKey`, which can be verified
+      // using `data_provider_certificate`. Required.
+      SignedData data_provider_public_key = 2;
 
-    // Encrypted `SignedData` containing the serialized `RequisitionSpec` for
-    // this entry, which can be verified using
-    // `measurement_consumer_certificate`. Required. Immutable.
-    //
-    // The symmetric encryption key is derived using a key-agreement protocol
-    // between `measurement_public_key` in `measurement_spec` and
-    // `data_provider_public_key`.
-    bytes encrypted_requisition_spec = 4;
+      // Encrypted `SignedData` containing the serialized `RequisitionSpec` for
+      // this entry, which can be verified using
+      // `measurement_consumer_certificate`. Required.
+      //
+      // The symmetric encryption key is derived using a key-agreement protocol
+      // between `measurement_public_key` in `measurement_spec` and
+      // `data_provider_public_key`.
+      bytes encrypted_requisition_spec = 3;
+    }
+    // Value of the map entry. Required.
+    Value value = 2;
   }
-  // The measurement entry for each `DataProvider`. This can be logically
-  // represented as a map uniquely keyed by `DataProvider.Key`. Required.
+  // Map of `DataProvider` name to parameters for that `DataProvider`. Required.
   // Immutable.
-  repeated DataProviderEntry data_provider_entries = 6;
+  repeated DataProviderEntry data_providers = 6;
 
-  // Resource key of the well-known `ProtocolConfig` selected for
+  // Resource name of the well-known `ProtocolConfig` selected for
   // `measurement_spec`. Output-only. Immutable.
-  ProtocolConfig.Key protocol_config = 7;
+  string protocol_config = 7
+      [(google.api.resource_reference).type = "halo.wfanet.org/ProtocolConfig"];
 
   enum State {
     STATE_UNSPECIFIED = 0;

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -33,8 +34,9 @@ service RequisitionFulfillment {
 message FulfillRequisitionRequest {
   // The header message for this streaming request.
   message Header {
-    // Resource key of the `Requisition`. Required.
-    Requisition.Key key = 1;
+    // Resource name of the `Requisition`. Required.
+    string name = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/Requisition"];
 
     // Cryptographic digital signature of the "requisition fingerprint" which
     // can be verified using the `DataProvider`'s certificate. Required.

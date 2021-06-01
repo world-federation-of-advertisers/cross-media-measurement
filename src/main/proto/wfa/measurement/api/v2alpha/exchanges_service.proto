@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/exchange.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -38,8 +39,9 @@ service Exchanges {
 
 // Request message for `GetExchange` method.
 message GetExchangeRequest {
-  // Resource key.
-  Exchange.Key key = 1;
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Exchange"];
 }
 
 // Request message for `ListExchanges` method.
@@ -84,6 +86,7 @@ message UploadAuditTrailRequest {
 
   message Header {
     // The `Exchange` to upload the data to.
-    Exchange.Key key = 1;
+    string name = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/Exchange"];
   }
 }

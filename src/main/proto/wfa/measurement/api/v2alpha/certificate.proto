@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,15 +20,20 @@ import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ModelProviderProto";
+option java_outer_classname = "CertificateProto";
 
-// The party that builds VID Models.
-message ModelProvider {
+// Resource representing an X.509 certificate.
+message Certificate {
   option (google.api.resource) = {
-    type: "halo.wfanet.org/ModelProvider"
-    pattern: "modelProviders/{model_provider}"
+    type: "halo.wfanet.org/Certificate"
+    pattern: "dataProviders/{data_provider}/certificates/{certificate}"
+    pattern: "measurementConsumers/{measurement_consumer}/certificates/{certificate}"
+    pattern: "duchies/{duchy}/certificates/{certificate}"
   };
 
   // Resource name.
   string name = 1;
+
+  // X.509 certificate in DER format. Required. Immutable.
+  bytes x509_der = 2;
 }

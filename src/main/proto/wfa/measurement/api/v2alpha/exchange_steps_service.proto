@@ -16,10 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/exchange_step.proto";
-import "wfa/measurement/api/v2alpha/exchange_step_attempt.proto";
-import "wfa/measurement/api/v2alpha/model_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -42,8 +40,9 @@ service ExchangeSteps {
 
 // Request message for `GetExchangeStep` method.
 message GetExchangeStepRequest {
-  // Resource key.
-  ExchangeStep.Key key = 1;
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/ExchangeStep"];
 }
 
 // Request message for `ClaimReadyExchangeStep` method.
@@ -51,8 +50,10 @@ message ClaimReadyExchangeStepRequest {
   // If an `ExchangeStep` is returned, it should be executed by this party.
   // Required.
   oneof party {
-    DataProvider.Key data_provider = 1;
-    ModelProvider.Key model_provider = 2;
+    string data_provider = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+    string model_provider = 2 [(google.api.resource_reference).type =
+                                   "halo.wfanet.org/ModelProvider"];
   }
 }
 
@@ -62,6 +63,7 @@ message ClaimReadyExchangeStepResponse {
   // The `ExchangeStep`.
   ExchangeStep exchange_step = 1;
 
-  // Resource key of a new ExchangeStepAttempt for `exchange_step`.
-  ExchangeStepAttempt.Key exchange_step_attempt = 2;
+  // Resource name of a new ExchangeStepAttempt for `exchange_step`.
+  string exchange_step_attempt = 2 [(google.api.resource_reference).type =
+                                        "halo.wfanet.org/ExchangeStepAttempt"];
 }

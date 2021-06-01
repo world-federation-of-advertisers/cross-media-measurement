@@ -40,7 +40,7 @@ service Accounts {
 
 // Request message for `CreateAccount` method.
 message CreateAccountRequest {
-  // The `Account` to create. Required. The `key` field will be
+  // The `Account` to create. Required. The `name` field will be
   // ignored, and the system will assign an ID.
   Account account = 1;
 }

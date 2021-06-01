@@ -16,19 +16,21 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
+
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "AccountProto";
 
 // An API user account resource.
 message Account {
-  message Key {
-    // ID of this `Account` resource. If absent, it implies the ID of the
-    // `Account` that matches the authenticated user.
-    string account_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/Account"
+    pattern: "accounts/{account}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // OpenID Connect identity.
   message OpenIdConnectIdentity {

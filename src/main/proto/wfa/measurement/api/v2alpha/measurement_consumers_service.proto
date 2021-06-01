@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/account.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -40,49 +40,42 @@ service MeasurementConsumers {
   // Removes an owner from the specified `MeasurementConsumer`.
   rpc RemoveMeasurementConsumerOwner(RemoveMeasurementConsumerOwnerRequest)
       returns (MeasurementConsumer) {}
-
-  // Updates the `MeasurementConsumerPublicKey` for the specified
-  // `MeasurementConsumer`.
-  rpc UpdateMeasurementConsumerPublicKey(
-      UpdateMeasurementConsumerPublicKeyRequest)
-      returns (MeasurementConsumerPublicKey) {}
 }
 
 // Request message for `GetMeasurementConsumer` method.
 message GetMeasurementConsumerRequest {
-  // Resource key.
-  MeasurementConsumer.Key key = 1;
+  // Resource name.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo.wfanet.org/MeasurementConsumer"];
 }
 
 // Request message for `CreateMeasurementConsumer` method.
 message CreateMeasurementConsumerRequest {
-  // The `MeasurementConsumer` to create. Required. The `key` field will be
+  // The `MeasurementConsumer` to create. Required. The `name` field will be
   // ignored, and the system will assign an ID.
   MeasurementConsumer measurement_consumer = 1;
 }
 
 // Request message for `AddMeasurementConsumerOwner` method.
 message AddMeasurementConsumerOwnerRequest {
-  // Resource key.
-  MeasurementConsumer.Key key = 1;
+  // Resource name.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo.wfanet.org/MeasurementConsumer"];
 
-  // Resource key of the `Account` to add as an owner of this
+  // Resource name of the `Account` to add as an owner of this
   // `MeasurementConsumer`. Required.
-  Account.Key account = 2;
+  string account = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }
 
 // Request message for `RemoveMeasurementConsumerOwner` method.
 message RemoveMeasurementConsumerOwnerRequest {
-  // Resource key.
-  MeasurementConsumer.Key key = 1;
+  // Resource name.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo.wfanet.org/MeasurementConsumer"];
 
-  // Resource key of the `Account` to remove as an owner of this
+  // Resource name of the `Account` to remove as an owner of this
   // `MeasurementConsumer`. Required.
-  Account.Key account = 2;
-}
-
-// Request message for `UpdateMeasurementConsumerPublicKey` method.
-message UpdateMeasurementConsumerPublicKeyRequest {
-  // Resource to update. Required.
-  MeasurementConsumerPublicKey measurement_consumer_public_key = 1;
+  string account = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }

@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/account.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/data_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -38,16 +38,13 @@ service DataProviders {
   // Removes an owner from the specified `DataProvider`.
   rpc RemoveDataProviderOwner(RemoveDataProviderOwnerRequest)
       returns (DataProvider) {}
-
-  // Updates the `DataProviderPublicKey` for the specified `DataProvider`.
-  rpc UpdateDataProviderPublicKey(UpdateDataProviderPublicKeyRequest)
-      returns (DataProviderPublicKey) {}
 }
 
 // Request message for `GetDataProvider` method.
 message GetDataProviderRequest {
-  // Resource key.
-  DataProvider.Key key = 1;
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 }
 
 // Request message for `CreateDataProvider` method.
@@ -59,26 +56,24 @@ message CreateDataProviderRequest {
 
 // Request message for `AddDataProviderOwner` method.
 message AddDataProviderOwnerRequest {
-  // Resource key.
-  DataProvider.Key key = 1;
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-  // Resource key of the `Account` to add as an owner of this
+  // Resource name of the `Account` to add as an owner of this
   // `DataProvider`. Required.
-  Account.Key account = 2;
+  string account = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }
 
 // Request message for `RemoveDataProviderOwner` method.
 message RemoveDataProviderOwnerRequest {
-  // Resource key.
-  DataProvider.Key key = 1;
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
-  // Resource key of the `Account` to remove as an owner of this
+  // Resource name of the `Account` to remove as an owner of this
   // `DataProvider`. Required.
-  Account.Key account = 2;
-}
-
-// Request message for `UpdateDataProviderPublicKey` method.
-message UpdateDataProviderPublicKeyRequest {
-  // Resource to update. Required.
-  DataProviderPublicKey data_provider_public_key = 1;
+  string account = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }

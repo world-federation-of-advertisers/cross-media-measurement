@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -24,14 +25,13 @@ option java_outer_classname = "ExchangeStepAttemptProto";
 
 // An attempt (successful or not) of an ExchangeStep.
 message ExchangeStepAttempt {
-  message Key {
-    string recurring_exchange_id = 1;
-    string exchange_id = 2;
-    string step_id = 3;
-    string exchange_step_attempt_id = 4;
-  }
-  // Resource key
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/ExchangeStepAttempt"
+    pattern: "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // An ExchangeStep can have multiple ExchangeStepAttempts. When sorted by
   // `start_time`, these form a contiguous sequence of integers starting at 1.

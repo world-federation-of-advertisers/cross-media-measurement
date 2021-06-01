@@ -16,8 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/event_group.proto";
-import "wfa/measurement/api/v2alpha/measurement.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -42,14 +41,16 @@ service Requisitions {
 
 // Request message for `ListRequisitions` method.
 message ListRequisitionsRequest {
-  // Resource key of the parent `EventGroup`. Required. `event_group_id` may be
-  // omitted to list across all `EventGroup`s for the specified `DataProvider`.
+  // Resource key of the parent `EventGroup`. Required. The wildcard ID (`-`)
+  // may be used in place of the `EventGroup` ID to list across all
+  // `EventGroup`s for the specified `DataProvider`.
   //
   // Results in a `PERMISSION_DENIED` error if any key segment does not match
   // for the authenticated user. For example, attempting to list
   // `Requisition`s for other `DataProvider`s or for `EventGroup`s
   // belonging to other `MeasurementConsumer`s.
-  EventGroup.Key parent = 1;
+  string parent = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/EventGroup"];
 
   // The maximum number of resources to return. See https://aip.dev/158.
   int32 page_size = 2;
@@ -61,7 +62,8 @@ message ListRequisitionsRequest {
   // fields specified as logical ANDs.
   message Filter {
     repeated Requisition.State states = 1;
-    repeated Measurement.Key measurements = 2;
+    repeated string measurements = 2
+        [(google.api.resource_reference).type = "halo.wfanet.org/Measurement"];
   }
   // Result filter. If a page token is specified, then this will be ignored and
   // the filter for the first page will be applied.
@@ -80,8 +82,9 @@ message ListRequisitionsResponse {
 
 // Request message for `RefuseRequisition` method.
 message RefuseRequisitionRequest {
-  // Resource key of the `Requisition` to mark as `UNFILLABLE`. Required.
-  Requisition.Key key = 1;
+  // Resource name of the `Requisition` to mark as `UNFILLABLE`. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Requisition"];
 
   // Details about the refusal. Required.
   Requisition.Refusal refusal = 2;

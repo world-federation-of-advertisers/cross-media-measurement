@@ -16,8 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/data_provider.proto";
-import "wfa/measurement/api/v2alpha/model_provider.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/recurring_exchange.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -45,8 +44,9 @@ service RecurringExchanges {
 
 // Request message for `GetRecurringExchange` method.
 message GetRecurringExchangeRequest {
-  // Resource key.
-  RecurringExchange.Key key = 1;
+  // Resource name.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo.wfanet.org/RecurringExchange"];
 }
 
 // Request message for `CreateRecurringExchange` method.
@@ -75,8 +75,10 @@ message ListRecurringExchangesRequest {
   // Limits the results to those that match ALL of the specified criteria. Unset
   // fields are ignored (i.e. treated like wildcards).
   message Filter {
-    DataProvider.Key data_provider = 1;
-    ModelProvider.Key model_provider = 2;
+    string data_provider = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+    string model_provider = 2 [(google.api.resource_reference).type =
+                                   "halo.wfanet.org/ModelProvider"];
   }
 
   // Restrictions on the RecurringExchanges listed. It is an error to request
@@ -95,6 +97,7 @@ message ListRecurringExchangesResponse {
 }
 
 message RetireRecurringExchangeRequest {
-  // Resource key.
-  RecurringExchange.Key key = 1;
+  // Resource name.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo.wfanet.org/RecurringExchange"];
 }

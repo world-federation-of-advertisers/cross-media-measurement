@@ -16,8 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/api/v2alpha/event_group.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -57,22 +57,26 @@ message RequisitionSpec {
     }
   }
   message EventGroupEntry {
-    // Resource key of the `EventGroup` that this entry is for. Required.
-    EventGroup.Key event_group = 1;
+    // Key of the map entry, which is an `EventGroup` resource name. Required.
+    string key = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/EventGroup"];
 
-    // Time interval over which the event data should be collected. Required.
-    TimeInterval collection_interval = 2;
+    message Value {
+      // Time interval over which the event data should be collected. Required.
+      TimeInterval collection_interval = 1;
 
-    // Optional filter to apply to events.
-    EventFilter filter = 3;
+      // Optional filter to apply to events.
+      EventFilter filter = 2;
+    }
+    // Value of the map entry. Required.
+    Value value = 2;
   }
-  // The requisition entry for each `EventGroup`. This can be logically
-  // represented as a map uniquely keyed by `EventGroup.Key`. Required.
+  // Map of `EventGroup` name to parameters for that `EventGroup`. Required.
   // Immutable.
   //
   // All of the `EventGroup`s must belong to the same parent `DataProvider`
   // as this `Requisition`.
-  repeated EventGroupEntry event_group_entries = 1;
+  repeated EventGroupEntry event_groups = 1;
 
   // Serialized `EncryptionPublicKey` for the `Measurement` that this
   // `RequisitionSpec` is associated with. Required. Immutable.
@@ -83,7 +87,7 @@ message RequisitionSpec {
 
   // SHA256 hash of the concatenation of `serialized_data_provider_list` and
   // `data_provider_list_salt` from the `Measurement` that this
-  // `RequistionSpec` is associated with. Required. Immutable.
+  // `RequisitionSpec` is associated with. Required. Immutable.
   bytes data_provider_list_hash = 3;
 }
 

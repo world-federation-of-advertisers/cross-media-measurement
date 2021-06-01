@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/account.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -26,21 +26,24 @@ option java_outer_classname = "DataProviderProto";
 // A provider of event (e.g. impression) data. For example, a publisher or panel
 // provider.
 message DataProvider {
-  message Key {
-    string data_provider_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/DataProvider"
+    pattern: "dataProviders/{data_provider}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // The *preferred* X.509 certificate belonging to this `DataProvider` in DER
   // format. Required.
-  bytes preferred_certificate = 2;
+  bytes preferred_certificate_der = 2;
 
-  // Resource key of the *preferred* `DataProviderCertificate` belonging to this
+  // Resource name of the *preferred* `Certificate` belonging to this
   // `DataProvider`. Output-only.
   //
-  // The `certificate` field of this resource matches `preferred_certificate`.
-  DataProviderCertificate.Key preferred_data_provider_certificate = 3;
+  // The `x509_der` field of this resource matches `preferred_certificate_der`.
+  string preferred_certificate = 3
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `EncryptionPublicKey` for this `DataProvider`, which can be
   // verified using `preferred_certificate`. Required.
@@ -49,40 +52,13 @@ message DataProvider {
   // Display name of the data provider.
   string display_name = 5;
 
-  // Resource keys of owner `Account`s. Output-only.
-  repeated Account.Key owners = 6;
+  // Resource names of owner `Account`s. Output-only.
+  repeated string owners = 6
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }
 
-message DataProviderCertificate {
-  message Key {
-    // ID of the parent `DataProvider`.
-    string data_provider_id = 1;
-    // ID of this `DataProviderCertificate`.
-    string data_provider_certificate_id = 2;
-  }
-  // Resource key.
-  Key key = 1;
-
-  // X.509 certificate in DER format which can be verified using the
-  // `DataProvider`'s root certificate. Required. Immutable.
-  bytes certificate = 2;
-}
-
-// Encryption public key for the `DataProvider`. Singleton resource.
-message DataProviderPublicKey {
-  // Resource key.
-  DataProvider.Key key = 1;
-
-  // Serialized `EncryptionPublicKey` for this `DataProvider`, which can be
-  // verified using `data_provider_certificate`. Required.
-  SignedData public_key = 2;
-
-  // Resource key of the `DataProviderCertificate` that can be used to verify
-  // `public_key`. Required.
-  DataProviderCertificate.Key data_provider_certificate = 3;
-}
-
-// Wrapper for a list of `DataProvider` resource keys.
+// Wrapper for a list of `DataProvider` resource names.
 message DataProviderList {
-  repeated DataProvider.Key data_provider = 1;
+  repeated string data_provider = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 }

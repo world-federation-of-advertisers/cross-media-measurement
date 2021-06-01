@@ -16,9 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/data_provider.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/exchange_workflow.proto";
-import "wfa/measurement/api/v2alpha/model_provider.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -28,11 +27,13 @@ option java_outer_classname = "RecurringExchangeProto";
 // ModelProvider on some schedule. This is instantiated once per date in the
 // schedule via Exchange resources.
 message RecurringExchange {
-  message Key {
-    string recurring_exchange_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/RecurringExchange"
+    pattern: "recurringExchanges/{recurring_exchange}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // The ExchangeWorkflow for this recurring exchange. Immutable.
   ExchangeWorkflow exchange_workflow = 2;
@@ -41,10 +42,12 @@ message RecurringExchange {
   Schedule repetition_schedule = 3;
 
   // The DataProvider party.
-  DataProvider.Key event_data_provider = 4;
+  string event_data_provider = 4
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // The ModelProvider party.
-  ModelProvider.Key model_provider = 5;
+  string model_provider = 5
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelProvider"];
 
   // Whether this exchange is still enabled.
   State state = 6;

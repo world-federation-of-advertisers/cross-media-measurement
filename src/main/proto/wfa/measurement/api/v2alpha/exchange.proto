@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -24,12 +25,13 @@ option java_outer_classname = "ExchangeProto";
 
 // Represents a RecurringExchange on a specific date.
 message Exchange {
-  message Key {
-    string recurring_exchange_id = 1;
-    string exchange_id = 2;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/Exchange"
+    pattern: "recurringExchanges/{recurring_exchange}/exchanges/{exchange}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // Must be a complete date (no field can be unset/zero).
   google.type.Date date = 2;

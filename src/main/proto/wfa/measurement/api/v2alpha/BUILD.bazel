@@ -19,11 +19,30 @@ proto_library(
 )
 
 proto_library(
+    name = "certificate_proto",
+    srcs = ["certificate.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+proto_library(
+    name = "public_key_proto",
+    srcs = ["public_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":crypto_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+proto_library(
     name = "requisition_spec_proto",
     srcs = ["requisition_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":event_group_proto",
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -34,11 +53,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
-        ":data_provider_proto",
-        ":duchy_proto",
-        ":measurement_consumer_proto",
-        ":measurement_proto",
-        ":protocol_config_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -46,12 +61,18 @@ proto_library(
     name = "account_proto",
     srcs = ["account.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
     name = "api_key_proto",
     srcs = ["api_key.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
@@ -59,8 +80,8 @@ proto_library(
     srcs = ["measurement_consumer.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":account_proto",
         ":crypto_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -69,9 +90,9 @@ proto_library(
     srcs = ["data_provider.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":account_proto",
         ":crypto_proto",
         ":measurement_consumer_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -80,7 +101,7 @@ proto_library(
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":measurement_consumer_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -106,6 +127,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":differential_privacy_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -115,9 +137,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
-        ":data_provider_proto",
-        ":measurement_consumer_proto",
-        ":protocol_config_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -125,6 +145,9 @@ proto_library(
     name = "duchy_proto",
     srcs = ["duchy.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
@@ -137,6 +160,9 @@ proto_library(
     name = "model_provider_proto",
     srcs = ["model_provider.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
@@ -144,9 +170,8 @@ proto_library(
     srcs = ["recurring_exchange.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":data_provider_proto",
         ":exchange_workflow_proto",
-        ":model_provider_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -155,6 +180,7 @@ proto_library(
     srcs = ["exchange.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:date_proto",
     ],
 )
@@ -165,6 +191,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":exchange_workflow_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -173,11 +200,18 @@ proto_library(
     srcs = ["exchange_step_attempt.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
 # Services.
+
+proto_library(
+    name = "public_keys_service_proto",
+    srcs = ["public_keys_service.proto"],
+    deps = [":public_key_proto"],
+)
 
 proto_library(
     name = "accounts_service_proto",
@@ -190,10 +224,8 @@ proto_library(
     srcs = ["requisitions_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":event_group_proto",
-        ":measurement_consumer_proto",
-        ":measurement_proto",
         ":requisition_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -203,6 +235,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":requisition_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -211,8 +244,8 @@ proto_library(
     srcs = ["measurement_consumers_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":account_proto",
         ":measurement_consumer_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -221,8 +254,8 @@ proto_library(
     srcs = ["measurements_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":measurement_consumer_proto",
         ":measurement_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -231,8 +264,8 @@ proto_library(
     srcs = ["data_providers_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":account_proto",
         ":data_provider_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -241,9 +274,8 @@ proto_library(
     srcs = ["event_groups_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":data_provider_proto",
         ":event_group_proto",
-        ":measurement_consumer_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -251,33 +283,36 @@ proto_library(
     name = "protocol_configs_service_proto",
     srcs = ["protocol_configs_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":protocol_config_proto"],
+    deps = [
+        ":protocol_config_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
     name = "recurring_exchanges_service_proto",
     srcs = ["recurring_exchanges_service.proto"],
     deps = [
-        ":data_provider_proto",
-        ":model_provider_proto",
         ":recurring_exchange_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
 proto_library(
     name = "exchanges_service_proto",
     srcs = ["exchanges_service.proto"],
-    deps = [":exchange_proto"],
+    deps = [
+        ":exchange_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
     name = "exchange_steps_service_proto",
     srcs = ["exchange_steps_service.proto"],
     deps = [
-        ":data_provider_proto",
-        ":exchange_step_attempt_proto",
         ":exchange_step_proto",
-        ":model_provider_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -286,6 +321,6 @@ proto_library(
     srcs = ["exchange_step_attempts_service.proto"],
     deps = [
         ":exchange_step_attempt_proto",
-        ":exchange_step_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )

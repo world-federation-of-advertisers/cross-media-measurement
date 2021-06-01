@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
-import "wfa/measurement/api/v2alpha/account.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -25,22 +25,24 @@ option java_outer_classname = "MeasurementConsumerProto";
 
 // A consumer of `Measurement` results. For example, an advertiser or ad agency.
 message MeasurementConsumer {
-  message Key {
-    string measurement_consumer_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/MeasurementConsumer"
+    pattern: "measurementConsumers/{measurement_consumer}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // The *preferred* X.509 certificate belonging to this `MeasurementConsumer`
   // in DER format. Required.
-  bytes preferred_certificate = 2;
+  bytes preferred_certificate_der = 2;
 
-  // Resource key of the *preferred* `MeasurementConsumerCertificate` belonging
-  // to this `MeasurementConsumer`. Output-only.
+  // Resource name of the *preferred* `Certificate` belonging to this
+  // `MeasurementConsumer`. Output-only.
   //
-  // The `certificate` field of this resource matches `preferred_certificate`.
-  MeasurementConsumerCertificate.Key
-      preferred_measurement_consumer_certificate = 3;
+  // The `x509_der` field of this resource matches `preferred_certificate_der`.
+  string preferred_certificate = 3
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `EncryptionPublicKey` for this `MeasurementConsumer`, which can
   // be verified using `preferred_certificate`. Required.
@@ -49,35 +51,7 @@ message MeasurementConsumer {
   // Official name of the `MeasurementConsumer`.
   string title = 5;
 
-  // Resource keys of owner `Account`s. Output-only.
-  repeated Account.Key owners = 6;
-}
-
-message MeasurementConsumerCertificate {
-  message Key {
-    // ID of the parent `MeasurementConsumer`.
-    string measurement_consumer_id = 1;
-    // ID of this `MeasurementConsumerCertificate`.
-    string measurement_consumer_certificate_id = 2;
-  }
-  // Resource key.
-  Key key = 1;
-
-  // X.509 certificate in DER format which can be verified using the
-  // `MeasurementConsumer`'s root certificate. Required. Immutable.
-  bytes certificate = 2;
-}
-
-// Encryption public key for the `MeasurementConsumer`. Singleton resource.
-message MeasurementConsumerPublicKey {
-  // Resource key.
-  MeasurementConsumer.Key key = 1;
-
-  // Serialized `EncryptionPublicKey` for this `MeasurementConsumer`, which can
-  // be verified using `measurement_consumer_certificate`. Required.
-  SignedData public_key = 2;
-
-  // Resource key of the `MeasurementConsumerCertificate` that can be used to
-  // verify `public_key`. Required.
-  MeasurementConsumerCertificate.Key measurement_consumer_certificate = 3;
+  // Resource names of owner `Account`s. Output-only.
+  repeated string owners = 6
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }

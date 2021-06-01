@@ -16,8 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
-import "wfa/measurement/api/v2alpha/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -26,12 +26,10 @@ option java_outer_classname = "MeasurementsServiceProto";
 // Service for interacting with `Measurement` resources.
 service Measurements {
   // Returns the `Measurement` with the specified resource key.
-  rpc GetMeasurement(GetMeasurementRequest)
-      returns (Measurement) {}
+  rpc GetMeasurement(GetMeasurementRequest) returns (Measurement) {}
 
   // Creates (registers) a `Measurement`.
-  rpc CreateMeasurement(CreateMeasurementRequest)
-      returns (Measurement) {}
+  rpc CreateMeasurement(CreateMeasurementRequest) returns (Measurement) {}
 
   // Lists `Measurement`s for the parent `MeasurementConsumer`.
   rpc ListMeasurements(ListMeasurementsRequest)
@@ -40,8 +38,9 @@ service Measurements {
 
 // Request message for `GetMeasurement` method.
 message GetMeasurementRequest {
-  // Resource key.
-  Measurement.Key key = 1;
+  // Resource name. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Measurement"];
 }
 
 // Request message for `CreateMeasurement` method.
@@ -53,8 +52,9 @@ message CreateMeasurementRequest {
 
 // Request message for `ListMeasurements` method.
 message ListMeasurementsRequest {
-  // Resource key of the parent `MeasurementConsumer`.
-  MeasurementConsumer.Key parent = 1;
+  // Resource name of the parent `MeasurementConsumer`. Required.
+  string parent = 1 [(google.api.resource_reference).type =
+                         "halo.wfanet.org/MeasurementConsumer"];
 
   // The maximum number of `Measurement`s to return.
   // The service may return fewer than this value.
@@ -87,5 +87,3 @@ message ListMeasurementsResponse {
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
 }
-
-

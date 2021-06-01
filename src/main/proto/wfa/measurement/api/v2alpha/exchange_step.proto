@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/exchange_workflow.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -24,14 +25,13 @@ option java_outer_classname = "ExchangeStepProto";
 
 // API resource representing an ExchangeWorkflow.Step for a particular Exchange.
 message ExchangeStep {
-  message Key {
-    string recurring_exchange_id = 1;
-    string exchange_id = 2;
-    string exchange_step_id = 3;
-  }
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/ExchangeStep"
+    pattern: "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}"
+  };
 
-  // Resource key.
-  Key key = 1;
+  // Resource name.
+  string name = 1;
 
   // Output-only.
   State state = 2;

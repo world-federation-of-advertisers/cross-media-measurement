@@ -12,8 +12,6 @@ This API is resource-oriented, loosely following the
 differences from the AIPs:
 
 1.  No HTTP annotations. These services are gRPC-only.
-1.  Resource `Key` messages are used instead of
-    [resource names](https://google.aip.dev/122).
 1.  The [filtering language](https://google.aip.dev/160) is not used. Custom
     structured filters are used instead.
 

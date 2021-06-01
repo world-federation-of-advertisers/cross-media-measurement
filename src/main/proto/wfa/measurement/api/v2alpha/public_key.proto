@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,18 +17,31 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
+import "wfa/measurement/api/v2alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ModelProviderProto";
+option java_outer_classname = "PublicKeyProto";
 
-// The party that builds VID Models.
-message ModelProvider {
+// Singleton resource representing an encryption public key.
+message PublicKey {
   option (google.api.resource) = {
-    type: "halo.wfanet.org/ModelProvider"
-    pattern: "modelProviders/{model_provider}"
+    type: "halo.wfanet.org/PublicKey"
+    pattern: "dataProviders/{data_provider}/publicKey"
+    pattern: "measurementConsumers/{measurement_consumer}/publicKey"
   };
 
   // Resource name.
   string name = 1;
+
+  // Serialized `EncryptionPublicKey` for the parent resource, which can be
+  // verified using `certificate`. Required.
+  SignedData public_key = 2;
+
+  // Resource name of the `Certificate` that can be used to verify `public_key`.
+  // Required.
+  //
+  // This must have the same parent as the `PublicKey`.
+  string certificate = 3
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 }

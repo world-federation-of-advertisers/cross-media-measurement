@@ -16,40 +16,30 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
+
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DuchyProto";
 
 // Resource message representing a Duchy.
 message Duchy {
-  message Key {
-    string duchy_id = 1;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo.wfanet.org/Duchy"
+    pattern: "duchies/{duchy}"
+  };
+
+  // Resource name.
+  string name = 1;
 
   // The *preferred* X.509 certificate belonging to this `Duchy` in DER format.
   // Required.
-  bytes preferred_certificate = 2;
+  bytes preferred_certificate_der = 2;
 
-  // Resource key of the *preferred* `DuchyCertificate` belonging to this
-  // `Duchy`. Output-only.
+  // Resource name of the *preferred* `Certificate` belonging to this `Duchy`.
+  // Output-only.
   //
-  // The `certificate` field of this resource matches `preferred_certificate`.
-  DuchyCertificate.Key preferred_duchy_certificate = 3;
-}
-
-message DuchyCertificate {
-  message Key {
-    // ID of the parent `Duchy`.
-    string duchy_id = 1;
-    // ID of this `DuchyCertificate`.
-    string duchy_certificate_id = 2;
-  }
-  // Resource key.
-  Key key = 1;
-
-  // X.509 certificate in DER format which can be verified using the `Duchy`'s
-  // root certificate. Required. Immutable.
-  bytes certificate = 2;
+  // The `x509_der` field of this resource matches `preferred_certificate_der`.
+  string preferred_certificate = 3
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 }
