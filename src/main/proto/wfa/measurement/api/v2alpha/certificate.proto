@@ -36,4 +36,24 @@ message Certificate {
 
   // X.509 certificate in DER format. Required. Immutable.
   bytes x509_der = 2;
+
+  // RFC 5280 revocation state.
+  //
+  // This is *not* a resource state as defined by https://google.aip.dev/216.
+  enum RevocationState {
+    REVOCATION_STATE_UNSPECIFIED = 0;
+
+    // Certificate is on hold and therefore invalid, possibly temporarily.
+    HOLD = 1;
+
+    // Certificate has been revoked. Terminal state.
+    REVOKED = 2;
+  }
+  // Revocation state of the certificate reported by an API caller. Output-only.
+  //
+  // If specified, it means that the certificate is not currently valid.
+  //
+  // Note that this is not guaranteed to reflect the actual revocation state
+  // determined by the issuing certificate authority.
+  RevocationState revocation_state = 3;
 }

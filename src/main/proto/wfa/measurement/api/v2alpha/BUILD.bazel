@@ -208,6 +208,15 @@ proto_library(
 # Services.
 
 proto_library(
+    name = "certificates_service_proto",
+    srcs = ["certificates_service.proto"],
+    deps = [
+        ":certificate_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+proto_library(
     name = "public_keys_service_proto",
     srcs = ["public_keys_service.proto"],
     deps = [":public_key_proto"],

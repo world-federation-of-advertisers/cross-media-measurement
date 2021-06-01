@@ -1,0 +1,67 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "google/api/resource.proto";
+import "wfa/measurement/api/v2alpha/certificate.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "CertificatesServiceProto";
+
+// Service for interacting with `Certificate` resources.
+service Certificates {
+  // Creates (adds) a `Certificate`.
+  rpc CreateCertificate(CreateCertificateRequest) returns (Certificate) {}
+
+  // Revokes a `Certificate` by setting its revocation state.
+  rpc RevokeCertificate(RevokeCertificateRequest) returns (Certificate) {}
+
+  // Releases a `Certificate` with a revocation state of `HOLD` by clearing its
+  // revocation state.
+  rpc ReleaseCertificateHold(ReleaseCertificateHoldRequest)
+      returns (Certificate) {}
+}
+
+// Request message for `CreateCertificate` method.
+message CreateCertificateRequest {
+  // Name of the parent resource. Required.
+  string parent = 1 [(google.api.resource_reference).child_type =
+                         "halo.wfanet.org/Certificate"];
+
+  // The `Certificate` to create. Required.
+  //
+  // The `name` field will be ignored, and the system will assign an ID.
+  Certificate certificate = 2;
+}
+
+// Request message for `RevokeCertificate` method.
+message RevokeCertificateRequest {
+  // Resource name. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
+
+  // Revocation state to set. Required.
+  Certificate.RevocationState revocation_state = 2;
+}
+
+// Request message for `ReleaseCertificateHold` method.
+message ReleaseCertificateHoldRequest {
+  // Resource name. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
+}
