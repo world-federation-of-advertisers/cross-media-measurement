@@ -98,8 +98,7 @@ CREATE TABLE EventGroups (
   -- Provided by the Data Provider,  used for idempotency.
   ProvidedEventGroupId  STRING(MAX) NOT NULL,
 
-  CONSTRAINT FK_MeasurementConsumer
-    FOREIGN KEY (MeasurementConsumerId)
+  FOREIGN KEY (MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 ) PRIMARY KEY (DataProviderId, EventGroupId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
@@ -175,8 +174,7 @@ CREATE TABLE Requisitions (
   RequisitionDetails          BYTES(MAX),
   RequisitionDetailsJson      STRING(MAX),
 
-  CONSTRAINT FK_DataProvider
-    FOREIGN KEY (DataProviderId)
+  FOREIGN KEY (DataProviderId)
     REFERENCES DataProviders(DataProviderId),
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, RequisitionId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
