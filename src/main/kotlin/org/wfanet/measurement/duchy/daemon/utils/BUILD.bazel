@@ -16,3 +16,20 @@ kt_jvm_library(
     srcs = ["PublicApiVersion.kt"],
     deps = [],
 )
+
+kt_jvm_library(
+    name = "computation_conversions",
+    srcs = ["ComputationConversions.kt"],
+    deps = [
+        ":public_api_version",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:requisition_java_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_java_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:differential_privacy_java_proto",
+    ],
+)

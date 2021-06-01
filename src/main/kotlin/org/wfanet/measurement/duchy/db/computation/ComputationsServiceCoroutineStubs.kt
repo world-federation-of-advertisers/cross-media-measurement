@@ -31,7 +31,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
  */
 suspend fun ComputationsCoroutineStub.advanceComputationStage(
   computationToken: ComputationToken,
-  inputsToNextStage: List<String>,
+  inputsToNextStage: List<String> = listOf(),
   passThroughBlobs: List<String> = listOf(),
   stage: ComputationStage,
   computationProtocolStageDetails:
