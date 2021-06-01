@@ -16,19 +16,26 @@
 --
 -- Table hierarchy:
 --   Root
---   ├───MeasurementConsumers
---   │   └─ Measurements
---   │      ├─ Requisitions
---   │      ├── ComputationParticipants
---   │      └── MeasurementLogEntries
---   │
---   └── DataProviders
---       └── EventGroups
+--   ├── Certificates
+--   ├── DataProviders
+--   │   ├── DataProviderCertificates
+--   │   └── EventGroups
+--   └── MeasurementConsumers
+--       ├── MeasurementConsumerCertificates
+--       └── Measurements
+--           ├── ComputationParticipants
+--           ├── MeasurementLogEntries
+--           └── Requisition
 --
 -- The important foreign key relationships between the tables are:
 --
---   MeasurementConsumers  <- 1:many -> EventGroups
+--   MeasurementConsumers <- 1:many -> EventGroups
+--   DataProviders <- 1:many -> EventGroups
 --   Measurements <- 1:many -> Requisitions
+--   MeasurementConsumers <- 1:many -> MeasurementConsumerCertificates
+--   DataProviders <- 1:many -> DataProviderCertificates
+--   MeasurementConsumerCertificates <- 0..1:1 -> Certificates
+--   DataProviderCertificates <- 0..1:1 -> Certificates
 --
 -- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
 -- expose only External identifiers, and ideally only web-safe base64 versions
@@ -45,6 +52,28 @@
 -- Once all Requisitions for a Measurement have been fulfilled, the multi-party
 -- computation can begin.
 
+-- X.509 certificates used for consent signaling.
+CREATE TABLE Certificates (
+  CertificateId INT64 NOT NULL,
+
+  SubjectKeyIdentifier BYTES(MAX) NOT NULL,
+  NotValidBefore TIMESTAMP NOT NULL,
+  NotValidAfter TIMESTAMP NOT NULL,
+
+  -- org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
+  -- protobuf enum encoded as an integer.
+  RevocationState INT64 NOT NULL,
+
+  -- Serialized org.wfanet.measurement.internal.kingdom.Certificate.Details
+  -- protobuf message.
+  CertificateDetails BYTES(MAX),
+  CertificateDetailsJson STRING(MAX),
+) PRIMARY KEY (CertificateId);
+
+-- Enforce that subject key identifier (SKID) is unique.
+CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
+  ON Certificates(SubjectKeyIdentifier);
+
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId          INT64 NOT NULL,
 
@@ -58,6 +87,18 @@ CREATE TABLE MeasurementConsumers (
 CREATE UNIQUE INDEX MeasurementConsumersByExternalId
   ON MeasurementConsumers(ExternalMeasurementConsumerId);
 
+CREATE TABLE MeasurementConsumerCertificates (
+  MeasurementConsumerId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalMeasurementConsumerCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (MeasurementConsumerId, CertificateId),
+  INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX MeasurementConsumerCertificatesByExternalId
+  ON MeasurementConsumerCertificates(MeasurementConsumerId, ExternalMeasurementConsumerCertificateId);
 
 CREATE TABLE DataProviders (
   DataProviderId          INT64 NOT NULL,
@@ -68,6 +109,19 @@ CREATE TABLE DataProviders (
 -- For data provider APIs.
 CREATE UNIQUE INDEX DataProvidersByExternalId
   ON DataProviders(ExternalDataProviderId);
+
+CREATE TABLE DataProviderCertificates (
+  DataProviderId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalDataProviderCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (DataProviderId, CertificateId),
+  INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX DataProviderCertificatesByExternalId
+  ON DataProviderCertificates(DataProviderId, ExternalDataProviderCertificateId);
 
 -- Each EventGroup belongs to both a MeasurementConsumer and a Data Provider.
 --
@@ -188,6 +242,18 @@ CREATE UNIQUE INDEX RequisitionsByDataProviderId
 -- Used to effectively list requisitions that a DataProvider would need to
 -- fulfill
 CREATE INDEX RequisitionsByState ON Requisitions(DataProviderId, State);
+
+CREATE TABLE DuchyCertificates (
+  DuchyId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalDuchyCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (DuchyId, CertificateId);
+
+CREATE UNIQUE INDEX DuchyCertificatesByExternalId
+  ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
 
 -- Stores the details and state of duchies for the computation of parent
 -- Measurement.
