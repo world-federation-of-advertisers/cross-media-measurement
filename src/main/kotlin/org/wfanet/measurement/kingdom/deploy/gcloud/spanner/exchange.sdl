@@ -57,12 +57,10 @@ CREATE TABLE RecurringExchanges (
   RecurringExchangeDetails      BYTES(MAX) NOT NULL,
   RecurringExchangeDetailsJson  STRING(MAX) NOT NULL,
 
-  CONSTRAINT FK_ModelProvider
-    FOREIGN KEY (ModelProviderId)
+  FOREIGN KEY (ModelProviderId)
     REFERENCES ModelProviders(ModelProviderId),
 
-  CONSTRAINT FK_DataProvider
-    FOREIGN KEY (DataProviderId)
+  FOREIGN KEY (DataProviderId)
     REFERENCES DataProviders(DataProviderId),
 ) PRIMARY KEY (RecurringExchangeId);
 
@@ -100,12 +98,10 @@ CREATE TABLE ExchangeSteps (
   ModelProviderId      INT64,
   DataProviderId       INT64,
 
-  CONSTRAINT FK_ModelProvider
-    FOREIGN KEY (ModelProviderId)
+  FOREIGN KEY (ModelProviderId)
     REFERENCES ModelProviders(ModelProviderId),
 
-  CONSTRAINT FK_DataProvider
-    FOREIGN KEY (DataProviderId)
+  FOREIGN KEY (DataProviderId)
     REFERENCES DataProviders(DataProviderId),
 ) PRIMARY KEY (RecurringExchangeId, Date, StepIndex),
   INTERLEAVE IN PARENT Exchanges ON DELETE CASCADE;

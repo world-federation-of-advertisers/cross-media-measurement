@@ -186,7 +186,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
 
   suspend fun insertReportWithParents(
     advertiserId: Long,
-    externalAdvertiserId: Long,
     reportConfigId: Long,
     externalReportConfigId: Long,
     scheduleId: Long,
@@ -200,7 +199,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
     windowEndTime: Instant = Instant.EPOCH,
     reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
   ) {
-    insertAdvertiser(advertiserId, externalAdvertiserId)
     insertReportConfig(advertiserId, reportConfigId, externalReportConfigId)
     insertReportConfigSchedule(advertiserId, reportConfigId, scheduleId, externalScheduleId)
     insertReport(

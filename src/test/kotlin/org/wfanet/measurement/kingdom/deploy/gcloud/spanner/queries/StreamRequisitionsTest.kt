@@ -36,6 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.buildRequisi
 private const val DATA_PROVIDER_ID = 1L
 private const val EXTERNAL_DATA_PROVIDER_ID = 2L
 private const val ADVERTISER_ID = 7L
+private const val EXTERNAL_ADVERTISER_ID = 8L
 private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
 private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
 private val REQUISITION_DETAILS = buildRequisitionDetails(10101)
@@ -83,6 +84,7 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
+    insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
 
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID1, EXTERNAL_CAMPAIGN_ID1, ADVERTISER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID2, EXTERNAL_CAMPAIGN_ID2, ADVERTISER_ID)

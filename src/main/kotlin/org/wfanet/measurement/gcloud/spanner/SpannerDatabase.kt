@@ -28,18 +28,20 @@ fun createDatabase(
   spannerInstance: Instance,
   schemaDefinitionLines: Sequence<String>,
   databaseName: String
-): Database = spannerInstance.createDatabase(databaseName, sanitizeSdl(schemaDefinitionLines)).get()
+): Database =
+  spannerInstance.createDatabase(databaseName, toDdlStatements(schemaDefinitionLines)).get()
 
-private fun sanitizeSdl(sdl: Sequence<String>): List<String> {
+/** Converts schema definition lines to data definition language (DDL) statements. */
+private fun toDdlStatements(sdl: Sequence<String>): List<String> {
   return sdl
-    // Replace comments and references to foreign keys from schema file.
-    .map { it.replace("""(--|CONSTRAINT|FOREIGN|REFERENCES).*$""".toRegex(), "") }
-    // Delete blank lines
+    // Strip comments.
+    .map { it.replace("""--.*$""".toRegex(), "") }
+    // Remove blank lines.
     .filter { it.isNotBlank() }
-    // Rejoin to single sting
+    // Join lines to single string.
     .joinToString("\n")
-    // and split into operations
+    // Split into statements.
     .split(';')
-    // Removing any blank operations
+    // Remove blank statements.
     .filter { it.isNotBlank() }
 }
