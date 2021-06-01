@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.herald
+package org.wfanet.measurement.duchy.daemon.utils
 
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as V2AlphaHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.HybridCipherSuite
-import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams as SystemDifferentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.Requisition as SystemRequisition
 
 /** Creates a KingdomComputationDetails from the kingdom system API Computation. */
-fun Computation.toKingdomComputationDetails(): KingdomComputationDetails {
+fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
   return KingdomComputationDetails.newBuilder()
     .also {
       it.publicApiVersion = publicApiVersion
@@ -40,7 +42,9 @@ fun Computation.toKingdomComputationDetails(): KingdomComputationDetails {
         PublicApiVersion.V2_ALPHA -> {
           val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
           it.measurementPublicKey =
-            measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(publicApiVersion)
+            measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(
+              publicApiVersion.toPublicApiVersion()
+            )
           it.cipherSuite = measurementSpec.cipherSuite.toDuchyHybridCipherSuite()
         }
       }
@@ -52,10 +56,19 @@ fun Computation.toKingdomComputationDetails(): KingdomComputationDetails {
  * Parses a serialized Public API EncryptionPublicKey and converts to duchy internal
  * EncryptionPublicKey.
  */
-fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: String): EncryptionPublicKey {
-  return when (publicApiVersion.toPublicApiVersion()) {
+fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: PublicApiVersion): EncryptionPublicKey {
+  return when (publicApiVersion) {
     PublicApiVersion.V2_ALPHA ->
       V2AlphaEncryptionPublicKey.parseFrom(this).toDuchyEncryptionPublicKey()
+  }
+}
+
+/**
+ * Parses a serialized Public API ElGamalPublicKey and converts to duchy internal ElGamalPublicKey.
+ */
+fun ByteString.toDuchyElGamalPublicKey(publicApiVersion: PublicApiVersion): ElGamalPublicKey {
+  return when (publicApiVersion) {
+    PublicApiVersion.V2_ALPHA -> V2AlphaElGamalPublicKey.parseFrom(this).toDuchyElGamalPublicKey()
   }
 }
 
@@ -113,6 +126,18 @@ fun SystemDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differen
     .build()
 }
 
+/** Converts a system API DifferentialPrivacyParams to duchy internal DifferentialPrivacyParams. */
+fun SystemRequisition.toDuchyRequisitionDetails(): RequisitionDetails {
+  return RequisitionDetails.newBuilder()
+    .also {
+      it.dataProviderCertificate = dataProviderCertificate
+      it.requisitionSpecHash = requisitionSpecHash
+      it.dataProviderParticipationSignature = dataProviderParticipationSignature
+      it.externalFulfillingDuchyId = fulfillingComputationParticipant.duchyId
+    }
+    .build()
+}
+
 /**
  * Converts a v2alpha Public API DifferentialPrivacyParams to duchy internal
  * DifferentialPrivacyParams.
@@ -122,6 +147,16 @@ fun V2AlphaDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differe
     .also {
       it.epsilon = epsilon
       it.delta = delta
+    }
+    .build()
+}
+
+/** Converts a v2alpha Public API ElGamalPublicKey to duchy internal ElGamalPublicKey. */
+fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
+  return ElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = generator
+      it.element = element
     }
     .build()
 }
