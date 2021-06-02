@@ -17,13 +17,24 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/computation_participant.proto";
 import "wfa/measurement/internal/kingdom/duchy_protocol_config.proto";
+import "wfa/measurement/internal/kingdom/requisition.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 // Representation of the internal Measurement entity type.
 message Measurement {
+  enum View {
+    // Default view, which includes all fields aside from child collections.
+    DEFAULT = 0;
+
+    // View for computation, which includes child Requisitions and
+    // ComputationParticipants.
+    COMPUTATION = 1;
+  }
+
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
 
@@ -91,4 +102,14 @@ message Measurement {
   }
   Details details = 10;
   string details_json = 11;
+
+  // Child Requisitions of this Measurement. Output-only.
+  //
+  // Only set for COMPUTATION view.
+  repeated Requisition requisitions = 12;
+
+  // Child ComputationParticipants of this Measurement. Output-only.
+  //
+  // Only set for COMPUTATION view.
+  repeated ComputationParticipant computation_participants = 13;
 }

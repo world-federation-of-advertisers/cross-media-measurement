@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,22 +16,18 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Proto representation of the internal DataProvider entity type.
-message DataProvider {
+message EventGroup {
   fixed64 external_data_provider_id = 1;
+  fixed64 external_event_group_id = 2;
 
-  // External ID of Certificate for public key signature verification.
-  fixed64 external_public_key_certificate_id = 2;
+  fixed64 external_measurement_consumer_id = 3;
 
-  message Details {
-    // Version the public API for serialized message definitions.
-    string api_version = 1;
+  string provided_event_group_id = 4;
 
-    // Serialized `EncryptionPublicKey` from public API.
-    bytes public_key = 2;
-    bytes public_key_signature = 3;
-  }
+  google.protobuf.Timestamp create_time = 5;
 }
