@@ -19,14 +19,17 @@
 --   ├── Certificates
 --   ├── DataProviders
 --   │   ├── DataProviderCertificates
+--   │   ├── DataProviderPublicKeys
 --   │   └── EventGroups
 --   ├── DuchyCertificates
---   └── MeasurementConsumers
---       ├── MeasurementConsumerCertificates
---       └── Measurements
---           ├── ComputationParticipants
---           ├── MeasurementLogEntries
---           └── Requisition
+--   ├── MeasurementConsumers
+--   │   ├── MeasurementConsumerCertificates
+--   │   ├── MeasurementConsumerPublicKeys
+--   │   └── Measurements
+--   │       ├── ComputationParticipants
+--   │       ├── MeasurementLogEntries
+--   │       └── Requisitions
+--   └── PublicKeys
 --
 -- Note that there is no Duchies table. Instead, a well-known set of Duchies
 -- should be defined in a configuration file for a given Kingdom deployment.
@@ -42,6 +45,12 @@
 --   MeasurementConsumerCertificates -[1:1]-> Certificates
 --   DataProviderCertificates -[1:1]-> Certificates
 --   DuchyCertificates -[1:1]-> Certificates
+--
+--   PublicKeys -[many:1]-> Certificates
+--   MeasurementConsumerPublicKeys -[many:1]-> MeasurementConsumers
+--   DataProviderPublicKeys -[many:1]-> DataProviders
+--   MeasurementConsumerPublicKeys -[1:1]-> PublicKeys
+--   DataProviderPublicKeys -[1:1]-> PublicKeys
 --
 -- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
 -- expose only External identifiers, and ideally only web-safe base64 versions
@@ -81,6 +90,20 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
+-- Encryption public keys.
+CREATE TABLE PublicKeys (
+  PublicKeyId INT64 NOT NULL,
+
+  CertificateId INT64 NOT NULL,
+
+  -- Serialized org.wfanet.measurement.internal.kingdom.PublicKey.Details
+  -- protobuf message.
+  PublicKeyDetails BYTES(MAX),
+  PublicKeyDetailsJson STRING(MAX),
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (PublicKeyId);
+
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId          INT64 NOT NULL,
 
@@ -111,6 +134,23 @@ CREATE UNIQUE INDEX MeasurementConsumerCertificatesByExternalId
 CREATE UNIQUE INDEX MeasurementConsumerCertificatesByCertificateId
   ON MeasurementConsumerCertificates(CertificateId);
 
+CREATE TABLE MeasurementConsumerPublicKeys (
+  MeasurementConsumerId INT64 NOT NULL,
+  PublicKeyId INT64 NOT NULL,
+
+  ExternalMeasurementConsumerPublicKeyId INT64 NOT NULL,
+
+  FOREIGN KEY (PublicKeyId) REFERENCES PublicKeys(PublicKeyId),
+) PRIMARY KEY (MeasurementConsumerId, PublicKeyId),
+  INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX MeasurementConsumerPublicKeysByExternalId
+  ON MeasurementConsumerPublicKeys(MeasurementConsumerId, ExternalMeasurementConsumerPublicKeyId);
+
+-- No PublicKey should belong to more than one MeasurementConsumer.
+CREATE UNIQUE INDEX MeasurementConsumerPublicKeysByPublicKeyId
+  ON MeasurementConsumerPublicKeys(PublicKeyId);
+
 CREATE TABLE DataProviders (
   DataProviderId          INT64 NOT NULL,
   ExternalDataProviderId  INT64 NOT NULL,
@@ -137,6 +177,23 @@ CREATE UNIQUE INDEX DataProviderCertificatesByExternalId
 -- No Certificate should belong to more than one DataProvider.
 CREATE UNIQUE INDEX DataProviderCertificatesByCertificateId
   ON DataProviderCertificates(CertificateId);
+
+CREATE TABLE DataProviderPublicKeys (
+  DataProviderId INT64 NOT NULL,
+  PublicKeyId INT64 NOT NULL,
+
+  ExternalDataProviderPublicKeyId INT64 NOT NULL,
+
+  FOREIGN KEY (PublicKeyId) REFERENCES PublicKeys(PublicKeyId),
+) PRIMARY KEY (DataProviderId, PublicKeyId),
+  INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX DataProviderPublicKeysByExternalId
+  ON DataProviderPublicKeys(DataProviderId, ExternalDataProviderPublicKeyId);
+  
+-- No PublicKey should belong to more than one DataProvider.
+CREATE UNIQUE INDEX DataProviderPublicKeysByPublicKeyId
+  ON DataProviderPublicKeys(PublicKeyId);
 
 -- Each EventGroup belongs to both a MeasurementConsumer and a Data Provider.
 --
