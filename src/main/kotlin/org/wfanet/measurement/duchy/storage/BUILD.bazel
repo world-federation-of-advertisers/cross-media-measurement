@@ -4,8 +4,8 @@ kt_jvm_library(
     name = "metric_value_store",
     srcs = ["MetricValueStore.kt"],
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/metricvalues:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/duchy/service/internal/metricvalues:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service:__subpackages__",
     ],
     exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
