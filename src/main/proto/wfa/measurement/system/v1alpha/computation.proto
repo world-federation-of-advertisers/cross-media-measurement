@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.system.v1alpha;
 
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
+import "wfa/measurement/system/v1alpha/differential_privacy.proto";
 import "wfa/measurement/system/v1alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -97,4 +98,32 @@ message Computation {
 
   // Denormalized child `Requisition` resources. Output-only.
   repeated Requisition requisitions = 12;
+
+  // Protocol configuration that need only be known by Duchies.
+  message DuchyProtocolConfig {
+    message LiquidLegionsV2 {
+      // The maximum frequency to reveal in the histogram.
+      int32 maximum_frequency = 1;
+
+      // Configuration for noises added by the MPC workers to protect
+      // intermediate results. These noises don't affect the final output.
+      message MpcNoise {
+        // DP params for the blind histogram noise register.
+        // Each of these registers contains a random register id, the same
+        // constant key indicating that the register is destroyed, and an
+        // arbitrary count value.
+        DifferentialPrivacyParams blinded_histogram_noise = 1;
+        // DP params for the noise for the publisher noise registers.
+        // Each of these registers contains a well-known constant register id,
+        // and arbitrary key and count values.
+        DifferentialPrivacyParams noise_for_publisher_noise = 2;
+      }
+      MpcNoise mpc_noise = 2;
+    }
+
+    oneof protocol {
+      LiquidLegionsV2 liquid_legions_v2 = 1;
+    }
+  }
+  DuchyProtocolConfig duchy_protocol_config = 13;
 }

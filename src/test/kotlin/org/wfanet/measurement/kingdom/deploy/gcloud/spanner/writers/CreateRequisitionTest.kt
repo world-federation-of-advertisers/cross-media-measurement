@@ -45,6 +45,7 @@ private const val NEW_REQUISITION_ID = 7L
 private const val NEW_EXTERNAL_REQUISITION_ID = 8L
 
 private const val ADVERTISER_ID = 9L
+private const val EXTERNAL_ADVERTISER_ID = 10L
 
 private val WINDOW_START_TIME: Instant = Instant.ofEpochSecond(123)
 private val WINDOW_END_TIME: Instant = Instant.ofEpochSecond(456)
@@ -87,6 +88,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
+    insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
   }
 

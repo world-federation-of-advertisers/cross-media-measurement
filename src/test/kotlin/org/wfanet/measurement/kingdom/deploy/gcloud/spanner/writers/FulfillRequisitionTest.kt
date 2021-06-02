@@ -98,6 +98,7 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
+    insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
     insertCampaign(DATA_PROVIDER_ID, CAMPAIGN_ID, EXTERNAL_CAMPAIGN_ID, ADVERTISER_ID)
     insertRequisition(
       DATA_PROVIDER_ID,
@@ -144,7 +145,6 @@ class FulfillRequisitionTest : KingdomDatabaseTestBase() {
 
       insertReportWithParents(
         ADVERTISER_ID,
-        EXTERNAL_ADVERTISER_ID,
         REPORT_CONFIG_ID,
         EXTERNAL_REPORT_CONFIG_ID,
         SCHEDULE_ID,
