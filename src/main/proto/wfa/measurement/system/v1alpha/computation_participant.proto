@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.system.v1alpha;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/system/v1alpha/stage_attempt.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
@@ -41,13 +42,14 @@ message ComputationParticipant {
     // not yet ready to participate.
     REQUISITION_PARAMS_SET = 2;
 
-    // The `ComputationParticipant` is ready to participate. Terminal state.
+    // The `ComputationParticipant` is ready to participate.
     READY = 3;
 
-    // The `ComputationParticipant` has refused to participate. Terminal state.
+    // A permanent error occurred in the `ComputationParticipant`. Terminal
+    // state.
     //
     // The parent `Computation` will be in the `FAILED` state.
-    REFUSED = 4;
+    FAILED = 4;
   }
   // State of this `ComputationParticipant`. Output-only.
   State state = 2;
@@ -78,4 +80,23 @@ message ComputationParticipant {
   }
   // Parameters needed for `Requisition` to be made available in public API.
   RequisitionParams requisition_params = 4;
+
+  message Failure {
+    // ID of some child of the `ComputationParticipant` from an external system.
+    //
+    // For example, this may identify a specific job or task.
+    string participant_child_reference_id = 1;
+
+    // Human-readable error message. This should not include any sensitive info.
+    string error_message = 2;
+
+    // Time that the error occurred.
+    google.protobuf.Timestamp error_time = 3;
+
+    // Information about the stage attempt. Set if the error occurred during
+    // stage processing.
+    StageAttempt stage_attempt = 4;
+  }
+  // Information about a failure. Set when state is `FAILED`.
+  Failure failure = 5;
 }

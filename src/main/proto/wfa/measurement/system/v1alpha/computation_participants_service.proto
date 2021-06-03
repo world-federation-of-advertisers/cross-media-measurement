@@ -33,10 +33,10 @@ service ComputationParticipants {
   rpc SetParticipantRequisitionParams(SetParticipantRequisitionParamsRequest)
       returns (ComputationParticipant);
 
-  // Transitions a `ComputationParticipant` to the `REFUSED` state.
+  // Transitions a `ComputationParticipant` to the `FAILED` state.
   //
   // This is a [state transition method](https://google.aip.dev/216).
-  rpc RefuseComputationParticipant(RefuseComputationParticipantRequest)
+  rpc FailComputationParticipant(FailComputationParticipantRequest)
       returns (ComputationParticipant);
 
   // Transitions a `ComputationParticipant` to the `READY` state.
@@ -55,10 +55,13 @@ message SetParticipantRequisitionParamsRequest {
   ComputationParticipant.RequisitionParams requisition_params = 2;
 }
 
-// Request message for the `RefuseComputationParticipant` method.
-message RefuseComputationParticipantRequest {
+// Request message for the `FailComputationParticipant` method.
+message FailComputationParticipantRequest {
   // Resource key of the `ComputationParticipant`. Required.
   ComputationParticipant.Key key = 1;
+
+  // Failure information. Required.
+  ComputationParticipant.Failure failure = 2;
 }
 
 // Request message for the `ConfirmComputationParticipant` method.

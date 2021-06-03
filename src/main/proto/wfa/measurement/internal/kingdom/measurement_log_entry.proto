@@ -43,44 +43,51 @@ message MeasurementLogEntry {
 
     // Time that the error occurred.
     google.protobuf.Timestamp error_time = 2;
-
-    // Human-readable error message. This should not include any sensitive info.
-    string error_message = 3;
   }
 
-  message DuchyDetails {
-    string external_duchy_id = 1;
-    // External ID for the entry in the system API.
-    fixed64 external_computation_log_entry_id = 2;
+  message Details {
+    // Human-readable error message. This should not include any sensitive info.
+    string log_message = 1;
 
+    // Details about an error. Only set if the log entry is for an error event.
+    ErrorDetails error = 2;
+  }
+  Details details = 4;
+}
+
+message DuchyMeasurementLogEntry {
+  MeasurementLogEntry log_entry = 1;
+  string external_duchy_id = 2;
+
+  string external_computation_log_entry_id = 3;
+
+  message StageAttempt {
     // Tag number of the stage enum value from an external system.
-    int32 stage = 3;
+    int32 stage = 1;
 
     // Name of the stage enum value from an external system.
     //
     // This is for human readability only.
-    string stage_name = 4;
+    string stage_name = 2;
 
     // Time the stage started.
-    google.protobuf.Timestamp stage_start_time = 5;
+    google.protobuf.Timestamp stage_start_time = 3;
 
     // The attempt number for this stage, with 1 being the first attempt.
     //
     // This value should be strictly monotonically increasing for each
     // subsequent log entry for a Duchy with the same stage.
-    int64 attempt_number = 6;
+    int64 attempt_number = 4;
   }
-
   message Details {
-    // Human-readable log message.
-    string log_message = 1;
+    // ID of some child of the Duchy from an external system.
+    //
+    // For example, this may identify a specific job or task.
+    string duchy_child_reference_id = 1;
 
-    // Details about an error. Only set if the log entry is for an error event.
-    ErrorDetails error = 2;
-
-    oneof source {
-      DuchyDetails duchy = 3;
-    }
+    // Details about the computation stage that the log event occurred during.
+    // Only set if the event happened during computation.
+    StageAttempt stage_attempt = 2;
   }
   Details details = 4;
 }
