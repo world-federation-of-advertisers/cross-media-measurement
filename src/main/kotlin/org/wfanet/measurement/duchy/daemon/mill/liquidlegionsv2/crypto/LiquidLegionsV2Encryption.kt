@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
@@ -67,4 +69,8 @@ interface LiquidLegionsV2Encryption {
   fun completeExecutionPhaseThreeAtAggregator(
     request: CompleteExecutionPhaseThreeAtAggregatorRequest
   ): CompleteExecutionPhaseThreeAtAggregatorResponse
+
+  fun combineElGamalPublicKeys(
+    request: CombineElGamalPublicKeysRequest
+  ): CombineElGamalPublicKeysResponse
 }
