@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 
 class JniLiquidLegionsV2EncryptionTest {
@@ -24,11 +25,19 @@ class JniLiquidLegionsV2EncryptionTest {
   @Test
   fun `check JNI lib is loaded successfully`() {
     // Send an invalid request and check if we can get the error thrown inside JNI.
-    val e =
+    val e1 =
       assertFailsWith(RuntimeException::class) {
         JniLiquidLegionsV2Encryption()
           .completeExecutionPhaseTwo(CompleteExecutionPhaseTwoRequest.getDefaultInstance())
       }
-    assertThat(e.message).contains("Failed to create the protocol cipher")
+    assertThat(e1.message).contains("Failed to create the protocol cipher")
+
+    // Send an invalid request and check if we can get the error thrown inside JNI.
+    val e2 =
+      assertFailsWith(RuntimeException::class) {
+        JniLiquidLegionsV2Encryption()
+          .combineElGamalPublicKeys(CombineElGamalPublicKeysRequest.getDefaultInstance())
+      }
+    assertThat(e2.message).contains("Keys cannot be empty")
   }
 }
