@@ -1,0 +1,23 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+kt_jvm_library(
+    name = "deploy",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_steps_service_kt_jvm_grpc",
+        "@wfa_measurement_system//imports/java/picocli",
+        "@wfa_measurement_system//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+java_binary(
+    name = "ExchangeWorkflowDaemon",
+    main_class = "org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemonKt",
+    runtime_deps = [":deploy"],
+)
