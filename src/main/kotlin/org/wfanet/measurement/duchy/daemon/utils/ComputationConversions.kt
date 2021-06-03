@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.herald
+package org.wfanet.measurement.duchy.daemon.utils
 
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as V2AlphaHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.HybridCipherSuite
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -124,4 +124,20 @@ fun V2AlphaDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differe
       it.delta = delta
     }
     .build()
+}
+
+/** Converts a duchy internal ElGamalPublicKey to the corresponding public API ElGamalPublicKey. */
+fun ElGamalPublicKey.toPublicApiElGamalPublicKeyBytes(
+  publicApiVersion: PublicApiVersion
+): ByteString {
+  return when (publicApiVersion) {
+    PublicApiVersion.V2_ALPHA ->
+      V2AlphaElGamalPublicKey.newBuilder()
+        .also {
+          it.generator = generator
+          it.element = element
+        }
+        .build()
+        .toByteString()
+  }
 }

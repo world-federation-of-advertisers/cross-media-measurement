@@ -161,6 +161,11 @@ message LiquidLegionsSketchAggregationV2 {
     // computation.
     // TODO(wangyaopw): delete after v2alpha is done
     int32 total_requisition_count = 5;
+
+    // The local elgamal key used in this computation.
+    // TODO(wangyaopw): delete this field when we switch to use a secure key
+    //  store for duchy private keys.
+    ElGamalKeyPair local_elgamal_key = 6;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2
