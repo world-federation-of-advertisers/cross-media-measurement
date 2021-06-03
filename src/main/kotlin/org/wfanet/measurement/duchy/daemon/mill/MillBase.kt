@@ -63,6 +63,7 @@ import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
 import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
 import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.PERMANENT
@@ -77,6 +78,8 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
+ * @param systemComputationParticipantsClient client of the kingdom's
+ * ComputationParticipantsService.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
@@ -90,6 +93,7 @@ abstract class MillBase(
   protected val duchyId: String,
   protected val dataClients: ComputationDataClients,
   protected val globalComputationsClient: GlobalComputationsCoroutineStub,
+  protected val systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
   private val metricValuesClient: MetricValuesGrpcKt.MetricValuesCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,

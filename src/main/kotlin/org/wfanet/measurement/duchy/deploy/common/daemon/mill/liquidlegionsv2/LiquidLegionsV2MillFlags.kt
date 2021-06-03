@@ -91,6 +91,14 @@ class LiquidLegionsV2MillFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--system-computation-participants-service-target"],
+    description = ["Address and port of the Kingdom's System ComputationParticipantsService"],
+    required = true
+  )
+  lateinit var systemComputationParticipantsServiceTarget: String
+    private set
+
+  @CommandLine.Option(
     names = ["--mill-id"],
     description = ["The Identifier of the Mill."],
     required = true

@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
@@ -95,6 +96,10 @@ class InProcessDuchy(
 
   private val systemGlobalComputationsStub by lazy {
     SystemComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+  }
+
+  private val systemComputationParticipantsStub by lazy {
+    SystemComputationParticipantsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
   }
 
   private val computationStatsStub by lazy {
@@ -231,6 +236,7 @@ class InProcessDuchy(
           dataClients = computationDataClients,
           metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
           globalComputationsClient = legacyGlobalComputationsStub,
+          systemComputationParticipantsClient = systemComputationParticipantsStub,
           computationStatsClient = computationStatsStub,
           workerStubs = workerStubs,
           cryptoKeySet = duchyDependencies.cryptoKeySet,
