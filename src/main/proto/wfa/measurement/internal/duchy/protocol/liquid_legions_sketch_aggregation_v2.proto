@@ -174,10 +174,6 @@ message LiquidLegionsSketchAggregationV2 {
     oneof detail {
       // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
       WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
-      // TODO(wangyaopw): delete after v2alpha is done.
-      // Details specific to the TO_CONFIRM_REQUISITIONS stage.
-      ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details =
-          2;
     }
   }
 
@@ -193,12 +189,5 @@ message LiquidLegionsSketchAggregationV2 {
     // the output references have a path the worker can move onto the next
     // stage.
     map<string, int64> external_duchy_local_blob_id = 1;
-  }
-
-  // TODO(wangyaopw): delete after v2alpha is done
-  // The details used to run a TO_CONFIRM_REQUISITIONS stage.
-  message ToConfirmRequisitionsStageDetails {
-    // list of local requisitions that are required for this computation.
-    repeated RequisitionKey keys = 1;
   }
 }

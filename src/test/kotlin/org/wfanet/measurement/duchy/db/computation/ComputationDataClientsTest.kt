@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
@@ -145,7 +146,6 @@ class ComputationDataClientsTest {
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(Stage.CONFIRMATION_PHASE)
     computation.runWaitStage(Stage.WAIT_TO_START, numOfOutput = 0)
     computation.start()
 
@@ -190,7 +190,6 @@ class ComputationDataClientsTest {
 
     computation.enqueue()
     computation.claimWorkFor("mill-1")
-    computation.writeOutputs(Stage.CONFIRMATION_PHASE)
     computation.waitForSketches(
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3))
         .detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS)
@@ -404,7 +403,8 @@ class SingleLiquidLegionsV2Computation(
   suspend fun waitForSketches(details: ComputationStageDetails) {
     assertTokenChangesTo(
       token
-        .outputBlobsToInputBlobs()
+        .toBuilder()
+        .clearBlobs()
         .addEmptyOutputs(2)
         .setComputationStage(Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage())
         .setAttempt(1)
@@ -413,7 +413,6 @@ class SingleLiquidLegionsV2Computation(
     ) {
       dataClients.transitionComputationToStage(
         computationToken = it.token,
-        inputsToNextStage = it.outputs.paths(),
         stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
       )
     }
@@ -473,9 +472,9 @@ fun List<ComputationStageBlobMetadata>.ofType(dependencyType: ComputationBlobDep
   it.dependencyType == dependencyType
 }
 
-fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlobs(
+fun ComputationToken.outputBlobsToInputBlobs(
   keepInputs: Boolean = false
-): org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
+): ComputationToken.Builder {
   return toBuilder()
     .clearBlobs()
     .addAllBlobs(
@@ -491,9 +490,7 @@ fun org.wfanet.measurement.internal.duchy.ComputationToken.outputBlobsToInputBlo
     )
 }
 
-fun org.wfanet.measurement.internal.duchy.ComputationToken.Builder.addEmptyOutputs(
-  n: Int
-): org.wfanet.measurement.internal.duchy.ComputationToken.Builder {
+fun ComputationToken.Builder.addEmptyOutputs(n: Int): ComputationToken.Builder {
   val currentMaxIndex = blobsCount.toLong()
   (0 until n).forEach { addBlobs(newEmptyOutputBlobMetadata(currentMaxIndex + it)) }
   return this

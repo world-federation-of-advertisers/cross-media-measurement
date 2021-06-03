@@ -34,9 +34,9 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
             ComputationStageDetails.newBuilder()
               .apply {
                 liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
-                  putExternalDuchyLocalBlobId("A", 1L)
-                  putExternalDuchyLocalBlobId("B", 2L)
-                  putExternalDuchyLocalBlobId("C", 3L)
+                  putExternalDuchyLocalBlobId("A", 0L)
+                  putExternalDuchyLocalBlobId("B", 1L)
+                  putExternalDuchyLocalBlobId("C", 2L)
                 }
               }
               .build()
