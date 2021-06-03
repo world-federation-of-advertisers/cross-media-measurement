@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoro
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import picocli.CommandLine
 
@@ -72,6 +73,12 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     val globalComputationsClient =
       GlobalComputationsCoroutineStub(buildChannel(flags.globalComputationsServiceTarget))
         .withDuchyId(duchyName)
+    val systemComputationParticipantsClient =
+      ComputationParticipantsCoroutineStub(
+          buildChannel(flags.systemComputationParticipantsServiceTarget)
+        )
+        .withDuchyId(duchyName)
+
     val computationStatsClient = ComputationStatsCoroutineStub(computationsServiceChannel)
     val metricValuesClient =
       MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
@@ -84,6 +91,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         dataClients = dataClients,
         metricValuesClient = metricValuesClient,
         globalComputationsClient = globalComputationsClient,
+        systemComputationParticipantsClient = systemComputationParticipantsClient,
         computationStatsClient = computationStatsClient,
         workerStubs = computationControlClientMap,
         cryptoKeySet = newCryptoKeySet(),

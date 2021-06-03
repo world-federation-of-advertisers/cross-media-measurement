@@ -151,6 +151,22 @@ fun V2AlphaDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differe
     .build()
 }
 
+/** Converts a duchy internal ElGamalPublicKey to the corresponding public API ElGamalPublicKey. */
+fun ElGamalPublicKey.toPublicApiElGamalPublicKeyBytes(
+  publicApiVersion: PublicApiVersion
+): ByteString {
+  return when (publicApiVersion) {
+    PublicApiVersion.V2_ALPHA ->
+      V2AlphaElGamalPublicKey.newBuilder()
+        .also {
+          it.generator = generator
+          it.element = element
+        }
+        .build()
+        .toByteString()
+  }
+}
+
 /** Converts a v2alpha Public API ElGamalPublicKey to duchy internal ElGamalPublicKey. */
 fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
   return ElGamalPublicKey.newBuilder()

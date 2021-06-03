@@ -19,6 +19,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
+import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
