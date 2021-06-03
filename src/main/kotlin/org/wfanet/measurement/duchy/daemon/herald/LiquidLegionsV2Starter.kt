@@ -18,6 +18,8 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
+import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
