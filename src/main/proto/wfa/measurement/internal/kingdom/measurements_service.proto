@@ -1,0 +1,233 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/certificate.proto";
+import "wfa/measurement/internal/kingdom/data_provider.proto";
+import "wfa/measurement/internal/kingdom/event_group.proto";
+import "wfa/measurement/internal/kingdom/measurement.proto";
+import "wfa/measurement/internal/kingdom/measurement_consumer.proto";
+import "wfa/measurement/internal/kingdom/requisition.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for persistence of Measurement entities.
+service Measurements {
+  rpc CreateDataProvider(DataProvider) returns (DataProvider);
+
+  rpc GetDataProvider(GetDataProviderRequest) returns (DataProvider);
+
+  rpc CreateEventGroup(EventGroup) returns (EventGroup);
+
+  rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
+
+  // Streams EventGroups ordered by create time, ascending.
+  rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
+
+  rpc CreateMeasurementConsumer(CreateMeasurementConsumerRequest)
+      returns (MeasurementConsumer);
+
+  rpc GetMeasurementConsumer(GetMeasurementConsumerRequest)
+      returns (MeasurementConsumer);
+
+  rpc CreateCertificate(Certificate) returns (Certificate);
+
+  rpc GetCertificate(GetCertificateRequest) returns (Certificate);
+
+  // Revokes a Certificate by setting its revocation state.
+  rpc RevokeCertificate(RevokeCertificateRequest) returns (Certificate);
+
+  // Releases a Certificate with a revocation state of HOLD by clearing its
+  // revocation state.
+  rpc ReleaseCertificateHold(ReleaseCertificateHoldRequest)
+      returns (Certificate);
+
+  rpc UpdatePublicKey(UpdatePublicKeyRequest) returns (UpdatePublicKeyResponse);
+
+  rpc CreateMeasurement(Measurement) returns (Measurement);
+
+  rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
+  rpc GetMeasurementByComputationId(GetMeasurementByComputationIdRequest)
+      returns (Measurement);
+
+  // Streams Measurements ordered by update time, ascending.
+  rpc StreamMeasurements(StreamMeasurementsRequest)
+      returns (stream Measurement);
+
+  rpc GetRequisition(GetRequisitionRequest) returns (Requisition);
+  rpc GetRequisitionByDataProviderId(GetRequisitionByDataProviderIdRequest)
+      returns (Requisition);
+
+  // Streams Requisitions ordered by create time, ascending.
+  rpc StreamRequisitions(StreamRequisitionsRequest)
+      returns (stream Requisition);
+
+  // Marks a Requisition as FULFILLED by transitioning its state.
+  rpc FulfillRequisition(FulfillRequisitionRequest) returns (Requisition);
+
+  // Marks a Requisition as REFUSED by transitioning its state.
+  rpc RefuseRequisition(RefuseRequisitionRequest) returns (Requisition);
+}
+
+message GetDataProviderRequest {
+  fixed64 external_data_provider_id = 1;
+}
+
+message GetEventGroupRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_event_group_id = 2;
+}
+
+message StreamEventGroupsRequest {
+  // Filter criteria as a conjunction of specified fields. Repeated fields are
+  // disjunctions of their items.
+  message Filter {
+    int64 external_data_provider_id = 1;
+    int64 external_measurement_consumer_id = 2;
+    google.protobuf.Timestamp created_after = 3;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+}
+
+message CreateMeasurementConsumerRequest {
+  MeasurementConsumer measurement_consumer = 1;
+}
+
+message GetMeasurementConsumerRequest {
+  fixed64 external_measurement_consumer_id = 1;
+}
+
+message GetCertificateRequest {
+  oneof parent {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_measurement_consumer_id = 2;
+    string external_duchy_id = 3;
+  }
+  fixed64 external_certificate_id = 4;
+}
+
+message RevokeCertificateRequest {
+  oneof parent {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_measurement_consumer_id = 2;
+    string external_duchy_id = 3;
+  }
+  fixed64 external_certificate_id = 4;
+
+  Certificate.RevocationState revocation_state = 5;
+}
+
+message ReleaseCertificateHoldRequest {
+  oneof parent {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_measurement_consumer_id = 2;
+    string external_duchy_id = 3;
+  }
+  fixed64 external_certificate_id = 4;
+}
+
+message UpdatePublicKeyRequest {
+  oneof parent {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_measurement_consumer_id = 2;
+  }
+
+  fixed64 external_certificate_id = 3;
+
+  // Version the public API for serialized message definitions.
+  string api_version = 4;
+
+  // Serialized `EncryptionPublicKey` from public API.
+  bytes public_key = 5;
+  bytes public_key_signature = 6;
+}
+
+message UpdatePublicKeyResponse {}
+
+message GetMeasurementRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+
+  Measurement.View measurement_view = 3;
+}
+
+message GetMeasurementByComputationIdRequest {
+  fixed64 external_computation_id = 1;
+
+  Measurement.View measurement_view = 2;
+}
+
+message StreamMeasurementsRequest {
+  // Filter criteria as a conjunction of specified fields. Repeated fields are
+  // disjunctions of their items.
+  message Filter {
+    int64 external_measurement_consumer_id = 1;
+    repeated Measurement.State states = 2;
+    google.protobuf.Timestamp updated_after = 3;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+
+  Measurement.View measurement_view = 3;
+}
+
+message GetRequisitionRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+  fixed64 external_requisition_id = 3;
+}
+
+message GetRequisitionByDataProviderIdRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_id = 2;
+}
+
+message StreamRequisitionsRequest {
+  // Filter criteria as a conjunction of specified fields. Repeated fields are
+  // disjunctions of their items.
+  message Filter {
+    int64 external_measurement_consumer_id = 1;
+    repeated Measurement.State states = 2;
+    google.protobuf.Timestamp created_after = 3;
+  }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+}
+
+message FulfillRequisitionRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_id = 2;
+}
+
+message RefuseRequisitionRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_id = 2;
+
+  Requisition.Refusal refusal = 3;
+}
