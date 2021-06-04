@@ -61,7 +61,7 @@ import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.makeSpannerKingdomDatabases
-import org.wfanet.measurement.kingdom.service.internal.buildDataServices
+import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 
 private const val ADVERTISER_ID = 1L
 private const val EXTERNAL_ADVERTISER_ID = 2L
@@ -113,7 +113,7 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
     GrpcTestServerRule(logAllRequests = true) {
       val clock = Clock.systemUTC()
       val databases = makeSpannerKingdomDatabases(clock, RandomIdGenerator(clock), databaseClient)
-      val services = buildDataServices(databases.reportDatabase, databases.requisitionDatabase)
+      val services = buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
       services.forEach(this::addService)
     }
 

@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
-import org.wfanet.measurement.kingdom.service.internal.buildDataServices
+import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
@@ -34,7 +34,7 @@ abstract class KingdomDataServer : Runnable {
   ) {
     DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
 
-    val services = buildDataServices(reportDatabase, requisitionDatabase)
+    val services = buildLegacyDataServices(reportDatabase, requisitionDatabase)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

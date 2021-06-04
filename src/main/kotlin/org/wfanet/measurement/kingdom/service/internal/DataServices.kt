@@ -19,7 +19,7 @@ import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
 /** Builds a list of all the Kingdom's internal data-layer services. */
-fun buildDataServices(
+fun buildLegacyDataServices(
   reportDatabase: ReportDatabase,
   requisitionDatabase: RequisitionDatabase
 ): List<BindableService> {
