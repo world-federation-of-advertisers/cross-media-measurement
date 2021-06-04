@@ -10,7 +10,7 @@ In order to build the primary system executables and run the corresponding
 tests, your build environment must meet the following:
 
 *   Bazel
-    *   Known to work with Bazel 3.7.0
+    *   Known to work with Bazel 4.0.0
 *   GNU/Linux OS with x86-64 architecture
     *   Known to work on Debian Bullseye and Ubuntu 18.04
 *   [Clang](https://clang.llvm.org/)
@@ -25,6 +25,12 @@ The entire suite of tests can be run using the following command:
 ```shell
 bazel test //src/test/...
 ```
+
+### MacOS
+
+To build on MacOS you need to run the bazel build/test in a docker container using
+`tools/bazel-container build "//..."`
+
 
 ### Local Kubernetes
 
