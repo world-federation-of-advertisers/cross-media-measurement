@@ -117,9 +117,15 @@ CREATE UNIQUE INDEX MeasurementConsumerCertificatesByCertificateId
 
 CREATE TABLE DataProviders (
   DataProviderId INT64 NOT NULL,
+<<<<<<< HEAD
 
   PublicKeyCertificateId INT64 NOT NULL,
 
+=======
+
+  PublicKeyCertificateId INT64 NOT NULL,
+
+>>>>>>> d73e83d4 (Define Kingdom internal measurement services for v2alpha public API.)
   ExternalDataProviderId INT64 NOT NULL,
 
   DataProviderDetails BYTES(MAX) NOT NULL,
