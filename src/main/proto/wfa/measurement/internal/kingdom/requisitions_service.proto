@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,44 +17,62 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/kingdom/legacy_requisition.proto";
+import "wfa/measurement/internal/kingdom/requisition.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for Requisitions.
+// Internal service for persistence of Requisition entities.
 service Requisitions {
-  // Creates a new DatabaseRequisition in the database. The `requisition_id` and
-  // `external_requisition_id` fields are ignored. This is idempotent.
-  rpc CreateRequisition(Requisition) returns (Requisition);
+  rpc GetRequisition(GetRequisitionRequest) returns (Requisition);
+  rpc GetRequisitionByDataProviderId(GetRequisitionByDataProviderIdRequest)
+      returns (Requisition);
 
-  // Marks a Requisition as having RequisitionState.FULFILLED.
-  rpc FulfillRequisition(FulfillRequisitionRequest) returns (Requisition);
-
-  // Streams Requisitions from the database, ordered by create time ascending.
+  // Streams Requisitions ordered by create time, ascending.
   rpc StreamRequisitions(StreamRequisitionsRequest)
       returns (stream Requisition);
+
+  // Marks a Requisition as FULFILLED by transitioning its state.
+  rpc FulfillRequisition(FulfillRequisitionRequest) returns (Requisition);
+
+  // Marks a Requisition as REFUSED by transitioning its state.
+  rpc RefuseRequisition(RefuseRequisitionRequest) returns (Requisition);
 }
 
-message FulfillRequisitionRequest {
-  int64 external_requisition_id = 1;
-  string duchy_id = 2;
+message GetRequisitionRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+  fixed64 external_requisition_id = 3;
+}
+
+message GetRequisitionByDataProviderIdRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_id = 2;
 }
 
 message StreamRequisitionsRequest {
-  int64 limit = 1;
-
-  Filter filter = 3;
-
-  // All repeated fields are individually disjunctions.
-  //
-  // If a repeated field is not empty, then all output Requisitions must match
-  // one of the entries.
+  // Filter criteria as a conjunction of specified fields. Repeated fields are
+  // disjunctions of their items.
   message Filter {
-    repeated int64 external_data_provider_ids = 1;
-    repeated int64 external_campaign_ids = 2;
-    repeated Requisition.RequisitionState states = 3;
-
-    google.protobuf.Timestamp created_after = 4;
+    int64 external_measurement_consumer_id = 1;
+    repeated Requisition.State states = 2;
+    google.protobuf.Timestamp created_after = 3;
   }
+  Filter filter = 1;
+
+  // The maximum number of results to return. If not specified or 0, it implies
+  // unlimited.
+  int32 limit = 2;
+}
+
+message FulfillRequisitionRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_id = 2;
+}
+
+message RefuseRequisitionRequest {
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_requisition_id = 2;
+
+  Requisition.Refusal refusal = 3;
 }
