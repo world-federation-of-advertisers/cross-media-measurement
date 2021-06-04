@@ -19,6 +19,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 
 /**
  * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer (
@@ -129,7 +130,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   /** Overrides the computationDetails of the computation using the given value. */
   suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
-    computationDetails: ComputationDetailsT
+    computationDetails: ComputationDetailsT,
+    requisitionDetailUpdates: List<RequisitionDetailUpdate> = listOf()
   )
 
   /** Writes the reference to a blob needed for an output blob from a stage. */
@@ -177,6 +179,9 @@ data class ExternalRequisitionKey(
   val externalDataProviderId: String,
   val externalRequisitionId: String
 )
+
+/** The new details of a requisition to update. */
+data class RequisitionDetailUpdate(val key: ExternalRequisitionKey, val detail: RequisitionDetails)
 
 /**
  * Reference to a blob's storage location (key).

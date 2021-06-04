@@ -46,7 +46,7 @@ private val REPORT_DETAILS =
     .apply { combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID }
     .build()
 
-abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
+abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCHEMA) {
   private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
 
   // TODO: add AdvertiserDetails proto as input.
@@ -186,7 +186,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
 
   suspend fun insertReportWithParents(
     advertiserId: Long,
-    externalAdvertiserId: Long,
     reportConfigId: Long,
     externalReportConfigId: Long,
     scheduleId: Long,
@@ -200,7 +199,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     windowEndTime: Instant = Instant.EPOCH,
     reportDetails: ReportDetails = ReportDetails.getDefaultInstance()
   ) {
-    insertAdvertiser(advertiserId, externalAdvertiserId)
     insertReportConfig(advertiserId, reportConfigId, externalReportConfigId)
     insertReportConfigSchedule(advertiserId, reportConfigId, scheduleId, externalScheduleId)
     insertReport(

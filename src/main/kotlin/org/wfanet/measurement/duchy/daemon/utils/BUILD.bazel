@@ -6,8 +6,13 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "utils",
-    srcs = glob(["*.kt"]),
-    deps = [
-    ],
+    name = "duchy_order",
+    srcs = ["DuchyOrder.kt"],
+    deps = [],
+)
+
+kt_jvm_library(
+    name = "public_api_version",
+    srcs = ["PublicApiVersion.kt"],
+    deps = [],
 )

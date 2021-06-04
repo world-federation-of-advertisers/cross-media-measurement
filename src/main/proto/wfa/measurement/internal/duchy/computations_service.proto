@@ -125,7 +125,7 @@ message UpdateComputationDetailsRequest {
     // New value of the requisition details.
     RequisitionDetails details = 3;
   }
-  repeated RequisitionDetailUpdate requisition_detail_update = 3;
+  repeated RequisitionDetailUpdate requisition_detail_updates = 3;
 }
 message UpdateComputationDetailsResponse {
   // Token for the computation.

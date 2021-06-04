@@ -1,6 +1,18 @@
 load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 spanner_emulator_test(
+    name = "KingdomLegacySchemaTest",
+    srcs = ["KingdomLegacySchemaTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomLegacySchemaTest",
+    deps = [
+        "//imports/java/com/google/cloud/spanner",
+        "//imports/java/org/junit",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "KingdomSchemaTest",
     srcs = ["KingdomSchemaTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomSchemaTest",

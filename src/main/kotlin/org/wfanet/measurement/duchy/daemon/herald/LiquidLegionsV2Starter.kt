@@ -15,6 +15,10 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
+import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
@@ -24,45 +28,61 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
-import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
-import org.wfanet.measurement.system.v1alpha.GlobalComputation
+import org.wfanet.measurement.system.v1alpha.Computation
 
-object LiquidLegionsV2Starter : ProtocolStarter {
+object LiquidLegionsV2Starter {
 
-  override suspend fun createComputation(
+  suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,
-    globalComputation: GlobalComputation,
-    protocolsSetupConfig: ProtocolsSetupConfig,
+    globalComputation: Computation,
+    liquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
+    configMaps: Map<String, ProtocolConfig>,
     blobStorageBucket: String
   ) {
-    protocolsSetupConfig.liquidLegionsV2.role
-    val globalId: String = checkNotNull(globalComputation.key?.globalComputationId)
+    liquidLegionsV2SetupConfig.role
+    val globalId: String = checkNotNull(globalComputation.key?.computationId)
     val initialComputationDetails =
       ComputationDetails.newBuilder()
         .apply {
-          liquidLegionsV2Builder.apply {
-            role = protocolsSetupConfig.liquidLegionsV2.role
-            totalRequisitionCount = globalComputation.totalRequisitionCount
-          }
           blobsStoragePrefix = "$blobStorageBucket/$globalId"
+          kingdomComputation = globalComputation.toKingdomComputationDetails()
+          liquidLegionsV2Builder.apply {
+            role = liquidLegionsV2SetupConfig.role
+            parameters = globalComputation.toLiquidLegionsV2Parameters(configMaps)
+          }
         }
         .build()
+    val requisitions =
+      globalComputation.requisitionsList.map {
+        ExternalRequisitionKey.newBuilder()
+          .apply {
+            externalDataProviderId = it.dataProviderId
+            externalRequisitionId = it.key.requisitionId
+          }
+          .build()
+      }
 
     computationStorageClient.createComputation(
       CreateComputationRequest.newBuilder()
         .apply {
           computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
           globalComputationId = globalId
-          stageDetailsBuilder.liquidLegionsV2Builder.toConfirmRequisitionsStageDetailsBuilder
-            .addAllKeys(globalComputation.toRequisitionKeys())
           computationDetails = initialComputationDetails
+          addAllRequisitions(requisitions)
         }
         .build()
     )
   }
 
-  override suspend fun startComputation(
+  suspend fun updateRequisitionsAndKeySets() {
+    TODO("not implemented")
+  }
+
+  suspend fun startComputation(
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
     computationProtocolStageDetails: ComputationProtocolStageDetails,
@@ -120,5 +140,51 @@ object LiquidLegionsV2Starter : ProtocolStarter {
         error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
       }
     }
+  }
+
+  /** Creates a liquid legions v2 `Parameters` from the system Api computation. */
+  private fun Computation.toLiquidLegionsV2Parameters(
+    configMaps: Map<String, ProtocolConfig>
+  ): Parameters {
+    val publicProtocolConfig =
+      configMaps[protocolConfigId] ?: error("ProtocolConfig $protocolConfigId not found.")
+    require(publicProtocolConfig.hasLiquidLegionsV2()) {
+      "Missing liquidLegionV2 in the public API protocol config."
+    }
+    require(duchyProtocolConfig.hasLiquidLegionsV2()) {
+      "Missing liquidLegionV2 in the duchy protocol config."
+    }
+
+    return Parameters.newBuilder()
+      .also {
+        it.maximumFrequency = duchyProtocolConfig.liquidLegionsV2.maximumFrequency
+        it.liquidLegionsSketchBuilder.apply {
+          decayRate = publicProtocolConfig.liquidLegionsV2.sketchParams.decayRate
+          size = publicProtocolConfig.liquidLegionsV2.sketchParams.maxSize
+        }
+        it.noiseBuilder.apply {
+          reachNoiseConfigBuilder.apply {
+            val mpcNoise = duchyProtocolConfig.liquidLegionsV2.mpcNoise
+            blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
+            noiseForPublisherNoise =
+              mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
+          }
+          when (publicApiVersion.toPublicApiVersion()) {
+            PublicApiVersion.V2_ALPHA -> {
+              val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
+              require(measurementSpec.hasReachAndFrequency()) {
+                "Missing ReachAndFrequency in the measurementSpec."
+              }
+              val reachAndFrequency = measurementSpec.reachAndFrequency
+              reachNoiseConfigBuilder.globalReachDpNoise =
+                reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
+              frequencyNoiseConfig =
+                reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
+            }
+          }
+        }
+        it.ellipticCurveId = publicProtocolConfig.liquidLegionsV2.ellipticCurveId
+      }
+      .build()
   }
 }

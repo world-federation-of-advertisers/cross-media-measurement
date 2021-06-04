@@ -26,6 +26,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
+import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
@@ -95,7 +96,10 @@ class ComputationsService(
       request.computationType,
       computationsDatabase.getValidInitialStage(request.computationType).first(),
       request.stageDetails,
-      request.computationDetails
+      request.computationDetails,
+      request.requisitionsList.map {
+        ExternalRequisitionKey(it.externalDataProviderId, it.externalRequisitionId)
+      }
     )
 
     sendStatusUpdateToKingdom(
@@ -162,7 +166,13 @@ class ComputationsService(
     }
     computationsDatabase.updateComputationDetails(
       request.token.toDatabaseEditToken(),
-      request.details
+      request.details,
+      request.requisitionDetailUpdatesList.map {
+        RequisitionDetailUpdate(
+          ExternalRequisitionKey(it.externalDataProviderId, it.externalRequisitionId),
+          it.details
+        )
+      }
     )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toUpdateComputationDetailsResponse()
