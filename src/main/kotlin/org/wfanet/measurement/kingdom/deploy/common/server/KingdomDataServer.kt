@@ -16,9 +16,17 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+=======
+import org.wfanet.measurement.common.identity.DuchyIdFlags
+import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.kingdom.db.ReportDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionDatabase
+import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
+>>>>>>> bbcf20ac (first commit)
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
@@ -29,7 +37,11 @@ abstract class KingdomDataServer : Runnable {
   protected suspend fun run(dataServices: DataServices) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
+<<<<<<< HEAD
     val services = dataServices.buildDataServices()
+=======
+    val services = buildLegacyDataServices(reportDatabase, requisitionDatabase)
+>>>>>>> bbcf20ac (first commit)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

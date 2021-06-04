@@ -56,8 +56,12 @@ class InProcessKingdom(
   private val databaseServices =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal services")
+<<<<<<< HEAD
       val services =
         buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
+=======
+      val services = buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
+>>>>>>> bbcf20ac (first commit)
       for (service in services) {
         addService(service.withVerboseLogging(verboseGrpcLogging))
       }
