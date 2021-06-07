@@ -38,6 +38,8 @@ import org.wfanet.measurement.duchy.daemon.utils.Duchy
 import org.wfanet.measurement.duchy.daemon.utils.getDuchyOrderByPublicKeysAndComputationId
 import org.wfanet.measurement.duchy.daemon.utils.getFollowingDuchies
 import org.wfanet.measurement.duchy.daemon.utils.getNextDuchy
+import org.wfanet.measurement.duchy.daemon.utils.toPublicApiElGamalPublicKeyBytes
+import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
@@ -64,16 +66,19 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoA
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.FlagCountTupleNoiseGenerationParameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 /**
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
@@ -83,6 +88,8 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
  * blob store.
  * @param metricValuesClient client of the own duchy's MetricValuesService.
  * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
+ * @param systemComputationParticipantsClient client of the kingdom's
+ * ComputationParticipantsService.
  * @param computationStatsClient client of the duchy's ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  * computation table.
@@ -102,6 +109,7 @@ class LiquidLegionsV2Mill(
   dataClients: ComputationDataClients,
   metricValuesClient: MetricValuesCoroutineStub,
   globalComputationsClient: GlobalComputationsCoroutineStub,
+  systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
   computationStatsClient: ComputationStatsCoroutineStub,
   throttler: MinimumIntervalThrottler,
   requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
@@ -119,6 +127,7 @@ class LiquidLegionsV2Mill(
     duchyId,
     dataClients,
     globalComputationsClient,
+    systemComputationParticipantsClient,
     metricValuesClient,
     computationStatsClient,
     throttler,
@@ -133,6 +142,8 @@ class LiquidLegionsV2Mill(
 
   private val actions =
     mapOf(
+      Pair(Stage.INITIALIZATION_PHASE, AGGREGATOR) to ::initializeComputation,
+      Pair(Stage.INITIALIZATION_PHASE, NON_AGGREGATOR) to ::initializeComputation,
       Pair(Stage.CONFIRMATION_PHASE, AGGREGATOR) to ::confirmRequisitions,
       Pair(Stage.CONFIRMATION_PHASE, NON_AGGREGATOR) to ::confirmRequisitions,
       Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeSetupPhaseAtAggregator,
@@ -157,6 +168,82 @@ class LiquidLegionsV2Mill(
     val role = token.computationDetails.liquidLegionsV2.role
     val action = actions[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
     action(token)
+  }
+
+  /** Sends requisition params to the kingdom. */
+  private suspend fun sendRequisitionParamsToKingdom(token: ComputationToken) {
+    val llv2ComputationDetails = token.computationDetails.liquidLegionsV2
+    require(llv2ComputationDetails.hasLocalElgamalKey()) { "Missing local elgamal key." }
+    val publicApiVersion =
+      token.computationDetails.kingdomComputation.publicApiVersion.toPublicApiVersion()
+    val elGamalPublicKeyBytes =
+      llv2ComputationDetails.localElgamalKey.publicKey.toPublicApiElGamalPublicKeyBytes(
+        publicApiVersion
+      )
+
+    val request =
+      SetParticipantRequisitionParamsRequest.newBuilder()
+        .apply {
+          keyBuilder.also {
+            it.computationId = token.globalComputationId
+            it.duchyId = duchyId
+          }
+          requisitionParamsBuilder.apply {
+            // TODO(wangyaopw): set the correct certificate and elGamalPublicKeySignature.
+            duchyCertificateId = "TODO"
+            duchyCertificate = ByteString.copyFromUtf8("TODO")
+            liquidLegionsV2Builder.apply {
+              elGamalPublicKey = elGamalPublicKeyBytes
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
+            }
+          }
+        }
+        .build()
+    systemComputationParticipantsClient.setParticipantRequisitionParams(request)
+  }
+
+  /** Processes computation in the initialization phase */
+  private suspend fun initializeComputation(token: ComputationToken): ComputationToken {
+    val llv2ComputationDetails = token.computationDetails.liquidLegionsV2
+    val ellipticCurveId = llv2ComputationDetails.parameters.ellipticCurveId
+    require(ellipticCurveId > 0) { "invalid ellipticCurveId $ellipticCurveId" }
+
+    val nextToken =
+      if (llv2ComputationDetails.hasLocalElgamalKey()) {
+        // Reuses the key if it is already generated for this computation.
+        token
+      } else {
+        // Generates a new set of ElGamalKeyPair.
+        val request =
+          CompleteInitializationPhaseRequest.newBuilder()
+            .apply { curveId = ellipticCurveId.toLong() }
+            .build()
+        val cryptoResult = cryptoWorker.completeInitializationPhase(request)
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+
+        // Updates the newly generated localElgamalKey to the ComputationDetails.
+        dataClients.computationsClient.updateComputationDetails(
+            UpdateComputationDetailsRequest.newBuilder()
+              .also {
+                it.token = token
+                it.details =
+                  token
+                    .computationDetails
+                    .toBuilder()
+                    .apply { liquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair }
+                    .build()
+              }
+              .build()
+          )
+          .token
+      }
+
+    sendRequisitionParamsToKingdom(nextToken)
+
+    return dataClients.transitionComputationToStage(
+      nextToken,
+      stage = Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+    )
   }
 
   /** Process computation in the confirm requisitions phase */
