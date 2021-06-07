@@ -27,6 +27,9 @@ option java_outer_classname = "ComputationLogEntriesServiceProto";
 // resources.
 service ComputationLogEntries {
   // Creates a new `ComputationLogEntry`.
+  //
+  // Note that this cannot be used to log permanent errors. Instead, the
+  // `FailComputationParticipant` method should be used to indicate a failure.
   rpc CreateComputationLogEntry(CreateComputationLogEntryRequest)
       returns (ComputationLogEntry);
 }

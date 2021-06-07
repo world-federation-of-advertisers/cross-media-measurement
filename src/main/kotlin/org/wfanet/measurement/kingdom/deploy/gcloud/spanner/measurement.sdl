@@ -292,20 +292,37 @@ CREATE TABLE ComputationParticipants (
 -- This is used to give a bird's eye view of the state of the computations to
 -- help debug and track progress.
 CREATE TABLE MeasurementLogEntries (
-  MeasurementConsumerId           INT64 NOT NULL,
-  MeasurementId                   INT64 NOT NULL,
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
-  ExternalComputationLogEntryId   INT64,
-  DuchyId                         INT64,
-
-  CreateTime                      TIMESTAMP NOT NULL
-                                  OPTIONS (allow_commit_timestamp = true),
-
-  -- MeasurementLogDetails serialized proto.
+  -- Serialized
+  -- org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
+  -- protobuf message.
   MeasurementLogDetails      BYTES(MAX) NOT NULL,
   MeasurementLogDetailsJson  STRING(MAX) NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
-CREATE UNIQUE NULL_FILTERED  INDEX MeasurementLogEntriesByExternalId
-  ON MeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
+-- Duchy-specific information for a Measurement log entry. There should be a row
+-- in this table for every row in MeasurementLogEntries where the source of the
+-- log event is a Duchy.
+CREATE TABLE DuchyMeasurementLogEntries (
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  DuchyId INT64 NOT NULL,
+
+  ExternalComputationLogEntryId INT64 NOT NULL,
+
+  -- Serialized
+  -- org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.Details
+  -- protobuf message.
+  DuchyMeasurementLogDetails BYTES(MAX) NOT NULL,
+  DuchyMeasurementLogDetailsJson STRING(MAX) NOT NULL,
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
+  INTERLEAVE IN PARENT MeasurementLogEntries ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
+  ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
