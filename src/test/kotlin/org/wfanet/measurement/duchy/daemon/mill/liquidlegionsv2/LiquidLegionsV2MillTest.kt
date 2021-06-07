@@ -50,6 +50,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
@@ -96,6 +97,8 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoA
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.COMPLETE
@@ -103,10 +106,12 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_TWO
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
@@ -117,6 +122,8 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
@@ -132,6 +139,7 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTI
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.SETUP_PHASE_INPUT
 import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
+import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 @RunWith(JUnit4::class)
 class LiquidLegionsV2MillTest {
@@ -140,6 +148,8 @@ class LiquidLegionsV2MillTest {
   private val mockMetricValues: MetricValuesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
+  private val mockComputationParticipants: ComputationParticipantsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockComputationStats: ComputationStatsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -216,6 +226,7 @@ class LiquidLegionsV2MillTest {
     addService(mockLiquidLegionsComputationControl)
     addService(mockMetricValues)
     addService(mockGlobalComputations)
+    addService(mockComputationParticipants)
     addService(mockComputationStats)
     addService(
       ComputationsService(
@@ -235,6 +246,10 @@ class LiquidLegionsV2MillTest {
 
   private val globalComputationStub: GlobalComputationsCoroutineStub by lazy {
     GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val computationParticipantsStub: ComputationParticipantsCoroutineStub by lazy {
+    ComputationParticipantsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val computationStatsStub: ComputationStatsCoroutineStub by lazy {
@@ -313,6 +328,7 @@ class LiquidLegionsV2MillTest {
         dataClients = computationDataClients,
         metricValuesClient = metricValuesStub,
         globalComputationsClient = globalComputationStub,
+        systemComputationParticipantsClient = computationParticipantsStub,
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = cryptoKeySet,
@@ -331,6 +347,7 @@ class LiquidLegionsV2MillTest {
         dataClients = computationDataClients,
         metricValuesClient = metricValuesStub,
         globalComputationsClient = globalComputationStub,
+        systemComputationParticipantsClient = computationParticipantsStub,
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoKeySet = cryptoKeySet,
@@ -348,6 +365,111 @@ class LiquidLegionsV2MillTest {
         computationControlRequests = runBlocking { request.toList() }
         AdvanceComputationResponse.getDefaultInstance()
       }
+  }
+
+  @Test
+  fun `initialization phase`() = runBlocking {
+    // Stage 0. preparing the database and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = INITIALIZATION_PHASE.toProtocolStage()
+        )
+        .build()
+
+    val initialComputationDetails =
+      nonAggregatorComputationDetails
+        .toBuilder()
+        .apply {
+          kingdomComputationBuilder.publicApiVersion = PUBLIC_API_VERSION
+          liquidLegionsV2Builder.parametersBuilder.ellipticCurveId = CURVE_ID
+        }
+        .build()
+
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = initialComputationDetails
+    )
+
+    var cryptoRequest = CompleteInitializationPhaseRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      CompleteInitializationPhaseResponse.newBuilder()
+        .apply {
+          elGamalKeyPairBuilder.apply {
+            publicKeyBuilder.apply {
+              generator = ByteString.copyFromUtf8("generator-foo")
+              element = ByteString.copyFromUtf8("element-foo")
+            }
+            secretKey = ByteString.copyFromUtf8("secretKey-foo")
+          }
+        }
+        .build()
+    }
+
+    // Stage 1. Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .setGlobalComputationId(GLOBAL_ID)
+          .setLocalComputationId(LOCAL_ID)
+          .setAttempt(1)
+          .setComputationStage(WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage())
+          .setVersion(3) // CreateComputation + updateComputationDetails + transitionStage
+          .setComputationDetails(
+            initialComputationDetails.toBuilder().apply {
+              liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator-foo")
+                  element = ByteString.copyFromUtf8("element-foo")
+                }
+                secretKey = ByteString.copyFromUtf8("secretKey-foo")
+              }
+            }
+          )
+          .build()
+      )
+
+    verifyProtoArgument(
+        mockComputationParticipants,
+        ComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams
+      )
+      .isEqualTo(
+        SetParticipantRequisitionParamsRequest.newBuilder()
+          .apply {
+            keyBuilder.apply {
+              computationId = GLOBAL_ID
+              duchyId = DUCHY_ONE_NAME
+              requisitionParamsBuilder.apply {
+                duchyCertificateId = "TODO"
+                duchyCertificate = ByteString.copyFromUtf8("TODO")
+                liquidLegionsV2Builder.apply {
+                  elGamalPublicKey =
+                    V2AlphaElGamalPublicKey.newBuilder()
+                      .apply {
+                        generator = ByteString.copyFromUtf8("generator-foo")
+                        element = ByteString.copyFromUtf8("element-foo")
+                      }
+                      .build()
+                      .toByteString()
+                  elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
+                }
+              }
+            }
+          }
+          .build()
+      )
+
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        CompleteInitializationPhaseRequest.newBuilder()
+          .apply { curveId = CURVE_ID.toLong() }
+          .build()
+      )
   }
 
   @Test
@@ -1370,6 +1492,8 @@ class LiquidLegionsV2MillTest {
   }
 
   companion object {
+    private const val PUBLIC_API_VERSION = "v2alpha"
+
     private const val PUBLISHER_COUNT = 10
     private const val WORKER_COUNT = 3
     private const val MILL_ID = "a nice mill"
