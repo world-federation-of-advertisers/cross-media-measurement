@@ -20,6 +20,7 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPubl
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as V2AlphaHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
@@ -29,6 +30,25 @@ import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams as SystemDifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition as SystemRequisition
+
+/** Supported measurement types in the duchy. */
+enum class MeasurementType {
+  REACH_AND_FREQUENCY
+}
+
+/** Gets the measurement type from the system computation. */
+fun SystemComputation.toMeasurementType(): MeasurementType {
+  return when (publicApiVersion.toPublicApiVersion()) {
+    PublicApiVersion.V2_ALPHA -> {
+      val v2AlphaMeasurementSpec = MeasurementSpec.parseFrom(measurementSpec)
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (v2AlphaMeasurementSpec.measurementTypeCase) {
+        MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
+        MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
+      }
+    }
+  }
+}
 
 /** Creates a KingdomComputationDetails from the kingdom system API Computation. */
 fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {

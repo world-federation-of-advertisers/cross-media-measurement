@@ -41,4 +41,7 @@ message LiquidLegionsV2SetupConfig {
     NON_AGGREGATOR = 2;
   }
   RoleInComputation role = 1;
+
+  // The external duchy id of the aggregator worker.
+  string external_aggregator_id = 2;
 }
