@@ -1,0 +1,43 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.system.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.system.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "StageAttemptProto";
+
+message StageAttempt {
+  // Tag number of the stage enum value from an external system. Required.
+  int32 stage = 1;
+
+  // Name of the stage enum value from an external system.
+  //
+  // This is for human readability only.
+  string stage_name = 2;
+
+  // Time the stage started.
+  google.protobuf.Timestamp stage_start_time = 3;
+
+  // The attempt number for this stage, with 1 being the first attempt.
+  //
+  // This value should be strictly monotonically increasing for each
+  // subsequent `ComputationLogEntry` for a `ComputationParticipant` with the
+  // same `stage`.
+  int64 attempt_number = 4;
+}
