@@ -6,10 +6,9 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 class SpannerRequisitionsService(
   clock: Clock,
@@ -32,4 +31,3 @@ class SpannerRequisitionsService(
     TODO("not implemented yet")
   }
 }
-
