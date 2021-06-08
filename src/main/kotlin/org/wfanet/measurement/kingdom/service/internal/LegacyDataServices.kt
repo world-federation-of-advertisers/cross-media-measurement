@@ -19,11 +19,27 @@ import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
 <<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/LegacyDataServices.kt
+<<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/LegacyDataServices.kt
 /** Builds a list of all the Kingdom's legacy internal data-layer services. */
 =======
 /** Builds a list of all the Kingdom's internal data-layer services. */
 >>>>>>> bbcf20ac (first commit):src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/DataServices.kt
+=======
+/** Builds a list of all the Kingdom's legacy internal data-layer services. */
+>>>>>>> ed9def1e (halfway there):src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/DataServices.kt
 fun buildLegacyDataServices(
+  reportDatabase: ReportDatabase,
+  requisitionDatabase: RequisitionDatabase
+): List<BindableService> {
+  return listOf(
+    ReportsService(reportDatabase),
+    ReportLogEntriesService(reportDatabase),
+    RequisitionsService(requisitionDatabase)
+  )
+}
+
+/** Builds a list of all the Kingdom's internal data-layer services. */
+fun buildDataServices(
   reportDatabase: ReportDatabase,
   requisitionDatabase: RequisitionDatabase
 ): List<BindableService> {
