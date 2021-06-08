@@ -36,7 +36,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.SigningCerts
-import picocli.CommandLine
 
 private const val ALGORITHM = "ec"
 private const val CURVE = "prime256v1"
@@ -83,23 +82,23 @@ class TransportSecurityTest {
 
   private fun startCommonServer(clientAuth: ClientAuth): Server {
 
-    val server = CommonServer.fromParameters(
-      8080,
-      true,
-      tempDir.resolve("server.pem").toString(),
-      tempDir.resolve("server.key").toString(),
-      tempDir.resolve("client-root.pem").toString(),
-      clientAuth,
-      "test",
-      healthStatusManager.healthService.withVerboseLogging()
-    )
-    .start()
+    val server =
+      CommonServer.fromParameters(
+          8080,
+          true,
+          tempDir.resolve("server.pem").toString(),
+          tempDir.resolve("server.key").toString(),
+          tempDir.resolve("client-root.pem").toString(),
+          clientAuth,
+          "test",
+          healthStatusManager.healthService.withVerboseLogging()
+        )
+        .start()
 
     grpcCleanup.register(server.server)
 
     return server.server
   }
-
 
   @Test
   fun `TLS server valid`() {

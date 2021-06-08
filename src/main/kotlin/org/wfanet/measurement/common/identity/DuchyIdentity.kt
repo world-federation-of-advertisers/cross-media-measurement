@@ -26,9 +26,6 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import io.grpc.Grpc
-import javax.net.ssl.SSLSession
-
 
 /**
  * Details about an authenticated Duchy.

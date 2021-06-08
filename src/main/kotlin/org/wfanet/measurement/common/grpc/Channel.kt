@@ -30,10 +30,7 @@ fun buildChannel(target: String): ManagedChannel {
     .build()
 }
 
-
-fun buildTlsChannel(
-  target: String
-): ManagedChannel {
+fun buildTlsChannel(target: String): ManagedChannel {
   return ManagedChannelBuilder.forTarget(target).build()
 }
 

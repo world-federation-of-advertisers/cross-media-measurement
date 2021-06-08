@@ -21,14 +21,14 @@ import io.grpc.health.v1.HealthCheckResponse.ServingStatus
 import io.grpc.netty.NettyServerBuilder
 import io.grpc.services.HealthStatusManager
 import io.netty.handler.ssl.ClientAuth
+import io.netty.handler.ssl.SslContext
+import java.io.File
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.properties.Delegates
-import picocli.CommandLine
-import io.netty.handler.ssl.SslContext
-import java.io.File
 import org.wfanet.measurement.common.crypto.SigningCerts
+import picocli.CommandLine
 
 class CommonServer
 private constructor(
@@ -40,11 +40,14 @@ private constructor(
   private val healthStatusManager = HealthStatusManager()
 
   val server: Server by lazy {
-    val srvr = if (useSSLContext != null) NettyServerBuilder.forPort(port).sslContext(useSSLContext) else NettyServerBuilder.forPort(port)
+    val srvr =
+      if (useSSLContext != null) NettyServerBuilder.forPort(port).sslContext(useSSLContext)
+      else NettyServerBuilder.forPort(port)
 
-    srvr.apply {
-          addService(healthStatusManager.healthService)
-          services.forEach { addService(it) }
+    srvr
+      .apply {
+        addService(healthStatusManager.healthService)
+        services.forEach { addService(it) }
       }
       .build()
   }
@@ -162,9 +165,7 @@ private constructor(
       return CommonServer(
         nameForLogging,
         port,
-        services.run {
-          if (debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this
-        },
+        services.run { if (debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this },
         useSSLContext
       )
     }
@@ -178,21 +179,34 @@ private constructor(
       clientAuth: ClientAuth,
       nameForLogging: String,
       vararg services: ServerServiceDefinition
-    ): CommonServer = fromParameters(port, debugVerboseGrpcLogging, certFile, privateKeyFile, certCollectionFile, clientAuth, nameForLogging,services.asIterable())
+    ): CommonServer =
+      fromParameters(
+        port,
+        debugVerboseGrpcLogging,
+        certFile,
+        privateKeyFile,
+        certCollectionFile,
+        clientAuth,
+        nameForLogging,
+        services.asIterable()
+      )
 
     @JvmName("fromFlagsServiceDefinition")
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
       services: Iterable<ServerServiceDefinition>
-    ): CommonServer = fromParameters(
-      flags.port,
-      flags.debugVerboseGrpcLogging,
-      flags.certFile, flags.certCollectionFile, flags.privateKeyFile,
-      if (flags.clientAuthRequired)  ClientAuth.REQUIRE else ClientAuth.NONE,
-      nameForLogging,
-      services
-    )
+    ): CommonServer =
+      fromParameters(
+        flags.port,
+        flags.debugVerboseGrpcLogging,
+        flags.certFile,
+        flags.certCollectionFile,
+        flags.privateKeyFile,
+        if (flags.clientAuthRequired) ClientAuth.REQUIRE else ClientAuth.NONE,
+        nameForLogging,
+        services
+      )
 
     /** Constructs a [CommonServer] from command-line flags. */
     fun fromFlags(
