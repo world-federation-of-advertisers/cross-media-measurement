@@ -7,12 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "legacy",
-    srcs = glob([
-        "ReportsService.kt",
-        "RequisitionsService.kt",
-        "ReportLogEntriesService.kt",
-        "LegacyDataServices.kt",
-    ]),
+    srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/io/grpc:api",
