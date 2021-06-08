@@ -15,6 +15,9 @@
 package org.wfanet.measurement.kingdom.service.internal
 
 import io.grpc.BindableService
+import java.time.Clock
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
@@ -32,12 +35,16 @@ fun buildLegacyDataServices(
 
 /** Builds a list of all the Kingdom's internal data-layer services. */
 fun buildDataServices(
-  reportDatabase: ReportDatabase,
-  requisitionDatabase: RequisitionDatabase
+  clock: Clock,
+  idGenerator: IdGenerator,
+  client: AsyncDatabaseClient
 ): List<BindableService> {
   return listOf(
-    ReportsService(reportDatabase),
-    ReportLogEntriesService(reportDatabase),
-    RequisitionsService(requisitionDatabase)
+    SpannerCertificatesService(clock, idGenerator, client),
+    SpannerDataProvidersService(clock, idGenerator, client),
+    SpannerEventGroupsService(clock, idGenerator, client),
+    SpannerMeasurementConsumersService(clock, idGenerator, client),
+    SpannerMeasurementsService(clock, idGenerator, client),
+    SpannerRequisitionsService(clock, idGenerator, client)
   )
 }
