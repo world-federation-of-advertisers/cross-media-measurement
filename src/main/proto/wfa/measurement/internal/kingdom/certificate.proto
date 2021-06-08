@@ -23,11 +23,11 @@ option java_multiple_files = true;
 
 message Certificate {
   oneof parent {
-    fixed64 data_provider_external_id = 1;
-    fixed64 measurement_consumer_external_id = 2;
-    string duchy_external_id = 3;
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_measurement_consumer_id = 2;
+    string external_duchy_id = 3;
   }
-  fixed64 certificate_external_id = 4;
+  fixed64 external_certificate_id = 4;
 
   // X.509 v3 subject key identifier.
   bytes subject_key_identifier = 5;
@@ -58,4 +58,5 @@ message Certificate {
     // X.509 certificate in DER format.
     bytes x509_der = 1;
   }
+  Details details = 9;
 }

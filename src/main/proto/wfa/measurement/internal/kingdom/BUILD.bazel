@@ -1,10 +1,8 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
-load(":macros.bzl", "proto_and_java_proto_library")
+load(":macros.bzl", "IMPORT_PREFIX", "proto_and_java_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
-
-IMPORT_PREFIX = "/src/main/proto"
 
 proto_and_java_proto_library(
     name = "advertiser",
@@ -25,11 +23,39 @@ proto_and_java_proto_library(
     name = "data_provider",
 )
 
+proto_library(
+    name = "data_providers_service_proto",
+    srcs = ["data_providers_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_provider_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "data_providers_service_kt_jvm_grpc",
+    srcs = [":data_providers_service_proto"],
+)
+
 proto_and_java_proto_library(
     name = "certificate",
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "certificates_service_proto",
+    srcs = ["certificates_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":certificate_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "certificates_service_kt_jvm_grpc",
+    srcs = [":certificates_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -60,6 +86,28 @@ proto_and_java_proto_library(
         ":crypto_proto",
         ":differential_privacy_proto",
     ],
+)
+
+proto_and_java_proto_library(
+    name = "event_group",
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "event_groups_service_proto",
+    srcs = ["event_groups_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_group_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "event_groups_service_kt_jvm_grpc",
+    srcs = [":event_groups_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -143,9 +191,44 @@ kt_jvm_grpc_and_java_proto_library(
 proto_and_java_proto_library(
     name = "measurement",
     deps = [
+        ":computation_participant_proto",
         ":duchy_protocol_config_proto",
+        ":requisition_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "measurements_service_proto",
+    srcs = ["measurements_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":measurement_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "measurements_service_kt_jvm_grpc",
+    srcs = [":measurements_service_proto"],
+)
+
+proto_and_java_proto_library(
+    name = "measurement_consumer",
+)
+
+proto_library(
+    name = "measurement_consumers_service_proto",
+    srcs = ["measurement_consumers_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":measurement_consumer_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "measurement_consumers_service_kt_jvm_grpc",
+    srcs = [":measurement_consumers_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -153,6 +236,17 @@ proto_and_java_proto_library(
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "public_keys_service_proto",
+    srcs = ["public_keys_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "public_keys_service_kt_jvm_grpc",
+    srcs = [":public_keys_service_proto"],
 )
 
 proto_and_java_proto_library(
@@ -269,6 +363,21 @@ proto_and_java_proto_library(
     ],
 )
 
+proto_library(
+    name = "requisitions_service_proto",
+    srcs = ["requisitions_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":requisition_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "requisitions_service_kt_jvm_grpc",
+    srcs = [":requisitions_service_proto"],
+)
+
 proto_and_java_proto_library(
     name = "legacy_requisition",
     deps = [
@@ -285,8 +394,8 @@ proto_and_java_proto_library(
 )
 
 proto_library(
-    name = "requisition_service_proto",
-    srcs = ["requisitions_service.proto"],
+    name = "legacy_requisition_service_proto",
+    srcs = ["legacy_requisitions_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":legacy_requisition_proto",
@@ -295,8 +404,8 @@ proto_library(
 )
 
 kt_jvm_grpc_and_java_proto_library(
-    name = "requisitions_service_kt_jvm_grpc",
-    srcs = [":requisition_service_proto"],
+    name = "legacy_requisitions_service_kt_jvm_grpc",
+    srcs = [":legacy_requisition_service_proto"],
 )
 
 proto_and_java_proto_library(
