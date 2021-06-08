@@ -4,8 +4,8 @@ import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 
 class SpannerDataProvidersService(
   clock: Clock,

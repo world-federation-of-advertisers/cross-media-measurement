@@ -4,8 +4,8 @@ import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 
