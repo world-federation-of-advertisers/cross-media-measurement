@@ -49,12 +49,7 @@ kt_jvm_library(
 =======
 >>>>>>> 7e49eb6d (moved services)
     name = "legacy",
-    srcs = glob([
-        "ReportsService.kt",
-        "RequisitionsService.kt",
-        "ReportLogEntriesService.kt",
-        "LegacyDataServices.kt",
-    ]),
+    srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/io/grpc:api",
