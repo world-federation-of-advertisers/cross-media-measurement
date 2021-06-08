@@ -20,7 +20,6 @@ import io.grpc.health.v1.HealthCheckRequest
 import io.grpc.health.v1.HealthCheckResponse
 import io.grpc.health.v1.HealthGrpcKt.HealthCoroutineStub
 import io.grpc.netty.NettyChannelBuilder
-import io.grpc.netty.NettyServerBuilder
 import io.grpc.services.HealthStatusManager
 import io.grpc.testing.GrpcCleanupRule
 import io.netty.handler.ssl.ClientAuth
@@ -41,6 +40,7 @@ private const val ALGORITHM = "ec"
 private const val CURVE = "prime256v1"
 private const val SERVICE = "DummyService"
 private const val HOSTNAME = "localhost"
+private const val PORT = 8080
 private const val SUBJECT_ALT_NAME_EXT = "subjectAltName=DNS:$HOSTNAME,IP:127.0.0.1"
 
 @RunWith(JUnit4::class)
@@ -68,7 +68,7 @@ class TransportSecurityTest {
 
     val server =
       CommonServer.fromParameters(
-          8080,
+          PORT,
           true,
           tempDir.resolve("server.pem").toString(),
           tempDir.resolve("server.key").toString(),
@@ -95,7 +95,7 @@ class TransportSecurityTest {
         "openssl",
         "s_client",
         "-connect",
-        "$HOSTNAME:8080",
+        "$HOSTNAME:$PORT",
         "-verify_return_error",
         "-CAfile",
         "server-root.pem",
@@ -116,7 +116,7 @@ class TransportSecurityTest {
         "openssl",
         "s_client",
         "-connect",
-        "$HOSTNAME:8080",
+        "$HOSTNAME:$PORT",
         "-verify_return_error",
         "-cert",
         "client.pem",
@@ -138,7 +138,7 @@ class TransportSecurityTest {
 
     val channel =
       grpcCleanup.register(
-        NettyChannelBuilder.forAddress(HOSTNAME, 8080)
+        NettyChannelBuilder.forAddress(HOSTNAME, PORT)
           .sslContext(clientCerts.toClientTlsContext())
           .build()
       )
@@ -156,7 +156,7 @@ class TransportSecurityTest {
     startCommonServer(ClientAuth.REQUIRE)
     val channel =
       grpcCleanup.register(
-        NettyChannelBuilder.forAddress(HOSTNAME, 8080)
+        NettyChannelBuilder.forAddress(HOSTNAME, PORT)
           .sslContext(clientCerts.toClientTlsContext())
           .build()
       )
