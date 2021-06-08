@@ -64,22 +64,6 @@ class TransportSecurityTest {
 
   @get:Rule val grpcCleanup = GrpcCleanupRule()
 
-  private fun startServer(clientAuth: ClientAuth): Server {
-
-    val server =
-      grpcCleanup
-        .register(
-          NettyServerBuilder.forPort(0)
-            .sslContext(serverCerts.toServerTlsContext(clientAuth))
-            .addService(healthStatusManager.healthService.withVerboseLogging())
-            .build()
-        )
-        .start()
-    healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)
-
-    return server
-  }
-
   private fun startCommonServer(clientAuth: ClientAuth): Server {
 
     val server =
@@ -94,6 +78,7 @@ class TransportSecurityTest {
           healthStatusManager.healthService.withVerboseLogging()
         )
         .start()
+    healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)
 
     grpcCleanup.register(server.server)
 
@@ -148,10 +133,12 @@ class TransportSecurityTest {
 
   @Test
   fun `TLS RPC succeeds`() {
-    val server = startServer(ClientAuth.NONE)
+
+    startCommonServer(ClientAuth.NONE)
+
     val channel =
       grpcCleanup.register(
-        NettyChannelBuilder.forAddress(HOSTNAME, server.port)
+        NettyChannelBuilder.forAddress(HOSTNAME, 8080)
           .sslContext(clientCerts.toClientTlsContext())
           .build()
       )
@@ -166,10 +153,10 @@ class TransportSecurityTest {
 
   @Test
   fun `mTLS RPC succeeds`() {
-    val server = startServer(ClientAuth.REQUIRE)
+    startCommonServer(ClientAuth.REQUIRE)
     val channel =
       grpcCleanup.register(
-        NettyChannelBuilder.forAddress(HOSTNAME, server.port)
+        NettyChannelBuilder.forAddress(HOSTNAME, 8080)
           .sslContext(clientCerts.toClientTlsContext())
           .build()
       )

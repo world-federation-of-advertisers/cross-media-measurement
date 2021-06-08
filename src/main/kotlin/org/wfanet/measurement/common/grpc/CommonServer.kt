@@ -40,11 +40,11 @@ private constructor(
   private val healthStatusManager = HealthStatusManager()
 
   val server: Server by lazy {
-    val srvr =
+    val serverInstance =
       if (useSSLContext != null) NettyServerBuilder.forPort(port).sslContext(useSSLContext)
       else NettyServerBuilder.forPort(port)
 
-    srvr
+    serverInstance
       .apply {
         addService(healthStatusManager.healthService)
         services.forEach { addService(it) }
@@ -84,10 +84,6 @@ private constructor(
   }
 
   class Flags {
-    constructor(p: Int, d: Boolean) {
-      port = p
-      debugVerboseGrpcLogging = d
-    }
     @set:CommandLine.Option(
       names = ["--port", "-p"],
       description = ["TCP port for gRPC server."],
@@ -97,16 +93,16 @@ private constructor(
       private set
 
     @set:CommandLine.Option(
-      names = ["--cert-file"],
-      description = ["cert file."],
+      names = ["--tls-cert-file"],
+      description = ["TLS cert file."],
       defaultValue = ""
     )
     var certFile by Delegates.notNull<String>()
       private set
 
     @set:CommandLine.Option(
-      names = ["--private-key-file"],
-      description = ["private key file."],
+      names = ["--tls-key-file"],
+      description = ["TLS key file."],
       defaultValue = ""
     )
     var privateKeyFile by Delegates.notNull<String>()
