@@ -16,19 +16,32 @@
 --
 -- Table hierarchy:
 --   Root
---   ├───MeasurementConsumers
---   │   └─ Measurements
---   │      ├─ Requisitions
---   │      ├── ComputationParticipants
---   │      └── MeasurementLogEntries
---   │
---   └── DataProviders
---       └── EventGroups
+--   ├── Certificates
+--   ├── DataProviders
+--   │   ├── DataProviderCertificates
+--   │   └── EventGroups
+--   ├── DuchyCertificates
+--   └── MeasurementConsumers
+--       ├── MeasurementConsumerCertificates
+--       └── Measurements
+--           ├── ComputationParticipants
+--           ├── MeasurementLogEntries
+--           └── Requisitions
+--
+-- Note that there is no Duchies table. Instead, a well-known set of Duchies
+-- should be defined in a configuration file for a given Kingdom deployment.
 --
 -- The important foreign key relationships between the tables are:
 --
---   MeasurementConsumers  <- 1:many -> EventGroups
---   Measurements <- 1:many -> Requisitions
+--   EventGroups -[many:1]-> MeasurementConsumers
+--   EventGroups -[many:1]-> DataProviders
+--   Requisitions -[many:1]-> Measurements
+--
+--   MeasurementConsumerCertificates -[many:1]-> MeasurementConsumers
+--   DataProviderCertificates -[many:1]-> DataProviders
+--   MeasurementConsumerCertificates -[1:1]-> Certificates
+--   DataProviderCertificates -[1:1]-> Certificates
+--   DuchyCertificates -[1:1]-> Certificates
 --
 -- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
 -- expose only External identifiers, and ideally only web-safe base64 versions
@@ -40,29 +53,72 @@
 -- JSON provides debugging value.
 --
 -- Data Providers fetch the unfulfilled Requisitions in their systems, compute
--- the underlying data, and upload it via the Publisher Data Service.
+-- the underlying data, and upload them via the public RequisitionFulfillment
+-- service.
 --
 -- Once all Requisitions for a Measurement have been fulfilled, the multi-party
 -- computation can begin.
 
+-- X.509 certificates used for consent signaling.
+CREATE TABLE Certificates (
+  CertificateId INT64 NOT NULL,
+
+  SubjectKeyIdentifier BYTES(MAX) NOT NULL,
+  NotValidBefore TIMESTAMP NOT NULL,
+  NotValidAfter TIMESTAMP NOT NULL,
+
+  -- org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
+  -- protobuf enum encoded as an integer.
+  RevocationState INT64 NOT NULL,
+
+  -- Serialized org.wfanet.measurement.internal.kingdom.Certificate.Details
+  -- protobuf message.
+  CertificateDetails BYTES(MAX),
+  CertificateDetailsJson STRING(MAX),
+) PRIMARY KEY (CertificateId);
+
+-- Enforce that subject key identifier (SKID) is unique.
+CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
+  ON Certificates(SubjectKeyIdentifier);
+
 CREATE TABLE MeasurementConsumers (
-  MeasurementConsumerId          INT64 NOT NULL,
+  MeasurementConsumerId INT64 NOT NULL,
 
-  ExternalMeasurementConsumerId  INT64 NOT NULL,
+  PublicKeyCertificateId INT64 NOT NULL,
 
-  MeasurementConsumerDetails     BYTES(MAX) NOT NULL,
+  ExternalMeasurementConsumerId INT64 NOT NULL,
+
+  MeasurementConsumerDetails BYTES(MAX) NOT NULL,
   MeasurementConsumerDetailsJson STRING(MAX) NOT NULL,
+
+  FOREIGN KEY (PublicKeyCertificateId) REFERENCES Certificates(CertificateId),
 ) PRIMARY KEY (MeasurementConsumerId);
 
 -- For measurement consumer APIs.
 CREATE UNIQUE INDEX MeasurementConsumersByExternalId
   ON MeasurementConsumers(ExternalMeasurementConsumerId);
 
+CREATE TABLE MeasurementConsumerCertificates (
+  MeasurementConsumerId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalMeasurementConsumerCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (MeasurementConsumerId, CertificateId),
+  INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX MeasurementConsumerCertificatesByExternalId
+  ON MeasurementConsumerCertificates(MeasurementConsumerId, ExternalMeasurementConsumerCertificateId);
+
+-- No Certificate should belong to more than one MeasurementConsumer.
+CREATE UNIQUE INDEX MeasurementConsumerCertificatesByCertificateId
+  ON MeasurementConsumerCertificates(CertificateId);
 
 CREATE TABLE DataProviders (
-  DataProviderId          INT64 NOT NULL,
-  ExternalDataProviderId  INT64 NOT NULL,
+  DataProviderId INT64 NOT NULL,
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   PublicKeyCertificateId INT64 NOT NULL,
 
@@ -71,19 +127,43 @@ CREATE TABLE DataProviders (
   PublicKeyCertificateId INT64 NOT NULL,
 
 >>>>>>> d73e83d4 (Define Kingdom internal measurement services for v2alpha public API.)
+=======
+  PublicKeyCertificateId INT64 NOT NULL,
+
+>>>>>>> 996de6c8 (fixed rebase)
   ExternalDataProviderId INT64 NOT NULL,
 
   DataProviderDetails BYTES(MAX) NOT NULL,
   DataProviderDetailsJson STRING(MAX) NOT NULL,
 
   FOREIGN KEY (PublicKeyCertificateId) REFERENCES Certificates(CertificateId),
+<<<<<<< HEAD
 =======
 >>>>>>> 26a17786 (rebased to main)
+=======
+>>>>>>> 996de6c8 (fixed rebase)
 ) PRIMARY KEY (DataProviderId);
 
 -- For data provider APIs.
 CREATE UNIQUE INDEX DataProvidersByExternalId
   ON DataProviders(ExternalDataProviderId);
+
+CREATE TABLE DataProviderCertificates (
+  DataProviderId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalDataProviderCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (DataProviderId, CertificateId),
+  INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX DataProviderCertificatesByExternalId
+  ON DataProviderCertificates(DataProviderId, ExternalDataProviderCertificateId);
+
+-- No Certificate should belong to more than one DataProvider.
+CREATE UNIQUE INDEX DataProviderCertificatesByCertificateId
+  ON DataProviderCertificates(CertificateId);
 
 -- Each EventGroup belongs to both a MeasurementConsumer and a Data Provider.
 --
@@ -103,16 +183,18 @@ CREATE UNIQUE INDEX DataProvidersByExternalId
 -- TODO: evaluate if interleaving under MeasurementConsumer would be more
 -- efficient.
 CREATE TABLE EventGroups (
-  DataProviderId          INT64 NOT NULL,
-  EventGroupId              INT64 NOT NULL,
+  DataProviderId INT64 NOT NULL,
+  EventGroupId INT64 NOT NULL,
 
-  MeasurementConsumerId            INT64 NOT NULL,
+  MeasurementConsumerId INT64 NOT NULL,
 
   -- Generated by the system, exposed in UIs.
-  ExternalEventGroupId      INT64 NOT NULL,
+  ExternalEventGroupId INT64 NOT NULL,
 
   -- Provided by the Data Provider,  used for idempotency.
-  ProvidedEventGroupId  STRING(MAX) NOT NULL,
+  ProvidedEventGroupId STRING(MAX),
+
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   FOREIGN KEY (MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
@@ -121,7 +203,7 @@ CREATE TABLE EventGroups (
 
 CREATE UNIQUE INDEX EventGroupsByExternalId
   ON EventGroups(DataProviderId, ExternalEventGroupId);
-CREATE UNIQUE INDEX EventGroupsByProvidedId
+CREATE UNIQUE NULL_FILTERED INDEX EventGroupsByProvidedId
   ON EventGroups(DataProviderId, ProvidedEventGroupId);
 
 CREATE TABLE Measurements (
@@ -156,7 +238,7 @@ CREATE TABLE Measurements (
 CREATE INDEX MeasurementsByState ON Measurements(State, UpdateTime ASC);
 
 -- Enable finding Measurements by externally generated Foreign ids
-CREATE UNIQUE INDEX MeasurementsByProvidedMeasurementId
+CREATE UNIQUE NULL_FILTERED INDEX MeasurementsByProvidedId
   ON Measurements(MeasurementConsumerId, ProvidedMeasurementId);
 
 CREATE UNIQUE INDEX MeasurementsByExternalId
@@ -205,6 +287,18 @@ CREATE UNIQUE INDEX RequisitionsByDataProviderId
 -- fulfill
 CREATE INDEX RequisitionsByState ON Requisitions(DataProviderId, State);
 
+CREATE TABLE DuchyCertificates (
+  DuchyId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalDuchyCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (DuchyId, CertificateId);
+
+CREATE UNIQUE INDEX DuchyCertificatesByExternalId
+  ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
+
 -- Stores the details and state of duchies for the computation of parent
 -- Measurement.
 CREATE TABLE ComputationParticipants (
@@ -227,20 +321,37 @@ CREATE TABLE ComputationParticipants (
 -- This is used to give a bird's eye view of the state of the computations to
 -- help debug and track progress.
 CREATE TABLE MeasurementLogEntries (
-  MeasurementConsumerId           INT64 NOT NULL,
-  MeasurementId                   INT64 NOT NULL,
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
-  ExternalComputationLogEntryId   INT64,
-  DuchyId                         INT64,
-
-  CreateTime                      TIMESTAMP NOT NULL
-                                  OPTIONS (allow_commit_timestamp = true),
-
-  -- MeasurementLogDetails serialized proto.
+  -- Serialized
+  -- org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
+  -- protobuf message.
   MeasurementLogDetails      BYTES(MAX) NOT NULL,
   MeasurementLogDetailsJson  STRING(MAX) NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
-CREATE UNIQUE NULL_FILTERED  INDEX MeasurementLogEntriesByExternalId
-  ON MeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
+-- Duchy-specific information for a Measurement log entry. There should be a row
+-- in this table for every row in MeasurementLogEntries where the source of the
+-- log event is a Duchy.
+CREATE TABLE DuchyMeasurementLogEntries (
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  DuchyId INT64 NOT NULL,
+
+  ExternalComputationLogEntryId INT64 NOT NULL,
+
+  -- Serialized
+  -- org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.Details
+  -- protobuf message.
+  DuchyMeasurementLogDetails BYTES(MAX) NOT NULL,
+  DuchyMeasurementLogDetailsJson STRING(MAX) NOT NULL,
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
+  INTERLEAVE IN PARENT MeasurementLogEntries ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
+  ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
