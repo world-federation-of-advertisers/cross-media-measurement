@@ -71,9 +71,9 @@ class TransportSecurityTest {
       grpcCleanup
         .register(
           NettyServerBuilder.forPort(0)
-              .sslContext(serverCerts.toServerTlsContext(clientAuth))
-              .addService(healthStatusManager.healthService.withVerboseLogging())
-                .build()
+            .sslContext(serverCerts.toServerTlsContext(clientAuth))
+            .addService(healthStatusManager.healthService.withVerboseLogging())
+            .build()
         )
         .start()
     healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)
@@ -83,16 +83,19 @@ class TransportSecurityTest {
 
   private fun startCommonServer(clientAuth: ClientAuth): Server {
 
-    var serverFlags: CommonServer.Flags = CommonServer.Flags(8080, true)
-
-    val server = CommonServer.fromFlags(
-      serverFlags,
+    val server = CommonServer.fromParameters(
+      8080,
+      true,
+      tempDir.resolve("server.pem").toString(),
+      tempDir.resolve("server.key").toString(),
+      tempDir.resolve("client-root.pem").toString(),
+      clientAuth,
       "test",
-      serverCerts.toServerTlsContext(clientAuth),
-      healthStatusManager.healthService.withVerboseLogging()).start()
+      healthStatusManager.healthService.withVerboseLogging()
+    )
+    .start()
 
-      grpcCleanup.register(server.server)
-
+    grpcCleanup.register(server.server)
 
     return server.server
   }
@@ -100,7 +103,7 @@ class TransportSecurityTest {
 
   @Test
   fun `TLS server valid`() {
-    val server = startCommonServer(ClientAuth.NONE)
+    startCommonServer(ClientAuth.NONE)
 
     // Verify server using openssl s_client.
     runBlocking {
@@ -121,7 +124,7 @@ class TransportSecurityTest {
 
   @Test
   fun `mTLS server valid`() {
-    val server = startCommonServer(ClientAuth.REQUIRE)
+    startCommonServer(ClientAuth.REQUIRE)
 
     // Verify server using openssl s_client.
     runBlocking {
