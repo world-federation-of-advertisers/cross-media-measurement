@@ -141,15 +141,15 @@ private constructor(
       port: Int,
       debugVerboseGrpcLogging: Boolean,
       certFile: String,
-      certCollectionFile: String,
       privateKeyFile: String,
+      certCollectionFile: String,
       clientAuth: ClientAuth,
       nameForLogging: String,
       services: Iterable<ServerServiceDefinition>
     ): CommonServer {
       var useSSLContext: SslContext? = null
 
-      if (certFile != "" && certCollectionFile != "" && privateKeyFile != "") {
+      if (certFile != "" && privateKeyFile != "" && certCollectionFile != "") {
         val serverCerts =
           SigningCerts.fromPemFiles(
             certificateFile = File(certFile),
@@ -173,12 +173,12 @@ private constructor(
       port: Int,
       debugVerboseGrpcLogging: Boolean,
       certFile: String,
-      certCollectionFile: String,
       privateKeyFile: String,
+      certCollectionFile: String,
       clientAuth: ClientAuth,
       nameForLogging: String,
       vararg services: ServerServiceDefinition
-    ): CommonServer = fromParameters(port, debugVerboseGrpcLogging, certFile, certCollectionFile, privateKeyFile, clientAuth, nameForLogging,services.asIterable())
+    ): CommonServer = fromParameters(port, debugVerboseGrpcLogging, certFile, privateKeyFile, certCollectionFile, clientAuth, nameForLogging,services.asIterable())
 
     @JvmName("fromFlagsServiceDefinition")
     fun fromFlags(
