@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +14,9 @@
 // limitations under the License.
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
+=======
+package org.wfanet.measurement.kingdom.service.internal
+>>>>>>> 7e49eb6d (moved services)
 
 import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
