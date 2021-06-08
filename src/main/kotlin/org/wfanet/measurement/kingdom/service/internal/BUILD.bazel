@@ -11,8 +11,12 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
 =======
     name = "internal",
+<<<<<<< HEAD
     srcs = glob(["Spanner*.kt"]),
 >>>>>>> c0eda1c5 (almost done)
+=======
+    srcs = glob(["Spanner*.kt","DataServices.kt",]),
+>>>>>>> 382125ff (fixed build and lint more)
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/io/grpc:api",
@@ -46,10 +50,9 @@ kt_jvm_library(
         "ReportsService.kt",
         "RequisitionsService.kt",
         "ReportLogEntriesService.kt",
-        "DataServices.kt",
+        "LegacyDataServices.kt",
     ]),
     deps = [
-        ":internal",
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/io/grpc:api",
         "//imports/kotlin/kotlinx/coroutines:core",

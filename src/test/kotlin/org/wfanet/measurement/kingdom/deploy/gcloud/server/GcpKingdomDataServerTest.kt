@@ -114,11 +114,16 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
       val clock = Clock.systemUTC()
       val databases = makeSpannerKingdomDatabases(clock, RandomIdGenerator(clock), databaseClient)
 <<<<<<< HEAD
+<<<<<<< HEAD
       val services =
         buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
 =======
       val services = buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
 >>>>>>> bbcf20ac (first commit)
+=======
+      val services =
+        buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
+>>>>>>> 382125ff (fixed build and lint more)
       services.forEach(this::addService)
     }
 

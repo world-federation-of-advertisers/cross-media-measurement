@@ -15,9 +15,11 @@
 package org.wfanet.measurement.kingdom.service.internal
 
 import io.grpc.BindableService
+<<<<<<< HEAD
 import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+<<<<<<<< HEAD:src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/LegacyDataServices.kt
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
@@ -30,6 +32,12 @@ import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 =======
 /** Builds a list of all the Kingdom's legacy internal data-layer services. */
 >>>>>>> ed9def1e (halfway there):src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/DataServices.kt
+=======
+import org.wfanet.measurement.kingdom.db.ReportDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionDatabase
+
+/** Builds a list of all the Kingdom's legacy internal data-layer services. */
+>>>>>>> 382125ff (fixed build and lint more)
 fun buildLegacyDataServices(
   reportDatabase: ReportDatabase,
   requisitionDatabase: RequisitionDatabase
@@ -40,6 +48,9 @@ fun buildLegacyDataServices(
     RequisitionsService(requisitionDatabase)
   )
 }
+<<<<<<< HEAD
+========
+>>>>>>>> 382125ff (fixed build and lint more):src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/DataServices.kt
 
 /** Builds a list of all the Kingdom's internal data-layer services. */
 fun buildDataServices(
@@ -56,3 +67,5 @@ fun buildDataServices(
     SpannerRequisitionsService(clock, idGenerator, client)
   )
 }
+=======
+>>>>>>> 382125ff (fixed build and lint more)
