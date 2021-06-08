@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ package wfa.measurement.internal.kingdom;
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Proto representation of the internal DataProvider entity type.
-message DataProvider {
-  fixed64 external_data_provider_id = 1;
+// Representation of a Measurement Consumer entity.
+message MeasurementConsumer {
+  fixed64 external_measurement_consumer_id = 1;
 
   // External ID of Certificate for public key signature verification.
   fixed64 external_public_key_certificate_id = 2;
