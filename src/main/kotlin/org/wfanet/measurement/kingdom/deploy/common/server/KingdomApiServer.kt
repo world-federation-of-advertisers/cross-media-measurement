@@ -18,7 +18,6 @@ import io.grpc.BindableService
 import io.grpc.Channel
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
-import java.security.cert.X509Certificate
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.*
@@ -79,7 +78,7 @@ fun runKingdomApiServer(
 
 
   val channel: Channel =
-    buildTLSChannel(kingdomApiServerFlags.internalApiTarget)
+    buildTlsChannel(kingdomApiServerFlags.internalApiTarget)
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
 
   val service = serviceFactory(channel).withDuchyIdentities()

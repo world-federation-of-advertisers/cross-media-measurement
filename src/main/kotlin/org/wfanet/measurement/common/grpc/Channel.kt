@@ -31,11 +31,10 @@ fun buildChannel(target: String): ManagedChannel {
 }
 
 
-fun buildTLSChannel(
+fun buildTlsChannel(
   target: String
 ): ManagedChannel {
-  return ManagedChannelBuilder.forTarget(target)
-    .build()
+  return ManagedChannelBuilder.forTarget(target).build()
 }
 
 /**

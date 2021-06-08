@@ -87,7 +87,6 @@ class TransportSecurityTest {
 
     val server = CommonServer.fromFlags(
       serverFlags,
-
       "test",
       serverCerts.toServerTlsContext(clientAuth),
       healthStatusManager.healthService.withVerboseLogging()).start()
