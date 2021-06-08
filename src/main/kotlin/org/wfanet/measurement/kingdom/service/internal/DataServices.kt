@@ -18,8 +18,20 @@ import io.grpc.BindableService
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 
-/** Builds a list of all the Kingdom's internal data-layer services. */
+/** Builds a list of all the Kingdom's legacy internal data-layer services. */
 fun buildLegacyDataServices(
+  reportDatabase: ReportDatabase,
+  requisitionDatabase: RequisitionDatabase
+): List<BindableService> {
+  return listOf(
+    ReportsService(reportDatabase),
+    ReportLogEntriesService(reportDatabase),
+    RequisitionsService(requisitionDatabase)
+  )
+}
+
+/** Builds a list of all the Kingdom's internal data-layer services. */
+fun buildDataServices(
   reportDatabase: ReportDatabase,
   requisitionDatabase: RequisitionDatabase
 ): List<BindableService> {
