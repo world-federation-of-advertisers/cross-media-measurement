@@ -113,7 +113,8 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
     GrpcTestServerRule(logAllRequests = true) {
       val clock = Clock.systemUTC()
       val databases = makeSpannerKingdomDatabases(clock, RandomIdGenerator(clock), databaseClient)
-      val services = buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
+      val services =
+        buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
       services.forEach(this::addService)
     }
 

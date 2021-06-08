@@ -7,7 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "internal",
-    srcs = glob(["Spanner*.kt"]),
+    srcs = glob(["Spanner*.kt","DataServices.kt",]),
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/io/grpc:api",
@@ -36,10 +36,9 @@ kt_jvm_library(
         "ReportsService.kt",
         "RequisitionsService.kt",
         "ReportLogEntriesService.kt",
-        "DataServices.kt",
+        "LegacyDataServices.kt",
     ]),
     deps = [
-        ":internal",
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/io/grpc:api",
         "//imports/kotlin/kotlinx/coroutines:core",
