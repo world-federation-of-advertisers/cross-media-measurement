@@ -17,7 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import io.grpc.BindableService
 import io.grpc.Channel
 import kotlin.properties.Delegates
-import org.wfanet.measurement.common.grpc.*
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildTlsChannel
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyIdentities
