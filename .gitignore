@@ -1,5 +1,5 @@
 # Bazel convenience symlinks.
-/bazel-*/
+bazel-*
 
 # Bazel IntelliJ projects.
 .ijwb
@@ -7,8 +7,3 @@
 # IntelliJ projects.
 .idea/
 *.iml
-
-.DS_Store
-cddignore
-lib/
-bazel-*

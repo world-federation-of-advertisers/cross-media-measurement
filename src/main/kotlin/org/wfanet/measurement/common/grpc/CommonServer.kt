@@ -35,17 +35,14 @@ private constructor(
   private val nameForLogging: String,
   private val port: Int,
   services: Iterable<ServerServiceDefinition>,
-  private val useSSLContext: SslContext?
+  sslContext: SslContext?
 ) {
   private val healthStatusManager = HealthStatusManager()
 
   val server: Server by lazy {
-    val serverInstance =
-      if (useSSLContext != null) NettyServerBuilder.forPort(port).sslContext(useSSLContext)
-      else NettyServerBuilder.forPort(port)
-
-    serverInstance
+    NettyServerBuilder.forPort(port)
       .apply {
+        sslContext?.let { sslContext(it) }
         addService(healthStatusManager.healthService)
         services.forEach { addService(it) }
       }
@@ -97,7 +94,7 @@ private constructor(
       description = ["TLS cert file."],
       defaultValue = ""
     )
-    var certFile by Delegates.notNull<String>()
+    var certFile by Delegates.notNull<File>()
       private set
 
     @set:CommandLine.Option(
@@ -105,7 +102,7 @@ private constructor(
       description = ["TLS key file."],
       defaultValue = ""
     )
-    var privateKeyFile by Delegates.notNull<String>()
+    var privateKeyFile by Delegates.notNull<File>()
       private set
 
     @set:CommandLine.Option(
@@ -113,12 +110,13 @@ private constructor(
       description = ["cert collection file."],
       defaultValue = ""
     )
-    var certCollectionFile by Delegates.notNull<String>()
+    var certCollectionFile by Delegates.notNull<File>()
       private set
 
     @set:CommandLine.Option(
       names = ["--require-client-auth"],
-      description = ["require client auth"]
+      description = ["require client auth"],
+      defaultValue = "false"
     )
     var clientAuthRequired by Delegates.notNull<Boolean>()
       private set
@@ -139,39 +137,23 @@ private constructor(
     fun fromParameters(
       port: Int,
       debugVerboseGrpcLogging: Boolean,
-      certFile: String,
-      privateKeyFile: String,
-      certCollectionFile: String,
+      certs: SigningCerts?,
       clientAuth: ClientAuth,
       nameForLogging: String,
       services: Iterable<ServerServiceDefinition>
     ): CommonServer {
-      var useSSLContext: SslContext? = null
-
-      if (certFile != "" && privateKeyFile != "" && certCollectionFile != "") {
-        val serverCerts =
-          SigningCerts.fromPemFiles(
-            certificateFile = File(certFile),
-            privateKeyFile = File(privateKeyFile),
-            trustedCertCollectionFile = File(certCollectionFile)
-          )
-        useSSLContext = serverCerts.toServerTlsContext(clientAuth)
-      }
-
       return CommonServer(
         nameForLogging,
         port,
         services.run { if (debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this },
-        useSSLContext
+        certs?.toServerTlsContext(clientAuth)
       )
     }
 
     fun fromParameters(
       port: Int,
       debugVerboseGrpcLogging: Boolean,
-      certFile: String,
-      privateKeyFile: String,
-      certCollectionFile: String,
+      certs: SigningCerts?,
       clientAuth: ClientAuth,
       nameForLogging: String,
       vararg services: ServerServiceDefinition
@@ -179,9 +161,7 @@ private constructor(
       fromParameters(
         port,
         debugVerboseGrpcLogging,
-        certFile,
-        privateKeyFile,
-        certCollectionFile,
+        certs,
         clientAuth,
         nameForLogging,
         services.asIterable()
@@ -192,17 +172,29 @@ private constructor(
       flags: Flags,
       nameForLogging: String,
       services: Iterable<ServerServiceDefinition>
-    ): CommonServer =
-      fromParameters(
+    ): CommonServer {
+      var certs: SigningCerts? = null
+      if (flags.certFile.exists() &&
+          flags.privateKeyFile.exists() &&
+          flags.certCollectionFile.exists()
+      ) {
+        certs =
+          SigningCerts.fromPemFiles(
+            certificateFile = flags.certFile,
+            privateKeyFile = flags.privateKeyFile,
+            trustedCertCollectionFile = flags.certCollectionFile
+          )
+      }
+
+      return fromParameters(
         flags.port,
         flags.debugVerboseGrpcLogging,
-        flags.certFile,
-        flags.certCollectionFile,
-        flags.privateKeyFile,
+        certs,
         if (flags.clientAuthRequired) ClientAuth.REQUIRE else ClientAuth.NONE,
         nameForLogging,
         services
       )
+    }
 
     /** Constructs a [CommonServer] from command-line flags. */
     fun fromFlags(

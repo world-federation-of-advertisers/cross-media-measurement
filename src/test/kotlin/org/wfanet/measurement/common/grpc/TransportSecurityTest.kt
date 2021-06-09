@@ -70,9 +70,7 @@ class TransportSecurityTest {
       CommonServer.fromParameters(
           PORT,
           true,
-          tempDir.resolve("server.pem").toString(),
-          tempDir.resolve("server.key").toString(),
-          tempDir.resolve("client-root.pem").toString(),
+          serverCerts,
           clientAuth,
           "test",
           healthStatusManager.healthService.withVerboseLogging()
