@@ -29,6 +29,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -75,15 +76,26 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
     }
     .build()
 
+private val resourceNameParser =
+  ResourceNameParser(
+    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
+  )
+
+private fun toV2AlphaName(): String {
+  return resourceNameParser.assembleName(
+    mapOf(
+      "recurring_exchange" to externalIdToApiId(RECURRING_EXCHANGE_ID),
+      "exchange" to EXCHANGE_ID,
+      "exchange_step" to externalIdToApiId(STEP_INDEX.toLong()),
+      "exchange_step_attempt" to externalIdToApiId(ATTEMPT_NUMBER.toLong())
+    )
+  )
+}
+
 private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
   ExchangeStepAttempt.newBuilder()
     .apply {
-      keyBuilder.apply {
-        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
-        exchangeId = EXCHANGE_ID
-        stepId = externalIdToApiId(STEP_INDEX.toLong())
-        exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
-      }
+      name = toV2AlphaName()
       state = ExchangeStepAttempt.State.ACTIVE
       attemptNumber = ATTEMPT_NUMBER
       startTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.startTime
@@ -118,7 +130,7 @@ class ExchangeStepAttemptsServiceTest {
     val request =
       AppendLogEntryRequest.newBuilder()
         .apply {
-          key = EXCHANGE_STEP_ATTEMPT.key
+          name = EXCHANGE_STEP_ATTEMPT.name
           addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
         }
         .build()
@@ -144,7 +156,7 @@ class ExchangeStepAttemptsServiceTest {
     val request =
       FinishExchangeStepAttemptRequest.newBuilder()
         .apply {
-          key = EXCHANGE_STEP_ATTEMPT.key
+          name = EXCHANGE_STEP_ATTEMPT.name
           finalState = ExchangeStepAttempt.State.FAILED
           addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
         }
