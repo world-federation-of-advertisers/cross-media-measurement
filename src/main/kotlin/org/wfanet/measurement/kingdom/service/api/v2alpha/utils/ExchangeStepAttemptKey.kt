@@ -18,7 +18,8 @@ import org.wfanet.measurement.common.ResourceNameParser
 
 private val parser =
   ResourceNameParser(
-    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
+    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/" +
+      "attempts/{exchange_step_attempt}"
   )
 
 /** [ExchangeStepAttemptKey] of an Exchange Step Attempt. */
