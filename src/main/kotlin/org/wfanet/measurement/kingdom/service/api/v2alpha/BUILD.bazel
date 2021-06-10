@@ -52,6 +52,7 @@ kt_jvm_library(
     srcs = ["ExchangeStepAttemptsService.kt"],
     deps = [
         ":util",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/utils:resource_key",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -70,6 +71,7 @@ kt_jvm_library(
     srcs = ["ExchangeStepsService.kt"],
     deps = [
         ":util",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/utils:resource_key",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",

@@ -29,7 +29,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
-import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -38,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalEx
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest as InternalFinishExchangeStepAttemptRequest
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private const val STEP_INDEX = 1
@@ -76,20 +76,14 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
     }
     .build()
 
-private val resourceNameParser =
-  ResourceNameParser(
-    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
-  )
-
 private fun toV2AlphaName(): String {
-  return resourceNameParser.assembleName(
-    mapOf(
-      "recurring_exchange" to externalIdToApiId(RECURRING_EXCHANGE_ID),
-      "exchange" to EXCHANGE_ID,
-      "exchange_step" to externalIdToApiId(STEP_INDEX.toLong()),
-      "exchange_step_attempt" to externalIdToApiId(ATTEMPT_NUMBER.toLong())
+  return ExchangeStepAttemptKey(
+      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+      exchangeId = EXCHANGE_ID,
+      exchangeStepId = externalIdToApiId(STEP_INDEX.toLong()),
+      exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
     )
-  )
+    .toName()
 }
 
 private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =

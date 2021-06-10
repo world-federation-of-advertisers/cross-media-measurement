@@ -20,14 +20,18 @@ import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest.PartyCas
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
-import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.DataProviderKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ModelProviderKey
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
@@ -39,21 +43,34 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
         .apply {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.partyCase) {
-            PartyCase.DATA_PROVIDER -> externalDataProviderId =  apiIdToExternalId(request.dataProvider.toId())
-            PartyCase.MODEL_PROVIDER -> externalModelProviderId = apiIdToExternalId(request.modelProvider.toId())
+            PartyCase.DATA_PROVIDER ->
+              externalDataProviderId =
+                apiIdToExternalId(DataProviderKey.fromName(request.dataProvider)!!.dataProviderId)
+            PartyCase.MODEL_PROVIDER ->
+              externalModelProviderId =
+                apiIdToExternalId(
+                  ModelProviderKey.fromName(request.modelProvider)!!.modelProviderId
+                )
             PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
           }
         }
         .build()
 
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
+    val externalExchangeStep = internalResponse.exchangeStep.toV2Alpha()
+    val externalExchangeStepAttempt =
+      ExchangeStepAttemptKey(
+          recurringExchangeId =
+            externalIdToApiId(internalResponse.exchangeStep.externalRecurringExchangeId),
+          exchangeId = internalResponse.exchangeStep.date.toLocalDate().toString(),
+          exchangeStepId = externalIdToApiId(internalResponse.exchangeStep.stepIndex.toLong()),
+          exchangeStepAttemptId = externalIdToApiId(internalResponse.attemptNumber.toLong())
+        )
+        .toName()
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
-        exchangeStep = internalResponse.exchangeStep.toV2Alpha()
-        exchangeStepAttempt =
-          exchangeStep.name.toExchangeStepAttempt(
-            externalIdToApiId(internalResponse.attemptNumber.toLong())
-          )
+        exchangeStep = externalExchangeStep
+        exchangeStepAttempt = externalExchangeStepAttempt
       }
       .build()
   }
@@ -63,32 +80,26 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
   }
 }
 
-private val resourceNameParser =
-  ResourceNameParser(
-    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}"
-  )
-
-private fun String.toSegments(): Map<String, String> {
-  val segments = resourceNameParser.parseIdSegments(this)
-  if (segments.isNullOrEmpty()) {
-    throw Exception("Resource Name Invalid")
-  }
-  return segments
-}
-
-private fun String.toExchangeStepAttempt(exchangeStepAttempt: String): String {
-  return "$this/attempts/${exchangeStepAttempt}"
-}
-
 private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   return ExchangeStep.newBuilder()
     .also {
-      it.name = toV2AlphaName()
+      it.name = v2AlphaName
       it.state = v2AlphaState
+      it.stepIndex = stepIndex
       // TODO(world-federation-of-advertisers/cross-media-measurement#3): add remaining fields
     }
     .build()
 }
+
+private val InternalExchangeStep.v2AlphaName: String
+  get() {
+    return ExchangeStepKey(
+        recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+        exchangeId = date.toLocalDate().toString(),
+        exchangeStepId = externalIdToApiId(stepIndex.toLong())
+      )
+      .toName()
+  }
 
 private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
   get() {
@@ -104,21 +115,3 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
         failGrpc(Status.INTERNAL) { "Invalid state: $this" }
     }
   }
-
-private fun InternalExchangeStep.toV2AlphaName(): String {
-  return resourceNameParser.assembleName(
-    mapOf(
-      "recurring_exchange" to externalIdToApiId(externalRecurringExchangeId),
-      "exchange" to date.toLocalDate().toString(),
-      "exchange_step" to externalIdToApiId(stepIndex.toLong())
-    )
-  )
-}
-
-private fun String.toId(): String {
-  val segments = this.split("/")
-  if (segments.size != 2) {
-    throw NullPointerException("Resource name does not include provider id.")
-  }
-  return segments[1]
-}

@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
-import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -39,6 +38,8 @@ import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse as
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepKey
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
@@ -47,17 +48,12 @@ private const val STEP_INDEX = 123
 private const val ATTEMPT_NUMBER = 5
 
 private fun toV2AlphaName(): String {
-  val resourceNameParser =
-    ResourceNameParser(
-      "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}"
+  return ExchangeStepKey(
+      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+      exchangeId = EXCHANGE_ID,
+      exchangeStepId = externalIdToApiId(STEP_INDEX.toLong())
     )
-  return resourceNameParser.assembleName(
-    mapOf(
-      "recurring_exchange" to externalIdToApiId(RECURRING_EXCHANGE_ID),
-      "exchange" to EXCHANGE_ID,
-      "exchange_step" to externalIdToApiId(STEP_INDEX.toLong())
-    )
-  )
+    .toName()
 }
 
 private val EXCHANGE_STEP =
@@ -65,23 +61,19 @@ private val EXCHANGE_STEP =
     .apply {
       name = toV2AlphaName()
       state = ExchangeStep.State.READY_FOR_RETRY
+      stepIndex = STEP_INDEX
     }
     .build()
 
 private val EXCHANGE_STEP_ATTEMPT: String
   get() {
-    val resourceNameParser =
-      ResourceNameParser(
-        "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
+    return ExchangeStepAttemptKey(
+        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+        exchangeId = EXCHANGE_ID,
+        exchangeStepId = externalIdToApiId(STEP_INDEX.toLong()),
+        exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
       )
-    return resourceNameParser.assembleName(
-      mapOf(
-        "recurring_exchange" to externalIdToApiId(RECURRING_EXCHANGE_ID),
-        "exchange" to EXCHANGE_ID,
-        "exchange_step" to externalIdToApiId(STEP_INDEX.toLong()),
-        "exchange_step_attempt" to externalIdToApiId(ATTEMPT_NUMBER.toLong())
-      )
-    )
+      .toName()
   }
 
 private val INTERNAL_EXCHANGE_STEP =
@@ -128,9 +120,7 @@ class ExchangeStepsServiceTest {
     val id = 12345L
     val dataProviderId = "dataProviders/${externalIdToApiId(id)}"
     val request =
-      ClaimReadyExchangeStepRequest.newBuilder()
-        .apply { dataProvider = dataProviderId }
-        .build()
+      ClaimReadyExchangeStepRequest.newBuilder().apply { dataProvider = dataProviderId }.build()
     val response = runBlocking { service.claimReadyExchangeStep(request) }
     assertThat(response)
       .isEqualTo(
@@ -158,9 +148,7 @@ class ExchangeStepsServiceTest {
     val id = 12345L
     val modelProviderId = "modelProviders/${externalIdToApiId(id)}"
     val request =
-      ClaimReadyExchangeStepRequest.newBuilder()
-        .apply { modelProvider = modelProviderId }
-        .build()
+      ClaimReadyExchangeStepRequest.newBuilder().apply { modelProvider = modelProviderId }.build()
     val response = runBlocking { service.claimReadyExchangeStep(request) }
     assertThat(response)
       .isEqualTo(

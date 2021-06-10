@@ -37,6 +37,7 @@ kt_jvm_test(
     srcs = ["ExchangeStepAttemptsServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/utils:resource_key",
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/com/google/protobuf",
@@ -56,6 +57,7 @@ kt_jvm_test(
     srcs = ["ExchangeStepsServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/utils:resource_key",
         "//imports/java/com/google/common/truth",
         "//imports/java/com/google/common/truth/extensions/proto",
         "//imports/java/com/google/protobuf",
