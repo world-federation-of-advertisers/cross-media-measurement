@@ -18,6 +18,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
+import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
@@ -45,26 +46,26 @@ object LiquidLegionsV2Starter {
 
   suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,
-    globalComputation: Computation,
+    systemComputation: Computation,
     liquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
     configMaps: Map<String, ProtocolConfig>,
     blobStorageBucket: String
   ) {
     liquidLegionsV2SetupConfig.role
-    val globalId: String = checkNotNull(globalComputation.key?.computationId)
+    val globalId: String = checkNotNull(systemComputation.key?.computationId)
     val initialComputationDetails =
       ComputationDetails.newBuilder()
         .apply {
           blobsStoragePrefix = "$blobStorageBucket/$globalId"
-          kingdomComputation = globalComputation.toKingdomComputationDetails()
+          kingdomComputation = systemComputation.toKingdomComputationDetails()
           liquidLegionsV2Builder.apply {
             role = liquidLegionsV2SetupConfig.role
-            parameters = globalComputation.toLiquidLegionsV2Parameters(configMaps)
+            parameters = systemComputation.toLiquidLegionsV2Parameters(configMaps)
           }
         }
         .build()
     val requisitions =
-      globalComputation.requisitionsList.map {
+      systemComputation.requisitionsList.map {
         ExternalRequisitionKey.newBuilder()
           .apply {
             externalDataProviderId = it.dataProviderId
@@ -85,11 +86,31 @@ object LiquidLegionsV2Starter {
     )
   }
 
+  /**
+   * Orders the list of computation participants by their roles in the computation. The
+   * non-aggregators are shuffled by the sha1Hash of their elgamal public keys and the global
+   * computation id, the aggregator is placed at the end of the list. This return order is also the
+   * order of all participants in the MPC ring structure.
+   */
+  private fun List<ComputationParticipant>.orderByRoles(
+    globalComputationId: String,
+    aggregatorId: String
+  ): List<ComputationParticipant> {
+    val aggregator =
+      this.find { it.duchyId == aggregatorId }
+        ?: error("Aggregator duchy is missing from the participants.")
+    val nonAggregators = this.filter { it.duchyId != aggregatorId }
+    return nonAggregators.sortedBy {
+      sha1Hash(it.elGamalPublicKey.toStringUtf8() + globalComputationId)
+    } + aggregator
+  }
+
   private suspend fun updateRequisitionsAndKeySetsInternal(
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
     computationProtocolStageDetails: ComputationProtocolStageDetails,
-    globalComputation: Computation,
+    systemComputation: Computation,
+    aggregatorId: String,
     logger: Logger
   ) {
     val updatedDetails =
@@ -100,14 +121,15 @@ object LiquidLegionsV2Starter {
           liquidLegionsV2Builder
             .clearParticipant()
             .addAllParticipant(
-              globalComputation.computationParticipantsList.map {
-                it.toDuchyComputationParticipant(globalComputation.publicApiVersion)
-              }
+              systemComputation
+                .computationParticipantsList
+                .map { it.toDuchyComputationParticipant(systemComputation.publicApiVersion) }
+                .orderByRoles(token.globalComputationId, aggregatorId)
             )
         }
         .build()
     val requisitionDetailUpdate =
-      globalComputation.requisitionsList.map { requisition ->
+      systemComputation.requisitionsList.map { requisition ->
         UpdateComputationDetailsRequest.RequisitionDetailUpdate.newBuilder()
           .also {
             it.externalDataProviderId = requisition.dataProviderId
@@ -142,7 +164,8 @@ object LiquidLegionsV2Starter {
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
     computationProtocolStageDetails: ComputationProtocolStageDetails,
-    globalComputation: Computation,
+    systemComputation: Computation,
+    aggregatorId: String,
     logger: Logger
   ) {
     require(token.computationDetails.hasLiquidLegionsV2()) {
@@ -158,7 +181,8 @@ object LiquidLegionsV2Starter {
           token,
           computationStorageClient,
           computationProtocolStageDetails,
-          globalComputation,
+          systemComputation,
+          aggregatorId,
           logger
         )
         return

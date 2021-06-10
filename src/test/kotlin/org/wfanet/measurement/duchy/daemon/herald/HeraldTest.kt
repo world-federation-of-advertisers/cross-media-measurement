@@ -65,8 +65,10 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 private const val EMPTY_TOKEN = ""
-private const val DUCHY_NAME = "BOHEMIA"
-private val OTHER_DUCHY_NAMES = listOf("SALZBURG", "AUSTRIA")
+private const val DUCHY_ONE = "BOHEMIA"
+private const val DUCHY_TWO = "SALZBURG"
+private const val DUCHY_THREE = "AUSTRIA"
+private val OTHER_DUCHY_NAMES = listOf(DUCHY_TWO, DUCHY_THREE)
 
 private const val PUBLIC_PROTOCOL_CONFIG_ID_1 = "config_1"
 private val PUBLIC_PROTOCOL_CONFIG_1 =
@@ -144,11 +146,21 @@ private val DUCHY_PROTOCOL_CONFIG =
 
 private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
   ProtocolsSetupConfig.newBuilder()
-    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+    .apply {
+      liquidLegionsV2Builder.apply {
+        role = RoleInComputation.AGGREGATOR
+        externalAggregatorDuchyId = DUCHY_ONE
+      }
+    }
     .build()
 private val NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
   ProtocolsSetupConfig.newBuilder()
-    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+    .apply {
+      liquidLegionsV2Builder.apply {
+        role = RoleInComputation.NON_AGGREGATOR
+        externalAggregatorDuchyId = DUCHY_ONE
+      }
+    }
     .build()
 
 private val AGGREGATOR_COMPUTATION_DETAILS =
@@ -175,7 +187,7 @@ class HeraldTest {
       ComputationsService(
         fakeComputationStorage,
         computationLogEntriesCoroutineStub,
-        DUCHY_NAME,
+        DUCHY_ONE,
         Clock.systemUTC()
       )
     )
@@ -355,7 +367,7 @@ class HeraldTest {
   @Test
   fun `syncStatuses update llv2 computations in WAIT_REQUISITIONS_AND_KEY_SET`() =
     runBlocking<Unit> {
-      val globalId = "12345"
+      val globalId = "123456"
       val systemApiRequisitions1 =
         Requisition.newBuilder()
           .apply {
@@ -368,7 +380,7 @@ class HeraldTest {
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
-            fulfillingComputationParticipantBuilder.duchyId = "duchy_1"
+            fulfillingComputationParticipantBuilder.duchyId = DUCHY_ONE
           }
           .build()
       val systemApiRequisitions2 =
@@ -383,7 +395,7 @@ class HeraldTest {
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
-            fulfillingComputationParticipantBuilder.duchyId = "duchy_2"
+            fulfillingComputationParticipantBuilder.duchyId = DUCHY_TWO
           }
           .build()
       val v2alphaApiElgamalPublicKey1 =
@@ -400,12 +412,19 @@ class HeraldTest {
             element = ByteString.copyFromUtf8("element_2")
           }
           .build()
+      val v2alphaApiElgamalPublicKey3 =
+        ElGamalPublicKey.newBuilder()
+          .apply {
+            generator = ByteString.copyFromUtf8("generator_3")
+            element = ByteString.copyFromUtf8("element_3")
+          }
+          .build()
       val systemComputationParticipant1 =
         SystemComputationParticipant.newBuilder()
           .apply {
             keyBuilder.apply {
               computationId = globalId
-              duchyId = "duchy_1"
+              duchyId = DUCHY_ONE
             }
             requisitionParamsBuilder.liquidLegionsV2Builder.apply {
               elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
@@ -418,11 +437,24 @@ class HeraldTest {
           .apply {
             keyBuilder.apply {
               computationId = globalId
-              duchyId = "duchy_2"
+              duchyId = DUCHY_TWO
             }
             requisitionParamsBuilder.liquidLegionsV2Builder.apply {
               elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+            }
+          }
+          .build()
+      val systemComputationParticipant3 =
+        SystemComputationParticipant.newBuilder()
+          .apply {
+            keyBuilder.apply {
+              computationId = globalId
+              duchyId = DUCHY_THREE
+            }
+            requisitionParamsBuilder.liquidLegionsV2Builder.apply {
+              elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
             }
           }
           .build()
@@ -431,7 +463,11 @@ class HeraldTest {
           globalId,
           Computation.State.PENDING_PARTICIPANT_CONFIRMATION,
           listOf(systemApiRequisitions1, systemApiRequisitions2),
-          listOf(systemComputationParticipant1, systemComputationParticipant2)
+          listOf(
+            systemComputationParticipant1,
+            systemComputationParticipant2,
+            systemComputationParticipant3
+          )
         )
 
       mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
@@ -450,29 +486,42 @@ class HeraldTest {
       assertThat(duchyComputationToken.computationStage)
         .isEqualTo(CONFIRMATION_PHASE.toProtocolStage())
       assertThat(duchyComputationToken.computationDetails.liquidLegionsV2.participantList)
-        .containsExactly(
-          ComputationParticipant.newBuilder()
-            .apply {
-              duchyId = "duchy_1"
-              publicKeyBuilder.apply {
-                generator = ByteString.copyFromUtf8("generator_1")
-                element = ByteString.copyFromUtf8("element_1")
+        .isEqualTo(
+          mutableListOf(
+            ComputationParticipant.newBuilder()
+              .apply {
+                duchyId = DUCHY_THREE
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator_3")
+                  element = ByteString.copyFromUtf8("element_3")
+                }
+                elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
               }
-              elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
-              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
-            }
-            .build(),
-          ComputationParticipant.newBuilder()
-            .apply {
-              duchyId = "duchy_2"
-              publicKeyBuilder.apply {
-                generator = ByteString.copyFromUtf8("generator_2")
-                element = ByteString.copyFromUtf8("element_2")
+              .build(),
+            ComputationParticipant.newBuilder()
+              .apply {
+                duchyId = DUCHY_TWO
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator_2")
+                  element = ByteString.copyFromUtf8("element_2")
+                }
+                elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
               }
-              elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
-              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
-            }
-            .build()
+              .build(),
+            ComputationParticipant.newBuilder()
+              .apply {
+                duchyId = DUCHY_ONE
+                publicKeyBuilder.apply {
+                  generator = ByteString.copyFromUtf8("generator_1")
+                  element = ByteString.copyFromUtf8("element_1")
+                }
+                elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+              }
+              .build()
+          )
         )
       assertThat(duchyComputationToken.requisitionsList)
         .containsExactly(
@@ -485,7 +534,7 @@ class HeraldTest {
                 requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
                 dataProviderParticipationSignature =
                   ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
-                externalFulfillingDuchyId = "duchy_1"
+                externalFulfillingDuchyId = DUCHY_ONE
               }
             }
             .build(),
@@ -498,7 +547,7 @@ class HeraldTest {
                 requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
                 dataProviderParticipationSignature =
                   ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
-                externalFulfillingDuchyId = "duchy_2"
+                externalFulfillingDuchyId = DUCHY_TWO
               }
             }
             .build()
