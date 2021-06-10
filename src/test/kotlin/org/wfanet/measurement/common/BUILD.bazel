@@ -68,3 +68,15 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_test(
+    name = "ResourceNameParserTest",
+    srcs = ["ResourceNameParserTest.kt"],
+    test_class = "org.wfanet.measurement.common.ResourceNameParserTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/org/junit",
+        "//imports/kotlin/kotlin/test",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
