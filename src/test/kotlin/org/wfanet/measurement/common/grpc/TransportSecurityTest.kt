@@ -73,7 +73,7 @@ class TransportSecurityTest {
           serverCerts,
           clientAuth,
           "test",
-          healthStatusManager.healthService.withVerboseLogging()
+          listOf(healthStatusManager.healthService.withVerboseLogging())
         )
         .start()
     healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)

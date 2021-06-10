@@ -150,23 +150,6 @@ private constructor(
       )
     }
 
-    fun fromParameters(
-      port: Int,
-      debugVerboseGrpcLogging: Boolean,
-      certs: SigningCerts?,
-      clientAuth: ClientAuth,
-      nameForLogging: String,
-      vararg services: ServerServiceDefinition
-    ): CommonServer =
-      fromParameters(
-        port,
-        debugVerboseGrpcLogging,
-        certs,
-        clientAuth,
-        nameForLogging,
-        services.asIterable()
-      )
-
     @JvmName("fromFlagsServiceDefinition")
     fun fromFlags(
       flags: Flags,
