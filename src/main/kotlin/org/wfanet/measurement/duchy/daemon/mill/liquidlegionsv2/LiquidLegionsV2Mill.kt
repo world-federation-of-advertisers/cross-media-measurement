@@ -17,8 +17,6 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.flattenConcat
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
@@ -33,7 +31,6 @@ import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.mill.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.toCmmsElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.mill.toMetricRequisitionKey
 import org.wfanet.measurement.duchy.daemon.utils.Duchy
 import org.wfanet.measurement.duchy.daemon.utils.getDuchyOrderByPublicKeysAndComputationId
 import org.wfanet.measurement.duchy.daemon.utils.getFollowingDuchies
@@ -51,9 +48,12 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNKNOWN
+import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
@@ -70,11 +70,12 @@ import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhas
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseResponse
 import org.wfanet.measurement.internal.duchy.protocol.FlagCountTupleNoiseGenerationParameters
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ConfirmGlobalComputationRequest
+import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
@@ -142,10 +143,10 @@ class LiquidLegionsV2Mill(
 
   private val actions =
     mapOf(
-      Pair(Stage.INITIALIZATION_PHASE, AGGREGATOR) to ::initializeComputation,
-      Pair(Stage.INITIALIZATION_PHASE, NON_AGGREGATOR) to ::initializeComputation,
-      Pair(Stage.CONFIRMATION_PHASE, AGGREGATOR) to ::confirmRequisitions,
-      Pair(Stage.CONFIRMATION_PHASE, NON_AGGREGATOR) to ::confirmRequisitions,
+      Pair(Stage.INITIALIZATION_PHASE, AGGREGATOR) to ::initializationPhase,
+      Pair(Stage.INITIALIZATION_PHASE, NON_AGGREGATOR) to ::initializationPhase,
+      Pair(Stage.CONFIRMATION_PHASE, AGGREGATOR) to ::confirmationPhase,
+      Pair(Stage.CONFIRMATION_PHASE, NON_AGGREGATOR) to ::confirmationPhase,
       Pair(Stage.SETUP_PHASE, AGGREGATOR) to ::completeSetupPhaseAtAggregator,
       Pair(Stage.SETUP_PHASE, NON_AGGREGATOR) to ::completeSetupPhaseAtNonAggregator,
       Pair(Stage.EXECUTION_PHASE_ONE, AGGREGATOR) to ::completeExecutionPhaseOneAtAggregator,
@@ -203,7 +204,7 @@ class LiquidLegionsV2Mill(
   }
 
   /** Processes computation in the initialization phase */
-  private suspend fun initializeComputation(token: ComputationToken): ComputationToken {
+  private suspend fun initializationPhase(token: ComputationToken): ComputationToken {
     val llv2ComputationDetails = token.computationDetails.liquidLegionsV2
     val ellipticCurveId = llv2ComputationDetails.parameters.ellipticCurveId
     require(ellipticCurveId > 0) { "invalid ellipticCurveId $ellipticCurveId" }
@@ -246,48 +247,143 @@ class LiquidLegionsV2Mill(
     )
   }
 
-  /** Process computation in the confirm requisitions phase */
-  @OptIn(FlowPreview::class) // For `flattenConcat`.
-  private suspend fun confirmRequisitions(token: ComputationToken): ComputationToken {
-    val requisitionsToConfirm =
-      token.stageSpecificDetails.liquidLegionsV2.toConfirmRequisitionsStageDetails.keysList
-    val availableRequisitions = requisitionsToConfirm.filter { metricValueExists(it) }
+  /**
+   * Verifies the Edp signature and the local existence of requisitions. Returns a list of error
+   * messages if anything is wrong. Otherwise return an empty list.
+   */
+  private fun verifyEdpSignatureAndRequisition(requisition: RequisitionMetadata): List<String> {
+    // TODO(wangyaopw): also verify data_provider_participation_signature
+    val errorList = mutableListOf<String>()
+    if (requisition.details.externalFulfillingDuchyId == duchyId && requisition.path.isBlank()) {
+      errorList.add("Missing expected data for requisition ${requisition.externalRequisitionId}.")
+    }
+    return errorList
+  }
 
-    globalComputationsClient.confirmGlobalComputation(
-      ConfirmGlobalComputationRequest.newBuilder()
+  /**
+   * Verifies the duchy Elgamal Key signature. Returns a list of error messages if anything is
+   * wrong. Otherwise return an empty list.
+   */
+  private fun verifyDuchySignature(duchy: ComputationParticipant): List<String> {
+    val errorList = mutableListOf<String>()
+    // TODO(wangyaopw): verify el_gamal_public_key_signature and update errorMessage if necessary.
+    if (duchy.duchyId != duchyId && !workerStubs.containsKey(duchy.duchyId)) {
+      errorList.add("Unrecognized duchy ${duchy.duchyId}.")
+    }
+    return errorList
+  }
+
+  /** Fails a computation both locally and at the kingdom when the confirmation fails. */
+  private fun failComputationAtConfirmationPhase(
+    token: ComputationToken,
+    errorList: List<String>
+  ): ComputationToken {
+    // TODO: send failComputationParticipant request to kingdom when the proto is in.
+    val errorMessage =
+      """
+        @Mill $millId:
+          Computation ${token.globalComputationId} failed due to:.
+        ${errorList.joinToString(separator = "\n")}
+        """.trimIndent()
+    throw PermanentComputationError(Exception(errorMessage))
+  }
+
+  private fun List<ElGamalPublicKey>.toCombinedPublicKey(curveId: Int): ElGamalPublicKey {
+    val request =
+      CombineElGamalPublicKeysRequest.newBuilder()
+        .also {
+          it.curveId = curveId.toLong()
+          it.addAllElGamalKeys(this.map { key -> key.toAnySketchElGamalPublicKey() })
+        }
+        .build()
+    return cryptoWorker.combineElGamalPublicKeys(request).elGamalKeys.toCmmsElGamalPublicKey()
+  }
+
+  /**
+   * Computes the fully and partially combined Elgamal public keys and caches the result in the
+   * computationDetails.
+   */
+  private suspend fun updatePublicElgamalKey(token: ComputationToken): ComputationToken {
+    val llv2Details = token.computationDetails.liquidLegionsV2
+    val fullParticipantList = llv2Details.participantList
+    val combinedPublicKey =
+      fullParticipantList
+        .map { it.publicKey }
+        .toCombinedPublicKey(llv2Details.parameters.ellipticCurveId)
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    val partiallyCombinedPublicKey =
+      when (llv2Details.role) {
+        // For aggregator, the partial list is the same as the full list.
+        AGGREGATOR -> combinedPublicKey
+        NON_AGGREGATOR ->
+          fullParticipantList
+            .subList(
+              fullParticipantList.indexOfFirst { it.duchyId == duchyId } + 1,
+              fullParticipantList.size
+            )
+            .map { it.publicKey }
+            .toCombinedPublicKey(llv2Details.parameters.ellipticCurveId)
+        UNKNOWN, UNRECOGNIZED -> error("Invalid role ${llv2Details.role}")
+      }
+
+    return dataClients.computationsClient.updateComputationDetails(
+        UpdateComputationDetailsRequest.newBuilder()
+          .also {
+            it.token = token
+            it.details =
+              token
+                .computationDetails
+                .toBuilder()
+                .apply {
+                  liquidLegionsV2Builder.also {
+                    it.combinedPublicKey = combinedPublicKey
+                    it.partiallyCombinedPublicKey = partiallyCombinedPublicKey
+                  }
+                }
+                .build()
+          }
+          .build()
+      )
+      .token
+  }
+
+  /** Sends confirmation to the kingdom and transits the local computation to the next stage. */
+  private suspend fun passConfirmationPhase(token: ComputationToken): ComputationToken {
+    systemComputationParticipantsClient.confirmComputationParticipant(
+      ConfirmComputationParticipantRequest.newBuilder()
         .apply {
-          addAllReadyRequisitions(availableRequisitions.map { it.toMetricRequisitionKey() })
-          keyBuilder.globalComputationId = token.globalComputationId.toString()
+          keyBuilder.also {
+            it.computationId = token.globalComputationId
+            it.duchyId = duchyId
+          }
         }
         .build()
     )
-
-    if (availableRequisitions.size != requisitionsToConfirm.size) {
-      val errorMessage =
-        """
-        @Mill $millId:
-          Computation ${token.globalComputationId} failed due to missing requisitions.
-        Expected:
-          $requisitionsToConfirm
-        Actual:
-          $availableRequisitions
-        """.trimIndent()
-      throw PermanentComputationError(Exception(errorMessage))
-    }
-
-    // cache the combined local requisitions to blob store.
-    val concatenatedContents = streamMetricValueContents(availableRequisitions).flattenConcat()
-    val nextToken = dataClients.writeSingleOutputBlob(token, concatenatedContents)
+    val latestToken = updatePublicElgamalKey(token)
     return dataClients.transitionComputationToStage(
-      nextToken,
-      passThroughBlobs = nextToken.outputPathList(),
+      latestToken,
       stage =
-        when (checkNotNull(nextToken.computationDetails.liquidLegionsV2.role)) {
+        when (checkNotNull(token.computationDetails.liquidLegionsV2.role)) {
           AGGREGATOR -> Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
           NON_AGGREGATOR -> Stage.WAIT_TO_START.toProtocolStage()
-          else -> error("Unknown role: ${nextToken.computationDetails.liquidLegionsV2.role}")
+          else -> error("Unknown role: ${latestToken.computationDetails.liquidLegionsV2.role}")
         }
     )
+  }
+
+  /** Processes computation in the confirmation phase */
+  private suspend fun confirmationPhase(token: ComputationToken): ComputationToken {
+    val errorList = mutableListOf<String>()
+    token.requisitionsList.forEach { errorList.addAll(verifyEdpSignatureAndRequisition(it)) }
+    token.computationDetails.liquidLegionsV2.participantList.forEach {
+      errorList.addAll(verifyDuchySignature(it))
+    }
+    return if (errorList.isEmpty()) {
+      passConfirmationPhase(token)
+    } else {
+      failComputationAtConfirmationPhase(token, errorList)
+    }
   }
 
   private suspend fun completeSetupPhaseAtAggregator(token: ComputationToken): ComputationToken {

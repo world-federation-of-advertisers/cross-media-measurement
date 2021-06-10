@@ -81,18 +81,17 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
     details: ComputationDetails,
     reason: EndComputationReason
   ): ComputationDetails {
-    return details
-      .toBuilder()
-      .setEndingState(
-        when (reason) {
-          EndComputationReason.SUCCEEDED -> ComputationDetails.CompletedReason.SUCCEEDED
-          EndComputationReason.FAILED -> ComputationDetails.CompletedReason.FAILED
-          EndComputationReason.CANCELED -> ComputationDetails.CompletedReason.CANCELED
-        }
-      )
-      .build()
+    return details.toBuilder().setEndingState(reason.toCompletedReason()).build()
   }
 
   override fun parseComputationDetails(bytes: ByteArray): ComputationDetails =
     ComputationDetails.parseFrom(bytes)
+}
+
+fun EndComputationReason.toCompletedReason(): ComputationDetails.CompletedReason {
+  return when (this) {
+    EndComputationReason.SUCCEEDED -> ComputationDetails.CompletedReason.SUCCEEDED
+    EndComputationReason.FAILED -> ComputationDetails.CompletedReason.FAILED
+    EndComputationReason.CANCELED -> ComputationDetails.CompletedReason.CANCELED
+  }
 }

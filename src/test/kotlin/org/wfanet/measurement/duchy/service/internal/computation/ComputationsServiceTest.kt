@@ -26,7 +26,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
@@ -40,6 +39,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
@@ -86,7 +86,15 @@ class ComputationsServiceTest {
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = aggregatorComputationDetails,
-      requisitions = listOf(ExternalRequisitionKey("edp1", "1234"))
+      requisitions =
+        listOf(
+          RequisitionMetadata.newBuilder()
+            .apply {
+              externalDataProviderId = "edp1"
+              externalRequisitionId = "1234"
+            }
+            .build()
+        )
     )
 
     val expectedToken =
@@ -153,7 +161,20 @@ class ComputationsServiceTest {
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = aggregatorComputationDetails,
       requisitions =
-        listOf(ExternalRequisitionKey("edp1", "1234"), ExternalRequisitionKey("edp2", "5678"))
+        listOf(
+          RequisitionMetadata.newBuilder()
+            .apply {
+              externalDataProviderId = "edp1"
+              externalRequisitionId = "1234"
+            }
+            .build(),
+          RequisitionMetadata.newBuilder()
+            .apply {
+              externalDataProviderId = "edp2"
+              externalRequisitionId = "5678"
+            }
+            .build()
+        )
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
@@ -233,6 +254,7 @@ class ComputationsServiceTest {
           .apply {
             version = 1
             computationStage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+            computationDetailsBuilder.endingState = ComputationDetails.CompletedReason.FAILED
           }
           .build()
           .toFinishComputationResponse()
@@ -452,7 +474,15 @@ class ComputationsServiceTest {
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = aggregatorComputationDetails,
-      requisitions = listOf(ExternalRequisitionKey("edp1", "1234"))
+      requisitions =
+        listOf(
+          RequisitionMetadata.newBuilder()
+            .apply {
+              externalDataProviderId = "edp1"
+              externalRequisitionId = "1234"
+            }
+            .build()
+        )
     )
 
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
