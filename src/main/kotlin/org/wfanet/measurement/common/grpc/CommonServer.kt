@@ -94,7 +94,7 @@ private constructor(
       description = ["TLS cert file."],
       defaultValue = ""
     )
-    var certFile by Delegates.notNull<File>()
+    lateinit var certFile: File
       private set
 
     @set:CommandLine.Option(
@@ -102,7 +102,7 @@ private constructor(
       description = ["TLS key file."],
       defaultValue = ""
     )
-    var privateKeyFile by Delegates.notNull<File>()
+    lateinit var privateKeyFile: File
       private set
 
     @set:CommandLine.Option(
@@ -110,13 +110,13 @@ private constructor(
       description = ["cert collection file."],
       defaultValue = ""
     )
-    var certCollectionFile by Delegates.notNull<File>()
+    lateinit var certCollectionFile: File
       private set
 
     @set:CommandLine.Option(
       names = ["--require-client-auth"],
       description = ["require client auth"],
-      defaultValue = "false"
+      defaultValue = "true"
     )
     var clientAuthRequired by Delegates.notNull<Boolean>()
       private set
@@ -136,7 +136,7 @@ private constructor(
     /** Constructs a [CommonServer] from parameters. */
     fun fromParameters(
       port: Int,
-      debugVerboseGrpcLogging: Boolean,
+      verboseGrpcLogging: Boolean,
       certs: SigningCerts?,
       clientAuth: ClientAuth,
       nameForLogging: String,
@@ -145,7 +145,7 @@ private constructor(
       return CommonServer(
         nameForLogging,
         port,
-        services.run { if (debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this },
+        services.run { if (verboseGrpcLogging) map { it.withVerboseLogging() } else this },
         certs?.toServerTlsContext(clientAuth)
       )
     }
@@ -174,17 +174,12 @@ private constructor(
       services: Iterable<ServerServiceDefinition>
     ): CommonServer {
       var certs: SigningCerts? = null
-      if (flags.certFile.exists() &&
-          flags.privateKeyFile.exists() &&
-          flags.certCollectionFile.exists()
-      ) {
-        certs =
-          SigningCerts.fromPemFiles(
-            certificateFile = flags.certFile,
-            privateKeyFile = flags.privateKeyFile,
-            trustedCertCollectionFile = flags.certCollectionFile
-          )
-      }
+      certs =
+        SigningCerts.fromPemFiles(
+          certificateFile = flags.certFile,
+          privateKeyFile = flags.privateKeyFile,
+          trustedCertCollectionFile = flags.certCollectionFile
+        )
 
       return fromParameters(
         flags.port,
