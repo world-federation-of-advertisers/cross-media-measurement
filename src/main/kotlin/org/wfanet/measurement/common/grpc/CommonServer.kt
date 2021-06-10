@@ -89,7 +89,7 @@ private constructor(
     var port by Delegates.notNull<Int>()
       private set
 
-    @set:CommandLine.Option(
+    @CommandLine.Option(
       names = ["--tls-cert-file"],
       description = ["TLS cert file."],
       defaultValue = ""
@@ -97,7 +97,7 @@ private constructor(
     lateinit var certFile: File
       private set
 
-    @set:CommandLine.Option(
+    @CommandLine.Option(
       names = ["--tls-key-file"],
       description = ["TLS key file."],
       defaultValue = ""
@@ -105,9 +105,9 @@ private constructor(
     lateinit var privateKeyFile: File
       private set
 
-    @set:CommandLine.Option(
+    @CommandLine.Option(
       names = ["--cert-collection-file"],
-      description = ["cert collection file."],
+      description = ["Cert collection file."],
       defaultValue = ""
     )
     lateinit var certCollectionFile: File
@@ -115,7 +115,7 @@ private constructor(
 
     @set:CommandLine.Option(
       names = ["--require-client-auth"],
-      description = ["require client auth"],
+      description = ["Require client auth"],
       defaultValue = "true"
     )
     var clientAuthRequired by Delegates.notNull<Boolean>()
@@ -173,8 +173,7 @@ private constructor(
       nameForLogging: String,
       services: Iterable<ServerServiceDefinition>
     ): CommonServer {
-      var certs: SigningCerts? = null
-      certs =
+      val certs =
         SigningCerts.fromPemFiles(
           certificateFile = flags.certFile,
           privateKeyFile = flags.privateKeyFile,
