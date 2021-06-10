@@ -69,8 +69,7 @@ class ExchangeStepAttemptsService(
             apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
           builder.date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
           builder.stepIndex = apiIdToExternalId(exchangeStepAttempt.exchangeStepId).toInt()
-          builder.attemptNumber =
-            apiIdToExternalId(exchangeStepAttempt.exchangeStepAttemptId).toInt()
+          builder.attemptNumber = exchangeStepAttempt.getAttemptNumber()
           builder.state = request.finalState.toInternal()
           builder.addAllDebugLogEntries(request.logEntriesList.toInternal())
         }
@@ -95,6 +94,14 @@ class ExchangeStepAttemptsService(
 private fun String.toExchangeStepAttempt(): ExchangeStepAttemptKey {
   return ExchangeStepAttemptKey.fromName(this)
     ?: throw NullPointerException("Could not build ExchangeStepAttempt from name $this.")
+}
+
+private fun ExchangeStepAttemptKey.getAttemptNumber(): Int {
+  return if (exchangeStepAttemptId.isNotBlank()) {
+    apiIdToExternalId(exchangeStepAttemptId).toInt()
+  } else {
+    0
+  }
 }
 
 private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
