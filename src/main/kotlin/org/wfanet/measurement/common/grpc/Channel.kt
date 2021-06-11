@@ -23,11 +23,15 @@ import java.time.Duration
  *
  * @param target the URI or authority string for the target server
  */
-fun buildChannel(target: String): ManagedChannel {
+fun buildPlaintextChannel(target: String): ManagedChannel {
   return ManagedChannelBuilder.forTarget(target)
-    // TODO: Remove this once TLS has been configured for our servers.
+    // TODO: Add assertion to ensure it's never called in a prod env
     .usePlaintext()
     .build()
+}
+
+fun buildChannel(target: String): ManagedChannel {
+  return ManagedChannelBuilder.forTarget(target).build()
 }
 
 /**
