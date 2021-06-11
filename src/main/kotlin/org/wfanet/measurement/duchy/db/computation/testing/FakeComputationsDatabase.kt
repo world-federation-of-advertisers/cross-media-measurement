@@ -25,6 +25,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransacto
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
+import org.wfanet.measurement.duchy.db.computation.toCompletedReason
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
@@ -75,7 +76,15 @@ private constructor(
       computationDetails = computationDetails,
       stageDetails = stageDetails,
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0L)),
-      requisitions = requisitions
+      requisitions =
+        requisitions.map {
+          RequisitionMetadata.newBuilder()
+            .apply {
+              externalDataProviderId = it.externalDataProviderId
+              externalRequisitionId = it.externalRequisitionId
+            }
+            .build()
+        }
     )
   }
 
@@ -86,7 +95,7 @@ private constructor(
     computationDetails: ComputationDetails,
     blobs: List<ComputationStageBlobMetadata> = listOf(),
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance(),
-    requisitions: List<ExternalRequisitionKey> = listOf()
+    requisitions: List<RequisitionMetadata> = listOf()
   ) {
     require(localId !in tokens) { "Cannot add multiple computations with the same id. $localId" }
     require(blobs.distinctBy { it.blobId }.size == blobs.size) { "Blobs must have distinct IDs" }
@@ -99,14 +108,7 @@ private constructor(
           if (stageDetails !== ComputationStageDetails.getDefaultInstance()) {
             stageSpecificDetails = stageDetails
           }
-          requisitions.forEach { key ->
-            addRequisitions(
-              RequisitionMetadata.newBuilder().also {
-                it.externalDataProviderId = key.externalDataProviderId
-                it.externalRequisitionId = key.externalRequisitionId
-              }
-            )
-          }
+          addAllRequisitions(requisitions)
         }
         .build()
     requisitions.forEach {
@@ -122,7 +124,7 @@ private constructor(
     computationDetails: ComputationDetails,
     blobs: List<ComputationStageBlobMetadata> = listOf(),
     stageDetails: ComputationStageDetails = ComputationStageDetails.getDefaultInstance(),
-    requisitions: List<ExternalRequisitionKey> = listOf()
+    requisitions: List<RequisitionMetadata> = listOf()
   ) {
     addComputation(
       // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long and
@@ -254,7 +256,12 @@ private constructor(
     require(validTerminalStage(token.protocol, endingStage))
     updateToken(token) { existing ->
       claimedComputationIds.remove(existing.globalComputationId)
-      existing.toBuilder().setComputationStage(endingStage).clearBlobs().clearStageSpecificDetails()
+      existing.toBuilder().also {
+        it.computationStage = endingStage
+        it.computationDetailsBuilder.endingState = endComputationReason.toCompletedReason()
+        it.clearBlobs()
+        it.clearStageSpecificDetails()
+      }
     }
   }
 
