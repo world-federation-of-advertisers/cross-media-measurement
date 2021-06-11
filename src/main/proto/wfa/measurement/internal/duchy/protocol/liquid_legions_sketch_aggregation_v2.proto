@@ -166,6 +166,13 @@ message LiquidLegionsSketchAggregationV2 {
     // TODO(wangyaopw): delete this field when we switch to use a secure key
     //  store for duchy private keys.
     ElGamalKeyPair local_elgamal_key = 6;
+
+    // The Elgamal public key combined from all duchy participants' public keys.
+    ElGamalPublicKey combined_public_key = 7;
+
+    // The Elgamal public key combined from the public keys of the duchies after
+    // this duchy in the ring and the aggregator duchy.
+    ElGamalPublicKey partially_combined_public_key = 8;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2
@@ -174,10 +181,6 @@ message LiquidLegionsSketchAggregationV2 {
     oneof detail {
       // Details specific to the WAIT_SETUP_PHASE_INPUTS stage.
       WaitSetupPhaseInputsDetails wait_setup_phase_inputs_details = 1;
-      // TODO(wangyaopw): delete after v2alpha is done.
-      // Details specific to the TO_CONFIRM_REQUISITIONS stage.
-      ToConfirmRequisitionsStageDetails to_confirm_requisitions_stage_details =
-          2;
     }
   }
 
@@ -193,12 +196,5 @@ message LiquidLegionsSketchAggregationV2 {
     // the output references have a path the worker can move onto the next
     // stage.
     map<string, int64> external_duchy_local_blob_id = 1;
-  }
-
-  // TODO(wangyaopw): delete after v2alpha is done
-  // The details used to run a TO_CONFIRM_REQUISITIONS stage.
-  message ToConfirmRequisitionsStageDetails {
-    // list of local requisitions that are required for this computation.
-    repeated RequisitionKey keys = 1;
   }
 }
