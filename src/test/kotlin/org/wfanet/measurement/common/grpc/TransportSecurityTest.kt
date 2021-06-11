@@ -20,7 +20,6 @@ import io.grpc.health.v1.HealthCheckRequest
 import io.grpc.health.v1.HealthCheckResponse
 import io.grpc.health.v1.HealthGrpcKt.HealthCoroutineStub
 import io.grpc.netty.NettyChannelBuilder
-import io.grpc.netty.NettyServerBuilder
 import io.grpc.services.HealthStatusManager
 import io.grpc.testing.GrpcCleanupRule
 import io.netty.handler.ssl.ClientAuth
@@ -41,6 +40,7 @@ private const val ALGORITHM = "ec"
 private const val CURVE = "prime256v1"
 private const val SERVICE = "DummyService"
 private const val HOSTNAME = "localhost"
+private const val PORT = 8080
 private const val SUBJECT_ALT_NAME_EXT = "subjectAltName=DNS:$HOSTNAME,IP:127.0.0.1"
 
 @RunWith(JUnit4::class)
@@ -64,24 +64,28 @@ class TransportSecurityTest {
 
   @get:Rule val grpcCleanup = GrpcCleanupRule()
 
-  private fun startServer(clientAuth: ClientAuth): Server {
+  private fun startCommonServer(clientAuth: ClientAuth): Server {
+
     val server =
-      grpcCleanup
-        .register(
-          NettyServerBuilder.forPort(0)
-            .sslContext(serverCerts.toServerTlsContext(clientAuth))
-            .addService(healthStatusManager.healthService.withVerboseLogging())
-            .build()
+      CommonServer.fromParameters(
+          PORT,
+          true,
+          serverCerts,
+          clientAuth,
+          "test",
+          listOf(healthStatusManager.healthService.withVerboseLogging())
         )
         .start()
     healthStatusManager.setStatus(SERVICE, HealthCheckResponse.ServingStatus.SERVING)
 
-    return server
+    grpcCleanup.register(server.server)
+
+    return server.server
   }
 
   @Test
   fun `TLS server valid`() {
-    val server = startServer(ClientAuth.NONE)
+    startCommonServer(ClientAuth.NONE)
 
     // Verify server using openssl s_client.
     runBlocking {
@@ -89,7 +93,7 @@ class TransportSecurityTest {
         "openssl",
         "s_client",
         "-connect",
-        "$HOSTNAME:${server.port}",
+        "$HOSTNAME:$PORT",
         "-verify_return_error",
         "-CAfile",
         "server-root.pem",
@@ -102,7 +106,7 @@ class TransportSecurityTest {
 
   @Test
   fun `mTLS server valid`() {
-    val server = startServer(ClientAuth.REQUIRE)
+    startCommonServer(ClientAuth.REQUIRE)
 
     // Verify server using openssl s_client.
     runBlocking {
@@ -110,7 +114,7 @@ class TransportSecurityTest {
         "openssl",
         "s_client",
         "-connect",
-        "$HOSTNAME:${server.port}",
+        "$HOSTNAME:$PORT",
         "-verify_return_error",
         "-cert",
         "client.pem",
@@ -127,10 +131,12 @@ class TransportSecurityTest {
 
   @Test
   fun `TLS RPC succeeds`() {
-    val server = startServer(ClientAuth.NONE)
+
+    startCommonServer(ClientAuth.NONE)
+
     val channel =
       grpcCleanup.register(
-        NettyChannelBuilder.forAddress(HOSTNAME, server.port)
+        NettyChannelBuilder.forAddress(HOSTNAME, PORT)
           .sslContext(clientCerts.toClientTlsContext())
           .build()
       )
@@ -145,10 +151,10 @@ class TransportSecurityTest {
 
   @Test
   fun `mTLS RPC succeeds`() {
-    val server = startServer(ClientAuth.REQUIRE)
+    startCommonServer(ClientAuth.REQUIRE)
     val channel =
       grpcCleanup.register(
-        NettyChannelBuilder.forAddress(HOSTNAME, server.port)
+        NettyChannelBuilder.forAddress(HOSTNAME, PORT)
           .sslContext(clientCerts.toClientTlsContext())
           .build()
       )

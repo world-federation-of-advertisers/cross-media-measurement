@@ -16,27 +16,33 @@ package org.wfanet.measurement.common.grpc
 
 import io.grpc.BindableService
 import io.grpc.Server
-import io.grpc.ServerBuilder
 import io.grpc.ServerServiceDefinition
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus
+import io.grpc.netty.NettyServerBuilder
 import io.grpc.services.HealthStatusManager
+import io.netty.handler.ssl.ClientAuth
+import io.netty.handler.ssl.SslContext
+import java.io.File
 import java.io.IOException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.crypto.SigningCerts
 import picocli.CommandLine
 
 class CommonServer
 private constructor(
   private val nameForLogging: String,
   private val port: Int,
-  services: Iterable<ServerServiceDefinition>
+  services: Iterable<ServerServiceDefinition>,
+  sslContext: SslContext?
 ) {
   private val healthStatusManager = HealthStatusManager()
 
-  private val server: Server by lazy {
-    ServerBuilder.forPort(port)
+  val server: Server by lazy {
+    NettyServerBuilder.forPort(port)
       .apply {
+        sslContext?.let { sslContext(it) }
         addService(healthStatusManager.healthService)
         services.forEach { addService(it) }
       }
@@ -83,6 +89,38 @@ private constructor(
     var port by Delegates.notNull<Int>()
       private set
 
+    @CommandLine.Option(
+      names = ["--tls-cert-file"],
+      description = ["TLS cert file."],
+      defaultValue = ""
+    )
+    lateinit var certFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--tls-key-file"],
+      description = ["TLS key file."],
+      defaultValue = ""
+    )
+    lateinit var privateKeyFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--cert-collection-file"],
+      description = ["Cert collection file."],
+      defaultValue = ""
+    )
+    lateinit var certCollectionFile: File
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--require-client-auth"],
+      description = ["Require client auth"],
+      defaultValue = "true"
+    )
+    var clientAuthRequired by Delegates.notNull<Boolean>()
+      private set
+
     @set:CommandLine.Option(
       names = ["--debug-verbose-grpc-server-logging"],
       description = ["Debug mode: log ALL gRPC requests and responses"],
@@ -95,19 +133,43 @@ private constructor(
   companion object {
     private val logger = Logger.getLogger(this::class.java.name)
 
-    /** Constructs a [CommonServer] from command-line flags. */
+    /** Constructs a [CommonServer] from parameters. */
+    fun fromParameters(
+      port: Int,
+      verboseGrpcLogging: Boolean,
+      certs: SigningCerts?,
+      clientAuth: ClientAuth,
+      nameForLogging: String,
+      services: Iterable<ServerServiceDefinition>
+    ): CommonServer {
+      return CommonServer(
+        nameForLogging,
+        port,
+        services.run { if (verboseGrpcLogging) map { it.withVerboseLogging() } else this },
+        certs?.toServerTlsContext(clientAuth)
+      )
+    }
+
     @JvmName("fromFlagsServiceDefinition")
     fun fromFlags(
       flags: Flags,
       nameForLogging: String,
       services: Iterable<ServerServiceDefinition>
     ): CommonServer {
-      return CommonServer(
-        nameForLogging,
+      val certs =
+        SigningCerts.fromPemFiles(
+          certificateFile = flags.certFile,
+          privateKeyFile = flags.privateKeyFile,
+          trustedCertCollectionFile = flags.certCollectionFile
+        )
+
+      return fromParameters(
         flags.port,
-        services.run {
-          if (flags.debugVerboseGrpcLogging) map { it.withVerboseLogging() } else this
-        }
+        flags.debugVerboseGrpcLogging,
+        certs,
+        if (flags.clientAuthRequired) ClientAuth.REQUIRE else ClientAuth.NONE,
+        nameForLogging,
+        services
       )
     }
 
