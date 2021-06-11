@@ -18,21 +18,14 @@ import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.grpc.buildChannel
-import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.DuchyPublicKeys
-import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
-import org.wfanet.measurement.duchy.daemon.mill.LiquidLegionsConfig
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
@@ -44,18 +37,11 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
   protected lateinit var flags: LiquidLegionsV2MillFlags
     private set
 
-  private val duchyPublicKeys: DuchyPublicKeys by lazy {
-    DuchyPublicKeys.fromFlags(flags.duchyPublicKeys)
-  }
-
   protected fun run(storageClient: StorageClient) {
     val duchyName = flags.duchy.duchyName
-    val latestDuchyPublicKeys = duchyPublicKeys.latest
-    require(latestDuchyPublicKeys.containsKey(duchyName)) {
-      "Public key not specified for Duchy $duchyName"
-    }
+    val otherDuchyNames =
+      flags.computationControlServiceTargets.keys.filter { it != duchyName }.toList()
 
-    val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
     val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
     val dataClients =
       ComputationDataClients(
@@ -94,37 +80,12 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         systemComputationParticipantsClient = systemComputationParticipantsClient,
         computationStatsClient = computationStatsClient,
         workerStubs = computationControlClientMap,
-        cryptoKeySet = newCryptoKeySet(),
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
-        requestChunkSizeBytes = flags.requestChunkSizeBytes,
-        maxFrequency = flags.sketchMaxFrequency,
-        liquidLegionsConfig =
-          LiquidLegionsConfig(flags.liquidLegionsDecayRate, flags.liquidLegionsSize),
-        noiseConfig =
-          flags.noiseConfig.reader().use {
-            parseTextProto(it, LiquidLegionsV2NoiseConfig.getDefaultInstance())
-          },
-        aggregatorId = flags.aggregatorId
+        requestChunkSizeBytes = flags.requestChunkSizeBytes
       )
 
     runBlocking { mill.continuallyProcessComputationQueue() }
-  }
-
-  private fun newCryptoKeySet(): CryptoKeySet {
-    val latestDuchyPublicKeys = duchyPublicKeys.latest
-    return CryptoKeySet(
-      ownPublicAndPrivateKeys =
-        ElGamalKeyPair.newBuilder()
-          .apply {
-            publicKey = latestDuchyPublicKeys.getValue(flags.duchy.duchyName)
-            secretKey = flags.duchySecretKey.hexAsByteString()
-          }
-          .build(),
-      allDuchyPublicKeys = latestDuchyPublicKeys.mapValues { it.value },
-      clientPublicKey = latestDuchyPublicKeys.combinedPublicKey,
-      curveId = latestDuchyPublicKeys.curveId
-    )
   }
 
   private fun buildChannel(target: String): ManagedChannel =
