@@ -29,7 +29,7 @@ import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutine
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.identity.withDuchyIdentities
+import org.wfanet.measurement.common.identity.withDuchyInfo
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
@@ -184,7 +184,7 @@ class InProcessDuchy(
             AsyncComputationControlCoroutineStub(asyncComputationControlServer.channel),
             duchyDependencies.storageClient
           )
-          .withDuchyIdentities()
+          .withDuchyInfo()
       )
       addService(ComputationStatsService(duchyDependencies.computationsDatabase))
     }

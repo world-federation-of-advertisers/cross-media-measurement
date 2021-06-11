@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.identity.DuchyIdFlags
+import org.wfanet.measurement.common.grpc.DuchyInfoFlags
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService
 import picocli.CommandLine
@@ -29,10 +29,10 @@ import picocli.CommandLine
 )
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
-  @CommandLine.Mixin duchyIdFlags: DuchyIdFlags,
+  @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags
 ) {
-  runKingdomApiServer(kingdomApiServerFlags, duchyIdFlags, commonServerFlags) { channel ->
+  runKingdomApiServer(kingdomApiServerFlags, duchyInfoFlags, commonServerFlags) { channel ->
     val requisitionClient = RequisitionsGrpcKt.RequisitionsCoroutineStub(channel)
     RequisitionService(requisitionClient)
   }

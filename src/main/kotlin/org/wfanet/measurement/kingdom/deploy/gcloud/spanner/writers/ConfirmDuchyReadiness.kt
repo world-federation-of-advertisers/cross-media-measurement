@@ -20,7 +20,7 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toSet
-import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.common.grpc.DuchyInfo
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
@@ -41,8 +41,8 @@ class ConfirmDuchyReadiness(
   private val externalRequisitionIds: Set<ExternalId>
 ) : SimpleSpannerWriter<Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {
-    require(duchyId in DuchyIds.ALL) {
-      "Duchy id '$duchyId' not in list of valid duchies: ${DuchyIds.ALL}"
+    require(DuchyInfo.getByDuchyId(duchyId) != null) {
+      "Duchy id '$duchyId' not in list of valid duchies: ${DuchyInfo.ALL}"
     }
 
     val reportReadResult = ReportReader().readExternalId(transactionContext, externalReportId)
@@ -63,7 +63,7 @@ class ConfirmDuchyReadiness(
         .toBuilder()
         .apply {
           reportDetailsBuilder.addConfirmedDuchies(duchyId)
-          if (reportDetails.confirmedDuchiesCount == DuchyIds.size) {
+          if (reportDetails.confirmedDuchiesCount == DuchyInfo.count) {
             state = ReportState.IN_PROGRESS
           }
         }
