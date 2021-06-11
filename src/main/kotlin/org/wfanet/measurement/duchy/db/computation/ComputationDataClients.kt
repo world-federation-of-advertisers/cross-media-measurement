@@ -122,7 +122,20 @@ private constructor(
     return response.token
   }
 
-  /** Returns a map of [BlobRef]s to the actual bytes of the BLOB for all inputs to the stage. */
+  /** Reads and combines all requisition blobs fulfilled at this duchy. */
+  suspend fun readAllRequisitionBlobs(token: ComputationToken, duchyId: String): ByteString {
+    return token
+      .requisitionsList
+      .filter { it.details.externalFulfillingDuchyId == duchyId }
+      .map {
+        checkNotNull(computationStore.get(it.path)) { "Blob with key ${it.path} not found" }
+          .read()
+          .flatten()
+      }
+      .flatten()
+  }
+
+  /** Returns a map of [BlobRef]s to the actual bytes of the blob for all inputs to the stage. */
   suspend fun readInputBlobs(token: ComputationToken): Map<BlobRef, ByteString> {
     return token
       .blobsList
