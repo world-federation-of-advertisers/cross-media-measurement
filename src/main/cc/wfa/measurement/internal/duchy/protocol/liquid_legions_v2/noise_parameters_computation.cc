@@ -18,24 +18,25 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 namespace {
 
-int ComputateMuPolya(double epsilon, double delta, int n) {
+int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
   ABSL_ASSERT(epsilon > 0);
   ABSL_ASSERT(delta > 0);
+  ABSL_ASSERT(sensitivity > 0);
   ABSL_ASSERT(n > 0);
-  return std::ceil(std::log(2.0 * n / (delta * (1 - std::exp(-epsilon)))) /
-                   epsilon);
+  return std::ceil(
+      std::log(2.0 * n * sensitivity * (1 + std::exp(epsilon)) / delta) /
+      (epsilon / sensitivity));
 }
 
 }  // namespace
 
 math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int publisher_count, int uncorrupted_party_count) {
-  ABSL_ASSERT(publisher_count > 0);
+    int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / 2);
-  int offset = ComputateMuPolya(params.epsilon() / 2, params.delta(),
-                                uncorrupted_party_count * publisher_count);
+  int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
+                                uncorrupted_party_count);
   return {
       .num = uncorrupted_party_count,
       .p = success_ratio,
@@ -51,8 +52,8 @@ GetNoiseForPublisherNoiseOptions(
   ABSL_ASSERT(publisher_count > 0);
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / publisher_count);
-  int offset = ComputateMuPolya(params.epsilon() / publisher_count,
-                                params.delta(), uncorrupted_party_count);
+  int offset = ComputateMuPolya(params.epsilon(), params.delta(),
+                                publisher_count, uncorrupted_party_count);
   return {
       .num = uncorrupted_party_count,
       .p = success_ratio,
@@ -66,7 +67,7 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon());
-  int offset = ComputateMuPolya(params.epsilon(), params.delta(),
+  int offset = ComputateMuPolya(params.epsilon(), params.delta(), 1,
                                 uncorrupted_party_count);
   return {
       .num = uncorrupted_party_count,
@@ -78,12 +79,11 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
 
 math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int max_frequency, int uncorrupted_party_count) {
-  ABSL_ASSERT(max_frequency > 0);
+    int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / 2);
-  int offset = ComputateMuPolya(params.epsilon() / 2, params.delta(),
-                                2 * uncorrupted_party_count * max_frequency);
+  int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
+                                uncorrupted_party_count);
   return {
       .num = uncorrupted_party_count,
       .p = success_ratio,
