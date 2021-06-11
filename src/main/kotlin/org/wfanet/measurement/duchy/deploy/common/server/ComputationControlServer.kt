@@ -16,10 +16,10 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.DuchyInfo
+import org.wfanet.measurement.common.grpc.DuchyInfoFlags
 import org.wfanet.measurement.common.grpc.buildChannel
-import org.wfanet.measurement.common.identity.DuchyIdFlags
-import org.wfanet.measurement.common.identity.DuchyIds
-import org.wfanet.measurement.common.identity.withDuchyIdentities
+import org.wfanet.measurement.common.identity.withDuchyInfo
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
@@ -33,7 +33,7 @@ abstract class ComputationControlServer : Runnable {
     private set
 
   @CommandLine.Mixin
-  protected lateinit var duchyIdFlags: DuchyIdFlags
+  protected lateinit var duchyInfoFlags: DuchyInfoFlags
     private set
 
   protected fun run(storageClient: StorageClient) {
@@ -42,8 +42,8 @@ abstract class ComputationControlServer : Runnable {
     require(latestDuchyPublicKeys.containsKey(duchyName)) {
       "Public key not specified for Duchy $duchyName"
     }
-    DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
-    require(latestDuchyPublicKeys.keys.toSet() == DuchyIds.ALL)
+    DuchyInfo.setDuchyInfoFromFlags(duchyInfoFlags)
+    require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL)
 
     val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
 
@@ -51,7 +51,7 @@ abstract class ComputationControlServer : Runnable {
         flags.server,
         javaClass.name,
         ComputationControlService(AsyncComputationControlCoroutineStub(channel), storageClient)
-          .withDuchyIdentities()
+          .withDuchyInfo()
       )
       .start()
       .blockUntilShutdown()

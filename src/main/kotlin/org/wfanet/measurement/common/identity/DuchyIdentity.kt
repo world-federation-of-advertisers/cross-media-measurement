@@ -17,6 +17,7 @@ package org.wfanet.measurement.common.identity
 import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
+import io.grpc.Grpc
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -26,6 +27,8 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import javax.net.ssl.SSLSession
+import org.wfanet.measurement.common.grpc.DuchyInfo
 
 /**
  * Details about an authenticated Duchy.
@@ -34,7 +37,10 @@ import io.grpc.stub.MetadataUtils
  */
 data class DuchyIdentity(val id: String) {
   init {
-    require(id in DuchyIds.ALL) { "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}" }
+    //    require(id in DuchyIds.ALL) { "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}" }
+    require(DuchyInfo.getByDuchyId(id) != null) {
+      "Duchy $id is unknown; known Duchies are ${DuchyInfo.ALL}"
+    }
   }
 }
 
@@ -81,6 +87,33 @@ class DuchyServerIdentityInterceptor : ServerInterceptor {
   }
 }
 
+class DuchyInfoInterceptor() : ServerInterceptor {
+  override fun <ReqT, RespT> interceptCall(
+    call: ServerCall<ReqT, RespT>,
+    headers: Metadata,
+    next: ServerCallHandler<ReqT, RespT>
+  ): ServerCall.Listener<ReqT> {
+    val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
+    if (sslSession == null) {
+      call.close(
+        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing sslSession"),
+        Metadata()
+      )
+      return object : ServerCall.Listener<ReqT>() {}
+    }
+
+    val certs = sslSession.peerCertificates
+
+    // todo: iterate over certs and find one we know and use the duchyId of that cert
+    //       only ever one layer deep and look at the authority
+
+    val duchyId = "123"
+
+    val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
+    return Contexts.interceptCall(context, call, headers, next)
+  }
+}
+
 /** Convenience helper for [DuchyServerIdentityInterceptor]. */
 fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
@@ -88,6 +121,10 @@ fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
 /** Convenience helper for [DuchyServerIdentityInterceptor]. */
 fun ServerServiceDefinition.withDuchyIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
+
+/** Convenience helper for [DuchyServerIdentityInterceptor]. */
+fun BindableService.withDuchyInfo(): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(this, DuchyInfoInterceptor())
 
 /**
  * Sets metadata key "duchy_id" on all outgoing requests.

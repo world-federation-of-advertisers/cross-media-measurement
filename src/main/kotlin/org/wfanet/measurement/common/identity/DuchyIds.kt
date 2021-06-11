@@ -17,15 +17,15 @@ package org.wfanet.measurement.common.identity
 import picocli.CommandLine
 
 /** Global singleton listing all the valid duchy ids, configurable by a flag. */
-object DuchyIds {
+object XXXDuchyIds {
   lateinit var ALL: Set<String>
     private set
 
   val size: Int
     get() = ALL.size
 
-  fun setDuchyIdsFromFlags(duchyIdFlags: DuchyIdFlags) {
-    require(!DuchyIds::ALL.isInitialized)
+  fun setDuchyIdsFromFlags(duchyIdFlags: XXXDuchyIdFlags) {
+    require(!XXXDuchyIds::ALL.isInitialized)
     require(duchyIdFlags.duchyIds.isNotEmpty())
     ALL = duchyIdFlags.duchyIds.toSet()
   }
@@ -46,7 +46,7 @@ object DuchyIds {
  *   }
  * ```
  */
-class DuchyIdFlags {
+class XXXDuchyIdFlags {
   @CommandLine.Option(
     names = ["--duchy-ids"],
     description = ["List of all valid Duchy ids"],
@@ -54,5 +54,13 @@ class DuchyIdFlags {
     required = true
   )
   lateinit var duchyIds: Array<String>
+    private set
+
+  @CommandLine.Option(
+    names = ["--duchy-info-config"],
+    description = ["DuchyInfoConfig proto message in text format."],
+    required = true
+  )
+  lateinit var config: String
     private set
 }

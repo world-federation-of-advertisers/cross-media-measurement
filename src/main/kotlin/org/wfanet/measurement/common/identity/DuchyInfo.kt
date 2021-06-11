@@ -1,0 +1,75 @@
+// Copyright 2020 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package org.wfanet.measurement.common.grpc
+
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.DuchyInfoConfig
+import picocli.CommandLine
+
+object DuchyInfo {
+  /** Map of CombinedPublicKey resource ID to [Entry]. */
+  lateinit var entries: Array<Entry>
+  val count: Int
+    get() = DuchyInfo.entries.size
+  val ALL: Set<String>
+    get() = DuchyInfo.entries.map { it.duchyId }.toSet()
+
+  fun setDuchyInfoFromFlags(flags: DuchyInfoFlags) {
+    require(!DuchyInfo::entries.isInitialized)
+    val configMessage =
+      flags.config.reader().use { parseTextProto(it, DuchyInfoConfig.getDefaultInstance()) }
+    require(configMessage.duchiesCount > 0) { "Duchy info config has no entries" }
+    entries = configMessage.duchiesList.map { it.toDuchyInfoEntry() }.toTypedArray()
+  }
+
+  /** Returns the [Entry] for the specified root cert key ID. */
+  fun getByRootCertId(rootCertId: String): Entry? {
+    return entries.firstOrNull { it.rootCertId == rootCertId }
+  }
+
+  /** Returns the [Entry] for the specified Duchy ID. */
+  fun getByDuchyId(duchyId: String): Entry? {
+    return entries.firstOrNull { it.duchyId == duchyId }
+  }
+
+  fun setDuchyInfoForTest(duchyIds: Set<String>) {
+    entries = duchyIds.map { DuchyInfo.Entry(it, "hostname-$it", "cert-id-$it") }.toTypedArray()
+  }
+
+  data class Entry(val duchyId: String, val hostName: String, val rootCertId: String)
+  class Flags {
+    @CommandLine.Option(
+      names = ["--duchy-info-config"],
+      description = ["DuchyInfoConfig proto message in text format."],
+      required = true
+    )
+    lateinit var config: String
+      private set
+  }
+}
+
+class DuchyInfoFlags {
+  @CommandLine.Option(
+    names = ["--duchy-info-config"],
+    description = ["DuchyInfoConfig proto message in text format."],
+    required = true
+  )
+  lateinit var config: String
+    private set
+}
+
+private fun DuchyInfoConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
+  return DuchyInfo.Entry(duchyId, hostName, rootCertId)
+}
