@@ -16,18 +16,20 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
-import "wfa/measurement/system/v1alpha/computation_participant.proto";
+import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionProto";
 
 message Requisition {
-  message Key {
-    string computation_id = 1;
-    string requisition_id = 2;
-  }
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo-system.wfanet.org/Requisition"
+    pattern: "computations/{computation}/requisitions/{requisition}"
+  };
+
+  // Resource name. Output-only. Immutable.
+  string name = 1;
 
   // ID of the `DataProvider` in the public API. Required. Immutable.
   string data_provider_id = 2;
@@ -67,7 +69,9 @@ message Requisition {
   // 3. `measurement_spec` from the parent `Computation`.
   bytes data_provider_participation_signature = 6;
 
-  // Resource key of the `ComputationParticipant` that marked this `Requisition`
-  // as `FULFILLED`. Output-only.
-  ComputationParticipant.Key fulfilling_computation_participant = 7;
+  // Resource name of the `ComputationParticipant` that marked this
+  // `Requisition` as `FULFILLED`. Output-only.
+  string fulfilling_computation_participant = 7
+      [(google.api.resource_reference).type =
+           "halo-system.wfanet.org/ComputationParticipant"];
 }

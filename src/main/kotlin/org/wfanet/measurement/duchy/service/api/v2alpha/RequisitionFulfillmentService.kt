@@ -34,6 +34,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
+import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 
 private val FULFILLED_RESPONSE =
@@ -139,16 +140,13 @@ class RequisitionFulfillmentService(
   /** send rpc to the kingdom's system RequisitionsService to fulfill a requisition. */
   private suspend fun fulfillRequisitionAtKingdom(
     computationId: String,
-    externalRequisitionKey: String,
+    requisitionId: String,
     signature: ByteString
   ) {
     systemRequisitionsClient.fulfillRequisition(
       SystemFulfillRequisitionRequest.newBuilder()
         .apply {
-          keyBuilder.also {
-            it.computationId = computationId
-            it.requisitionId = externalRequisitionKey
-          }
+          name = RequisitionKey(computationId, requisitionId).toName()
           dataProviderParticipationSignature = signature
         }
         .build()

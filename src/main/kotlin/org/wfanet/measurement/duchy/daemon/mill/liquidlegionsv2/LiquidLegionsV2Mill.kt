@@ -74,6 +74,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
@@ -185,10 +186,7 @@ class LiquidLegionsV2Mill(
     val request =
       SetParticipantRequisitionParamsRequest.newBuilder()
         .apply {
-          keyBuilder.also {
-            it.computationId = token.globalComputationId
-            it.duchyId = duchyId
-          }
+          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
           requisitionParamsBuilder.apply {
             // TODO(wangyaopw): set the correct certificate and elGamalPublicKeySignature.
             duchyCertificateId = "TODO"

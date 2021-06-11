@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/system/v1alpha/stage_attempt.proto";
 
@@ -25,13 +26,15 @@ option java_outer_classname = "ComputationLogEntryProto";
 
 // Resource representing a log entry for a `ComputationParticipant`. Immutable.
 message ComputationLogEntry {
-  message Key {
-    string computation_id = 1;
-    string computation_participant_id = 2;
-    string computation_log_entry_id = 3;
-  }
-  // Resource key.
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo-system.wfanet.org/ComputationLogEntry"
+
+    // `duchy` is the Duchy ID from the public API.
+    pattern: "computations/{computation}/participants/{duchy}/logEntries/{computation_log_entry}"
+  };
+
+  // Resource name. Output-only. Immutable.
+  string name = 1;
 
   // ID of some child of the `ComputationParticipant` from an external system.
   //

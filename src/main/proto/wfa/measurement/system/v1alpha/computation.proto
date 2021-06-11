@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
 import "wfa/measurement/system/v1alpha/differential_privacy.proto";
 import "wfa/measurement/system/v1alpha/requisition.proto";
@@ -25,10 +26,13 @@ option java_multiple_files = true;
 option java_outer_classname = "ComputationProto";
 
 message Computation {
-  message Key {
-    string computation_id = 1;
-  }
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo-system.wfanet.org/Computation"
+    pattern: "computations/{computation}"
+  };
+
+  // Resource name. Output-only. Immutable.
+  string name = 1;
 
   // Public API version for serialized messages. Required. Immutable.
   string public_api_version = 2;
