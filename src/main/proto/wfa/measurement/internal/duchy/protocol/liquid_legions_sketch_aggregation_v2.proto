@@ -157,22 +157,17 @@ message LiquidLegionsSketchAggregationV2 {
     // computation.
     ReachEstimate reach_estimate = 4;
 
-    // Total number of MetricRequisitions across all duchies used in this
-    // computation.
-    // TODO(wangyaopw): delete after v2alpha is done
-    int32 total_requisition_count = 5;
+    // The Elgamal public key combined from all duchy participants' public keys.
+    ElGamalPublicKey combined_public_key = 5;
+
+    // The Elgamal public key combined from the public keys of the duchies after
+    // this duchy in the ring and the aggregator duchy.
+    ElGamalPublicKey partially_combined_public_key = 6;
 
     // The local elgamal key used in this computation.
     // TODO(wangyaopw): delete this field when we switch to use a secure key
     //  store for duchy private keys.
-    ElGamalKeyPair local_elgamal_key = 6;
-
-    // The Elgamal public key combined from all duchy participants' public keys.
-    ElGamalPublicKey combined_public_key = 7;
-
-    // The Elgamal public key combined from the public keys of the duchies after
-    // this duchy in the ring and the aggregator duchy.
-    ElGamalPublicKey partially_combined_public_key = 8;
+    ElGamalKeyPair local_elgamal_key = 7;
   }
 
   // Details about a particular attempt of running a stage of the LiquidLegionV2
