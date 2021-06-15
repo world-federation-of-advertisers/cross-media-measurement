@@ -14,26 +14,25 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.BindableService
 import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 
-class SpannerMeasurementConsumersService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
-) : MeasurementConsumersCoroutineImplBase() {
-  override suspend fun createMeasurementConsumer(
-    request: MeasurementConsumer
-  ): MeasurementConsumer {
-    TODO("not implemented yet")
-  }
-  override suspend fun getMeasurementConsumer(
-    request: GetMeasurementConsumerRequest
-  ): MeasurementConsumer {
-    TODO("not implemented yet")
+class SpannerDataServices(
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
+) : DataServices {
+  override fun buildDataServices(): List<BindableService> {
+    return listOf(
+      SpannerCertificatesService(clock, idGenerator, client),
+      SpannerDataProvidersService(clock, idGenerator, client),
+      SpannerEventGroupsService(clock, idGenerator, client),
+      SpannerMeasurementConsumersService(clock, idGenerator, client),
+      SpannerMeasurementsService(clock, idGenerator, client),
+      SpannerRequisitionsService(clock, idGenerator, client)
+    )
   }
 }

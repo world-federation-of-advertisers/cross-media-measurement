@@ -3,8 +3,8 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
-    name = "kingdom_data_server",
-    srcs = ["KingdomDataServer.kt"],
+    name = "legacy_kingdom_data_server",
+    srcs = ["LegacyKingdomDataServer.kt"],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
     deps = [
         "//imports/kotlin/kotlinx/coroutines:core",
@@ -14,6 +14,21 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
     ],
 )
+
+kt_jvm_library(
+    name = "kingdom_data_server",
+    srcs = ["KingdomDataServer.kt"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
+    deps = [
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+    ],
+)
+
 
 kt_jvm_library(
     name = "kingdom_api_server",

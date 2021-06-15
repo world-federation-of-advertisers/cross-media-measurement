@@ -63,7 +63,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "kingdom_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_legacy_kingdom_data_server_image",
         repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(

@@ -19,18 +19,19 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
-import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
+import org.wfanet.measurement.kingdom.deploy.common.server.LegacyKingdomDataServer
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerReportDatabase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerRequisitionDatabase
 import picocli.CommandLine
 
-/** Implementation of [KingdomDataServer] using Google Cloud Spanner. */
+/** Implementation of [LegacyKingdomDataServer] using Google Cloud Spanner. */
 @CommandLine.Command(
   name = "LegacySpannerKingdomDataServer",
   description = ["Start the internal Kingdom data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class SpannerKingdomDataServer : KingdomDataServer() {
+class LegacySpannerKingdomDataServer : LegacyKingdomDataServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override fun run() = runBlocking {
@@ -39,9 +40,12 @@ class SpannerKingdomDataServer : KingdomDataServer() {
       val idGenerator = RandomIdGenerator(clock)
       val client = spanner.databaseClient
 
-      run(SpannerDataServices(clock, idGenerator, client))
+      run(
+        SpannerReportDatabase(clock, idGenerator, client),
+        SpannerRequisitionDatabase(clock, idGenerator, client)
+      )
     }
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(SpannerKingdomDataServer(), args)
+fun main(args: Array<String>) = commandLineMain(LegacySpannerKingdomDataServer(), args)

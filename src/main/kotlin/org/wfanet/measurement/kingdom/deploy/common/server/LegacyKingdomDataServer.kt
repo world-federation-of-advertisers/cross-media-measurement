@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2020 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,18 +18,23 @@ import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.kingdom.db.ReportDatabase
+import org.wfanet.measurement.kingdom.db.RequisitionDatabase
+import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 import picocli.CommandLine
-import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 
-abstract class KingdomDataServer : Runnable {
+abstract class LegacyKingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   @CommandLine.Mixin private lateinit var duchyIdFlags: DuchyIdFlags
 
-  protected suspend fun run(dataServices: DataServices) {
+  protected suspend fun run(
+    reportDatabase: ReportDatabase,
+    requisitionDatabase: RequisitionDatabase
+  ) {
     DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
 
-    val services = dataServices.buildDataServices()
+    val services = buildLegacyDataServices(reportDatabase, requisitionDatabase)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }
