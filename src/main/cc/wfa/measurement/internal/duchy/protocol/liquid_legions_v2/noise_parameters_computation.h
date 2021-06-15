@@ -37,10 +37,6 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
 
-math::TruncatedDiscreteLaplaceDistributedOptions GetPublisherNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int publisher_count);
-
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
 #endif  // SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
