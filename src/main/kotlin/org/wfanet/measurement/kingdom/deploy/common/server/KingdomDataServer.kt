@@ -23,11 +23,15 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 =======
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
+<<<<<<< HEAD
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 >>>>>>> bbcf20ac (first commit)
+=======
+>>>>>>> 55087518 (added server path)
 import picocli.CommandLine
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 
 abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
@@ -35,6 +39,7 @@ abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var duchyInfoFlags: DuchyInfoFlags
 
   protected suspend fun run(dataServices: DataServices) {
+<<<<<<< HEAD
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
 <<<<<<< HEAD
@@ -42,6 +47,11 @@ abstract class KingdomDataServer : Runnable {
 =======
     val services = buildLegacyDataServices(reportDatabase, requisitionDatabase)
 >>>>>>> bbcf20ac (first commit)
+=======
+    DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+
+    val services = dataServices.buildDataServices()
+>>>>>>> 55087518 (added server path)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

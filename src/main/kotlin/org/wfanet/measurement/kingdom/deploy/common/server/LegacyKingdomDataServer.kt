@@ -16,8 +16,13 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
+=======
+import org.wfanet.measurement.common.identity.DuchyIdFlags
+import org.wfanet.measurement.common.identity.DuchyIds
+>>>>>>> 55087518 (added server path)
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
@@ -26,13 +31,21 @@ import picocli.CommandLine
 abstract class LegacyKingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
+<<<<<<< HEAD
   @CommandLine.Mixin private lateinit var duchyInfoFlags: DuchyInfoFlags
+=======
+  @CommandLine.Mixin private lateinit var duchyIdFlags: DuchyIdFlags
+>>>>>>> 55087518 (added server path)
 
   protected suspend fun run(
     reportDatabase: ReportDatabase,
     requisitionDatabase: RequisitionDatabase
   ) {
+<<<<<<< HEAD
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
+=======
+    DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+>>>>>>> 55087518 (added server path)
 
     val services = buildLegacyDataServices(reportDatabase, requisitionDatabase)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)

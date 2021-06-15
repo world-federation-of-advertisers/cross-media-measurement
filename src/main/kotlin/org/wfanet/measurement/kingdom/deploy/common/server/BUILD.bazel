@@ -29,8 +29,10 @@ kt_jvm_library(
 =======
 >>>>>>> 28f13018 (fixed lint and build)
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
     ],
 )
+
 
 kt_jvm_library(
     name = "kingdom_api_server",

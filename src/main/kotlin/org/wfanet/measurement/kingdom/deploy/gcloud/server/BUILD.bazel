@@ -28,6 +28,13 @@ java_image(
     runtime_deps = [":legacy_spanner_kingdom_data_server"],
 )
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 55087518 (added server path)
 kt_jvm_library(
     name = "spanner_kingdom_data_server",
     srcs = ["SpannerKingdomDataServer.kt"],
