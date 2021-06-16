@@ -18,6 +18,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
+import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
@@ -51,8 +52,8 @@ object LiquidLegionsV2Starter {
     configMaps: Map<String, ProtocolConfig>,
     blobStorageBucket: String
   ) {
-    liquidLegionsV2SetupConfig.role
-    val globalId: String = checkNotNull(systemComputation.key?.computationId)
+    require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = systemComputation.key.computationId
     val initialComputationDetails =
       ComputationDetails.newBuilder()
         .apply {

@@ -54,6 +54,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
+import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 
@@ -75,6 +76,7 @@ private val HEADER =
     .build()
 private val FULFILLED_RESPONSE =
   FulfillRequisitionResponse.newBuilder().apply { state = Requisition.State.FULFILLED }.build()
+private val REQUISITION_KEY = RequisitionKey(COMPUTATION_ID, REQUISITION_ID)
 
 /** Test for [RequisitionFulfillmentService]. */
 @RunWith(JUnit4::class)
@@ -155,10 +157,7 @@ class RequisitionFulfillmentServiceTest {
       .isEqualTo(
         SystemFulfillRequisitionRequest.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = COMPUTATION_ID
-              requisitionId = REQUISITION_ID
-            }
+            name = REQUISITION_KEY.toName()
             dataProviderParticipationSignature = SIGNATURE
           }
           .build()
@@ -192,10 +191,7 @@ class RequisitionFulfillmentServiceTest {
       .isEqualTo(
         SystemFulfillRequisitionRequest.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = COMPUTATION_ID
-              requisitionId = REQUISITION_ID
-            }
+            name = REQUISITION_KEY.toName()
             dataProviderParticipationSignature = SIGNATURE
           }
           .build()
