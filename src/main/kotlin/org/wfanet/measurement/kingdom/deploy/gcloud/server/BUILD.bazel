@@ -28,10 +28,6 @@ java_image(
     runtime_deps = [":legacy_spanner_kingdom_data_server"],
 )
 
-
-
-
-
 kt_jvm_library(
     name = "spanner_kingdom_data_server",
     srcs = ["SpannerKingdomDataServer.kt"],
