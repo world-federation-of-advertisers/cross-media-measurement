@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -52,7 +53,9 @@ service Computations {
 
 // Request message for `GetComputation` method.
 message GetComputationRequest {
-  Computation.Key key = 1;
+  // Resource name of the `Computation`. Required.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo-system.wfanet.org/Computation"];
 }
 
 // Request message for `StreamActiveComputations` method.
@@ -71,8 +74,9 @@ message StreamActiveComputationsResponse {
 
 // Request message for `SetComputationResult` method.
 message SetComputationResultRequest {
-  // Resource key of the `Computation`. Required.
-  Computation.Key key = 1;
+  // Resource name of the `Computation`. Required.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo-system.wfanet.org/Computation"];
 
   // X.509 certificate in DER format which can be verified using the
   // Aggregator's root certificate. Required.

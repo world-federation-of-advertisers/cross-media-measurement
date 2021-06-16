@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/system/v1alpha/stage_attempt.proto";
 
@@ -24,12 +25,15 @@ option java_multiple_files = true;
 option java_outer_classname = "ComputationParticipantProto";
 
 message ComputationParticipant {
-  message Key {
-    string computation_id = 1;
-    // `Duchy` ID from public API.
-    string duchy_id = 2;
-  }
-  Key key = 1;
+  option (google.api.resource) = {
+    type: "halo-system.wfanet.org/ComputationParticipant"
+
+    // `duchy` is the Duchy ID from the public API.
+    pattern: "computations/{computation}/participants/{duchy}"
+  };
+
+  // Resource name. Output-only. Immutable.
+  string name = 1;
 
   // State that a `ComputationParticipant` can be in.
   enum State {

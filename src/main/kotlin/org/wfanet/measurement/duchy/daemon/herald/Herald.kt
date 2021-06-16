@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
+import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
@@ -127,7 +128,8 @@ class Herald(
   }
 
   private suspend fun processSystemComputationChange(response: StreamActiveComputationsResponse) {
-    val globalId: String = checkNotNull(response.computation.key?.computationId)
+    require(response.computation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = response.computation.key.computationId
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = response.computation.state) {
       // Creates a new computation if it is not already present in the database.
@@ -142,7 +144,8 @@ class Herald(
 
   /** Creates a new computation. */
   private suspend fun create(systemComputation: Computation) {
-    val globalId: String = checkNotNull(systemComputation.key?.computationId)
+    require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = systemComputation.key.computationId
     logger.info("[id=$globalId] Creating Computation")
     try {
       when (systemComputation.toMeasurementType()) {

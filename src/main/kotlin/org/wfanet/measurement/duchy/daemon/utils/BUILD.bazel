@@ -22,6 +22,7 @@ kt_jvm_library(
     srcs = ["ComputationConversions.kt"],
     deps = [
         ":public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_java_proto",

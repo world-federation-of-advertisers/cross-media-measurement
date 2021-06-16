@@ -118,6 +118,7 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
@@ -567,23 +568,20 @@ class LiquidLegionsV2MillTest {
       .isEqualTo(
         SetParticipantRequisitionParamsRequest.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = GLOBAL_ID
-              duchyId = DUCHY_ONE_NAME
-              requisitionParamsBuilder.apply {
-                duchyCertificateId = "TODO"
-                duchyCertificate = ByteString.copyFromUtf8("TODO")
-                liquidLegionsV2Builder.apply {
-                  elGamalPublicKey =
-                    V2AlphaElGamalPublicKey.newBuilder()
-                      .apply {
-                        generator = ByteString.copyFromUtf8("generator-foo")
-                        element = ByteString.copyFromUtf8("element-foo")
-                      }
-                      .build()
-                      .toByteString()
-                  elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
-                }
+            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+            requisitionParamsBuilder.apply {
+              duchyCertificateId = "TODO"
+              duchyCertificate = ByteString.copyFromUtf8("TODO")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey =
+                  V2AlphaElGamalPublicKey.newBuilder()
+                    .apply {
+                      generator = ByteString.copyFromUtf8("generator-foo")
+                      element = ByteString.copyFromUtf8("element-foo")
+                    }
+                    .build()
+                    .toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
               }
             }
           }
@@ -681,7 +679,7 @@ class LiquidLegionsV2MillTest {
                     attemptNumber = 1
                   }
                   updateMessage =
-                    "Computation $GLOBAL_ID at stage CONFIRMATION_PHASE," + " attempt 1 failed."
+                    "Computation $GLOBAL_ID at stage CONFIRMATION_PHASE, attempt 1 failed."
                   errorDetailsBuilder.apply { errorType = ErrorType.PERMANENT }
                 }
               }
@@ -745,12 +743,7 @@ class LiquidLegionsV2MillTest {
         )
         .isEqualTo(
           ConfirmComputationParticipantRequest.newBuilder()
-            .apply {
-              keyBuilder.apply {
-                computationId = GLOBAL_ID
-                duchyId = DUCHY_ONE_NAME
-              }
-            }
+            .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
             .build()
         )
     }
@@ -817,12 +810,7 @@ class LiquidLegionsV2MillTest {
         )
         .isEqualTo(
           ConfirmComputationParticipantRequest.newBuilder()
-            .apply {
-              keyBuilder.apply {
-                computationId = GLOBAL_ID
-                duchyId = DUCHY_ONE_NAME
-              }
-            }
+            .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
             .build()
         )
     }
