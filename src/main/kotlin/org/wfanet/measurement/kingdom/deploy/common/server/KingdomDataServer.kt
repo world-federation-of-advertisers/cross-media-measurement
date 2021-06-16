@@ -18,8 +18,8 @@ import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
-import picocli.CommandLine
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags

@@ -28,10 +28,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "services",
-    srcs = glob([
-        "*Service.kt",
-        "SpannerDataServices.kt",
-    ]),
+    srcs = glob(["*Service*.kt"]),
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
