@@ -29,12 +29,15 @@ java_image(
 )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 
 
 
 >>>>>>> 55087518 (added server path)
+=======
+>>>>>>> 1b967fd6 (lint fix)
 kt_jvm_library(
     name = "spanner_kingdom_data_server",
     srcs = ["SpannerKingdomDataServer.kt"],

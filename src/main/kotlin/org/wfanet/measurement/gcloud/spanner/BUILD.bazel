@@ -7,9 +7,13 @@ package(default_visibility = [
     ":__subpackages__",
     test_target(":__subpackages__"),
     "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
+<<<<<<< HEAD
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
+=======
+>>>>>>> 1b967fd6 (lint fix)
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
 ])
 

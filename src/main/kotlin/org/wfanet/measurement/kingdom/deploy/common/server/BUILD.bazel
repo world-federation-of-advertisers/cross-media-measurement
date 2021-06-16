@@ -25,14 +25,17 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
 =======
 >>>>>>> 28f13018 (fixed lint and build)
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
+=======
+>>>>>>> 1b967fd6 (lint fix)
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
     ],
 )
-
 
 kt_jvm_library(
     name = "kingdom_api_server",
