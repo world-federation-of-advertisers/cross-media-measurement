@@ -943,11 +943,11 @@ TEST(FrequencyNoise, AllFrequencyBucketsShouldHaveNoise) {
   FlagCountTupleNoiseGenerationParameters frequency_noise_params;
   frequency_noise_params.set_maximum_frequency(kMaxFrequency);
   frequency_noise_params.set_contributors_count(kWorkerCount);
-  // resulted p = 0.606531, offset = 8
+  // resulted p = 0.606531, offset = 13
   *frequency_noise_params.mutable_dp_params() =
-      MakeDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 0.1);
 
-  int computed_offset = 8;
+  int computed_offset = 13;
   int64_t expected_total_noise_tuple_count =
       (kMaxFrequency + 1) * computed_offset * 2;
 
@@ -1032,10 +1032,12 @@ TEST(FrequencyNoise, DeterministicNoiseShouldHaveNoImpact) {
 TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
   TestData test_data;
   Sketch plain_sketch = CreateEmptyLiquidLegionsSketch();
-  AddRegister(&plain_sketch, /*index=*/1, /*key=*/111, /*count=*/2);
-  AddRegister(&plain_sketch, /*index=*/2, /*key=*/222, /*count=*/3);
-  AddRegister(&plain_sketch, /*index=*/3, /*key=*/333, /*count=*/3);
-  AddRegister(&plain_sketch, /*index=*/4, /*key=*/444, /*count=*/3);
+  for (int i = 1; i <= 10; ++i) {
+    AddRegister(&plain_sketch, /*index=*/i, /*key=*/i, /*count=*/2);
+  }
+  for (int i = 1; i <= 30; ++i) {
+    AddRegister(&plain_sketch, /*index=*/100 + i, /*key=*/100 + i, /*count=*/3);
+  }
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
@@ -1043,9 +1045,9 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
   // Add 30 buckets to reduce flakiness.
   frequency_noise_params.set_maximum_frequency(30);
   frequency_noise_params.set_contributors_count(kWorkerCount);
-  // resulted p = 0.606531, offset = 8
+  // resulted p = 0.606531, offset = 9
   *frequency_noise_params.mutable_dp_params() =
-      MakeDifferentialPrivacyParams(1, 1);
+      MakeDifferentialPrivacyParams(1, 0.5);
 
   ASSERT_OK_AND_ASSIGN(
       MpcResult result,
