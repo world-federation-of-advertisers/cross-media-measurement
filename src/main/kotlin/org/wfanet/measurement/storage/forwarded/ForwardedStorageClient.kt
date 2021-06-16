@@ -17,7 +17,6 @@ package org.wfanet.measurement.storage.forwarded
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -38,7 +37,6 @@ class ForwardedStorageClient(private val storageStub: ForwardedStorageCoroutineS
   override val defaultBufferSizeBytes: Int
     get() = DEFAULT_BUFFER_SIZE_BYTES
 
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
     val requests =
       content

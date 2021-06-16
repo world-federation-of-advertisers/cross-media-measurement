@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString
 import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -185,7 +184,6 @@ private suspend fun ByteStringOutputBuffer.putEmittingFull(
  *
  * @param bufferSize size in bytes of the buffer to use to read from the channel
  */
-@OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
 fun ReadableByteChannel.asFlow(bufferSize: Int): Flow<ByteString> =
   flow {
       val buffer = ByteBuffer.allocate(bufferSize)
