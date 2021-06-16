@@ -24,6 +24,7 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.common.identity.DuchyIdFlags
 import org.wfanet.measurement.common.identity.DuchyIds
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
@@ -31,7 +32,10 @@ import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 =======
 >>>>>>> 55087518 (added server path)
 import picocli.CommandLine
+=======
+>>>>>>> 4cd8a4f6 (lint fix)
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
