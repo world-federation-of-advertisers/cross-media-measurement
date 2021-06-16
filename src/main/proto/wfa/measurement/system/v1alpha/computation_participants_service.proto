@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -48,8 +49,9 @@ service ComputationParticipants {
 
 // Request message for the `SetParticipantRequisitionParams` method.
 message SetParticipantRequisitionParamsRequest {
-  // Resource key of the `ComputationParticipant`. Required.
-  ComputationParticipant.Key key = 1;
+  // Resource name of the `ComputationParticipant`. Required.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo-system.wfanet.org/ComputationParticipant"];
 
   // The requisition params to set. Required.
   ComputationParticipant.RequisitionParams requisition_params = 2;
@@ -57,8 +59,9 @@ message SetParticipantRequisitionParamsRequest {
 
 // Request message for the `FailComputationParticipant` method.
 message FailComputationParticipantRequest {
-  // Resource key of the `ComputationParticipant`. Required.
-  ComputationParticipant.Key key = 1;
+  // Resource name of the `ComputationParticipant`. Required.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo-system.wfanet.org/ComputationParticipant"];
 
   // Failure information. Required.
   ComputationParticipant.Failure failure = 2;
@@ -66,6 +69,7 @@ message FailComputationParticipantRequest {
 
 // Request message for the `ConfirmComputationParticipant` method.
 message ConfirmComputationParticipantRequest {
-  // Resource key of the `ComputationParticipant`. Required.
-  ComputationParticipant.Key key = 1;
+  // Resource name of the `ComputationParticipant`. Required.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo-system.wfanet.org/ComputationParticipant"];
 }

@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
+import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
@@ -55,11 +56,14 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.Requisition
+import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 
 private const val PUBLIC_API_VERSION = "v2alpha"
@@ -243,20 +247,14 @@ class HeraldTest {
     val systemApiRequisitions1 =
       Requisition.newBuilder()
         .apply {
-          keyBuilder.apply {
-            computationId = "321"
-            requisitionId = "1"
-          }
+          name = RequisitionKey("321", "1").toName()
           dataProviderId = "A"
         }
         .build()
     val systemApiRequisitions2 =
       Requisition.newBuilder()
         .apply {
-          keyBuilder.apply {
-            computationId = "321"
-            requisitionId = "2"
-          }
+          name = RequisitionKey("321", "2").toName()
           dataProviderId = "B"
         }
         .build()
@@ -370,31 +368,27 @@ class HeraldTest {
       val systemApiRequisitions1 =
         Requisition.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = globalId
-              requisitionId = "1"
-            }
+            name = RequisitionKey(globalId, "1").toName()
             dataProviderId = "A"
             dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_1")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
-            fulfillingComputationParticipantBuilder.duchyId = DUCHY_ONE
+            fulfillingComputationParticipant =
+              ComputationParticipantKey(globalId, DUCHY_ONE).toName()
           }
           .build()
       val systemApiRequisitions2 =
         Requisition.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = globalId
-              requisitionId = "2"
-            }
+            name = RequisitionKey(globalId, "2").toName()
             dataProviderId = "B"
             dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_2")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
-            fulfillingComputationParticipantBuilder.duchyId = DUCHY_TWO
+            fulfillingComputationParticipant =
+              ComputationParticipantKey(globalId, DUCHY_TWO).toName()
           }
           .build()
       val v2alphaApiElgamalPublicKey1 =
@@ -421,10 +415,7 @@ class HeraldTest {
       val systemComputationParticipant1 =
         SystemComputationParticipant.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = globalId
-              duchyId = DUCHY_ONE
-            }
+            name = ComputationParticipantKey(globalId, DUCHY_ONE).toName()
             requisitionParamsBuilder.liquidLegionsV2Builder.apply {
               elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
@@ -434,10 +425,7 @@ class HeraldTest {
       val systemComputationParticipant2 =
         SystemComputationParticipant.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = globalId
-              duchyId = DUCHY_TWO
-            }
+            name = ComputationParticipantKey(globalId, DUCHY_TWO).toName()
             requisitionParamsBuilder.liquidLegionsV2Builder.apply {
               elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
@@ -447,10 +435,7 @@ class HeraldTest {
       val systemComputationParticipant3 =
         SystemComputationParticipant.newBuilder()
           .apply {
-            keyBuilder.apply {
-              computationId = globalId
-              duchyId = DUCHY_THREE
-            }
+            name = ComputationParticipantKey(globalId, DUCHY_THREE).toName()
             requisitionParamsBuilder.liquidLegionsV2Builder.apply {
               elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
               elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
@@ -708,7 +693,7 @@ class HeraldTest {
   ): Computation {
     return Computation.newBuilder()
       .also {
-        it.keyBuilder.computationId = globalId
+        it.name = ComputationKey(globalId).toName()
         it.publicApiVersion = PUBLIC_API_VERSION
         it.measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
         it.dataProviderList = DATA_PROVIDER_LIST
