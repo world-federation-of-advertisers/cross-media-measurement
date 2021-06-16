@@ -28,8 +28,12 @@ import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.HybridCipherSuite
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
+import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams as SystemDifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition as SystemRequisition
+import org.wfanet.measurement.system.v1alpha.RequisitionKey
 
 /** Supported measurement types in the duchy. */
 enum class MeasurementType {
@@ -71,6 +75,16 @@ fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
     }
     .build()
 }
+
+/** Resource key. */
+val SystemComputation.key: ComputationKey
+  get() {
+    return if (name.isEmpty()) {
+      ComputationKey.defaultValue
+    } else {
+      checkNotNull(ComputationKey.fromName(name)) { "Invalid resource name $name" }
+    }
+  }
 
 /**
  * Parses a serialized Public API EncryptionPublicKey and converts to duchy internal
@@ -146,6 +160,16 @@ fun SystemDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differen
     .build()
 }
 
+/** Resource key. */
+val ComputationParticipant.key: ComputationParticipantKey
+  get() {
+    return if (name.isEmpty()) {
+      ComputationParticipantKey.defaultValue
+    } else {
+      checkNotNull(ComputationParticipantKey.fromName(name)) { "Invalid resource name $name" }
+    }
+  }
+
 /** Converts a system API DifferentialPrivacyParams to duchy internal DifferentialPrivacyParams. */
 fun SystemRequisition.toDuchyRequisitionDetails(): RequisitionDetails {
   return RequisitionDetails.newBuilder()
@@ -153,10 +177,23 @@ fun SystemRequisition.toDuchyRequisitionDetails(): RequisitionDetails {
       it.dataProviderCertificate = dataProviderCertificate
       it.requisitionSpecHash = requisitionSpecHash
       it.dataProviderParticipationSignature = dataProviderParticipationSignature
-      it.externalFulfillingDuchyId = fulfillingComputationParticipant.duchyId
+      if (fulfillingComputationParticipant.isNotEmpty()) {
+        it.externalFulfillingDuchyId =
+          checkNotNull(ComputationParticipantKey.fromName(fulfillingComputationParticipant)).duchyId
+      }
     }
     .build()
 }
+
+/** Resource key. */
+val SystemRequisition.key: RequisitionKey
+  get() {
+    return if (name.isEmpty()) {
+      RequisitionKey.defaultValue
+    } else {
+      checkNotNull(RequisitionKey.fromName(name)) { "Invalid resource name $name" }
+    }
+  }
 
 /**
  * Converts a v2alpha Public API DifferentialPrivacyParams to duchy internal

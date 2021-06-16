@@ -14,6 +14,7 @@ proto_library(
         ":computation_participant_proto",
         ":differential_privacy_proto",
         ":requisition_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -44,6 +45,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":stage_attempt_proto",
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -72,6 +74,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":stage_attempt_proto",
+        "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -86,7 +89,9 @@ proto_library(
     name = "requisition_proto",
     srcs = ["requisition.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":computation_participant_proto"],
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 java_proto_library(
@@ -103,6 +108,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -118,6 +124,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":requisition_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -133,6 +140,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_participant_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -148,7 +156,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_log_entry_proto",
-        ":computation_participant_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
