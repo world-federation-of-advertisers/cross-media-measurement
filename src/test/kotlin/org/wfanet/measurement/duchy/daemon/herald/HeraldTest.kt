@@ -58,11 +58,11 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
-import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
-import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
@@ -179,14 +179,14 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 @RunWith(JUnit4::class)
 class HeraldTest {
 
-  private val globalComputations: ComputationsCoroutineImplBase =
+  private val systemComputations: SystemComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {}
 
   private val fakeComputationStorage = FakeComputationsDatabase()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    addService(globalComputations)
+    addService(systemComputations)
     addService(
       ComputationsService(
         fakeComputationStorage,
@@ -197,17 +197,16 @@ class HeraldTest {
     )
   }
 
-  private val storageServiceStub: DuchyComputationsCoroutineStub by lazy {
+  private val internalComputationsStub: DuchyComputationsCoroutineStub by lazy {
     DuchyComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  // TODO(wangyaopw): replace this with the ComputationLogEntriesCoroutineStub
-  private val computationLogEntriesCoroutineStub: GlobalComputationsCoroutineStub by lazy {
-    GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
+  private val computationLogEntriesCoroutineStub: SystemComputationLogEntriesCoroutineStub by lazy {
+    SystemComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val globalComputationsStub: ComputationsCoroutineStub by lazy {
-    ComputationsCoroutineStub(grpcTestServerRule.channel)
+  private val systemComputationsStub: SystemComputationsCoroutineStub by lazy {
+    SystemComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private lateinit var aggregatorHerald: Herald
@@ -218,16 +217,16 @@ class HeraldTest {
     aggregatorHerald =
       Herald(
         OTHER_DUCHY_NAMES,
-        storageServiceStub,
-        globalComputationsStub,
+        internalComputationsStub,
+        systemComputationsStub,
         AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         PUBLIC_PROTOCOL_CONFIG_MAP
       )
     nonAggregatorHerald =
       Herald(
         OTHER_DUCHY_NAMES,
-        storageServiceStub,
-        globalComputationsStub,
+        internalComputationsStub,
+        systemComputationsStub,
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         PUBLIC_PROTOCOL_CONFIG_MAP
       )
@@ -643,8 +642,8 @@ class HeraldTest {
       val heraldWithOneRetry =
         Herald(
           OTHER_DUCHY_NAMES,
-          storageServiceStub,
-          globalComputationsStub,
+          internalComputationsStub,
+          systemComputationsStub,
           NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
           PUBLIC_PROTOCOL_CONFIG_MAP,
           maxAttempts = 2
@@ -665,7 +664,7 @@ class HeraldTest {
     }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
-    globalComputations.stub {
+    systemComputations.stub {
       onBlocking { streamActiveComputations(any()) }
         .thenReturn(
           computations

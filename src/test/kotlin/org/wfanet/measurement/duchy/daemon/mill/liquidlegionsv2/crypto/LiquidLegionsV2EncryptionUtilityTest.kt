@@ -29,8 +29,8 @@ import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrateg
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.duchy.daemon.mill.toAnySketchElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.mill.toCmmsElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest

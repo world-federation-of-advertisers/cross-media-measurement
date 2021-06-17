@@ -25,9 +25,11 @@ import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
-import org.wfanet.measurement.duchy.daemon.mill.toAnySketchElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.mill.toCmmsElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequency
+import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiElGamalPublicKeyBytes
+import org.wfanet.measurement.duchy.daemon.utils.toPublicApiMeasurementResult
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
@@ -39,7 +41,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationS
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
@@ -67,11 +68,11 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
@@ -81,30 +82,27 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param millId The identifier of this mill, used to claim a work.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
- * @param metricValuesClient client of the own duchy's MetricValuesService.
- * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
- * @param systemComputationParticipantsClient client of the kingdom's
+ * @param systemComputationParticipantsClient client of the kingdom's system
  * ComputationParticipantsService.
- * @param computationStatsClient client of the duchy's ComputationStatsService.
+ * @param systemComputationsClient client of the kingdom's system computationsService.
+ * @param systemComputationLogEntriesClient client of the kingdom's system
+ * computationLogEntriesService.
+ * @param computationStatsClient client of the duchy's internal ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  * computation table.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
  * @param workerStubs A map from other duchies' Ids to their corresponding
  * computationControlClients, used for passing computation to other duchies.
- * @param cryptoKeySet The set of crypto keys used in the computation.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
- * @param maxFrequency The maximum frequency to reveal in the frequency histogram.
- * @param liquidLegionsConfig The configuration of the LiquidLegions sketch.
- * @param noiseConfig The configuration of the noises added in the protocol.
  */
 class LiquidLegionsV2Mill(
   millId: String,
   duchyId: String,
   dataClients: ComputationDataClients,
-  metricValuesClient: MetricValuesCoroutineStub,
-  globalComputationsClient: GlobalComputationsCoroutineStub,
   systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
+  systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
+  systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsCoroutineStub,
   throttler: MinimumIntervalThrottler,
   requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
@@ -116,9 +114,9 @@ class LiquidLegionsV2Mill(
     millId,
     duchyId,
     dataClients,
-    globalComputationsClient,
     systemComputationParticipantsClient,
-    metricValuesClient,
+    systemComputationsClient,
+    systemComputationLogEntriesClient,
     computationStatsClient,
     throttler,
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
@@ -672,17 +670,14 @@ class LiquidLegionsV2Mill(
     val frequencyDistributionMap =
       CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(bytes.flatten())
         .frequencyDistributionMap
-    globalComputationsClient.finishGlobalComputation(
-      FinishGlobalComputationRequest.newBuilder()
-        .apply {
-          keyBuilder.globalComputationId = token.globalComputationId.toString()
-          resultBuilder.apply {
-            reach = nextToken.computationDetails.liquidLegionsV2.reachEstimate.reach
-            putAllFrequency(frequencyDistributionMap)
-          }
-        }
-        .build()
-    )
+
+    val result =
+      ReachAndFrequency(llv2Details.reachEstimate.reach, frequencyDistributionMap)
+        .toPublicApiMeasurementResult(
+          token.computationDetails.kingdomComputation.publicApiVersion.toPublicApiVersion()
+        )
+    // TODO(wangyaopw): encrypt the result.
+    sendResultToKingdom(token.globalComputationId, result)
 
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }

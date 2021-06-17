@@ -19,10 +19,12 @@ import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDi
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as V2AlphaHybridCipherSuite
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.HybridCipherSuite
@@ -230,6 +232,50 @@ fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
     .also {
       it.generator = generator
       it.element = element
+    }
+    .build()
+}
+
+/** The result and frequency estimation of a computation. */
+data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>)
+
+/** Converts a ReachAndFrequency object to the corresponding public API measurement result. */
+fun ReachAndFrequency.toPublicApiMeasurementResult(publicApiVersion: PublicApiVersion): ByteString {
+  return when (publicApiVersion) {
+    PublicApiVersion.V2_ALPHA ->
+      Measurement.Result.newBuilder()
+        .also {
+          it.reachBuilder.value = reach
+          it.frequencyBuilder.putAllRelativeFrequencyDistribution(frequency)
+        }
+        .build()
+        .toByteString()
+  }
+}
+
+fun org.wfanet.anysketch.crypto.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
+  return ElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = generator
+      it.element = element
+    }
+    .build()
+}
+
+fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): org.wfanet.anysketch.crypto.ElGamalPublicKey {
+  return org.wfanet.anysketch.crypto.ElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = generator
+      it.element = element
+    }
+    .build()
+}
+
+fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.anysketch.crypto.ElGamalKeyPair {
+  return org.wfanet.anysketch.crypto.ElGamalKeyPair.newBuilder()
+    .also {
+      it.publicKey = publicKey.toAnySketchElGamalPublicKey()
+      it.secretKey = secretKey
     }
     .build()
 }
