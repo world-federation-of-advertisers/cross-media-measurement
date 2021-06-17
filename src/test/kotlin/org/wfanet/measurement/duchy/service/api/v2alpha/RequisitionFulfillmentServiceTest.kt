@@ -209,7 +209,7 @@ class RequisitionFulfillmentServiceTest {
         )
       }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(e.message).contains("resource_key/fingerprint missing or incomplete in the header")
+    assertThat(e.message).contains("DataProviderParticipationSignature is missing in the header.")
   }
 
   @Test
