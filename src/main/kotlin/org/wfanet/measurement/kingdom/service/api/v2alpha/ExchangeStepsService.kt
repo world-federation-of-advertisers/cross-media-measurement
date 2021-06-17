@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
@@ -37,19 +38,17 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
+    val dataProviderKey = grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider))
+    val modelProviderKey = grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
     val internalRequest =
       InternalClaimReadyExchangeStepRequest.newBuilder()
         .apply {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.partyCase) {
             PartyCase.DATA_PROVIDER ->
-              externalDataProviderId =
-                apiIdToExternalId(DataProviderKey.fromName(request.dataProvider)!!.dataProviderId)
+              externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
             PartyCase.MODEL_PROVIDER ->
-              externalModelProviderId =
-                apiIdToExternalId(
-                  ModelProviderKey.fromName(request.modelProvider)!!.modelProviderId
-                )
+              externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
             PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
           }
         }

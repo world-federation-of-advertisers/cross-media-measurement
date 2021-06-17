@@ -24,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsResponse
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
@@ -92,8 +93,9 @@ class ExchangeStepAttemptsService(
 }
 
 private fun String.toExchangeStepAttempt(): ExchangeStepAttemptKey {
-  return ExchangeStepAttemptKey.fromName(this)
-    ?: throw NullPointerException("Could not build ExchangeStepAttempt from name $this.")
+  return grpcRequireNotNull(ExchangeStepAttemptKey.fromName(this)) {
+    "Could not build ExchangeStepAttempt from name $this."
+  }
 }
 
 private fun ExchangeStepAttemptKey.getAttemptNumber(): Int {
