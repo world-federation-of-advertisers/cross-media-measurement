@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.duchy.service.api.v2alpha.utils.RequisitionKey as RequisitionKeyV2
 import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
@@ -67,10 +68,7 @@ private val SIGNATURE = ByteString.copyFromUtf8("a signature")
 private val HEADER =
   FulfillRequisitionRequest.Header.newBuilder()
     .apply {
-      keyBuilder.apply {
-        dataProviderId = DATA_PROVIDER_ID
-        requisitionId = REQUISITION_ID
-      }
+      name = RequisitionKeyV2(DATA_PROVIDER_ID, REQUISITION_ID).toName()
       dataProviderParticipationSignature = SIGNATURE
     }
     .build()

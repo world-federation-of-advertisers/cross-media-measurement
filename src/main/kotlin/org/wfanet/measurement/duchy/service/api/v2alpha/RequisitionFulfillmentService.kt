@@ -30,6 +30,7 @@ import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.duchy.service.api.v2alpha.utils.RequisitionKey as RequisitionKeyV2
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
@@ -52,13 +53,14 @@ class RequisitionFulfillmentService(
   ): FulfillRequisitionResponse {
     grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use { consumed ->
       val header = consumed.item.header
-      grpcRequire(header.valid) { "resource_key/fingerprint missing or incomplete in the header." }
+      val key = RequisitionKeyV2.fromName(header.name) ?: throw IllegalArgumentException("resource_key/name invalid.")
+      grpcRequire(!header.dataProviderParticipationSignature.isEmpty) { "resource_key/fingerprint missing or incomplete in the header." }
 
       val externalRequisitionKey =
         ExternalRequisitionKey.newBuilder()
           .apply {
-            externalDataProviderId = header.key.dataProviderId
-            externalRequisitionId = header.key.requisitionId
+            externalDataProviderId = key.dataProviderId
+            externalRequisitionId = key.requisitionId
           }
           .build()
 
@@ -89,13 +91,6 @@ class RequisitionFulfillmentService(
       return FULFILLED_RESPONSE
     }
   }
-
-  private val FulfillRequisitionRequest.Header.valid: Boolean
-    get() {
-      return key.dataProviderId.isNotBlank() &&
-        key.requisitionId.isNotBlank() &&
-        !dataProviderParticipationSignature.isEmpty
-    }
 
   /** Gets the token of the computation that this requisition is used in. */
   private suspend fun ExternalRequisitionKey.toComputationToken(): ComputationToken {
