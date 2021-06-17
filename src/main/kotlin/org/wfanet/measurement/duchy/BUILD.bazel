@@ -12,17 +12,5 @@ kt_jvm_library(
     srcs = ["ComputationStage.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_java_proto",
-        "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_status_update_java_proto",
-    ],
-)
-
-kt_jvm_library(
-    name = "duchy_public_keys",
-    srcs = ["DuchyPublicKeys.kt"],
-    deps = [
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:crypto_java_proto",
     ],
 )

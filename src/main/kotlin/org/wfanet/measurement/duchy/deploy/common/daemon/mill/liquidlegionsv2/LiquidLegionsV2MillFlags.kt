@@ -68,11 +68,19 @@ class LiquidLegionsV2MillFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--global-computation-service-target"],
-    description = ["Address and port of the Kingdom's Global Computation Service"],
+    names = ["--system-computations-service-target"],
+    description = ["Address and port of the Kingdom's System ComputationsService"],
     required = true
   )
-  lateinit var globalComputationsServiceTarget: String
+  lateinit var systemComputationsServiceTarget: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--system-computation-log-entries-service-target"],
+    description = ["Address and port of the Kingdom's System ComputationLogEntriesService"],
+    required = true
+  )
+  lateinit var systemComputationLogEntriesServiceTarget: String
     private set
 
   @CommandLine.Option(

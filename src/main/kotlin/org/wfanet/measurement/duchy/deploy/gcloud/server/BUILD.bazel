@@ -14,43 +14,10 @@ kt_jvm_library(
     ],
 )
 
-kt_jvm_library(
-    name = "gcp_server",
-    srcs = ["GcpMetricValuesServer.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:metric_values_server",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
-    ],
-)
-
-kt_jvm_library(
-    name = "spanner_forwarded_storage_server",
-    srcs = ["SpannerForwardedStorageMetricValuesServer.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:metric_values_server",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
-        "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
-    ],
-)
-
 java_binary(
     name = "GcsComputationControlServer",
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsComputationControlServerKt",
     runtime_deps = [":gcs_computation_control_server"],
-)
-
-java_binary(
-    name = "GcpMetricValuesServer",
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcpMetricValuesServerKt",
-    runtime_deps = [":gcp_server"],
-)
-
-java_binary(
-    name = "SpannerForwardedStorageMetricValuesServer",
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerForwardedStorageMetricValuesServerKt",
-    runtime_deps = [":spanner_forwarded_storage_server"],
 )
 
 java_image(
@@ -63,22 +30,6 @@ java_image(
     runtime_deps = [":gcs_computation_control_server"],
 )
 
-java_image(
-    name = "gcp_server_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcpMetricValuesServerKt",
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":gcp_server"],
-)
-
-java_image(
-    name = "spanner_forwarded_storage_server_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.SpannerForwardedStorageMetricValuesServerKt",
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":spanner_forwarded_storage_server"],
-)
-
 kt_jvm_library(
     name = "spanner_computations_server",
     srcs = ["SpannerComputationsServer.kt"],
@@ -86,7 +37,6 @@ kt_jvm_library(
         "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:computations_server",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
