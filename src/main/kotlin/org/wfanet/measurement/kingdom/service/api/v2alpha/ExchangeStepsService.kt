@@ -38,17 +38,22 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val dataProviderKey = grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider))
-    val modelProviderKey = grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
     val internalRequest =
       InternalClaimReadyExchangeStepRequest.newBuilder()
         .apply {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.partyCase) {
             PartyCase.DATA_PROVIDER ->
-              externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+              externalDataProviderId =
+                apiIdToExternalId(
+                  grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider)).dataProviderId
+                )
             PartyCase.MODEL_PROVIDER ->
-              externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
+              externalModelProviderId =
+                apiIdToExternalId(
+                  grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
+                    .modelProviderId
+                )
             PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
           }
         }
