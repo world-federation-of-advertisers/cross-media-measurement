@@ -10,7 +10,7 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:crypto_key_set",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_java_proto",
         "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",

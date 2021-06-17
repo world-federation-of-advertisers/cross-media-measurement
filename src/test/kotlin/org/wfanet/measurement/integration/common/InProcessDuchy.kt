@@ -23,9 +23,6 @@ import kotlinx.coroutines.GlobalScope
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v1alpha.DataProviderRegistrationGrpcKt.DataProviderRegistrationCoroutineStub
-import org.wfanet.measurement.api.v1alpha.PublisherDataGrpcKt.PublisherDataCoroutineStub
-import org.wfanet.measurement.api.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -34,34 +31,26 @@ import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
-import org.wfanet.measurement.duchy.daemon.mill.CryptoKeySet
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
-import org.wfanet.measurement.duchy.db.metricvalue.MetricValueDatabase
-import org.wfanet.measurement.duchy.service.api.v1alpha.PublisherDataService
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
-import org.wfanet.measurement.duchy.service.internal.metricvalues.MetricValuesService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
-import org.wfanet.measurement.duchy.testing.DUCHY_IDS
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemCComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.RequisitionGrpcKt.RequisitionCoroutineStub as SystemRequisitionCoroutineStub
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
@@ -80,20 +69,17 @@ class InProcessDuchy(
 ) : TestRule {
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
-    val metricValueDatabase: MetricValueDatabase,
-    val storageClient: StorageClient,
-    val duchyPublicKeys: DuchyPublicKeys,
-    val cryptoKeySet: CryptoKeySet
+    val storageClient: StorageClient
   )
 
   private val duchyDependencies by lazy { duchyDependenciesProvider() }
 
-  private val legacyGlobalComputationsStub by lazy {
-    GlobalComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+  private val systemComputationsStub by lazy {
+    SystemComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
   }
 
-  private val systemGlobalComputationsStub by lazy {
-    SystemComputationsCoroutineStub(kingdomChannel).withDuchyId(duchyId)
+  private val systemComputationLogEntriesStub by lazy {
+    SystemCComputationLogEntriesCoroutineStub(kingdomChannel).withDuchyId(duchyId)
   }
 
   private val systemComputationParticipantsStub by lazy {
@@ -104,27 +90,20 @@ class InProcessDuchy(
     ComputationStatsCoroutineStub(computationControlChannel(duchyId))
   }
 
-  private val storageServer =
+  private val duchyComputationsServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         ComputationsService(
           duchyDependencies.computationsDatabase,
-          legacyGlobalComputationsStub,
+          systemComputationLogEntriesStub,
           duchyId,
           Clock.systemUTC()
         )
       )
     }
 
-  private val metricValuesServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      addService(
-        MetricValuesService(duchyDependencies.metricValueDatabase, duchyDependencies.storageClient)
-      )
-    }
-
-  private val computationStorageServiceStub by lazy {
-    ComputationsCoroutineStub(storageServer.channel)
+  private val duchyComputationsStub by lazy {
+    ComputationsCoroutineStub(duchyComputationsServer.channel)
   }
 
   private val heraldRule = CloseableResource {
@@ -146,8 +125,8 @@ class InProcessDuchy(
       val herald =
         Herald(
           otherDuchyIds,
-          computationStorageServiceStub,
-          systemGlobalComputationsStub,
+          duchyComputationsStub,
+          systemComputationsStub,
           protocolsSetupConfig,
           mapOf() // TODO(wangyaopw): used a test PublicApiProtocolConfigs.
         )
@@ -158,7 +137,7 @@ class InProcessDuchy(
 
   private val computationDataClients by lazy {
     ComputationDataClients(
-      ComputationsCoroutineStub(storageServer.channel),
+      ComputationsCoroutineStub(duchyComputationsServer.channel),
       duchyDependencies.storageClient,
       otherDuchyIds
     )
@@ -168,7 +147,7 @@ class InProcessDuchy(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         AsyncComputationControlService(
-          ComputationsCoroutineStub(storageServer.channel),
+          ComputationsCoroutineStub(duchyComputationsServer.channel),
           ComputationProtocolStageDetails(otherDuchyIds)
         )
       )
@@ -214,9 +193,9 @@ class InProcessDuchy(
           millId = "$duchyId liquidLegionsV2mill",
           duchyId = duchyId,
           dataClients = computationDataClients,
-          metricValuesClient = MetricValuesCoroutineStub(metricValuesServer.channel),
-          globalComputationsClient = legacyGlobalComputationsStub,
           systemComputationParticipantsClient = systemComputationParticipantsStub,
+          systemComputationsClient = systemComputationsStub,
+          systemComputationLogEntriesClient = systemComputationLogEntriesStub,
           computationStatsClient = computationStatsStub,
           workerStubs = workerStubs,
           cryptoWorker = JniLiquidLegionsV2Encryption(),
@@ -228,37 +207,14 @@ class InProcessDuchy(
     }
   }
 
-  private val publisherDataChannelName = "duchy-publisher-data-$duchyId"
-
-  private val publisherDataServer =
-    GrpcTestServerRule(publisherDataChannelName, logAllRequests = verboseGrpcLogging) {
-      addService(
-        PublisherDataService(
-          MetricValuesCoroutineStub(metricValuesServer.channel),
-          RequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
-          SystemRequisitionCoroutineStub(kingdomChannel).withDuchyId(duchyId),
-          DataProviderRegistrationCoroutineStub(kingdomChannel).withDuchyId(duchyId),
-          duchyDependencies.duchyPublicKeys
-        )
-      )
-    }
-
-  fun newPublisherDataProviderStub(): PublisherDataCoroutineStub {
-    val channel = InProcessChannelBuilder.forName(publisherDataChannelName).build()
-    channelCloserRule.register(channel)
-    return PublisherDataCoroutineStub(channel.withVerboseLogging(verboseGrpcLogging))
-  }
-
   override fun apply(statement: Statement, description: Description): Statement {
     val combinedRule =
       chainRulesSequentially(
-        storageServer,
-        metricValuesServer,
+        duchyComputationsServer,
         heraldRule,
         liquidLegionsV2millRule,
         asyncComputationControlServer,
         computationControlServer,
-        publisherDataServer,
         channelCloserRule
       )
     return combinedRule.apply(statement, description)
