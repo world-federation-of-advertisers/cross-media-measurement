@@ -21,9 +21,7 @@ private val parser = ResourceNameParser("protocolConfigs/{protocol_config}")
 /** [ResourceKey] of a ProtocolConfig. */
 data class ProtocolConfigKey(val protocolConfigId: String) : ResourceKey {
   override fun toName(): String {
-    return parser.assembleName(
-      mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId)
-    )
+    return parser.assembleName(mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId))
   }
 
   companion object {

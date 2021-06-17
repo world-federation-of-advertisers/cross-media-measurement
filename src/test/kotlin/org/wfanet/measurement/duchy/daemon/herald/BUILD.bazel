@@ -16,6 +16,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha/utils:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
     ],

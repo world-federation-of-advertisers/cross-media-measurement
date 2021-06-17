@@ -26,11 +26,11 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.duchy.service.api.v2alpha.utils.RequisitionKey as RequisitionKeyV2
 import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
-import org.wfanet.measurement.duchy.service.api.v2alpha.utils.RequisitionKey as RequisitionKeyV2
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
@@ -53,8 +53,12 @@ class RequisitionFulfillmentService(
   ): FulfillRequisitionResponse {
     grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use { consumed ->
       val header = consumed.item.header
-      val key = RequisitionKeyV2.fromName(header.name) ?: throw IllegalArgumentException("resource_key/name invalid.")
-      grpcRequire(!header.dataProviderParticipationSignature.isEmpty) { "resource_key/fingerprint missing or incomplete in the header." }
+      val key =
+        RequisitionKeyV2.fromName(header.name)
+          ?: throw IllegalArgumentException("resource_key/name invalid.")
+      grpcRequire(!header.dataProviderParticipationSignature.isEmpty) {
+        "resource_key/fingerprint missing or incomplete in the header."
+      }
 
       val externalRequisitionKey =
         ExternalRequisitionKey.newBuilder()

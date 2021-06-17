@@ -119,11 +119,11 @@ private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
 
 private fun InternalExchangeStepAttempt.toV2AlphaName(): String {
   return ExchangeStepAttemptKey(
-    recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-    exchangeId = date.toLocalDate().toString(),
-    exchangeStepId = externalIdToApiId(stepIndex.toLong()),
-    exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
-  )
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = externalIdToApiId(stepIndex.toLong()),
+      exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
+    )
     .toName()
 }
 
