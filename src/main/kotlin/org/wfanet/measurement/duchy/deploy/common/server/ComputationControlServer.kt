@@ -18,9 +18,7 @@ import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.DuchyIdFlags
-import org.wfanet.measurement.common.identity.DuchyIds
 import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
@@ -37,14 +35,6 @@ abstract class ComputationControlServer : Runnable {
     private set
 
   protected fun run(storageClient: StorageClient) {
-    val duchyName = flags.duchy.duchyName
-    val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
-    require(latestDuchyPublicKeys.containsKey(duchyName)) {
-      "Public key not specified for Duchy $duchyName"
-    }
-    DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
-    require(latestDuchyPublicKeys.keys.toSet() == DuchyIds.ALL)
-
     val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
 
     CommonServer.fromFlags(
@@ -64,10 +54,6 @@ abstract class ComputationControlServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var duchy: CommonDuchyFlags
-      private set
-
-    @CommandLine.Mixin
-    lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
       private set
 
     @CommandLine.Option(

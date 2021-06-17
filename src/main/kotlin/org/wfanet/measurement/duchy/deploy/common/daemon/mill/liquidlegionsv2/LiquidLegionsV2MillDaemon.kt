@@ -25,11 +25,11 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquid
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
 abstract class LiquidLegionsV2MillDaemon : Runnable {
@@ -39,8 +39,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
   protected fun run(storageClient: StorageClient) {
     val duchyName = flags.duchy.duchyName
-    val otherDuchyNames =
-      flags.computationControlServiceTargets.keys.filter { it != duchyName }.toList()
+    val otherDuchyNames = flags.computationControlServiceTargets.keys.minus(duchyName).toList()
 
     val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
     val dataClients =
@@ -56,28 +55,30 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         ComputationControlCoroutineStub(otherDuchyChannel).withDuchyId(duchyName)
       }
 
-    val globalComputationsClient =
-      GlobalComputationsCoroutineStub(buildChannel(flags.globalComputationsServiceTarget))
+    val systemComputationsClient =
+      SystemComputationsCoroutineStub(buildChannel(flags.systemComputationsServiceTarget))
         .withDuchyId(duchyName)
     val systemComputationParticipantsClient =
-      ComputationParticipantsCoroutineStub(
+      SystemComputationParticipantsCoroutineStub(
           buildChannel(flags.systemComputationParticipantsServiceTarget)
+        )
+        .withDuchyId(duchyName)
+    val systemComputationLogEntriesClient =
+      SystemComputationLogEntriesCoroutineStub(
+          buildChannel(flags.systemComputationLogEntriesServiceTarget)
         )
         .withDuchyId(duchyName)
 
     val computationStatsClient = ComputationStatsCoroutineStub(computationsServiceChannel)
-    val metricValuesClient =
-      MetricValuesCoroutineStub(buildChannel(flags.metricValuesServiceTarget))
-        .withDuchyId(duchyName)
 
     val mill =
       LiquidLegionsV2Mill(
         millId = flags.millId,
         duchyId = flags.duchy.duchyName,
         dataClients = dataClients,
-        metricValuesClient = metricValuesClient,
-        globalComputationsClient = globalComputationsClient,
         systemComputationParticipantsClient = systemComputationParticipantsClient,
+        systemComputationsClient = systemComputationsClient,
+        systemComputationLogEntriesClient = systemComputationLogEntriesClient,
         computationStatsClient = computationStatsClient,
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),

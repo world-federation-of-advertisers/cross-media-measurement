@@ -8,17 +8,6 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "crypto_key_set",
-    srcs = ["CryptoKeySet.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
-        "//src/main/proto/wfa/measurement/internal/duchy:crypto_java_proto",
-        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:el_gamal_key_java_proto",
-    ],
-)
-
-kt_jvm_library(
     name = "mill_base",
     srcs = ["MillBase.kt"],
     deps = [
@@ -26,13 +15,13 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:metric_value_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:requisition_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc",
     ],
 )
