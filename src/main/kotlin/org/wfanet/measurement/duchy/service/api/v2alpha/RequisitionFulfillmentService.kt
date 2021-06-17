@@ -56,7 +56,7 @@ class RequisitionFulfillmentService(
       val header = consumed.item.header
       val key = RequisitionKeyV2.fromName(header.name) ?: failGrpc { "resource_key/name invalid." }
       grpcRequire(!header.dataProviderParticipationSignature.isEmpty) {
-        "resource_key/fingerprint missing or incomplete in the header."
+        "DataProviderParticipationSignature is missing in the header."
       }
 
       val externalRequisitionKey =
