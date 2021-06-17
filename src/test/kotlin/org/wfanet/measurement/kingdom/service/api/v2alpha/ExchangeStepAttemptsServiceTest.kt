@@ -78,11 +78,11 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
 
 private fun toV2AlphaName(): String {
   return ExchangeStepAttemptKey(
-    recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
-    exchangeId = EXCHANGE_ID,
-    exchangeStepId = externalIdToApiId(STEP_INDEX.toLong()),
-    exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
-  )
+      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+      exchangeId = EXCHANGE_ID,
+      exchangeStepId = externalIdToApiId(STEP_INDEX.toLong()),
+      exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
+    )
     .toName()
 }
 

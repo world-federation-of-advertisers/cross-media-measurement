@@ -16,16 +16,23 @@ package org.wfanet.measurement.duchy.service.api.v2alpha.utils
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-internal enum class IdVariable() {
-  DATA_PROVIDER,
-  REQUISITION,
-  PROTOCOL_CONFIG
-}
+private val parser = ResourceNameParser("protocolConfigs/{protocol_config}")
 
-internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
-  return assembleName(idMap.mapKeys { it.key.name.toLowerCase() })
-}
+/** [ResourceKey] of a ProtocolConfig. */
+data class ProtocolConfigKey(val protocolConfigId: String) : ResourceKey {
+  override fun toName(): String {
+    return parser.assembleName(
+      mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId)
+    )
+  }
 
-internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
-  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.toUpperCase()) }
+  companion object {
+    val defaultValue = ProtocolConfigKey("")
+
+    fun fromName(resourceName: String): ProtocolConfigKey? {
+      return parser.parseIdVars(resourceName)?.let {
+        ProtocolConfigKey(it.getValue(IdVariable.PROTOCOL_CONFIG))
+      }
+    }
+  }
 }
