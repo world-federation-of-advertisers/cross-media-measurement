@@ -259,11 +259,9 @@ class LiquidLegionsV2Mill(
     token: ComputationToken,
     errorList: List<String>
   ): ComputationToken {
-    // TODO: send failComputationParticipant request to kingdom when the proto is in.
     val errorMessage =
       """
-        @Mill $millId:
-          Computation ${token.globalComputationId} failed due to:.
+        @Mill $millId, Computation ${token.globalComputationId} failed due to:
         ${errorList.joinToString(separator = "\n")}
         """.trimIndent()
     throw PermanentComputationError(Exception(errorMessage))
