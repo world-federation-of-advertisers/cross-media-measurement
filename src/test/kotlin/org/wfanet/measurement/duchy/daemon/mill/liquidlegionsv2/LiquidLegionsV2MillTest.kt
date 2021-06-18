@@ -30,10 +30,8 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verifyBlocking
 import com.nhaarman.mockitokotlin2.whenever
 import java.time.Clock
 import java.time.Duration
@@ -61,6 +59,7 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2M
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -128,7 +127,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT
@@ -663,32 +662,29 @@ class LiquidLegionsV2MillTest {
             .build()
         )
 
-      // TODO: assert FailComputationParticipant call
-
-      argumentCaptor<CreateComputationLogEntryRequest> {
-        verifyBlocking(mockComputationLogEntries, times(3)) { createComputationLogEntry(capture()) }
-        assertThat(allValues[1])
-          .comparingExpectedFieldsOnly()
-          .isEqualTo(
-            CreateComputationLogEntryRequest.newBuilder()
-              .apply {
-                parent = "computations/$GLOBAL_ID/participants/$DUCHY_ONE_NAME"
-                computationLogEntryBuilder.apply {
-                  participantChildReferenceId = MILL_ID
-                  stageAttemptBuilder.apply {
-                    stage = CONFIRMATION_PHASE.number
-                    stageName = CONFIRMATION_PHASE.name
-                    attemptNumber = 1
-                  }
-
-                  errorDetailsBuilder.apply {
-                    type = ComputationLogEntry.ErrorDetails.Type.PERMANENT
-                  }
+      verifyProtoArgument(
+          mockComputationParticipants,
+          SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          FailComputationParticipantRequest.newBuilder()
+            .apply {
+              name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+              failureBuilder.apply {
+                participantChildReferenceId = MILL_ID
+                errorMessage =
+                  "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                    "Missing expected data for requisition 222."
+                stageAttemptBuilder.apply {
+                  stage = CONFIRMATION_PHASE.number
+                  stageName = CONFIRMATION_PHASE.name
+                  attemptNumber = 1
                 }
               }
-              .build()
-          )
-      }
+            }
+            .build()
+        )
     }
 
   @Test

@@ -59,6 +59,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 
 /**
@@ -140,26 +141,55 @@ abstract class MillBase(
       // The token version may have already changed. We need the latest token in order to complete
       // or enqueue the computation.
       val latestToken = getLatestComputationToken(globalId)
+      handleExceptions(latestToken, e)
+    }
+  }
+
+  private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
+    // All new errors thrown in this handler should be suppressed such that the mill doesn't crash.
+    logAndSuppressExceptionSuspend {
+      val globalId = token.globalComputationId
       when (e) {
         is IllegalStateException, is IllegalArgumentException, is PermanentComputationError -> {
           logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(latestToken, e.toString(), Type.PERMANENT)
-          )
+          failComputationAtKingdom(token, e.localizedMessage)
           // Mark the computation FAILED for all permanent errors
-          completeComputation(latestToken, CompletedReason.FAILED)
+          completeComputation(token, CompletedReason.FAILED)
         }
         else -> {
           // Treat all other errors as transient.
           logger.log(Level.SEVERE, "$globalId@$millId: TRANSIENT error", e)
           sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(latestToken, e.toString(), Type.TRANSIENT)
+            newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
           )
           // Enqueue the computation again for future retry
-          enqueueComputation(latestToken)
+          enqueueComputation(token)
         }
       }
     }
+  }
+
+  /**
+   * Sends request to the kingdom's system ComputationParticipantsService to fail the computation..
+   */
+  private suspend fun failComputationAtKingdom(token: ComputationToken, errorMessage: String) {
+    val request =
+      FailComputationParticipantRequest.newBuilder()
+        .apply {
+          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+          failureBuilder.also {
+            it.participantChildReferenceId = millId
+            it.errorMessage = errorMessage
+            it.errorTime = clock.protoTimestamp()
+            it.stageAttemptBuilder.apply {
+              stage = token.computationStage.number
+              stageName = token.computationStage.name
+              attemptNumber = token.attempt.toLong()
+            }
+          }
+        }
+        .build()
+    systemComputationParticipantsClient.failComputationParticipant(request)
   }
 
   /** Actual implementation of processComputation(). */
