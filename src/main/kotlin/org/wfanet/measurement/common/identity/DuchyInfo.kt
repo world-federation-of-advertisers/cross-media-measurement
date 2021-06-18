@@ -23,7 +23,7 @@ object DuchyInfo {
   lateinit var entries: Array<Entry>
   val count: Int
     get() = DuchyInfo.entries.size
-  val ALL: Set<String>
+  val ALL_DUCHY_IDS: Set<String>
     get() = DuchyInfo.entries.map { it.duchyId }.toSet()
 
   fun setDuchyInfoFromFlags(flags: DuchyInfoFlags) {
@@ -71,5 +71,5 @@ class DuchyInfoFlags {
 }
 
 private fun DuchyInfoConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
-  return DuchyInfo.Entry(duchyId, hostName, rootCertId)
+  return DuchyInfo.Entry(duchyId, hostname, rootCertId)
 }

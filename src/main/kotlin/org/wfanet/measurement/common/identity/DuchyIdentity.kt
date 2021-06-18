@@ -37,9 +37,8 @@ import org.wfanet.measurement.common.grpc.DuchyInfo
  */
 data class DuchyIdentity(val id: String) {
   init {
-    //    require(id in DuchyIds.ALL) { "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}" }
     require(DuchyInfo.getByDuchyId(id) != null) {
-      "Duchy $id is unknown; known Duchies are ${DuchyInfo.ALL}"
+      "Duchy $id is unknown; known Duchies are ${DuchyInfo.ALL_DUCHY_IDS}"
     }
   }
 }

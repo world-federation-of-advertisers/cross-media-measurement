@@ -42,7 +42,7 @@ class ConfirmDuchyReadiness(
 ) : SimpleSpannerWriter<Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {
     require(DuchyInfo.getByDuchyId(duchyId) != null) {
-      "Duchy id '$duchyId' not in list of valid duchies: ${DuchyInfo.ALL}"
+      "Duchy id '$duchyId' not in list of valid duchies: ${DuchyInfo.ALL_DUCHY_IDS}"
     }
 
     val reportReadResult = ReportReader().readExternalId(transactionContext, externalReportId)

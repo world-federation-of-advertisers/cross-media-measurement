@@ -69,7 +69,7 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
     "Public key not specified for Duchy $duchyName"
   }
   DuchyInfo.setDuchyInfoFromFlags(flags.duchyInfo)
-  require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL)
+  require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL_DUCHY_IDS)
 
   val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
   val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
