@@ -61,6 +61,7 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2M
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -129,6 +130,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT
@@ -663,7 +665,29 @@ class LiquidLegionsV2MillTest {
             .build()
         )
 
-      // TODO: assert FailComputationParticipant call
+      verifyProtoArgument(
+          mockComputationParticipants,
+          SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          FailComputationParticipantRequest.newBuilder()
+            .apply {
+              name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+              failureBuilder.apply {
+                participantChildReferenceId = MILL_ID
+                errorMessage =
+                  "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                    "Missing expected data for requisition 222."
+                stageAttemptBuilder.apply {
+                  stage = CONFIRMATION_PHASE.number
+                  stageName = CONFIRMATION_PHASE.name
+                  attemptNumber = 1
+                }
+              }
+            }
+            .build()
+        )
 
       argumentCaptor<CreateComputationLogEntryRequest> {
         verifyBlocking(mockComputationLogEntries, times(3)) { createComputationLogEntry(capture()) }
