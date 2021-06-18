@@ -27,6 +27,7 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSession
 import org.wfanet.measurement.common.grpc.DuchyInfo
 
@@ -101,15 +102,21 @@ class DuchyInfoInterceptor() : ServerInterceptor {
       return object : ServerCall.Listener<ReqT>() {}
     }
 
-    val certs = sslSession.peerCertificates
+    sslSession.peerCertificates.forEach {
+      if (it is X509Certificate) {
+        val duchyInfo =
+          DuchyInfo.getByRootCertId(String(it.getExtensionValue("X509v3 Authority Key Identifier")))
 
-    // todo: iterate over certs and find one we know and use the duchyId of that cert
-    //       only ever one layer deep and look at the authority
+        if (duchyInfo != null) {
+          val context =
+            Context.current()
+              .withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
+          return Contexts.interceptCall(context, call, headers, next)
+        }
+      }
+    }
 
-    val duchyId = "123"
-
-    val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
-    return Contexts.interceptCall(context, call, headers, next)
+    return Contexts.interceptCall(Context.current(), call, headers, next)
   }
 }
 
