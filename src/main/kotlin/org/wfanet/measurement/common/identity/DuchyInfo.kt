@@ -19,7 +19,6 @@ import org.wfanet.measurement.config.DuchyInfoConfig
 import picocli.CommandLine
 
 object DuchyInfo {
-  /** Map of CombinedPublicKey resource ID to [Entry]. */
   lateinit var entries: Array<Entry>
   val count: Int
     get() = DuchyInfo.entries.size
