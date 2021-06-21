@@ -69,7 +69,7 @@ rules_kotlin_repo(
 load("//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
 
 rules_kotlin_deps(compiler_release = kotlinc_release(
-    sha256 = "11db93a4d6789e3406c7f60b9f267eba26d6483dcd771eff9f85bb7e9837011f",
+    sha256 = "dfef23bb86bd5f36166d4ec1267c8de53b3827c446d54e82322c6b6daad3594c",
     version = "1.4.32",
 ))
 
