@@ -66,8 +66,15 @@ message StreamRequisitionsRequest {
 }
 
 message FulfillRequisitionRequest {
-  fixed64 external_data_provider_id = 1;
+  fixed64 external_computation_id = 1;
   fixed64 external_requisition_id = 2;
+
+  // The human-friendly external ID of the Duchy that marked this `Requisition`
+  // as `FULFILLED`.
+  string external_fulfilling_duchy_id = 3;
+
+  // Cryptographic digital signature of the "requisition fingerprint".
+  bytes data_provider_participation_signature = 4;
 }
 
 message RefuseRequisitionRequest {
