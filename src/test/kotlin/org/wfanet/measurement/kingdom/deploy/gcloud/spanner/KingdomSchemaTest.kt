@@ -14,43 +14,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.cloud.ByteArray
-import com.google.cloud.spanner.Mutation
-import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
-import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
 @RunWith(JUnit4::class)
 class KingdomSchemaTest : UsingSpannerEmulator(KINGDOM_SCHEMA) {
 
-  @Test
-  fun `insert single MeasurementConsumer`() = runBlocking {
-    val mutation =
-      Mutation.newInsertBuilder("MeasurementConsumers")
-        .set("MeasurementConsumerId")
-        .to(3011)
-        .set("ExternalMeasurementConsumerId")
-        .to(1)
-        .set("MeasurementConsumerDetails")
-        .to(ByteArray.copyFrom("123"))
-        .set("MeasurementConsumerDetailsJSON")
-        .to(ByteArray.copyFrom("123"))
-        .build()
-    databaseClient.write(listOf(mutation))
-    assertQueryReturns(
-      databaseClient,
-      "SELECT MeasurementConsumerId, ExternalMeasurementConsumerId FROM MeasurementConsumers",
-      Struct.newBuilder()
-        .set("MeasurementConsumerId")
-        .to(3011)
-        .set("ExternalMeasurementConsumerId")
-        .to(1)
-        .build()
-    )
-  }
+  @Test fun `database is created`() {}
 }

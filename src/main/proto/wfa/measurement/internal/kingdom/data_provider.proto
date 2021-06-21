@@ -22,4 +22,17 @@ option java_multiple_files = true;
 // Proto representation of the internal DataProvider entity type.
 message DataProvider {
   fixed64 external_data_provider_id = 1;
+
+  // External ID of Certificate for public key signature verification.
+  fixed64 external_public_key_certificate_id = 2;
+
+  message Details {
+    // Version the public API for serialized message definitions.
+    string api_version = 1;
+
+    // Serialized `EncryptionPublicKey` from public API.
+    bytes public_key = 2;
+    bytes public_key_signature = 3;
+  }
+  Details details = 3;
 }

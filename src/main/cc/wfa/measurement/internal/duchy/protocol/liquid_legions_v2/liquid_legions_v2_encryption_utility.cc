@@ -541,8 +541,7 @@ absl::Status AddAllFrequencyNoise(
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
 
   auto options = GetFrequencyNoiseOptions(
-      noise_parameters.dp_params(), noise_parameters.maximum_frequency(),
-      noise_parameters.contributors_count());
+      noise_parameters.dp_params(), noise_parameters.contributors_count());
   int64_t total_noise_tuples_count =
       options.shift_offset * 2 * (noise_parameters.maximum_frequency() + 1);
   // Reserve extra space for noise tuples in data.
@@ -598,7 +597,6 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
         request.noise_parameters();
     auto blind_histogram_noise_options = GetBlindHistogramNoiseOptions(
         noise_parameters.dp_params().blind_histogram(),
-        noise_parameters.total_sketches_count(),
         noise_parameters.contributors_count());
     auto noise_for_publisher_noise_options = GetNoiseForPublisherNoiseOptions(
         noise_parameters.dp_params().noise_for_publisher_noise(),
@@ -894,8 +892,7 @@ CompleteExecutionPhaseTwoAtAggregator(
     const FlagCountTupleNoiseGenerationParameters& noise_parameters =
         request.frequency_noise_parameters();
     auto options = GetFrequencyNoiseOptions(
-        noise_parameters.dp_params(), noise_parameters.maximum_frequency(),
-        noise_parameters.contributors_count());
+        noise_parameters.dp_params(), noise_parameters.contributors_count());
     int64_t total_noise_tuples_count =
         options.num * options.shift_offset * 2 *
         (noise_parameters.maximum_frequency() + 1);
@@ -1022,7 +1019,6 @@ CompleteExecutionPhaseThreeAtAggregator(
   if (request.has_global_frequency_dp_noise_per_bucket()) {
     auto options = GetFrequencyNoiseOptions(
         request.global_frequency_dp_noise_per_bucket().dp_params(),
-        request.maximum_frequency(),
         request.global_frequency_dp_noise_per_bucket().contributors_count());
     int64_t noise_baseline_per_bucket = options.shift_offset * options.num;
     actual_total = 0;

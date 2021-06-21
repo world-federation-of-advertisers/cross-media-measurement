@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -32,8 +33,9 @@ service Requisitions {
 
 // Request message for the `FulfillRequisition` method.
 message FulfillRequisitionRequest {
-  // Resource key of the `Requisition` to mark as fulfilled. Required.
-  Requisition.Key key = 1;
+  // Resource name of the `Requisition` to mark as fulfilled. Required.
+  string name = 1 [(google.api.resource_reference).type =
+                       "halo-system.wfanet.org/Requisition"];
 
   // Cryptographic digital signature of the "requisition fingerprint". Required.
   //

@@ -16,27 +16,12 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import java.time.Duration
 import kotlin.properties.Delegates
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import picocli.CommandLine
 
 class LiquidLegionsV2MillFlags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
-    private set
-
-  // TODO: Switch to a more secure option such as a keystore prior to initial
-  // production deployment.
-  @CommandLine.Option(
-    names = ["--duchy-secret-key"],
-    description = ["This Duchy's secret key component of its ElGamal key pair."],
-    required = true
-  )
-  lateinit var duchySecretKey: String
     private set
 
   @CommandLine.Option(
@@ -91,19 +76,19 @@ class LiquidLegionsV2MillFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--system-computation-participants-service-target"],
+    description = ["Address and port of the Kingdom's System ComputationParticipantsService"],
+    required = true
+  )
+  lateinit var systemComputationParticipantsServiceTarget: String
+    private set
+
+  @CommandLine.Option(
     names = ["--mill-id"],
     description = ["The Identifier of the Mill."],
     required = true
   )
   lateinit var millId: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--aggregator-id"],
-    description = ["The Identifier of the aggregator duchy."],
-    required = true
-  )
-  lateinit var aggregatorId: String
     private set
 
   @set:CommandLine.Option(
@@ -112,37 +97,5 @@ class LiquidLegionsV2MillFlags {
     defaultValue = "32768" // 32 KiB. See https://github.com/grpc/grpc.github.io/issues/371.
   )
   var requestChunkSizeBytes by Delegates.notNull<Int>()
-    private set
-
-  @set:CommandLine.Option(
-    names = ["--liquid-legions-decay-rate"],
-    description = ["The decay rate of liquid legions sketch."],
-    defaultValue = "12.0"
-  )
-  var liquidLegionsDecayRate by Delegates.notNull<Double>()
-    private set
-
-  @set:CommandLine.Option(
-    names = ["--liquid-legions-size"],
-    description = ["The maximum size of liquid legions sketch."],
-    defaultValue = "100000"
-  )
-  var liquidLegionsSize by Delegates.notNull<Long>()
-    private set
-
-  @set:CommandLine.Option(
-    names = ["--sketch-max-frequency"],
-    description = ["The maximum frequency to reveal in the histogram."],
-    defaultValue = "10"
-  )
-  var sketchMaxFrequency by Delegates.notNull<Int>()
-    private set
-
-  @CommandLine.Option(
-    names = ["--noise-config"],
-    description = ["LiquidLegionsV2NoiseConfig proto message in text format."],
-    required = true
-  )
-  lateinit var noiseConfig: String
     private set
 }

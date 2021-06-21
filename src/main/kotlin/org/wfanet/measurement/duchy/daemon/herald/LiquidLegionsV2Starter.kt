@@ -18,6 +18,12 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
+import org.wfanet.measurement.duchy.daemon.utils.key
+import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
+import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
@@ -29,35 +35,38 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
 object LiquidLegionsV2Starter {
 
   suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,
-    globalComputation: Computation,
+    systemComputation: Computation,
     liquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
     configMaps: Map<String, ProtocolConfig>,
     blobStorageBucket: String
   ) {
-    liquidLegionsV2SetupConfig.role
-    val globalId: String = checkNotNull(globalComputation.key?.computationId)
+    require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = systemComputation.key.computationId
     val initialComputationDetails =
       ComputationDetails.newBuilder()
         .apply {
           blobsStoragePrefix = "$blobStorageBucket/$globalId"
-          kingdomComputation = globalComputation.toKingdomComputationDetails()
+          kingdomComputation = systemComputation.toKingdomComputationDetails()
           liquidLegionsV2Builder.apply {
             role = liquidLegionsV2SetupConfig.role
-            parameters = globalComputation.toLiquidLegionsV2Parameters(configMaps)
+            parameters = systemComputation.toLiquidLegionsV2Parameters(configMaps)
           }
         }
         .build()
     val requisitions =
-      globalComputation.requisitionsList.map {
+      systemComputation.requisitionsList.map {
         ExternalRequisitionKey.newBuilder()
           .apply {
             externalDataProviderId = it.dataProviderId
@@ -78,8 +87,141 @@ object LiquidLegionsV2Starter {
     )
   }
 
-  suspend fun updateRequisitionsAndKeySets() {
-    TODO("not implemented")
+  /**
+   * Orders the list of computation participants by their roles in the computation. The
+   * non-aggregators are shuffled by the sha1Hash of their elgamal public keys and the global
+   * computation id, the aggregator is placed at the end of the list. This return order is also the
+   * order of all participants in the MPC ring structure.
+   */
+  private fun List<ComputationParticipant>.orderByRoles(
+    globalComputationId: String,
+    aggregatorId: String
+  ): List<ComputationParticipant> {
+    val aggregator =
+      this.find { it.duchyId == aggregatorId }
+        ?: error("Aggregator duchy is missing from the participants.")
+    val nonAggregators = this.filter { it.duchyId != aggregatorId }
+    return nonAggregators.sortedBy {
+      sha1Hash(it.elGamalPublicKey.toStringUtf8() + globalComputationId)
+    } + aggregator
+  }
+
+  private suspend fun updateRequisitionsAndKeySetsInternal(
+    token: ComputationToken,
+    computationStorageClient: ComputationsCoroutineStub,
+    computationProtocolStageDetails: ComputationProtocolStageDetails,
+    systemComputation: Computation,
+    aggregatorId: String,
+    logger: Logger
+  ) {
+    val updatedDetails =
+      token
+        .computationDetails
+        .toBuilder()
+        .apply {
+          liquidLegionsV2Builder
+            .clearParticipant()
+            .addAllParticipant(
+              systemComputation
+                .computationParticipantsList
+                .map { it.toDuchyComputationParticipant(systemComputation.publicApiVersion) }
+                .orderByRoles(token.globalComputationId, aggregatorId)
+            )
+        }
+        .build()
+    val requisitionDetailUpdate =
+      systemComputation.requisitionsList.map { requisition ->
+        UpdateComputationDetailsRequest.RequisitionDetailUpdate.newBuilder()
+          .also {
+            it.externalDataProviderId = requisition.dataProviderId
+            it.externalRequisitionId = requisition.key.requisitionId
+            it.details = requisition.toDuchyRequisitionDetails()
+          }
+          .build()
+      }
+    val updateComputationDetailsRequest =
+      UpdateComputationDetailsRequest.newBuilder()
+        .also {
+          it.token = token
+          it.details = updatedDetails
+          it.addAllRequisitionDetailUpdates(requisitionDetailUpdate)
+        }
+        .build()
+
+    val newToken =
+      computationStorageClient.updateComputationDetails(updateComputationDetailsRequest).token
+    logger.info(
+      "[id=${token.globalComputationId}] " + "Requisitions and Duchy Elgamal Keys are now updated."
+    )
+
+    computationStorageClient.advanceComputationStage(
+      computationToken = newToken,
+      stage = Stage.CONFIRMATION_PHASE.toProtocolStage(),
+      computationProtocolStageDetails = computationProtocolStageDetails
+    )
+  }
+
+  suspend fun updateRequisitionsAndKeySets(
+    token: ComputationToken,
+    computationStorageClient: ComputationsCoroutineStub,
+    computationProtocolStageDetails: ComputationProtocolStageDetails,
+    systemComputation: Computation,
+    aggregatorId: String,
+    logger: Logger
+  ) {
+    require(token.computationDetails.hasLiquidLegionsV2()) {
+      "Liquid Legions V2 computation required"
+    }
+
+    val stage = token.computationStage.liquidLegionsSketchAggregationV2
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (stage) {
+      // We expect stage WAIT_REQUISITIONS_AND_KEY_SET.
+      Stage.WAIT_REQUISITIONS_AND_KEY_SET -> {
+        updateRequisitionsAndKeySetsInternal(
+          token,
+          computationStorageClient,
+          computationProtocolStageDetails,
+          systemComputation,
+          aggregatorId,
+          logger
+        )
+        return
+      }
+
+      // For past stages, we throw.
+      Stage.INITIALIZATION_PHASE -> {
+        error(
+          "[id=${token.globalComputationId}]: cannot update requisitions and key sets for " +
+            "computation still in state ${stage.name}"
+        )
+      }
+
+      // For future stages, we log and exit.
+      Stage.WAIT_TO_START,
+      Stage.CONFIRMATION_PHASE,
+      Stage.WAIT_SETUP_PHASE_INPUTS,
+      Stage.SETUP_PHASE,
+      Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
+      Stage.EXECUTION_PHASE_ONE,
+      Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
+      Stage.EXECUTION_PHASE_TWO,
+      Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS,
+      Stage.EXECUTION_PHASE_THREE,
+      Stage.COMPLETE -> {
+        logger.info(
+          "[id=${token.globalComputationId}]: not updating," +
+            " stage '$stage' is after WAIT_REQUISITIONS_AND_KEY_SET"
+        )
+        return
+      }
+
+      // For weird stages, we throw.
+      Stage.UNRECOGNIZED,
+      Stage.STAGE_UNKNOWN -> {
+        error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
+      }
+    }
   }
 
   suspend fun startComputation(
@@ -140,6 +282,25 @@ object LiquidLegionsV2Starter {
         error("[id=${token.globalComputationId}]: Unrecognized stage '$stage'")
       }
     }
+  }
+
+  private fun SystemComputationParticipant.toDuchyComputationParticipant(
+    publicApiVersion: String
+  ): ComputationParticipant {
+    require(requisitionParams.hasLiquidLegionsV2()) {
+      "Missing liquid legions v2 requisition params."
+    }
+    return ComputationParticipant.newBuilder()
+      .also {
+        it.duchyId = key.duchyId
+        it.publicKey =
+          requisitionParams.liquidLegionsV2.elGamalPublicKey.toDuchyElGamalPublicKey(
+            publicApiVersion.toPublicApiVersion()
+          )
+        it.elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
+        it.elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
+      }
+      .build()
   }
 
   /** Creates a liquid legions v2 `Parameters` from the system Api computation. */
