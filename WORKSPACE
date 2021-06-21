@@ -70,7 +70,7 @@ load("//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
 
 rules_kotlin_deps(compiler_release = kotlinc_release(
     sha256 = "11db93a4d6789e3406c7f60b9f267eba26d6483dcd771eff9f85bb7e9837011f",
-    version = "1.4.20",
+    version = "1.4.32",
 ))
 
 # kotlinx.coroutines
@@ -121,7 +121,7 @@ MAVEN_ARTIFACTS = artifacts.list_to_dict(
 
 MAVEN_ARTIFACTS.update(com_google_truth_artifact_dict(version = "1.0.1"))
 
-MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.4.1"))
+MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.4.3"))
 
 # Add Maven artifacts or override versions (e.g. those pulled in by gRPC Kotlin
 # or default dependency versions).
