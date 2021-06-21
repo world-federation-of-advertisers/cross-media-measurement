@@ -14,12 +14,16 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
 
 class SpannerMeasurementConsumersService(
@@ -35,6 +39,15 @@ class SpannerMeasurementConsumersService(
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
-    TODO("not implemented yet")
+    val measurementConsumer =
+      MeasurementConsumerReader()
+        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
+        ?.measurementConsumer
+    if (measurementConsumer == null) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
+      }
+    }
+    return measurementConsumer
   }
 }
