@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
@@ -30,9 +32,9 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
       .set("ExternalMeasurementConsumerId")
       .to(externalId.value)
       .set("MeasurementConsumerDetails")
-      .to("")
+      .toProtoBytes(measurementConsumer.details)
       .set("MeasurementConsumerDetailsJson")
-      .to("")
+      .toProtoJson(measurementConsumer.details)
       .build()
       .bufferTo(transactionContext)
     return externalId

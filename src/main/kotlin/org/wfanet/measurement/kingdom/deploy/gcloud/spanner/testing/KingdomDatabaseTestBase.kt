@@ -34,12 +34,15 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
 
   protected suspend fun insertMeasurementConsumer(
     measurementConsumerId: Long,
-    externalMeasurementConsumerId: Long
+    externalMeasurementConsumerId: Long,
+    publicKeyCertificateId : Long
   ) {
     write(
       Mutation.newInsertBuilder("MeasurementConsumers")
         .set("MeasurementConsumerId")
         .to(measurementConsumerId)
+        .set("PublicKeyCertificateId")
+        .to(publicKeyCertificateId)
         .set("ExternalMeasurementConsumerId")
         .to(externalMeasurementConsumerId)
         .set("MeasurementConsumerDetails")

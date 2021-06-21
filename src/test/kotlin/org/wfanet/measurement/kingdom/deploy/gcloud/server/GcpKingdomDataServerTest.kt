@@ -17,20 +17,23 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.server
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
-import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
+import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
-
 
 private const val MEASUREMENT_CONSUMER_ID = 1L
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 2L
+private const val PUBLIC_KEY_CERTIFICATE_ID = 3L
 
 /**
  * Integration test for Kingdom internal services + Spanner.
@@ -66,14 +69,20 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   private val channel by lazy { grpcTestServer.channel }
   private val measurementConsumersStub by lazy { MeasurementConsumersCoroutineStub(channel) }
 
-  // @Before
-  // fun populateDatabase() = runBlocking {
-  //   insertMeasurementConsumer(MEASUREMENT_CONSUMER_ID, EXTERNAL_MEASUREMENT_CONSUMER_ID)
-  // }
+  @Before
+  fun populateDatabase() = runBlocking {
+    insertCertificate(PUBLIC_KEY_CERTIFICATE_ID)
+    insertMeasurementConsumer(
+      MEASUREMENT_CONSUMER_ID,
+      EXTERNAL_MEASUREMENT_CONSUMER_ID,
+      PUBLIC_KEY_CERTIFICATE_ID
+    )
+  }
 
   @Test
   fun coverage() {
-    val serviceDescriptors = listOf(MeasurementConsumersGrpcKt.serviceDescriptor)
+    val serviceDescriptors = listOf(MeasurementConsumersGrpcKt.serviceDescriptor,
+                                    CertificatesGrpcKt.serviceDescriptor)
 
     val expectedTests =
       serviceDescriptors.flatMap { descriptor ->
@@ -88,11 +97,41 @@ class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `MeasurementConsumers GetMeasurementConsumer`() = runBlocking {
-    // assertThat(5).isEqualTo(5)
+//     val request =
+//       GetMeasurementConsumerRequest.newBuilder()
+//         .setExternalMeasurementConsumerId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
+//         .build()
+//     val expected =
+//       MeasurementConsumer.newBuilder()
+//         .apply { externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID }
+//         .build()
+
+//     val result = measurementConsumersStub.getMeasurementConsumer(request)
+//     assertThat(result).comparingExpectedFieldsOnly().isEqualTo(expected)
   }
 
   @Test
   fun `MeasurementConsumers CreateMeasurementConsumer`() = runBlocking {
     // assertThat(5).isEqualTo(5)
+  }
+
+  @Test
+  fun `Certificates CreateCertificate`() = runBlocking {
+    // assertThat(5).isEqualTo(5)
+  }
+
+  @Test
+  fun `Certificates GetCertificate`() = runBlocking {
+    // TODO(uakyol) : implement this test
+  }
+
+  @Test
+  fun `Certificates RevokeCertificate`() = runBlocking {
+    // TODO(uakyol) : implement this test
+  }
+
+  @Test
+  fun `Certificates ReleaseCertificateHold`() = runBlocking {
+    // TODO(uakyol) : implement this test
   }
 }
