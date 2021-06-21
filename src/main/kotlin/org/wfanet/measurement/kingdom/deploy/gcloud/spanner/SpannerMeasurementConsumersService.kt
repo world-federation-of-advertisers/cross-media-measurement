@@ -30,16 +30,17 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
 
 class SpannerMeasurementConsumersService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
 ) : MeasurementConsumersCoroutineImplBase() {
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer
   ): MeasurementConsumer {
-    TODO("not implemented yet")
+    return CreateMeasurementConsumer(request).execute(client, idGenerator, clock)
   }
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
