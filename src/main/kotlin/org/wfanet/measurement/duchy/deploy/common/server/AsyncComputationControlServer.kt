@@ -68,7 +68,7 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
   require(latestDuchyPublicKeys.containsKey(duchyName)) {
     "Public key not specified for Duchy $duchyName"
   }
-  DuchyInfo.setDuchyInfoFromFlags(flags.duchyInfo)
+  DuchyInfo.initializeFromFlags(flags.duchyInfo)
   require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL_DUCHY_IDS)
 
   val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }

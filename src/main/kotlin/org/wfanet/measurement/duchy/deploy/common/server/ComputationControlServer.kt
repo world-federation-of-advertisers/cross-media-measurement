@@ -42,7 +42,7 @@ abstract class ComputationControlServer : Runnable {
     require(latestDuchyPublicKeys.containsKey(duchyName)) {
       "Public key not specified for Duchy $duchyName"
     }
-    DuchyInfo.setDuchyInfoFromFlags(duchyInfoFlags)
+    DuchyInfo.initializeFromFlags(duchyInfoFlags)
     require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL_DUCHY_IDS)
 
     val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)

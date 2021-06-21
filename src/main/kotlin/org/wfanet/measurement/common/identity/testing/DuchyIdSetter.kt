@@ -27,7 +27,7 @@ class DuchyIdSetter(val duchyIds: Set<String>) : TestRule {
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
-        DuchyInfo.setDuchyInfoForTest(duchyIds)
+        DuchyInfo.setForTest(duchyIds)
         base.evaluate()
       }
     }

@@ -48,7 +48,7 @@ fun runKingdomApiServer(
   commonServerFlags: CommonServer.Flags,
   serviceFactory: (Channel) -> BindableService
 ) {
-  DuchyInfo.setDuchyInfoFromFlags(duchyInfoFlags)
+  DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val channel: Channel =
     buildChannel(kingdomApiServerFlags.internalApiTarget)
