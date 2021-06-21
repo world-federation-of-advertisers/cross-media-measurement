@@ -30,7 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -53,7 +53,7 @@ private val REPORT_LOG_ENTRY: ReportLogEntry =
     }
     .build()
 
-class CreateReportLogEntryTest : KingdomDatabaseTestBase() {
+class CreateReportLogEntryTest : LegacyKingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)

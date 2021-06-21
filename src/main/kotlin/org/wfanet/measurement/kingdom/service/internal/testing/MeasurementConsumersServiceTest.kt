@@ -24,5 +24,5 @@ private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).buil
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest {
 
-  private val service = MeasurementConsumersService()
+  // private val service = MeasurementConsumersService()
 }

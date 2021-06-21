@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.buildRequisitionDetails
 
 private const val DATA_PROVIDER_ID = 1L
@@ -76,7 +76,7 @@ private val REQUISITION3 =
   )
 
 @RunWith(JUnit4::class)
-class StreamRequisitionsTest : KingdomDatabaseTestBase() {
+class StreamRequisitionsTest : LegacyKingdomDatabaseTestBase() {
   /**
    * Set-up: there are 4 requisitions in the database: two belonging to two campaigns under the same
    * data provider.
