@@ -7,6 +7,7 @@ package(default_visibility = [
     ":__subpackages__",
     test_target(":__subpackages__"),
     "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
 ])
