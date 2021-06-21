@@ -22,6 +22,14 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "resource_key",
+    srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "recurring_exchanges_service",
     srcs = ["RecurringExchangesService.kt"],
     deps = [
@@ -51,12 +59,12 @@ kt_jvm_library(
     name = "exchange_step_attempts_service",
     srcs = ["ExchangeStepAttemptsService.kt"],
     deps = [
+        ":resource_key",
         ":util",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/utils:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
@@ -70,12 +78,12 @@ kt_jvm_library(
     name = "exchange_steps_service",
     srcs = ["ExchangeStepsService.kt"],
     deps = [
+        ":resource_key",
         ":util",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/utils:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_steps_service_kt_jvm_grpc",

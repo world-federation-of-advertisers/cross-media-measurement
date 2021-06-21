@@ -37,7 +37,6 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalEx
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest as InternalFinishExchangeStepAttemptRequest
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private const val STEP_INDEX = 1

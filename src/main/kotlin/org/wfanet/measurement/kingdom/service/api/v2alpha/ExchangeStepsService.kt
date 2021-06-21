@@ -28,10 +28,6 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.DataProviderKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ModelProviderKey
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
@@ -86,23 +82,19 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
 private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   return ExchangeStep.newBuilder()
     .also {
-      it.name = v2AlphaName
+      it.name =
+        ExchangeStepKey(
+            recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+            exchangeId = date.toLocalDate().toString(),
+            exchangeStepId = externalIdToApiId(stepIndex.toLong())
+          )
+          .toName()
       it.state = v2AlphaState
       it.stepIndex = stepIndex
       // TODO(world-federation-of-advertisers/cross-media-measurement#3): add remaining fields
     }
     .build()
 }
-
-private val InternalExchangeStep.v2AlphaName: String
-  get() {
-    return ExchangeStepKey(
-        recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-        exchangeId = date.toLocalDate().toString(),
-        exchangeStepId = externalIdToApiId(stepIndex.toLong())
-      )
-      .toName()
-  }
 
 private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
   get() {

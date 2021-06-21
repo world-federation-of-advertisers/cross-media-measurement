@@ -24,10 +24,8 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.common.consumeFirst
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.duchy.service.api.v2alpha.utils.RequisitionKey as RequisitionKeyV2
 import org.wfanet.measurement.duchy.storage.MetricValueStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -36,7 +34,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
-import org.wfanet.measurement.system.v1alpha.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 
 private val FULFILLED_RESPONSE =
@@ -54,7 +52,7 @@ class RequisitionFulfillmentService(
   ): FulfillRequisitionResponse {
     grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use { consumed ->
       val header = consumed.item.header
-      val key = RequisitionKeyV2.fromName(header.name) ?: failGrpc { "resource_key/name invalid." }
+      val key = grpcRequireNotNull(RequisitionKey.fromName(header.name)) { "resource_key/name invalid." }
       grpcRequire(!header.dataProviderParticipationSignature.isEmpty) {
         "DataProviderParticipationSignature is missing in the header."
       }
@@ -144,7 +142,7 @@ class RequisitionFulfillmentService(
     systemRequisitionsClient.fulfillRequisition(
       SystemFulfillRequisitionRequest.newBuilder()
         .apply {
-          name = RequisitionKey(computationId, requisitionId).toName()
+          name = SystemRequisitionKey(computationId, requisitionId).toName()
           dataProviderParticipationSignature = signature
         }
         .build()

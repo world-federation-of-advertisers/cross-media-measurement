@@ -32,14 +32,16 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalEx
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest as InternalFinishExchangeStepAttemptRequest
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
 
 class ExchangeStepAttemptsService(
   private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub
 ) : ExchangeStepAttemptsCoroutineImplBase() {
 
   override suspend fun appendLogEntry(request: AppendLogEntryRequest): ExchangeStepAttempt {
-    val exchangeStepAttempt = request.name.toExchangeStepAttempt()
+    val exchangeStepAttempt =
+      grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
+        "Could not build ExchangeStepAttempt from name $this."
+      }
     val internalRequest =
       InternalAppendLogEntryRequest.newBuilder()
         .apply {
@@ -62,7 +64,10 @@ class ExchangeStepAttemptsService(
   override suspend fun finishExchangeStepAttempt(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
-    val exchangeStepAttempt = request.name.toExchangeStepAttempt()
+    val exchangeStepAttempt =
+      grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
+        "Could not build ExchangeStepAttempt from name $this."
+      }
     val internalRequest =
       InternalFinishExchangeStepAttemptRequest.newBuilder()
         .also { builder ->
@@ -70,7 +75,7 @@ class ExchangeStepAttemptsService(
             apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
           builder.date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
           builder.stepIndex = apiIdToExternalId(exchangeStepAttempt.exchangeStepId).toInt()
-          builder.attemptNumber = exchangeStepAttempt.getAttemptNumber()
+          builder.attemptNumber = exchangeStepAttempt.attemptNumber
           builder.state = request.finalState.toInternal()
           builder.addAllDebugLogEntries(request.logEntriesList.toInternal())
         }
@@ -92,24 +97,26 @@ class ExchangeStepAttemptsService(
   }
 }
 
-private fun String.toExchangeStepAttempt(): ExchangeStepAttemptKey {
-  return grpcRequireNotNull(ExchangeStepAttemptKey.fromName(this)) {
-    "Could not build ExchangeStepAttempt from name $this."
+private val ExchangeStepAttemptKey.attemptNumber: Int
+  get() {
+    return if (exchangeStepAttemptId.isNotBlank()) {
+      apiIdToExternalId(exchangeStepAttemptId).toInt()
+    } else {
+      0
+    }
   }
-}
-
-private fun ExchangeStepAttemptKey.getAttemptNumber(): Int {
-  return if (exchangeStepAttemptId.isNotBlank()) {
-    apiIdToExternalId(exchangeStepAttemptId).toInt()
-  } else {
-    0
-  }
-}
 
 private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   return ExchangeStepAttempt.newBuilder()
     .also { builder ->
-      builder.name = toV2AlphaName()
+      builder.name =
+        ExchangeStepAttemptKey(
+            recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+            exchangeId = date.toLocalDate().toString(),
+            exchangeStepId = externalIdToApiId(stepIndex.toLong()),
+            exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
+          )
+          .toName()
       builder.attemptNumber = attemptNumber
       builder.state = state.toV2Alpha()
       builder.addAllDebugLogEntries(details.debugLogEntriesList.map { it.toV2Alpha() })
@@ -117,16 +124,6 @@ private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
       builder.updateTime = details.updateTime
     }
     .build()
-}
-
-private fun InternalExchangeStepAttempt.toV2AlphaName(): String {
-  return ExchangeStepAttemptKey(
-      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-      exchangeId = date.toLocalDate().toString(),
-      exchangeStepId = externalIdToApiId(stepIndex.toLong()),
-      exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
-    )
-    .toName()
 }
 
 private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {

@@ -39,7 +39,7 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
-import org.wfanet.measurement.duchy.service.api.v2alpha.utils.ProtocolConfigKey
+import org.wfanet.measurement.duchy.service.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata

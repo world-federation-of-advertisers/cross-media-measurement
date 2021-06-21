@@ -12,24 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha.utils
+package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("dataProviders/{data_provider}")
+private val parser =
+  ResourceNameParser("recurringExchanges/{recurring_exchange}/exchanges/{exchange}")
 
-/** [DataProviderKey] of a Data Provider. */
-data class DataProviderKey(val dataProviderId: String) : ResourceKey {
+/** [ExchangeKey] of an Exchange. */
+data class ExchangeKey(val recurringExchangeId: String, val exchangeId: String) : ResourceKey {
   override fun toName(): String {
-    return parser.assembleName(mapOf(IdVariable.DATA_PROVIDER to dataProviderId))
+    return parser.assembleName(
+      mapOf(IdVariable.RECURRING_EXCHANGE to recurringExchangeId, IdVariable.EXCHANGE to exchangeId)
+    )
   }
 
   companion object {
-    val defaultValue = DataProviderKey("")
+    val defaultValue = ExchangeKey("", "")
 
-    fun fromName(resourceName: String): DataProviderKey? {
+    fun fromName(resourceName: String): ExchangeKey? {
       return parser.parseIdVars(resourceName)?.let {
-        DataProviderKey(it.getValue(IdVariable.DATA_PROVIDER))
+        ExchangeKey(it.getValue(IdVariable.RECURRING_EXCHANGE), it.getValue(IdVariable.EXCHANGE))
       }
     }
   }

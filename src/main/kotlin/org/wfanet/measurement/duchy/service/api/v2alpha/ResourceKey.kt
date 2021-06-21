@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.service.api.v2alpha.utils
+package org.wfanet.measurement.duchy.service.api.v2alpha
 
 interface ResourceKey {
   /** Converts this [ResourceKey] into a resource name. */

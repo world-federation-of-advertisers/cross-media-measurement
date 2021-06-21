@@ -12,26 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.service.api.v2alpha.utils
+package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("dataProviders/{data_provider}/requisitions/{requisition}")
+private val parser =
+  ResourceNameParser(
+    "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}"
+  )
 
-/** [ResourceKey] of a Requisition. */
-data class RequisitionKey(val dataProviderId: String, val requisitionId: String) : ResourceKey {
+/** [ExchangeStepKey] of an Exchange Step. */
+data class ExchangeStepKey(
+  val recurringExchangeId: String,
+  val exchangeId: String,
+  val exchangeStepId: String
+) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.REQUISITION to requisitionId)
+      mapOf(
+        IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
+        IdVariable.EXCHANGE to exchangeId,
+        IdVariable.EXCHANGE_STEP to exchangeStepId
+      )
     )
   }
 
   companion object {
-    val defaultValue = RequisitionKey("", "")
+    val defaultValue = ExchangeStepKey("", "", "")
 
-    fun fromName(resourceName: String): RequisitionKey? {
+    fun fromName(resourceName: String): ExchangeStepKey? {
       return parser.parseIdVars(resourceName)?.let {
-        RequisitionKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.REQUISITION))
+        ExchangeStepKey(
+          it.getValue(IdVariable.RECURRING_EXCHANGE),
+          it.getValue(IdVariable.EXCHANGE),
+          it.getValue(IdVariable.EXCHANGE_STEP)
+        )
       }
     }
   }

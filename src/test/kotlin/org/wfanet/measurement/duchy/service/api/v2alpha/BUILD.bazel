@@ -13,7 +13,7 @@ kt_jvm_test(
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha/utils:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",

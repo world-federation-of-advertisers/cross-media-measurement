@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha.utils
+package org.wfanet.measurement.duchy.service.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
 internal enum class IdVariable() {
-  RECURRING_EXCHANGE,
-  EXCHANGE,
-  EXCHANGE_STEP,
-  EXCHANGE_STEP_ATTEMPT,
   DATA_PROVIDER,
-  MODEL_PROVIDER
+  REQUISITION,
+  PROTOCOL_CONFIG
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {

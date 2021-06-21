@@ -38,8 +38,6 @@ import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse as
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepAttemptKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.utils.ExchangeStepKey
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
@@ -118,9 +116,9 @@ class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStep for DataProvider`() {
     val id = 12345L
-    val dataProviderId = "dataProviders/${externalIdToApiId(id)}"
+    val dataProviderName = "dataProviders/${externalIdToApiId(id)}"
     val request =
-      ClaimReadyExchangeStepRequest.newBuilder().apply { dataProvider = dataProviderId }.build()
+      ClaimReadyExchangeStepRequest.newBuilder().apply { dataProvider = dataProviderName }.build()
     val response = runBlocking { service.claimReadyExchangeStep(request) }
     assertThat(response)
       .isEqualTo(
@@ -146,9 +144,9 @@ class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
     val id = 12345L
-    val modelProviderId = "modelProviders/${externalIdToApiId(id)}"
+    val modelProviderName = "modelProviders/${externalIdToApiId(id)}"
     val request =
-      ClaimReadyExchangeStepRequest.newBuilder().apply { modelProvider = modelProviderId }.build()
+      ClaimReadyExchangeStepRequest.newBuilder().apply { modelProvider = modelProviderName }.build()
     val response = runBlocking { service.claimReadyExchangeStep(request) }
     assertThat(response)
       .isEqualTo(
