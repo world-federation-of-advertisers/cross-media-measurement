@@ -20,6 +20,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest.Header.ProtocolCase
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 
 /** True if the protocol specified in the header is asynchronous. */
@@ -56,7 +57,7 @@ fun advanceComputationHeader(
 ): AdvanceComputationRequest.Header =
   AdvanceComputationRequest.Header.newBuilder()
     .apply {
-      keyBuilder.globalComputationId = globalComputationId
+      name = ComputationKey(globalComputationId).toName()
       liquidLegionsV2Builder.description = liquidLegionsV2ContentDescription
     }
     .build()
