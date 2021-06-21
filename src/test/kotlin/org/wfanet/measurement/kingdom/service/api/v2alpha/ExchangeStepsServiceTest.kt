@@ -69,7 +69,7 @@ private val EXCHANGE_STEP_ATTEMPT: String
         recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
         exchangeId = EXCHANGE_ID,
         exchangeStepId = externalIdToApiId(STEP_INDEX.toLong()),
-        exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
+        exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
       )
       .toName()
   }

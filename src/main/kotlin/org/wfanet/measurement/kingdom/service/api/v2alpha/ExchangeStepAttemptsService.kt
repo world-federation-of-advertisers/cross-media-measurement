@@ -40,7 +40,7 @@ class ExchangeStepAttemptsService(
   override suspend fun appendLogEntry(request: AppendLogEntryRequest): ExchangeStepAttempt {
     val exchangeStepAttempt =
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
-        "Could not build ExchangeStepAttempt from name $this."
+        "Resource name unspecified or invalid."
       }
     val internalRequest =
       InternalAppendLogEntryRequest.newBuilder()
@@ -48,7 +48,7 @@ class ExchangeStepAttemptsService(
           externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
           date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
           stepIndex = apiIdToExternalId(exchangeStepAttempt.exchangeStepId).toInt()
-          attemptNumber = apiIdToExternalId(exchangeStepAttempt.exchangeStepAttemptId).toInt()
+          attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
           for (entry in request.logEntriesList) {
             addDebugLogEntriesBuilder().apply {
               time = entry.time
@@ -66,7 +66,7 @@ class ExchangeStepAttemptsService(
   ): ExchangeStepAttempt {
     val exchangeStepAttempt =
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
-        "Could not build ExchangeStepAttempt from name $this."
+        "Resource name unspecified or invalid."
       }
     val internalRequest =
       InternalFinishExchangeStepAttemptRequest.newBuilder()
@@ -100,7 +100,7 @@ class ExchangeStepAttemptsService(
 private val ExchangeStepAttemptKey.attemptNumber: Int
   get() {
     return if (exchangeStepAttemptId.isNotBlank()) {
-      apiIdToExternalId(exchangeStepAttemptId).toInt()
+      exchangeStepAttemptId.toInt()
     } else {
       0
     }
@@ -114,7 +114,7 @@ private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
             recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
             exchangeId = date.toLocalDate().toString(),
             exchangeStepId = externalIdToApiId(stepIndex.toLong()),
-            exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
+            exchangeStepAttemptId = attemptNumber.toString()
           )
           .toName()
       builder.attemptNumber = attemptNumber

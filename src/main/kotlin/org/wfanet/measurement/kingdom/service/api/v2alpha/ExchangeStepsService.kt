@@ -63,7 +63,7 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
             externalIdToApiId(internalResponse.exchangeStep.externalRecurringExchangeId),
           exchangeId = internalResponse.exchangeStep.date.toLocalDate().toString(),
           exchangeStepId = externalIdToApiId(internalResponse.exchangeStep.stepIndex.toLong()),
-          exchangeStepAttemptId = externalIdToApiId(internalResponse.attemptNumber.toLong())
+          exchangeStepAttemptId = internalResponse.attemptNumber.toString()
         )
         .toName()
     return ClaimReadyExchangeStepResponse.newBuilder()
