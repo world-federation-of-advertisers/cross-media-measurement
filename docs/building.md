@@ -31,6 +31,20 @@ bazel test //src/test/...
 To build on MacOS you need to run the bazel build/test in a docker container using
 `tools/bazel-container build "//..."`
 
+fyi, currently using the docker build clashes with running the bazel build locally on your computer.
+
+
+### IntelliJ Setup
+
+As of early June 2021, these steps work to get code completion working for Intellij:
+- use IntelliJ 2021.1.2 and the beta build of the Bazel Plugin
+    - Add `https://plugins.jetbrains.com/plugins/list?channel=beta` to your list of plugin repos ([source](https://github.com/bazelbuild/intellij/issues/2406))
+- Start a new project from scratch in IntelliJ by selecting "Import Bazel Project" and open the base dir of the cross-media-measurement repo
+    - Uncomment "Kotlin" when creating the .bazelproject file
+- Once the new projected is created, the Bazel plugin will kick off a sync and, after a while, IntelliJ should start detecting all dependencies and index them. Ignore the Bazel output errors, they happen because e.g. the Spanner Emulator can only be build on Linux.
+
+On MacOS not all targets are supported for building but you can run most Kotlin tests (with some exceptions, e.g. TransportSecurityTest.kt doesn't work because of openssl incompatibilities) by directly invoking a particular test: `bazel test "//src/test/kotlin/org/wfanet/measurement/common/identity/..."` or similar.
+
 
 ### Local Kubernetes
 

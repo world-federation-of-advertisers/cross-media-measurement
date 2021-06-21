@@ -60,11 +60,11 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--global-computation-service-target"],
+    names = ["--system-computation-service-target"],
     description = ["Address and port of the kingdom system Computations Service"],
     required = true
   )
-  lateinit var globalComputationsServiceTarget: String
+  lateinit var systemComputationsServiceTarget: String
     private set
 
   @CommandLine.Option(
@@ -105,9 +105,9 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   }
   val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
 
-  val globalComputationServiceChannel = buildChannel(flags.globalComputationsServiceTarget)
-  val globalComputationsClient =
-    SystemComputationsCoroutineStub(globalComputationServiceChannel)
+  val systemComputationServiceChannel = buildChannel(flags.systemComputationsServiceTarget)
+  val systemComputationsClient =
+    SystemComputationsCoroutineStub(systemComputationServiceChannel)
       .withDuchyId(flags.duchy.duchyName)
 
   val storageChannel = buildChannel(flags.computationsServiceTarget)
@@ -115,7 +115,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   addChannelShutdownHooks(
     Runtime.getRuntime(),
     flags.channelShutdownTimeout,
-    globalComputationServiceChannel,
+    systemComputationServiceChannel,
     storageChannel
   )
 
@@ -123,7 +123,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     Herald(
       otherDuchiesInComputation = otherDuchyNames,
       computationStorageClient = ComputationsCoroutineStub(storageChannel),
-      globalComputationsClient = globalComputationsClient,
+      systemComputationsClient = systemComputationsClient,
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())

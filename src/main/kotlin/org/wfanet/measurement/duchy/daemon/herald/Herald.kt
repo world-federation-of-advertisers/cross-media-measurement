@@ -27,6 +27,9 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
+import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
+import org.wfanet.measurement.duchy.daemon.utils.key
+import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -34,7 +37,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
-import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 
@@ -46,7 +49,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
  * they are able to start the computation.
  *
  * @param computationStorageClient manages interactions with computations storage service.
- * @param globalComputationsClient stub for communicating with the Kingdom's system Computations
+ * @param systemComputationsClient stub for communicating with the Kingdom's system Computations
  * Service.
  * @param protocolsSetupConfig duchy's local protocolsSetupConfig
  * @param configMaps a map of public Api ProtocolConfigIds to the configs.
@@ -56,7 +59,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 class Herald(
   otherDuchiesInComputation: List<String>,
   private val computationStorageClient: ComputationsCoroutineStub,
-  private val globalComputationsClient: GlobalComputationsCoroutineStub,
+  private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val configMaps: Map<String, ProtocolConfig>,
   private val blobStorageBucket: String = "computation-blob-storage",
@@ -92,13 +95,13 @@ class Herald(
   }
 
   /**
-   * Syncs the status of computations stored at the kingdom, via the global computation service,
+   * Syncs the status of computations stored at the kingdom, via the system computation service,
    * with those stored locally.
    *
    * @param continuationToken the continuation token of the last computation in the stream which was
    * processed by the herald.
    * @return the continuation token of the last computation processed in that stream of active
-   * computations from the global computation service.
+   * computations from the system computation service.
    */
   suspend fun syncStatuses(continuationToken: String): String {
     if (this::attemptException.isInitialized) {
@@ -107,12 +110,12 @@ class Herald(
 
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
-    globalComputationsClient
+    systemComputationsClient
       .streamActiveComputations(
         StreamActiveComputationsRequest.newBuilder().setContinuationToken(continuationToken).build()
       )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        processGlobalComputationChange(response)
+        processSystemComputationChange(response)
         lastProcessedContinuationToken = response.continuationToken
       }
       // Cancel the flow on the first error, but don't actually throw the error. This will keep
@@ -124,9 +127,9 @@ class Herald(
     return lastProcessedContinuationToken
   }
 
-  private suspend fun processGlobalComputationChange(response: StreamActiveComputationsResponse) {
-    // TODO: create computation according to the protocol specified by the kingdom.
-    val globalId: String = checkNotNull(response.computation.key?.computationId)
+  private suspend fun processSystemComputationChange(response: StreamActiveComputationsResponse) {
+    require(response.computation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = response.computation.key.computationId
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = response.computation.state) {
       // Creates a new computation if it is not already present in the database.
@@ -140,19 +143,22 @@ class Herald(
   }
 
   /** Creates a new computation. */
-  // TODO: create Computation of type mapping the protocol specified by the kingdom.
-  private suspend fun create(globalComputation: Computation) {
-    val globalId: String = checkNotNull(globalComputation.key?.computationId)
+  private suspend fun create(systemComputation: Computation) {
+    require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = systemComputation.key.computationId
     logger.info("[id=$globalId] Creating Computation")
     try {
-      // TODO: get the protocol from the kingdom's response and create a corresponding computation.
-      LiquidLegionsV2Starter.createComputation(
-        computationStorageClient,
-        globalComputation,
-        protocolsSetupConfig.liquidLegionsV2,
-        configMaps,
-        blobStorageBucket
-      )
+      when (systemComputation.toMeasurementType()) {
+        MeasurementType.REACH_AND_FREQUENCY -> {
+          LiquidLegionsV2Starter.createComputation(
+            computationStorageClient,
+            systemComputation,
+            protocolsSetupConfig.liquidLegionsV2,
+            configMaps,
+            blobStorageBucket
+          )
+        }
+      }
       logger.info("[id=$globalId]: Created Computation")
     } catch (e: Exception) {
       if (e.grpcStatusCode() == Status.Code.ALREADY_EXISTS) {
@@ -166,14 +172,14 @@ class Herald(
   /**
    * Attempts the block once and if that fails, launches a coroutine to continue retrying in the
    * background. Retrying is necessary since there is a race condition between the mill updating
-   * local computation state and the herald retrieving a globalComputation update from the kingdom.
+   * local computation state and the herald retrieving a systemComputation update from the kingdom.
    */
   private suspend fun runWithRetry(
-    globalComputation: Computation,
-    block: suspend (globalComputation: Computation) -> Unit
+    systemComputation: Computation,
+    block: suspend (systemComputation: Computation) -> Unit
   ) {
-    val globalId = globalComputation.key.computationId
-    val attempt: suspend () -> Boolean = { runCatching { block(globalComputation) }.isSuccess }
+    val globalId = systemComputation.key.computationId
+    val attempt: suspend () -> Boolean = { runCatching { block(systemComputation) }.isSuccess }
     if (!attempt()) {
       // TODO: use another scope other than the GlobalScope.
       GlobalScope.launch(Dispatchers.IO) {
@@ -192,9 +198,9 @@ class Herald(
   }
 
   /** Attempts to update a new computation from duchy confirmation. */
-  private suspend fun update(globalComputation: Computation) {
-    val globalId = globalComputation.key.computationId
-    runWithRetry(globalComputation) {
+  private suspend fun update(systemComputation: Computation) {
+    val globalId = systemComputation.key.computationId
+    runWithRetry(systemComputation) {
       logger.info("[id=$globalId]: Updating Computation")
       val token = computationStorageClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
@@ -203,7 +209,8 @@ class Herald(
             token,
             computationStorageClient,
             computationProtocolStageDetails,
-            globalComputation,
+            systemComputation,
+            protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId,
             logger
           )
         else -> error { "Unknown or unsupported protocol." }
@@ -212,9 +219,9 @@ class Herald(
   }
 
   /** Attempts to start a computation that is in WAIT_TO_START. */
-  private suspend fun start(globalComputation: Computation) {
-    val globalId = globalComputation.key.computationId
-    runWithRetry(globalComputation) {
+  private suspend fun start(systemComputation: Computation) {
+    val globalId = systemComputation.key.computationId
+    runWithRetry(systemComputation) {
       logger.info("[id=$globalId]: Starting Computation")
       val token = computationStorageClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {

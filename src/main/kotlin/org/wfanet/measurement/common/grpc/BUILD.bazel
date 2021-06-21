@@ -6,9 +6,11 @@ kt_jvm_library(
     name = "grpc",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/protobuf",
         "//imports/java/io/grpc:api",
         "//imports/java/io/grpc/netty",
         "//imports/java/io/grpc/services:health",
+        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",

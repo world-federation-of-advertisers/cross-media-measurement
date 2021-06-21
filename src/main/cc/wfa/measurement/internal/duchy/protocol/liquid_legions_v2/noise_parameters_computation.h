@@ -22,7 +22,7 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int publisher_count, int uncorrupted_party_count);
+    int uncorrupted_party_count);
 
 math::DistributedGeometricRandomComponentOptions
 GetNoiseForPublisherNoiseOptions(
@@ -35,11 +35,7 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
 
 math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int max_frequency, int uncorrupted_party_count);
-
-math::TruncatedDiscreteLaplaceDistributedOptions GetPublisherNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int publisher_count);
+    int uncorrupted_party_count);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 

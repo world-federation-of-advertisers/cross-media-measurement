@@ -23,6 +23,7 @@ package(default_visibility = [
 kt_jvm_library(
     name = "client",
     srcs = ["FileSystemStorageClient.kt"],
+    visibility = ["//visibility:public"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
