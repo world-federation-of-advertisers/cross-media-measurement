@@ -119,6 +119,7 @@ import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase as SystemComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
@@ -412,7 +413,7 @@ class LiquidLegionsV2MillTest {
       AdvanceComputationRequest.newBuilder()
         .apply {
           headerBuilder.apply {
-            keyBuilder.globalComputationId = globalComputationId
+            name = ComputationKey(globalComputationId).toName()
             liquidLegionsV2Builder.description = description
           }
         }

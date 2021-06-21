@@ -171,7 +171,7 @@ proto_library(
     srcs = ["computation_control_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":global_computation_proto",
+        "@com_google_googleapis//google/api:resource_proto",
     ],
 )
 
@@ -187,19 +187,4 @@ proto_library(
     name = "public_resource_proto",
     srcs = ["public_resource.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-)
-
-proto_library(
-    name = "global_computation_proto",
-    srcs = ["global_computation.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":public_resource_proto",
-    ],
-)
-
-java_proto_library(
-    name = "global_computation_java_proto",
-    visibility = ["//visibility:public"],
-    deps = [":global_computation_proto"],
 )
