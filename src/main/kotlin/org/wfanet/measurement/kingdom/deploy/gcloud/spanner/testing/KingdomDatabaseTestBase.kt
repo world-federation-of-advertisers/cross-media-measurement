@@ -37,29 +37,16 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     externalMeasurementConsumerId: Long
   ) {
     write(
-      Mutation.newInsertBuilder("Advertisers")
-        .set("AdvertiserId")
-        .to(advertiserId)
-        .set("ExternalAdvertiserId")
-        .to(externalAdvertiserId)
-        .set("AdvertiserDetails")
+      Mutation.newInsertBuilder("MeasurementConsumer")
+        .set("MeasurementConsumerId")
+        .to(measurementConsumerId)
+        .set("ExternalMeasurementConsumerId")
+        .to(externalMeasurementConsumerId)
+        .set("MeasurementConsumerDetails")
         .to(ByteArray.copyFrom(""))
-        .set("AdvertiserDetailsJson")
-        .to("irrelevant-advertiser-details-json")
+        .set("MeasurementConsumerDetailsJson")
+        .to("irrelevant-measurement-consumer-details-json")
         .build()
     )
   }
-
-  protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
-    ReportReader().execute(databaseClient.singleUse()).map { it.report }.toList()
-  }
-
-  protected fun readAllSchedulesInSpanner(): List<ReportConfigSchedule> = runBlocking {
-    ScheduleReader().execute(databaseClient.singleUse()).map { it.schedule }.toList()
-  }
-
-  protected fun readAllRequisitionsInSpanner(): List<Requisition> = runBlocking {
-    RequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
-  }
-
 }

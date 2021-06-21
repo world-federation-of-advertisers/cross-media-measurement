@@ -25,7 +25,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -43,7 +43,7 @@ private const val REQUISITION_ID = 13L
 private const val EXTERNAL_REQUISITION_ID = 14L
 
 @RunWith(JUnit4::class)
-class StreamReadyReportsTest : KingdomDatabaseTestBase() {
+class StreamReadyReportsTest : LegacyKingdomDatabaseTestBase() {
   private fun streamReadyReportsToList(): List<Report> = runBlocking {
     StreamReadyReports(limit = 100L).execute(databaseClient.singleUse()).toList()
   }

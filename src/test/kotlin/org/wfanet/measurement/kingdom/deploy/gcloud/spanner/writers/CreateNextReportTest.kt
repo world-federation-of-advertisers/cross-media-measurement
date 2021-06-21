@@ -35,7 +35,7 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -48,7 +48,7 @@ private const val EXTERNAL_REPORT_ID = 8L
 private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
 
 @RunWith(JUnit4::class)
-class CreateNextReportTest : KingdomDatabaseTestBase() {
+class CreateNextReportTest : LegacyKingdomDatabaseTestBase() {
   private val clock = TestClockWithNamedInstants(Instant.now())
   private val idGenerator = FixedIdGenerator(InternalId(REPORT_ID), ExternalId(EXTERNAL_REPORT_ID))
 
