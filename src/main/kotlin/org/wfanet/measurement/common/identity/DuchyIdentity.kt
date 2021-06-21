@@ -38,7 +38,7 @@ import org.wfanet.measurement.common.grpc.DuchyInfo
  */
 data class DuchyIdentity(val id: String) {
   init {
-    require(DuchyInfo.getByDuchyId(id) != null) {
+    requireNotNull(DuchyInfo.getByDuchyId(id)) {
       "Duchy $id is unknown; known Duchies are ${DuchyInfo.ALL_DUCHY_IDS}"
     }
   }
@@ -102,10 +102,12 @@ class DuchyInfoInterceptor() : ServerInterceptor {
       return object : ServerCall.Listener<ReqT>() {}
     }
 
-    sslSession.peerCertificates.forEach {
-      if (it is X509Certificate) {
+    for (cert in sslSession.peerCertificates) {
+      if (cert is X509Certificate) {
         val duchyInfo =
-          DuchyInfo.getByRootCertId(String(it.getExtensionValue("X509v3 Authority Key Identifier")))
+          DuchyInfo.getByRootCertId(
+            String(cert.getExtensionValue("X509v3 Authority Key Identifier"))
+          )
 
         if (duchyInfo != null) {
           val context =

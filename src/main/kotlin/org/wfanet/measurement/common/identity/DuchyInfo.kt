@@ -25,7 +25,7 @@ object DuchyInfo {
   val ALL_DUCHY_IDS: Set<String>
     get() = DuchyInfo.entries.map { it.duchyId }.toSet()
 
-  fun setDuchyInfoFromFlags(flags: DuchyInfoFlags) {
+  fun initializeFromFlags(flags: DuchyInfoFlags) {
     require(!DuchyInfo::entries.isInitialized)
     val configMessage =
       flags.config.reader().use { parseTextProto(it, DuchyInfoConfig.getDefaultInstance()) }
@@ -43,20 +43,11 @@ object DuchyInfo {
     return entries.firstOrNull { it.duchyId == duchyId }
   }
 
-  fun setDuchyInfoForTest(duchyIds: Set<String>) {
+  fun setForTest(duchyIds: Set<String>) {
     entries = duchyIds.map { DuchyInfo.Entry(it, "hostname-$it", "cert-id-$it") }.toTypedArray()
   }
 
   data class Entry(val duchyId: String, val hostName: String, val rootCertId: String)
-  class Flags {
-    @CommandLine.Option(
-      names = ["--duchy-info-config"],
-      description = ["DuchyInfoConfig proto message in text format."],
-      required = true
-    )
-    lateinit var config: String
-      private set
-  }
 }
 
 class DuchyInfoFlags {

@@ -38,7 +38,7 @@ abstract class KingdomDataServer : Runnable {
     reportDatabase: ReportDatabase,
     requisitionDatabase: RequisitionDatabase
   ) {
-    DuchyInfo.setDuchyInfoFromFlags(duchyInfoFlags)
+    DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
     val services = dataServices.buildDataServices()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
