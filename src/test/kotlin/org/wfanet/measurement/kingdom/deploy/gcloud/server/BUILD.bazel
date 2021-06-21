@@ -1,9 +1,9 @@
 load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 spanner_emulator_test(
-    name = "GcpKingdomDataServerTest",
-    srcs = ["GcpKingdomDataServerTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.GcpKingdomDataServerTest",
+    name = "LegacyGcpKingdomDataServerTest",
+    srcs = ["LegacyGcpKingdomDataServerTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.LegacyGcpKingdomDataServerTest",
     deps = [
         "//imports/java/com/google/cloud/spanner",
         "//imports/java/com/google/common/truth",

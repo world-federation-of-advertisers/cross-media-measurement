@@ -1,5 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
+
 kt_jvm_test(
     name = "RequisitionsServiceTest",
     srcs = ["RequisitionsServiceTest.kt"],
@@ -40,6 +41,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "ReportLogEntriesServiceTest",
+
     srcs = ["ReportLogEntriesServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.service.internal.ReportLogEntriesServiceTest",
     deps = [
@@ -57,3 +59,5 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
     ],
 )
+
+

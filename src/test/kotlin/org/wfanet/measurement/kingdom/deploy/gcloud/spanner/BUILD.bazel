@@ -1,4 +1,5 @@
 load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 
 spanner_emulator_test(
     name = "KingdomLegacySchemaTest",
@@ -36,5 +37,14 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:testing_nontestonly",
+    ],
+)
+
+kt_jvm_test(
+    name = "SpannerMeasurementConsumersServiceTest",
+    srcs = ["SpannerMeasurementConsumersServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:measurement_consumers_service_test",
     ],
 )
