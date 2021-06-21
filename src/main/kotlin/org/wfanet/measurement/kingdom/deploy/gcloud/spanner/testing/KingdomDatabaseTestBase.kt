@@ -37,7 +37,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     externalMeasurementConsumerId: Long
   ) {
     write(
-      Mutation.newInsertBuilder("MeasurementConsumer")
+      Mutation.newInsertBuilder("MeasurementConsumers")
         .set("MeasurementConsumerId")
         .to(measurementConsumerId)
         .set("ExternalMeasurementConsumerId")
