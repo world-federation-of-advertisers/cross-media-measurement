@@ -52,7 +52,8 @@ class RequisitionFulfillmentService(
   ): FulfillRequisitionResponse {
     grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use { consumed ->
       val header = consumed.item.header
-      val key = grpcRequireNotNull(RequisitionKey.fromName(header.name)) { "resource_key/name invalid." }
+      val key =
+        grpcRequireNotNull(RequisitionKey.fromName(header.name)) { "resource_key/name invalid." }
       grpcRequire(!header.dataProviderParticipationSignature.isEmpty) {
         "DataProviderParticipationSignature is missing in the header."
       }
