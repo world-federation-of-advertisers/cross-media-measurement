@@ -79,7 +79,7 @@ private fun toV2AlphaName(): String {
   return ExchangeStepAttemptKey(
       recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
       exchangeId = EXCHANGE_ID,
-      exchangeStepId = externalIdToApiId(STEP_INDEX.toLong()),
+      exchangeStepId = STEP_INDEX.toString(),
       exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
     )
     .toName()

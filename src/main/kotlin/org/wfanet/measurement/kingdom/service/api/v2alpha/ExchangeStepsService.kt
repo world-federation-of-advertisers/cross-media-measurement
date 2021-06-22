@@ -62,7 +62,7 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           recurringExchangeId =
             externalIdToApiId(internalResponse.exchangeStep.externalRecurringExchangeId),
           exchangeId = internalResponse.exchangeStep.date.toLocalDate().toString(),
-          exchangeStepId = externalIdToApiId(internalResponse.exchangeStep.stepIndex.toLong()),
+          exchangeStepId = internalResponse.exchangeStep.stepIndex.toString(),
           exchangeStepAttemptId = internalResponse.attemptNumber.toString()
         )
         .toName()
@@ -86,7 +86,7 @@ private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
         ExchangeStepKey(
             recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
             exchangeId = date.toLocalDate().toString(),
-            exchangeStepId = externalIdToApiId(stepIndex.toLong())
+            exchangeStepId = stepIndex.toString()
           )
           .toName()
       it.state = v2AlphaState

@@ -47,7 +47,7 @@ class ExchangeStepAttemptsService(
         .apply {
           externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
           date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
-          stepIndex = apiIdToExternalId(exchangeStepAttempt.exchangeStepId).toInt()
+          stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
           attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
           for (entry in request.logEntriesList) {
             addDebugLogEntriesBuilder().apply {
@@ -74,7 +74,7 @@ class ExchangeStepAttemptsService(
           builder.externalRecurringExchangeId =
             apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
           builder.date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
-          builder.stepIndex = apiIdToExternalId(exchangeStepAttempt.exchangeStepId).toInt()
+          builder.stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
           builder.attemptNumber = exchangeStepAttempt.attemptNumber
           builder.state = request.finalState.toInternal()
           builder.addAllDebugLogEntries(request.logEntriesList.toInternal())
@@ -113,7 +113,7 @@ private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
         ExchangeStepAttemptKey(
             recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
             exchangeId = date.toLocalDate().toString(),
-            exchangeStepId = externalIdToApiId(stepIndex.toLong()),
+            exchangeStepId = stepIndex.toString(),
             exchangeStepAttemptId = attemptNumber.toString()
           )
           .toName()
