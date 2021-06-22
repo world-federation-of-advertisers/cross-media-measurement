@@ -81,19 +81,19 @@ class DuchyTlsIdentityInterceptor() : ServerInterceptor {
     }
 
     for (cert in sslSession.peerCertificates) {
-      if (cert is X509Certificate) {
-        val duchyInfo =
-          DuchyInfo.getByRootCertificateSkid(
-            String(cert.getExtensionValue("X509v3 Authority Key Identifier"))
-          )
-
-        if (duchyInfo != null) {
-          val context =
-            Context.current()
-              .withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
-          return Contexts.interceptCall(context, call, headers, next)
-        }
+      if (cert !is X509Certificate) {
+        continue
       }
+
+      val duchyInfo =
+        DuchyInfo.getByRootCertificateSkid(
+          String(cert.getExtensionValue("X509v3 Authority Key Identifier"))
+        )
+          ?: continue
+
+      val context =
+        Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
+      return Contexts.interceptCall(context, call, headers, next)
     }
 
     return Contexts.interceptCall(Context.current(), call, headers, next)
