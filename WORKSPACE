@@ -62,8 +62,8 @@ load("//build/com_google_truth:repo.bzl", "com_google_truth_artifact_dict")
 load("//build/io_bazel_rules_kotlin:repo.bzl", "kotlinc_release", "rules_kotlin_repo")
 
 rules_kotlin_repo(
-    sha256 = "eeae65f973b70896e474c57aa7681e444d7a5446d9ec0a59bb88c59fc263ff62",
-    version = "v1.5.0-alpha-3",
+    sha256 = "6194a864280e1989b6d8118a4aee03bb50edeeae4076e5bc30eef8a98dcd4f07",
+    version = "v1.5.0-alpha-2",
 )
 
 load("//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
