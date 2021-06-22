@@ -18,9 +18,7 @@ import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.DuchyInfo
 import org.wfanet.measurement.common.grpc.DuchyInfoFlags
-import org.wfanet.measurement.kingdom.db.ReportDatabase
-import org.wfanet.measurement.kingdom.db.RequisitionDatabase
-import org.wfanet.measurement.kingdom.service.internal.buildDataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
@@ -28,10 +26,7 @@ abstract class KingdomDataServer : Runnable {
 
   @CommandLine.Mixin private lateinit var duchyInfoFlags: DuchyInfoFlags
 
-  protected suspend fun run(
-    reportDatabase: ReportDatabase,
-    requisitionDatabase: RequisitionDatabase
-  ) {
+  protected suspend fun run(dataServices: DataServices) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
     val services = dataServices.buildDataServices()
