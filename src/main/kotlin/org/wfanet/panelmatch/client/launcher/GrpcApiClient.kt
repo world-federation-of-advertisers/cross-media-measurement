@@ -24,6 +24,10 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeSte
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProviderKey
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 
 class GrpcApiClient(
@@ -36,8 +40,8 @@ class GrpcApiClient(
     ClaimReadyExchangeStepRequest.newBuilder()
       .apply {
         when (identity.party) {
-          Party.DATA_PROVIDER -> dataProviderBuilder.dataProviderId = identity.id
-          Party.MODEL_PROVIDER -> modelProviderBuilder.modelProviderId = identity.id
+          Party.DATA_PROVIDER -> dataProvider = DataProviderKey(identity.id).toName()
+          Party.MODEL_PROVIDER -> modelProvider = ModelProviderKey(identity.id).toName()
           else -> error("Invalid Identity: $identity")
         }
       }
@@ -46,16 +50,18 @@ class GrpcApiClient(
   override suspend fun claimExchangeStep(): ClaimedExchangeStep? {
     val response = exchangeStepsClient.claimReadyExchangeStep(claimReadyExchangeStepRequest)
     if (response.hasExchangeStep()) {
-      return ClaimedExchangeStep(response.exchangeStep, response.exchangeStepAttempt)
+      val exchangeStepAttemptKey =
+        grpcRequireNotNull(ExchangeStepAttemptKey.fromName(response.exchangeStepAttempt))
+      return ClaimedExchangeStep(response.exchangeStep, exchangeStepAttemptKey)
     }
     return null
   }
 
-  override suspend fun appendLogEntry(key: ExchangeStepAttempt.Key, messages: Iterable<String>) {
+  override suspend fun appendLogEntry(key: ExchangeStepAttemptKey, messages: Iterable<String>) {
     val request =
       AppendLogEntryRequest.newBuilder()
         .also {
-          it.key = key
+          it.name = key.toName()
           it.addAllLogEntries(messages.map(this::makeLogEntry))
         }
         .build()
@@ -63,14 +69,14 @@ class GrpcApiClient(
   }
 
   override suspend fun finishExchangeStepAttempt(
-    key: ExchangeStepAttempt.Key,
+    key: ExchangeStepAttemptKey,
     finalState: ExchangeStepAttempt.State,
     logEntryMessages: Iterable<String>
   ) {
     val request =
       FinishExchangeStepAttemptRequest.newBuilder()
         .also {
-          it.key = key
+          it.name = key.toName()
           it.finalState = finalState
           it.addAllLogEntries(logEntryMessages.map(this::makeLogEntry))
         }

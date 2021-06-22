@@ -14,8 +14,11 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_steps_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_java_proto",
         "@wfa_measurement_system//imports/java/com/google/protobuf",
         "@wfa_measurement_system//imports/java/io/grpc:api",
         "@wfa_measurement_system//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:resource_key",
     ],
 )
