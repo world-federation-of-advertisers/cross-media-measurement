@@ -19,8 +19,8 @@ package org.wfa.measurement.config;
 option java_package = "org.wfanet.measurement.config";
 option java_multiple_files = true;
 
-// Duchy Information configuration.
-message DuchyInfoConfig {
+// Duchy RPC Information configuration.
+message DuchyRpcConfig {
   message Duchy {
     // The ID of the Duchy
     string duchy_id = 1;
@@ -32,6 +32,6 @@ message DuchyInfoConfig {
     string root_certificate_skid = 3;
   }
 
-  // The list of all the Duchy information in this config message
+  // The list of all the Duchy RPC information in this config message
   repeated Duchy duchies = 1;
 }
