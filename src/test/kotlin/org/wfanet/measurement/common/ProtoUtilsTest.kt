@@ -20,7 +20,7 @@ import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.test.TestConfig
+import org.wfanet.measurement.testing.TestConfig
 
 @RunWith(JUnit4::class)
 class ProtoUtilsTest {
