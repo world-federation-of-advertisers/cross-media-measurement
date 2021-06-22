@@ -16,18 +16,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import java.time.Instant
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
-import org.wfanet.measurement.internal.kingdom.Report
-import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportDetails
-import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
-
 
 abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
@@ -35,7 +26,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   protected suspend fun insertMeasurementConsumer(
     measurementConsumerId: Long,
     externalMeasurementConsumerId: Long,
-    publicKeyCertificateId : Long
+    publicKeyCertificateId: Long
   ) {
     write(
       Mutation.newInsertBuilder("MeasurementConsumers")
@@ -49,6 +40,30 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
         .to(ByteArray.copyFrom(""))
         .set("MeasurementConsumerDetailsJson")
         .to("irrelevant-measurement-consumer-details-json")
+        .build()
+    )
+  }
+  protected suspend fun insertMeasurementConsumerCertificate(
+    certificateId: Long,
+    notValidBefore: Instant = Instant.EPOCH,
+    notValidAfter: Instant = Instant.EPOCH
+  ) {
+    write(
+      Mutation.newInsertBuilder("Certificates")
+        .set("CertificateId")
+        .to(certificateId)
+        .set("SubjectKeyIdentifier")
+        .to(ByteArray.copyFrom(""))
+        .set("CertificateDetails")
+        .to(ByteArray.copyFrom(""))
+        .set("CertificateDetailsJson")
+        .to("irrelevant-certificate-details-json")
+        .set("RevocationState")
+        .to(0L)
+        .set("NotValidBefore")
+        .to(notValidBefore.toGcloudTimestamp())
+        .set("NotValidAfter")
+        .to(notValidAfter.toGcloudTimestamp())
         .build()
     )
   }
