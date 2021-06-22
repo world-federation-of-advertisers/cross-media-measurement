@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.DuchyInfoFlags
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import picocli.CommandLine

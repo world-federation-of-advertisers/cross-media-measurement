@@ -18,11 +18,11 @@ import io.grpc.BindableService
 import io.grpc.Channel
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.DuchyInfo
-import org.wfanet.measurement.common.grpc.DuchyInfoFlags
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.identity.withDuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import picocli.CommandLine
 
 class KingdomApiServerFlags {
@@ -54,7 +54,7 @@ fun runKingdomApiServer(
     buildChannel(kingdomApiServerFlags.internalApiTarget)
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
 
-  val service = serviceFactory(channel).withDuchyInfo()
+  val service = serviceFactory(channel).withDuchyIdentities()
   val name = service.serviceDescriptor.name + "Server"
 
   CommonServer.fromFlags(commonServerFlags, name, service).start().blockUntilShutdown()

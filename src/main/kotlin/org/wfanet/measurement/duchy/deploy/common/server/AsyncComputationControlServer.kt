@@ -17,9 +17,9 @@ package org.wfanet.measurement.duchy.deploy.common.server
 import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.DuchyInfo
-import org.wfanet.measurement.common.grpc.DuchyInfoFlags
 import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags

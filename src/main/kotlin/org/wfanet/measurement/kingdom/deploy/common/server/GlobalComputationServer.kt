@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.DuchyInfoFlags
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService

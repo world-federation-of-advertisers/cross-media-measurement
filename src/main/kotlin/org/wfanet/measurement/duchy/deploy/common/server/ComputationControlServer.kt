@@ -16,10 +16,10 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.DuchyInfo
-import org.wfanet.measurement.common.grpc.DuchyInfoFlags
 import org.wfanet.measurement.common.grpc.buildChannel
-import org.wfanet.measurement.common.identity.withDuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
@@ -51,7 +51,7 @@ abstract class ComputationControlServer : Runnable {
         flags.server,
         javaClass.name,
         ComputationControlService(AsyncComputationControlCoroutineStub(channel), storageClient)
-          .withDuchyInfo()
+          .withDuchyIdentities()
       )
       .start()
       .blockUntilShutdown()

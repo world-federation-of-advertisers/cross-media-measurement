@@ -24,7 +24,7 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.withDuchyInfo
+import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.MetricDefinition
@@ -72,17 +72,17 @@ class InProcessKingdom(
 
       addService(
         GlobalComputationService(reportsClient, reportLogEntriesClient)
-          .withDuchyInfo()
+          .withDuchyIdentities()
           .withVerboseLogging(verboseGrpcLogging)
       )
       addService(
         RequisitionService(requisitionsClient)
-          .withDuchyInfo()
+          .withDuchyIdentities()
           .withVerboseLogging(verboseGrpcLogging)
       )
       addService(
         SystemRequisitionService(requisitionsClient)
-          .withDuchyInfo()
+          .withDuchyIdentities()
           .withVerboseLogging(verboseGrpcLogging)
       )
     }

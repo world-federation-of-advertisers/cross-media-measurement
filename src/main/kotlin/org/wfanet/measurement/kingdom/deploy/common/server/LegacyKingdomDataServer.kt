@@ -16,8 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.DuchyInfo
-import org.wfanet.measurement.common.grpc.DuchyInfoFlags
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices

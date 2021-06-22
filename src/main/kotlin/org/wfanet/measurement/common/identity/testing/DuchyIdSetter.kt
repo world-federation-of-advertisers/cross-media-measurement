@@ -17,7 +17,7 @@ package org.wfanet.measurement.common.identity.testing
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.wfanet.measurement.common.grpc.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfo
 
 /** JUnit rule that sets the global list of all valid Duchy ids to [duchyIds]. */
 class DuchyIdSetter(val duchyIds: Set<String>) : TestRule {

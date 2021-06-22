@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.grpc
+package org.wfanet.measurement.common.identity
 
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyRpcConfig
@@ -34,8 +34,8 @@ object DuchyInfo {
   }
 
   /** Returns the [Entry] for the specified root cert key ID. */
-  fun getByRootCertId(rootCertId: String): Entry? {
-    return entries.firstOrNull { it.rootCertId == rootCertId }
+  fun getByRootCertificateSkid(rootCertificateSkid: String): Entry? {
+    return entries.firstOrNull { it.rootCertificateSkid == rootCertificateSkid }
   }
 
   /** Returns the [Entry] for the specified Duchy ID. */
@@ -47,7 +47,11 @@ object DuchyInfo {
     entries = duchyIds.map { DuchyInfo.Entry(it, "hostname-$it", "cert-id-$it") }.toTypedArray()
   }
 
-  data class Entry(val duchyId: String, val hostName: String, val rootCertId: String)
+  data class Entry(
+    val duchyId: String,
+    val computationControlServiceTarget: String,
+    val rootCertificateSkid: String
+  )
 }
 
 class DuchyInfoFlags {

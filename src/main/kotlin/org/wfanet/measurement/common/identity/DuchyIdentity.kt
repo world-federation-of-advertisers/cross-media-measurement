@@ -29,7 +29,6 @@ import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSession
-import org.wfanet.measurement.common.grpc.DuchyInfo
 
 /**
  * Details about an authenticated Duchy.
@@ -66,28 +65,7 @@ private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STR
  * ```
  * On the client side, use [withDuchyId].
  */
-class DuchyServerIdentityInterceptor : ServerInterceptor {
-  override fun <ReqT, RespT> interceptCall(
-    call: ServerCall<ReqT, RespT>,
-    headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
-  ): ServerCall.Listener<ReqT> {
-    val duchyId: String? = headers.get(DUCHY_ID_METADATA_KEY)
-
-    if (duchyId == null) {
-      call.close(
-        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing 'duchy_id' key"),
-        Metadata()
-      )
-      return object : ServerCall.Listener<ReqT>() {}
-    }
-
-    val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
-    return Contexts.interceptCall(context, call, headers, next)
-  }
-}
-
-class DuchyInfoInterceptor() : ServerInterceptor {
+class DuchyTlsIdentityInterceptor() : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
@@ -105,7 +83,7 @@ class DuchyInfoInterceptor() : ServerInterceptor {
     for (cert in sslSession.peerCertificates) {
       if (cert is X509Certificate) {
         val duchyInfo =
-          DuchyInfo.getByRootCertId(
+          DuchyInfo.getByRootCertificateSkid(
             String(cert.getExtensionValue("X509v3 Authority Key Identifier"))
           )
 
@@ -122,17 +100,9 @@ class DuchyInfoInterceptor() : ServerInterceptor {
   }
 }
 
-/** Convenience helper for [DuchyServerIdentityInterceptor]. */
+/** Convenience helper for [DuchyTlsIdentityInterceptor]. */
 fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
-
-/** Convenience helper for [DuchyServerIdentityInterceptor]. */
-fun ServerServiceDefinition.withDuchyIdentities(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
-
-/** Convenience helper for [DuchyServerIdentityInterceptor]. */
-fun BindableService.withDuchyInfo(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, DuchyInfoInterceptor())
+  ServerInterceptors.interceptForward(this, DuchyTlsIdentityInterceptor())
 
 /**
  * Sets metadata key "duchy_id" on all outgoing requests.

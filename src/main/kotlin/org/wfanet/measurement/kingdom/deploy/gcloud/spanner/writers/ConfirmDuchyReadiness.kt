@@ -20,7 +20,7 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toSet
-import org.wfanet.measurement.common.grpc.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
