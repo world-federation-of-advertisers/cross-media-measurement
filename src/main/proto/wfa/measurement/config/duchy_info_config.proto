@@ -25,11 +25,11 @@ message DuchyInfoConfig {
     // The ID of the Duchy
     string duchy_id = 1;
 
-    // The hostname of the Duchy
-    string hostname = 2;
+    // The URI of the Duchy Computation Control Service
+    string computation_control_service_target = 2;
 
-    // The ID of the root certificate of the Duchy
-    string root_cert_id = 3;
+    // The SKID of the Duchy's root certificate
+    string root_certificate_skid = 3;
   }
 
   // The list of all the Duchy information in this config message

@@ -61,5 +61,5 @@ class DuchyInfoFlags {
 }
 
 private fun DuchyInfoConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
-  return DuchyInfo.Entry(duchyId, hostname, rootCertId)
+  return DuchyInfo.Entry(duchyId, computationControlServiceTarget, rootCertificateSkid)
 }
