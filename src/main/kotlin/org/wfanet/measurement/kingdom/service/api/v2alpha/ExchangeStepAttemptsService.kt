@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.type.Date
 import io.grpc.Status
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
@@ -25,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsResponse
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
@@ -36,14 +36,19 @@ import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest 
 class ExchangeStepAttemptsService(
   private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub
 ) : ExchangeStepAttemptsCoroutineImplBase() {
+
   override suspend fun appendLogEntry(request: AppendLogEntryRequest): ExchangeStepAttempt {
+    val exchangeStepAttempt =
+      grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
+        "Resource name unspecified or invalid."
+      }
     val internalRequest =
       InternalAppendLogEntryRequest.newBuilder()
         .apply {
-          externalRecurringExchangeId = apiIdToExternalId(request.key.recurringExchangeId)
-          date = LocalDate.parse(request.key.exchangeId).toProtoDate()
-          stepIndex = apiIdToExternalId(request.key.stepId).toInt()
-          attemptNumber = apiIdToExternalId(request.key.exchangeStepAttemptId).toInt()
+          externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
+          date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
+          stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
+          attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
           for (entry in request.logEntriesList) {
             addDebugLogEntriesBuilder().apply {
               time = entry.time
@@ -59,15 +64,18 @@ class ExchangeStepAttemptsService(
   override suspend fun finishExchangeStepAttempt(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
+    val exchangeStepAttempt =
+      grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
+        "Resource name unspecified or invalid."
+      }
     val internalRequest =
       InternalFinishExchangeStepAttemptRequest.newBuilder()
         .also { builder ->
-          with(request.key.toInternalKeyParts()) {
-            builder.externalRecurringExchangeId = externalRecurringExchangeId
-            builder.date = date
-            builder.stepIndex = stepIndex
-            builder.attemptNumber = attemptNumber
-          }
+          builder.externalRecurringExchangeId =
+            apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
+          builder.date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
+          builder.stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
+          builder.attemptNumber = exchangeStepAttempt.attemptNumber
           builder.state = request.finalState.toInternal()
           builder.addAllDebugLogEntries(request.logEntriesList.toInternal())
         }
@@ -89,31 +97,26 @@ class ExchangeStepAttemptsService(
   }
 }
 
-private data class InternalKeyParts(
-  val externalRecurringExchangeId: Long,
-  val date: Date,
-  val stepIndex: Int,
-  val attemptNumber: Int
-)
-
-private fun ExchangeStepAttempt.Key.toInternalKeyParts(): InternalKeyParts {
-  return InternalKeyParts(
-    externalRecurringExchangeId = apiIdToExternalId(recurringExchangeId),
-    date = LocalDate.parse(exchangeId).toProtoDate(),
-    stepIndex = apiIdToExternalId(stepId).toInt(),
-    attemptNumber =
-      if (exchangeStepAttemptId.isNotBlank()) {
-        apiIdToExternalId(exchangeStepAttemptId).toInt()
-      } else {
-        0
-      }
-  )
-}
+private val ExchangeStepAttemptKey.attemptNumber: Int
+  get() {
+    return if (exchangeStepAttemptId.isNotBlank()) {
+      exchangeStepAttemptId.toInt()
+    } else {
+      0
+    }
+  }
 
 private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   return ExchangeStepAttempt.newBuilder()
     .also { builder ->
-      builder.key = toV2AlphaKey()
+      builder.name =
+        ExchangeStepAttemptKey(
+            recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+            exchangeId = date.toLocalDate().toString(),
+            exchangeStepId = stepIndex.toString(),
+            exchangeStepAttemptId = attemptNumber.toString()
+          )
+          .toName()
       builder.attemptNumber = attemptNumber
       builder.state = state.toV2Alpha()
       builder.addAllDebugLogEntries(details.debugLogEntriesList.map { it.toV2Alpha() })
@@ -146,17 +149,6 @@ private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.
   }
 }
 
-private fun InternalExchangeStepAttempt.toV2AlphaKey(): ExchangeStepAttempt.Key {
-  return ExchangeStepAttempt.Key.newBuilder()
-    .apply {
-      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId)
-      exchangeId = date.toLocalDate().toString()
-      stepId = externalIdToApiId(stepIndex.toLong())
-      exchangeStepAttemptId = externalIdToApiId(attemptNumber.toLong())
-    }
-    .build()
-}
-
 private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
   return ExchangeStepAttempt.DebugLog.newBuilder()
     .also {
@@ -176,29 +168,4 @@ private fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
       }
       .build()
   }
-}
-
-private fun ExchangeStepAttempt.toInternal(): InternalExchangeStepAttempt {
-  return InternalExchangeStepAttempt.newBuilder()
-    .also { builder ->
-      with(key.toInternalKeyParts()) {
-        builder.externalRecurringExchangeId = externalRecurringExchangeId
-        builder.date = date
-        builder.stepIndex = stepIndex
-        builder.attemptNumber = attemptNumber
-      }
-      builder.state = state.toInternal()
-      builder.details = toInternalDetails()
-    }
-    .build()
-}
-
-private fun ExchangeStepAttempt.toInternalDetails(): ExchangeStepAttemptDetails {
-  return ExchangeStepAttemptDetails.newBuilder()
-    .also { builder ->
-      builder.addAllDebugLogEntries(debugLogEntriesList.toInternal())
-      builder.startTime = startTime
-      builder.updateTime = updateTime
-    }
-    .build()
 }

@@ -54,7 +54,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
-import org.wfanet.measurement.system.v1alpha.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 
@@ -67,16 +67,13 @@ private val SIGNATURE = ByteString.copyFromUtf8("a signature")
 private val HEADER =
   FulfillRequisitionRequest.Header.newBuilder()
     .apply {
-      keyBuilder.apply {
-        dataProviderId = DATA_PROVIDER_ID
-        requisitionId = REQUISITION_ID
-      }
+      name = RequisitionKey(DATA_PROVIDER_ID, REQUISITION_ID).toName()
       dataProviderParticipationSignature = SIGNATURE
     }
     .build()
 private val FULFILLED_RESPONSE =
   FulfillRequisitionResponse.newBuilder().apply { state = Requisition.State.FULFILLED }.build()
-private val REQUISITION_KEY = RequisitionKey(COMPUTATION_ID, REQUISITION_ID)
+private val REQUISITION_KEY = SystemRequisitionKey(COMPUTATION_ID, REQUISITION_ID)
 
 /** Test for [RequisitionFulfillmentService]. */
 @RunWith(JUnit4::class)
@@ -211,7 +208,7 @@ class RequisitionFulfillmentServiceTest {
         )
       }
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(e.message).contains("resource_key/fingerprint missing or incomplete in the header")
+    assertThat(e.message).contains("DataProviderParticipationSignature is missing in the header.")
   }
 
   @Test

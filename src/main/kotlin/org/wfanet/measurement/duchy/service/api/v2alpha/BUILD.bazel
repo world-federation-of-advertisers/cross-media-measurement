@@ -8,9 +8,19 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "resource_key",
+    srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "requisition_fulfillment_service",
     srcs = ["RequisitionFulfillmentService.kt"],
     deps = [
+        ":resource_key",
         "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:metric_value_store",

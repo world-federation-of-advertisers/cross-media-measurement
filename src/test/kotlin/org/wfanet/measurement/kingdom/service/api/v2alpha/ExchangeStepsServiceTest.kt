@@ -29,7 +29,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -46,27 +45,34 @@ private const val EXCHANGE_ID = "2021-03-14"
 private const val STEP_INDEX = 123
 private const val ATTEMPT_NUMBER = 5
 
+private fun toV2AlphaName(): String {
+  return ExchangeStepKey(
+      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+      exchangeId = EXCHANGE_ID,
+      exchangeStepId = STEP_INDEX.toString()
+    )
+    .toName()
+}
+
 private val EXCHANGE_STEP =
   ExchangeStep.newBuilder()
     .apply {
-      keyBuilder.apply {
-        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
-        exchangeId = EXCHANGE_ID
-        exchangeStepId = externalIdToApiId(STEP_INDEX.toLong())
-      }
+      name = toV2AlphaName()
       state = ExchangeStep.State.READY_FOR_RETRY
+      stepIndex = STEP_INDEX
     }
     .build()
 
-private val EXCHANGE_STEP_ATTEMPT_KEY =
-  ExchangeStepAttempt.Key.newBuilder()
-    .apply {
-      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
-      exchangeId = EXCHANGE_ID
-      stepId = externalIdToApiId(STEP_INDEX.toLong())
-      exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
-    }
-    .build()
+private val EXCHANGE_STEP_ATTEMPT: String
+  get() {
+    return ExchangeStepAttemptKey(
+        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+        exchangeId = EXCHANGE_ID,
+        exchangeStepId = STEP_INDEX.toString(),
+        exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
+      )
+      .toName()
+  }
 
 private val INTERNAL_EXCHANGE_STEP =
   InternalExchangeStep.newBuilder()
@@ -110,17 +116,16 @@ class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStep for DataProvider`() {
     val id = 12345L
+    val dataProviderName = "dataProviders/${externalIdToApiId(id)}"
     val request =
-      ClaimReadyExchangeStepRequest.newBuilder()
-        .apply { dataProviderBuilder.dataProviderId = externalIdToApiId(id) }
-        .build()
+      ClaimReadyExchangeStepRequest.newBuilder().apply { dataProvider = dataProviderName }.build()
     val response = runBlocking { service.claimReadyExchangeStep(request) }
     assertThat(response)
       .isEqualTo(
         ClaimReadyExchangeStepResponse.newBuilder()
           .apply {
             exchangeStep = EXCHANGE_STEP
-            exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT_KEY
+            exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
           }
           .build()
       )
@@ -131,7 +136,7 @@ class ExchangeStepsServiceTest {
       )
       .isEqualTo(
         InternalClaimReadyExchangeStepRequest.newBuilder()
-          .apply { externalDataProviderId = id }
+          .apply { externalDataProviderId = 12345L }
           .build()
       )
   }
@@ -139,17 +144,16 @@ class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
     val id = 12345L
+    val modelProviderName = "modelProviders/${externalIdToApiId(id)}"
     val request =
-      ClaimReadyExchangeStepRequest.newBuilder()
-        .apply { modelProviderBuilder.modelProviderId = externalIdToApiId(id) }
-        .build()
+      ClaimReadyExchangeStepRequest.newBuilder().apply { modelProvider = modelProviderName }.build()
     val response = runBlocking { service.claimReadyExchangeStep(request) }
     assertThat(response)
       .isEqualTo(
         ClaimReadyExchangeStepResponse.newBuilder()
           .apply {
             exchangeStep = EXCHANGE_STEP
-            exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT_KEY
+            exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
           }
           .build()
       )
@@ -160,7 +164,7 @@ class ExchangeStepsServiceTest {
       )
       .isEqualTo(
         InternalClaimReadyExchangeStepRequest.newBuilder()
-          .apply { externalModelProviderId = id }
+          .apply { externalModelProviderId = 12345L }
           .build()
       )
   }

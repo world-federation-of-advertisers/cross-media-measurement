@@ -75,15 +75,20 @@ private val INTERNAL_EXCHANGE_STEP_ATTEMPT: InternalExchangeStepAttempt =
     }
     .build()
 
+private fun toV2AlphaName(): String {
+  return ExchangeStepAttemptKey(
+      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+      exchangeId = EXCHANGE_ID,
+      exchangeStepId = STEP_INDEX.toString(),
+      exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
+    )
+    .toName()
+}
+
 private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
   ExchangeStepAttempt.newBuilder()
     .apply {
-      keyBuilder.apply {
-        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID)
-        exchangeId = EXCHANGE_ID
-        stepId = externalIdToApiId(STEP_INDEX.toLong())
-        exchangeStepAttemptId = externalIdToApiId(ATTEMPT_NUMBER.toLong())
-      }
+      name = toV2AlphaName()
       state = ExchangeStepAttempt.State.ACTIVE
       attemptNumber = ATTEMPT_NUMBER
       startTime = INTERNAL_EXCHANGE_STEP_ATTEMPT.details.startTime
@@ -118,7 +123,7 @@ class ExchangeStepAttemptsServiceTest {
     val request =
       AppendLogEntryRequest.newBuilder()
         .apply {
-          key = EXCHANGE_STEP_ATTEMPT.key
+          name = EXCHANGE_STEP_ATTEMPT.name
           addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
         }
         .build()
@@ -144,7 +149,7 @@ class ExchangeStepAttemptsServiceTest {
     val request =
       FinishExchangeStepAttemptRequest.newBuilder()
         .apply {
-          key = EXCHANGE_STEP_ATTEMPT.key
+          name = EXCHANGE_STEP_ATTEMPT.name
           finalState = ExchangeStepAttempt.State.FAILED
           addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
         }

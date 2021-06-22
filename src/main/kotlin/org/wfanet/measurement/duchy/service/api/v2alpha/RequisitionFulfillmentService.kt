@@ -34,7 +34,7 @@ import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
-import org.wfanet.measurement.system.v1alpha.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 
 private val FULFILLED_RESPONSE =
@@ -52,13 +52,19 @@ class RequisitionFulfillmentService(
   ): FulfillRequisitionResponse {
     grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use { consumed ->
       val header = consumed.item.header
-      grpcRequire(header.valid) { "resource_key/fingerprint missing or incomplete in the header." }
+      val key =
+        grpcRequireNotNull(RequisitionKey.fromName(header.name)) {
+          "Resource name unspecified or invalid."
+        }
+      grpcRequire(!header.dataProviderParticipationSignature.isEmpty) {
+        "DataProviderParticipationSignature is missing in the header."
+      }
 
       val externalRequisitionKey =
         ExternalRequisitionKey.newBuilder()
           .apply {
-            externalDataProviderId = header.key.dataProviderId
-            externalRequisitionId = header.key.requisitionId
+            externalDataProviderId = key.dataProviderId
+            externalRequisitionId = key.requisitionId
           }
           .build()
 
@@ -89,13 +95,6 @@ class RequisitionFulfillmentService(
       return FULFILLED_RESPONSE
     }
   }
-
-  private val FulfillRequisitionRequest.Header.valid: Boolean
-    get() {
-      return key.dataProviderId.isNotBlank() &&
-        key.requisitionId.isNotBlank() &&
-        !dataProviderParticipationSignature.isEmpty
-    }
 
   /** Gets the token of the computation that this requisition is used in. */
   private suspend fun ExternalRequisitionKey.toComputationToken(): ComputationToken {
@@ -146,7 +145,7 @@ class RequisitionFulfillmentService(
     systemRequisitionsClient.fulfillRequisition(
       SystemFulfillRequisitionRequest.newBuilder()
         .apply {
-          name = RequisitionKey(computationId, requisitionId).toName()
+          name = SystemRequisitionKey(computationId, requisitionId).toName()
           dataProviderParticipationSignature = signature
         }
         .build()

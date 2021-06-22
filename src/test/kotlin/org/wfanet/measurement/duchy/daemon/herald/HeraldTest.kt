@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
+import org.wfanet.measurement.duchy.service.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -77,7 +78,7 @@ private const val PUBLIC_PROTOCOL_CONFIG_ID_1 = "config_1"
 private val PUBLIC_PROTOCOL_CONFIG_1 =
   ProtocolConfig.newBuilder()
     .apply {
-      keyBuilder.protocolConfigId = PUBLIC_PROTOCOL_CONFIG_ID_1
+      name = ProtocolConfigKey(PUBLIC_PROTOCOL_CONFIG_ID_1).toName()
       measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
       liquidLegionsV2Builder.apply {
         sketchParamsBuilder.apply {

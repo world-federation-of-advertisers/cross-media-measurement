@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
@@ -39,24 +40,36 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.partyCase) {
             PartyCase.DATA_PROVIDER ->
-              externalDataProviderId = apiIdToExternalId(request.dataProvider.dataProviderId)
+              externalDataProviderId =
+                apiIdToExternalId(
+                  grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider)).dataProviderId
+                )
             PartyCase.MODEL_PROVIDER ->
-              externalModelProviderId = apiIdToExternalId(request.modelProvider.modelProviderId)
+              externalModelProviderId =
+                apiIdToExternalId(
+                  grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
+                    .modelProviderId
+                )
             PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
           }
         }
         .build()
 
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
+    val externalExchangeStep = internalResponse.exchangeStep.toV2Alpha()
+    val externalExchangeStepAttempt =
+      ExchangeStepAttemptKey(
+          recurringExchangeId =
+            externalIdToApiId(internalResponse.exchangeStep.externalRecurringExchangeId),
+          exchangeId = internalResponse.exchangeStep.date.toLocalDate().toString(),
+          exchangeStepId = internalResponse.exchangeStep.stepIndex.toString(),
+          exchangeStepAttemptId = internalResponse.attemptNumber.toString()
+        )
+        .toName()
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
-        exchangeStep = internalResponse.exchangeStep.toV2Alpha()
-        exchangeStepAttemptBuilder.apply {
-          recurringExchangeId = exchangeStep.key.recurringExchangeId
-          exchangeId = exchangeStep.key.exchangeId
-          stepId = exchangeStep.key.exchangeStepId
-          exchangeStepAttemptId = externalIdToApiId(internalResponse.attemptNumber.toLong())
-        }
+        exchangeStep = externalExchangeStep
+        exchangeStepAttempt = externalExchangeStepAttempt
       }
       .build()
   }
@@ -69,8 +82,15 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
 private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   return ExchangeStep.newBuilder()
     .also {
-      it.key = toV2AlphaKey()
+      it.name =
+        ExchangeStepKey(
+            recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+            exchangeId = date.toLocalDate().toString(),
+            exchangeStepId = stepIndex.toString()
+          )
+          .toName()
       it.state = v2AlphaState
+      it.stepIndex = stepIndex
       // TODO(world-federation-of-advertisers/cross-media-measurement#3): add remaining fields
     }
     .build()
@@ -90,13 +110,3 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
         failGrpc(Status.INTERNAL) { "Invalid state: $this" }
     }
   }
-
-fun InternalExchangeStep.toV2AlphaKey(): ExchangeStep.Key {
-  return ExchangeStep.Key.newBuilder()
-    .also {
-      it.recurringExchangeId = externalIdToApiId(externalRecurringExchangeId)
-      it.exchangeId = date.toLocalDate().toString()
-      it.exchangeStepId = externalIdToApiId(stepIndex.toLong())
-    }
-    .build()
-}
