@@ -48,13 +48,18 @@ message ExchangeWorkflow {
     //
     // Inputs to the protocol are provided via InputStep step types -- this
     // ensures that all inputs to all steps appear as some output label.
-    map<string, string> input_labels = 3;
-    map<string, string> output_labels = 4;
+    map<string, string> private_input_labels = 3;
+    // Inputs to be fetched from shared storage
+    map<string, string> shared_input_labels = 11;
+    // Outputs not shared
+    map<string, string> private_output_labels = 4;
+    // Outputs that are shared
+    map<string, string> shared_output_labels = 12;
 
     // Compares the inputs to determine if they overlap sufficiently.
     message IntersectAndValidateStep {
       // The maximum number of items in to allow.
-      int64 max_size = 3;
+      int32 max_size = 3;
 
       // The minimum fraction of items that must exist in both input data sets.
       float minimum_overlap = 4;
@@ -63,15 +68,13 @@ message ExchangeWorkflow {
     // Selects a subset of key-value pairs.
     message TableQueryStep {}
 
-    // Applies deterministic, commutative encryption to the input data.
-    message EncryptAndShareStep {
-      enum InputFormat {
-        INPUT_FORMAT_UNSPECIFIED = 0;
-        PLAINTEXT = 1;   // For initial encryption
-        CIPHERTEXT = 2;  // For double-encryption
-      }
-      InputFormat input_format = 1;
-    }
+    // Applies deterministic, commutative encryption to the input plaintext
+    // data.
+    message EncryptStep {}
+
+    // Applies an additional layer of deterministic, commutative encryption to
+    // the input data. Requires ciphertexts as input.
+    message ReEncryptStep {}
 
     // Removes a layer of deterministic, commutative encryption from the input.
     message DecryptStep {}
@@ -84,11 +87,12 @@ message ExchangeWorkflow {
     message InputStep {}
 
     oneof step {
-      IntersectAndValidateStep intersect_and_validate = 5;
-      TableQueryStep table_query = 6;
-      EncryptAndShareStep encrypt_and_share = 7;
-      DecryptStep decrypt = 8;
-      InputStep input = 9;
+      IntersectAndValidateStep intersect_and_validate_step = 5;
+      TableQueryStep table_query_step = 6;
+      EncryptStep encrypt_step = 7;
+      ReEncryptStep reencrypt_step = 8;
+      DecryptStep decrypt_step = 9;
+      InputStep input_step = 10;
     }
   }
   // Sequence of steps of the workflow.

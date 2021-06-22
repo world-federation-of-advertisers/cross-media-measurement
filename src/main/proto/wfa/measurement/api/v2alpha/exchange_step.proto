@@ -45,9 +45,9 @@ message ExchangeStep {
   // Output-only.
   //
   // Once predecessor steps complete, this will contain an entry for each
-  // `step.input_labels` entry produced by the other party.
+  // `step.shared_input_labels` entry produced by the other party.
   //
-  // The keys of this map are the values of the `step.input_labels` map.
+  // The keys of this map are the values of the `step.shared_input_labels` map.
   //
   // The values of this map are serialized SignedData. Each SignedData's payload
   // is a byte string of concatenated encrypted values of uniform length.
@@ -57,7 +57,7 @@ message ExchangeStep {
   // with outputs via its `shared_outputs` field. To populate this field, all of
   // the shared_outputs are (logically) aggregated into one map, and then
   // `shared_inputs` is the subset of that map consisting of labels from
-  // `step.input_labels`.
+  // `step.shared_input_labels`.
   map<string, bytes> shared_inputs = 5;
 
   enum State {
