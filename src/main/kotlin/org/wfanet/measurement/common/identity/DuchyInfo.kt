@@ -15,7 +15,7 @@
 package org.wfanet.measurement.common.grpc
 
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.DuchyInfoConfig
+import org.wfanet.measurement.config.DuchyRpcConfig
 import picocli.CommandLine
 
 object DuchyInfo {
@@ -28,7 +28,7 @@ object DuchyInfo {
   fun initializeFromFlags(flags: DuchyInfoFlags) {
     require(!DuchyInfo::entries.isInitialized)
     val configMessage =
-      flags.config.reader().use { parseTextProto(it, DuchyInfoConfig.getDefaultInstance()) }
+      flags.config.reader().use { parseTextProto(it, DuchyRpcConfig.getDefaultInstance()) }
     require(configMessage.duchiesCount > 0) { "Duchy info config has no entries" }
     entries = configMessage.duchiesList.map { it.toDuchyInfoEntry() }.toTypedArray()
   }
@@ -53,13 +53,13 @@ object DuchyInfo {
 class DuchyInfoFlags {
   @CommandLine.Option(
     names = ["--duchy-info-config"],
-    description = ["DuchyInfoConfig proto message in text format."],
+    description = ["DuchyRpcConfig proto message in text format."],
     required = true
   )
   lateinit var config: String
     private set
 }
 
-private fun DuchyInfoConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
+private fun DuchyRpcConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
   return DuchyInfo.Entry(duchyId, computationControlServiceTarget, rootCertificateSkid)
 }
