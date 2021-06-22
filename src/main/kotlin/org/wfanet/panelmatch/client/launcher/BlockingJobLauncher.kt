@@ -15,9 +15,9 @@
 package org.wfanet.panelmatch.client.launcher
 
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
 
 class BlockingJobLauncher : JobLauncher {
   // TODO: implement execute method.
-  override suspend fun execute(exchangeStep: ExchangeStep, attempt: ExchangeStepAttempt.Key) {}
+  override suspend fun execute(exchangeStep: ExchangeStep, attempt: ExchangeStepAttemptKey) {}
 }

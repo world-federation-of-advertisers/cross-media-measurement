@@ -20,7 +20,6 @@ import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.stub
-import com.nhaarman.mockitokotlin2.times
 import com.nhaarman.mockitokotlin2.verify
 import com.nhaarman.mockitokotlin2.verifyBlocking
 import com.nhaarman.mockitokotlin2.verifyZeroInteractions
@@ -31,29 +30,36 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepKey
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
+
+private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
+private const val EXCHANGE_ID = "some-exchange-id"
+private const val EXCHANGE_STEP_ID = "some-step-id"
+private const val EXCHANGE_STEP_ATTEMPT_ID = "some-attempt-id"
 
 private val EXCHANGE_STEP: ExchangeStep =
   ExchangeStep.newBuilder()
     .apply {
-      keyBuilder.apply {
-        recurringExchangeId = "some-recurring-exchange-id"
-        exchangeId = "some-exchange-id"
-        exchangeStepId = "some-step-id"
-      }
+      name =
+        ExchangeStepKey(
+            recurringExchangeId = RECURRING_EXCHANGE_ID,
+            exchangeId = EXCHANGE_ID,
+            exchangeStepId = EXCHANGE_STEP_ID
+          )
+          .toName()
       state = ExchangeStep.State.READY_FOR_RETRY
     }
     .build()
 
-private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttempt.Key =
-  ExchangeStepAttempt.Key.newBuilder()
-    .apply {
-      recurringExchangeId = EXCHANGE_STEP.key.recurringExchangeId
-      exchangeId = EXCHANGE_STEP.key.exchangeId
-      stepId = EXCHANGE_STEP.key.exchangeStepId
-      exchangeStepAttemptId = "some-attempt-id"
-    }
-    .build()
+private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
+  ExchangeStepAttemptKey(
+    recurringExchangeId = RECURRING_EXCHANGE_ID,
+    exchangeId = EXCHANGE_ID,
+    exchangeStepId = EXCHANGE_STEP_ID,
+    exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
+  )
 
 @RunWith(JUnit4::class)
 class ExchangeStepLauncherTest {
@@ -90,7 +96,7 @@ class ExchangeStepLauncherTest {
     }
 
     val (exchangeStepCaptor, attemptCaptor) =
-      argumentCaptor(ExchangeStep::class, ExchangeStepAttempt.Key::class)
+      argumentCaptor(ExchangeStep::class, ExchangeStepAttemptKey::class)
     verifyBlocking(jobLauncher) { execute(exchangeStepCaptor.capture(), attemptCaptor.capture()) }
     assertThat(exchangeStepCaptor.firstValue).isEqualTo(EXCHANGE_STEP)
     assertThat(attemptCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
@@ -112,7 +118,7 @@ class ExchangeStepLauncherTest {
     verifyBlocking(apiClient) { claimExchangeStep() }
 
     verifyBlocking(apiClient) {
-      val keyCaptor = argumentCaptor<ExchangeStepAttempt.Key>()
+      val keyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
       val stateCaptor = argumentCaptor<ExchangeStepAttempt.State>()
       val messagesCaptor = argumentCaptor<Iterable<String>>()
 
