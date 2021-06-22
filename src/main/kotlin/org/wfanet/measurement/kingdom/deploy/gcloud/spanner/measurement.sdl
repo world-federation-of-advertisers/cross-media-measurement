@@ -121,10 +121,10 @@ CREATE TABLE DataProviders (
   PublicKeyCertificateId INT64 NOT NULL,
 
   ExternalDataProviderId INT64 NOT NULL,
-  
+
   DataProviderDetails BYTES(MAX) NOT NULL,
   DataProviderDetailsJson STRING(MAX) NOT NULL,
-  
+
   FOREIGN KEY (PublicKeyCertificateId) REFERENCES Certificates(CertificateId),
 ) PRIMARY KEY (DataProviderId);
 

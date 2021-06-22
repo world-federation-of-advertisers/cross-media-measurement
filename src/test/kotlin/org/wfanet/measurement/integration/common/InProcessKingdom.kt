@@ -37,7 +37,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
-import org.wfanet.measurement.kingdom.service.internal.buildDataServices
+import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService as SystemRequisitionService
 
@@ -56,7 +56,8 @@ class InProcessKingdom(
   private val databaseServices =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal services")
-      val services = buildDataServices(databases.reportDatabase, databases.requisitionDatabase)
+      val services =
+        buildLegacyDataServices(databases.reportDatabase, databases.requisitionDatabase)
       for (service in services) {
         addService(service.withVerboseLogging(verboseGrpcLogging))
       }
