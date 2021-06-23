@@ -1,0 +1,14 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "test_config_proto",
+    srcs = ["test_config.proto"],
+)
+
+java_proto_library(
+    name = "test_config_java_proto",
+    deps = [":test_config_proto"],
+)
