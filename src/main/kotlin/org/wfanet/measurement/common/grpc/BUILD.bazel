@@ -14,5 +14,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "//src/main/proto/wfa/measurement/config:duchy_rpc_config_java_proto",
     ],
 )

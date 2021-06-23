@@ -20,8 +20,8 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.identity.DuchyIdFlags
-import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
 import picocli.CommandLine
 
@@ -44,11 +44,11 @@ class KingdomApiServerFlags {
 
 fun runKingdomApiServer(
   kingdomApiServerFlags: KingdomApiServerFlags,
-  duchyIdFlags: DuchyIdFlags,
+  duchyInfoFlags: DuchyInfoFlags,
   commonServerFlags: CommonServer.Flags,
   serviceFactory: (Channel) -> BindableService
 ) {
-  DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+  DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val channel: Channel =
     buildChannel(kingdomApiServerFlags.internalApiTarget)

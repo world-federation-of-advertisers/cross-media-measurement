@@ -1,0 +1,37 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package org.wfa.measurement.config;
+
+option java_package = "org.wfanet.measurement.config";
+option java_multiple_files = true;
+
+// Duchy RPC Information configuration.
+message DuchyRpcConfig {
+  message Duchy {
+    // The ID of the Duchy
+    string duchy_id = 1;
+
+    // The URI of the Duchy Computation Control Service
+    string computation_control_service_target = 2;
+
+    // The SKID of the Duchy's root certificate
+    string root_certificate_skid = 3;
+  }
+
+  // The list of all the Duchy RPC information in this config message
+  repeated Duchy duchies = 1;
+}
