@@ -45,6 +45,8 @@ kt_jvm_test(
     srcs = ["SpannerMeasurementConsumersServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:measurement_consumers_service_test",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
 )

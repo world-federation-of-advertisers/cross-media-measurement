@@ -15,14 +15,19 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.protobuf.Timestamp
+import org.junit.Test
+import kotlinx.coroutines.runBlocking
 import org.junit.runner.RunWith
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import org.junit.runners.JUnit4
+import kotlin.test.assertEquals
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()
 
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest {
-
-  // private val service = MeasurementConsumersService()
+  abstract val measurementConsumerService: BindableService
+  @Test fun `sth`() = runBlocking { assertEquals(5, 5) }
 }

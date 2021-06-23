@@ -14,9 +14,31 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.BindableService
+import java.time.Clock
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementConsumersServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest() {}
+class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest() {
+
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+
+  val clock = Clock.systemUTC()
+  val idGenerator = RandomIdGenerator(clock)
+
+  override val measurementConsumerService: BindableService
+    get() = SpannerMeasurementConsumersService(clock, idGenerator, spannerDatabase.databaseClient)
+
+
+
+  @get:Rule val spannerDataServicesProviderRule = KingdomDataServicesProviderRule()
+
+  override val services: KingdomDatabases
+    get() = spannerDataServicesProviderRule.value.measurementConsumerService
+
+}
