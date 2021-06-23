@@ -18,16 +18,11 @@ import com.google.protobuf.ByteString
 
 /** Interface for ExchangeTask. */
 interface ExchangeTask {
-
   /**
    * Executes subclass on input map and returns the output.
    *
    * @param input inputs specified by [task].
-   * @param sendDebugLog function which writes logs happened during execution.
    * @return Executed output. It is a map from the labels to the payload associated with the label.
    */
-  suspend fun execute(
-    input: Map<String, ByteString>,
-    sendDebugLog: suspend (String) -> Unit
-  ): Map<String, ByteString>
+  suspend fun execute(input: Map<String, ByteString>): Map<String, ByteString>
 }
