@@ -23,8 +23,7 @@ kt_jvm_test(
         "//imports/java/org/junit",
         "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/config:duchy_public_key_config_java_proto",
-        "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_java_proto",
+        "//src/main/proto/wfa/measurement/testing:test_config_java_proto",
     ],
 )
 

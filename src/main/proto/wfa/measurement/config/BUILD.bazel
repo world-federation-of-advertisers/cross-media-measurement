@@ -25,3 +25,13 @@ java_proto_library(
     name = "public_api_protocol_configs_java_proto",
     deps = [":public_api_protocol_configs_proto"],
 )
+
+proto_library(
+    name = "duchy_rpc_config_proto",
+    srcs = ["duchy_rpc_config.proto"],
+)
+
+java_proto_library(
+    name = "duchy_rpc_config_java_proto",
+    deps = [":duchy_rpc_config_proto"],
+)

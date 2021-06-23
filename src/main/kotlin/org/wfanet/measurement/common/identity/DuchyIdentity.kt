@@ -17,6 +17,7 @@ package org.wfanet.measurement.common.identity
 import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
+import io.grpc.Grpc
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -26,6 +27,8 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLSession
 
 /**
  * Details about an authenticated Duchy.
@@ -34,7 +37,9 @@ import io.grpc.stub.MetadataUtils
  */
 data class DuchyIdentity(val id: String) {
   init {
-    require(id in DuchyIds.ALL) { "Duchy $id is unknown; known Duchies are ${DuchyIds.ALL}" }
+    requireNotNull(DuchyInfo.getByDuchyId(id)) {
+      "Duchy $id is unknown; known Duchies are ${DuchyInfo.ALL_DUCHY_IDS}"
+    }
   }
 }
 
@@ -60,34 +65,44 @@ private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STR
  * ```
  * On the client side, use [withDuchyId].
  */
-class DuchyServerIdentityInterceptor : ServerInterceptor {
+class DuchyTlsIdentityInterceptor() : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    val duchyId: String? = headers.get(DUCHY_ID_METADATA_KEY)
-
-    if (duchyId == null) {
+    val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
+    if (sslSession == null) {
       call.close(
-        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing 'duchy_id' key"),
+        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing sslSession"),
         Metadata()
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
 
-    val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
-    return Contexts.interceptCall(context, call, headers, next)
+    for (cert in sslSession.peerCertificates) {
+      if (cert !is X509Certificate) {
+        continue
+      }
+
+      val duchyInfo =
+        DuchyInfo.getByRootCertificateSkid(
+          String(cert.getExtensionValue("X509v3 Authority Key Identifier"))
+        )
+          ?: continue
+
+      val context =
+        Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
+      return Contexts.interceptCall(context, call, headers, next)
+    }
+
+    return Contexts.interceptCall(Context.current(), call, headers, next)
   }
 }
 
-/** Convenience helper for [DuchyServerIdentityInterceptor]. */
+/** Convenience helper for [DuchyTlsIdentityInterceptor]. */
 fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
-
-/** Convenience helper for [DuchyServerIdentityInterceptor]. */
-fun ServerServiceDefinition.withDuchyIdentities(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, DuchyServerIdentityInterceptor())
+  ServerInterceptors.interceptForward(this, DuchyTlsIdentityInterceptor())
 
 /**
  * Sets metadata key "duchy_id" on all outgoing requests.
