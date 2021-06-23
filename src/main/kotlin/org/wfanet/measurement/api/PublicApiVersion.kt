@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.utils
+package org.wfanet.measurement.api
 
 /** Supported public Api versions in the duchy. */
 enum class PublicApiVersion {

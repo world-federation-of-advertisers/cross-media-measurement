@@ -15,16 +15,17 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.PublicApiVersion
+import org.wfanet.measurement.api.toPublicApiVersion
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
+import org.wfanet.measurement.duchy.daemon.utils.toExternalDataProviderId
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
@@ -69,7 +70,10 @@ object LiquidLegionsV2Starter {
       systemComputation.requisitionsList.map {
         ExternalRequisitionKey.newBuilder()
           .apply {
-            externalDataProviderId = it.dataProviderId
+            externalDataProviderId =
+              it.dataProvider.toExternalDataProviderId(
+                systemComputation.publicApiVersion.toPublicApiVersion()
+              )
             externalRequisitionId = it.key.requisitionId
           }
           .build()
@@ -133,7 +137,10 @@ object LiquidLegionsV2Starter {
       systemComputation.requisitionsList.map { requisition ->
         UpdateComputationDetailsRequest.RequisitionDetailUpdate.newBuilder()
           .also {
-            it.externalDataProviderId = requisition.dataProviderId
+            it.externalDataProviderId =
+              requisition.dataProvider.toExternalDataProviderId(
+                systemComputation.publicApiVersion.toPublicApiVersion()
+              )
             it.externalRequisitionId = requisition.key.requisitionId
             it.details = requisition.toDuchyRequisitionDetails()
           }
@@ -308,7 +315,7 @@ object LiquidLegionsV2Starter {
     configMaps: Map<String, ProtocolConfig>
   ): Parameters {
     val publicProtocolConfig =
-      configMaps[protocolConfigId] ?: error("ProtocolConfig $protocolConfigId not found.")
+      configMaps[protocolConfig] ?: error("ProtocolConfig $protocolConfig not found.")
     require(publicProtocolConfig.hasLiquidLegionsV2()) {
       "Missing liquidLegionV2 in the public API protocol config."
     }

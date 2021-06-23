@@ -16,24 +16,23 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-internal enum class IdVariable() {
-  RECURRING_EXCHANGE,
-  EXCHANGE,
-  EXCHANGE_STEP,
-  EXCHANGE_STEP_ATTEMPT,
-  DATA_PROVIDER,
-  MODEL_PROVIDER,
-  REQUISITION,
-  PROTOCOL_CONFIG,
-  DUCHY,
-  MEASUREMENT_CONSUMER,
-  CERTIFICATE
-}
+private val parser = ResourceNameParser("duchies/{duchy}/certificates/{certificate}")
 
-internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
-  return assembleName(idMap.mapKeys { it.key.name.toLowerCase() })
-}
+/** [ResourceKey] of a Duchy Certificate. */
+data class DuchyCertificateKey(val duchyId: String, val certificateId: String) : ResourceKey {
+  override fun toName(): String {
+    return parser.assembleName(
+      mapOf(IdVariable.DUCHY to duchyId, IdVariable.CERTIFICATE to certificateId)
+    )
+  }
 
-internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
-  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.toUpperCase()) }
+  companion object {
+    val defaultValue = DuchyCertificateKey("", "")
+
+    fun fromName(resourceName: String): DuchyCertificateKey? {
+      return parser.parseIdVars(resourceName)?.let {
+        DuchyCertificateKey(it.getValue(IdVariable.DUCHY), it.getValue(IdVariable.CERTIFICATE))
+      }
+    }
+  }
 }
