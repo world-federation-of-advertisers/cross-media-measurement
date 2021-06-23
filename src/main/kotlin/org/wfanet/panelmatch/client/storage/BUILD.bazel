@@ -6,6 +6,12 @@ kt_jvm_library(
     name = "storage",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
         "@wfa_measurement_system//imports/java/com/google/protobuf",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )

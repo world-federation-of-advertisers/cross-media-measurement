@@ -7,6 +7,7 @@ kt_jvm_test(
         "org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCryptorExchangeTaskTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing:ExchangeTaskTesting",
         "//src/main/proto/wfanet/panelmatch/protocol/exchangesteps:exchangesteps_java_proto",
         "@wfa_measurement_system//imports/java/com/google/common/truth",
         "@wfa_measurement_system//imports/java/com/google/common/truth/extensions/proto",
@@ -18,11 +19,30 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ExchangeTaskMapperTest",
-    srcs = ["ExchangeTaskMapperTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperTest",
+    name = "InputTaskTest",
+    srcs = ["InputTaskTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.InputTaskTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing:ExchangeTaskTesting",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "@wfa_measurement_system//imports/java/com/google/common/truth",
+        "@wfa_measurement_system//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_measurement_system//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "@wfa_measurement_system//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ExchangeTaskMapperForJoinKeyExchangeTest",
+    srcs = ["ExchangeTaskMapperForJoinKeyExchangeTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchangeTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing:ExchangeTaskTesting",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "@wfa_measurement_system//imports/java/com/google/common/truth",
         "@wfa_measurement_system//imports/java/com/google/common/truth/extensions/proto",

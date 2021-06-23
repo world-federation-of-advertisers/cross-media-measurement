@@ -15,6 +15,11 @@
 package org.wfanet.panelmatch.client.storage
 
 import com.google.protobuf.ByteString
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /** Interface for Storage adapter. */
 interface Storage {
@@ -33,4 +38,24 @@ interface Storage {
    * @param path String location of data to write to.
    */
   suspend fun write(path: String, data: ByteString)
+
+  /** Reads different data from [storage] and returns Map<String, ByteString> of different input */
+  suspend fun batchRead(inputLabels: Map<String, String>): Map<String, ByteString> =
+    withContext(Dispatchers.IO) {
+      coroutineScope {
+        inputLabels
+          .mapValues { entry -> async(start = CoroutineStart.DEFAULT) { read(path = entry.value) } }
+          .mapValues { entry -> entry.value.await() }
+      }
+    }
+
+  /** Writes output [data] to [storage] based on [outputLabels] */
+  suspend fun batchWrite(outputLabels: Map<String, String>, data: Map<String, ByteString>) =
+    withContext(Dispatchers.IO) {
+      coroutineScope {
+        for ((key, value) in outputLabels) {
+          async { write(path = value, data = requireNotNull(data[key])) }
+        }
+      }
+    }
 }

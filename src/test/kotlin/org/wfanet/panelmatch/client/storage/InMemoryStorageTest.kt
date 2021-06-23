@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.client.storage
 
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.panelmatch.client.storage.testing.AbstractStorageTest
 
-/** Maps ExchangeWorkflow.Step to respective task. */
-interface ExchangeTaskMapper {
-  suspend fun getExchangeTaskForStep(step: ExchangeWorkflow.Step): ExchangeTask
+class InMemoryStorageTest : AbstractStorageTest() {
+  override val privateStorage = InMemoryStorage(keyPrefix = "private")
+  override val sharedStorage = InMemoryStorage(keyPrefix = "shared")
 }
