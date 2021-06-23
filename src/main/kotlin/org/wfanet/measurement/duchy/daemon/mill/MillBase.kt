@@ -24,7 +24,6 @@ import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.flow
@@ -292,7 +291,6 @@ abstract class MillBase(
   }
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
   protected fun addLoggingHook(token: ComputationToken, bytes: Flow<ByteString>): Flow<ByteString> {
     var numOfBytes = 0L
     return bytes.onEach { numOfBytes += it.size() }.onCompletion {
@@ -301,7 +299,6 @@ abstract class MillBase(
   }
 
   /** Sends an AdvanceComputationRequest to the target duchy. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   protected suspend fun sendAdvanceComputationRequest(
     header: AdvanceComputationRequest.Header,
     content: Flow<ByteString>,

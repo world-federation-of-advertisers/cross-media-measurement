@@ -23,7 +23,6 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.whenever
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -283,7 +282,6 @@ class ComputationControlServiceTest {
     }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
 private fun AdvanceComputationRequest.Header.withContent(
   vararg bodyContent: String
 ): Flow<AdvanceComputationRequest> {

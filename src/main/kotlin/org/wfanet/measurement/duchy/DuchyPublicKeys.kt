@@ -42,7 +42,7 @@ class DuchyPublicKeys(configMessage: DuchyPublicKeyConfig) {
   }
 
   /** The latest (most recent) entry. */
-  val latest: Entry by lazy { entries.maxBy { it.value.combinedPublicKeyVersion }!!.value }
+  val latest: Entry by lazy { entries.maxByOrNull { it.value.combinedPublicKeyVersion }!!.value }
 
   /** Returns the [Entry] for the specified CombinedPublicKey resource ID. */
   fun get(combinedPublicKeyId: String): Entry? = entries[combinedPublicKeyId]

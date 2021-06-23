@@ -26,7 +26,6 @@ import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.onStart
@@ -224,7 +223,6 @@ class RequisitionFulfillmentServiceTest {
     assertThat(e.message).contains("No computation is expecting this requisition")
   }
 
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   private fun FulfillRequisitionRequest.Header.withContent(
     vararg bodyContent: ByteString
   ): Flow<FulfillRequisitionRequest> {
