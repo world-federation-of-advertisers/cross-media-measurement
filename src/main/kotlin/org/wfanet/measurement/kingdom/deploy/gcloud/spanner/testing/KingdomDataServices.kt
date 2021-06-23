@@ -20,13 +20,14 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.service.internal.testing.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerReportDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerRequisitionDatabase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersService
 
 fun makeSpannerKingdomDataServices(
   clock: Clock,
   idGenerator: IdGenerator,
   databaseClient: AsyncDatabaseClient
-): KingdomDatabases {
+): KingdomDataServices {
   return KingdomDataServices(
-    SpannerMeasurementConsumersService(clock, idGenerator, client)
+    SpannerMeasurementConsumersService(clock, idGenerator, databaseClient)
   )
 }
