@@ -12,16 +12,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "public_api_version",
-    srcs = ["PublicApiVersion.kt"],
-    deps = [],
-)
-
-kt_jvm_library(
     name = "computation_conversions",
     srcs = ["ComputationConversions.kt"],
     deps = [
-        ":public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",

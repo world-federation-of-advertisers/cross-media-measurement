@@ -93,13 +93,16 @@ message Requisition {
   }
 
   message Details {
+    // Version of the public API for serialized message definitions.
+    string api_version = 1;
+
     // Serialized `EncryptionPublicKey` message from the public API.
-    bytes data_provider_public_key = 1;
-    bytes data_provider_public_key_signature = 2;
+    bytes data_provider_public_key = 2;
+    bytes data_provider_public_key_signature = 3;
 
-    bytes data_provider_participation_signature = 3;
+    bytes data_provider_participation_signature = 4;
 
-    Refusal refusal = 4;
+    Refusal refusal = 5;
   }
   Details details = 10;
   string details_json = 11;

@@ -24,6 +24,6 @@ option java_multiple_files = true;
 // A collection of all protocolConfigs currently supported in the CMMS.
 // Temporarily used during development.
 message PublicApiProtocolConfigs {
-  // Map of ProtocolConfig resource ID to the config.
+  // Map of ProtocolConfig resource name to the config.
   map<string, wfa.measurement.api.v2alpha.ProtocolConfig> configs = 1;
 }

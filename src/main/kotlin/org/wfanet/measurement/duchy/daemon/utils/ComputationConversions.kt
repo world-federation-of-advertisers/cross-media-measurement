@@ -15,6 +15,9 @@
 package org.wfanet.measurement.duchy.daemon.utils
 
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.api.PublicApiVersion
+import org.wfanet.measurement.api.toPublicApiVersion
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
@@ -278,4 +281,12 @@ fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.anysketch.crypto.ElGa
       it.secretKey = secretKey
     }
     .build()
+}
+
+/** Extracts the DataProviderId from the DataProvider public Api resource name. */
+fun String.toExternalDataProviderId(publicApiVersion: PublicApiVersion): String {
+  return when (publicApiVersion) {
+    PublicApiVersion.V2_ALPHA -> DataProviderKey.fromName(this)?.dataProviderId
+        ?: error("Resource name unspecified or invalid.")
+  }
 }
