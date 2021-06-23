@@ -250,7 +250,7 @@ CREATE TABLE Requisitions (
 
   -- The ID of the Duchy where the requisition is fulfilled. Otherwise NULL if
   -- the requisition is not yet fulfilled.
-  FulfillingDuchyId           STRING(MAX),
+  FulfillingDuchyId           INT64,
 
   -- org.wfanet.measurement.internal.kingdom.RequisitionDetails serialized proto
   RequisitionDetails          BYTES(MAX),
