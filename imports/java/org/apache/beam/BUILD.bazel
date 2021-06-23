@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "core",
+    actual = "@maven//:org_apache_beam_beam_sdks_java_core",
+)
+
+alias(
+    name = "direct_runner",
+    actual = "@maven//:org_apache_beam_beam_runners_direct_java",
+)
