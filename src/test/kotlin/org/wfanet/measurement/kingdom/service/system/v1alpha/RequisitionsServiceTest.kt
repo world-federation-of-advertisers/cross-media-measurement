@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 
+private const val PUBLIC_API_VERSION = "v2alpha"
 private const val DUCHY_ID: String = "some-duchy-id"
 
 private const val EXTERNAL_COMPUTATION_ID = 123L
@@ -49,6 +50,7 @@ private const val EXTERNAL_DATA_PROVIDER_ID = 789L
 private val EXTERNAL_COMPUTATION_ID_STRING = externalIdToApiId(EXTERNAL_COMPUTATION_ID)
 private val EXTERNAL_REQUISITION_ID_STRING = externalIdToApiId(EXTERNAL_REQUISITION_ID)
 private val EXTERNAL_DATA_PROVIDER_ID_STRING = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
+private val DATA_PROVIDER_PUBLIC_API_NAME = "dataProviders/$EXTERNAL_DATA_PROVIDER_ID_STRING"
 private val SYSTEM_REQUISITION_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/requisitions/$EXTERNAL_REQUISITION_ID_STRING"
 private val DATA_PROVIDER_PARTICIPATION_SIGNATURE = ByteString.copyFromUtf8("a signature")
@@ -62,6 +64,7 @@ private val INTERNAL_REQUISITION =
       externalFulfillingDuchyId = DUCHY_ID
       state = InternalRequisition.State.FULFILLED
       detailsBuilder.apply {
+        apiVersion = PUBLIC_API_VERSION
         dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
       }
     }
@@ -105,7 +108,7 @@ class RequisitionsServiceTest {
         Requisition.newBuilder()
           .apply {
             name = SYSTEM_REQUISITION_NAME
-            dataProviderId = EXTERNAL_DATA_PROVIDER_ID_STRING
+            dataProvider = DATA_PROVIDER_PUBLIC_API_NAME
             state = Requisition.State.FULFILLED
             dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
             fulfillingComputationParticipant =

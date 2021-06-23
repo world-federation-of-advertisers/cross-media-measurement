@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.measurement.api.toPublicApiVersion
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -30,7 +31,6 @@ import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiElGamalPublicKeyBytes
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiMeasurementResult
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
@@ -172,7 +172,7 @@ class LiquidLegionsV2Mill(
           name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
           requisitionParamsBuilder.apply {
             // TODO(wangyaopw): set the correct certificate and elGamalPublicKeySignature.
-            duchyCertificateId = "TODO"
+            duchyCertificateName = "TODO"
             duchyCertificate = ByteString.copyFromUtf8("TODO")
             liquidLegionsV2Builder.apply {
               elGamalPublicKey = elGamalPublicKeyBytes
