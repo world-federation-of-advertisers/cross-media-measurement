@@ -31,8 +31,10 @@ message Requisition {
   // Resource name. Output-only. Immutable.
   string name = 1;
 
-  // ID of the `DataProvider` in the public API. Required. Immutable.
-  string data_provider_id = 2;
+  // Public API Resource name of the `DataProvider` who should fulfill this
+  // requisition. Required. Immutable.
+  string data_provider = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // X.509 certificate in DER format which can be verified using the
   // `DataProvider`'s root certificate. Required. Immutable.

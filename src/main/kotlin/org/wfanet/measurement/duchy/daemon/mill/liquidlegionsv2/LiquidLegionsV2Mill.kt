@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -30,7 +31,6 @@ import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiElGamalPublicKeyBytes
 import org.wfanet.measurement.duchy.daemon.utils.toPublicApiMeasurementResult
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
@@ -160,7 +160,7 @@ class LiquidLegionsV2Mill(
     val llv2ComputationDetails = token.computationDetails.liquidLegionsV2
     require(llv2ComputationDetails.hasLocalElgamalKey()) { "Missing local elgamal key." }
     val publicApiVersion =
-      token.computationDetails.kingdomComputation.publicApiVersion.toPublicApiVersion()
+      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
     val elGamalPublicKeyBytes =
       llv2ComputationDetails.localElgamalKey.publicKey.toPublicApiElGamalPublicKeyBytes(
         publicApiVersion
@@ -172,8 +172,8 @@ class LiquidLegionsV2Mill(
           name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
           requisitionParamsBuilder.apply {
             // TODO(wangyaopw): set the correct certificate and elGamalPublicKeySignature.
-            duchyCertificateId = "TODO"
-            duchyCertificate = ByteString.copyFromUtf8("TODO")
+            duchyCertificate = "TODO"
+            duchyCertificateDer = ByteString.copyFromUtf8("TODO")
             liquidLegionsV2Builder.apply {
               elGamalPublicKey = elGamalPublicKeyBytes
               elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
@@ -672,7 +672,7 @@ class LiquidLegionsV2Mill(
     val result =
       ReachAndFrequency(llv2Details.reachEstimate.reach, frequencyDistributionMap)
         .toPublicApiMeasurementResult(
-          token.computationDetails.kingdomComputation.publicApiVersion.toPublicApiVersion()
+          Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
         )
     // TODO(wangyaopw): encrypt the result.
     sendResultToKingdom(token.globalComputationId, result)

@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.utils
+package org.wfanet.measurement.api
 
-/** Supported public Api versions in the duchy. */
-enum class PublicApiVersion {
-  V2_ALPHA
-}
+enum class Version(val string: String) {
+  VERSION_UNSPECIFIED(""),
+  V2_ALPHA("v2alpha");
 
-/** Parses a string to the corresponding PublicApiVersions enum. */
-fun String.toPublicApiVersion(): PublicApiVersion {
-  if (this == "v2alpha") {
-    return PublicApiVersion.V2_ALPHA
-  } else {
-    error("unsupported Api version: $this")
+  override fun toString(): String = string
+
+  companion object {
+    fun fromString(string: String): Version {
+      return values().find { it.string == string } ?: VERSION_UNSPECIFIED
+    }
   }
 }
