@@ -33,20 +33,20 @@ class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
   fun success() =
     runBlocking<Unit> {
       val idGenerator = FixedIdGenerator()
-      CreateAdvertiser().execute(databaseClient, idGenerator)
+      CreateMeasurementConsumer().execute(databaseClient, idGenerator)
 
-      val advertisers =
+      val measurementConsumers =
         databaseClient
           .singleUse(TimestampBound.strong())
-          .executeQuery(Statement.of("SELECT * FROM Advertisers"))
+          .executeQuery(Statement.of("SELECT * FROM MeasurementConsumers"))
           .toList()
 
-      assertThat(advertisers)
+      assertThat(measurementConsumers)
         .containsExactly(
           Struct.newBuilder()
-            .set("AdvertiserId")
+            .set("MeasurementConsumerId")
             .to(idGenerator.internalId.value)
-            .set("ExternalAdvertiserId")
+            .set("ExternalMeasurementConsumerId")
             .to(idGenerator.externalId.value)
             .set("AdvertiserDetails")
             .to(ByteArray.copyFrom(""))
