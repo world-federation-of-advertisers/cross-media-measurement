@@ -33,6 +33,8 @@ service Measurements {
   // Streams Measurements ordered by update time, ascending.
   rpc StreamMeasurements(StreamMeasurementsRequest)
       returns (stream Measurement);
+
+  rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
 }
 
 message GetMeasurementRequest {
@@ -63,4 +65,20 @@ message StreamMeasurementsRequest {
   int32 limit = 2;
 
   Measurement.View measurement_view = 3;
+}
+
+message SetMeasurementResultRequest {
+  fixed64 external_computation_id = 1;
+
+  // X.509 certificate in DER format which can be verified using the
+  // Aggregator's root certificate.
+  bytes aggregator_certificate = 2;
+
+  // Serialized `EncryptionPublicKey` message from the public API.
+  bytes result_public_key = 3;
+
+  // Encrypted `SignedData` message from the public API containing a serialized
+  // `Result` message from the public API, which can be verified using
+  // `aggregator_certificate`.
+  bytes encrypted_result = 4;
 }
