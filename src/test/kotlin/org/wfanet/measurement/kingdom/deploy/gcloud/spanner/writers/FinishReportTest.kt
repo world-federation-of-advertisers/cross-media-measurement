@@ -27,7 +27,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -47,7 +47,7 @@ private val RESULT: ReportDetails.Result =
     .build()
 
 @RunWith(JUnit4::class)
-class FinishReportTest : KingdomDatabaseTestBase() {
+class FinishReportTest : LegacyKingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
