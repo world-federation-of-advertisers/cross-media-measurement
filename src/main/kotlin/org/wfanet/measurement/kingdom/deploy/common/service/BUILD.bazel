@@ -8,6 +8,7 @@ kt_jvm_library(
         "//imports/java/io/grpc:api",
         "//src/main/proto/wfa/measurement/internal/kingdom:certificates_service_kt_jvm_grpc",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/internal/kingdom:computation_participants_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:data_providers_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:event_groups_service_kt_jvm_grpc",
@@ -16,11 +17,19 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc",
 =======
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:computation_participants_service_kt_jvm_grpc",
+>>>>>>> 251958c6 (addressed comments)
         "//src/main/proto/wfa/measurement/internal/kingdom:data_providers_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:event_groups_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumers_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entries_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc",
+<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc"
 >>>>>>> 1f08a28c (addressed comments)
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc",
+>>>>>>> 251958c6 (addressed comments)
     ],
 )

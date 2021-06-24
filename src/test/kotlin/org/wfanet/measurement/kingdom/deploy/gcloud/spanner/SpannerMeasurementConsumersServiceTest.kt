@@ -37,4 +37,3 @@ class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest()
     get() = spannerDataServicesProviderRule.value.measurementConsumersService
 >>>>>>> 1f08a28c (addressed comments)
 }
-
