@@ -14,25 +14,18 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 
+import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
-<<<<<<< HEAD
 import com.google.cloud.spanner.Value
-import com.google.type.Date
 import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
-import org.wfanet.measurement.internal.kingdom.Exchange
-import org.wfanet.measurement.internal.kingdom.ExchangeDetails
-import org.wfanet.measurement.internal.kingdom.RecurringExchange
-import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -43,17 +36,18 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
-=======
-import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
->>>>>>> 3f44ca6b (initial commit)
 
-abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
+private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
+private val REPORT_DETAILS =
+  ReportDetails.newBuilder()
+    .apply { combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID }
+    .build()
+
+abstract class LegacyKingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCHEMA) {
   private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
-<<<<<<< HEAD
 
   // TODO: add AdvertiserDetails proto as input.
   protected suspend fun insertAdvertiser(advertiserId: Long, externalAdvertiserId: Long) {
@@ -336,56 +330,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     )
   }
 
-  protected suspend fun insertModelProvider(modelProviderId: Long, externalModelProviderId: Long) {
-    write(
-      Mutation.newInsertBuilder("ModelProviders")
-        .set("modelProviderId" to modelProviderId)
-        .set("ExternalModelProviderId" to externalModelProviderId)
-        .build()
-    )
-  }
-
-  suspend fun insertRecurringExchange(
-    recurringExchangeId: Long,
-    externalRecurringExchangeId: Long,
-    modelProviderId: Long,
-    dataProviderId: Long,
-    state: RecurringExchange.State,
-    nextExchangeDate: Date,
-    recurringExchangeDetails: RecurringExchangeDetails =
-      RecurringExchangeDetails.getDefaultInstance()
-  ) {
-    write(
-      Mutation.newInsertBuilder("RecurringExchanges")
-        .set("RecurringExchangeId" to recurringExchangeId)
-        .set("ExternalRecurringExchangeId" to externalRecurringExchangeId)
-        .set("ModelProviderId" to modelProviderId)
-        .set("DataProviderId" to dataProviderId)
-        .set("State" to state)
-        .set("NextExchangeDate" to nextExchangeDate.toCloudDate())
-        .set("RecurringExchangeDetails" to recurringExchangeDetails)
-        .set("RecurringExchangeDetailsJson" to recurringExchangeDetails)
-        .build()
-    )
-  }
-
-  suspend fun insertExchange(
-    recurringExchangeId: Long,
-    date: Date,
-    state: Exchange.State,
-    exchangeDetails: ExchangeDetails = ExchangeDetails.getDefaultInstance()
-  ) {
-    write(
-      Mutation.newInsertBuilder("Exchanges")
-        .set("RecurringExchangeId" to recurringExchangeId)
-        .set("Date" to date.toCloudDate())
-        .set("State" to state)
-        .set("ExchangeDetails" to exchangeDetails)
-        .set("ExchangeDetailsJson" to exchangeDetails)
-        .build()
-    )
-  }
-
   protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
     ReportReader().execute(databaseClient.singleUse()).map { it.report }.toList()
   }
@@ -398,11 +342,5 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     RequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
   }
 
-  protected fun readAllExchangesInSpanner(): List<Exchange> = runBlocking {
-    ExchangeReader().execute(databaseClient.singleUse()).map { it.exchange }.toList()
-  }
-
   // TODO: add helpers for other tables.
-=======
->>>>>>> 3f44ca6b (initial commit)
 }

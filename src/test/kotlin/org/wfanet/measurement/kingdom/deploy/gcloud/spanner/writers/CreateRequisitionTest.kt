@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.buildRequisitionDetails
 
 private const val DATA_PROVIDER_ID = 1L
@@ -77,7 +77,7 @@ private val INPUT_REQUISITION: Requisition =
 private val NEW_TIMESTAMP: Timestamp = Timestamp.ofTimeSecondsAndNanos(999, 0)
 
 @RunWith(JUnit4::class)
-class CreateRequisitionTest : KingdomDatabaseTestBase() {
+class CreateRequisitionTest : LegacyKingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(NEW_REQUISITION_ID), ExternalId(NEW_EXTERNAL_REQUISITION_ID))
 
