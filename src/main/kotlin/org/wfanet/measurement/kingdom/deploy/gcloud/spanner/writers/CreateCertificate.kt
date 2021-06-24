@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Mutation
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -47,3 +48,49 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
     setJson("CertificateDetailsJson" to details)
   }
 }
+=======
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.internal.kingdom.Certificate
+
+class CreateCertificate(private val certificate: Certificate) :
+  SpannerWriter<ExternalId, Certificate>() {
+  override suspend fun TransactionScope.runTransaction(): ExternalId {
+    val internalId = idGenerator.generateInternalId()
+    val externalId = idGenerator.generateExternalId()
+    Mutation.newInsertBuilder("Certificates")
+      .set("CertificateId")
+      .to(internalId.value)
+      .set("SubjectKeyIdentifier")
+      .to(certificate.subjectKeyIdentifier.toGcloudByteArray())
+      .set("NotValidBefore")
+      .to(certificate.notValidBefore.toGcloudTimestamp())
+      .set("NotValidAfter")
+      .to(certificate.notValidAfter.toGcloudTimestamp())
+      .set("RevocationState")
+      .toProtoEnum(certificate.revocationState)
+      .set("CertificateDetails")
+      .toProtoBytes(certificate.details)
+      .set("CertificateDetailsJson")
+      .toProtoJson(certificate.details)
+      .build()
+      .bufferTo(transactionContext)
+    return externalId
+  }
+
+  override fun ResultScope<ExternalId>.buildResult(): Certificate {
+    val externalCertificateId = checkNotNull(transactionResult).value
+    return Certificate.newBuilder().setExternalCertificateId(externalCertificateId).build()
+  }
+}
+
+
+
+
+
+>>>>>>> f58fef48 (initial commit)
