@@ -42,6 +42,11 @@ class ExchangeTaskMapperForJoinKeyExchange(
           step = step,
           retryDuration = retryDuration
         )
+      ExchangeWorkflow.Step.StepCase.INTERSECT_AND_VALIDATE_STEP ->
+        IntersectValidateTask(
+          maxSize = step.intersectAndValidateStep.maxSize,
+          minimumOverlap = step.intersectAndValidateStep.minimumOverlap
+        )
       else -> error("Unsupported step type")
     }
   }

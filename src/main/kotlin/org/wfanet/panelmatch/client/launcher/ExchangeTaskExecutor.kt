@@ -78,12 +78,13 @@ class ExchangeTaskExecutor(
     privateStorage: Storage,
     step: ExchangeWorkflow.Step,
     taskOutput: Map<String, ByteString>
-  ) = coroutineScope {
-    val privateOutputLabels = step.getPrivateOutputLabelsMap()
-    val sharedOutputLabels = step.getSharedOutputLabelsMap()
-    async { privateStorage.batchWrite(outputLabels = privateOutputLabels, data = taskOutput) }
-    async { sharedStorage.batchWrite(outputLabels = sharedOutputLabels, data = taskOutput) }
-  }
+  ) =
+    coroutineScope<Unit> {
+      val privateOutputLabels = step.getPrivateOutputLabelsMap()
+      val sharedOutputLabels = step.getSharedOutputLabelsMap()
+      async { privateStorage.batchWrite(outputLabels = privateOutputLabels, data = taskOutput) }
+      async { sharedStorage.batchWrite(outputLabels = sharedOutputLabels, data = taskOutput) }
+    }
 
   suspend fun execute(attemptKey: ExchangeStepAttemptKey, step: ExchangeWorkflow.Step) =
       coroutineScope {

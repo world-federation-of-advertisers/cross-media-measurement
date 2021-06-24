@@ -3,6 +3,9 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "LoggerTest",
     srcs = ["LoggerTest.kt"],
+    friends = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/logger:logger",
+    ],
     test_class = "org.wfanet.panelmatch.client.logger.LoggerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
