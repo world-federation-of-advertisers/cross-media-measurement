@@ -81,6 +81,8 @@ class TestStep(
   val apiClient: ApiClient,
   val exchangeKey: String,
   val exchangeStepAttemptKey: String,
+  val intersectMaxSize: Int = 100000,
+  val intersectMinimumOverlap: Float = 0.99f,
   val privateInputLabels: Map<String, String> = emptyMap<String, String>(),
   val privateOutputLabels: Map<String, String> = emptyMap<String, String>(),
   val sharedInputLabels: Map<String, String> = emptyMap<String, String>(),
@@ -132,6 +134,14 @@ class TestStep(
             reencryptStep = ExchangeWorkflow.Step.ReEncryptStep.getDefaultInstance()
           ExchangeWorkflow.Step.StepCase.DECRYPT_STEP ->
             decryptStep = ExchangeWorkflow.Step.DecryptStep.getDefaultInstance()
+          ExchangeWorkflow.Step.StepCase.INTERSECT_AND_VALIDATE_STEP ->
+            intersectAndValidateStep =
+              ExchangeWorkflow.Step.IntersectAndValidateStep.newBuilder()
+                .apply {
+                  maxSize = intersectMaxSize
+                  minimumOverlap = intersectMinimumOverlap
+                }
+                .build()
           else -> error("Unsupported step config")
         }
       }

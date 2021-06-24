@@ -38,3 +38,11 @@ suspend fun Logger.getAndClearTaskLog(): List<String> {
   val listCopy: MutableList<String>? = taskLogs.remove(taskKey)
   return listCopy ?: emptyList()
 }
+
+/**
+ * Clears *all* the test logs. Should only be used if you really want to clear all the logs. In
+ * general, used only during testing.
+ */
+internal fun clearLogs() {
+  taskLogs.clear()
+}

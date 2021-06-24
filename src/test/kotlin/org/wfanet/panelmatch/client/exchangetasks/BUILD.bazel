@@ -19,6 +19,21 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "IntersectValidateTaskTest",
+    srcs = ["IntersectValidateTaskTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTaskTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing:ExchangeTaskTesting",
+        "@wfa_measurement_system//imports/java/com/google/common/truth",
+        "@wfa_measurement_system//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_measurement_system//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "@wfa_measurement_system//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "InputTaskTest",
     srcs = ["InputTaskTest.kt"],
     test_class = "org.wfanet.panelmatch.client.exchangetasks.InputTaskTest",
