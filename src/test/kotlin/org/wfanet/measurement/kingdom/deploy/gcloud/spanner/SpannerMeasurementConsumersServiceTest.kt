@@ -18,8 +18,8 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementConsumersServiceTest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
+import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementConsumersServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest() {
@@ -28,5 +28,4 @@ class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest()
 
   override val service: MeasurementConsumersCoroutineImplBase
     get() = spannerDataServicesProviderRule.value.measurementConsumerService
-
 }
