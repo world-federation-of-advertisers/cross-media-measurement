@@ -18,9 +18,13 @@ import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId

@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha
+package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("dataProviders/{data_provider}")
+private val parser = ResourceNameParser("dataProviders/{data_provider}/requisitions/{requisition}")
 
-/** [DataProviderKey] of a Data Provider. */
-data class DataProviderKey(val dataProviderId: String) : ResourceKey {
+/** [ResourceKey] of a Requisition. */
+data class RequisitionKey(val dataProviderId: String, val requisitionId: String) : ResourceKey {
   override fun toName(): String {
-    return parser.assembleName(mapOf(IdVariable.DATA_PROVIDER to dataProviderId))
+    return parser.assembleName(
+      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.REQUISITION to requisitionId)
+    )
   }
 
   companion object {
-    val defaultValue = DataProviderKey("")
+    val defaultValue = RequisitionKey("", "")
 
-    fun fromName(resourceName: String): DataProviderKey? {
+    fun fromName(resourceName: String): RequisitionKey? {
       return parser.parseIdVars(resourceName)?.let {
-        DataProviderKey(it.getValue(IdVariable.DATA_PROVIDER))
+        RequisitionKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.REQUISITION))
       }
     }
   }
