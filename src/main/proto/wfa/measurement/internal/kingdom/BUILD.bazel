@@ -15,12 +15,28 @@ proto_and_java_proto_library(
 proto_and_java_proto_library(
     name = "computation_participant",
     deps = [
+        ":measurement_log_entry_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
 proto_and_java_proto_library(
     name = "data_provider",
+)
+
+proto_library(
+    name = "computation_participants_service_proto",
+    srcs = ["computation_participants_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":computation_participant_proto",
+        ":measurement_log_entry_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "computation_participants_service_kt_jvm_grpc",
+    srcs = [":computation_participants_service_proto"],
 )
 
 proto_library(
@@ -215,6 +231,7 @@ kt_jvm_grpc_and_java_proto_library(
 
 proto_and_java_proto_library(
     name = "measurement_consumer",
+    deps = [":certificate_proto"],
 )
 
 proto_library(
@@ -236,6 +253,20 @@ proto_and_java_proto_library(
     deps = [
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "measurement_log_entries_service_proto",
+    srcs = ["measurement_log_entries_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":measurement_log_entry_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "measurement_log_entries_service_kt_jvm_grpc",
+    srcs = [":measurement_log_entries_service_proto"],
 )
 
 proto_library(

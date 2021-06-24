@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -44,8 +45,11 @@ message ComputationParticipant {
     // The `ComputationParticipant` is ready to participate. Terminal state.
     READY = 3;
 
-    // The `ComputationParticipant` has refused to participate. Terminal state.
-    REFUSED = 4;
+    // A permanent error occurred in the `ComputationParticipant`. Terminal
+    // state.
+    //
+    // The parent `Measurement` will be in the `FAILED` state.
+    FAILED = 4;
   }
   State state = 7;
 
@@ -62,4 +66,6 @@ message ComputationParticipant {
   }
   Details details = 8;
   string details_json = 9;
+
+  DuchyMeasurementLogEntry failure_log_entry = 10;
 }
