@@ -24,25 +24,46 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
   SpannerWriter<ExternalId, MeasurementConsumer>() {
   override suspend fun TransactionScope.runTransaction(): ExternalId {
-    val internalId = idGenerator.generateInternalId()
-    val externalId = idGenerator.generateExternalId()
+    val internalCertificateId = idGenerator.generateInternalId()
+    val externalCertificateId = idGenerator.generateExternalId()
+
+    measurementConsumer
+      .preferredCertificate
+      .toInsertMutation(internalCertificateId, externalCertificateId)
+      .bufferTo(transactionContext)
+
+    val internalMeasurementConsumerId = idGenerator.generateInternalId()
+    val externalMeasurementConsumerId = idGenerator.generateExternalId()
+
     Mutation.newInsertBuilder("MeasurementConsumers")
       .set("MeasurementConsumerId")
-      .to(internalId.value)
+      .to(internalMeasurementConsumerId.value)
       .set("ExternalMeasurementConsumerId")
-      .to(externalId.value)
+      .to(externalMeasurementConsumerId.value)
       .set("MeasurementConsumerDetails")
       .toProtoBytes(measurementConsumer.details)
       .set("MeasurementConsumerDetailsJson")
       .toProtoJson(measurementConsumer.details)
       .build()
       .bufferTo(transactionContext)
-    return externalId
+
+    val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
+
+    Mutation.newInsertBuilder("MeasurementConsumerCertificates")
+      .set("MeasurementConsumerId")
+      .to(internalMeasurementConsumerId.value)
+      .set("CertificateId")
+      .to(internalCertificateId.value)
+      .set("ExternalMeasurementConsumerCertificateId")
+      .to(externalMeasurementConsumerId.value)
+      .build()
+      .bufferTo(transactionContext)
+    return externalMeasurementConsumerId
   }
 
   override fun ResultScope<ExternalId>.buildResult(): MeasurementConsumer {
-    val externalMeasurementConsumerId = checkNotNull(transactionResult).value
-    return MeasurementConsumer.newBuilder()
+    return checkNotNull(transactionResult)
+      .toBuilder()
       .setExternalMeasurementConsumerId(externalMeasurementConsumerId)
       .build()
   }
