@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.system.v1alpha;
 
-import "wfa/measurement/system/v1alpha/global_computation.proto";
+import "google/api/resource.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
 option java_multiple_files = true;
@@ -33,8 +33,9 @@ service ComputationControl {
 // Request to advance the computation at the receiver.
 message AdvanceComputationRequest {
   message Header {
-    // Resource key.
-    GlobalComputation.Key key = 1;
+    // Resource name of the `Computation`. Required.
+    string name = 1 [(google.api.resource_reference).type =
+                         "halo-system.wfanet.org/Computation"];
     // The protocol of the computation.
     oneof protocol {
       // The LiquidLegionsV2 (three-round) protocol.
