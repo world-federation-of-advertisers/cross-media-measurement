@@ -53,4 +53,3 @@ class SpannerMeasurementConsumersServiceTest :
 >>>>>>> 1f08a28c (addressed comments)
 >>>>>>> 8174d8a2 (addressed comments)
 }
-
