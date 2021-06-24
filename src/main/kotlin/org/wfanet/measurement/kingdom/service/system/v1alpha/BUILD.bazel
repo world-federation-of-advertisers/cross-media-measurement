@@ -1,9 +1,46 @@
 # v1alpha system API service implementations for Kingdom.
 
 load("//build:defs.bzl", "test_target")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target(":__pkg__"),
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
+
+kt_jvm_library(
+    name = "requisitions_service",
+    srcs = ["RequisitionsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/system/v1alpha:requisitions_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "computations_service",
+    srcs = ["ComputationsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_log_entries_service",
+    srcs = ["ComputationLogEntriesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_participants_service",
+    srcs = ["ComputationParticipantsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc",
+    ],
+)
