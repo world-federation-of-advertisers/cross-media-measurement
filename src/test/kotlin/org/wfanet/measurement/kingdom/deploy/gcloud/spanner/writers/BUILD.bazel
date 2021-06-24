@@ -58,6 +58,13 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "CreateMeasurementConsumerTest",
+    srcs = ["CreateMeasurementConsumerTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumerTest",
+    deps = _TEST_DEPS,
+)
+
+spanner_emulator_test(
     name = "CreateNextReportTest",
     srcs = ["CreateNextReportTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReportTest",
