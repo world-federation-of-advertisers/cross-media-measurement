@@ -19,14 +19,15 @@ import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 
 class SpannerDataServices(
   val clock: Clock,
   val idGenerator: IdGenerator,
   val client: AsyncDatabaseClient
 ) : DataServices {
-  override fun buildDataServices(): List<BindableService> {
-    return listOf(
+  override fun buildDataServices(): KingdomDataServices {
+    return KingdomDataServices(
       SpannerCertificatesService(clock, idGenerator, client),
       SpannerDataProvidersService(clock, idGenerator, client),
       SpannerEventGroupsService(clock, idGenerator, client),

@@ -27,5 +27,6 @@ class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest()
   @get:Rule val spannerDataServicesProviderRule = KingdomDataServicesProviderRule()
 
   override val service: MeasurementConsumersCoroutineImplBase
-    get() = spannerDataServicesProviderRule.value.measurementConsumerService
+    get() = spannerDataServicesProviderRule.value.measurementConsumersService
 }
+

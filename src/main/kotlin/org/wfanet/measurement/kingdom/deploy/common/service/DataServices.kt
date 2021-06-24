@@ -15,9 +15,35 @@
 package org.wfanet.measurement.kingdom.deploy.common.service
 
 import io.grpc.BindableService
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 interface DataServices {
 
   /** Builds a list of all the Kingdom's internal data-layer services. */
-  fun buildDataServices(): List<BindableService>
+  fun buildDataServices(): KingdomDataServices
+}
+
+data class KingdomDataServices(
+  val certificatesService: CertificatesCoroutineImplBase,
+  val dataProvidersService: DataProvidersCoroutineImplBase,
+  val eventGroupsService: EventGroupsCoroutineImplBase,
+  val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+  val measurementsService: MeasurementsCoroutineImplBase,
+  val requisitionsService: RequisitionsCoroutineImplBase
+)
+
+fun KingdomDataServices.toList(): List<BindableService> {
+  return listOf(
+    certificatesService,
+    dataProvidersService,
+    eventGroupsService,
+    measurementConsumersService,
+    measurementsService,
+    requisitionsService
+  )
 }

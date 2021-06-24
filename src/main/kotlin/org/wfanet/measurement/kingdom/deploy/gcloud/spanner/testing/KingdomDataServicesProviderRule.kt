@@ -21,7 +21,9 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.kingdom.service.internal.testing.KingdomDataServices
+// import org.wfanet.measurement.kingdom.service.internal.testing.KingdomDataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 
 class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
@@ -29,7 +31,9 @@ class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
   private val idGenerator = RandomIdGenerator(clock)
   private val databaseClient: AsyncDatabaseClient by lazy { spannerDatabase.databaseClient }
 
-  override val value by lazy { makeSpannerKingdomDataServices(clock, idGenerator, databaseClient) }
+  override val value by lazy {
+    SpannerDataServices(clock, idGenerator, databaseClient).buildDataServices()
+  }
 
   override fun apply(base: Statement, description: Description): Statement {
     return spannerDatabase.apply(base, description)

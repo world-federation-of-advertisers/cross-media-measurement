@@ -10,7 +10,6 @@ kt_jvm_library(
     name = "kingdom_data_services",
     testonly = True,
     srcs = [
-        "KingdomDataServices.kt",
         "KingdomDataServicesProviderRule.kt",
     ],
     deps = [
