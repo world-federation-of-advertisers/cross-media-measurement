@@ -48,7 +48,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
  * out of the WAIT_TO_START stage once the kingdom has gotten confirmation from all duchies that
  * they are able to start the computation.
  *
- * @param computationStorageClient manages interactions with computations storage service.
+ * @param internalComputationsClient manages interactions with duchy internal computations service.
  * @param systemComputationsClient stub for communicating with the Kingdom's system Computations
  * Service.
  * @param protocolsSetupConfig duchy's local protocolsSetupConfig
@@ -58,7 +58,7 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
  */
 class Herald(
   otherDuchiesInComputation: List<String>,
-  private val computationStorageClient: ComputationsCoroutineStub,
+  private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val configMaps: Map<String, ProtocolConfig>,
@@ -151,7 +151,7 @@ class Herald(
       when (systemComputation.toMeasurementType()) {
         MeasurementType.REACH_AND_FREQUENCY -> {
           LiquidLegionsV2Starter.createComputation(
-            computationStorageClient,
+            internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2,
             configMaps,
@@ -202,12 +202,12 @@ class Herald(
     val globalId = systemComputation.key.computationId
     runWithRetry(systemComputation) {
       logger.info("[id=$globalId]: Updating Computation")
-      val token = computationStorageClient.getComputationToken(globalId.toGetTokenRequest()).token
+      val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.updateRequisitionsAndKeySets(
             token,
-            computationStorageClient,
+            internalComputationsClient,
             computationProtocolStageDetails,
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId,
@@ -223,12 +223,12 @@ class Herald(
     val globalId = systemComputation.key.computationId
     runWithRetry(systemComputation) {
       logger.info("[id=$globalId]: Starting Computation")
-      val token = computationStorageClient.getComputationToken(globalId.toGetTokenRequest()).token
+      val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.startComputation(
             token,
-            computationStorageClient,
+            internalComputationsClient,
             computationProtocolStageDetails,
             logger
           )

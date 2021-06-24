@@ -12,7 +12,6 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "//src/main/kotlin/org/wfanet/measurement/duchy:duchy_public_keys",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",

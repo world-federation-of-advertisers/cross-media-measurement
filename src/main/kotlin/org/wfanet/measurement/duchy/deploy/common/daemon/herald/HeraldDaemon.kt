@@ -20,11 +20,12 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.addChannelShutdownHooks
 import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -38,7 +39,7 @@ private class Flags {
     private set
 
   @CommandLine.Mixin
-  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
+  lateinit var duchyInfoFlags: DuchyInfoFlags
     private set
 
   @CommandLine.Option(
@@ -98,12 +99,10 @@ private class Flags {
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
+  DuchyInfo.initializeFromFlags(flags.duchyInfoFlags)
+
   val duchyName = flags.duchy.duchyName
-  val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
-  require(latestDuchyPublicKeys.containsKey(duchyName)) {
-    "Public key not specified for Duchy $duchyName"
-  }
-  val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
+  val otherDuchyNames = DuchyInfo.ALL_DUCHY_IDS.minus(duchyName).toList()
 
   val systemComputationServiceChannel = buildChannel(flags.systemComputationsServiceTarget)
   val systemComputationsClient =
@@ -122,7 +121,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val herald =
     Herald(
       otherDuchiesInComputation = otherDuchyNames,
-      computationStorageClient = ComputationsCoroutineStub(storageChannel),
+      internalComputationsClient = ComputationsCoroutineStub(storageChannel),
       systemComputationsClient = systemComputationsClient,
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {

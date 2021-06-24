@@ -41,34 +41,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "global_computation_server",
-    srcs = ["GlobalComputationServer.kt"],
-    runtime_deps = ["//imports/java/io/grpc/netty"],
-    deps = [
-        ":kingdom_api_server",
-        "//imports/java/io/grpc:api",
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:global_computation_service",
-    ],
-)
-
-java_binary(
-    name = "GlobalComputationServer",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.GlobalComputationServerKt",
-    runtime_deps = [":global_computation_server"],
-)
-
-java_image(
-    name = "global_computation_server_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.GlobalComputationServerKt",
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":global_computation_server"],
-)
-
-kt_jvm_library(
     name = "requisition_server",
     srcs = ["RequisitionServer.kt"],
     runtime_deps = ["//imports/java/io/grpc/netty"],
@@ -94,32 +66,4 @@ java_image(
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.RequisitionServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":requisition_server"],
-)
-
-kt_jvm_library(
-    name = "system_requisition_server",
-    srcs = ["SystemRequisitionServer.kt"],
-    runtime_deps = ["//imports/java/io/grpc/netty"],
-    deps = [
-        ":kingdom_api_server",
-        "//imports/java/io/grpc:api",
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:requisition_service",
-    ],
-)
-
-java_binary(
-    name = "SystemRequisitionServer",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.SystemRequisitionServerKt",
-    runtime_deps = [":system_requisition_server"],
-)
-
-java_image(
-    name = "system_requisition_server_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.SystemRequisitionServerKt",
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":system_requisition_server"],
 )
