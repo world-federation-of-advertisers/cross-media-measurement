@@ -16,11 +16,17 @@ package org.wfanet.measurement.kingdom.deploy.common.service
 
 import io.grpc.BindableService
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+<<<<<<< HEAD
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+=======
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+>>>>>>> 1f08a28c (addressed comments)
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
@@ -36,9 +42,13 @@ data class KingdomDataServices(
   val eventGroupsService: EventGroupsCoroutineImplBase,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsCoroutineImplBase,
+<<<<<<< HEAD
   val requisitionsService: RequisitionsCoroutineImplBase,
   val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
   val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
+=======
+  val requisitionsService: RequisitionsCoroutineImplBase
+>>>>>>> 1f08a28c (addressed comments)
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
@@ -48,8 +58,12 @@ fun KingdomDataServices.toList(): List<BindableService> {
     eventGroupsService,
     measurementConsumersService,
     measurementsService,
+<<<<<<< HEAD
     requisitionsService,
     computationParticipantsService,
     measurementLogEntriesService
+=======
+    requisitionsService
+>>>>>>> 1f08a28c (addressed comments)
   )
 }

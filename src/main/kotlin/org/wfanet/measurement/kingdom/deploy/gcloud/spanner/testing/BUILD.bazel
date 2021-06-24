@@ -11,9 +11,12 @@ kt_jvm_library(
     testonly = True,
     srcs = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "KingdomDataServices.kt",
 >>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
+=======
+>>>>>>> 1f08a28c (addressed comments)
         "KingdomDataServicesProviderRule.kt",
     ],
     deps = [
