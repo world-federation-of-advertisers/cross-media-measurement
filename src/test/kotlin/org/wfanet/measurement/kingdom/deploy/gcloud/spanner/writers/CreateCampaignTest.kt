@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.Campaign
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val DATA_PROVIDER_ID = 1L
 private const val EXTERNAL_DATA_PROVIDER_ID = 2L
@@ -42,7 +42,7 @@ private const val EXTERNAL_CAMPAIGN_ID = 6L
 private const val PROVIDED_CAMPAIGN_ID = "some-provided-campaign-id"
 
 @RunWith(JUnit4::class)
-class CreateCampaignTest : KingdomDatabaseTestBase() {
+class CreateCampaignTest : LegacyKingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(CAMPAIGN_ID), ExternalId(EXTERNAL_CAMPAIGN_ID))
 

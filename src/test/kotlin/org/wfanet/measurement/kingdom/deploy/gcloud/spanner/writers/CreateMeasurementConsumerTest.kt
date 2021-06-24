@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,49 +19,38 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
-class CreateDataProviderTest : LegacyKingdomDatabaseTestBase() {
-
+class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
   @Test
   fun success() =
     runBlocking<Unit> {
       val idGenerator = FixedIdGenerator()
-      val dataProvider = CreateDataProvider().execute(databaseClient, idGenerator)
+      CreateAdvertiser().execute(databaseClient, idGenerator)
 
-      assertThat(dataProvider)
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(
-          DataProvider.newBuilder()
-            .apply { externalDataProviderId = idGenerator.externalId.value }
-            .build()
-        )
-
-      val dataProviders =
+      val advertisers =
         databaseClient
           .singleUse(TimestampBound.strong())
-          .executeQuery(Statement.of("SELECT * FROM DataProviders"))
+          .executeQuery(Statement.of("SELECT * FROM Advertisers"))
           .toList()
 
-      assertThat(dataProviders)
+      assertThat(advertisers)
         .containsExactly(
           Struct.newBuilder()
-            .set("DataProviderId")
+            .set("AdvertiserId")
             .to(idGenerator.internalId.value)
-            .set("ExternalDataProviderId")
+            .set("ExternalAdvertiserId")
             .to(idGenerator.externalId.value)
-            .set("DataProviderDetails")
+            .set("AdvertiserDetails")
             .to(ByteArray.copyFrom(""))
-            .set("DataProviderDetailsJson")
+            .set("AdvertiserDetailsJson")
             .to("")
             .build()
         )

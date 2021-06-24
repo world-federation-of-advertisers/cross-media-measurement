@@ -31,7 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -54,7 +54,7 @@ private const val DUCHY_ID = "some-duchy-id"
 private const val OTHER_DUCHY_ID = "other-duchy-id"
 
 @RunWith(JUnit4::class)
-class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
+class ConfirmDuchyReadinessTest : LegacyKingdomDatabaseTestBase() {
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID, OTHER_DUCHY_ID)
 
   private lateinit var originalReport: Report
