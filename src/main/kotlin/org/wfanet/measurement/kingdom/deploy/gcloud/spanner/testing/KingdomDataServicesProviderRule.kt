@@ -26,7 +26,11 @@ import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 =======
 import org.wfanet.measurement.kingdom.service.internal.testing.KingdomDataServices
+<<<<<<< HEAD
 >>>>>>> fa017e7e (initial commit)
+=======
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+>>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
 
 class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)

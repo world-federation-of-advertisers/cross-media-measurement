@@ -48,6 +48,7 @@ spanner_emulator_test(
 <<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
@@ -56,6 +57,8 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
 >>>>>>> 298fa502 (linted)
+=======
+>>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
 )
