@@ -17,16 +17,22 @@ package org.wfanet.measurement.kingdom.deploy.common.service
 import io.grpc.BindableService
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 251958c6 (addressed comments)
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+<<<<<<< HEAD
 =======
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 >>>>>>> 1f08a28c (addressed comments)
+=======
+>>>>>>> 251958c6 (addressed comments)
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
@@ -43,12 +49,18 @@ data class KingdomDataServices(
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsCoroutineImplBase,
 <<<<<<< HEAD
+<<<<<<< HEAD
   val requisitionsService: RequisitionsCoroutineImplBase,
   val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
   val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
 =======
   val requisitionsService: RequisitionsCoroutineImplBase
 >>>>>>> 1f08a28c (addressed comments)
+=======
+  val requisitionsService: RequisitionsCoroutineImplBase,
+  val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
+  val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
+>>>>>>> 251958c6 (addressed comments)
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
@@ -59,11 +71,17 @@ fun KingdomDataServices.toList(): List<BindableService> {
     measurementConsumersService,
     measurementsService,
 <<<<<<< HEAD
+<<<<<<< HEAD
     requisitionsService,
     computationParticipantsService,
     measurementLogEntriesService
 =======
     requisitionsService
 >>>>>>> 1f08a28c (addressed comments)
+=======
+    requisitionsService,
+    computationParticipantsService,
+    measurementLogEntriesService
+>>>>>>> 251958c6 (addressed comments)
   )
 }
