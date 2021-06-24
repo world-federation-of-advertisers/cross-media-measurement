@@ -56,10 +56,8 @@ class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.R
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
       dataProviderId = struct.getLong("DataProviderId"),
       modelProviderId = struct.getLong("ModelProviderId"),
-      recurringExchangeDetails = struct.getProtoMessage(
-        "RecurringExchangeDetails",
-        RecurringExchangeDetails.parser()
-      )
+      recurringExchangeDetails =
+        struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
     )
   }
 
@@ -95,9 +93,11 @@ class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.R
 
   /** Converts Cloud Spanner Date to [Date]. */
   fun com.google.cloud.Date.toProtoDate(): Date =
-    Date.newBuilder().apply {
-      year = this.year
-      month = this.month
-      day = this.day
-    }.build()
+    Date.newBuilder()
+      .apply {
+        year = this.year
+        month = this.month
+        day = this.day
+      }
+      .build()
 }
