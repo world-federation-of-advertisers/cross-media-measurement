@@ -12,24 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.service.api.v2alpha
+package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("protocolConfigs/{protocol_config}")
+private val parser =
+  ResourceNameParser("recurringExchanges/{recurring_exchange}/exchanges/{exchange}")
 
-/** [ResourceKey] of a ProtocolConfig. */
-data class ProtocolConfigKey(val protocolConfigId: String) : ResourceKey {
+/** [ExchangeKey] of an Exchange. */
+data class ExchangeKey(val recurringExchangeId: String, val exchangeId: String) : ResourceKey {
   override fun toName(): String {
-    return parser.assembleName(mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId))
+    return parser.assembleName(
+      mapOf(IdVariable.RECURRING_EXCHANGE to recurringExchangeId, IdVariable.EXCHANGE to exchangeId)
+    )
   }
 
   companion object {
-    val defaultValue = ProtocolConfigKey("")
+    val defaultValue = ExchangeKey("", "")
 
-    fun fromName(resourceName: String): ProtocolConfigKey? {
+    fun fromName(resourceName: String): ExchangeKey? {
       return parser.parseIdVars(resourceName)?.let {
-        ProtocolConfigKey(it.getValue(IdVariable.PROTOCOL_CONFIG))
+        ExchangeKey(it.getValue(IdVariable.RECURRING_EXCHANGE), it.getValue(IdVariable.EXCHANGE))
       }
     }
   }

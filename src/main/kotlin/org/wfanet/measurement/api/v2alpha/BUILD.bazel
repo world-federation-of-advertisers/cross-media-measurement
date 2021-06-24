@@ -1,0 +1,39 @@
+load("//build:defs.bzl", "test_target")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    ":__pkg__",
+    test_target(":__pkg__"),
+    ":impl",
+    ":system_impl",
+    # TODO(@SanjayVas): Remove once Herald no longer depends on public API.
+    "//src/test/kotlin/org/wfanet/measurement/duchy/daemon/herald:__pkg__",
+])
+
+package_group(
+    name = "impl",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha/...",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha/...",
+        "//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/...",
+    ],
+)
+
+package_group(
+    name = "system_impl",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/...",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/service/system/...",
+        "//src/test/kotlin/org/wfanet/measurement/kingdom/service/system/...",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
