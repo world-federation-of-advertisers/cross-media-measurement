@@ -50,12 +50,12 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
 }
 =======
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
-import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.Certificate
 
 class CreateCertificate(private val certificate: Certificate) :
@@ -63,23 +63,7 @@ class CreateCertificate(private val certificate: Certificate) :
   override suspend fun TransactionScope.runTransaction(): ExternalId {
     val internalId = idGenerator.generateInternalId()
     val externalId = idGenerator.generateExternalId()
-    Mutation.newInsertBuilder("Certificates")
-      .set("CertificateId")
-      .to(internalId.value)
-      .set("SubjectKeyIdentifier")
-      .to(certificate.subjectKeyIdentifier.toGcloudByteArray())
-      .set("NotValidBefore")
-      .to(certificate.notValidBefore.toGcloudTimestamp())
-      .set("NotValidAfter")
-      .to(certificate.notValidAfter.toGcloudTimestamp())
-      .set("RevocationState")
-      .toProtoEnum(certificate.revocationState)
-      .set("CertificateDetails")
-      .toProtoBytes(certificate.details)
-      .set("CertificateDetailsJson")
-      .toProtoJson(certificate.details)
-      .build()
-      .bufferTo(transactionContext)
+    certificate.toInsertMutation(internalId, externalId).bufferTo(transactionContext)
     return externalId
   }
 
@@ -89,8 +73,32 @@ class CreateCertificate(private val certificate: Certificate) :
   }
 }
 
+<<<<<<< HEAD
 
 
 
 
 >>>>>>> f58fef48 (initial commit)
+=======
+protected fun Certificate.toInsertMutation(
+  internalId: InternalId,
+  externalId: ExternalId
+): Mutation {
+  return Mutation.newInsertBuilder("Certificates")
+    .set("CertificateId")
+    .to(internalId.value)
+    .set("SubjectKeyIdentifier")
+    .to(subjectKeyIdentifier.toGcloudByteArray())
+    .set("NotValidBefore")
+    .to(notValidBefore.toGcloudTimestamp())
+    .set("NotValidAfter")
+    .to(notValidAfter.toGcloudTimestamp())
+    .set("RevocationState")
+    .toProtoEnum(revocationState)
+    .set("CertificateDetails")
+    .toProtoBytes(details)
+    .set("CertificateDetailsJson")
+    .toProtoJson(details)
+    .build()
+}
+>>>>>>> bf3c1bb3 (getting there)
