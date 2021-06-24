@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import io.grpc.BindableService
 import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -33,7 +32,9 @@ class SpannerDataServices(
       SpannerEventGroupsService(clock, idGenerator, client),
       SpannerMeasurementConsumersService(clock, idGenerator, client),
       SpannerMeasurementsService(clock, idGenerator, client),
-      SpannerRequisitionsService(clock, idGenerator, client)
+      SpannerRequisitionsService(clock, idGenerator, client),
+      SpannerComputationParticipantsService(clock, idGenerator, client),
+      SpannerMeasurementLogEntriesService(clock, idGenerator, client)
     )
   }
 }

@@ -29,4 +29,3 @@ class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest()
   override val service: MeasurementConsumersCoroutineImplBase
     get() = spannerDataServicesProviderRule.value.measurementConsumersService
 }
-

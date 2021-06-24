@@ -16,9 +16,11 @@ package org.wfanet.measurement.kingdom.deploy.common.service
 
 import io.grpc.BindableService
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
@@ -34,7 +36,9 @@ data class KingdomDataServices(
   val eventGroupsService: EventGroupsCoroutineImplBase,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsCoroutineImplBase,
-  val requisitionsService: RequisitionsCoroutineImplBase
+  val requisitionsService: RequisitionsCoroutineImplBase,
+  val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
+  val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
@@ -44,6 +48,8 @@ fun KingdomDataServices.toList(): List<BindableService> {
     eventGroupsService,
     measurementConsumersService,
     measurementsService,
-    requisitionsService
+    requisitionsService,
+    computationParticipantsService,
+    measurementLogEntriesService
   )
 }
