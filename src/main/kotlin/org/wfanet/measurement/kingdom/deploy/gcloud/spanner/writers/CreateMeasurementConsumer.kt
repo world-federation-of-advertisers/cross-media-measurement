@@ -115,7 +115,7 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
       .to(externalMeasurementConsumerCertificateId.value)
       .build()
       .bufferTo(transactionContext)
-    
+
     return externalMeasurementConsumerId
   }
 

@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+
 import com.google.cloud.spanner.Mutation
+<<<<<<< HEAD
 <<<<<<< HEAD
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
@@ -49,6 +51,9 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
   }
 }
 =======
+=======
+import org.wfanet.measurement.common.identity.InternalId
+>>>>>>> 8b0bd33b (building)
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -74,6 +79,7 @@ class CreateCertificate(private val certificate: Certificate) :
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 
 
@@ -81,6 +87,9 @@ class CreateCertificate(private val certificate: Certificate) :
 >>>>>>> f58fef48 (initial commit)
 =======
 protected fun Certificate.toInsertMutation(
+=======
+fun Certificate.toInsertMutation(
+>>>>>>> 8b0bd33b (building)
   internalId: InternalId,
   externalId: ExternalId
 ): Mutation {
