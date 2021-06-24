@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.service.internal.testing.KingdomDataServices
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
 class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
