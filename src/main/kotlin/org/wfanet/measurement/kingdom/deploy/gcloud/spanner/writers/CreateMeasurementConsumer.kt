@@ -55,14 +55,16 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
       .set("CertificateId")
       .to(internalCertificateId.value)
       .set("ExternalMeasurementConsumerCertificateId")
-      .to(externalMeasurementConsumerId.value)
+      .to(externalMeasurementConsumerCertificateId.value)
       .build()
       .bufferTo(transactionContext)
+    
     return externalMeasurementConsumerId
   }
 
   override fun ResultScope<ExternalId>.buildResult(): MeasurementConsumer {
-    return checkNotNull(transactionResult)
+    val externalMeasurementConsumerId = checkNotNull(transactionResult).value
+    return measurementConsumer
       .toBuilder()
       .setExternalMeasurementConsumerId(externalMeasurementConsumerId)
       .build()
