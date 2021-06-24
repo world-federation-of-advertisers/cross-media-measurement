@@ -30,10 +30,19 @@ class SpannerMeasurementConsumersServiceTest :
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
 
+<<<<<<< HEAD
   override fun newService(idGenerator: IdGenerator): SpannerMeasurementConsumersService {
     return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
       .measurementConsumersService as
       SpannerMeasurementConsumersService
   }
+=======
+  override val service: MeasurementConsumersCoroutineImplBase
+<<<<<<< HEAD
+    get() = spannerDataServicesProviderRule.value.measurementConsumersService
+=======
+    get() = spannerDataServicesProviderRule.value.measurementConsumerService
+>>>>>>> 298fa502 (linted)
+>>>>>>> 64301b5e (linted)
 }
