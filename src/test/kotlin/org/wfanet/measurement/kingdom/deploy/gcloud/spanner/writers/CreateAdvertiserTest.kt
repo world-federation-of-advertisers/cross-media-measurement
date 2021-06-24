@@ -25,10 +25,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
-class CreateAdvertiserTest : KingdomDatabaseTestBase() {
+class CreateAdvertiserTest : LegacyKingdomDatabaseTestBase() {
   @Test
   fun success() =
     runBlocking<Unit> {

@@ -25,7 +25,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfigDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionTemplate
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -59,7 +59,7 @@ private val REQUISITION_TEMPLATES: List<RequisitionTemplate> =
   )
 
 @RunWith(JUnit4::class)
-class ReadRequisitionTemplatesTest : KingdomDatabaseTestBase() {
+class ReadRequisitionTemplatesTest : LegacyKingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)

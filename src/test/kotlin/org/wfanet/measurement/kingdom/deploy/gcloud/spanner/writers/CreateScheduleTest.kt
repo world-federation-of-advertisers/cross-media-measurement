@@ -30,7 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
 import org.wfanet.measurement.internal.kingdom.TimePeriod
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val EXTERNAL_ADVERTISER_ID = 2L
@@ -51,7 +51,7 @@ private val SCHEDULE: ReportConfigSchedule =
     }
     .build()
 
-class CreateScheduleTest : KingdomDatabaseTestBase() {
+class CreateScheduleTest : LegacyKingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)
