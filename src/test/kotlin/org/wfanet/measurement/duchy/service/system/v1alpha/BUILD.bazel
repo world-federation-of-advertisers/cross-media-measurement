@@ -13,5 +13,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
