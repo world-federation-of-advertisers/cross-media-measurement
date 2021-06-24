@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import org.wfanet.measurement.kingdom.db.ReportDatabase
-import org.wfanet.measurement.kingdom.db.RequisitionDatabase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
 data class KingdomDataServices(
