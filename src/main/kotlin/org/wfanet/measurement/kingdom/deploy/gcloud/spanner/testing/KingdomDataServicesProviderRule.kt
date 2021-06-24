@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 =======
@@ -34,6 +35,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHE
 >>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
 =======
 >>>>>>> c4e0e95e (linted)
+=======
+// import org.wfanet.measurement.kingdom.service.internal.testing.KingdomDataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
+>>>>>>> 1f08a28c (addressed comments)
 
 class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
   private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
@@ -42,12 +48,18 @@ class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
   private val databaseClient: AsyncDatabaseClient by lazy { spannerDatabase.databaseClient }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   override val value by lazy {
     SpannerDataServices(clock, idGenerator, databaseClient).buildDataServices()
   }
 =======
   override val value by lazy { makeSpannerKingdomDataServices(clock, idGenerator, databaseClient) }
 >>>>>>> fa017e7e (initial commit)
+=======
+  override val value by lazy {
+    SpannerDataServices(clock, idGenerator, databaseClient).buildDataServices()
+  }
+>>>>>>> 1f08a28c (addressed comments)
 
   override fun apply(base: Statement, description: Description): Statement {
     return spannerDatabase.apply(base, description)
