@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.TimestampBound
@@ -24,16 +23,29 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.identity.testing.IncrementalIdGenerator
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.common.identity.testing.DeterministicIdGenerator
+import org.wfanet.measurement.common.identity.testing.copy
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoJson
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+
+private const val ID_SEED = 1L
 
 @RunWith(JUnit4::class)
 class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
+
+  // private val clock = TestClockWithNamedInstants(Instant.now())
+
   @Test
   fun success() =
     runBlocking<Unit> {
-      val idGenerator = FixedIdGenerator()
-      CreateMeasurementConsumer().execute(databaseClient, idGenerator)
+      val measurementConsumer = MeasurementConsumer.newBuilder().build()
+      val usedIdGenerator = DeterministicIdGenerator(ID_SEED)
+      CreateMeasurementConsumer(measurementConsumer).execute(databaseClient, usedIdGenerator.copy())
+
+      val internalId = usedIdGenerator.generateInternalId()
+      val externalId = usedIdGenerator.generateExternalId()
 
       val measurementConsumers =
         databaseClient
@@ -45,13 +57,13 @@ class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
         .containsExactly(
           Struct.newBuilder()
             .set("MeasurementConsumerId")
-            .to(idGenerator.internalId.value)
+            .to(internalId.value)
             .set("ExternalMeasurementConsumerId")
-            .to(idGenerator.externalId.value)
-            .set("AdvertiserDetails")
-            .to(ByteArray.copyFrom(""))
-            .set("AdvertiserDetailsJson")
-            .to("")
+            .to(externalId.value)
+            .set("MeasurementConsumerDetails")
+            .toProtoBytes(measurementConsumer.details)
+            .set("MeasurementConsumerDetailsJson")
+            .toProtoJson(measurementConsumer.details)
             .build()
         )
     }

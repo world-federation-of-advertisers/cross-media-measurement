@@ -19,13 +19,17 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 
 /** A [IdGenerator] that outputs new but deterministic ids for each call of generate methods */
-class IncrementalIdGenerator(var idSeed: Long = 123456789) : IdGenerator {
-  var iteration = 0
+class DeterministicIdGenerator(val idSeed: Long = 123456789) : IdGenerator {
+  private var iter = 0
   override fun generateInternalId() = InternalId(getNextSeed())
   override fun generateExternalId() = ExternalId(getNextSeed())
 
   private fun getNextSeed(): Long {
-    this.iteration += 1
-    return idSeed + iteration
+    this.iter += 1
+    return idSeed + iter
   }
+}
+
+fun DeterministicIdGenerator.copy(): DeterministicIdGenerator {
+  return DeterministicIdGenerator(idSeed)
 }

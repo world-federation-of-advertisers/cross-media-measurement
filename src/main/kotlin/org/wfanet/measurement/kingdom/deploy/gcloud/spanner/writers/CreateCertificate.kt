@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+
 import com.google.cloud.spanner.Mutation
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -39,7 +41,7 @@ class CreateCertificate(private val certificate: Certificate) :
   }
 }
 
-protected fun Certificate.toInsertMutation(
+fun Certificate.toInsertMutation(
   internalId: InternalId,
   externalId: ExternalId
 ): Mutation {
