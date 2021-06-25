@@ -49,11 +49,20 @@ abstract class MeasurementConsumersServiceTest {
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
-    val measurementConsumer =
+    val createdMeasurementConsumer =
       service.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "" } }.build()
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
       )
 
-    assertThat(measurementConsumer).isEqualTo(measurementConsumer)
+    val measurementConsumerRead =
+      service.getMeasurementConsumer(
+        GetMeasurementConsumerRequest.newBuilder()
+          .setExternalMeasurementConsumerId(
+            createdMeasurementConsumer.externalMeasurementConsumerId
+          )
+          .build()
+      )
+
+    assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
   }
 }
