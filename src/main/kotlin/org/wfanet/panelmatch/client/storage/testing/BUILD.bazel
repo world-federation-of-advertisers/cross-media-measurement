@@ -8,6 +8,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
         "@wfa_measurement_system//imports/java/com/google/common/truth",
         "@wfa_measurement_system//imports/java/org/junit",
         "@wfa_measurement_system//imports/kotlin/kotlin/test",

@@ -25,15 +25,14 @@ import org.wfanet.panelmatch.client.logger.loggerFor
  * Reads input data from given path from the File System.
  *
  * @param baseDir String directory to read/write.
- * @param label String name of file to read/write
  */
 class FileSystemStorage(baseDir: String) : Storage {
   private var storageClient: FileSystemStorageClient
   init {
     val baseFolder = File(baseDir)
     if (!baseFolder.exists()) {
-      if (!baseFolder.getParentFile().exists()) {
-        baseFolder.getParentFile().mkdir()
+      if (!baseFolder.parentFile.exists()) {
+        baseFolder.parentFile.mkdir()
       }
       baseFolder.mkdir()
     }
@@ -49,6 +48,7 @@ class FileSystemStorage(baseDir: String) : Storage {
     logger.info("Write:${path}\n")
     storageClient.createBlob(path, listOf(data).asFlow())
   }
+
   companion object {
     val logger by loggerFor()
   }

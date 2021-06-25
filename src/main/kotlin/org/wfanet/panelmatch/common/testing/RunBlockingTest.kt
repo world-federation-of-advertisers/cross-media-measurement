@@ -12,20 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.common.testing
 
-import org.junit.Rule
-import org.junit.rules.TemporaryFolder
-import org.wfanet.panelmatch.client.storage.testing.AbstractStorageTest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.runBlocking
 
-class FileSystemStorageTest : AbstractStorageTest() {
-  @get:Rule val temporaryFolder = TemporaryFolder()
-
-  override val privateStorage by lazy {
-    FileSystemStorage(baseDir = temporaryFolder.newFolder("private").absolutePath)
-  }
-
-  override val sharedStorage by lazy {
-    FileSystemStorage(baseDir = temporaryFolder.newFolder("shared").absolutePath)
-  }
+// kotlinx.coroutines.test.runBlockingTest complains about
+// "java.lang.IllegalStateException: This job has not completed yet".
+// This is a common issue: https://github.com/Kotlin/kotlinx.coroutines/issues/1204.
+fun runBlockingTest(block: suspend CoroutineScope.() -> Unit) {
+  runBlocking { block() }
 }
