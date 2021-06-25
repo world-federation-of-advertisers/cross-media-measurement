@@ -25,7 +25,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.DeterministicIdGenerator
 import org.wfanet.measurement.common.identity.testing.copy
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
@@ -35,8 +38,6 @@ private const val ID_SEED = 1L
 @RunWith(JUnit4::class)
 class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
 
-  // private val clock = TestClockWithNamedInstants(Instant.now())
-
   @Test
   fun success() =
     runBlocking<Unit> {
@@ -44,8 +45,38 @@ class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
       val usedIdGenerator = DeterministicIdGenerator(ID_SEED)
       CreateMeasurementConsumer(measurementConsumer).execute(databaseClient, usedIdGenerator.copy())
 
-      val internalId = usedIdGenerator.generateInternalId()
-      val externalId = usedIdGenerator.generateExternalId()
+      val expectedInternalCertificateId = usedIdGenerator.generateInternalId()
+
+      val expectedInternalMeasurementConsumerId = usedIdGenerator.generateInternalId()
+      val expectedExternalMeasurementConsumerId = usedIdGenerator.generateExternalId()
+
+      val expectedExternalMeasurementConsumerCertificateId = usedIdGenerator.generateExternalId()
+
+      val certificates =
+        databaseClient
+          .singleUse(TimestampBound.strong())
+          .executeQuery(Statement.of("SELECT * FROM Certificates"))
+          .toList()
+
+      assertThat(certificates)
+        .containsExactly(
+          Struct.newBuilder()
+            .set("CertificateId")
+            .to(expectedInternalCertificateId.value)
+            .set("SubjectKeyIdentifier")
+            .to(measurementConsumer.preferredCertificate.subjectKeyIdentifier.toGcloudByteArray())
+            .set("NotValidBefore")
+            .to(measurementConsumer.preferredCertificate.notValidBefore.toGcloudTimestamp())
+            .set("NotValidAfter")
+            .to(measurementConsumer.preferredCertificate.notValidAfter.toGcloudTimestamp())
+            .set("RevocationState")
+            .toProtoEnum(measurementConsumer.preferredCertificate.revocationState)
+            .set("CertificateDetails")
+            .toProtoBytes(measurementConsumer.preferredCertificate.details)
+            .set("CertificateDetailsJson")
+            .toProtoJson(measurementConsumer.preferredCertificate.details)
+            .build()
+        )
 
       val measurementConsumers =
         databaseClient
@@ -57,13 +88,33 @@ class CreateMeasurementConsumerTest : KingdomDatabaseTestBase() {
         .containsExactly(
           Struct.newBuilder()
             .set("MeasurementConsumerId")
-            .to(internalId.value)
+            .to(expectedInternalMeasurementConsumerId.value)
+            .set("PublicKeyCertificateId")
+            .to(expectedInternalCertificateId.value)
             .set("ExternalMeasurementConsumerId")
-            .to(externalId.value)
+            .to(expectedExternalMeasurementConsumerId.value)
             .set("MeasurementConsumerDetails")
             .toProtoBytes(measurementConsumer.details)
             .set("MeasurementConsumerDetailsJson")
             .toProtoJson(measurementConsumer.details)
+            .build()
+        )
+
+    val measurementConsumerCertificates =
+        databaseClient
+          .singleUse(TimestampBound.strong())
+          .executeQuery(Statement.of("SELECT * FROM MeasurementConsumerCertificates"))
+          .toList()
+
+      assertThat(measurementConsumerCertificates)
+        .containsExactly(
+          Struct.newBuilder()
+            .set("MeasurementConsumerId")
+            .to(expectedInternalMeasurementConsumerId.value)
+            .set("CertificateId")
+            .to(expectedInternalCertificateId.value)
+            .set("ExternalMeasurementConsumerCertificateId")
+            .to(expectedExternalMeasurementConsumerCertificateId.value)
             .build()
         )
     }
