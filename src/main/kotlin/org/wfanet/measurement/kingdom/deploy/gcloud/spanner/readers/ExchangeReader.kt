@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import com.google.type.Date
+import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Exchange
@@ -23,7 +23,8 @@ import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 
 /** Reads [Exchange] protos from Spanner. */
-class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.Result>() {
+class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
+  SpannerReader<ExchangeReader.Result>() {
   data class Result(
     val exchange: Exchange,
     val recurringExchangeId: Long,
@@ -42,7 +43,7 @@ class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.R
   override val baseSql: String =
     """
     SELECT $SELECT_COLUMNS_SQL
-    FROM RecurringExchanges${index.sql}
+    FROM RecurringExchanges${recurringExchangesIndex.sql}
     JOIN Exchanges USING (RecurringExchangeId)
     JOIN DataProviders USING (DataProviderId)
     JOIN ModelProviders USING (ModelProviderId)
@@ -61,8 +62,8 @@ class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.R
     )
   }
 
-  private fun buildExchange(struct: Struct): Exchange =
-    Exchange.newBuilder()
+  private fun buildExchange(struct: Struct): Exchange {
+    return Exchange.newBuilder()
       .apply {
         date = struct.getDate("Date").toProtoDate()
         externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
@@ -70,6 +71,7 @@ class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.R
         state = struct.getProtoEnum("State", Exchange.State::forNumber)
       }
       .build()
+  }
 
   companion object {
     private val SELECT_COLUMNS =
@@ -90,14 +92,4 @@ class ExchangeReader(index: Index = Index.NONE) : SpannerReader<ExchangeReader.R
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
   }
-
-  /** Converts Cloud Spanner Date to [Date]. */
-  fun com.google.cloud.Date.toProtoDate(): Date =
-    Date.newBuilder()
-      .apply {
-        year = this.year
-        month = this.month
-        day = this.day
-      }
-      .build()
 }
