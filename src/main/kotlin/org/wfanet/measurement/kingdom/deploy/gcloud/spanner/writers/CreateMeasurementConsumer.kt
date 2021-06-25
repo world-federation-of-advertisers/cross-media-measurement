@@ -91,7 +91,6 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     val internalMeasurementConsumerId = idGenerator.generateInternalId()
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
 
-
     Mutation.newInsertBuilder("MeasurementConsumers")
       .set("MeasurementConsumerId")
       .to(internalMeasurementConsumerId.value)
