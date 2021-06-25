@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
@@ -37,6 +38,10 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
-      .apply { externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId") }
+      .apply {
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        details =
+          struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
+      }
       .build()
 }
