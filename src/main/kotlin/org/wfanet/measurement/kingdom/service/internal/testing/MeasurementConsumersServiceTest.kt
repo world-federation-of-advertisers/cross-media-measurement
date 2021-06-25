@@ -14,26 +14,46 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.protobuf.Timestamp
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
-private val CREATE_TIME: Timestamp = Timestamp.newBuilder().setSeconds(456).build()
 
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest {
   abstract val service: MeasurementConsumersCoroutineImplBase
+
   @Test
   fun `getMeasurementConsumer fails for missing MeasurementConsumer`() = runBlocking {
-    // TODO(uakyol) :  implement this test
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getMeasurementConsumer(
+          GetMeasurementConsumerRequest.newBuilder()
+            .setExternalMeasurementConsumerId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
+            .build()
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
-    // TODO(uakyol) :  implement this test
+    val measurementConsumer =
+      service.createMeasurementConsumer(
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "" } }.build()
+      )
+
+    assertThat(measurementConsumer).isEqualTo(measurementConsumer)
   }
 }
