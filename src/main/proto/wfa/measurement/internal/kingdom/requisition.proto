@@ -26,10 +26,12 @@ message Requisition {
   fixed64 external_measurement_id = 2;
   fixed64 external_requisition_id = 3;
 
-  fixed64 external_data_provider_id = 4;
-  fixed64 external_data_provider_certificate_id = 5;
+  fixed64 external_computation_id = 4;
 
-  google.protobuf.Timestamp create_time = 6;
+  fixed64 external_data_provider_id = 5;
+  fixed64 external_data_provider_certificate_id = 6;
+
+  google.protobuf.Timestamp create_time = 7;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -37,10 +39,11 @@ message Requisition {
     FULFILLED = 2;
     REFUSED = 3;
   }
-  State state = 7;
+  State state = 8;
 
-  // The external ID of the Duchy that marked this `Requisition` as `FULFILLED`.
-  fixed64 external_fulfilling_duchy_id = 8;
+  // The human-friendly external ID of the Duchy that marked this `Requisition`
+  // as `FULFILLED`.
+  string external_fulfilling_duchy_id = 9;
 
   message Refusal {
     enum Justification {
@@ -98,6 +101,6 @@ message Requisition {
 
     Refusal refusal = 4;
   }
-  Details details = 9;
-  string details_json = 10;
+  Details details = 10;
+  string details_json = 11;
 }
