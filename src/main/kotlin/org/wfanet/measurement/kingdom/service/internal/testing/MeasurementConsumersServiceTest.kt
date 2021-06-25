@@ -16,7 +16,10 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+<<<<<<< HEAD
 import com.google.protobuf.ByteString
+=======
+>>>>>>> 47e4ba8d (initial commit)
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -25,15 +28,19 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+=======
+>>>>>>> 47e4ba8d (initial commit)
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+<<<<<<< HEAD
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -58,18 +65,29 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   fun initService() {
     measurementConsumersService = newService(idGenerator)
   }
+=======
+
+@RunWith(JUnit4::class)
+abstract class MeasurementConsumersServiceTest {
+  abstract val service: MeasurementConsumersCoroutineImplBase
+>>>>>>> 47e4ba8d (initial commit)
 
   @Test
   fun `getMeasurementConsumer fails for missing MeasurementConsumer`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
+<<<<<<< HEAD
         measurementConsumersService.getMeasurementConsumer(
+=======
+        service.getMeasurementConsumer(
+>>>>>>> 47e4ba8d (initial commit)
           GetMeasurementConsumerRequest.newBuilder()
             .setExternalMeasurementConsumerId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
             .build()
         )
       }
 
+<<<<<<< HEAD
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
@@ -95,11 +113,15 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+=======
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+>>>>>>> 47e4ba8d (initial commit)
   }
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
     val measurementConsumer =
+<<<<<<< HEAD
       MeasurementConsumer.newBuilder()
         .apply {
           preferredCertificateBuilder.apply {
@@ -163,5 +185,12 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       )
 
     assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
+=======
+      service.createMeasurementConsumer(
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "" } }.build()
+      )
+
+    assertThat(measurementConsumer).isEqualTo(measurementConsumer)
+>>>>>>> 47e4ba8d (initial commit)
   }
 }

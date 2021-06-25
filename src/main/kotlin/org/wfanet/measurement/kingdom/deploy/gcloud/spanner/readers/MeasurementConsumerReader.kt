@@ -15,10 +15,13 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
+=======
+>>>>>>> 47e4ba8d (initial commit)
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
@@ -30,6 +33,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       MeasurementConsumers.MeasurementConsumerId,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumers.MeasurementConsumerDetails,
+<<<<<<< HEAD
       MeasurementConsumers.MeasurementConsumerDetailsJson,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
       Certificates.CertificateId,
@@ -41,6 +45,10 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     FROM MeasurementConsumers
     JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
     JOIN Certificates USING (CertificateId)
+=======
+      MeasurementConsumers.MeasurementConsumerDetailsJson
+    FROM MeasurementConsumers
+>>>>>>> 47e4ba8d (initial commit)
     """.trimIndent()
 
   override val externalIdColumn: String = "MeasurementConsumers.ExternalMeasurementConsumerId"
@@ -50,6 +58,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
+<<<<<<< HEAD
       .apply {
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
@@ -72,5 +81,8 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
           struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
       }
+=======
+      .apply { externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId") }
+>>>>>>> 47e4ba8d (initial commit)
       .build()
 }
