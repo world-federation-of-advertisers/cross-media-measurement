@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,8 +19,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 
 /** A [IdGenerator] that outputs new but deterministic ids for each call of generate methods */
-class DeterministicIdGenerator(val idSeed: Long = 123456789) : IdGenerator {
-  private var iter = 0
+class DeterministicIdGenerator(val idSeed: Long = 123456789, var iter: Int = 0) : IdGenerator {
   override fun generateInternalId() = InternalId(getNextSeed())
   override fun generateExternalId() = ExternalId(getNextSeed())
 
@@ -31,5 +30,5 @@ class DeterministicIdGenerator(val idSeed: Long = 123456789) : IdGenerator {
 }
 
 fun DeterministicIdGenerator.copy(): DeterministicIdGenerator {
-  return DeterministicIdGenerator(idSeed)
+  return DeterministicIdGenerator(idSeed, iter)
 }
