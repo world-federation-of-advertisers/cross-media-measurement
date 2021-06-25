@@ -44,22 +44,16 @@ spanner_emulator_test(
     srcs = ["SpannerMeasurementConsumersServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersServiceTest",
     deps = [
-<<<<<<< HEAD
-<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
 <<<<<<< HEAD
 =======
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
->>>>>>> fa017e7e (initial commit)
 =======
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+>>>>>>> cd5ff456 (rebased)
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
->>>>>>> 298fa502 (linted)
-=======
->>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
 )

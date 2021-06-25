@@ -4,19 +4,13 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
->>>>>>> fa017e7e (initial commit)
-=======
->>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
 kt_jvm_library(
     name = "testing",
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common",
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -54,5 +48,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumers_service_kt_jvm_grpc",
 >>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
 >>>>>>> d9a4b205 (fixed test failure caused by importing new version of proto with the same name)
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumers_service_kt_jvm_grpc",
+>>>>>>> cd5ff456 (rebased)
     ],
 )
