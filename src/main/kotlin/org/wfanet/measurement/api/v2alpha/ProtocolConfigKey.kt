@@ -12,26 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.service.api.v2alpha
+package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("dataProviders/{data_provider}/requisitions/{requisition}")
+private val parser = ResourceNameParser("protocolConfigs/{protocol_config}")
 
-/** [ResourceKey] of a Requisition. */
-data class RequisitionKey(val dataProviderId: String, val requisitionId: String) : ResourceKey {
+/** [ResourceKey] of a ProtocolConfig. */
+data class ProtocolConfigKey(val protocolConfigId: String) : ResourceKey {
   override fun toName(): String {
-    return parser.assembleName(
-      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.REQUISITION to requisitionId)
-    )
+    return parser.assembleName(mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId))
   }
 
   companion object {
-    val defaultValue = RequisitionKey("", "")
+    val defaultValue = ProtocolConfigKey("")
 
-    fun fromName(resourceName: String): RequisitionKey? {
+    fun fromName(resourceName: String): ProtocolConfigKey? {
       return parser.parseIdVars(resourceName)?.let {
-        RequisitionKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.REQUISITION))
+        ProtocolConfigKey(it.getValue(IdVariable.PROTOCOL_CONFIG))
       }
     }
   }
