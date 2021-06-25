@@ -39,9 +39,8 @@ class SpannerMeasurementConsumersServiceTest :
   }
 =======
   override val service: MeasurementConsumersCoroutineImplBase
-<<<<<<< HEAD
-<<<<<<< HEAD
     get() = spannerDataServicesProviderRule.value.measurementConsumersService
+<<<<<<< HEAD
 =======
     get() = spannerDataServicesProviderRule.value.measurementConsumerService
 >>>>>>> 298fa502 (linted)
@@ -52,4 +51,6 @@ class SpannerMeasurementConsumersServiceTest :
     get() = spannerDataServicesProviderRule.value.measurementConsumersService
 >>>>>>> 1f08a28c (addressed comments)
 >>>>>>> 8174d8a2 (addressed comments)
+=======
+>>>>>>> cd5ff456 (rebased)
 }
