@@ -17,7 +17,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
+<<<<<<< HEAD
 import org.wfanet.measurement.common.grpc.grpcRequire
+=======
+>>>>>>> 47e4ba8d (initial commit)
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -35,21 +38,37 @@ class SpannerMeasurementConsumersService(
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer
   ): MeasurementConsumer {
+<<<<<<< HEAD
     grpcRequire(
       !request.details.apiVersion.isEmpty() &&
         !request.details.publicKey.isEmpty() &&
         !request.details.publicKeySignature.isEmpty()
     ) { "Details field of MeasurementConsumer is missing fields." }
+=======
+>>>>>>> 47e4ba8d (initial commit)
     return CreateMeasurementConsumer(request).execute(client, idGenerator, clock)
   }
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
+<<<<<<< HEAD
     return MeasurementConsumerReader()
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
       ?.measurementConsumer
       ?: failGrpc(Status.NOT_FOUND) {
         "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
       }
+=======
+    val measurementConsumer =
+      MeasurementConsumerReader()
+        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
+        ?.measurementConsumer
+    if (measurementConsumer == null) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
+      }
+    }
+    return measurementConsumer
+>>>>>>> 47e4ba8d (initial commit)
   }
 }
