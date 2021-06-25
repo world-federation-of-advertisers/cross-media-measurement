@@ -35,7 +35,8 @@ class InMemoryStorage(private val keyPrefix: String) : Storage {
 
   override suspend fun write(path: String, data: ByteString) {
     val key = getKey(keyPrefix = keyPrefix, path = path)
-    require(!inMemoryStorage.containsKey(key)) { "Cannot write to an existing key: $key" }
-    inMemoryStorage.put(key, data)
+    require(inMemoryStorage.putIfAbsent(key, data) == null) {
+      "Cannot write to an existing key: $key"
+    }
   }
 }
