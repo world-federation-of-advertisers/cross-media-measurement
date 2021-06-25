@@ -120,6 +120,7 @@ abstract class MeasurementConsumersServiceTest {
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
+<<<<<<< HEAD
     val measurementConsumer =
 <<<<<<< HEAD
       MeasurementConsumer.newBuilder()
@@ -186,11 +187,27 @@ abstract class MeasurementConsumersServiceTest {
 
     assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
 =======
+=======
+    val createdMeasurementConsumer =
+>>>>>>> 1df833ae (testing)
       service.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "" } }.build()
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
       )
 
+<<<<<<< HEAD
     assertThat(measurementConsumer).isEqualTo(measurementConsumer)
 >>>>>>> 47e4ba8d (initial commit)
+=======
+    val measurementConsumerRead =
+      service.getMeasurementConsumer(
+        GetMeasurementConsumerRequest.newBuilder()
+          .setExternalMeasurementConsumerId(
+            createdMeasurementConsumer.externalMeasurementConsumerId
+          )
+          .build()
+      )
+
+    assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
+>>>>>>> 1df833ae (testing)
   }
 }

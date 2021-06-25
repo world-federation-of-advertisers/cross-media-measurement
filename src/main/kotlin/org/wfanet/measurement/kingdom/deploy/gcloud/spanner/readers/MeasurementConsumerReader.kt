@@ -16,12 +16,16 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 =======
 >>>>>>> 47e4ba8d (initial commit)
+=======
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+>>>>>>> 1df833ae (testing)
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
@@ -59,6 +63,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
 <<<<<<< HEAD
+<<<<<<< HEAD
       .apply {
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
@@ -84,5 +89,12 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
 =======
       .apply { externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId") }
 >>>>>>> 47e4ba8d (initial commit)
+=======
+      .apply {
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        details =
+          struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
+      }
+>>>>>>> 1df833ae (testing)
       .build()
 }
