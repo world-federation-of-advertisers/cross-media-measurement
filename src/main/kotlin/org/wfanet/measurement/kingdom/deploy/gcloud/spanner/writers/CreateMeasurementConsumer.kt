@@ -25,19 +25,21 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
   SpannerWriter<ExternalId, MeasurementConsumer>() {
   override suspend fun TransactionScope.runTransaction(): ExternalId {
     val internalCertificateId = idGenerator.generateInternalId()
-    val externalCertificateId = idGenerator.generateExternalId()
 
     measurementConsumer
       .preferredCertificate
-      .toInsertMutation(internalCertificateId, externalCertificateId)
+      .toInsertMutation(internalCertificateId)
       .bufferTo(transactionContext)
 
     val internalMeasurementConsumerId = idGenerator.generateInternalId()
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
 
+
     Mutation.newInsertBuilder("MeasurementConsumers")
       .set("MeasurementConsumerId")
       .to(internalMeasurementConsumerId.value)
+      .set("PublicKeyCertificateId")
+      .to(internalCertificateId.value)
       .set("ExternalMeasurementConsumerId")
       .to(externalMeasurementConsumerId.value)
       .set("MeasurementConsumerDetails")

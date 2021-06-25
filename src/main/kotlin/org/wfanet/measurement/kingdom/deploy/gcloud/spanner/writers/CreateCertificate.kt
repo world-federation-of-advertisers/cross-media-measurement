@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferTo
@@ -27,24 +25,18 @@ import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 
 class CreateCertificate(private val certificate: Certificate) :
-  SpannerWriter<ExternalId, Certificate>() {
-  override suspend fun TransactionScope.runTransaction(): ExternalId {
-    val internalId = idGenerator.generateInternalId()
-    val externalId = idGenerator.generateExternalId()
-    certificate.toInsertMutation(internalId, externalId).bufferTo(transactionContext)
-    return externalId
+  SpannerWriter<Certificate, Certificate>() {
+  override suspend fun TransactionScope.runTransaction(): Certificate {
+    certificate.toInsertMutation(idGenerator.generateInternalId()).bufferTo(transactionContext)
+    return certificate
   }
 
-  override fun ResultScope<ExternalId>.buildResult(): Certificate {
-    val externalCertificateId = checkNotNull(transactionResult).value
-    return Certificate.newBuilder().setExternalCertificateId(externalCertificateId).build()
+  override fun ResultScope<Certificate>.buildResult(): Certificate {
+    return checkNotNull(transactionResult)
   }
 }
 
-fun Certificate.toInsertMutation(
-  internalId: InternalId,
-  externalId: ExternalId
-): Mutation {
+fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
   return Mutation.newInsertBuilder("Certificates")
     .set("CertificateId")
     .to(internalId.value)
