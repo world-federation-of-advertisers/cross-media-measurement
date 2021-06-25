@@ -14,17 +14,41 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest as InternalFulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
+import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 class RequisitionsService(
+  private val internalRequisitionsClient: InternalRequisitionsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
-    TODO("Not implemented yet.")
+    val requisitionKey =
+      grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
+        "Resource name unspecified or invalid."
+      }
+    grpcRequire(!request.dataProviderParticipationSignature.isEmpty) {
+      "data_provider_participation_signature is unspecified."
+    }
+
+    val internalRequest =
+      InternalFulfillRequisitionRequest.newBuilder()
+        .apply {
+          externalComputationId = apiIdToExternalId(requisitionKey.computationId)
+          externalRequisitionId = apiIdToExternalId(requisitionKey.requisitionId)
+          externalFulfillingDuchyId = duchyIdentityProvider().id
+          dataProviderParticipationSignature = request.dataProviderParticipationSignature
+        }
+        .build()
+    return internalRequisitionsClient.fulfillRequisition(internalRequest).toSystemRequisition()
   }
 }
