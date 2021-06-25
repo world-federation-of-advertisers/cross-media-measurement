@@ -23,7 +23,7 @@ import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.whenever
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlin.test.assertNotNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -35,20 +35,20 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse as AsyncAdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 
@@ -56,6 +56,7 @@ private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
+private const val NEXT_BLOB_PATH = "just a path"
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
@@ -72,17 +73,16 @@ class ComputationControlServiceTest {
     }
 
   private val tempDirectory = TemporaryFolder()
+  private lateinit var requisitionStore: RequisitionStore
+  private lateinit var service: ComputationControlService
   private val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *OTHER_DUCHY_NAMES.toTypedArray())
 
   private lateinit var bavaria: DuchyIdentity
   private lateinit var carinthia: DuchyIdentity
-  private lateinit var storageClient: StorageClient
-  private suspend fun StorageClient.readBlobAsString(key: String): String {
-    return getBlob(key)?.read(defaultBufferSizeBytes)?.flatten()?.toStringUtf8()!!
-  }
 
   val grpcTestServerRule = GrpcTestServerRule {
-    storageClient = FileSystemStorageClient(tempDirectory.root)
+    val storageClient = FileSystemStorageClient(tempDirectory.root)
+    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
     addService(mockAsyncControlService)
   }
 
@@ -101,11 +101,13 @@ class ComputationControlServiceTest {
     carinthia = DuchyIdentity(CARINTHIA)
     senderContext =
       SenderContext { duchyIdProvider ->
-        ComputationControlService(
-          AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
-          storageClient = storageClient,
-          duchyIdentityProvider = duchyIdProvider
-        )
+        service =
+          ComputationControlService(
+            AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
+            requisitionStore,
+            duchyIdProvider
+          )
+        service
       }
   }
 
@@ -115,7 +117,6 @@ class ComputationControlServiceTest {
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
     withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
-    val key = ComputationControlService.generateBlobKey(carinthiaHeader, CARINTHIA)
 
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
@@ -125,11 +126,12 @@ class ComputationControlServiceTest {
             computationStage =
               LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
             dataOrigin = CARINTHIA
-            blobPath = key
+            blobPath = NEXT_BLOB_PATH
           }
           .build()
       )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("contents")
+    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
@@ -138,7 +140,6 @@ class ComputationControlServiceTest {
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
     withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
-    val key = ComputationControlService.generateBlobKey(carinthiaHeader, CARINTHIA)
 
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
@@ -149,36 +150,12 @@ class ComputationControlServiceTest {
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
                 .toProtocolStage()
             dataOrigin = CARINTHIA
-            blobPath = key
+            blobPath = NEXT_BLOB_PATH
           }
           .build()
       )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("contents")
-  }
-
-  @Test
-  fun `liquid legions v2 resend reach phase inputs but already written`() = runBlocking {
-    val id = "444444"
-    val carinthiaHeader =
-      advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
-    val key = ComputationControlService.generateBlobKey(carinthiaHeader, CARINTHIA)
-    storageClient.createBlob(key, flowOf(ByteString.copyFromUtf8("already-written-contents")))
-    withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
-
-    assertThat(advanceAsyncComputationRequests)
-      .containsExactly(
-        AsyncAdvanceComputationRequest.newBuilder()
-          .apply {
-            globalComputationId = id
-            computationStage =
-              LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
-                .toProtocolStage()
-            dataOrigin = CARINTHIA
-            blobPath = key
-          }
-          .build()
-      )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("already-written-contents")
+    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
@@ -187,7 +164,6 @@ class ComputationControlServiceTest {
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, id)
     withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
-    val key = ComputationControlService.generateBlobKey(bavariaHeader, BAVARIA)
 
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
@@ -198,11 +174,12 @@ class ComputationControlServiceTest {
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
                 .toProtocolStage()
             dataOrigin = BAVARIA
-            blobPath = key
+            blobPath = NEXT_BLOB_PATH
           }
           .build()
       )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("contents")
+    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
@@ -211,7 +188,6 @@ class ComputationControlServiceTest {
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT, id)
     withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
-    val key = ComputationControlService.generateBlobKey(bavariaHeader, BAVARIA)
 
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
@@ -222,11 +198,12 @@ class ComputationControlServiceTest {
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
                 .toProtocolStage()
             dataOrigin = BAVARIA
-            blobPath = key
+            blobPath = NEXT_BLOB_PATH
           }
           .build()
       )
-    assertThat(storageClient.readBlobAsString(key)).isEqualTo("contents")
+    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
@@ -270,7 +247,9 @@ class ComputationControlServiceTest {
       }
       assertFailsWith<StatusRuntimeException> {
         withSender(bavaria) {
-          advanceComputation(goodHeader.toBuilder().clearKey().build().withContent("blob-contents"))
+          advanceComputation(
+            goodHeader.toBuilder().clearName().build().withContent("blob-contents")
+          )
         }
       }
       assertFailsWith<StatusRuntimeException> {
@@ -283,7 +262,6 @@ class ComputationControlServiceTest {
     }
 }
 
-@OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
 private fun AdvanceComputationRequest.Header.withContent(
   vararg bodyContent: String
 ): Flow<AdvanceComputationRequest> {

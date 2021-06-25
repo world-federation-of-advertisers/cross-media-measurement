@@ -20,15 +20,14 @@ import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.config.DuchyPublicKeyConfig
-import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
+import org.wfanet.measurement.testing.TestConfig
 
 @RunWith(JUnit4::class)
 class ProtoUtilsTest {
   @Test
   fun `truncateByteFields truncates if longer than threshold`() {
     val message =
-      AdvanceComputationRequest.newBuilder()
+      TestConfig.newBuilder()
         .apply { bodyChunkBuilder.partialData = ByteString.copyFromUtf8("1234567890") }
         .build()
 
@@ -40,7 +39,7 @@ class ProtoUtilsTest {
   @Test
   fun `truncateByteFields does not truncate if not longer than threshold`() {
     val message =
-      AdvanceComputationRequest.newBuilder()
+      TestConfig.newBuilder()
         .apply { bodyChunkBuilder.partialData = ByteString.copyFromUtf8("123456") }
         .build()
 
@@ -52,7 +51,7 @@ class ProtoUtilsTest {
   @Test
   fun `truncateByteFields truncates in embedded proto field`() {
     val message =
-      AdvanceComputationRequest.newBuilder()
+      TestConfig.newBuilder()
         .apply { bodyChunkBuilder.partialData = ByteString.copyFromUtf8("1234567890") }
         .build()
 
@@ -64,15 +63,15 @@ class ProtoUtilsTest {
   @Test
   fun `truncateByteFields truncates in map field`() {
     val originalBytes = ByteString.copyFromUtf8("1234567890")
-    val combinedPublicKeyId = "combined-public-key-1"
+    val keyId = "key-1"
     val message =
-      DuchyPublicKeyConfig.newBuilder().apply {
+      TestConfig.newBuilder().apply {
         putEntries(
-          combinedPublicKeyId,
-          DuchyPublicKeyConfig.Entry.newBuilder()
+          keyId,
+          TestConfig.Entry.newBuilder()
             .apply {
-              putElGamalElements("duchy-1", originalBytes)
-              putElGamalElements("duchy-2", originalBytes)
+              putElements("duchy-1", originalBytes)
+              putElements("duchy-2", originalBytes)
             }
             .build()
         )
@@ -81,7 +80,7 @@ class ProtoUtilsTest {
     val results = message.truncateByteFields(5)
 
     val expectedBytes = ByteString.copyFromUtf8("12345")
-    val entry = checkNotNull(results.entriesMap[combinedPublicKeyId])
-    assertThat(entry.elGamalElementsMap.values).containsExactly(expectedBytes, expectedBytes)
+    val entry = checkNotNull(results.entriesMap[keyId])
+    assertThat(entry.elementsMap.values).containsExactly(expectedBytes, expectedBytes)
   }
 }

@@ -17,8 +17,8 @@ package org.wfanet.measurement.duchy.deploy.common.server
 import java.time.Duration
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -31,7 +31,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import picocli.CommandLine
 
 private typealias ComputationsDb =
@@ -44,8 +44,6 @@ abstract class ComputationsServer : Runnable {
   protected lateinit var flags: Flags
     private set
 
-  protected val duchyPublicKeys by lazy { DuchyPublicKeys.fromFlags(flags.duchyPublicKeys) }
-
   abstract val protocolStageEnumHelper:
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
   abstract val computationProtocolStageDetails:
@@ -56,10 +54,11 @@ abstract class ComputationsServer : Runnable {
     computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb
   ) {
-    val channel = buildChannel(flags.globalComputationsServiceTarget, flags.channelShutdownTimeout)
+    val channel =
+      buildChannel(flags.computationLogEntriesServiceTarget, flags.channelShutdownTimeout)
 
-    val globalComputationsClient =
-      GlobalComputationsCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
+    val computationLogEntriesClient =
+      ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
     CommonServer.fromFlags(
@@ -67,7 +66,7 @@ abstract class ComputationsServer : Runnable {
         javaClass.name,
         ComputationsService(
           computationsDatabase = computationsDatabase,
-          globalComputationsClient = globalComputationsClient,
+          computationLogEntriesClient = computationLogEntriesClient,
           duchyName = flags.duchy.duchyName
         ),
         ComputationStatsService(computationsDatabase)
@@ -98,7 +97,7 @@ abstract class ComputationsServer : Runnable {
       private set
 
     @CommandLine.Mixin
-    lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
+    lateinit var duchyInfo: DuchyInfoFlags
       private set
 
     @CommandLine.Option(
@@ -111,11 +110,11 @@ abstract class ComputationsServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--global-computation-service-target"],
-      description = ["Address and port of the Global Computation Service"],
+      names = ["--system-computation-log-entries-service-target"],
+      description = ["Address and port of the system ComputationLogEntriesService"],
       required = true
     )
-    lateinit var globalComputationsServiceTarget: String
+    lateinit var computationLogEntriesServiceTarget: String
       private set
   }
 

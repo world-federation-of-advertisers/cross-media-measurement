@@ -43,38 +43,37 @@ import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+
+private val AGGREGATOR_COMPUTATION_DETAILS =
+  ComputationDetails.newBuilder()
+    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
+    .build()
+
+private val NON_AGGREGATOR_COMPUTATION_DETAILS =
+  ComputationDetails.newBuilder()
+    .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
+    .build()
+private const val DUCHY_NAME = "BOHEMIA"
 
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
 class ComputationsServiceTest {
 
-  companion object {
-    val aggregatorComputationDetails =
-      ComputationDetails.newBuilder()
-        .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.AGGREGATOR } }
-        .build()
-
-    val nonAggregatorComputationDetails =
-      ComputationDetails.newBuilder()
-        .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
-        .build()
-  }
-
   private val fakeDatabase = FakeComputationsDatabase()
-  private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
+  private val mockComputationLogEntriesService: ComputationLogEntriesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockGlobalComputations) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationLogEntriesService) }
 
   private val fakeService: ComputationsService by lazy {
     ComputationsService(
       fakeDatabase,
-      GlobalComputationsCoroutineStub(grpcTestServerRule.channel),
-      "BOHEMIA",
+      ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel),
+      DUCHY_NAME,
       Clock.systemUTC()
     )
   }
@@ -85,7 +84,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions =
         listOf(
           RequisitionMetadata.newBuilder()
@@ -104,7 +103,7 @@ class ComputationsServiceTest {
           globalComputationId = "1234"
           computationStageBuilder.liquidLegionsSketchAggregationV2 =
             LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
-          computationDetails = aggregatorComputationDetails
+          computationDetails = AGGREGATOR_COMPUTATION_DETAILS
           addRequisitionsBuilder().apply {
             externalDataProviderId = "edp1"
             externalRequisitionId = "1234"
@@ -124,11 +123,11 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
-      aggregatorComputationDetails
+      AGGREGATOR_COMPUTATION_DETAILS
         .toBuilder()
         .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
         .build()
@@ -159,7 +158,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions =
         listOf(
           RequisitionMetadata.newBuilder()
@@ -178,7 +177,7 @@ class ComputationsServiceTest {
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
-      aggregatorComputationDetails
+      AGGREGATOR_COMPUTATION_DETAILS
         .toBuilder()
         .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
         .build()
@@ -234,7 +233,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val request =
@@ -261,23 +260,21 @@ class ComputationsServiceTest {
       )
 
     verifyProtoArgument(
-        mockGlobalComputations,
-        GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+        mockComputationLogEntriesService,
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        CreateGlobalComputationStatusUpdateRequest.newBuilder()
+        CreateComputationLogEntryRequest.newBuilder()
           .apply {
-            parentBuilder.globalComputationId = id
-            statusUpdateBuilder.apply {
-              selfReportedIdentifier = "BOHEMIA"
-              stageDetailsBuilder.apply {
-                algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-                stageNumber = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.number.toLong()
+            parent = "computations/$id/participants/$DUCHY_NAME"
+            computationLogEntryBuilder.apply {
+              logMessage = "Computation $id at stage COMPLETE, attempt 0"
+              stageAttemptBuilder.apply {
+                stage = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.number
                 stageName = LiquidLegionsSketchAggregationV2.Stage.COMPLETE.name
                 attemptNumber = 0
               }
-              updateMessage = "Computation $id at stage COMPLETE, attempt 0"
             }
           }
           .build()
@@ -290,7 +287,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails,
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
           newInputBlobMetadata(id = 0L, key = "an_input_blob"),
@@ -343,26 +340,23 @@ class ComputationsServiceTest {
       )
 
     verifyProtoArgument(
-        mockGlobalComputations,
-        GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+        mockComputationLogEntriesService,
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        CreateGlobalComputationStatusUpdateRequest.newBuilder()
+        CreateComputationLogEntryRequest.newBuilder()
           .apply {
-            parentBuilder.globalComputationId = id
-            statusUpdateBuilder.apply {
-              selfReportedIdentifier = "BOHEMIA"
-              stageDetailsBuilder.apply {
-                algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-                stageNumber =
+            parent = "computations/$id/participants/$DUCHY_NAME"
+            computationLogEntryBuilder.apply {
+              logMessage = "Computation $id at stage WAIT_EXECUTION_PHASE_TWO_INPUTS, attempt 0"
+              stageAttemptBuilder.apply {
+                stage =
                   LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.number
-                    .toLong()
                 stageName =
                   LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS.name
                 attemptNumber = 0
               }
-              updateMessage = "Computation $id at stage WAIT_EXECUTION_PHASE_TWO_INPUTS, attempt 0"
             }
           }
           .build()
@@ -377,18 +371,18 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = blindId,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
     )
     fakeDatabase.addComputation(
       completedId,
       LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage(),
-      nonAggregatorComputationDetails,
+      NON_AGGREGATOR_COMPUTATION_DETAILS,
       listOf()
     )
     fakeDatabase.addComputation(
       decryptId,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_THREE.toProtocolStage(),
-      nonAggregatorComputationDetails,
+      NON_AGGREGATOR_COMPUTATION_DETAILS,
       listOf()
     )
     val getIdsInMillStagesRequest =
@@ -417,13 +411,13 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = unclaimed,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = nonAggregatorComputationDetails
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
     )
     val unclaimedAtStart = fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
       claimed,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      nonAggregatorComputationDetails,
+      NON_AGGREGATOR_COMPUTATION_DETAILS,
       listOf()
     )
     fakeDatabase.claimedComputationIds.add(claimed)
@@ -443,24 +437,21 @@ class ComputationsServiceTest {
       .isEqualTo(claimedAtStart.toGetComputationTokenResponse())
 
     verifyProtoArgument(
-        mockGlobalComputations,
-        GlobalComputationsCoroutineImplBase::createGlobalComputationStatusUpdate
+        mockComputationLogEntriesService,
+        ComputationLogEntriesCoroutineImplBase::createComputationLogEntry
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        CreateGlobalComputationStatusUpdateRequest.newBuilder()
+        CreateComputationLogEntryRequest.newBuilder()
           .apply {
-            parentBuilder.globalComputationId = unclaimed
-            statusUpdateBuilder.apply {
-              selfReportedIdentifier = "BOHEMIA"
-              stageDetailsBuilder.apply {
-                algorithm = GlobalComputationStatusUpdate.MpcAlgorithm.LIQUID_LEGIONS_V2
-                stageNumber =
-                  LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.number.toLong()
+            parent = "computations/$unclaimed/participants/$DUCHY_NAME"
+            computationLogEntryBuilder.apply {
+              logMessage = "Computation $unclaimed at stage EXECUTION_PHASE_ONE, attempt 1"
+              stageAttemptBuilder.apply {
+                stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.number
                 stageName = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.name
                 attemptNumber = 1
               }
-              updateMessage = "Computation $unclaimed at stage EXECUTION_PHASE_ONE, attempt 1"
             }
           }
           .build()
@@ -473,7 +464,7 @@ class ComputationsServiceTest {
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
-      computationDetails = aggregatorComputationDetails,
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions =
         listOf(
           RequisitionMetadata.newBuilder()

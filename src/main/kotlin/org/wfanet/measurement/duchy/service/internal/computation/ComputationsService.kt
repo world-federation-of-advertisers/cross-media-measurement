@@ -27,7 +27,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransacto
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
-import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
@@ -56,13 +55,14 @@ import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
-import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 
 /** Implementation of the Computations service. */
 class ComputationsService(
   private val computationsDatabase: ComputationsDatabase,
-  private val globalComputationsClient: GlobalComputationsCoroutineStub,
+  private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC()
 ) : ComputationsCoroutineImplBase() {
@@ -72,7 +72,7 @@ class ComputationsService(
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
       sendStatusUpdateToKingdom(
-        newStatusUpdateRequest(
+        newCreateComputationLogEntryRequest(
           token.globalComputationId,
           token.computationStage,
           token.attempt.toLong()
@@ -103,7 +103,7 @@ class ComputationsService(
     )
 
     sendStatusUpdateToKingdom(
-      newStatusUpdateRequest(
+      newCreateComputationLogEntryRequest(
         request.globalComputationId,
         computationsDatabase.getValidInitialStage(request.computationType).first()
       )
@@ -128,7 +128,10 @@ class ComputationsService(
     )
 
     sendStatusUpdateToKingdom(
-      newStatusUpdateRequest(request.token.globalComputationId, request.endingComputationStage)
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.endingComputationStage
+      )
     )
 
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
@@ -211,7 +214,10 @@ class ComputationsService(
     )
 
     sendStatusUpdateToKingdom(
-      newStatusUpdateRequest(request.token.globalComputationId, request.nextComputationStage)
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.nextComputationStage
+      )
     )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toAdvanceComputationStageResponse()
@@ -248,35 +254,32 @@ class ComputationsService(
       .toRecordRequisitionBlobPathResponse()
   }
 
-  private fun newStatusUpdateRequest(
+  private fun newCreateComputationLogEntryRequest(
     globalId: String,
     computationStage: ComputationStage,
     attempt: Long = 0L
-  ): CreateGlobalComputationStatusUpdateRequest {
-    return CreateGlobalComputationStatusUpdateRequest.newBuilder()
+  ): CreateComputationLogEntryRequest {
+    return CreateComputationLogEntryRequest.newBuilder()
       .apply {
-        parentBuilder.globalComputationId = globalId
-        statusUpdateBuilder.apply {
-          selfReportedIdentifier = duchyName
-          stageDetailsBuilder.apply {
-            algorithm = computationStage.mpcAlgorithm
-            stageNumber = computationStage.number.toLong()
+        parent = ComputationParticipantKey(globalId, duchyName).toName()
+        computationLogEntryBuilder.apply {
+          // TODO: maybe set participantChildReferenceId
+          logMessage =
+            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
+          stageAttemptBuilder.apply {
+            stage = computationStage.number
             stageName = computationStage.name
-            start = clock.protoTimestamp()
+            stageStartTime = clock.protoTimestamp()
             attemptNumber = attempt
           }
-          updateMessage =
-            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
         }
       }
       .build()
   }
 
-  private suspend fun sendStatusUpdateToKingdom(
-    request: CreateGlobalComputationStatusUpdateRequest
-  ) {
+  private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
     try {
-      globalComputationsClient.createGlobalComputationStatusUpdate(request)
+      computationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
       logger.warning("Failed to update status change to the kingdom. $ignored")
     }

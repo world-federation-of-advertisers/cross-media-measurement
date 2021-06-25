@@ -10,25 +10,50 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "global_computation_service",
-    srcs = ["GlobalComputationService.kt"],
+    name = "requisitions_service",
+    srcs = ["RequisitionsService.kt"],
     deps = [
-        "//imports/java/io/grpc:api",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entries_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/kingdom:reports_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/system/v1alpha:global_computation_service_kt_jvm_grpc",
+        ":proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:requisitions_service_kt_jvm_grpc",
     ],
 )
 
 kt_jvm_library(
-    name = "requisition_service",
-    srcs = ["RequisitionService.kt"],
+    name = "computations_service",
+    srcs = ["ComputationsService.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisitions_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/system/v1alpha:requisition_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_log_entries_service",
+    srcs = ["ComputationLogEntriesService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "computation_participants_service",
+    srcs = ["ComputationParticipantsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "proto_conversions",
+    srcs = ["ProtoConversions.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:requisition_java_proto",
     ],
 )

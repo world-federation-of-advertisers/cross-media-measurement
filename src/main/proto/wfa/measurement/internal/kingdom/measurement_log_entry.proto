@@ -46,7 +46,7 @@ message MeasurementLogEntry {
   }
 
   message Details {
-    // Human-readable error message. This should not include any sensitive info.
+    // Human-readable log message. This should not include any sensitive info.
     string log_message = 1;
 
     // Details about an error. Only set if the log entry is for an error event.

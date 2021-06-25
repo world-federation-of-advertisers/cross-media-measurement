@@ -15,8 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.time.Clock
@@ -24,10 +22,7 @@ import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.dropWhile
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
@@ -42,7 +37,6 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
-import org.wfanet.measurement.duchy.mpcAlgorithm
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -56,20 +50,17 @@ import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.GetMetricValueRequest
-import org.wfanet.measurement.internal.duchy.MetricValue.ResourceKey
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt
-import org.wfanet.measurement.internal.duchy.StreamMetricValueRequest
-import org.wfanet.measurement.internal.duchy.protocol.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntry.ErrorDetails.Type
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.PERMANENT
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType.TRANSIENT
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
+import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 
 /**
  * A [MillBase] wrapping common functionalities of mills.
@@ -77,11 +68,12 @@ import org.wfanet.measurement.system.v1alpha.MetricRequisitionKey
  * @param millId The identifier of this mill, used to claim a work.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
- * @param globalComputationsClient client of the kingdom's GlobalComputationsService.
- * @param systemComputationParticipantsClient client of the kingdom's
+ * @param systemComputationParticipantsClient client of the kingdom's system
  * ComputationParticipantsService.
- * @param metricValuesClient client of the own duchy's MetricValuesService.
- * @param computationStatsClient client of the duchy's ComputationStatsService.
+ * @param systemComputationsClient client of the kingdom's system computationsService.
+ * @param systemComputationLogEntriesClient client of the kingdom's system
+ * computationLogEntriesService.
+ * @param computationStatsClient client of the duchy's internal ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
  * computation table.
  * @param computationType The [ComputationType] this mill is working on.
@@ -92,9 +84,9 @@ abstract class MillBase(
   protected val millId: String,
   protected val duchyId: String,
   protected val dataClients: ComputationDataClients,
-  protected val globalComputationsClient: GlobalComputationsCoroutineStub,
   protected val systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
-  private val metricValuesClient: MetricValuesGrpcKt.MetricValuesCoroutineStub,
+  private val systemComputationsClient: SystemComputationsCoroutineStub,
+  private val systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
@@ -149,69 +141,80 @@ abstract class MillBase(
       // The token version may have already changed. We need the latest token in order to complete
       // or enqueue the computation.
       val latestToken = getLatestComputationToken(globalId)
+      handleExceptions(latestToken, e)
+    }
+  }
+
+  private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
+    // All new errors thrown in this handler should be suppressed such that the mill doesn't crash.
+    logAndSuppressExceptionSuspend {
+      val globalId = token.globalComputationId
       when (e) {
         is IllegalStateException, is IllegalArgumentException, is PermanentComputationError -> {
           logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
-          sendStatusUpdateToKingdom(newErrorUpdateRequest(latestToken, e.toString(), PERMANENT))
+          failComputationAtKingdom(token, e.localizedMessage)
           // Mark the computation FAILED for all permanent errors
-          completeComputation(latestToken, CompletedReason.FAILED)
+          completeComputation(token, CompletedReason.FAILED)
         }
         else -> {
           // Treat all other errors as transient.
           logger.log(Level.SEVERE, "$globalId@$millId: TRANSIENT error", e)
-          sendStatusUpdateToKingdom(newErrorUpdateRequest(latestToken, e.toString(), TRANSIENT))
+          sendStatusUpdateToKingdom(
+            newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
+          )
           // Enqueue the computation again for future retry
-          enqueueComputation(latestToken)
+          enqueueComputation(token)
         }
-      }
-    }
-  }
-
-  /** Actual implementation of processComputation(). */
-  protected abstract suspend fun processComputationImpl(token: ComputationToken)
-
-  /** Returns whether a value exists for the requisition by calling the MetricValues service. */
-  suspend fun metricValueExists(key: RequisitionKey): Boolean {
-    return try {
-      metricValuesClient.getMetricValue(
-        GetMetricValueRequest.newBuilder().setResourceKey(key.toResourceKey()).build()
-      )
-      true
-    } catch (e: StatusException) {
-      when (e.status.code) {
-        Status.Code.NOT_FOUND -> false
-        else -> throw e
       }
     }
   }
 
   /**
-   * Fetches all requisitions from the MetricValuesService, discards the headers and streams all
-   * data payloads as a [Flow]
+   * Sends request to the kingdom's system ComputationParticipantsService to fail the computation..
    */
-  protected fun streamMetricValueContents(
-    availableRequisitions: Iterable<RequisitionKey>
-  ): Flow<Flow<ByteString>> = flow {
-    for (requisitionKey in availableRequisitions) {
-      val responses =
-        metricValuesClient.streamMetricValue(
-          StreamMetricValueRequest.newBuilder()
-            .setResourceKey(requisitionKey.toResourceKey())
-            .build()
-        )
-      emit(responses.dropWhile { it.hasHeader() }.map { it.chunk.data })
-    }
+  private suspend fun failComputationAtKingdom(token: ComputationToken, errorMessage: String) {
+    val request =
+      FailComputationParticipantRequest.newBuilder()
+        .apply {
+          name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+          failureBuilder.also {
+            it.participantChildReferenceId = millId
+            it.errorMessage = errorMessage
+            it.errorTime = clock.protoTimestamp()
+            it.stageAttemptBuilder.apply {
+              stage = token.computationStage.number
+              stageName = token.computationStage.name
+              attemptNumber = token.attempt.toLong()
+            }
+          }
+        }
+        .build()
+    systemComputationParticipantsClient.failComputationParticipant(request)
   }
 
-  /** Sends status update to the Kingdom's GlobalComputationsService. */
-  private suspend fun sendStatusUpdateToKingdom(
-    request: CreateGlobalComputationStatusUpdateRequest
-  ) {
+  /** Actual implementation of processComputation(). */
+  protected abstract suspend fun processComputationImpl(token: ComputationToken)
+
+  /** Sends status update to the Kingdom's ComputationLogEntriesService. */
+  private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
     try {
-      globalComputationsClient.createGlobalComputationStatusUpdate(request)
+      systemComputationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
       logger.warning("Failed to update status change to the kingdom. $ignored")
     }
+  }
+
+  /** Sends measurement result to the kingdom's system computationsService. */
+  protected suspend fun sendResultToKingdom(globalId: String, result: ByteString) {
+    val request =
+      SetComputationResultRequest.newBuilder()
+        .apply {
+          name = ComputationKey(globalId).toName()
+          // TODO(wangyaopw): set aggregatorCertificate and resultPublicKey
+          encryptedResult = result
+        }
+        .build()
+    systemComputationsClient.setComputationResult(request)
   }
 
   /** Writes stage metric to the [Logger] and also sends to the ComputationStatsService. */
@@ -259,32 +262,30 @@ abstract class MillBase(
     }
   }
 
-  /** Builds a [CreateGlobalComputationStatusUpdateRequest] to update the new error. */
+  /** Builds a [CreateComputationLogEntryRequest] to update the new error. */
   private fun newErrorUpdateRequest(
     token: ComputationToken,
     message: String,
-    type: GlobalComputationStatusUpdate.ErrorDetails.ErrorType
-  ): CreateGlobalComputationStatusUpdateRequest {
+    type: Type
+  ): CreateComputationLogEntryRequest {
     val timestamp = clock.protoTimestamp()
-    return CreateGlobalComputationStatusUpdateRequest.newBuilder()
+    return CreateComputationLogEntryRequest.newBuilder()
       .apply {
-        parentBuilder.globalComputationId = token.globalComputationId
-        statusUpdateBuilder.apply {
-          selfReportedIdentifier = millId
-          stageDetailsBuilder.apply {
-            algorithm = token.computationStage.mpcAlgorithm
-            stageNumber = token.computationStage.number.toLong()
+        parent = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
+        computationLogEntryBuilder.apply {
+          participantChildReferenceId = millId
+          logMessage =
+            "Computation ${token.globalComputationId} at stage " +
+              "${token.computationStage.name}, attempt ${token.attempt} failed, $message"
+          stageAttemptBuilder.apply {
+            stage = token.computationStage.number
             stageName = token.computationStage.name
-            start = timestamp
+            stageStartTime = timestamp
             attemptNumber = token.attempt.toLong()
           }
-          updateMessage =
-            "Computation ${token.globalComputationId} at stage " +
-              "${token.computationStage.name}, attempt ${token.attempt} failed."
-          errorDetailsBuilder.apply {
-            errorTime = timestamp
-            errorType = type
-            errorMessage = "${token.globalComputationId}@$millId: $message"
+          errorDetailsBuilder.also {
+            it.errorTime = timestamp
+            it.type = type
           }
         }
       }
@@ -292,7 +293,6 @@ abstract class MillBase(
   }
 
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onCompletion`.
   protected fun addLoggingHook(token: ComputationToken, bytes: Flow<ByteString>): Flow<ByteString> {
     var numOfBytes = 0L
     return bytes.onEach { numOfBytes += it.size() }.onCompletion {
@@ -301,7 +301,6 @@ abstract class MillBase(
   }
 
   /** Sends an AdvanceComputationRequest to the target duchy. */
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   protected suspend fun sendAdvanceComputationRequest(
     header: AdvanceComputationRequest.Header,
     content: Flow<ByteString>,
@@ -423,27 +422,7 @@ const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
 
 data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
 
-data class LiquidLegionsConfig(val decayRate: Double, val size: Long)
-
 class PermanentComputationError(cause: Throwable) : Exception(cause)
-
-fun RequisitionKey.toResourceKey(): ResourceKey {
-  return ResourceKey.newBuilder()
-    .apply {
-      dataProviderResourceId = dataProviderId
-      campaignResourceId = campaignId
-      metricRequisitionResourceId = metricRequisitionId
-    }
-    .build()
-}
-
-fun RequisitionKey.toMetricRequisitionKey(): MetricRequisitionKey {
-  return MetricRequisitionKey.newBuilder()
-    .setCampaignId(campaignId)
-    .setDataProviderId(dataProviderId)
-    .setMetricRequisitionId(metricRequisitionId)
-    .build()
-}
 
 /** Converts a milliseconds to a human friendly string. */
 fun Long.toHumanFriendlyDuration(): String {

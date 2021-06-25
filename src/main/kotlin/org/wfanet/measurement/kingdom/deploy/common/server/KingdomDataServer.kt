@@ -16,20 +16,21 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.identity.DuchyIdFlags
-import org.wfanet.measurement.common.identity.DuchyIds
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
-  @CommandLine.Mixin private lateinit var duchyIdFlags: DuchyIdFlags
+  @CommandLine.Mixin private lateinit var duchyInfoFlags: DuchyInfoFlags
 
   protected suspend fun run(dataServices: DataServices) {
-    DuchyIds.setDuchyIdsFromFlags(duchyIdFlags)
+    DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
-    val services = dataServices.buildDataServices()
+    val services = dataServices.buildDataServices().toList()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

@@ -30,10 +30,8 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.nhaarman.mockitokotlin2.UseConstructor
 import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.argumentCaptor
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.verifyBlocking
 import com.nhaarman.mockitokotlin2.whenever
 import java.time.Clock
 import java.time.Duration
@@ -50,6 +48,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.size
@@ -60,6 +59,7 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2M
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.name
+import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -78,7 +78,6 @@ import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
-import org.wfanet.measurement.internal.duchy.StreamMetricValueResponse
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
@@ -116,24 +115,26 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
+import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase as SystemComputationLogEntriesCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as SystemComputationParticipantsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.CreateGlobalComputationStatusUpdateRequest
-import org.wfanet.measurement.system.v1alpha.FinishGlobalComputationRequest
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.ErrorDetails.ErrorType
-import org.wfanet.measurement.system.v1alpha.GlobalComputationStatusUpdate.MpcAlgorithm
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineImplBase
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.SETUP_PHASE_INPUT
+import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 private const val PUBLIC_API_VERSION = "v2alpha"
@@ -280,6 +281,7 @@ private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
 private val AGGREGATOR_COMPUTATION_DETAILS =
   ComputationDetails.newBuilder()
     .apply {
+      kingdomComputationBuilder.publicApiVersion = PUBLIC_API_VERSION
       liquidLegionsV2Builder.apply {
         role = RoleInComputation.AGGREGATOR
         parameters = LLV2_PARAMETERS
@@ -297,6 +299,7 @@ private val AGGREGATOR_COMPUTATION_DETAILS =
 private val NON_AGGREGATOR_COMPUTATION_DETAILS =
   ComputationDetails.newBuilder()
     .apply {
+      kingdomComputationBuilder.publicApiVersion = PUBLIC_API_VERSION
       liquidLegionsV2Builder.apply {
         role = RoleInComputation.NON_AGGREGATOR
         parameters = LLV2_PARAMETERS
@@ -316,9 +319,11 @@ class LiquidLegionsV2MillTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockMetricValues: MetricValuesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val mockGlobalComputations: GlobalComputationsCoroutineImplBase =
+  private val mockSystemComputations: SystemComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val mockComputationParticipants: ComputationParticipantsCoroutineImplBase =
+  private val mockComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
+  private val mockComputationLogEntries: SystemComputationLogEntriesCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockComputationStats: ComputationStatsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
@@ -349,14 +354,14 @@ class LiquidLegionsV2MillTest {
         OTHER_DUCHY_NAMES
       )
     addService(mockLiquidLegionsComputationControl)
-    addService(mockMetricValues)
-    addService(mockGlobalComputations)
+    addService(mockSystemComputations)
+    addService(mockComputationLogEntries)
     addService(mockComputationParticipants)
     addService(mockComputationStats)
     addService(
       ComputationsService(
         fakeComputationDb,
-        globalComputationStub,
+        systemComputationLogEntriesStub,
         DUCHY_THREE_NAME,
         Clock.systemUTC()
       )
@@ -369,12 +374,17 @@ class LiquidLegionsV2MillTest {
     ComputationControlCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val globalComputationStub: GlobalComputationsCoroutineStub by lazy {
-    GlobalComputationsCoroutineStub(grpcTestServerRule.channel)
+  private val systemComputationStub: SystemComputationsCoroutineStub by lazy {
+    SystemComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val computationParticipantsStub: ComputationParticipantsCoroutineStub by lazy {
-    ComputationParticipantsCoroutineStub(grpcTestServerRule.channel)
+  private val systemComputationLogEntriesStub: SystemComputationLogEntriesCoroutineStub by lazy {
+    SystemComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val systemcomputationParticipantsStub:
+    SystemComputationParticipantsCoroutineStub by lazy {
+    SystemComputationParticipantsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val computationStatsStub: ComputationStatsCoroutineStub by lazy {
@@ -393,10 +403,6 @@ class LiquidLegionsV2MillTest {
   private lateinit var aggregatorMill: LiquidLegionsV2Mill
   private lateinit var nonAggregatorMill: LiquidLegionsV2Mill
 
-  private fun ByteString.toMetricChunkResponse(): StreamMetricValueResponse {
-    return StreamMetricValueResponse.newBuilder().also { it.chunkBuilder.data = this }.build()
-  }
-
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
     description: LiquidLegionsV2.Description,
@@ -406,7 +412,7 @@ class LiquidLegionsV2MillTest {
       AdvanceComputationRequest.newBuilder()
         .apply {
           headerBuilder.apply {
-            keyBuilder.globalComputationId = globalComputationId
+            name = ComputationKey(globalComputationId).toName()
             liquidLegionsV2Builder.description = description
           }
         }
@@ -428,9 +434,9 @@ class LiquidLegionsV2MillTest {
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
         dataClients = computationDataClients,
-        metricValuesClient = metricValuesStub,
-        globalComputationsClient = globalComputationStub,
-        systemComputationParticipantsClient = computationParticipantsStub,
+        systemComputationParticipantsClient = systemcomputationParticipantsStub,
+        systemComputationsClient = systemComputationStub,
+        systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
@@ -443,9 +449,9 @@ class LiquidLegionsV2MillTest {
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
         dataClients = computationDataClients,
-        metricValuesClient = metricValuesStub,
-        globalComputationsClient = globalComputationStub,
-        systemComputationParticipantsClient = computationParticipantsStub,
+        systemComputationParticipantsClient = systemcomputationParticipantsStub,
+        systemComputationsClient = systemComputationStub,
+        systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
@@ -497,7 +503,6 @@ class LiquidLegionsV2MillTest {
       NON_AGGREGATOR_COMPUTATION_DETAILS
         .toBuilder()
         .apply {
-          kingdomComputationBuilder.publicApiVersion = PUBLIC_API_VERSION
           liquidLegionsV2Builder.apply {
             parametersBuilder.ellipticCurveId = CURVE_ID.toInt()
             clearPartiallyCombinedPublicKey()
@@ -563,7 +568,7 @@ class LiquidLegionsV2MillTest {
 
     verifyProtoArgument(
         mockComputationParticipants,
-        ComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams
+        SystemComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams
       )
       .isEqualTo(
         SetParticipantRequisitionParamsRequest.newBuilder()
@@ -632,8 +637,8 @@ class LiquidLegionsV2MillTest {
         requisitions = listOf(requisition1, requisition2)
       )
 
-      whenever(mockGlobalComputations.createGlobalComputationStatusUpdate(any()))
-        .thenReturn(GlobalComputationStatusUpdate.getDefaultInstance())
+      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+        .thenReturn(ComputationLogEntry.getDefaultInstance())
 
       // Stage 1. Process the above computation
       aggregatorMill.pollAndProcessNextComputation()
@@ -658,34 +663,29 @@ class LiquidLegionsV2MillTest {
             .build()
         )
 
-      // TODO: assert FailComputationParticipant call
-
-      argumentCaptor<CreateGlobalComputationStatusUpdateRequest> {
-        verifyBlocking(mockGlobalComputations, times(3)) {
-          createGlobalComputationStatusUpdate(capture())
-        }
-        assertThat(allValues[1])
-          .comparingExpectedFieldsOnly()
-          .isEqualTo(
-            CreateGlobalComputationStatusUpdateRequest.newBuilder()
-              .apply {
-                parentBuilder.globalComputationId = GLOBAL_ID
-                statusUpdateBuilder.apply {
-                  selfReportedIdentifier = MILL_ID
-                  stageDetailsBuilder.apply {
-                    algorithm = MpcAlgorithm.LIQUID_LEGIONS_V2
-                    stageNumber = CONFIRMATION_PHASE.number.toLong()
-                    stageName = CONFIRMATION_PHASE.name
-                    attemptNumber = 1
-                  }
-                  updateMessage =
-                    "Computation $GLOBAL_ID at stage CONFIRMATION_PHASE, attempt 1 failed."
-                  errorDetailsBuilder.apply { errorType = ErrorType.PERMANENT }
+      verifyProtoArgument(
+          mockComputationParticipants,
+          SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          FailComputationParticipantRequest.newBuilder()
+            .apply {
+              name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+              failureBuilder.apply {
+                participantChildReferenceId = MILL_ID
+                errorMessage =
+                  "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                    "Missing expected data for requisition 222."
+                stageAttemptBuilder.apply {
+                  stage = CONFIRMATION_PHASE.number
+                  stageName = CONFIRMATION_PHASE.name
+                  attemptNumber = 1
                 }
               }
-              .build()
-          )
-      }
+            }
+            .build()
+        )
     }
 
   @Test
@@ -706,8 +706,8 @@ class LiquidLegionsV2MillTest {
         requisitions = REQUISITIONS
       )
 
-      whenever(mockGlobalComputations.createGlobalComputationStatusUpdate(any()))
-        .thenReturn(GlobalComputationStatusUpdate.getDefaultInstance())
+      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+        .thenReturn(ComputationLogEntry.getDefaultInstance())
 
       // Stage 1. Process the above computation
       aggregatorMill.pollAndProcessNextComputation()
@@ -739,7 +739,7 @@ class LiquidLegionsV2MillTest {
 
       verifyProtoArgument(
           mockComputationParticipants,
-          ComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+          SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
         )
         .isEqualTo(
           ConfirmComputationParticipantRequest.newBuilder()
@@ -766,8 +766,8 @@ class LiquidLegionsV2MillTest {
         requisitions = REQUISITIONS
       )
 
-      whenever(mockGlobalComputations.createGlobalComputationStatusUpdate(any()))
-        .thenReturn(GlobalComputationStatusUpdate.getDefaultInstance())
+      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+        .thenReturn(ComputationLogEntry.getDefaultInstance())
 
       // Stage 1. Process the above computation
       aggregatorMill.pollAndProcessNextComputation()
@@ -806,7 +806,7 @@ class LiquidLegionsV2MillTest {
 
       verifyProtoArgument(
           mockComputationParticipants,
-          ComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+          SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
         )
         .isEqualTo(
           ConfirmComputationParticipantRequest.newBuilder()
@@ -1556,6 +1556,9 @@ class LiquidLegionsV2MillTest {
         .build()
     }
 
+    whenever(mockSystemComputations.setComputationResult(any()))
+      .thenReturn(Computation.getDefaultInstance())
+
     // Stage 1. Process the above computation
     aggregatorMill.pollAndProcessNextComputation()
 
@@ -1582,18 +1585,24 @@ class LiquidLegionsV2MillTest {
     assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
 
     verifyProtoArgument(
-        mockGlobalComputations,
-        GlobalComputationsCoroutineImplBase::finishGlobalComputation
+        mockSystemComputations,
+        SystemComputationsCoroutineImplBase::setComputationResult
       )
       .isEqualTo(
-        FinishGlobalComputationRequest.newBuilder()
+        SetComputationResultRequest.newBuilder()
           .apply {
-            keyBuilder.globalComputationId = GLOBAL_ID
-            resultBuilder.apply {
-              reach = 123L
-              putFrequency(1, 0.3)
-              putFrequency(2, 0.7)
-            }
+            name = "computations/$GLOBAL_ID"
+            encryptedResult =
+              Measurement.Result.newBuilder()
+                .apply {
+                  reachBuilder.value = 123L
+                  frequencyBuilder.apply {
+                    putRelativeFrequencyDistribution(1, 0.3)
+                    putRelativeFrequencyDistribution(2, 0.7)
+                  }
+                }
+                .build()
+                .toByteString()
           }
           .build()
       )

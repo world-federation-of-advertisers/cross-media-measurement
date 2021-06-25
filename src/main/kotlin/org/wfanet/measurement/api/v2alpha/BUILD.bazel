@@ -1,0 +1,33 @@
+load("//build:defs.bzl", "test_target")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    ":__pkg__",
+    test_target(":__pkg__"),
+    ":duchy",
+    ":kingdom",
+])
+
+package_group(
+    name = "duchy",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/...",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/...",
+    ],
+)
+
+package_group(
+    name = "kingdom",
+    packages = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/...",
+        "//src/test/kotlin/org/wfanet/measurement/kingdom/...",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
