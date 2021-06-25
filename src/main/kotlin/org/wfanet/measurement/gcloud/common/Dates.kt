@@ -17,7 +17,7 @@ package org.wfanet.measurement.gcloud.common
 import com.google.cloud.Date as CloudDate
 import com.google.type.Date
 
-/** Converts Cloud Spanner Date to [Date]. */
+/** Converts Cloud Date to [Date]. */
 fun CloudDate.toProtoDate(): Date {
   return Date.newBuilder()
     .apply {
