@@ -7,13 +7,28 @@ package(
 )
 
 kt_jvm_library(
+    name = "kingdom_data_services",
+    testonly = True,
+    srcs = [
+        "KingdomDataServicesProviderRule.kt",
+    ],
+    deps = [
+        ":testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "testing",
     testonly = True,
     srcs = glob(
         ["*.kt"],
         exclude = [
+            "KingdomDataServices.kt",
             "SpannerDatabaseTestHelper.kt",
             "KingdomDatabases.kt",
+            "KingdomDataServicesProviderRule.kt",
         ],
     ),
     data = [
