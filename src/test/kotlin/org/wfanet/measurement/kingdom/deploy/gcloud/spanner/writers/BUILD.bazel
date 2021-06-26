@@ -52,6 +52,7 @@ spanner_emulator_test(
 
 spanner_emulator_test(
 <<<<<<< HEAD
+<<<<<<< HEAD
     name = "CreateLegacyDataProviderTest",
     srcs = ["CreateLegacyDataProviderTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateLegacyDataProviderTest",
@@ -63,6 +64,8 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+=======
+>>>>>>> ff2a389c (rebased to main)
     name = "CreateDataProviderTest",
     srcs = ["CreateDataProviderTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProviderTest",
@@ -71,6 +74,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+<<<<<<< HEAD
 <<<<<<< HEAD
     name = "CreateModelProviderTest",
     srcs = ["CreateModelProviderTest.kt"],
@@ -84,6 +88,8 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+=======
+>>>>>>> 66e200fe (rebased to main)
     name = "CreateNextReportTest",
     srcs = ["CreateNextReportTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReportTest",
