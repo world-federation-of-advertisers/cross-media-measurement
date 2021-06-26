@@ -51,13 +51,6 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "CreateCertificateTest",
-    srcs = ["CreateCertificateTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificateTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
     name = "CreateDataProviderTest",
     srcs = ["CreateDataProviderTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProviderTest",
@@ -65,6 +58,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+<<<<<<< HEAD
 <<<<<<< HEAD
     name = "CreateModelProviderTest",
     srcs = ["CreateModelProviderTest.kt"],
@@ -78,6 +72,8 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+=======
+>>>>>>> 66e200fe (rebased to main)
     name = "CreateNextReportTest",
     srcs = ["CreateNextReportTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReportTest",
