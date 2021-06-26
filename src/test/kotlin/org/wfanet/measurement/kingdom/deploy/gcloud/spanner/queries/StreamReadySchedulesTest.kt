@@ -24,7 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val EXTERNAL_ADVERTISER_ID = 2L
@@ -54,7 +54,7 @@ private val SCHEDULE2: ReportConfigSchedule =
     .build()
 
 @RunWith(JUnit4::class)
-class StreamReadySchedulesTest : LegacyKingdomDatabaseTestBase() {
+class StreamReadySchedulesTest : KingdomDatabaseTestBase() {
   private fun streamReadySchedulesToList(limit: Long): List<ReportConfigSchedule> = runBlocking {
     StreamReadySchedules(limit).execute(databaseClient.singleUse()).toList()
   }
