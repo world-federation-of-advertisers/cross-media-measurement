@@ -120,9 +120,9 @@ class StreamRequisitionsTest : KingdomDatabaseTestBase() {
   }
 
   private fun executeToList(filter: StreamRequisitionsFilter, limit: Long): List<Requisition> =
-    runBlocking {
-      StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
-    }
+      runBlocking {
+    StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
+  }
 
   @Test
   fun `create time filter`() {

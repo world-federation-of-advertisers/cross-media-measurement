@@ -122,16 +122,16 @@ class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   }
 
   private fun confirmDuchyReadiness(duchyId: String, vararg requisitions: Long): Report =
-    runBlocking {
-      val writer =
-        ConfirmDuchyReadiness(
-          ExternalId(EXTERNAL_REPORT_ID),
-          duchyId,
-          requisitions.map(::ExternalId).toSet()
-        )
+      runBlocking {
+    val writer =
+      ConfirmDuchyReadiness(
+        ExternalId(EXTERNAL_REPORT_ID),
+        duchyId,
+        requisitions.map(::ExternalId).toSet()
+      )
 
-      writer.execute(databaseClient)
-    }
+    writer.execute(databaseClient)
+  }
 
   @Test
   fun `single duchy confirmation`() = runBlocking {
