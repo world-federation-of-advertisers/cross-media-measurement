@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.ReportDetails.ExternalRequisitionKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -49,7 +49,7 @@ private const val EXTERNAL_REQUISITION_ID = 14L
 private const val DUCHY_ID = "some-duchy-id"
 
 @RunWith(JUnit4::class)
-class AssociateRequisitionAndReportTest : LegacyKingdomDatabaseTestBase() {
+class AssociateRequisitionAndReportTest : KingdomDatabaseTestBase() {
   private suspend fun associateRequisitionAndReport(
     externalRequisitionId: ExternalId,
     externalReportId: ExternalId

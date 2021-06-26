@@ -26,7 +26,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -38,7 +38,7 @@ private const val REPORT_ID = 7L
 private const val EXTERNAL_REPORT_ID = 8L
 
 @RunWith(JUnit4::class)
-class UpdateReportStateTest : LegacyKingdomDatabaseTestBase() {
+class UpdateReportStateTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertAdvertiser(ADVERTISER_ID, EXTERNAL_ADVERTISER_ID)

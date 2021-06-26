@@ -27,10 +27,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
-class CreateDataProviderTest : LegacyKingdomDatabaseTestBase() {
+class CreateDataProviderTest : KingdomDatabaseTestBase() {
 
   @Test
   fun success() =

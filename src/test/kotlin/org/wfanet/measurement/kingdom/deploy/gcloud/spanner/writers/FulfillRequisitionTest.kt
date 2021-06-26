@@ -33,7 +33,7 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.kingdom.db.RequisitionUpdate
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.buildRequisitionDetails
 
 private const val DATA_PROVIDER_ID = 1L
@@ -73,7 +73,7 @@ private val REQUISITION: Requisition =
 private const val DUCHY_ID = "some-duchy-id"
 
 @RunWith(JUnit4::class)
-class FulfillRequisitionTest : LegacyKingdomDatabaseTestBase() {
+class FulfillRequisitionTest : KingdomDatabaseTestBase() {
   private suspend fun updateExistingRequisitionState(state: RequisitionState) {
     databaseClient.write(
       listOf(

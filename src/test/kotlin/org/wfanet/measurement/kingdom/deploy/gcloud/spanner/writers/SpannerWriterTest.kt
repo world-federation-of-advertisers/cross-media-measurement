@@ -28,10 +28,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
-class SpannerWriterTest : LegacyKingdomDatabaseTestBase() {
+class SpannerWriterTest : KingdomDatabaseTestBase() {
   private val idGenerator = FixedIdGenerator()
 
   @Test

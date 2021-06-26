@@ -29,7 +29,7 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfig.ReportConfigState
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportConfigReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val EXTERNAL_ADVERTISER_ID = 2L
@@ -55,7 +55,7 @@ private val REPORT_CONFIG: ReportConfig =
     }
     .build()
 
-class CreateReportConfigTest : LegacyKingdomDatabaseTestBase() {
+class CreateReportConfigTest : KingdomDatabaseTestBase() {
   private val idGenerator =
     FixedIdGenerator(InternalId(REPORT_CONFIG_ID), ExternalId(EXTERNAL_REPORT_CONFIG_ID))
 
