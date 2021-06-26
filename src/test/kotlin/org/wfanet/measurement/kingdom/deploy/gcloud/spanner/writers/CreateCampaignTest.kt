@@ -51,10 +51,10 @@ class CreateCampaignTest : KingdomDatabaseTestBase() {
     externalAdvertiserId: Long
   ): Campaign {
     return CreateCampaign(
-      ExternalId(externalDataProviderId),
-      ExternalId(externalAdvertiserId),
-      PROVIDED_CAMPAIGN_ID
-    )
+        ExternalId(externalDataProviderId),
+        ExternalId(externalAdvertiserId),
+        PROVIDED_CAMPAIGN_ID
+      )
       .execute(databaseClient, idGenerator)
   }
 
