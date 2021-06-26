@@ -14,25 +14,37 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 
+import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
+<<<<<<< HEAD
 <<<<<<< HEAD
 import com.google.cloud.spanner.Value
 import com.google.type.Date
+=======
+import com.google.cloud.spanner.Value
+>>>>>>> 7858806a (rebased)
 import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.set
+=======
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+>>>>>>> 7858806a (rebased)
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
+<<<<<<< HEAD
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
+=======
+>>>>>>> 7858806a (rebased)
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
@@ -43,6 +55,7 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+<<<<<<< HEAD
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
@@ -50,10 +63,24 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleRead
 =======
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 >>>>>>> 3f44ca6b (initial commit)
+=======
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
+>>>>>>> 7858806a (rebased)
 
-abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
+private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
+private val REPORT_DETAILS =
+  ReportDetails.newBuilder()
+    .apply { combinedPublicKeyResourceId = COMBINED_PUBLIC_KEY_RESOURCE_ID }
+    .build()
+
+abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCHEMA) {
   private suspend fun write(mutation: Mutation) = databaseClient.write(mutation)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 7858806a (rebased)
 
   // TODO: add AdvertiserDetails proto as input.
   protected suspend fun insertAdvertiser(advertiserId: Long, externalAdvertiserId: Long) {
@@ -336,6 +363,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     )
   }
 
+<<<<<<< HEAD
   protected suspend fun insertModelProvider(modelProviderId: Long, externalModelProviderId: Long) {
     write(
       Mutation.newInsertBuilder("ModelProviders")
@@ -386,6 +414,8 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     )
   }
 
+=======
+>>>>>>> 7858806a (rebased)
   protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
     ReportReader().execute(databaseClient.singleUse()).map { it.report }.toList()
   }
@@ -398,6 +428,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     RequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
   }
 
+<<<<<<< HEAD
   protected fun readAllExchangesInSpanner(): List<Exchange> = runBlocking {
     ExchangeReader().execute(databaseClient.singleUse()).map { it.exchange }.toList()
   }
@@ -405,4 +436,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
   // TODO: add helpers for other tables.
 =======
 >>>>>>> 3f44ca6b (initial commit)
+=======
+  // TODO: add helpers for other tables.
+>>>>>>> 7858806a (rebased)
 }
