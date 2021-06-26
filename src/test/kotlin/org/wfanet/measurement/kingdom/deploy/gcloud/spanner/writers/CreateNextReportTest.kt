@@ -65,14 +65,14 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
       REPORT_CONFIG_ID,
       EXTERNAL_REPORT_CONFIG_ID,
       reportConfigDetails =
-      ReportConfigDetails.newBuilder()
-        .apply {
-          reportDurationBuilder.apply {
-            unit = TimePeriod.Unit.DAY
-            count = 3
+        ReportConfigDetails.newBuilder()
+          .apply {
+            reportDurationBuilder.apply {
+              unit = TimePeriod.Unit.DAY
+              count = 3
+            }
           }
-        }
-        .build()
+          .build()
     )
   }
 
@@ -156,15 +156,15 @@ class CreateNextReportTest : KingdomDatabaseTestBase() {
         externalScheduleId = EXTERNAL_SCHEDULE_ID,
         nextReportStartTime = startTime,
         repetitionSpec =
-        RepetitionSpec.newBuilder()
-          .apply {
-            start = startTime.toProtoTime()
-            repetitionPeriodBuilder.apply {
-              unit = TimePeriod.Unit.DAY
-              count = 1
+          RepetitionSpec.newBuilder()
+            .apply {
+              start = startTime.toProtoTime()
+              repetitionPeriodBuilder.apply {
+                unit = TimePeriod.Unit.DAY
+                count = 1
+              }
             }
-          }
-          .build()
+            .build()
       )
 
       val report = createNextReport()
