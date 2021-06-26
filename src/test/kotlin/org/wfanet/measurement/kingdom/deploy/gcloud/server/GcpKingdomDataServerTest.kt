@@ -59,7 +59,7 @@ import org.wfanet.measurement.internal.kingdom.StreamReportsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.internal.kingdom.UpdateReportStateRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.makeSpannerKingdomDatabases
 import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
 
@@ -107,7 +107,7 @@ private val REPETITION_SPEC: RepetitionSpec =
  * This minimally tests each RPC method. Edge cases are tested in individual unit tests for the
  * services. This focuses on ensuring that the databases integrate with the gRPC services.
  */
-class GcpKingdomDataServerTest : LegacyKingdomDatabaseTestBase() {
+class GcpKingdomDataServerTest : KingdomDatabaseTestBase() {
   @get:Rule
   val grpcTestServer =
     GrpcTestServerRule(logAllRequests = true) {
