@@ -31,7 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val ADVERTISER_ID = 1L
 private const val REPORT_CONFIG_ID = 2L
@@ -54,7 +54,7 @@ private const val DUCHY_ID = "some-duchy-id"
 private const val OTHER_DUCHY_ID = "other-duchy-id"
 
 @RunWith(JUnit4::class)
-class ConfirmDuchyReadinessTest : LegacyKingdomDatabaseTestBase() {
+class ConfirmDuchyReadinessTest : KingdomDatabaseTestBase() {
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID, OTHER_DUCHY_ID)
 
   private lateinit var originalReport: Report
@@ -122,16 +122,16 @@ class ConfirmDuchyReadinessTest : LegacyKingdomDatabaseTestBase() {
   }
 
   private fun confirmDuchyReadiness(duchyId: String, vararg requisitions: Long): Report =
-      runBlocking {
-    val writer =
-      ConfirmDuchyReadiness(
-        ExternalId(EXTERNAL_REPORT_ID),
-        duchyId,
-        requisitions.map(::ExternalId).toSet()
-      )
+    runBlocking {
+      val writer =
+        ConfirmDuchyReadiness(
+          ExternalId(EXTERNAL_REPORT_ID),
+          duchyId,
+          requisitions.map(::ExternalId).toSet()
+        )
 
-    writer.execute(databaseClient)
-  }
+      writer.execute(databaseClient)
+    }
 
   @Test
   fun `single duchy confirmation`() = runBlocking {
