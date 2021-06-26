@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 import org.wfanet.measurement.kingdom.db.streamRequisitionsFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.buildRequisitionDetails
 
 private const val DATA_PROVIDER_ID = 1L
@@ -76,7 +76,7 @@ private val REQUISITION3 =
   )
 
 @RunWith(JUnit4::class)
-class StreamRequisitionsTest : LegacyKingdomDatabaseTestBase() {
+class StreamRequisitionsTest : KingdomDatabaseTestBase() {
   /**
    * Set-up: there are 4 requisitions in the database: two belonging to two campaigns under the same
    * data provider.
@@ -120,9 +120,9 @@ class StreamRequisitionsTest : LegacyKingdomDatabaseTestBase() {
   }
 
   private fun executeToList(filter: StreamRequisitionsFilter, limit: Long): List<Requisition> =
-      runBlocking {
-    StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
-  }
+    runBlocking {
+      StreamRequisitions(filter, limit).execute(databaseClient.singleUse()).toList()
+    }
 
   @Test
   fun `create time filter`() {

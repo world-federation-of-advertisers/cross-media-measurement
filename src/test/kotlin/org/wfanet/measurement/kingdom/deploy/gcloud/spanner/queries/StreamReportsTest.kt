@@ -28,7 +28,7 @@ import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.kingdom.db.StreamReportsFilter
 import org.wfanet.measurement.kingdom.db.streamReportsFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.LegacyKingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val UNUSED_ID = 999999L
 private const val ADVERTISER_ID = 1L
@@ -58,7 +58,7 @@ private val REPORT2: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_R
 private val REPORT3: Report = REPORT1.toBuilder().setExternalReportId(EXTERNAL_REPORT_ID3).build()
 
 @RunWith(JUnit4::class)
-class StreamReportsTest : LegacyKingdomDatabaseTestBase() {
+class StreamReportsTest : KingdomDatabaseTestBase() {
   private suspend fun executeToList(filter: StreamReportsFilter, limit: Long): List<Report> {
     return StreamReports(filter, limit).execute(databaseClient.singleUse()).toList()
   }
