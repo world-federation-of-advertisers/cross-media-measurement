@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -31,13 +32,13 @@ private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest {
-  abstract val service: MeasurementConsumersCoroutineImplBase
+  abstract val measurementConsumersService: MeasurementConsumersCoroutineImplBase
 
   @Test
   fun `getMeasurementConsumer fails for missing MeasurementConsumer`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.getMeasurementConsumer(
+        measurementConsumersService.getMeasurementConsumer(
           GetMeasurementConsumerRequest.newBuilder()
             .setExternalMeasurementConsumerId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
             .build()
@@ -50,12 +51,12 @@ abstract class MeasurementConsumersServiceTest {
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
     val createdMeasurementConsumer =
-      service.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
+      measurementConsumersService.createMeasurementConsumer(
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }}.build()
       )
 
     val measurementConsumerRead =
-      service.getMeasurementConsumer(
+      measurementConsumersService.getMeasurementConsumer(
         GetMeasurementConsumerRequest.newBuilder()
           .setExternalMeasurementConsumerId(
             createdMeasurementConsumer.externalMeasurementConsumerId
