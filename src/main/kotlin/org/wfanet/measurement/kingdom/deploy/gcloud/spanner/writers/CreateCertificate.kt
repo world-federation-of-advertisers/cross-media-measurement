@@ -49,6 +49,7 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
     set("CertificateDetails" to details)
     setJson("CertificateDetailsJson" to details)
   }
+<<<<<<< HEAD
 }
 =======
 =======
@@ -126,5 +127,7 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
     }
   return mutation
 >>>>>>> e3dde181 (ready)
+=======
+>>>>>>> a703b578 (ready)
 }
 >>>>>>> bf3c1bb3 (getting there)

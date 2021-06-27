@@ -30,6 +30,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -39,6 +40,8 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 =======
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 >>>>>>> e3dde181 (ready)
+=======
+>>>>>>> a703b578 (ready)
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -207,8 +210,12 @@ abstract class MeasurementConsumersServiceTest {
         MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
 =======
       measurementConsumersService.createMeasurementConsumer(
+<<<<<<< HEAD
         MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }}.build()
 >>>>>>> e3dde181 (ready)
+=======
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
+>>>>>>> a703b578 (ready)
       )
 
 <<<<<<< HEAD
