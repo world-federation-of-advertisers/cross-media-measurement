@@ -15,10 +15,14 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
+=======
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+>>>>>>> 030d4904 (ready)
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
@@ -32,11 +36,14 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       DataProviders.DataProviderDetails,
       DataProviders.DataProviderDetailsJson,
       DataProviderCertificates.ExternalDataProviderCertificateId,
+<<<<<<< HEAD
       Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
+=======
+>>>>>>> 030d4904 (ready)
       Certificates.CertificateDetails
     FROM DataProviders
     JOIN DataProviderCertificates USING (DataProviderId)
@@ -53,6 +60,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       .apply {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         externalPublicKeyCertificateId = struct.getLong("ExternalDataProviderCertificateId")
+<<<<<<< HEAD
         details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
         preferredCertificate = buildCertificate(struct)
       }
@@ -70,6 +78,10 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         revocationState =
           struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
+=======
+        details =
+          struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
+>>>>>>> 030d4904 (ready)
       }
       .build()
 }

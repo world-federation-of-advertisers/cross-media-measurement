@@ -17,7 +17,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
+<<<<<<< HEAD
 import org.wfanet.measurement.common.grpc.grpcRequire
+=======
+>>>>>>> 030d4904 (ready)
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient

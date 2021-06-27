@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+<<<<<<< HEAD
 import java.time.Clock
 import org.junit.Rule
 import org.junit.runner.RunWith
@@ -35,4 +36,20 @@ class SpannerDataProvidersServiceTest : DataProvidersServiceTest<SpannerDataProv
       .dataProvidersService as
       SpannerDataProvidersService
   }
+=======
+import org.junit.Rule
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
+import org.wfanet.measurement.kingdom.service.internal.testing.DataProvidersServiceTest
+
+@RunWith(JUnit4::class)
+class SpannerDataProvidersServiceTest : DataProvidersServiceTest() {
+
+  @get:Rule val spannerDataServicesProviderRule = KingdomDataServicesProviderRule()
+
+  override val dataProvidersService: DataProvidersCoroutineImplBase
+    get() = spannerDataServicesProviderRule.value.dataProvidersService
+>>>>>>> 030d4904 (ready)
 }

@@ -15,9 +15,12 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import org.wfanet.measurement.common.identity.ExternalId
 >>>>>>> d519ecd3 (setting up)
+=======
+>>>>>>> 030d4904 (ready)
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -49,8 +52,8 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       set("DataProviderId" to internalDataProviderId.value)
       set("PublicKeyCertificateId" to internalCertificateId.value)
       set("ExternalDataProviderId" to externalDataProviderId.value)
-      set("DataProviderDetails" to measurementConsumer.details)
-      setJson("DataProviderDetailsJson" to measurementConsumer.details)
+      set("DataProviderDetails" to dataProvider.details)
+      setJson("DataProviderDetailsJson" to dataProvider.details)
     }
 >>>>>>> d519ecd3 (setting up)
       .bufferTo(transactionContext)
