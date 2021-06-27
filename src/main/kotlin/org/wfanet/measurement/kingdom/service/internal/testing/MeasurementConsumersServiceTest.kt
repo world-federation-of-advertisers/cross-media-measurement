@@ -29,12 +29,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 =======
 >>>>>>> 47e4ba8d (initial commit)
+=======
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+>>>>>>> e3dde181 (ready)
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -69,18 +73,26 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest {
+<<<<<<< HEAD
   abstract val service: MeasurementConsumersCoroutineImplBase
 >>>>>>> 47e4ba8d (initial commit)
+=======
+  abstract val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+>>>>>>> e3dde181 (ready)
 
   @Test
   fun `getMeasurementConsumer fails for missing MeasurementConsumer`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
 <<<<<<< HEAD
+<<<<<<< HEAD
         measurementConsumersService.getMeasurementConsumer(
 =======
         service.getMeasurementConsumer(
 >>>>>>> 47e4ba8d (initial commit)
+=======
+        measurementConsumersService.getMeasurementConsumer(
+>>>>>>> e3dde181 (ready)
           GetMeasurementConsumerRequest.newBuilder()
             .setExternalMeasurementConsumerId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
             .build()
@@ -189,9 +201,14 @@ abstract class MeasurementConsumersServiceTest {
 =======
 =======
     val createdMeasurementConsumer =
+<<<<<<< HEAD
 >>>>>>> 1df833ae (testing)
       service.createMeasurementConsumer(
         MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
+=======
+      measurementConsumersService.createMeasurementConsumer(
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }}.build()
+>>>>>>> e3dde181 (ready)
       )
 
 <<<<<<< HEAD
@@ -199,7 +216,7 @@ abstract class MeasurementConsumersServiceTest {
 >>>>>>> 47e4ba8d (initial commit)
 =======
     val measurementConsumerRead =
-      service.getMeasurementConsumer(
+      measurementConsumersService.getMeasurementConsumer(
         GetMeasurementConsumerRequest.newBuilder()
           .setExternalMeasurementConsumerId(
             createdMeasurementConsumer.externalMeasurementConsumerId

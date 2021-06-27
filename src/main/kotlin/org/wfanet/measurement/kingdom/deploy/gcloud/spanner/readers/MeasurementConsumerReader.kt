@@ -31,12 +31,23 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
   data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
 
+  // override val baseSql: String =
+  //   """
+  //   SELECT
+  //     MeasurementConsumers.MeasurementConsumerId,
+  //     MeasurementConsumers.ExternalMeasurementConsumerId,
+  //     MeasurementConsumers.MeasurementConsumerDetails,
+  //     MeasurementConsumers.MeasurementConsumerDetailsJson
+  //   FROM MeasurementConsumers
+  //   """.trimIndent()
+
   override val baseSql: String =
     """
     SELECT
       MeasurementConsumers.MeasurementConsumerId,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumers.MeasurementConsumerDetails,
+<<<<<<< HEAD
 <<<<<<< HEAD
       MeasurementConsumers.MeasurementConsumerDetailsJson,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
@@ -53,6 +64,14 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       MeasurementConsumers.MeasurementConsumerDetailsJson
     FROM MeasurementConsumers
 >>>>>>> 47e4ba8d (initial commit)
+=======
+      MeasurementConsumers.MeasurementConsumerDetailsJson,
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      Certificates.CertificateDetails
+    FROM MeasurementConsumers
+    JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
+    JOIN Certificates USING (CertificateId)
+>>>>>>> e3dde181 (ready)
     """.trimIndent()
 
   override val externalIdColumn: String = "MeasurementConsumers.ExternalMeasurementConsumerId"
@@ -92,6 +111,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
 =======
       .apply {
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
         details =
           struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
       }
