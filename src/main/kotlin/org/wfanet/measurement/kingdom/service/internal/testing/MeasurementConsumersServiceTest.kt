@@ -23,7 +23,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -52,7 +51,7 @@ abstract class MeasurementConsumersServiceTest {
   fun `createMeasurementConsumer succeeds`() = runBlocking {
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }}.build()
+        MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
       )
 
     val measurementConsumerRead =

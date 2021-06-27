@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.toProtoBytes
-import org.wfanet.measurement.gcloud.spanner.toProtoJson
+import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
@@ -33,30 +33,25 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     val internalMeasurementConsumerId = idGenerator.generateInternalId()
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
 
-    Mutation.newInsertBuilder("MeasurementConsumers")
-      .set("MeasurementConsumerId")
-      .to(internalMeasurementConsumerId.value)
-      .set("PublicKeyCertificateId")
-      .to(internalCertificateId.value)
-      .set("ExternalMeasurementConsumerId")
-      .to(externalMeasurementConsumerId.value)
-      .set("MeasurementConsumerDetails")
-      .toProtoBytes(measurementConsumer.details)
-      .set("MeasurementConsumerDetailsJson")
-      .toProtoJson(measurementConsumer.details)
-      .build()
+    insertMutation("MeasurementConsumers") {
+      set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
+      set("PublicKeyCertificateId" to internalCertificateId.value)
+      set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId.value)
+      set("MeasurementConsumerDetails" to measurementConsumer.details)
+      setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
+    }
       .bufferTo(transactionContext)
 
     val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
 
-    Mutation.newInsertBuilder("MeasurementConsumerCertificates")
-      .set("MeasurementConsumerId")
-      .to(internalMeasurementConsumerId.value)
-      .set("CertificateId")
-      .to(internalCertificateId.value)
-      .set("ExternalMeasurementConsumerCertificateId")
-      .to(externalMeasurementConsumerCertificateId.value)
-      .build()
+    insertMutation("MeasurementConsumerCertificates") {
+      set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
+      set("CertificateId" to internalCertificateId.value)
+      set(
+        "ExternalMeasurementConsumerCertificateId" to
+          externalMeasurementConsumerCertificateId.value
+      )
+    }
       .bufferTo(transactionContext)
 
     return measurementConsumer

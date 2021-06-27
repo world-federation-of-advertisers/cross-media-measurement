@@ -37,15 +37,13 @@ class CreateCertificate(private val certificate: Certificate) :
 }
 
 fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
-  val mutation: Mutation =
-    insertMutation("Certificates") {
-      set("CertificateId" to internalId.value)
-      set("SubjectKeyIdentifier" to subjectKeyIdentifier.toGcloudByteArray())
-      set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
-      set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
-      set("RevocationState" to revocationState)
-      set("CertificateDetails" to details)
-      setJson("CertificateDetailsJson" to details)
-    }
-  return mutation
+  return insertMutation("Certificates") {
+    set("CertificateId" to internalId.value)
+    set("SubjectKeyIdentifier" to subjectKeyIdentifier.toGcloudByteArray())
+    set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
+    set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
+    set("RevocationState" to revocationState)
+    set("CertificateDetails" to details)
+    setJson("CertificateDetailsJson" to details)
+  }
 }
