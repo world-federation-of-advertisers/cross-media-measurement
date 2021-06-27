@@ -20,6 +20,8 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 
 class SpannerDataProvidersService(
   clock: Clock,
@@ -27,9 +29,18 @@ class SpannerDataProvidersService(
   client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
-    TODO("not implemented yet")
+    return CreateDataProvider(request).execute(client, idGenerator, clock)
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
-    TODO("not implemented yet")
+    val dataProvider =
+      DataProviderReader()
+        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalDataProviderId))
+        ?.dataProvider
+    if (dataProvider == null) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "No DataProvider with externalId ${request.externalDataProviderId}"
+      }
+    }
+    return dataProvider
   }
 }
