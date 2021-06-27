@@ -31,6 +31,7 @@ class SpannerMeasurementConsumersServiceTest :
   private val clock = Clock.systemUTC()
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   override fun newService(idGenerator: IdGenerator): SpannerMeasurementConsumersService {
     return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
@@ -39,6 +40,9 @@ class SpannerMeasurementConsumersServiceTest :
   }
 =======
   override val service: MeasurementConsumersCoroutineImplBase
+=======
+  override val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+>>>>>>> e3dde181 (ready)
     get() = spannerDataServicesProviderRule.value.measurementConsumersService
 <<<<<<< HEAD
 =======
