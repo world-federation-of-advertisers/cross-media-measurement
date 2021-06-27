@@ -14,27 +14,46 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
-class CreateDataProvider : SpannerWriter<ExternalId, DataProvider>() {
-  override suspend fun TransactionScope.runTransaction(): ExternalId {
-    val internalId = idGenerator.generateInternalId()
-    val externalId = idGenerator.generateExternalId()
-    Mutation.newInsertBuilder("DataProviders")
-      .set("DataProviderId")
-      .to(internalId.value)
-      .set("ExternalDataProviderId")
-      .to(externalId.value)
-      .set("DataProviderDetails")
-      .to("")
-      .set("DataProviderDetailsJson")
-      .to("")
-      .build()
+class CreateDataProvider(private val dataProvider: DataProvider) :
+  SpannerWriter<DataProvider, DataProvider>() {
+  override suspend fun TransactionScope.runTransaction(): DataProvider {
+    val internalCertificateId = idGenerator.generateInternalId()
+
+    dataProvider
+      .preferredCertificate
+      .toInsertMutation(internalCertificateId)
       .bufferTo(transactionContext)
-    return externalId
+
+    val internalDataProviderId = idGenerator.generateInternalId()
+    val externalDataProviderId = idGenerator.generateExternalId()
+
+    insertMutation("DataProviders") {
+      set("DataProviderId" to internalDataProviderId.value)
+      set("PublicKeyCertificateId" to internalCertificateId.value)
+      set("ExternalDataProviderId" to externalDataProviderId.value)
+      set("DataProviderDetails" to measurementConsumer.details)
+      setJson("DataProviderDetailsJson" to measurementConsumer.details)
+    }
+      .bufferTo(transactionContext)
+
+    val externalDataProviderCertificateId = idGenerator.generateExternalId()
+
+    insertMutation("DataProviderCertificates") {
+      set("DataProviderId" to internalDataProviderId.value)
+      set("CertificateId" to internalCertificateId.value)
+      set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
+    }
+      .bufferTo(transactionContext)
+
+    return dataProvider
+      .toBuilder()
+      .setExternalDataProviderId(externalDataProviderId.value)
+      .setExternalPublicKeyCertificateId(externalDataProviderCertificateId.value)
+      .build()
   }
 
   override fun ResultScope<ExternalId>.buildResult(): DataProvider {
