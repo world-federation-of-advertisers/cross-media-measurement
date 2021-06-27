@@ -33,6 +33,7 @@ class SpannerDataProvidersService(
   val client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
+<<<<<<< HEAD
     grpcRequire(
       !request.details.apiVersion.isEmpty() &&
         !request.details.publicKey.isEmpty() &&
@@ -47,5 +48,20 @@ class SpannerDataProvidersService(
       ?: failGrpc(Status.NOT_FOUND) {
         "No DataProvider with externalId ${request.externalDataProviderId}"
       }
+=======
+    return CreateDataProvider(request).execute(client, idGenerator, clock)
+  }
+  override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
+    val dataProvider =
+      DataProviderReader()
+        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalDataProviderId))
+        ?.dataProvider
+    if (dataProvider == null) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "No DataProvider with externalId ${request.externalDataProviderId}"
+      }
+    }
+    return dataProvider
+>>>>>>> d519ecd3 (setting up)
   }
 }

@@ -16,11 +16,15 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+<<<<<<< HEAD
 import com.google.protobuf.ByteString
+=======
+>>>>>>> d519ecd3 (setting up)
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+<<<<<<< HEAD
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,10 +33,16 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+=======
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+>>>>>>> d519ecd3 (setting up)
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 
+<<<<<<< HEAD
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
@@ -58,18 +68,32 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   fun initService() {
     dataProvidersService = newService(idGenerator)
   }
+=======
+private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+
+@RunWith(JUnit4::class)
+abstract class DataProvidersServiceTest {
+  abstract val measurementConsumersService: DataProvidersCoroutineImplBase
+>>>>>>> d519ecd3 (setting up)
 
   @Test
   fun `getDataProvider fails for missing DataProvider`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
+<<<<<<< HEAD
         dataProvidersService.getDataProvider(
           GetDataProviderRequest.newBuilder()
             .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID)
+=======
+        measurementConsumersService.getDataProvider(
+          GetDataProviderRequest.newBuilder()
+            .setExternalDataProviderId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
+>>>>>>> d519ecd3 (setting up)
             .build()
         )
       }
 
+<<<<<<< HEAD
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
@@ -95,10 +119,14 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+=======
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+>>>>>>> d519ecd3 (setting up)
   }
 
   @Test
   fun `createDataProvider succeeds`() = runBlocking {
+<<<<<<< HEAD
     val dataProvider =
       DataProvider.newBuilder()
         .apply {
@@ -159,5 +187,22 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       )
 
     assertThat(dataProviderRead).isEqualTo(createdDataProvider)
+=======
+    val createdDataProvider =
+      measurementConsumersService.createDataProvider(
+        DataProvider.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
+      )
+
+    val measurementConsumerRead =
+      measurementConsumersService.getDataProvider(
+        GetDataProviderRequest.newBuilder()
+          .setExternalDataProviderId(
+            createdDataProvider.externalDataProviderId
+          )
+          .build()
+      )
+
+    assertThat(measurementConsumerRead).isEqualTo(createdDataProvider)
+>>>>>>> d519ecd3 (setting up)
   }
 }
