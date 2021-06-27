@@ -73,19 +73,27 @@ private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 
 @RunWith(JUnit4::class)
 abstract class DataProvidersServiceTest {
+<<<<<<< HEAD
   abstract val measurementConsumersService: DataProvidersCoroutineImplBase
 >>>>>>> d519ecd3 (setting up)
+=======
+  abstract val dataProvidersService: DataProvidersCoroutineImplBase
+>>>>>>> 030d4904 (ready)
 
   @Test
   fun `getDataProvider fails for missing DataProvider`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
 <<<<<<< HEAD
+<<<<<<< HEAD
         dataProvidersService.getDataProvider(
           GetDataProviderRequest.newBuilder()
             .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID)
 =======
         measurementConsumersService.getDataProvider(
+=======
+        dataProvidersService.getDataProvider(
+>>>>>>> 030d4904 (ready)
           GetDataProviderRequest.newBuilder()
             .setExternalDataProviderId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
 >>>>>>> d519ecd3 (setting up)
@@ -189,12 +197,12 @@ abstract class DataProvidersServiceTest {
     assertThat(dataProviderRead).isEqualTo(createdDataProvider)
 =======
     val createdDataProvider =
-      measurementConsumersService.createDataProvider(
+      dataProvidersService.createDataProvider(
         DataProvider.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
       )
 
-    val measurementConsumerRead =
-      measurementConsumersService.getDataProvider(
+    val dataProviderRead =
+      dataProvidersService.getDataProvider(
         GetDataProviderRequest.newBuilder()
           .setExternalDataProviderId(
             createdDataProvider.externalDataProviderId
@@ -202,7 +210,11 @@ abstract class DataProvidersServiceTest {
           .build()
       )
 
+<<<<<<< HEAD
     assertThat(measurementConsumerRead).isEqualTo(createdDataProvider)
 >>>>>>> d519ecd3 (setting up)
+=======
+    assertThat(dataProviderRead).isEqualTo(createdDataProvider)
+>>>>>>> 030d4904 (ready)
   }
 }
