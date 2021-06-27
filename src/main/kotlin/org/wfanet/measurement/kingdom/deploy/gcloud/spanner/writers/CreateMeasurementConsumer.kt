@@ -72,15 +72,14 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     return checkNotNull(transactionResult)
 =======
 import com.google.cloud.spanner.Mutation
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
-  SpannerWriter<ExternalId, MeasurementConsumer>() {
-  override suspend fun TransactionScope.runTransaction(): ExternalId {
+  SpannerWriter<MeasurementConsumer, MeasurementConsumer>() {
+  override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
     val internalCertificateId = idGenerator.generateInternalId()
 
     measurementConsumer
@@ -117,15 +116,15 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
       .build()
       .bufferTo(transactionContext)
 
-    return externalMeasurementConsumerId
-  }
-
-  override fun ResultScope<ExternalId>.buildResult(): MeasurementConsumer {
-    val externalMeasurementConsumerId = checkNotNull(transactionResult).value
     return measurementConsumer
       .toBuilder()
-      .setExternalMeasurementConsumerId(externalMeasurementConsumerId)
+      .setExternalMeasurementConsumerId(externalMeasurementConsumerId.value)
+      .setExternalPublicKeyCertificateId(externalMeasurementConsumerCertificateId.value)
       .build()
 >>>>>>> f58fef48 (initial commit)
+  }
+
+  override fun ResultScope<MeasurementConsumer>.buildResult(): MeasurementConsumer {
+    return checkNotNull(transactionResult)
   }
 }
