@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2020 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,9 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
-class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
+class DataProviderReaderLegacy : SpannerReader<DataProviderReaderLegacy.Result>() {
   data class Result(val dataProvider: DataProvider, val dataProviderId: Long)
 
   override val baseSql: String =
@@ -27,12 +26,8 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       DataProviders.DataProviderId,
       DataProviders.ExternalDataProviderId,
       DataProviders.DataProviderDetails,
-      DataProviders.DataProviderDetailsJson,
-      DataProviderCertificates.ExternalDataProviderCertificateId,
-      Certificates.CertificateDetails
+      DataProviders.DataProviderDetailsJson
     FROM DataProviders
-    JOIN DataProviderCertificates USING (DataProviderId)
-    JOIN Certificates USING (CertificateId)
     """.trimIndent()
 
   override val externalIdColumn: String = "DataProviders.ExternalDataProviderId"
@@ -42,11 +37,6 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
 
   private fun buildDataProvider(struct: Struct): DataProvider =
     DataProvider.newBuilder()
-      .apply {
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        externalPublicKeyCertificateId = struct.getLong("ExternalDataProviderCertificateId")
-        details =
-          struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
-      }
+      .apply { externalDataProviderId = struct.getLong("ExternalDataProviderId") }
       .build()
 }

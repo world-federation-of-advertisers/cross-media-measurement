@@ -27,7 +27,7 @@ import org.wfanet.measurement.kingdom.db.testing.DatabaseTestHelper
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.BaseSpannerDatabase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAdvertiser
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCampaign
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProviderLegacy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateSchedule
 
@@ -37,7 +37,7 @@ class SpannerDatabaseTestHelper(
   client: AsyncDatabaseClient
 ) : DatabaseTestHelper, BaseSpannerDatabase(clock, idGenerator, client) {
   override suspend fun createDataProvider(): DataProvider {
-    return CreateDataProvider().execute()
+    return CreateDataProviderLegacy().execute()
   }
 
   override suspend fun createAdvertiser(): Advertiser {
