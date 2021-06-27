@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
 class CreateDataProvider(private val dataProvider: DataProvider) :
@@ -35,8 +37,8 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       set("DataProviderId" to internalDataProviderId.value)
       set("PublicKeyCertificateId" to internalCertificateId.value)
       set("ExternalDataProviderId" to externalDataProviderId.value)
-      set("DataProviderDetails" to measurementConsumer.details)
-      setJson("DataProviderDetailsJson" to measurementConsumer.details)
+      set("DataProviderDetails" to dataProvider.details)
+      setJson("DataProviderDetailsJson" to dataProvider.details)
     }
       .bufferTo(transactionContext)
 
@@ -56,8 +58,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       .build()
   }
 
-  override fun ResultScope<ExternalId>.buildResult(): DataProvider {
-    val externalDataProviderId = checkNotNull(transactionResult).value
-    return DataProvider.newBuilder().setExternalDataProviderId(externalDataProviderId).build()
+  override fun ResultScope<DataProvider>.buildResult(): DataProvider {
+    return checkNotNull(transactionResult)
   }
 }
