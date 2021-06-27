@@ -19,9 +19,9 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.toProtoBytes
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
-import org.wfanet.measurement.gcloud.spanner.toProtoJson
+import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 
 class CreateCertificate(private val certificate: Certificate) :
@@ -37,20 +37,15 @@ class CreateCertificate(private val certificate: Certificate) :
 }
 
 fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
-  return Mutation.newInsertBuilder("Certificates")
-    .set("CertificateId")
-    .to(internalId.value)
-    .set("SubjectKeyIdentifier")
-    .to(subjectKeyIdentifier.toGcloudByteArray())
-    .set("NotValidBefore")
-    .to(notValidBefore.toGcloudTimestamp())
-    .set("NotValidAfter")
-    .to(notValidAfter.toGcloudTimestamp())
-    .set("RevocationState")
-    .toProtoEnum(revocationState)
-    .set("CertificateDetails")
-    .toProtoBytes(details)
-    .set("CertificateDetailsJson")
-    .toProtoJson(details)
-    .build()
+  val mutation: Mutation =
+    insertMutation("Certificates") {
+      set("CertificateId" to internalId.value)
+      set("SubjectKeyIdentifier" to subjectKeyIdentifier.toGcloudByteArray())
+      set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
+      set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
+      set("RevocationState" to revocationState)
+      set("CertificateDetails" to details)
+      setJson("CertificateDetailsJson" to details)
+    }
+  return mutation
 }

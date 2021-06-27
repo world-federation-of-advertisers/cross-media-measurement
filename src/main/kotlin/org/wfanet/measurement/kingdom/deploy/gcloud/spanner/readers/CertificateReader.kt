@@ -18,18 +18,8 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
-class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
-  data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
-
-  // override val baseSql: String =
-  //   """
-  //   SELECT
-  //     MeasurementConsumers.MeasurementConsumerId,
-  //     MeasurementConsumers.ExternalMeasurementConsumerId,
-  //     MeasurementConsumers.MeasurementConsumerDetails,
-  //     MeasurementConsumers.MeasurementConsumerDetailsJson
-  //   FROM MeasurementConsumers
-  //   """.trimIndent()
+class CertificateReader : SpannerReader<MeasurementConsumerReader.Result>() {
+  data class Result(val certificate: Certificate, val measurementConsumerId: Long)
 
   override val baseSql: String =
     """
