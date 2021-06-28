@@ -9,3 +9,8 @@ alias(
     name = "direct_runner",
     actual = "@maven//:org_apache_beam_beam_runners_direct_java",
 )
+
+alias(
+    name = "protobuf",
+    actual = "@maven//:org_apache_beam_beam_sdks_java_extensions_protobuf",
+)
