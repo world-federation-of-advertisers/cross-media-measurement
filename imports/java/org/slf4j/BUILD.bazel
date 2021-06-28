@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "simple",
+    actual = "@maven//:org_slf4j_slf4j_simple",
+)
