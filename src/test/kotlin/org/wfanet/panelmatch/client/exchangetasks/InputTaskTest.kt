@@ -14,132 +14,117 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.mock
-import java.time.Duration
+import com.nhaarman.mockitokotlin2.times
+import com.nhaarman.mockitokotlin2.verify
+import com.nhaarman.mockitokotlin2.verifyNoMoreInteractions
+import com.nhaarman.mockitokotlin2.whenever
+import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.panelmatch.client.launcher.ApiClient
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.INPUT_STEP
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
-import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
-import org.wfanet.panelmatch.client.launcher.testing.TestStep
-import org.wfanet.panelmatch.client.storage.InMemoryStorage
-import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputs
-
-private const val EXCHANGE_KEY = "some-exchange-key-00"
-private const val ATTEMPT_KEY = "some-attempt-key-01"
+import org.wfanet.panelmatch.client.launcher.testing.buildStep
+import org.wfanet.panelmatch.client.storage.Storage
+import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
+import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class InputTaskTest {
-  private val apiClient: ApiClient = mock()
-  private val privateStorage = InMemoryStorage(keyPrefix = "private")
-  private val sharedStorage = InMemoryStorage(keyPrefix = "shared")
-
-  @Test
-  fun `wait on private input`() = runBlocking {
-    val testStep =
-      TestStep(
-        apiClient = apiClient,
-        exchangeKey = EXCHANGE_KEY,
-        exchangeStepAttemptKey = ATTEMPT_KEY,
-        privateOutputLabels = mapOf("input" to "$EXCHANGE_KEY-mp-crypto-key"),
-        stepType = ExchangeWorkflow.Step.StepCase.INPUT_STEP,
-        timeoutDuration = Duration.ofMillis(500),
-        retryDuration = Duration.ofMillis(100),
-        privateStorage = privateStorage,
-        sharedStorage = sharedStorage
-      )
-    coroutineScope {
-      var buildJob = async { testStep.buildAndExecuteTask() }
-      delay(300)
-      privateStorage.batchWrite(
-        outputLabels = mapOf("output" to "$EXCHANGE_KEY-mp-crypto-key"),
-        data = mapOf("output" to MP_0_SECRET_KEY)
-      )
-      buildJob.await()
-    }
-  }
-
-  @Test
-  fun `wait on shared input`() = runBlocking {
-    val testStep =
-      TestStep(
-        apiClient = apiClient,
-        exchangeKey = EXCHANGE_KEY,
-        exchangeStepAttemptKey = ATTEMPT_KEY,
-        sharedOutputLabels = mapOf("input" to "$EXCHANGE_KEY-mp-single-blinded-keys"),
-        stepType = ExchangeWorkflow.Step.StepCase.INPUT_STEP,
-        timeoutDuration = Duration.ofMillis(500),
-        retryDuration = Duration.ofMillis(100),
-        privateStorage = privateStorage,
-        sharedStorage = sharedStorage
-      )
-    coroutineScope {
-      val job = async { testStep.buildAndExecuteTask() }
-      delay(300)
-      sharedStorage.batchWrite(
-        outputLabels = mapOf("output" to "$EXCHANGE_KEY-mp-single-blinded-keys"),
-        data = mapOf("output" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS))
-      )
-      job.await()
-    }
-  }
-
-  @Test
-  fun `wait on private input fails after timeout`() =
-    runBlocking<Unit> {
-      val testStep =
-        TestStep(
-          apiClient = apiClient,
-          exchangeKey = EXCHANGE_KEY,
-          exchangeStepAttemptKey = ATTEMPT_KEY,
-          privateOutputLabels = mapOf("input" to "$EXCHANGE_KEY-mp-crypto-key"),
-          stepType = ExchangeWorkflow.Step.StepCase.INPUT_STEP,
-          timeoutDuration = Duration.ofMillis(500),
-          retryDuration = Duration.ofMillis(100),
-          privateStorage = privateStorage,
-          sharedStorage = sharedStorage
-        )
-      assertFailsWith(TimeoutCancellationException::class) {
-        coroutineScope {
-          val job = async { testStep.buildAndExecuteTask() }
-          job.await()
-        }
+  private val privateStorage = mock<Storage>()
+  private val sharedStorage = mock<Storage>()
+  private val throttler =
+    object : Throttler {
+      override suspend fun <T> onReady(block: suspend () -> T): T {
+        return block()
       }
     }
 
   @Test
-  fun `wait on shared input fails if party takes too long to write`() =
-    runBlocking<Unit> {
-      val testStep =
-        TestStep(
-          apiClient = apiClient,
-          exchangeKey = EXCHANGE_KEY,
-          exchangeStepAttemptKey = ATTEMPT_KEY,
-          sharedOutputLabels = mapOf("input" to "$EXCHANGE_KEY-mp-single-blinded-keys"),
-          stepType = ExchangeWorkflow.Step.StepCase.INPUT_STEP,
-          timeoutDuration = Duration.ofMillis(500),
-          retryDuration = Duration.ofMillis(100),
-          privateStorage = privateStorage,
-          sharedStorage = sharedStorage
-        )
-      assertFailsWith(TimeoutCancellationException::class) {
-        coroutineScope {
-          val job = async { testStep.buildAndExecuteTask() }
-          delay(600)
-          sharedStorage.batchWrite(
-            outputLabels = mapOf("output" to "$EXCHANGE_KEY-mp-single-blinded-keys"),
-            data = mapOf("output" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS))
-          )
-          job.await()
+  fun `wait on private input`() = runBlockingTest {
+    val labels = mapOf("input" to "mp-crypto-key")
+    val step = buildStep(INPUT_STEP, privateOutputLabels = labels)
+    val task = InputTask(step, throttler, sharedStorage, privateStorage)
+
+    whenever(privateStorage.batchRead(any()))
+      .thenThrow(NotFoundException("File not found"))
+      .thenThrow(NotFoundException("File not found"))
+      .thenThrow(NotFoundException("File not found"))
+      .thenThrow(NotFoundException("File not found"))
+      .thenReturn(mapOf("input" to MP_0_SECRET_KEY))
+
+    val result: Map<String, ByteString> = task.execute(emptyMap())
+
+    assertThat(result).isEmpty()
+
+    verify(privateStorage, times(5)).batchRead(labels)
+
+    verifyNoMoreInteractions(sharedStorage, privateStorage)
+  }
+
+  @Test
+  fun `wait on shared input`() = runBlockingTest {
+    val labels = mapOf("input" to "mp-crypto-key")
+    val step = buildStep(INPUT_STEP, sharedOutputLabels = labels)
+    val task = InputTask(step, throttler, sharedStorage, privateStorage)
+
+    whenever(sharedStorage.batchRead(any()))
+      .thenThrow(NotFoundException("File not found"))
+      .thenThrow(NotFoundException("File not found"))
+      .thenThrow(NotFoundException("File not found"))
+      .thenThrow(NotFoundException("File not found"))
+      .thenReturn(mapOf("input" to MP_0_SECRET_KEY))
+
+    val result: Map<String, ByteString> = task.execute(emptyMap())
+
+    assertThat(result).isEmpty()
+
+    verify(sharedStorage, times(5)).batchRead(labels)
+
+    verifyNoMoreInteractions(sharedStorage, privateStorage)
+  }
+
+  @Test
+  fun `invalid inputs`() = runBlockingTest {
+    fun runTest(step: ExchangeWorkflow.Step) {
+      if (step.privateInputLabelsCount + step.sharedInputLabelsCount == 0 &&
+          step.privateOutputLabelsCount + step.sharedOutputLabelsCount == 1
+      ) {
+        // Expect no failure.
+        InputTask(step, throttler, sharedStorage, privateStorage)
+      } else {
+        assertFailsWith<IllegalArgumentException>(step.toString()) {
+          InputTask(step, throttler, sharedStorage, privateStorage)
         }
       }
     }
+
+    val maps: List<Map<String, String>> =
+      listOf(emptyMap(), mapOf("a" to "b"), mapOf("a" to "b", "c" to "d"))
+
+    for (privateInputLabels in maps) {
+      for (privateOutputLabels in maps) {
+        for (sharedInputLabels in maps) {
+          for (sharedOutputLabels in maps) {
+            runTest(
+              buildStep(
+                stepType = INPUT_STEP,
+                privateInputLabels = privateInputLabels,
+                privateOutputLabels = privateOutputLabels,
+                sharedInputLabels = sharedInputLabels,
+                sharedOutputLabels = sharedOutputLabels
+              )
+            )
+          }
+        }
+      }
+    }
+  }
 }

@@ -14,21 +14,25 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
+import java.time.Clock
 import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.storage.Storage
 import org.wfanet.panelmatch.protocol.common.Cryptor
 
 /** Maps join key exchange steps to exchange tasks */
 class ExchangeTaskMapperForJoinKeyExchange(
-  val deterministicCommutativeCryptor: Cryptor,
-  val retryDuration: Duration = Duration.ofMillis(100),
-  val sharedStorage: Storage,
-  val privateStorage: Storage
+  private val deterministicCommutativeCryptor: Cryptor,
+  private val sharedStorage: Storage,
+  private val privateStorage: Storage,
+  private val throttler: Throttler =
+    MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100))
 ) : ExchangeTaskMapper {
 
   override suspend fun getExchangeTaskForStep(step: ExchangeWorkflow.Step): ExchangeTask {
-    return when (step.getStepCase()) {
+    return when (step.stepCase) {
       ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP ->
         CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
       ExchangeWorkflow.Step.StepCase.REENCRYPT_STEP ->
@@ -40,7 +44,7 @@ class ExchangeTaskMapperForJoinKeyExchange(
           sharedStorage = sharedStorage,
           privateStorage = privateStorage,
           step = step,
-          retryDuration = retryDuration
+          throttler = throttler
         )
       ExchangeWorkflow.Step.StepCase.INTERSECT_AND_VALIDATE_STEP ->
         IntersectValidateTask(

@@ -15,18 +15,10 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
-import java.time.Duration
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.retryWhen
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.panelmatch.client.logger.loggerFor
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.storage.Storage
+import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
 
 /**
  * Input task waits for output labels to be present. Clients should not pass in the actual required
@@ -34,54 +26,45 @@ import org.wfanet.panelmatch.client.storage.Storage
  * that are written after the actual outputs are done being written.
  */
 class InputTask(
-  val step: ExchangeWorkflow.Step,
-  val retryDuration: Duration,
-  val sharedStorage: Storage,
-  val privateStorage: Storage
+  private val step: ExchangeWorkflow.Step,
+  private val throttler: Throttler,
+  private val sharedStorage: Storage,
+  private val privateStorage: Storage
 ) : ExchangeTask {
 
-  /**
-   * Waits for all private and shared task input from shared and private storage based on for an
-   * [ExchangeStep] and returns when ready
-   */
-  suspend fun waitForOutputsToBeReady(
-    sharedStorage: Storage,
-    privateStorage: Storage,
-    step: ExchangeWorkflow.Step
-  ): List<Map<String, ByteString>> = coroutineScope {
-    val privateOutputLabels = step.getPrivateOutputLabelsMap()
-    val sharedOutputLabels = step.getSharedOutputLabelsMap()
-    awaitAll(
-      async(start = CoroutineStart.DEFAULT) {
-        privateStorage.batchRead(inputLabels = privateOutputLabels)
-      },
-      async(start = CoroutineStart.DEFAULT) {
-        sharedStorage.batchRead(inputLabels = sharedOutputLabels)
-      }
-    )
+  init {
+    with(step) {
+      require(privateOutputLabelsCount + sharedOutputLabelsCount == 1)
+      require(privateInputLabelsCount + sharedInputLabelsCount == 0)
+    }
+  }
+
+  /** Reads a single blob from either [sharedStorage] or [privateStorage] as specified in [step]. */
+  private suspend fun readValue() {
+    val privateOutputLabels = step.privateOutputLabelsMap
+    val sharedOutputLabels = step.sharedOutputLabelsMap
+    if (privateOutputLabels.isNotEmpty()) {
+      privateStorage.batchRead(inputLabels = privateOutputLabels)
+    } else {
+      sharedStorage.batchRead(inputLabels = sharedOutputLabels)
+    }
+  }
+
+  private suspend fun isReady(): Boolean {
+    return try {
+      readValue()
+      true
+    } catch (e: NotFoundException) {
+      false
+    }
   }
 
   override suspend fun execute(input: Map<String, ByteString>): Map<String, ByteString> {
-    flow<Boolean> {
-        waitForOutputsToBeReady(
-          sharedStorage = sharedStorage,
-          privateStorage = privateStorage,
-          step = step
-        )
-        emit(true)
+    while (true) {
+      if (throttler.onReady { isReady() }) {
+        // This function only returns that input is ready. It does not return actual values.
+        return emptyMap()
       }
-      .retryWhen { cause, _ ->
-        logger.info(cause.toString())
-        delay(retryDuration.toMillis())
-        true
-      }
-      .toList()
-
-    // This function only returns that input is ready. It does not return actual values.
-    return emptyMap<String, ByteString>()
-  }
-
-  companion object {
-    val logger by loggerFor()
+    }
   }
 }

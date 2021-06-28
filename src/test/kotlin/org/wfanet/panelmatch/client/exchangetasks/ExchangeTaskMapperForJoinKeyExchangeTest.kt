@@ -15,59 +15,40 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.times
-import java.time.Duration
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.testing.buildMockCryptor
+import org.wfanet.panelmatch.client.launcher.testing.buildStep
 import org.wfanet.panelmatch.client.storage.InMemoryStorage
+import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class ExchangeTaskMapperForJoinKeyExchangeTest {
-  private val apiClient: ApiClient = mock()
   private val privateStorage = InMemoryStorage(keyPrefix = "private")
   private val sharedStorage = InMemoryStorage(keyPrefix = "shared")
-  private val retryDuration: Duration = Duration.ofMillis(500)
   private val deterministicCommutativeCryptor = buildMockCryptor()
 
-  @Test
-  fun `map input task`() =
-    runBlocking<Unit> {
-      val testStep =
-        ExchangeWorkflow.Step.newBuilder()
-          .apply { inputStep = ExchangeWorkflow.Step.InputStep.getDefaultInstance() }
-          .build()
-      val exchangeTask: ExchangeTask =
-        ExchangeTaskMapperForJoinKeyExchange(
-            deterministicCommutativeCryptor = deterministicCommutativeCryptor,
-            retryDuration = retryDuration,
-            sharedStorage = sharedStorage,
-            privateStorage = privateStorage
-          )
-          .getExchangeTaskForStep(testStep)
-      assertThat(exchangeTask).isInstanceOf(InputTask::class.java)
-    }
+  private val exchangeTaskMapper =
+    ExchangeTaskMapperForJoinKeyExchange(
+      deterministicCommutativeCryptor = deterministicCommutativeCryptor,
+      sharedStorage = sharedStorage,
+      privateStorage = privateStorage
+    )
 
   @Test
-  fun `map crypto task`() =
-    runBlocking<Unit> {
-      val testStep =
-        ExchangeWorkflow.Step.newBuilder()
-          .apply { encryptStep = ExchangeWorkflow.Step.EncryptStep.getDefaultInstance() }
-          .build()
-      val exchangeTask: ExchangeTask =
-        ExchangeTaskMapperForJoinKeyExchange(
-            deterministicCommutativeCryptor = deterministicCommutativeCryptor,
-            retryDuration = retryDuration,
-            sharedStorage = sharedStorage,
-            privateStorage = privateStorage
-          )
-          .getExchangeTaskForStep(testStep)
-      assertThat(exchangeTask).isInstanceOf(CryptorExchangeTask::class.java)
-    }
+  fun `map input task`() = runBlockingTest {
+    val testStep =
+      buildStep(ExchangeWorkflow.Step.StepCase.INPUT_STEP, privateOutputLabels = mapOf("a" to "b"))
+    val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(testStep)
+    assertThat(exchangeTask).isInstanceOf(InputTask::class.java)
+  }
+
+  @Test
+  fun `map crypto task`() = runBlockingTest {
+    val testStep = buildStep(ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP)
+    val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(testStep)
+    assertThat(exchangeTask).isInstanceOf(CryptorExchangeTask::class.java)
+  }
 }

@@ -28,6 +28,7 @@ import org.wfanet.panelmatch.client.logger.loggerFor
  */
 class FileSystemStorage(baseDir: String) : Storage {
   private var storageClient: FileSystemStorageClient
+
   init {
     val baseFolder = File(baseDir)
     if (!baseFolder.exists()) {
@@ -40,16 +41,17 @@ class FileSystemStorage(baseDir: String) : Storage {
   }
 
   override suspend fun read(path: String): ByteString {
-    logger.info("Read:${path}\n")
-    return requireNotNull(storageClient.getBlob(path)).read(4096).reduce { a, b -> a.concat(b) }
+    logger.fine("Read:${path}\n")
+    val blob = storageClient.getBlob(path) ?: throw Storage.NotFoundException(path)
+    return blob.read(4096).reduce { a, b -> a.concat(b) }
   }
 
   override suspend fun write(path: String, data: ByteString) {
-    logger.info("Write:${path}\n")
+    logger.fine("Write:${path}\n")
     storageClient.createBlob(path, listOf(data).asFlow())
   }
 
   companion object {
-    val logger by loggerFor()
+    private val logger by loggerFor()
   }
 }

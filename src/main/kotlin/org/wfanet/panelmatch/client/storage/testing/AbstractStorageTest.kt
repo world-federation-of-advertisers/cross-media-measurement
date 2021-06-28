@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.panelmatch.client.storage.Storage
+import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val KEY = "some arbitrary key"
@@ -36,27 +37,27 @@ abstract class AbstractStorageTest {
 
   @Test
   fun `get error for invalid key from FileSystemStorage`() = runBlockingTest {
-    assertFailsWith(IllegalArgumentException::class) { privateStorage.read(KEY) }
+    assertFailsWith<NotFoundException> { privateStorage.read(KEY) }
   }
 
   @Test
   fun `get error for rewriting to same key 2x in FileSystemStorage`() = runBlockingTest {
     privateStorage.write(KEY, VALUE)
-    assertFailsWith(IllegalArgumentException::class) { privateStorage.write(KEY, VALUE) }
+    assertFailsWith<IllegalArgumentException> { privateStorage.write(KEY, VALUE) }
   }
 
   @Test
   fun `shared storage cannot read from private storage`() = runBlockingTest {
     privateStorage.write(KEY, VALUE)
     privateStorage.read(KEY) // Does not throw.
-    assertFailsWith(IllegalArgumentException::class) { sharedStorage.read(KEY) }
+    assertFailsWith<NotFoundException> { sharedStorage.read(KEY) }
   }
 
   @Test
   fun `private storage cannot read from shared storage`() = runBlockingTest {
     sharedStorage.write(KEY, VALUE)
     sharedStorage.read(KEY) // Does not throw.
-    assertFailsWith(IllegalArgumentException::class) { privateStorage.read(KEY) }
+    assertFailsWith<NotFoundException> { privateStorage.read(KEY) }
   }
 
   @Test

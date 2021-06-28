@@ -44,7 +44,7 @@ internal constructor(
   }
 
   companion object {
-    val logger by loggerFor()
+    private val logger by loggerFor()
 
     /** Returns an [ExchangeTask] that removes encryption from data. */
     fun forDecryption(Cryptor: Cryptor): ExchangeTask {

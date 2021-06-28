@@ -78,7 +78,7 @@ class LoggerTest {
       async(CoroutineName(attemptKey) + Dispatchers.Default) {
         logger.addToTaskLog("Log Message 0")
         JobTestClass1().logWithDelay()
-        val log = logger.getAndClearTaskLog()
+        val log = getAndClearTaskLog()
         assertThat(log).hasSize(3)
         log.forEach { assertThat(it).contains(attemptKey) }
       }
@@ -94,13 +94,13 @@ class LoggerTest {
         async(CoroutineName(attemptKey0) + Dispatchers.Default) {
           logger.addToTaskLog("Log Message 0")
           JobTestClass1().logWithDelay()
-          val log = logger.getAndClearTaskLog()
+          val log = getAndClearTaskLog()
           assertThat(log).hasSize(3)
           log.forEach { assertThat(it).contains(attemptKey0) }
         },
         async(CoroutineName(attemptKey1) + Dispatchers.Default) {
           JobTestClass1().logWithDelay()
-          val log = logger.getAndClearTaskLog()
+          val log = getAndClearTaskLog()
           assertThat(log).hasSize(2)
           log.forEach { assertThat(it).contains(attemptKey1) }
         }
@@ -122,7 +122,7 @@ class LoggerTest {
         val subJob = launch { JobTestClass2().logWithDelay() }
         JobTestClass1().logWithDelay()
         subJob.join()
-        val log = logger.getAndClearTaskLog()
+        val log = getAndClearTaskLog()
         assertThat(log).hasSize(5)
         log.forEach { assertThat(it).contains(attemptKey) }
       }
@@ -137,7 +137,7 @@ class LoggerTest {
         val subJob = launch { JobTestClass3().logWithDelay() }
         JobTestClass1().logWithDelay()
         subJob.join()
-        val log = logger.getAndClearTaskLog()
+        val log = getAndClearTaskLog()
         assertThat(log).hasSize(3)
         log.forEach { assertThat(it).contains(attemptKey) }
       }
