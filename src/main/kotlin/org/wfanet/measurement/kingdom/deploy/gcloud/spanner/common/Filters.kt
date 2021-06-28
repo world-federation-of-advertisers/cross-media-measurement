@@ -17,15 +17,19 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import com.google.protobuf.ProtocolMessageEnum
+import com.google.type.Date
 import java.time.Instant
 import org.wfanet.measurement.common.AllOfClause
 import org.wfanet.measurement.common.AnyOfClause
 import org.wfanet.measurement.common.GreaterThanClause
+import org.wfanet.measurement.common.LessThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.numberAsLong
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.kingdom.db.StreamExchangesClause
 import org.wfanet.measurement.kingdom.db.StreamReportsClause
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsClause
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.SqlConverter.SqlData
@@ -47,6 +51,7 @@ fun <V : TerminalClause> AllOfClause<V>.toSql(
     when (clause) {
       is AnyOfClause -> query.append("($fieldName IN UNNEST(@$bindName))")
       is GreaterThanClause -> query.append("($fieldName > @$bindName)")
+      is LessThanClause -> query.append("($fieldName < @$bindName)")
     }
     query.bind(bindName).to(sqlData.spannerValue)
   }
@@ -101,6 +106,28 @@ object StreamReportsFilterSqlConverter : SqlConverter<StreamReportsClause> {
     }
 }
 
+object StreamExchangesFilterSqlConverter : SqlConverter<StreamExchangesClause> {
+  override fun sqlData(v: StreamExchangesClause): SqlData =
+    when (v) {
+      is StreamExchangesClause.ExternalModelProviderId ->
+        SqlData(
+          "ModelProviders.ExternalModelProviderId",
+          "external_model_provider_id",
+          externalIdValueArray(v.values)
+        )
+      is StreamExchangesClause.ExternalDataProviderId ->
+        SqlData(
+          "DataProviders.ExternalDataProviderId",
+          "external_data_provider_id",
+          externalIdValueArray(v.values)
+        )
+      is StreamExchangesClause.State ->
+        SqlData("RecurringExchanges.State", "state", enumValueArray(v.values))
+      is StreamExchangesClause.NextExchangeDate ->
+        SqlData("RecurringExchanges.NextExchangeDate", "next_exchange_date", dateValue(v.value))
+    }
+}
+
 private fun externalIdValueArray(ids: Iterable<ExternalId>): Value =
   Value.int64Array(ids.map(ExternalId::value))
 
@@ -108,3 +135,5 @@ private fun enumValueArray(enums: Iterable<ProtocolMessageEnum>): Value =
   Value.int64Array(enums.map { it.numberAsLong })
 
 private fun timestampValue(time: Instant): Value = Value.timestamp(time.toGcloudTimestamp())
+
+private fun dateValue(date: Date): Value = Value.date(date.toCloudDate())

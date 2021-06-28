@@ -53,6 +53,11 @@ CREATE TABLE RecurringExchanges (
   ModelProviderId               INT64 NOT NULL,
   DataProviderId                INT64 NOT NULL,
 
+  -- RecurringExchange.State enum as int.
+  State                         INT64 NOT NULL,
+
+  NextExchangeDate              DATE NOT NULL,
+
   -- Serialized RecurringExchangeDetails protocol buffer
   RecurringExchangeDetails      BYTES(MAX) NOT NULL,
   RecurringExchangeDetailsJson  STRING(MAX) NOT NULL,
@@ -72,6 +77,9 @@ CREATE INDEX RecurringExchangesByDataProviderId
 
 CREATE INDEX RecurringExchangesByModelProviderId
   ON RecurringExchanges(ModelProviderId);
+
+CREATE INDEX RecurringExchangesByNextExchangeDate
+  ON RecurringExchanges(NextExchangeDate);
 
 CREATE TABLE Exchanges (
   RecurringExchangeId  INT64 NOT NULL,

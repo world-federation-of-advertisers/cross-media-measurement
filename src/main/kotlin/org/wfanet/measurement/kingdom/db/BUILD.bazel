@@ -20,6 +20,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_template_java_proto",
     ],
