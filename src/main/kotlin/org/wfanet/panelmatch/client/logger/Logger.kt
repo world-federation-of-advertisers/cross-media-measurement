@@ -22,8 +22,8 @@ import kotlinx.coroutines.CoroutineName
 
 private val taskLogs = ConcurrentHashMap<String, MutableList<String>>()
 
-public fun <R : Any> R.loggerFor(): Lazy<Logger> {
-  return lazy { Logger.getLogger(this.javaClass.getName()) }
+fun <R : Any> R.loggerFor(): Lazy<Logger> {
+  return lazy { Logger.getLogger(this.javaClass.name) }
 }
 
 suspend fun Logger.addToTaskLog(logMessage: String) {
@@ -33,7 +33,7 @@ suspend fun Logger.addToTaskLog(logMessage: String) {
   info("$coroutineContextName:$logMessage")
 }
 
-suspend fun Logger.getAndClearTaskLog(): List<String> {
+suspend fun getAndClearTaskLog(): List<String> {
   val taskKey = requireNotNull(coroutineContext[CoroutineName.Key]).toString()
   val listCopy: MutableList<String>? = taskLogs.remove(taskKey)
   return listCopy ?: emptyList()

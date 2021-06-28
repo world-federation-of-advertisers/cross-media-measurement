@@ -7,12 +7,11 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "common",
-    srcs = [
-        "Runfiles.kt",
-    ],
+    srcs = glob(["*.kt"]),
     deps = [
         "@wfa_measurement_system//imports/java/com/google/devtools/build/runfiles",
         "@wfa_measurement_system//imports/java/com/google/protobuf",
         "@wfa_measurement_system//imports/java/com/google/protobuf/util",
+        "@wfa_measurement_system//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

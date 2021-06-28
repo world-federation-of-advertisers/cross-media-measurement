@@ -14,24 +14,11 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
 
-/** Executes an [ExchangeStep] in a new coroutine in [scope]. */
-class CoroutineLauncher(
-  private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
-  private val stepExecutor: ExchangeStepExecutor
-) : JobLauncher {
-  override suspend fun execute(exchangeStep: ExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    scope.launch {
-      stepExecutor.execute(
-        attemptKey = attemptKey,
-        step = Step.parseFrom(exchangeStep.signedExchangeWorkflow.data)
-      )
-    }
-  }
+/** Executes [ExchangeWorkflow.Step]s. */
+interface ExchangeStepExecutor {
+  /** Executes [step]. */
+  suspend fun execute(attemptKey: ExchangeStepAttemptKey, step: ExchangeWorkflow.Step)
 }

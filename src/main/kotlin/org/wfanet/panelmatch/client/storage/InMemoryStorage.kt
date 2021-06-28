@@ -24,17 +24,17 @@ import java.util.concurrent.ConcurrentHashMap
 class InMemoryStorage(private val keyPrefix: String) : Storage {
   private var inMemoryStorage = ConcurrentHashMap<String, ByteString>()
 
-  private fun getKey(keyPrefix: String, path: String): String {
+  private fun getKey(path: String): String {
     return "$keyPrefix$path"
   }
 
   override suspend fun read(path: String): ByteString {
-    val key = getKey(keyPrefix = keyPrefix, path = path)
-    return requireNotNull(inMemoryStorage[key]) { "Key does not exist in storage: $key" }
+    val key = getKey(path)
+    return inMemoryStorage.getOrElse(key) { throw Storage.NotFoundException(key) }
   }
 
   override suspend fun write(path: String, data: ByteString) {
-    val key = getKey(keyPrefix = keyPrefix, path = path)
+    val key = getKey(path)
     require(inMemoryStorage.putIfAbsent(key, data) == null) {
       "Cannot write to an existing key: $key"
     }
