@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.Date
 import kotlinx.coroutines.flow.toList
@@ -108,7 +108,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `database sanity check`() {
-    ProtoTruth.assertThat(readAllExchangesInSpanner())
+    assertThat(readAllExchangesInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(EXCHANGE1, EXCHANGE2, EXCHANGE3)
   }
@@ -118,11 +118,9 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
     runBlocking<Unit> {
       fun filter(date: Date) = streamExchangesFilter(nextExchangeDate = date)
 
-      ProtoTruth.assertThat(executeToList(filter(DATE1), 10))
-        .comparingExpectedFieldsOnly()
-        .containsExactly()
+      assertThat(executeToList(filter(DATE1), 10)).comparingExpectedFieldsOnly().containsExactly()
 
-      ProtoTruth.assertThat(executeToList(filter(DATE2), 10))
+      assertThat(executeToList(filter(DATE2), 10))
         .comparingExpectedFieldsOnly()
         .containsExactly(EXCHANGE1, EXCHANGE3)
 
@@ -135,7 +133,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
           }
           .build()
 
-      ProtoTruth.assertThat(executeToList(filter(date), 10))
+      assertThat(executeToList(filter(date), 10))
         .comparingExpectedFieldsOnly()
         .containsExactly(EXCHANGE1, EXCHANGE2, EXCHANGE3)
     }
@@ -143,15 +141,15 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
   @Test
   fun `limit filter`() =
     runBlocking<Unit> {
-      ProtoTruth.assertThat(executeToList(streamExchangesFilter(), 10))
+      assertThat(executeToList(streamExchangesFilter(), 10))
         .comparingExpectedFieldsOnly()
         .containsExactly(EXCHANGE1, EXCHANGE2, EXCHANGE3)
 
-      ProtoTruth.assertThat(executeToList(streamExchangesFilter(), 2))
+      assertThat(executeToList(streamExchangesFilter(), 2))
         .comparingExpectedFieldsOnly()
         .containsExactly(EXCHANGE1, EXCHANGE3)
 
-      ProtoTruth.assertThat(executeToList(streamExchangesFilter(), 1))
+      assertThat(executeToList(streamExchangesFilter(), 1))
         .comparingExpectedFieldsOnly()
         .containsExactly(EXCHANGE1)
     }
@@ -173,7 +171,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
         states = listOf(RecurringExchange.State.ACTIVE),
         nextExchangeDate = date,
       )
-    ProtoTruth.assertThat(executeToList(filter, 10))
+    assertThat(executeToList(filter, 10))
       .comparingExpectedFieldsOnly()
       .containsExactly(EXCHANGE1, EXCHANGE3)
       .inOrder()

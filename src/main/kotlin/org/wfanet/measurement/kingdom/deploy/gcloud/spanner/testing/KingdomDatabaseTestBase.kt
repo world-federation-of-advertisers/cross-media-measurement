@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
@@ -340,10 +341,8 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
   protected suspend fun insertModelProvider(modelProviderId: Long, externalModelProviderId: Long) {
     write(
       Mutation.newInsertBuilder("ModelProviders")
-        .set("modelProviderId")
-        .to(modelProviderId)
-        .set("ExternalModelProviderId")
-        .to(externalModelProviderId)
+        .set("modelProviderId" to modelProviderId)
+        .set("ExternalModelProviderId" to externalModelProviderId)
         .build()
     )
   }
@@ -360,22 +359,14 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
   ) {
     write(
       Mutation.newInsertBuilder("RecurringExchanges")
-        .set("RecurringExchangeId")
-        .to(recurringExchangeId)
-        .set("ExternalRecurringExchangeId")
-        .to(externalRecurringExchangeId)
-        .set("ModelProviderId")
-        .to(modelProviderId)
-        .set("DataProviderId")
-        .to(dataProviderId)
-        .set("State")
-        .toProtoEnum(state)
-        .set("NextExchangeDate")
-        .to(nextExchangeDate.toCloudDate())
-        .set("RecurringExchangeDetails")
-        .toProtoBytes(recurringExchangeDetails)
-        .set("RecurringExchangeDetailsJson")
-        .toProtoJson(recurringExchangeDetails)
+        .set("RecurringExchangeId" to recurringExchangeId)
+        .set("ExternalRecurringExchangeId" to externalRecurringExchangeId)
+        .set("ModelProviderId" to modelProviderId)
+        .set("DataProviderId" to dataProviderId)
+        .set("State" to state)
+        .set("NextExchangeDate" to nextExchangeDate.toCloudDate())
+        .set("RecurringExchangeDetails" to recurringExchangeDetails)
+        .set("RecurringExchangeDetailsJson" to recurringExchangeDetails)
         .build()
     )
   }
@@ -388,16 +379,11 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
   ) {
     write(
       Mutation.newInsertBuilder("Exchanges")
-        .set("RecurringExchangeId")
-        .to(recurringExchangeId)
-        .set("Date")
-        .to(date.toCloudDate())
-        .set("State")
-        .toProtoEnum(state)
-        .set("ExchangeDetails")
-        .toProtoBytes(exchangeDetails)
-        .set("ExchangeDetailsJson")
-        .toProtoJson(exchangeDetails)
+        .set("RecurringExchangeId" to recurringExchangeId)
+        .set("Date" to date.toCloudDate())
+        .set("State" to state)
+        .set("ExchangeDetails" to exchangeDetails)
+        .set("ExchangeDetailsJson" to exchangeDetails)
         .build()
     )
   }
