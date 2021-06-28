@@ -15,24 +15,75 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Mutation
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
+  data class InternalResource(val name: String, val id: InternalId)
+
   override suspend fun TransactionScope.runTransaction(): Certificate {
-    certificate.toInsertMutation(idGenerator.generateInternalId()).bufferTo(transactionContext)
-    return certificate
+    val internalResource = getInternalResourceNameAndId(transactionContext)
+    val certificateId = idGenerator.generateInternalId()
+    val externalMapId = idGenerator.generateExternalId()
+    certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
+    createCertificateMapTableMutation(
+      internalResource.name,
+      internalResource.id,
+      certificateId,
+      externalMapId
+    )
+      .bufferTo(transactionContext)
+    return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
   }
 
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
+  }
+
+  private suspend fun getInternalResourceNameAndId(
+    transactionContext: AsyncDatabaseClient.TransactionContext
+  ): InternalResource {
+    if (certificate.externalMeasurementConsumerId != 0L) {
+      val measuerementConsumerId =
+        MeasurementConsumerReader()
+          .readExternalId(transactionContext, ExternalId(certificate.externalMeasurementConsumerId))
+          .measurementConsumerId
+      return InternalResource("MeasurementConsumer", InternalId(measuerementConsumerId))
+    } else if (certificate.externalDataProviderId != 0L) {
+      val dataProviderId =
+        DataProviderReader()
+          .readExternalId(transactionContext, ExternalId(certificate.externalDataProviderId))
+          .dataProviderId
+      return InternalResource("DataProvider", InternalId(dataProviderId))
+    }
+    return InternalResource("Duchy", InternalId(certificate.externalDuchyId.toLong()))
+  }
+
+  private fun createCertificateMapTableMutation(
+    resourceName: String,
+    internalId: InternalId,
+    internalCertificateId: InternalId,
+    externalMapId: ExternalId
+  ): Mutation {
+    val tableName = "${resourceName}Certificates"
+    val internalIdField = "${resourceName}Id"
+    val externalIdField = "External${resourceName}CertificateId"
+    return insertMutation(tableName) {
+      set(internalIdField to internalId.value)
+      set(externalIdField to internalCertificateId.value)
+      set(externalIdField to externalMapId.value)
+    }
   }
 }
 

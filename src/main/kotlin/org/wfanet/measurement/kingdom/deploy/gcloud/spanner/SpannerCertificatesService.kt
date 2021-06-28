@@ -22,19 +22,30 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
 
 class SpannerCertificatesService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
 
   override suspend fun createCertificate(request: Certificate): Certificate {
-    TODO("not implemented yet")
+    return CreateCertificate(request).execute(client, idGenerator, clock)
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    TODO("not implemented yet")
+    val certificate =
+      CertificateReader()
+        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalcertificateId))
+        ?.certificate
+    if (measurementConsumer == null) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "No Certificate with externalId ${request.externalcertificateId}"
+      }
+    }
+    return certificate
   }
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
     TODO("not implemented yet")
