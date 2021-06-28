@@ -5,13 +5,28 @@ package(default_visibility = ["//visibility:public"])
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
-    name = "encryption_utility_helper",
+    name = "aes",
     hdrs = [
-        "encryption_utility_helper.h",
+        "aes.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_base//cc/util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "aes_with_hkdf",
+    hdrs = [
+        "aes_with_hkdf.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_base//cc/util:secret_data",
     ],
 )
 
@@ -28,5 +43,28 @@ cc_library(
         "//src/main/cc/wfanet/panelmatch/common:macros",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//util:status_includes",
+    ],
+)
+
+cc_library(
+    name = "encryption_utility_helper",
+    hdrs = [
+        "encryption_utility_helper.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "hkdf",
+    hdrs = [
+        "hkdf.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@tink_base//cc/util:secret_data",
     ],
 )

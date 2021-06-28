@@ -36,3 +36,15 @@ cc_library(
         "//src/main/proto/wfanet/panelmatch/protocol/crypto:cryptor_cc_proto",
     ],
 )
+
+cc_library(
+    name = "event_data_preprocessor",
+    hdrs = [
+        "event_data_preprocessor.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
