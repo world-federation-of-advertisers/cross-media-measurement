@@ -102,7 +102,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}]
 		initContainers: [ for ds in _dependencies {
 			name:  "init-\(ds)"
-			image: "busybox:1.28"
+			image: "gcr.io/google-containers/busybox:1.27"
 			command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
 		}]
 		restartPolicy: _restartPolicy
