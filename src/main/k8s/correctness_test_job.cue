@@ -52,7 +52,7 @@ package k8s
 		}]
 		initContainers: [{
 			name:  "init-worker-1-publisher-data-server"
-			image: "busybox:1.28"
+			image: "gcr.io/google-containers/busybox:1.27"
 			command: ['sh', '-c', "until nslookup worker-1-publisher-data-server; do echo waiting for worker-1-publisher-data-server; sleep 2; done"]
 		}]
 		restartPolicy: "OnFailure"
