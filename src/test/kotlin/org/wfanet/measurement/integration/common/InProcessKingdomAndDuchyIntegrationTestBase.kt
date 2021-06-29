@@ -14,23 +14,19 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.runBlocking
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.testing.pollFor
-import org.wfanet.measurement.duchy.testing.DUCHY_IDS
-import org.wfanet.measurement.duchy.testing.DUCHY_PUBLIC_KEYS
 import org.wfanet.measurement.integration.common.InProcessDuchy.DuchyDependencies
-import org.wfanet.measurement.internal.kingdom.Report
-import org.wfanet.measurement.kingdom.db.streamReportsFilter
 import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
+
+val DUCHY_IDS = listOf("a", "b", "c")
 
 /**
  * Test that everything is wired up properly.
@@ -52,24 +48,21 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
     InProcessKingdom(verboseGrpcLogging = true, databasesProvider = { kingdomDatabases })
 
   private val duchies: List<InProcessDuchy> by lazy {
-    DUCHY_PUBLIC_KEYS.latest.map { duchy ->
+    DUCHY_IDS.map { duchy ->
       InProcessDuchy(
         verboseGrpcLogging = true,
-        duchyId = duchy.key,
-        otherDuchyIds = (DUCHY_IDS.toSet() - duchy.key).toList(),
+        duchyId = duchy,
+        otherDuchyIds = (DUCHY_IDS.toSet() - duchy).toList(),
         kingdomChannel = kingdom.publicApiChannel,
-        duchyDependenciesProvider = { duchyDependenciesRule.value(duchy.key) }
+        duchyDependenciesProvider = { duchyDependenciesRule.value(duchy) }
       )
     }
   }
-
-  private val dataProviderRule = FakeDataProviderRule()
 
   @get:Rule
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
       DuchyIdSetter(DUCHY_IDS),
-      dataProviderRule,
       kingdomDatabasesRule,
       kingdom,
       duchyDependenciesRule,
@@ -78,119 +71,15 @@ abstract class InProcessKingdomAndDuchyIntegrationTestBase {
   }
 
   @Test
+  @Ignore
   fun `LiquidLegionV2 computation, 1 requisition per duchy`() = runBlocking {
-    val (dataProviders, campaigns) = kingdom.populateDatabases()
-
-    logger.info("Starting first data provider")
-    dataProviderRule.startDataProviderForCampaign(
-      dataProviders[0],
-      campaigns[0],
-      duchies[0].newPublisherDataProviderStub()
-    )
-
-    logger.info("Starting second data provider")
-    dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1],
-      campaigns[1],
-      duchies[1].newPublisherDataProviderStub()
-    )
-
-    logger.info("Starting third data provider")
-    dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1],
-      campaigns[2],
-      duchies[2].newPublisherDataProviderStub()
-    )
-
-    // Now wait until the computation is done.
-    val doneReport: Report =
-      pollFor(timeoutMillis = 300_000) {
-        kingdomDatabases
-          .reportDatabase
-          .streamReports(
-            filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
-            limit = 1
-          )
-          .singleOrNull()
-      }
-
-    logger.info("Final Report: $doneReport")
-
-    assertThat(doneReport)
-      .comparingExpectedFieldsOnly()
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        Report.newBuilder()
-          .apply {
-            reportDetailsBuilder.apply {
-              addAllConfirmedDuchies(DUCHY_IDS)
-              reportDetailsBuilder.resultBuilder.apply {
-                reach = 13L
-                putFrequency(6L, 0.3)
-                putFrequency(3L, 0.7)
-              }
-            }
-          }
-          .build()
-      )
+    // TODO(wangyaopw): add test for this when v2alpha kingdom is done.
   }
 
   @Test
+  @Ignore
   fun `LiquidLegionV2 computation, all requisitions at the same duchy`() = runBlocking {
-    val (dataProviders, campaigns) = kingdom.populateDatabases()
-
-    logger.info("Starting first data provider")
-    dataProviderRule.startDataProviderForCampaign(
-      dataProviders[0],
-      campaigns[0],
-      duchies[0].newPublisherDataProviderStub()
-    )
-
-    logger.info("Starting second data provider")
-    dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1],
-      campaigns[1],
-      duchies[0].newPublisherDataProviderStub()
-    )
-
-    logger.info("Starting third data provider")
-    dataProviderRule.startDataProviderForCampaign(
-      dataProviders[1],
-      campaigns[2],
-      duchies[0].newPublisherDataProviderStub()
-    )
-
-    // Now wait until the computation is done.
-    val doneReport: Report =
-      pollFor(timeoutMillis = 300_000) {
-        kingdomDatabases
-          .reportDatabase
-          .streamReports(
-            filter = streamReportsFilter(states = listOf(Report.ReportState.SUCCEEDED)),
-            limit = 1
-          )
-          .singleOrNull()
-      }
-
-    logger.info("Final Report: $doneReport")
-
-    assertThat(doneReport)
-      .comparingExpectedFieldsOnly()
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        Report.newBuilder()
-          .apply {
-            reportDetailsBuilder.apply {
-              addAllConfirmedDuchies(DUCHY_IDS)
-              reportDetailsBuilder.resultBuilder.apply {
-                reach = 13L
-                putFrequency(6L, 0.3)
-                putFrequency(3L, 0.7)
-              }
-            }
-          }
-          .build()
-      )
+    // TODO(wangyaopw): add test for this when v2alpha kingdom is done.
   }
 
   companion object {

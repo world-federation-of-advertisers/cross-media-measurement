@@ -28,8 +28,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.common.withPadding
-import org.wfanet.measurement.duchy.DuchyPublicKeyMap
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
@@ -44,14 +42,13 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
-import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.system.v1alpha.GlobalComputationsGrpcKt.GlobalComputationsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 
 private val EL_GAMAL_GENERATOR =
   byteStringOf(
@@ -102,13 +99,18 @@ class ComputationDataClientsTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    globalComputationClient = GlobalComputationsCoroutineStub(channel)
+    systemComputationLogEntriesClient = SystemComputationLogEntriesCoroutineStub(channel)
     addService(
-      ComputationsService(fakeDatabase, globalComputationClient, ALSACE, Clock.systemUTC())
+      ComputationsService(
+        fakeDatabase,
+        systemComputationLogEntriesClient,
+        ALSACE,
+        Clock.systemUTC()
+      )
     )
   }
 
-  private lateinit var globalComputationClient: GlobalComputationsCoroutineStub
+  private lateinit var systemComputationLogEntriesClient: SystemComputationLogEntriesCoroutineStub
 
   private val dummyStorageClient =
     object : StorageClient {
@@ -137,7 +139,7 @@ class ComputationDataClientsTest {
         ComputationDataClients(
           ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
           storageClient = dummyStorageClient,
-          otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
+          otherDuchies = DUCHIES.minus(ALSACE).toList()
         ),
         ID_WHERE_ALSACE_IS_NOT_PRIMARY,
         LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR,
@@ -180,7 +182,7 @@ class ComputationDataClientsTest {
         ComputationDataClients(
           ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
           storageClient = dummyStorageClient,
-          otherDuchies = publicKeysMap.keys.minus(ALSACE).toList()
+          otherDuchies = DUCHIES.minus(ALSACE).toList()
         ),
         ID_WHERE_ALSACE_IS_PRIMARY,
         LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR,
@@ -216,21 +218,6 @@ class ComputationDataClientsTest {
     computation.claimWorkFor("mill-5")
     computation.writeOutputs(Stage.EXECUTION_PHASE_THREE)
     computation.end(reason = CompletedReason.SUCCEEDED)
-  }
-
-  companion object {
-    private val publicKeysMap: DuchyPublicKeyMap =
-      DUCHIES
-        .mapIndexed { idx, name ->
-          name to
-            ElGamalPublicKey.newBuilder()
-              .apply {
-                generator = EL_GAMAL_GENERATOR
-                element = byteStringOf(idx).withPadding(33)
-              }
-              .build()
-        }
-        .toMap()
   }
 }
 

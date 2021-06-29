@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
@@ -37,10 +36,6 @@ class AsyncComputationControlServiceFlags {
 
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
     private set
 
   @CommandLine.Mixin
@@ -63,15 +58,11 @@ class AsyncComputationControlServiceFlags {
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
-  val duchyName = flags.duchy.duchyName
-  val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
-  require(latestDuchyPublicKeys.containsKey(duchyName)) {
-    "Public key not specified for Duchy $duchyName"
-  }
   DuchyInfo.initializeFromFlags(flags.duchyInfo)
-  require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL_DUCHY_IDS)
 
-  val otherDuchyNames = latestDuchyPublicKeys.keys.filter { it != duchyName }
+  val duchyName = flags.duchy.duchyName
+  val otherDuchyNames = DuchyInfo.ALL_DUCHY_IDS.minus(duchyName).toList()
+
   val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
 
   CommonServer.fromFlags(

@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "wfa/measurement/internal/kingdom/certificate.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
@@ -26,6 +28,9 @@ message MeasurementConsumer {
   // External ID of Certificate for public key signature verification.
   fixed64 external_public_key_certificate_id = 2;
 
+  // The *preferred* Certificate belonging to this MeasurementConsumer.
+  Certificate preferred_certificate = 3;
+
   message Details {
     // Version the public API for serialized message definitions.
     string api_version = 1;
@@ -34,5 +39,5 @@ message MeasurementConsumer {
     bytes public_key = 2;
     bytes public_key_signature = 3;
   }
-  Details details = 3;
+  Details details = 4;
 }

@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
-import org.wfanet.measurement.duchy.DuchyPublicKeys
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
@@ -37,13 +36,7 @@ abstract class ComputationControlServer : Runnable {
     private set
 
   protected fun run(storageClient: StorageClient) {
-    val duchyName = flags.duchy.duchyName
-    val latestDuchyPublicKeys = DuchyPublicKeys.fromFlags(flags.duchyPublicKeys).latest
-    require(latestDuchyPublicKeys.containsKey(duchyName)) {
-      "Public key not specified for Duchy $duchyName"
-    }
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
-    require(latestDuchyPublicKeys.keys.toSet() == DuchyInfo.ALL_DUCHY_IDS)
 
     val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
 
@@ -64,10 +57,6 @@ abstract class ComputationControlServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var duchy: CommonDuchyFlags
-      private set
-
-    @CommandLine.Mixin
-    lateinit var duchyPublicKeys: DuchyPublicKeys.Flags
       private set
 
     @CommandLine.Option(

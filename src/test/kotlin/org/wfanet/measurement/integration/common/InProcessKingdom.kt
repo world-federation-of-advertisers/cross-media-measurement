@@ -31,15 +31,11 @@ import org.wfanet.measurement.internal.MetricDefinition
 import org.wfanet.measurement.internal.SketchMetricDefinition
 import org.wfanet.measurement.internal.kingdom.ReportConfig
 import org.wfanet.measurement.internal.kingdom.ReportConfigSchedule
-import org.wfanet.measurement.internal.kingdom.ReportLogEntriesGrpcKt.ReportLogEntriesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.TimePeriod
 import org.wfanet.measurement.kingdom.db.testing.KingdomDatabases
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import org.wfanet.measurement.kingdom.service.internal.buildLegacyDataServices
-import org.wfanet.measurement.kingdom.service.system.v1alpha.GlobalComputationService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionService as SystemRequisitionService
 
 /**
  * TestRule that starts and stops all Kingdom gRPC services and daemons.
@@ -66,22 +62,10 @@ class InProcessKingdom(
   private val kingdomApiServices =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's public API services")
-      val reportsClient = ReportsCoroutineStub(databaseServices.channel)
-      val reportLogEntriesClient = ReportLogEntriesCoroutineStub(databaseServices.channel)
       val requisitionsClient = RequisitionsCoroutineStub(databaseServices.channel)
 
       addService(
-        GlobalComputationService(reportsClient, reportLogEntriesClient)
-          .withDuchyIdentities()
-          .withVerboseLogging(verboseGrpcLogging)
-      )
-      addService(
         RequisitionService(requisitionsClient)
-          .withDuchyIdentities()
-          .withVerboseLogging(verboseGrpcLogging)
-      )
-      addService(
-        SystemRequisitionService(requisitionsClient)
           .withDuchyIdentities()
           .withVerboseLogging(verboseGrpcLogging)
       )

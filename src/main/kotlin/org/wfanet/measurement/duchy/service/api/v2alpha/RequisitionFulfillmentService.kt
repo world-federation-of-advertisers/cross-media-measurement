@@ -23,10 +23,11 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.duchy.storage.MetricValueStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
@@ -44,7 +45,7 @@ private val FULFILLED_RESPONSE =
 class RequisitionFulfillmentService(
   private val systemRequisitionsClient: RequisitionsCoroutineStub,
   private val computationsClient: ComputationsCoroutineStub,
-  private val storageClient: MetricValueStore
+  private val storageClient: RequisitionStore
 ) : RequisitionFulfillmentCoroutineImplBase() {
 
   override suspend fun fulfillRequisition(

@@ -37,29 +37,9 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
     ),
     struct(
-        name = "duchy_publisher_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:publisher_data_server_image",
-        repository = _PREFIX + "/duchy/publisher-data",
-    ),
-    struct(
         name = "duchy_spanner_computations_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image",
         repository = _PREFIX + "/duchy/spanner-computations",
-    ),
-    struct(
-        name = "kingdom_global_computation_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:global_computation_server_image",
-        repository = _PREFIX + "/kingdom/global-computation",
-    ),
-    struct(
-        name = "kingdom_requisition_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image",
-        repository = _PREFIX + "/kingdom/requisition",
-    ),
-    struct(
-        name = "kingdom_system_requisition_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_requisition_server_image",
-        repository = _PREFIX + "/kingdom/system-requisition",
     ),
     struct(
         name = "kingdom_data_server_image",
@@ -80,11 +60,6 @@ GKE_IMAGES = [
         name = "duchy_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
         repository = _PREFIX + "/duchy/computation-control",
-    ),
-    struct(
-        name = "duchy_metric_values_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcp_server_image",
-        repository = _PREFIX + "/duchy/metric-values",
     ),
 ]
 

@@ -26,7 +26,6 @@ import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.onStart
@@ -40,11 +39,12 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.duchy.storage.MetricValueStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -84,14 +84,14 @@ class RequisitionFulfillmentServiceTest {
     mock(useConstructor = UseConstructor.parameterless())
 
   private val tempDirectory = TemporaryFolder()
-  private lateinit var requisitionStore: MetricValueStore
+  private lateinit var requisitionStore: RequisitionStore
   private suspend fun StorageClient.readBlobAsString(key: String): String {
     return getBlob(key)?.read(defaultBufferSizeBytes)?.flatten()?.toStringUtf8()!!
   }
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    requisitionStore = MetricValueStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
     addService(requisitionsServiceMock)
     addService(computationsServiceMock)
   }
@@ -224,7 +224,6 @@ class RequisitionFulfillmentServiceTest {
     assertThat(e.message).contains("No computation is expecting this requisition")
   }
 
-  @OptIn(ExperimentalCoroutinesApi::class) // For `onStart`.
   private fun FulfillRequisitionRequest.Header.withContent(
     vararg bodyContent: ByteString
   ): Flow<FulfillRequisitionRequest> {
