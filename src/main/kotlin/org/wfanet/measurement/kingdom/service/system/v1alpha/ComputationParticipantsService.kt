@@ -14,32 +14,118 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest as InternalFailComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
 
 class ComputationParticipantsService(
+  private val internalComputationParticipantsClient: InternalComputationParticipantsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : ComputationParticipantsCoroutineImplBase() {
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
-    TODO("Not implemented yet.")
+    return internalComputationParticipantsClient
+      .setParticipantRequisitionParams(request.toInternalRequest())
+      .toSystemComputationParticipant()
   }
 
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
   ): ComputationParticipant {
-    TODO("Not implemented yet.")
+    return internalComputationParticipantsClient
+      .confirmComputationParticipant(request.toInternalRequest())
+      .toSystemComputationParticipant()
   }
 
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
   ): ComputationParticipant {
-    TODO("Not implemented yet.")
+    return internalComputationParticipantsClient
+      .failComputationParticipant(request.toInternalRequest())
+      .toSystemComputationParticipant()
+  }
+
+  private fun SetParticipantRequisitionParamsRequest.toInternalRequest():
+    InternalSetParticipantRequisitionParamsRequest {
+    val computationParticipantKey =
+      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
+        "Resource name unspecified or invalid."
+      }
+    val duchyCertificateKey =
+      grpcRequireNotNull(DuchyCertificateKey.fromName(requisitionParams.duchyCertificate)) {
+        "Resource name unspecified or invalid."
+      }
+    return InternalSetParticipantRequisitionParamsRequest.newBuilder()
+      .apply {
+        externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
+        externalDuchyId = computationParticipantKey.duchyId
+        externalDuchyCertificateId = apiIdToExternalId(duchyCertificateKey.certificateId)
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (requisitionParams.protocolCase) {
+          ProtocolCase.LIQUID_LEGIONS_V2 -> {
+            val llv2 = requisitionParams.liquidLegionsV2
+            liquidLegionsV2Builder.apply {
+              elGamalPublicKey = llv2.elGamalPublicKey
+              elGamalPublicKeySignature = llv2.elGamalPublicKeySignature
+            }
+          }
+          ProtocolCase.PROTOCOL_NOT_SET ->
+            failGrpc { "protocol not set in the requisition_params." }
+        }
+      }
+      .build()
+  }
+
+  private fun ConfirmComputationParticipantRequest.toInternalRequest():
+    InternalConfirmComputationParticipantRequest {
+    val computationParticipantKey =
+      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
+        "Resource name unspecified or invalid."
+      }
+    return InternalConfirmComputationParticipantRequest.newBuilder()
+      .apply {
+        externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
+        externalDuchyId = computationParticipantKey.duchyId
+      }
+      .build()
+  }
+
+  private fun FailComputationParticipantRequest.toInternalRequest():
+    InternalFailComputationParticipantRequest {
+    val computationParticipantKey =
+      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
+        "Resource name unspecified or invalid."
+      }
+    return InternalFailComputationParticipantRequest.newBuilder()
+      .apply {
+        externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
+        externalDuchyId = computationParticipantKey.duchyId
+        errorMessage = failure.errorMessage
+        duchyChildReferenceId = failure.participantChildReferenceId
+        if (failure.hasStageAttempt()) {
+          stageAttempt = failure.stageAttempt.toInternalStageAttempt()
+          errorDetailsBuilder.apply {
+            type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+            errorTime = failure.errorTime
+          }
+        }
+      }
+      .build()
   }
 }
