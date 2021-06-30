@@ -59,12 +59,17 @@ cc_library(
 
 cc_library(
     name = "hkdf",
+    srcs = [
+        "hkdf.cc",
+    ],
     hdrs = [
         "hkdf.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@tink_base//cc/util:secret_data",
+        "@tink_cc//subtle",
     ],
 )
