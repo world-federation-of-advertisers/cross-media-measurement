@@ -39,15 +39,11 @@ class SpannerMeasurementConsumersService(
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
-    val measurementConsumer =
-      MeasurementConsumerReader()
-        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
-        ?.measurementConsumer
-    if (measurementConsumer == null) {
-      failGrpc(Status.FAILED_PRECONDITION) {
-        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
+    return MeasurementConsumerReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
+      ?.measurementConsumer
+      ?: failGrpc(Status.NOT_FOUND) {
+        "No DataProvider with externalId ${request.externalMeasurementConsumerId}"
       }
-    }
-    return measurementConsumer
   }
 }
