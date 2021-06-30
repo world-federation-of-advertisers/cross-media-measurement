@@ -15,16 +15,16 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.duchy.daemon.utils.PublicApiVersion
+import org.wfanet.measurement.duchy.daemon.utils.extractDataProviderId
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiVersion
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
@@ -69,7 +69,11 @@ object LiquidLegionsV2Starter {
       systemComputation.requisitionsList.map {
         ExternalRequisitionKey.newBuilder()
           .apply {
-            externalDataProviderId = it.dataProviderId
+            externalDataProviderId =
+              extractDataProviderId(
+                Version.fromString(systemComputation.publicApiVersion),
+                it.dataProvider
+              )
             externalRequisitionId = it.key.requisitionId
           }
           .build()
@@ -133,7 +137,11 @@ object LiquidLegionsV2Starter {
       systemComputation.requisitionsList.map { requisition ->
         UpdateComputationDetailsRequest.RequisitionDetailUpdate.newBuilder()
           .also {
-            it.externalDataProviderId = requisition.dataProviderId
+            it.externalDataProviderId =
+              extractDataProviderId(
+                Version.fromString(systemComputation.publicApiVersion),
+                requisition.dataProvider
+              )
             it.externalRequisitionId = requisition.key.requisitionId
             it.details = requisition.toDuchyRequisitionDetails()
           }
@@ -295,7 +303,7 @@ object LiquidLegionsV2Starter {
         it.duchyId = key.duchyId
         it.publicKey =
           requisitionParams.liquidLegionsV2.elGamalPublicKey.toDuchyElGamalPublicKey(
-            publicApiVersion.toPublicApiVersion()
+            Version.fromString(publicApiVersion)
           )
         it.elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
         it.elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
@@ -308,7 +316,7 @@ object LiquidLegionsV2Starter {
     configMaps: Map<String, ProtocolConfig>
   ): Parameters {
     val publicProtocolConfig =
-      configMaps[protocolConfigId] ?: error("ProtocolConfig $protocolConfigId not found.")
+      configMaps[protocolConfig] ?: error("ProtocolConfig $protocolConfig not found.")
     require(publicProtocolConfig.hasLiquidLegionsV2()) {
       "Missing liquidLegionV2 in the public API protocol config."
     }
@@ -330,8 +338,8 @@ object LiquidLegionsV2Starter {
             noiseForPublisherNoise =
               mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
           }
-          when (publicApiVersion.toPublicApiVersion()) {
-            PublicApiVersion.V2_ALPHA -> {
+          when (Version.fromString(publicApiVersion)) {
+            Version.V2_ALPHA -> {
               val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
               require(measurementSpec.hasReachAndFrequency()) {
                 "Missing ReachAndFrequency in the measurementSpec."
@@ -342,6 +350,7 @@ object LiquidLegionsV2Starter {
               frequencyNoiseConfig =
                 reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
             }
+            Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
           }
         }
         it.ellipticCurveId = publicProtocolConfig.liquidLegionsV2.ellipticCurveId
