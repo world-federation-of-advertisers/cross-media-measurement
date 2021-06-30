@@ -21,6 +21,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
+<<<<<<< HEAD
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
@@ -31,6 +32,14 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
+=======
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.ComputationKey
+>>>>>>> fe59a0bb (Implement system API computationsService. (#125))
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
@@ -127,6 +136,7 @@ fun InternalStageAttempt.toSystemStageAttempt(): StageAttempt {
     .build()
 }
 
+<<<<<<< HEAD
 /** Converts a system Api StageAttempt to kingdom internal StageAttempt. */
 fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
   return InternalStageAttempt.newBuilder()
@@ -139,6 +149,8 @@ fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
     .build()
 }
 
+=======
+>>>>>>> fe59a0bb (Implement system API computationsService. (#125))
 /**
  * Converts a kingdom internal ComputationParticipant.State to system Api
  * ComputationParticipant.State.
@@ -236,6 +248,7 @@ fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
       error("Invalid measurement state.")
   }
 }
+<<<<<<< HEAD
 
 /**
  * Converts an internal MeasurementLogEntry.ErrorDetails to system ComputationLogEntry.ErrorDetails.
@@ -303,3 +316,5 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     }
     .build()
 }
+=======
+>>>>>>> fe59a0bb (Implement system API computationsService. (#125))
