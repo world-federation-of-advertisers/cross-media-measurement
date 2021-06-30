@@ -62,12 +62,13 @@ message ComputationParticipant {
   google.protobuf.Timestamp update_time = 3;
 
   message RequisitionParams {
-    // `DuchyCertificate` ID from public API.
-    string duchy_certificate_id = 1;
+    // Public API Resource name of the `DuchyCertificate`.
+    string duchy_certificate = 1
+        [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
     // X.509 certificate in DER format which can be verified using the
     // Duchy's root certificate. Output-only.
-    bytes duchy_certificate = 2;
+    bytes duchy_certificate_der = 2;
 
     message LiquidLegionsV2 {
       // Serialized `ElGamalPublicKey` message from public API.
