@@ -1,6 +1,6 @@
 load("//build/cue:defs.bzl", "cue_string_field")
 load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
+load("@wfa_common_jvm//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load(":macros.bzl", "cue_dump")
 

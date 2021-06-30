@@ -1,6 +1,6 @@
 # Database specifics for Google Cloud Spanner.
 
-load("//build:defs.bzl", "test_target")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
@@ -16,10 +16,10 @@ kt_jvm_library(
     name = "spanner",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/common",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

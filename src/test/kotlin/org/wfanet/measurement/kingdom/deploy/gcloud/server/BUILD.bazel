@@ -5,11 +5,6 @@ spanner_emulator_test(
     srcs = ["GcpKingdomDataServerTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.GcpKingdomDataServerTest",
     deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
@@ -19,5 +14,10 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisitions_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:reports_service_kt_jvm_grpc",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

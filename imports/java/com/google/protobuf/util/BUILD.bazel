@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "util",
-    actual = "@com_google_protobuf//:protobuf_java_util",
-)

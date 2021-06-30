@@ -1,5 +1,5 @@
 load("@rules_java//java:defs.bzl", "java_proto_library")
-load("//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
+load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_and_java_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 

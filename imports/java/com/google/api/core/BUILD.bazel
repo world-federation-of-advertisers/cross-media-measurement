@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "core",
-    actual = "@maven//:com_google_api_api_common",
-)

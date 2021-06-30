@@ -9,6 +9,6 @@ kt_jvm_library(
     name = "flags",
     srcs = glob(["*Flags.kt"]),
     deps = [
-        "//imports/java/picocli",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )

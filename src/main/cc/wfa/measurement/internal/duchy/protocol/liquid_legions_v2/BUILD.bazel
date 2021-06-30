@@ -1,5 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("//build:defs.bzl", "test_target")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 
 package(default_visibility = [
     ":__pkg__",

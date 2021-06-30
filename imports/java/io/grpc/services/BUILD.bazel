@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "health",
-    actual = "@io_grpc_grpc_java//services:health",
-)

@@ -9,14 +9,14 @@ kt_jvm_library(
     runtime_deps = [
         # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
         # See https://github.com/bazelbuild/rules_kotlin/issues/333
-        "//imports/kotlin/kotlin:stdlib_jdk7",
+        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
     ],
     deps = [
-        "//imports/java/com/google/common/truth/extensions/proto",
-        "//imports/java/org/junit",
-        "//imports/java/org/mockito",
-        "//imports/kotlin/com/nhaarman/mockitokotlin2",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/org/mockito",
+        "@wfa_common_jvm//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

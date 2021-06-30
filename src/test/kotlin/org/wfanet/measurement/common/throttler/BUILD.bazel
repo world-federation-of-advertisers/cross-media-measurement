@@ -5,12 +5,12 @@ kt_jvm_test(
     srcs = ["AdaptiveThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.throttler.AdaptiveThrottlerTest",
     deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//imports/kotlin/kotlinx/coroutines/test",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
     ],
 )
 
@@ -19,11 +19,11 @@ kt_jvm_test(
     srcs = ["MinimumIntervalThrottlerTest.kt"],
     test_class = "org.wfanet.measurement.common.throttler.MinimumIntervalThrottlerTest",
     deps = [
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//imports/kotlin/kotlinx/coroutines/test",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
     ],
 )
