@@ -11,3 +11,20 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "hkdf_test",
+    srcs = [
+        "hkdf_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfanet/panelmatch/common/crypto:hkdf",
+        "//src/test/cc/testutil:matchers",
+        "//src/test/cc/testutil:status_macros",
+        "@googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
+        "@tink_base//cc/util:status",
+        "@tink_base//cc/util:statusor",
+        "@tink_cc//util:test_util",
+    ],
+)
