@@ -17,9 +17,13 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 <<<<<<< HEAD
+<<<<<<< HEAD
 import com.google.protobuf.ByteString
 =======
 >>>>>>> 47e4ba8d (initial commit)
+=======
+import com.google.protobuf.ByteString
+>>>>>>> da0f7f3c (addressing comments)
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -48,6 +52,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 <<<<<<< HEAD
+<<<<<<< HEAD
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -73,6 +78,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     measurementConsumersService = newService(idGenerator)
   }
 =======
+=======
+private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+>>>>>>> da0f7f3c (addressing comments)
 
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest {
@@ -103,6 +111,7 @@ abstract class MeasurementConsumersServiceTest {
       }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
@@ -131,18 +140,26 @@ abstract class MeasurementConsumersServiceTest {
 =======
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
 >>>>>>> 47e4ba8d (initial commit)
+=======
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+>>>>>>> da0f7f3c (addressing comments)
   }
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
 <<<<<<< HEAD
+<<<<<<< HEAD
     val measurementConsumer =
 <<<<<<< HEAD
+=======
+    val measurementConsumer =
+>>>>>>> da0f7f3c (addressing comments)
       MeasurementConsumer.newBuilder()
         .apply {
           preferredCertificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
+<<<<<<< HEAD
             detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
           }
           detailsBuilder.apply {
@@ -150,12 +167,17 @@ abstract class MeasurementConsumersServiceTest {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
+=======
+            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER) }
+          detailsBuilder.apply { apiVersion = "2" }
+>>>>>>> da0f7f3c (addressing comments)
         }
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
 
     assertThat(createdMeasurementConsumer)
+<<<<<<< HEAD
       .isEqualTo(
         measurementConsumer
           .toBuilder()
@@ -169,16 +191,25 @@ abstract class MeasurementConsumersServiceTest {
           }
           .build()
       )
+=======
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(measurementConsumer)
+>>>>>>> da0f7f3c (addressing comments)
   }
 
   @Test
   fun `getMeasurementConsumer succeeds`() = runBlocking {
+<<<<<<< HEAD
+=======
+
+>>>>>>> da0f7f3c (addressing comments)
     val measurementConsumer =
       MeasurementConsumer.newBuilder()
         .apply {
           preferredCertificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
+<<<<<<< HEAD
             detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
           }
           detailsBuilder.apply {
@@ -186,10 +217,15 @@ abstract class MeasurementConsumersServiceTest {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
+=======
+            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER) }
+          detailsBuilder.apply { apiVersion = "2" }
+>>>>>>> da0f7f3c (addressing comments)
         }
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
+<<<<<<< HEAD
 
     val measurementConsumerRead =
       measurementConsumersService.getMeasurementConsumer(
@@ -217,6 +253,8 @@ abstract class MeasurementConsumersServiceTest {
         MeasurementConsumer.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
 >>>>>>> a703b578 (ready)
       )
+=======
+>>>>>>> da0f7f3c (addressing comments)
 
 <<<<<<< HEAD
     assertThat(measurementConsumer).isEqualTo(measurementConsumer)
