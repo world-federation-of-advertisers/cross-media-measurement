@@ -33,10 +33,13 @@ message ExchangeStepAttemptDetails {
   // Warnings, errors, and other messages for debugging purposes. Append-only.
   repeated DebugLog debug_log_entries = 4;
 
-  // Paths, tables, etc. accessible to the other party.
-  // Each of these is an encrypted SignedData. Each SignedData holds a
-  // serialized SharedOutput protocol buffer from the public API.
-  repeated bytes shared_outputs = 5;
+  // Signed URL containing paths, tables, etc. accessible to the other party.
+  // Each of these point to remote cloud blob storage services.
+  // Initially these will only support GCS urls.
+  // Outputs point to encrypted data.
+  repeated string shared_outputs = 5;
+  // Inputs point to a bucket location to push encrypted data to.
+  repeated string shared_inputs = 8;
 
   // When the ExchangeStepAttempt was created.
   google.protobuf.Timestamp start_time = 6;
