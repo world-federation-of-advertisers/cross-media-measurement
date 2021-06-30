@@ -1,0 +1,30 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "preprocess_events",
+    srcs = ["preprocess_events.cc"],
+    hdrs = ["preprocess_events.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        "//src/main/cc/wfanet/panelmatch/common:macros",
+        "//src/main/cc/wfanet/panelmatch/common/crypto:encryption_utility_helper",
+        "//src/main/proto/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "preprocess_events_wrapper",
+    srcs = ["preprocess_events_wrapper.cc"],
+    hdrs = ["preprocess_events_wrapper.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        ":preprocess_events",
+        "//src/main/proto/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
+        "@wfa_measurement_system//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
+    ],
+)
