@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -34,6 +35,12 @@ class SpannerMeasurementConsumersService(
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer
   ): MeasurementConsumer {
+    grpcRequire(
+      request.hasDetails() &&
+        !request.details.apiVersion.isEmpty() &&
+        !request.details.publicKey.isEmpty() &&
+        !request.details.publicKeySignature.isEmpty()
+    ) { "Details field of MeasurementConsumer is missing fields." }
     return CreateMeasurementConsumer(request).execute(client, idGenerator, clock)
   }
   override suspend fun getMeasurementConsumer(
@@ -43,7 +50,7 @@ class SpannerMeasurementConsumersService(
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
       ?.measurementConsumer
       ?: failGrpc(Status.NOT_FOUND) {
-        "No DataProvider with externalId ${request.externalMeasurementConsumerId}"
+        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
       }
   }
 }
