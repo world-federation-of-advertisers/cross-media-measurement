@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 
 class CreateModelProvider : SpannerWriter<ExternalId, ModelProvider>() {
@@ -24,10 +25,8 @@ class CreateModelProvider : SpannerWriter<ExternalId, ModelProvider>() {
     val internalId = idGenerator.generateInternalId()
     val externalId = idGenerator.generateExternalId()
     Mutation.newInsertBuilder("ModelProviders")
-      .set("ModelProviderId")
-      .to(internalId.value)
-      .set("ExternalModelProviderId")
-      .to(externalId.value)
+      .set("ModelProviderId" to internalId.value)
+      .set("ExternalModelProviderId" to externalId.value)
       .build()
       .bufferTo(transactionContext)
     return externalId
