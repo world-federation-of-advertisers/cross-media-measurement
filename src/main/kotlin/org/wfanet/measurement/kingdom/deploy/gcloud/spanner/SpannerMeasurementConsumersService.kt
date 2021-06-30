@@ -52,10 +52,14 @@ class SpannerMeasurementConsumersService(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> da0f7f3c (addressing comments)
     return MeasurementConsumerReader()
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
       ?.measurementConsumer
       ?: failGrpc(Status.NOT_FOUND) {
+<<<<<<< HEAD
         "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
       }
 =======
@@ -70,5 +74,9 @@ class SpannerMeasurementConsumersService(
     }
     return measurementConsumer
 >>>>>>> 47e4ba8d (initial commit)
+=======
+        "No DataProvider with externalId ${request.externalMeasurementConsumerId}"
+      }
+>>>>>>> da0f7f3c (addressing comments)
   }
 }
