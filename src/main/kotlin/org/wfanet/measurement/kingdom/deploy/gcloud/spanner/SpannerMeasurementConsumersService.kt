@@ -18,9 +18,13 @@ import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.common.grpc.grpcRequire
 =======
 >>>>>>> 47e4ba8d (initial commit)
+=======
+import org.wfanet.measurement.common.grpc.grpcRequire
+>>>>>>> e1417171 (addressed comments)
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -39,6 +43,7 @@ class SpannerMeasurementConsumersService(
     request: MeasurementConsumer
   ): MeasurementConsumer {
 <<<<<<< HEAD
+<<<<<<< HEAD
     grpcRequire(
       !request.details.apiVersion.isEmpty() &&
         !request.details.publicKey.isEmpty() &&
@@ -46,6 +51,14 @@ class SpannerMeasurementConsumersService(
     ) { "Details field of MeasurementConsumer is missing fields." }
 =======
 >>>>>>> 47e4ba8d (initial commit)
+=======
+    grpcRequire(
+      request.hasDetails() &&
+        !request.details.apiVersion.isEmpty() &&
+        !request.details.publicKey.isEmpty() &&
+        !request.details.publicKeySignature.isEmpty()
+    ) { "Details field of MeasurementConsumer is missing fields." }
+>>>>>>> e1417171 (addressed comments)
     return CreateMeasurementConsumer(request).execute(client, idGenerator, clock)
   }
   override suspend fun getMeasurementConsumer(
@@ -59,6 +72,7 @@ class SpannerMeasurementConsumersService(
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
       ?.measurementConsumer
       ?: failGrpc(Status.NOT_FOUND) {
+<<<<<<< HEAD
 <<<<<<< HEAD
         "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
       }
@@ -76,6 +90,9 @@ class SpannerMeasurementConsumersService(
 >>>>>>> 47e4ba8d (initial commit)
 =======
         "No DataProvider with externalId ${request.externalMeasurementConsumerId}"
+=======
+        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
+>>>>>>> e1417171 (addressed comments)
       }
 >>>>>>> da0f7f3c (addressing comments)
   }
