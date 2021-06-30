@@ -33,6 +33,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+<<<<<<< HEAD
 
 kt_jvm_test(
     name = "ComputationParticipantsServiceTest",
@@ -67,3 +68,5 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+=======
+>>>>>>> fe59a0bb (Implement system API computationsService. (#125))
