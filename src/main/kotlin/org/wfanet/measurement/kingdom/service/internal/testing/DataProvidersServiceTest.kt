@@ -17,9 +17,13 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 <<<<<<< HEAD
+<<<<<<< HEAD
 import com.google.protobuf.ByteString
 =======
 >>>>>>> d519ecd3 (setting up)
+=======
+import com.google.protobuf.ByteString
+>>>>>>> cc3034cf (rebased and fixed)
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -42,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -70,6 +75,12 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   }
 =======
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+=======
+private const val EXTERNAL_DATA_PROVIDER_ID = 123L
+private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
+private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
+private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+>>>>>>> cc3034cf (rebased and fixed)
 
 @RunWith(JUnit4::class)
 abstract class DataProvidersServiceTest {
@@ -95,13 +106,20 @@ abstract class DataProvidersServiceTest {
         dataProvidersService.getDataProvider(
 >>>>>>> 030d4904 (ready)
           GetDataProviderRequest.newBuilder()
+<<<<<<< HEAD
             .setExternalDataProviderId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
 >>>>>>> d519ecd3 (setting up)
+=======
+            .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID)
+>>>>>>> cc3034cf (rebased and fixed)
             .build()
         )
       }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> cc3034cf (rebased and fixed)
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
@@ -127,14 +145,20 @@ abstract class DataProvidersServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+<<<<<<< HEAD
 =======
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
 >>>>>>> d519ecd3 (setting up)
+=======
+>>>>>>> cc3034cf (rebased and fixed)
   }
 
   @Test
   fun `createDataProvider succeeds`() = runBlocking {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> cc3034cf (rebased and fixed)
     val dataProvider =
       DataProvider.newBuilder()
         .apply {
@@ -150,6 +174,7 @@ abstract class DataProvidersServiceTest {
           }
         }
         .build()
+<<<<<<< HEAD
     val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
 
     assertThat(createdDataProvider)
@@ -196,10 +221,37 @@ abstract class DataProvidersServiceTest {
 
     assertThat(dataProviderRead).isEqualTo(createdDataProvider)
 =======
+=======
+>>>>>>> cc3034cf (rebased and fixed)
     val createdDataProvider =
-      dataProvidersService.createDataProvider(
-        DataProvider.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
-      )
+      dataProvidersService.createDataProvider(dataProvider)
+    assertThat(createdDataProvider.externalDataProviderId).isNotEqualTo(0L)
+    assertThat(createdDataProvider.preferredCertificate.externalDataProviderId)
+      .isEqualTo(createdDataProvider.externalDataProviderId)
+    assertThat(createdDataProvider)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(dataProvider)
+  }
+
+  @Test
+  fun `getDataProvider succeeds`() = runBlocking {
+    val dataProvider =
+      DataProvider.newBuilder()
+        .apply {
+          preferredCertificateBuilder.apply {
+            notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
+          }
+          detailsBuilder.apply {
+            apiVersion = "2"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+          }
+        }
+        .build()
+    val createdDataProvider =
+      dataProvidersService.createDataProvider(dataProvider)
 
     val dataProviderRead =
       dataProvidersService.getDataProvider(
