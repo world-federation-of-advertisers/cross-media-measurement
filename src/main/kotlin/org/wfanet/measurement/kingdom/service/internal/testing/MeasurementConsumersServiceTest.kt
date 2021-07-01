@@ -25,13 +25,17 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
@@ -39,7 +43,11 @@ private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certi
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutineImplBase> {
 
-  protected val idGenerator = FixedIdGenerator()
+  protected val idGenerator =
+    FixedIdGenerator(
+      InternalId(FIXED_GENERATED_INTERNAL_ID),
+      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
+    )
 
   protected lateinit var measurementConsumersService: T
     private set
@@ -108,13 +116,24 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
-    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
-      .isEqualTo(idGenerator.generateExternalId().value)
-    assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
-      .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
-    assertThat(createdMeasurementConsumer)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(measurementConsumer)
+    // assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
+    //   .isEqualTo(FIXED_GENERATED_EXTERNAL_ID)
+    // assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
+    //   .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
+    // assertThat(createdMeasurementConsumer)
+    //   .comparingExpectedFieldsOnly()
+    //   .isEqualTo(measurementConsumer)
+
+
+     assertThat(createdMeasurementConsumer).isEqualTo(
+    measurementConsumer.toBuilder().apply{
+       externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+       externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
+        preferredCertificateBuilder.apply{
+          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+          externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
+        }
+    }.build())
   }
 
   @Test
