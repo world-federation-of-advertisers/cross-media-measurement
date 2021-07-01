@@ -16,13 +16,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
-import org.wfanet.measurement.gcloud.spanner.getNullableTimestamp
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
   data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
@@ -69,7 +66,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         externalCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
         subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto() 
+        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
         notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
         revocationState =
           struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
