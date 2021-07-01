@@ -22,6 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 =======
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
+<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.spanner.getNullableTimestamp
 >>>>>>> da0f7f3c (addressing comments)
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
@@ -32,10 +33,12 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 >>>>>>> 1df833ae (testing)
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+=======
+>>>>>>> 5a303d38 (linted)
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
   data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
@@ -129,7 +132,7 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         externalCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
         subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto() 
+        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
         notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
         revocationState =
           struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
