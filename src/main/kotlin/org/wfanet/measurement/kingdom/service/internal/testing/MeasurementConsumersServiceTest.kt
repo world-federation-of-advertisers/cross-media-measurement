@@ -116,24 +116,21 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
-    // assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
-    //   .isEqualTo(FIXED_GENERATED_EXTERNAL_ID)
-    // assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
-    //   .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
-    // assertThat(createdMeasurementConsumer)
-    //   .comparingExpectedFieldsOnly()
-    //   .isEqualTo(measurementConsumer)
 
-
-     assertThat(createdMeasurementConsumer).isEqualTo(
-    measurementConsumer.toBuilder().apply{
-       externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-       externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
-        preferredCertificateBuilder.apply{
-          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-          externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
-        }
-    }.build())
+    assertThat(createdMeasurementConsumer)
+      .isEqualTo(
+        measurementConsumer
+          .toBuilder()
+          .apply {
+            externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+            externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            preferredCertificateBuilder.apply {
+              externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            }
+          }
+          .build()
+      )
   }
 
   @Test
