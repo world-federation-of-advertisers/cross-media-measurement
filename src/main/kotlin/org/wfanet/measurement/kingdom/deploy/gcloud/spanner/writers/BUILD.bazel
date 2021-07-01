@@ -30,6 +30,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -41,6 +42,12 @@ kt_jvm_library(
 =======
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto"
 >>>>>>> f58fef48 (initial commit)
+<<<<<<< HEAD
 >>>>>>> 10b4fb5c (initial commit)
+=======
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
+>>>>>>> 5a303d38 (linted)
+>>>>>>> baa10ef5 (linted)
     ],
 )
