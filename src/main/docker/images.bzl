@@ -47,6 +47,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(
+        name = "kingdom_system_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
+        repository = _PREFIX + "/kingdom/system-api",
+    ),
+    struct(
         name = "setup_spanner_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
         repository = _PREFIX + "/setup/push-spanner-schema",
