@@ -21,9 +21,12 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -34,8 +37,19 @@ private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public ke
 private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
 @RunWith(JUnit4::class)
-abstract class MeasurementConsumersServiceTest {
-  abstract val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutineImplBase> {
+
+  protected val idGenerator = FixedIdGenerator()
+
+  protected lateinit var measurementConsumersService: T
+    private set
+
+  protected abstract fun newService(idGenerator: IdGenerator): T
+
+  @Before
+  fun initService() {
+    measurementConsumersService = newService(idGenerator)
+  }
 
   @Test
   fun `getMeasurementConsumer fails for missing MeasurementConsumer`() = runBlocking {
@@ -94,7 +108,8 @@ abstract class MeasurementConsumersServiceTest {
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
-    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId).isNotEqualTo(0L)
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
+      .isEqualTo(idGenerator.generateExternalId().value)
     assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
       .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
     assertThat(createdMeasurementConsumer)

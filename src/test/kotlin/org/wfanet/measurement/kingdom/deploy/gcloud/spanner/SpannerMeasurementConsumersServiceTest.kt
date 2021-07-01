@@ -14,18 +14,28 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import java.time.Clock
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementConsumersServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerMeasurementConsumersServiceTest : MeasurementConsumersServiceTest() {
+class SpannerMeasurementConsumersServiceTest :
+  MeasurementConsumersServiceTest<SpannerMeasurementConsumersService>() {
 
-  @get:Rule val spannerDataServicesProviderRule = KingdomDataServicesProviderRule()
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
-  override val measurementConsumersService: MeasurementConsumersCoroutineImplBase
-    get() = spannerDataServicesProviderRule.value.measurementConsumersService
+  override fun newService(idGenerator: IdGenerator): SpannerMeasurementConsumersService {
+    val clock = Clock.systemUTC()
+    val databaseClient = spannerDatabase.databaseClient
+
+    return SpannerDataServices(clock, idGenerator, databaseClient)
+      .buildDataServices()
+      .measurementConsumersService as
+      SpannerMeasurementConsumersService
+  }
 }
