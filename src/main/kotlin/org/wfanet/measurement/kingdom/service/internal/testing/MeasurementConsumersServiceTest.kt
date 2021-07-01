@@ -237,12 +237,17 @@ abstract class MeasurementConsumersServiceTest {
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
 <<<<<<< HEAD
+<<<<<<< HEAD
     assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
       .isEqualTo(idGenerator.generateExternalId().value)
     assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
       .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
     assertThat(createdMeasurementConsumer)
 <<<<<<< HEAD
+=======
+
+    assertThat(createdMeasurementConsumer)
+>>>>>>> 85a762a8 (addres comments)
       .isEqualTo(
         measurementConsumer
           .toBuilder()
@@ -256,6 +261,7 @@ abstract class MeasurementConsumersServiceTest {
           }
           .build()
       )
+<<<<<<< HEAD
 =======
       .comparingExpectedFieldsOnly()
       .isEqualTo(measurementConsumer)
@@ -280,6 +286,8 @@ abstract class MeasurementConsumersServiceTest {
         }
     }.build())
 >>>>>>> f79d2653 (addressed comments)
+=======
+>>>>>>> 85a762a8 (addres comments)
   }
 
   @Test
