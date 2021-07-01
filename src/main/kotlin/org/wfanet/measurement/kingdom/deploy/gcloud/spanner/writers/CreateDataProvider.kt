@@ -53,8 +53,14 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
 
     return dataProvider
       .toBuilder()
-      .setExternalDataProviderId(externalDataProviderId.value)
-      .setExternalPublicKeyCertificateId(externalDataProviderCertificateId.value)
+      .also {
+        it.externalDataProviderId = externalDataProviderId.value
+        it.externalPublicKeyCertificateId = externalDataProviderCertificateId.value
+        it.preferredCertificateBuilder.also {
+          it.externalDataProviderId = externalDataProviderId.value
+          it.externalCertificateId = externalDataProviderCertificateId.value
+        }
+      }
       .build()
   }
 
