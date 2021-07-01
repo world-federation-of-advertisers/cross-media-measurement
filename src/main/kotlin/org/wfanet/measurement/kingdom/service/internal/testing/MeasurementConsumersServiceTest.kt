@@ -36,6 +36,7 @@ import org.junit.runners.JUnit4
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -48,7 +49,11 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 =======
 >>>>>>> a703b578 (ready)
 =======
+=======
+import org.wfanet.measurement.common.identity.ExternalId
+>>>>>>> f79d2653 (addressed comments)
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 >>>>>>> 11c7b400 (changed provider rule dependency)
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
@@ -59,10 +64,15 @@ private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 =======
 >>>>>>> e1417171 (addressed comments)
+=======
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+>>>>>>> f79d2653 (addressed comments)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
@@ -71,14 +81,20 @@ private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certi
 abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutineImplBase> {
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f79d2653 (addressed comments)
   protected val idGenerator =
     FixedIdGenerator(
       InternalId(FIXED_GENERATED_INTERNAL_ID),
       ExternalId(FIXED_GENERATED_EXTERNAL_ID)
     )
+<<<<<<< HEAD
 =======
   protected val idGenerator = FixedIdGenerator()
 >>>>>>> 11c7b400 (changed provider rule dependency)
+=======
+>>>>>>> f79d2653 (addressed comments)
 
   protected lateinit var measurementConsumersService: T
     private set
@@ -220,6 +236,7 @@ abstract class MeasurementConsumersServiceTest {
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
+<<<<<<< HEAD
     assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
       .isEqualTo(idGenerator.generateExternalId().value)
     assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
@@ -243,6 +260,26 @@ abstract class MeasurementConsumersServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(measurementConsumer)
 >>>>>>> da0f7f3c (addressing comments)
+=======
+    // assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
+    //   .isEqualTo(FIXED_GENERATED_EXTERNAL_ID)
+    // assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
+    //   .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
+    // assertThat(createdMeasurementConsumer)
+    //   .comparingExpectedFieldsOnly()
+    //   .isEqualTo(measurementConsumer)
+
+
+     assertThat(createdMeasurementConsumer).isEqualTo(
+    measurementConsumer.toBuilder().apply{
+       externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+       externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
+        preferredCertificateBuilder.apply{
+          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+          externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
+        }
+    }.build())
+>>>>>>> f79d2653 (addressed comments)
   }
 
   @Test
