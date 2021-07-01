@@ -35,6 +35,7 @@ import org.junit.runners.JUnit4
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -46,6 +47,10 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 >>>>>>> e3dde181 (ready)
 =======
 >>>>>>> a703b578 (ready)
+=======
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+>>>>>>> 11c7b400 (changed provider rule dependency)
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -65,11 +70,15 @@ private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certi
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutineImplBase> {
 
+<<<<<<< HEAD
   protected val idGenerator =
     FixedIdGenerator(
       InternalId(FIXED_GENERATED_INTERNAL_ID),
       ExternalId(FIXED_GENERATED_EXTERNAL_ID)
     )
+=======
+  protected val idGenerator = FixedIdGenerator()
+>>>>>>> 11c7b400 (changed provider rule dependency)
 
   protected lateinit var measurementConsumersService: T
     private set
@@ -80,6 +89,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   fun initService() {
     measurementConsumersService = newService(idGenerator)
   }
+<<<<<<< HEAD
 =======
 =======
 private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
@@ -93,6 +103,8 @@ abstract class MeasurementConsumersServiceTest {
 =======
   abstract val measurementConsumersService: MeasurementConsumersCoroutineImplBase
 >>>>>>> e3dde181 (ready)
+=======
+>>>>>>> 11c7b400 (changed provider rule dependency)
 
   @Test
   fun `getMeasurementConsumer fails for missing MeasurementConsumer`() = runBlocking {
@@ -208,7 +220,8 @@ abstract class MeasurementConsumersServiceTest {
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
-    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId).isNotEqualTo(0L)
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
+      .isEqualTo(idGenerator.generateExternalId().value)
     assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
       .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
     assertThat(createdMeasurementConsumer)
