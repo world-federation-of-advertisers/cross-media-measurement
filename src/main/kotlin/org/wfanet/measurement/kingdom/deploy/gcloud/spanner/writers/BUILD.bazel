@@ -25,6 +25,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto"
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
     ],
 )
