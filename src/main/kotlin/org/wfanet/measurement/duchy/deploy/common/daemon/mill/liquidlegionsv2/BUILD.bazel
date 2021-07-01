@@ -1,7 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
-load("@wfa_common_jvm//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
+load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
 kt_jvm_library(
     name = "liquid_legions_v2_mill_daemon",
