@@ -29,6 +29,7 @@ class SpannerMeasurementConsumersServiceTest :
 
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 <<<<<<< HEAD
+<<<<<<< HEAD
   private val clock = Clock.systemUTC()
 
 <<<<<<< HEAD
@@ -43,6 +44,12 @@ class SpannerMeasurementConsumersServiceTest :
 
     return SpannerDataServices(clock, idGenerator, databaseClient)
 >>>>>>> 11c7b400 (changed provider rule dependency)
+=======
+  private val clock = Clock.systemUTC()
+
+  override fun newService(idGenerator: IdGenerator): SpannerMeasurementConsumersService {
+    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
+>>>>>>> c08b1d11 (minor fix)
       .buildDataServices()
       .measurementConsumersService as
       SpannerMeasurementConsumersService
