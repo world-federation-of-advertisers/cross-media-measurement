@@ -208,7 +208,9 @@ abstract class MeasurementConsumersServiceTest {
         .build()
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(measurementConsumer)
-
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId).isNotEqualTo(0L)
+    assertThat(createdMeasurementConsumer.preferredCertificate.externalMeasurementConsumerId)
+      .isEqualTo(createdMeasurementConsumer.externalMeasurementConsumerId)
     assertThat(createdMeasurementConsumer)
 <<<<<<< HEAD
       .isEqualTo(
