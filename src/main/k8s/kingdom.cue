@@ -37,9 +37,8 @@ import ("strings")
 
 	kingdom_service: {
 		"gcp-kingdom-data-server": {}
-		"global-computation-server": {}
 		"requisition-server": {}
-		"system-requisition-server": {}
+		"system-api-server": {}
 	}
 
 	kingdom_job: "kingdom-push-spanner-schema-job": {
@@ -78,16 +77,6 @@ import ("strings")
 			] + _duchy_id_flags + _spanner_flags
 		}
 
-		"global-computation-server-pod": #ServerPod & {
-			_args: [
-				_debug_verbose_grpc_client_logging_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-				"--port=8080",
-			] + _duchy_id_flags
-			_dependencies: ["gcp-kingdom-data-server"]
-		}
-
 		"requisition-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
@@ -98,7 +87,7 @@ import ("strings")
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
 
-		"system-requisition-server-pod": #ServerPod & {
+		"system-api-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
