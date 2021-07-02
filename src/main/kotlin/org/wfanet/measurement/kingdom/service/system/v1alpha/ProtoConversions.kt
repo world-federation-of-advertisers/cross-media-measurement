@@ -22,6 +22,9 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
@@ -32,6 +35,7 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
+<<<<<<< HEAD
 =======
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
@@ -40,6 +44,8 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 >>>>>>> fe59a0bb (Implement system API computationsService. (#125))
+=======
+>>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
@@ -255,6 +261,9 @@ fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
   }
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 
 /**
  * Converts an internal MeasurementLogEntry.ErrorDetails to system ComputationLogEntry.ErrorDetails.
@@ -322,5 +331,8 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     }
     .build()
 }
+<<<<<<< HEAD
 =======
 >>>>>>> fe59a0bb (Implement system API computationsService. (#125))
+=======
+>>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
