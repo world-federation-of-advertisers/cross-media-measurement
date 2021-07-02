@@ -1,0 +1,17 @@
+# proto-file: src/main/proto/wfa/measurement/config/duchy_rpc_config.proto
+# proto-message: DuchyRpcConfig
+duchies {
+  duchy_id: "aggregator"
+  computation_control_service_target: "$(AGGREGATOR_COMPUTATION_CONTROL_SERVER_SERVICE_HOST):$(AGGREGATOR_COMPUTATION_CONTROL_SERVER_SERVICE_PORT)"
+  root_certificate_skid: ""
+}
+duchies {
+  duchy_id: "worker-1"
+  computation_control_service_target: "$(WORKER_1_COMPUTATION_CONTROL_SERVER_SERVICE_HOST):$(WORKER_1_COMPUTATION_CONTROL_SERVER_SERVICE_PORT)"
+  root_certificate_skid: ""
+}
+duchies {
+  duchy_id: "worker-2"
+  computation_control_service_target: "$(WORKER_2_COMPUTATION_CONTROL_SERVER_SERVICE_HOST):$(WORKER_2_COMPUTATION_CONTROL_SERVER_SERVICE_PORT)"
+  root_certificate_skid: ""
+}

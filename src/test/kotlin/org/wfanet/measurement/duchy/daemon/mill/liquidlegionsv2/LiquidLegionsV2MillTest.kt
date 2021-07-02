@@ -75,8 +75,6 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
@@ -317,8 +315,6 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 class LiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val mockMetricValues: MetricValuesCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
   private val mockSystemComputations: SystemComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
@@ -389,10 +385,6 @@ class LiquidLegionsV2MillTest {
 
   private val computationStatsStub: ComputationStatsCoroutineStub by lazy {
     ComputationStatsCoroutineStub(grpcTestServerRule.channel)
-  }
-
-  private val metricValuesStub: MetricValuesCoroutineStub by lazy {
-    MetricValuesCoroutineStub(grpcTestServerRule.channel)
   }
 
   private lateinit var computationControlRequests: List<AdvanceComputationRequest>
