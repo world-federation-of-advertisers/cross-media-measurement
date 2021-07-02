@@ -123,6 +123,18 @@ fun InternalStageAttempt.toSystemStageAttempt(): StageAttempt {
     .build()
 }
 
+/** Converts a system Api StageAttempt to kingdom internal StageAttempt. */
+fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
+  return InternalStageAttempt.newBuilder()
+    .also {
+      it.stage = stage
+      it.stageName = stageName
+      it.stageStartTime = stageStartTime
+      it.attemptNumber = attemptNumber
+    }
+    .build()
+}
+
 /**
  * Converts a kingdom internal ComputationParticipant.State to system Api
  * ComputationParticipant.State.
