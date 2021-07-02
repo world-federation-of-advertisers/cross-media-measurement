@@ -71,9 +71,13 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_java_proto",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entry_java_proto",
 =======
 >>>>>>> fe59a0bb (Implement system API computationsService. (#125))
+=======
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entry_java_proto",
+>>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
         "//src/main/proto/wfa/measurement/system/v1alpha:requisition_java_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
