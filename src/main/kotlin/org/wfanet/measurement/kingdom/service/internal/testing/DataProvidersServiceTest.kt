@@ -21,21 +21,43 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
 @RunWith(JUnit4::class)
-abstract class DataProvidersServiceTest {
-  abstract val dataProvidersService: DataProvidersCoroutineImplBase
+abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
+
+  protected val idGenerator =
+    FixedIdGenerator(
+      InternalId(FIXED_GENERATED_INTERNAL_ID),
+      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
+    )
+
+  protected lateinit var dataProvidersService: T
+    private set
+
+  protected abstract fun newService(idGenerator: IdGenerator): T
+
+  @Before
+  fun initService() {
+    dataProvidersService = newService(idGenerator)
+  }
 
   @Test
   fun `getDataProvider fails for missing DataProvider`() = runBlocking {
@@ -94,12 +116,21 @@ abstract class DataProvidersServiceTest {
         .build()
     val createdDataProvider =
       dataProvidersService.createDataProvider(dataProvider)
-    assertThat(createdDataProvider.externalDataProviderId).isNotEqualTo(0L)
-    assertThat(createdDataProvider.preferredCertificate.externalDataProviderId)
-      .isEqualTo(createdDataProvider.externalDataProviderId)
+
     assertThat(createdDataProvider)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(dataProvider)
+      .isEqualTo(
+        dataProvider
+          .toBuilder()
+          .apply {
+            externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+            externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            preferredCertificateBuilder.apply {
+              externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            }
+          }
+          .build()
+      )
   }
 
   @Test
