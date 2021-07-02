@@ -55,3 +55,30 @@ java_image(
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":spanner_computations_server"],
 )
+
+kt_jvm_library(
+    name = "gcs_requisition_fulfillment_server",
+    srcs = ["GcsRequisitionFulfillmentServer.kt"],
+    deps = [
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:requisition_fulfillment_server",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+    ],
+)
+
+java_binary(
+    name = "GcsRequisitionFulfillmentServer",
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsRequisitionFulfillmentServerKt",
+    runtime_deps = [":gcs_requisition_fulfillment_server"],
+)
+
+java_image(
+    name = "gcs_requisition_fulfillment_server_image",
+    data = ["@grpc_health_probe//file"],
+    main_class = "org.wfanet.measurement.duchy.deploy.gcloud.server.GcsRequisitionFulfillmentServerKt",
+    visibility = [
+        "//src:docker_image_deployment",
+    ],
+    runtime_deps = [":gcs_requisition_fulfillment_server"],
+)

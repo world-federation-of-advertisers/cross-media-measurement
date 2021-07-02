@@ -50,3 +50,20 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_test(
+    name = "ComputationLogEntriesServiceTest",
+    srcs = ["ComputationLogEntriesServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesServiceTest",
+    deps = [
+        "//imports/java/com/google/common/truth",
+        "//imports/java/com/google/common/truth/extensions/proto",
+        "//imports/kotlin/com/nhaarman/mockitokotlin2",
+        "//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_log_entries_service",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entries_service_kt_jvm_grpc",
+    ],
+)
