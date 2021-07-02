@@ -6,11 +6,15 @@ _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
     name = "aes",
+    srcs = [
+        "aes.cc",
+    ],
     hdrs = [
         "aes.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@tink_base//cc/util:secret_data",

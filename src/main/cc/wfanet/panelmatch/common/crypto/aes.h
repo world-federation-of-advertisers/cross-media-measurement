@@ -17,13 +17,13 @@
 #ifndef SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_AES_H_
 #define SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_AES_H_
 
-namespace wfanet::panelmatch::common::crypto {
-
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "tink/util/secret_data.h"
+
+namespace wfanet::panelmatch::common::crypto {
 
 // Implements an AES encryption scheme
 class Aes {
@@ -33,13 +33,20 @@ class Aes {
   // This will return an error status if the key is the wrong size for the
   // given AES implementation
   virtual absl::StatusOr<std::string> Encrypt(
-      absl::string_view input, const crypto::tink::util::SecretData key) = 0;
+      absl::string_view input,
+      const ::crypto::tink::util::SecretData& key) const = 0;
   // Decrypts `input` using AES key `key`
   // This will return an error status if the key is the wrong size for the
   // given AES implementation
   virtual absl::StatusOr<std::string> Decrypt(
-      absl::string_view input, const crypto::tink::util::SecretData key) = 0;
+      absl::string_view input,
+      const ::crypto::tink::util::SecretData& key) const = 0;
 };
+
+// Return Aes encryption scheme with a key size of 64 bytes and implements
+// AEAD_AES_SIV_CMAC_512 as defined by
+// https://datatracker.ietf.org/doc/html/rfc5297#section-6.3.
+const Aes& GetAesSivCmac512();
 
 }  // namespace wfanet::panelmatch::common::crypto
 
