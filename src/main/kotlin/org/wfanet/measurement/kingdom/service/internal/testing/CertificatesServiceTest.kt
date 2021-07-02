@@ -16,21 +16,46 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 
 private const val EXTERNAL_CERTIFICATE_ID = 123L
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+
+private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
 
 @RunWith(JUnit4::class)
-abstract class CertificatesServiceTest {
-  abstract val certificatesService: CertificatesCoroutineImplBase
+abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
+
+  protected val idGenerator =
+    FixedIdGenerator(
+      InternalId(FIXED_GENERATED_INTERNAL_ID),
+      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
+    )
+
+  protected lateinit var certificatesService: T
+    private set
+
+  protected abstract fun newService(idGenerator: IdGenerator): T
+
+  @Before
+  fun initService() {
+    certificatesService = newService(idGenerator)
+  }
 
   @Test
   fun `getCertificate fails for missing Certificate`() = runBlocking {
@@ -43,25 +68,6 @@ abstract class CertificatesServiceTest {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
-
-//   @Test
-//   fun `createCertificate succeeds`() = runBlocking {
-//     val createdCertificate =
-//       dataProvidersService.createCertificate(
-//         Certificate.newBuilder().apply { detailsBuilder.apply { apiVersion = "2" } }.build()
-//       )
-
-//     val dataProviderRead =
-//       dataProvidersService.getCertificate(
-//         GetCertificateRequest.newBuilder()
-//           .setExternalCertificateId(
-//             createdCertificate.externalCertificateId
-//           )
-//           .build()
-//       )
-
-//     assertThat(dataProviderRead).isEqualTo(createdCertificate)
-//   }
 }

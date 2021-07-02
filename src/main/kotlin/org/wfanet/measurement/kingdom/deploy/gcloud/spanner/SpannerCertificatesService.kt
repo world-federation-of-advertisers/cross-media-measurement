@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -36,16 +39,12 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    val certificate =
-      CertificateReader()
-        .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalcertificateId))
-        ?.certificate
-    if (measurementConsumer == null) {
-      failGrpc(Status.FAILED_PRECONDITION) {
-        "No Certificate with externalId ${request.externalcertificateId}"
+    return CertificateReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
+      ?.certificate
+      ?: failGrpc(Status.NOT_FOUND) {
+        "No Certificate with externalId ${request.externalCertificateId}"
       }
-    }
-    return certificate
   }
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
     TODO("not implemented yet")

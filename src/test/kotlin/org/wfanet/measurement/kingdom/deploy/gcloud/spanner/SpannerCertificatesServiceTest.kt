@@ -17,15 +17,20 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.CertificatesServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerCertificatesServiceTest : CertificatesServiceTest() {
+class SpannerCertificatesServiceTest : CertificatesServiceTest<SpannerCertificatesService>() {
 
-  @get:Rule val spannerDataServicesProviderRule = KingdomDataServicesProviderRule()
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  private val clock = Clock.systemUTC()
 
-  override val measurementConsumersService: CertificatesCoroutineImplBase
-    get() = spannerDataServicesProviderRule.value.certificatesService
+  override fun newService(idGenerator: IdGenerator): SpannerCertificatesService {
+    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
+      .buildDataServices()
+      .certificatesService as
+      SpannerCertificatesService
+  }
 }
