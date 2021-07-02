@@ -137,6 +137,9 @@ fun InternalStageAttempt.toSystemStageAttempt(): StageAttempt {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 7e4ed753 (Implement system computationParticipantsService. (#129))
 /** Converts a system Api StageAttempt to kingdom internal StageAttempt. */
 fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
   return InternalStageAttempt.newBuilder()
@@ -149,8 +152,11 @@ fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
     .build()
 }
 
+<<<<<<< HEAD
 =======
 >>>>>>> fe59a0bb (Implement system API computationsService. (#125))
+=======
+>>>>>>> 7e4ed753 (Implement system computationParticipantsService. (#129))
 /**
  * Converts a kingdom internal ComputationParticipant.State to system Api
  * ComputationParticipant.State.
