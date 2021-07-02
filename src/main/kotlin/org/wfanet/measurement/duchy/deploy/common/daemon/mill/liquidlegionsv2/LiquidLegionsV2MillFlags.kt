@@ -16,12 +16,17 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import java.time.Duration
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import picocli.CommandLine
 
 class LiquidLegionsV2MillFlags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var duchyInfoFlags: DuchyInfoFlags
     private set
 
   @CommandLine.Option(
@@ -57,14 +62,6 @@ class LiquidLegionsV2MillFlags {
     required = true
   )
   lateinit var computationsServiceTarget: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--metric-values-service-target"],
-    description = ["Address and port of the same duchy's MetricValuesService"],
-    required = true
-  )
-  lateinit var metricValuesServiceTarget: String
     private set
 
   @CommandLine.Option(
