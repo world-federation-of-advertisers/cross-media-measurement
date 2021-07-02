@@ -97,15 +97,15 @@ kt_jvm_library(
     name = "requisition_fulfillment_server",
     srcs = ["RequisitionFulfillmentServer.kt"],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
-    runtime_deps = ["//imports/java/io/grpc/netty"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        "//imports/java/io/grpc:api",
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 
@@ -114,9 +114,9 @@ kt_jvm_library(
     srcs = ["ForwardedStorageRequisitionFulfillmentServer.kt"],
     deps = [
         ":requisition_fulfillment_server",
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 
