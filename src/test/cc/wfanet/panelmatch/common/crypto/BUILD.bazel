@@ -13,6 +13,17 @@ cc_test(
 )
 
 cc_test(
+    name = "aes_test",
+    srcs = ["aes_test.cc"],
+    deps = [
+        "//src/main/cc/wfanet/panelmatch/common/crypto:aes",
+        "//src/test/cc/testutil:matchers",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "hkdf_test",
     srcs = [
         "hkdf_test.cc",
