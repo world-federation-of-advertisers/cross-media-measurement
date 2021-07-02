@@ -29,6 +29,7 @@ import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 <<<<<<< HEAD
+<<<<<<< HEAD
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +43,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 >>>>>>> d519ecd3 (setting up)
+=======
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+>>>>>>> 0e04f4f4 (rebased and synced)
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
@@ -73,6 +84,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   fun initService() {
     dataProvidersService = newService(idGenerator)
   }
+<<<<<<< HEAD
 =======
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 =======
@@ -90,6 +102,8 @@ abstract class DataProvidersServiceTest {
 =======
   abstract val dataProvidersService: DataProvidersCoroutineImplBase
 >>>>>>> 030d4904 (ready)
+=======
+>>>>>>> 0e04f4f4 (rebased and synced)
 
   @Test
   fun `getDataProvider fails for missing DataProvider`() = runBlocking {
@@ -225,12 +239,21 @@ abstract class DataProvidersServiceTest {
 >>>>>>> cc3034cf (rebased and fixed)
     val createdDataProvider =
       dataProvidersService.createDataProvider(dataProvider)
-    assertThat(createdDataProvider.externalDataProviderId).isNotEqualTo(0L)
-    assertThat(createdDataProvider.preferredCertificate.externalDataProviderId)
-      .isEqualTo(createdDataProvider.externalDataProviderId)
+
     assertThat(createdDataProvider)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(dataProvider)
+      .isEqualTo(
+        dataProvider
+          .toBuilder()
+          .apply {
+            externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+            externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            preferredCertificateBuilder.apply {
+              externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            }
+          }
+          .build()
+      )
   }
 
   @Test

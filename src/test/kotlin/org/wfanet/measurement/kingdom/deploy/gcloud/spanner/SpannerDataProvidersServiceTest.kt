@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import java.time.Clock
 import org.junit.Rule
 import org.junit.runner.RunWith
@@ -37,19 +38,34 @@ class SpannerDataProvidersServiceTest : DataProvidersServiceTest<SpannerDataProv
       SpannerDataProvidersService
   }
 =======
+=======
+import java.time.Clock
+>>>>>>> 0e04f4f4 (rebased and synced)
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDataServicesProviderRule
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.DataProvidersServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerDataProvidersServiceTest : DataProvidersServiceTest() {
+class SpannerDataProvidersServiceTest :
+  DataProvidersServiceTest<SpannerDataProvidersService>() {
 
-  @get:Rule val spannerDataServicesProviderRule = KingdomDataServicesProviderRule()
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  private val clock = Clock.systemUTC()
 
+<<<<<<< HEAD
   override val dataProvidersService: DataProvidersCoroutineImplBase
     get() = spannerDataServicesProviderRule.value.dataProvidersService
 >>>>>>> 030d4904 (ready)
+=======
+  override fun newService(idGenerator: IdGenerator): SpannerDataProvidersService {
+    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
+      .buildDataServices()
+      .dataProvidersService as
+      SpannerDataProvidersService
+  }
+>>>>>>> 0e04f4f4 (rebased and synced)
 }
