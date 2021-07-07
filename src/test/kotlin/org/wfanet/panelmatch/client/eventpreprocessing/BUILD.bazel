@@ -1,0 +1,12 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "JniPreprocessEventsTest",
+    srcs = ["JniPreprocessEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniPreprocessEventsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+    ],
+)
