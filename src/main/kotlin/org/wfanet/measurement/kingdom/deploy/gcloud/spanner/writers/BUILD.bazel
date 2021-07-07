@@ -22,6 +22,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_java_proto",
 =======
 <<<<<<< HEAD
@@ -30,8 +31,16 @@ kt_jvm_library(
 =======
 =======
 >>>>>>> 29caa181 (rebased)
+=======
+>>>>>>> 1481842d (initial commit)
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_java_proto",
+<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_java_proto",
+=======
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_java_proto",
+>>>>>>> b6ede457 (Add CreateModelProvider class (#133))
+>>>>>>> 2e49aa26 (initial commit)
         "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
 <<<<<<< HEAD
