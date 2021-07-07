@@ -34,7 +34,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as publicApiHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
@@ -74,11 +73,11 @@ private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
 private val OTHER_DUCHY_NAMES = listOf(DUCHY_TWO, DUCHY_THREE)
 
-private const val PUBLIC_PROTOCOL_CONFIG_ID_1 = "config_1"
+private const val PUBLIC_PROTOCOL_CONFIG_NAME_1 = "protocolConfigs/config_1"
 private val PUBLIC_PROTOCOL_CONFIG_1 =
   ProtocolConfig.newBuilder()
     .apply {
-      name = ProtocolConfigKey(PUBLIC_PROTOCOL_CONFIG_ID_1).toName()
+      name = PUBLIC_PROTOCOL_CONFIG_NAME_1
       measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
       liquidLegionsV2Builder.apply {
         sketchParamsBuilder.apply {
@@ -96,7 +95,7 @@ private val PUBLIC_PROTOCOL_CONFIG_1 =
     .build()
 
 private val PUBLIC_PROTOCOL_CONFIG_MAP =
-  mapOf(PUBLIC_PROTOCOL_CONFIG_ID_1 to PUBLIC_PROTOCOL_CONFIG_1)
+  mapOf(PUBLIC_PROTOCOL_CONFIG_NAME_1 to PUBLIC_PROTOCOL_CONFIG_1)
 
 private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY =
   EncryptionPublicKey.newBuilder()
@@ -248,14 +247,14 @@ class HeraldTest {
       Requisition.newBuilder()
         .apply {
           name = RequisitionKey("321", "1").toName()
-          dataProviderId = "A"
+          dataProvider = "dataProviders/A"
         }
         .build()
     val systemApiRequisitions2 =
       Requisition.newBuilder()
         .apply {
           name = RequisitionKey("321", "2").toName()
-          dataProviderId = "B"
+          dataProvider = "dataProviders/B"
         }
         .build()
     val confirmingUnknown =
@@ -369,7 +368,7 @@ class HeraldTest {
         Requisition.newBuilder()
           .apply {
             name = RequisitionKey(globalId, "1").toName()
-            dataProviderId = "A"
+            dataProvider = "dataProviders/A"
             dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_1")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
             dataProviderParticipationSignature =
@@ -382,7 +381,7 @@ class HeraldTest {
         Requisition.newBuilder()
           .apply {
             name = RequisitionKey(globalId, "2").toName()
-            dataProviderId = "B"
+            dataProvider = "dataProviders/B"
             dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_2")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
             dataProviderParticipationSignature =
@@ -698,7 +697,7 @@ class HeraldTest {
         it.measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
         it.dataProviderList = DATA_PROVIDER_LIST
         it.dataProviderListSalt = DATA_PROVIDER_LIST_SALT
-        it.protocolConfigId = PUBLIC_PROTOCOL_CONFIG_ID_1
+        it.protocolConfig = PUBLIC_PROTOCOL_CONFIG_NAME_1
         it.state = stateAtKingdom
         it.addAllRequisitions(systemApiRequisitions)
         it.addAllComputationParticipants(systemComputationParticipant)

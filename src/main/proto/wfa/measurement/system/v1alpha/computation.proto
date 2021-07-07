@@ -46,8 +46,9 @@ message Computation {
   // Salt for SHA256 hash of `data_provider_list`. Required. Immutable.
   bytes data_provider_list_salt = 5;
 
-  // ID of `ProtocolConfig` resource from the public API.
-  string protocol_config_id = 6;
+  // Resource name of `ProtocolConfig` from the public API.
+  string protocol_config = 6
+      [(google.api.resource_reference).type = "halo.wfanet.org/ProtocolConfig"];
 
   // State of a `Computation`.
   enum State {

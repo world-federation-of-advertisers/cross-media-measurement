@@ -24,7 +24,10 @@ kt_jvm_library(
     name = "computations_service",
     srcs = ["ComputationsService.kt"],
     deps = [
+        ":proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc",
     ],
 )
@@ -33,7 +36,10 @@ kt_jvm_library(
     name = "computation_log_entries_service",
     srcs = ["ComputationLogEntriesService.kt"],
     deps = [
+        ":proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entries_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc",
     ],
 )
@@ -42,7 +48,10 @@ kt_jvm_library(
     name = "computation_participants_service",
     srcs = ["ComputationParticipantsService.kt"],
     deps = [
+        ":proto_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/internal/kingdom:computation_participants_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc",
     ],
 )
@@ -51,9 +60,14 @@ kt_jvm_library(
     name = "proto_conversions",
     srcs = ["ProtoConversions.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_java_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entry_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:requisition_java_proto",
     ],
 )

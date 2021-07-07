@@ -47,6 +47,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(
+        name = "kingdom_system_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
+        repository = _PREFIX + "/kingdom/system-api",
+    ),
+    struct(
         name = "setup_spanner_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
         repository = _PREFIX + "/setup/push-spanner-schema",
@@ -61,6 +66,11 @@ GKE_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
         repository = _PREFIX + "/duchy/computation-control",
     ),
+    struct(
+        name = "duchy_requisition_fulfillment_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_requisition_fulfillment_server_image",
+        repository = _PREFIX + "/duchy/requisition-fulfillment",
+    ),
 ]
 
 # List of image build rules that are only used locally (e.g. in Kind).
@@ -72,6 +82,10 @@ LOCAL_IMAGES = [
     struct(
         name = "forwarded_storage_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image",
+    ),
+    struct(
+        name = "forwarded_storage_requisition_fulfillment_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image",
     ),
     struct(
         name = "spanner_forwarded_storage_server_image",
