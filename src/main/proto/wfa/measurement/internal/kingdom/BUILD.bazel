@@ -24,6 +24,10 @@ proto_and_java_proto_library(
     name = "data_provider",
 )
 
+proto_and_java_proto_library(
+    name = "model_provider",
+)
+
 proto_library(
     name = "computation_participants_service_proto",
     srcs = ["computation_participants_service.proto"],
