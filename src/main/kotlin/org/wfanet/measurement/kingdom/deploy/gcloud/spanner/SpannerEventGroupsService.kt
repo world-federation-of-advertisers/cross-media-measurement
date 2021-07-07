@@ -14,12 +14,16 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
 class SpannerEventGroupsService(
   clock: Clock,
@@ -27,9 +31,14 @@ class SpannerEventGroupsService(
   client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
-    TODO("not implemented yet")
+    return CreateEventGroup(request).execute(client, idGenerator, clock)
   }
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    TODO("not implemented yet")
+    return EventGroupReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
+      ?.eventGroup
+      ?: failGrpc(Status.NOT_FOUND) {
+        "No EventGroup with externalId ${request.externalEventGroupId}"
+      }
   }
 }
