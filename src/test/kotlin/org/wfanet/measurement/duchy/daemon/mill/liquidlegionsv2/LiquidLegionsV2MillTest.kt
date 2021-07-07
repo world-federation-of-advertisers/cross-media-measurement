@@ -575,8 +575,8 @@ class LiquidLegionsV2MillTest {
           .apply {
             name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
             requisitionParamsBuilder.apply {
-              duchyCertificateId = "TODO"
-              duchyCertificate = ByteString.copyFromUtf8("TODO")
+              duchyCertificate = "TODO"
+              duchyCertificateDer = ByteString.copyFromUtf8("TODO")
               liquidLegionsV2Builder.apply {
                 elGamalPublicKey =
                   V2AlphaElGamalPublicKey.newBuilder()

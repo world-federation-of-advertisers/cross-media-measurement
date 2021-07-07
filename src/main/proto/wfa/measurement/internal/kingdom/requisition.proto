@@ -103,4 +103,9 @@ message Requisition {
   }
   Details details = 10;
   string details_json = 11;
+
+  // Version of the public API for serialized message definitions as well as
+  // resource names, which is denormalized from the parent Measurement.
+  // Output-only.
+  string api_version = 12;
 }

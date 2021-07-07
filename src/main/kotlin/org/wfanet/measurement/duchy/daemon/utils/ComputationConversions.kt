@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.daemon.utils
 
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
@@ -44,8 +46,8 @@ enum class MeasurementType {
 
 /** Gets the measurement type from the system computation. */
 fun SystemComputation.toMeasurementType(): MeasurementType {
-  return when (publicApiVersion.toPublicApiVersion()) {
-    PublicApiVersion.V2_ALPHA -> {
+  return when (Version.fromString(publicApiVersion)) {
+    Version.V2_ALPHA -> {
       val v2AlphaMeasurementSpec = MeasurementSpec.parseFrom(measurementSpec)
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (v2AlphaMeasurementSpec.measurementTypeCase) {
@@ -53,6 +55,7 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
         MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
     }
+    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -64,15 +67,16 @@ fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
       it.measurementSpec = measurementSpec
       it.dataProviderList = dataProviderList
       it.dataProviderListSalt = dataProviderListSalt
-      when (publicApiVersion.toPublicApiVersion()) {
-        PublicApiVersion.V2_ALPHA -> {
+      when (Version.fromString(publicApiVersion)) {
+        Version.V2_ALPHA -> {
           val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
           it.measurementPublicKey =
             measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(
-              publicApiVersion.toPublicApiVersion()
+              Version.fromString(publicApiVersion)
             )
           it.cipherSuite = measurementSpec.cipherSuite.toDuchyHybridCipherSuite()
         }
+        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
     }
     .build()
@@ -92,19 +96,20 @@ val SystemComputation.key: ComputationKey
  * Parses a serialized Public API EncryptionPublicKey and converts to duchy internal
  * EncryptionPublicKey.
  */
-fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: PublicApiVersion): EncryptionPublicKey {
+fun ByteString.toDuchyEncryptionPublicKey(publicApiVersion: Version): EncryptionPublicKey {
   return when (publicApiVersion) {
-    PublicApiVersion.V2_ALPHA ->
-      V2AlphaEncryptionPublicKey.parseFrom(this).toDuchyEncryptionPublicKey()
+    Version.V2_ALPHA -> V2AlphaEncryptionPublicKey.parseFrom(this).toDuchyEncryptionPublicKey()
+    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
 /**
  * Parses a serialized Public API ElGamalPublicKey and converts to duchy internal ElGamalPublicKey.
  */
-fun ByteString.toDuchyElGamalPublicKey(publicApiVersion: PublicApiVersion): ElGamalPublicKey {
+fun ByteString.toDuchyElGamalPublicKey(publicApiVersion: Version): ElGamalPublicKey {
   return when (publicApiVersion) {
-    PublicApiVersion.V2_ALPHA -> V2AlphaElGamalPublicKey.parseFrom(this).toDuchyElGamalPublicKey()
+    Version.V2_ALPHA -> V2AlphaElGamalPublicKey.parseFrom(this).toDuchyElGamalPublicKey()
+    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -211,11 +216,9 @@ fun V2AlphaDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differe
 }
 
 /** Converts a duchy internal ElGamalPublicKey to the corresponding public API ElGamalPublicKey. */
-fun ElGamalPublicKey.toPublicApiElGamalPublicKeyBytes(
-  publicApiVersion: PublicApiVersion
-): ByteString {
+fun ElGamalPublicKey.toPublicApiElGamalPublicKeyBytes(publicApiVersion: Version): ByteString {
   return when (publicApiVersion) {
-    PublicApiVersion.V2_ALPHA ->
+    Version.V2_ALPHA ->
       V2AlphaElGamalPublicKey.newBuilder()
         .also {
           it.generator = generator
@@ -223,6 +226,7 @@ fun ElGamalPublicKey.toPublicApiElGamalPublicKeyBytes(
         }
         .build()
         .toByteString()
+    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -240,9 +244,9 @@ fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
 data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>)
 
 /** Converts a ReachAndFrequency object to the corresponding public API measurement result. */
-fun ReachAndFrequency.toPublicApiMeasurementResult(publicApiVersion: PublicApiVersion): ByteString {
+fun ReachAndFrequency.toPublicApiMeasurementResult(publicApiVersion: Version): ByteString {
   return when (publicApiVersion) {
-    PublicApiVersion.V2_ALPHA ->
+    Version.V2_ALPHA ->
       Measurement.Result.newBuilder()
         .also {
           it.reachBuilder.value = reach
@@ -250,6 +254,7 @@ fun ReachAndFrequency.toPublicApiMeasurementResult(publicApiVersion: PublicApiVe
         }
         .build()
         .toByteString()
+    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
   }
 }
 
@@ -278,4 +283,13 @@ fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.anysketch.crypto.ElGa
       it.secretKey = secretKey
     }
     .build()
+}
+
+/** Extracts the DataProviderId from the DataProvider public Api resource name. */
+fun extractDataProviderId(publicApiVersion: Version, resourceName: String): String {
+  return when (publicApiVersion) {
+    Version.V2_ALPHA -> DataProviderKey.fromName(resourceName)?.dataProviderId
+        ?: error("Resource name unspecified or invalid.")
+    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+  }
 }

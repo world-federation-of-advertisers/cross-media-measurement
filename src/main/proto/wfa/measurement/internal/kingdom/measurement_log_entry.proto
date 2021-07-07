@@ -59,7 +59,7 @@ message DuchyMeasurementLogEntry {
   MeasurementLogEntry log_entry = 1;
   string external_duchy_id = 2;
 
-  string external_computation_log_entry_id = 3;
+  fixed64 external_computation_log_entry_id = 3;
 
   message StageAttempt {
     // Tag number of the stage enum value from an external system.
