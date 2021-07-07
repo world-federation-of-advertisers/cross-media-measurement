@@ -25,10 +25,14 @@ class EventGroupReader : SpannerReader<EventGroupReader.Result>() {
     SELECT
       EventGroups.EventGroupId,
       EventGroups.ExternalEventGroupId,
-      EventGroups.ExternalMeasurementConsumerId,
-      EventGroups.ExternalDataProviderId,
-      EventGroups.ProvidedEventGroupId
+      EventGroups.MeasurementConsumerId,
+      EventGroups.DataProviderId,
+      EventGroups.ProvidedEventGroupId,
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+      DataProviders.ExternalDataProviderId
     FROM EventGroups
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
   override val externalIdColumn: String = "EventGroups.ExternalEventGroupId"
@@ -36,7 +40,7 @@ class EventGroupReader : SpannerReader<EventGroupReader.Result>() {
   override suspend fun translate(struct: Struct): Result =
     Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
 
-  private fun buildDataProvider(struct: Struct): DataProvider =
+  private fun buildEventGroup(struct: Struct): EventGroup =
     EventGroup.newBuilder()
       .apply {
         externalEventGroupId = struct.getLong("ExternalEventGroupId")
