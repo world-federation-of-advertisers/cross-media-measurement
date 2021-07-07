@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 
@@ -31,12 +32,14 @@ class CreateExchange(
   private val state: Exchange.State = Exchange.State.ACTIVE,
 ) : SpannerWriter<ExternalId, Exchange>() {
   override suspend fun TransactionScope.runTransaction(): ExternalId {
+    // TODO: Set ExchangeDetails with proper Audit trail hash.
+    val exchangeDetails = ExchangeDetails.getDefaultInstance()
     Mutation.newInsertBuilder("Exchanges")
       .set("RecurringExchangeId" to recurringExchangeId)
       .set("Date" to date.toCloudDate())
       .set("State" to state)
-      .set("ExchangeDetails" to "")
-      .set("ExchangeDetailsJson" to "")
+      .set("ExchangeDetails" to exchangeDetails)
+      .setJson("ExchangeDetailsJson" to exchangeDetails)
       .build()
       .bufferTo(transactionContext)
     return externalRecurringExchangeId

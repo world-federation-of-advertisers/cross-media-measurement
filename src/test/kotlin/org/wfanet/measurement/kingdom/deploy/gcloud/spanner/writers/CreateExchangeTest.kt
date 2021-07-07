@@ -32,8 +32,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.spanner.toProtoBytes
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -88,19 +88,13 @@ class CreateExchangeTest : KingdomDatabaseTestBase() {
     date: Date,
     state: Exchange.State
   ): Struct {
+    val exchangeDetails = ExchangeDetails.getDefaultInstance()
     return Struct.newBuilder()
-      .set("RecurringExchangeId")
-      .to(recurringExchangeId)
-      .set("Date")
-      .to(date.toCloudDate())
-      .set("State")
-      .toProtoEnum(state)
-      .set("ExchangeDetails")
-      .toProtoBytes(
-        ExchangeDetails.newBuilder().setAuditTrailHash(ByteString.copyFromUtf8("")).build()
-      )
-      .set("ExchangeDetailsJson")
-      .to("")
+      .set("RecurringExchangeId" to recurringExchangeId)
+      .set("Date" to date.toCloudDate())
+      .set("State" to state)
+      .set("ExchangeDetails" to exchangeDetails)
+      .setJson("ExchangeDetailsJson" to exchangeDetails)
       .build()
   }
 
