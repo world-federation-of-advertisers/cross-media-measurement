@@ -8,7 +8,7 @@ package(default_visibility = [
 java_wrap_cc(
     name = "preprocess_events",
     src = "preprocess_events.swig",
-    module = "PreprocessEvents",
+    module = "EventPreprocessing",
     package = "org.wfanet.panelmatch.client.eventpreprocessing",
     deps = [
         "//src/main/cc/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_wrapper",

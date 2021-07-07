@@ -1,0 +1,14 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "eventpreprocessing",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
+        "@wfa_measurement_system//imports/java/com/google/protobuf",
+    ],
+)

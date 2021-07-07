@@ -17,11 +17,13 @@
 #include <string>
 #include <utility>
 
+#include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
-#include "wfanet/panelmatch/common/macros.h"
+#include "wfanet/panelmatch/common/crypto/encryption_utility_helper.h"
 
 namespace wfanet::panelmatch::client {
 absl::StatusOr<PreprocessEventsResponse> PreprocessEvents(
