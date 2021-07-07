@@ -46,12 +46,16 @@ class CreateExchange(
   }
 
   override fun ResultScope<ExternalId>.buildResult(): Exchange {
+    // TODO: Add missing proto fields.
     return Exchange.newBuilder()
-      .setExternalRecurringExchangeId(externalRecurringExchangeId.value)
-      .setDate(date)
-      .setState(state)
-      .setDetails(ExchangeDetails.newBuilder().setAuditTrailHash(ByteString.copyFromUtf8("")))
-      .setSerializedRecurringExchange(ByteString.copyFromUtf8(""))
+      .also {
+        it.externalRecurringExchangeId = externalRecurringExchangeId.value
+        it.date = date
+        it.state = state
+        it.details =
+          ExchangeDetails.newBuilder().setAuditTrailHash(ByteString.copyFromUtf8("")).build()
+        it.serializedRecurringExchange = ByteString.copyFromUtf8("")
+      }
       .build()
   }
 }

@@ -110,3 +110,7 @@ fun Struct.Builder.setJson(columnValuePair: Pair<String, Message?>): Struct.Buil
   val (columnName, value) = columnValuePair
   return set(columnName).toProtoJson(value)
 }
+
+/** Builds an [Struct]. */
+inline fun makeStruct(bind: Struct.Builder.() -> Unit): Struct =
+  Struct.newBuilder().apply(bind).build()
