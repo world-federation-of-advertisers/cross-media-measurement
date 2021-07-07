@@ -19,11 +19,10 @@ import com.google.type.Date
 
 /** Converts Cloud Date to [Date]. */
 fun CloudDate.toProtoDate(): Date {
-  return Date.newBuilder()
-    .apply {
-      year = this.year
-      month = this.month
-      day = this.day
-    }
-    .build()
+  return Date.newBuilder().setYear(year).setMonth(month).setDay(dayOfMonth).build()
+}
+
+/** Converts [Date] to Cloud Date. */
+fun Date.toCloudDate(): CloudDate {
+  return CloudDate.fromYearMonthDay(year, month, day)
 }

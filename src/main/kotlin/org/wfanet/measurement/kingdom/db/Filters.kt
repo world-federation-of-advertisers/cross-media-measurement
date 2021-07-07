@@ -14,19 +14,24 @@
 
 package org.wfanet.measurement.kingdom.db
 
+import com.google.type.Date
 import java.time.Instant
 import org.wfanet.measurement.common.AllOfClause
 import org.wfanet.measurement.common.AnyOfClause
 import org.wfanet.measurement.common.GreaterThanClause
+import org.wfanet.measurement.common.LessThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.allOf
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 
 typealias StreamRequisitionsFilter = AllOfClause<StreamRequisitionsClause>
 
 typealias StreamReportsFilter = AllOfClause<StreamReportsClause>
+
+typealias StreamExchangesFilter = AllOfClause<StreamExchangesClause>
 
 /**
  * Creates a filter for Requisitions.
@@ -97,6 +102,39 @@ fun streamReportsFilter(
     )
   )
 
+/**
+ * Creates a filter for Exchanges.
+ *
+ * The list inputs are treated as disjunctions, and all non-null inputs are conjoined.
+ *
+ * For example,
+ *
+ * streamExchangesFilter(externalModelProviderIds = listOf(ID1, ID2), nextExchangeDate = SOME_DATE)
+ *
+ * would match each Exchange that matches both these criteria:
+ * - it is associated with a ModelProvider with external id either ID1 or ID2, and
+ * - it was associated with exchanges created before SOME_DATE.
+ *
+ * @param externalModelProviderIds a list of Model Providers
+ * @param externalDataProviderIds a list of Data Providers
+ * @param states a list of [RecurringExchange.State]s
+ * @param nextExchangeDate a time before next exchange date scheduled
+ */
+fun streamExchangesFilter(
+  externalModelProviderIds: List<ExternalId>? = null,
+  externalDataProviderIds: List<ExternalId>? = null,
+  states: List<RecurringExchange.State>? = null,
+  nextExchangeDate: Date? = null
+): StreamExchangesFilter =
+  allOf(
+    listOfNotNull(
+      externalModelProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalModelProviderId),
+      externalDataProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalDataProviderId),
+      states.ifNotNullOrEmpty(StreamExchangesClause::State),
+      nextExchangeDate.ifNotNull(StreamExchangesClause::NextExchangeDate)
+    )
+  )
+
 /** Base class for Requisition filters. Never directly instantiated. */
 sealed class StreamRequisitionsClause : TerminalClause {
 
@@ -146,8 +184,49 @@ fun StreamReportsFilter.hasStateFilter(): Boolean {
   return clauses.any { it is StreamReportsClause.State }
 }
 
+/** Base class for filtering Exchange streams. Never directly instantiated. */
+sealed class StreamExchangesClause : TerminalClause {
+
+  /**
+   * Matching RecurringExchanges must belong to an ModelProvider with an external id in [values].
+   */
+  data class ExternalModelProviderId internal constructor(val values: List<ExternalId>) :
+    StreamExchangesClause(), AnyOfClause
+
+  /** Matching RecurringExchanges must belong to an DataProvider with an external id in [values]. */
+  data class ExternalDataProviderId internal constructor(val values: List<ExternalId>) :
+    StreamExchangesClause(), AnyOfClause
+
+  /** Matching RecurringExchanges must have a state among those in [values]. */
+  data class State internal constructor(val values: List<RecurringExchange.State>) :
+    StreamExchangesClause(), AnyOfClause
+
+  /** Matching RecurringExchanges must have [NextExchangeDate] before [value]. */
+  data class NextExchangeDate internal constructor(val value: Date) :
+    StreamExchangesClause(), LessThanClause
+}
+
+/**
+ * Returns whether the filter acts on a DataProviderId of the Exchange. This is useful for forcing
+ * indexes.
+ */
+fun StreamExchangesFilter.hasDataProviderFilter(): Boolean {
+  return clauses.any { it is StreamExchangesClause.ExternalDataProviderId }
+}
+
+/**
+ * Returns whether the filter acts on a ModelProviderId of the Exchange. This is useful for forcing
+ * indexes.
+ */
+fun StreamExchangesFilter.hasModelProviderFilter(): Boolean {
+  return clauses.any { it is StreamExchangesClause.ExternalModelProviderId }
+}
+
 private fun <T, V> List<T>?.ifNotNullOrEmpty(block: (List<T>) -> V): V? =
   this?.ifEmpty { null }?.let(block)
 
 private fun <V> Instant?.ifNotNullOrEpoch(block: (Instant) -> V): V? =
   this?.let { if (it == Instant.EPOCH) null else block(it) }
+
+private fun <V> Date?.ifNotNull(block: (Date) -> V): V? =
+  this?.let { if (!it.isInitialized) null else block(it) }

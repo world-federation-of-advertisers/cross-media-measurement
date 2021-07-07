@@ -15,6 +15,7 @@
 package org.wfanet.measurement.gcloud.spanner
 
 import com.google.cloud.ByteArray
+import com.google.cloud.Date
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.protobuf.Message
@@ -72,6 +73,13 @@ fun Mutation.WriteBuilder.set(columnValuePair: Pair<String, String?>): Mutation.
 /** Sets the value that should be bound to the specified column. */
 @JvmName("setTimestamp")
 fun Mutation.WriteBuilder.set(columnValuePair: Pair<String, Timestamp?>): Mutation.WriteBuilder {
+  val (columnName, value) = columnValuePair
+  return set(columnName).to(value)
+}
+
+/** Sets the value that should be bound to the specified column. */
+@JvmName("setDate")
+fun Mutation.WriteBuilder.set(columnValuePair: Pair<String, Date?>): Mutation.WriteBuilder {
   val (columnName, value) = columnValuePair
   return set(columnName).to(value)
 }

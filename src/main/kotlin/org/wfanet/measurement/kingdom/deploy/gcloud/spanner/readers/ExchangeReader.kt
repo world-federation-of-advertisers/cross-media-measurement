@@ -15,11 +15,13 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import com.google.type.Date
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
+import org.wfanet.measurement.internal.kingdom.RecurringExchange.State
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 
 /** Reads [Exchange] protos from Spanner. */
@@ -28,8 +30,10 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
   data class Result(
     val exchange: Exchange,
     val recurringExchangeId: Long,
-    val dataProviderId: Long,
     val modelProviderId: Long,
+    val dataProviderId: Long,
+    val state: State,
+    val nextExchangeDate: Date,
     val recurringExchangeDetails: RecurringExchangeDetails
   )
 
@@ -37,7 +41,8 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
     NONE(""),
     DATA_PROVIDER_ID("@{FORCE_INDEX=RecurringExchangesByDataProviderId}"),
     MODEL_PROVIDER_ID("@{FORCE_INDEX=RecurringExchangesByModelProviderId}"),
-    EXTERNAL_ID("@{FORCE_INDEX=RecurringExchangesByExternalId}")
+    EXTERNAL_ID("@{FORCE_INDEX=RecurringExchangesByExternalId}"),
+    NEXT_EXCHANGE_DATE("@{FORCE_INDEX=RecurringExchangesByNextExchangeDate}"),
   }
 
   override val baseSql: String =
@@ -55,8 +60,10 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
     return Result(
       exchange = buildExchange(struct),
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
-      dataProviderId = struct.getLong("DataProviderId"),
       modelProviderId = struct.getLong("ModelProviderId"),
+      dataProviderId = struct.getLong("DataProviderId"),
+      state = struct.getProtoEnum("State", State::forNumber),
+      nextExchangeDate = struct.getDate("NextExchangeDate").toProtoDate(),
       recurringExchangeDetails =
         struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
     )
@@ -68,7 +75,7 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
         date = struct.getDate("Date").toProtoDate()
         externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
         details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.parser())
-        state = struct.getProtoEnum("State", Exchange.State::forNumber)
+        state = struct.getProtoEnum("ExchangeState", Exchange.State::forNumber)
       }
       .build()
   }
@@ -80,11 +87,13 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
         "RecurringExchanges.ExternalRecurringExchangeId",
         "RecurringExchanges.ModelProviderId",
         "RecurringExchanges.DataProviderId",
+        "RecurringExchanges.State",
+        "RecurringExchanges.NextExchangeDate",
         "RecurringExchanges.RecurringExchangeDetails",
         "RecurringExchanges.RecurringExchangeDetailsJson",
         "DataProviders.ExternalDataProviderId",
         "ModelProviders.ExternalModelProviderId",
-        "Exchanges.State",
+        "Exchanges.State AS ExchangeState",
         "Exchanges.Date",
         "Exchanges.ExchangeDetails",
         "Exchanges.ExchangeDetailsJson"
