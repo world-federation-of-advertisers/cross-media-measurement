@@ -14,15 +14,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 class CreateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
-
     val measurementConsumerId =
       MeasurementConsumerReader()
         .readExternalId(transactionContext, ExternalId(eventGroup.externalMeasurementConsumerId))
@@ -36,12 +38,11 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     val externalEventGroupId = idGenerator.generateExternalId()
 
     insertMutation("EventGroups") {
-        set("EventGroupId" to internalEventGroupId.value)
-        set("ExternalEventGroupId" to externalEventGroupId.value)
-        set("MeasurementConsumerId" to dataProviderId.value)
-        set("DataProviderId" to externalEventGroupId.value)
-        set("ProvidedEvenGroupId" to eventGroup.providedEvenGroupId)
-      }
+      set("EventGroupId" to internalEventGroupId.value)
+      set("ExternalEventGroupId" to externalEventGroupId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("DataProviderId" to dataProviderId)
+    }
       .bufferTo(transactionContext)
 
     return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()

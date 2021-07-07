@@ -14,11 +14,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.wrappedException
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
@@ -26,12 +29,16 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
 class SpannerEventGroupsService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
-    return CreateEventGroup(request).execute(client, idGenerator, clock)
+    try {
+      return CreateEventGroup(request).execute(client, idGenerator, clock)
+    } catch (e: SpannerException) {
+      throw e.wrappedException ?: e
+    }
   }
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
