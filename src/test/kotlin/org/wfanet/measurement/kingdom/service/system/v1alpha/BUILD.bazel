@@ -35,10 +35,6 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 7e4ed753 (Implement system computationParticipantsService. (#129))
 
 kt_jvm_test(
     name = "ComputationParticipantsServiceTest",
@@ -57,10 +53,6 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 
 kt_jvm_test(
     name = "ComputationLogEntriesServiceTest",
@@ -79,10 +71,3 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
-<<<<<<< HEAD
-=======
->>>>>>> fe59a0bb (Implement system API computationsService. (#125))
-=======
->>>>>>> 7e4ed753 (Implement system computationParticipantsService. (#129))
-=======
->>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
