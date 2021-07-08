@@ -30,13 +30,21 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
+<<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateLegacyDataProviderTest.kt
 class CreateLegacyDataProviderTest : KingdomDatabaseTestBase() {
+=======
+class CreateDataProviderLegacyTest : KingdomDatabaseTestBase() {
+>>>>>>> 35682c60 (rebased):src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateDataProviderLegacyTest.kt
 
   @Test
   fun success() =
     runBlocking<Unit> {
       val idGenerator = FixedIdGenerator()
+<<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateLegacyDataProviderTest.kt
       val dataProvider = CreateLegacyDataProvider().execute(databaseClient, idGenerator)
+=======
+      val dataProvider = CreateDataProviderLegacy().execute(databaseClient, idGenerator)
+>>>>>>> 35682c60 (rebased):src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateDataProviderLegacyTest.kt
 
       assertThat(dataProvider)
         .comparingExpectedFieldsOnly()
