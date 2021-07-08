@@ -40,10 +40,8 @@ class SpannerEventGroupsService(
     } catch (e: SpannerException) {
       throw e.wrappedException ?: e
     } catch (e: IllegalArgumentException) {
-      println(e)
       throw StatusRuntimeException(
-        Status.fromCode(Status.Code.NOT_FOUND),
-        Status.trailersFromThrowable(e)
+        throw Status.NOT_FOUND.withCause(e).asRuntimeException()
       )
     }
   }
