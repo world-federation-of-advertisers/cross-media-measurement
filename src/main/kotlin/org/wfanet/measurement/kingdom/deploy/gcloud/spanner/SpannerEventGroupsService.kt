@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
@@ -38,6 +39,12 @@ class SpannerEventGroupsService(
       return CreateEventGroup(request).execute(client, idGenerator, clock)
     } catch (e: SpannerException) {
       throw e.wrappedException ?: e
+    } catch (e: IllegalArgumentException) {
+      println(e)
+      throw StatusRuntimeException(
+        Status.fromCode(Status.Code.NOT_FOUND),
+        Status.trailersFromThrowable(e)
+      )
     }
   }
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
