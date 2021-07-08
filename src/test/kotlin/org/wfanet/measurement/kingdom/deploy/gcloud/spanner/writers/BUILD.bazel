@@ -74,22 +74,13 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-<<<<<<< HEAD
-<<<<<<< HEAD
     name = "CreateModelProviderTest",
     srcs = ["CreateModelProviderTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelProviderTest",
-=======
-    name = "CreateMeasurementConsumerTest",
-    srcs = ["CreateMeasurementConsumerTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumerTest",
->>>>>>> 1e40a816 (building)
     deps = _TEST_DEPS,
 )
 
 spanner_emulator_test(
-=======
->>>>>>> 66e200fe (rebased to main)
     name = "CreateNextReportTest",
     srcs = ["CreateNextReportTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReportTest",
