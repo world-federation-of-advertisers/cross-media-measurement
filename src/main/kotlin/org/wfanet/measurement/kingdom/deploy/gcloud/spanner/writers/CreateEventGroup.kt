@@ -43,6 +43,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("ExternalEventGroupId" to externalEventGroupId.value)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
+      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
       .bufferTo(transactionContext)
