@@ -21,10 +21,6 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
@@ -35,17 +31,6 @@ import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
-<<<<<<< HEAD
-=======
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAttempt as InternalStageAttempt
-import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.system.v1alpha.Computation
-import org.wfanet.measurement.system.v1alpha.ComputationKey
->>>>>>> fe59a0bb (Implement system API computationsService. (#125))
-=======
->>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
@@ -59,9 +44,9 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
     .also {
       it.name =
         RequisitionKey(
-            externalIdToApiId(externalComputationId),
-            externalIdToApiId(externalRequisitionId)
-          )
+          externalIdToApiId(externalComputationId),
+          externalIdToApiId(externalRequisitionId)
+        )
           .toName()
       it.dataProvider =
         when (Version.fromString(apiVersion)) {
@@ -74,9 +59,9 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
       it.dataProviderParticipationSignature = details.dataProviderParticipationSignature
       it.fulfillingComputationParticipant =
         ComputationParticipantKey(
-            externalIdToApiId(externalComputationId),
-            externalFulfillingDuchyId
-          )
+          externalIdToApiId(externalComputationId),
+          externalFulfillingDuchyId
+        )
           .toName()
     }
     .build()
@@ -142,10 +127,6 @@ fun InternalStageAttempt.toSystemStageAttempt(): StageAttempt {
     .build()
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 7e4ed753 (Implement system computationParticipantsService. (#129))
 /** Converts a system Api StageAttempt to kingdom internal StageAttempt. */
 fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
   return InternalStageAttempt.newBuilder()
@@ -158,11 +139,6 @@ fun StageAttempt.toInternalStageAttempt(): InternalStageAttempt {
     .build()
 }
 
-<<<<<<< HEAD
-=======
->>>>>>> fe59a0bb (Implement system API computationsService. (#125))
-=======
->>>>>>> 7e4ed753 (Implement system computationParticipantsService. (#129))
 /**
  * Converts a kingdom internal ComputationParticipant.State to system Api
  * ComputationParticipant.State.
@@ -235,13 +211,13 @@ fun InternalDuchyProtocolConfig.toSystemDuchyProtocolConfig(): Computation.Duchy
  */
 fun InternalDifferentialPrivacyParams.toSystemDifferentialPrivacyParams():
   DifferentialPrivacyParams {
-  return DifferentialPrivacyParams.newBuilder()
-    .also {
-      it.epsilon = epsilon
-      it.delta = delta
-    }
-    .build()
-}
+    return DifferentialPrivacyParams.newBuilder()
+      .also {
+        it.epsilon = epsilon
+        it.delta = delta
+      }
+      .build()
+  }
 
 /** Converts a kingdom internal Requisition.State to system Api Requisition.State. */
 fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
@@ -260,10 +236,6 @@ fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
       error("Invalid measurement state.")
   }
 }
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
 
 /**
  * Converts an internal MeasurementLogEntry.ErrorDetails to system ComputationLogEntry.ErrorDetails.
@@ -315,10 +287,10 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     .apply {
       name =
         ComputationLogEntryKey(
-            apiComputationId,
-            externalDuchyId,
-            externalIdToApiId(externalComputationLogEntryId)
-          )
+          apiComputationId,
+          externalDuchyId,
+          externalIdToApiId(externalComputationLogEntryId)
+        )
           .toName()
       participantChildReferenceId = details.duchyChildReferenceId
       logMessage = logEntry.details.logMessage
@@ -331,8 +303,3 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     }
     .build()
 }
-<<<<<<< HEAD
-=======
->>>>>>> fe59a0bb (Implement system API computationsService. (#125))
-=======
->>>>>>> 20189d1a (Implement system ComputationLogEntriesService. (#132))
