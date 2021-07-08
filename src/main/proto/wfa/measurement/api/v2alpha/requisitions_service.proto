@@ -62,7 +62,7 @@ message ListRequisitionsRequest {
   // fields specified as logical ANDs.
   message Filter {
     repeated Requisition.State states = 1;
-    repeated string measurements = 2
+    string measurement = 2
         [(google.api.resource_reference).type = "halo.wfanet.org/Measurement"];
   }
   // Result filter. If a page token is specified, then this will be ignored and

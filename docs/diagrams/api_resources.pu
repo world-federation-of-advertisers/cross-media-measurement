@@ -13,27 +13,31 @@ skinparam default {
   fontSize 12
 }
 
+resource(Certificate) {
+  [revocation_state]
+  Revoke(revocation_state)
+  ReleaseHold()
+}
+resource(PublicKey) {
+  certificate
+  Update(public_key)
+}
+
 resource(Duchy) {
 }
 resource(DataProvider) {
   owners
   Get()
 }
-resource(DataProviderPublicKey) {
-  Update(data_provider_public_key)
-}
 resource(MeasurementConsumer) {
   owners
   Get()
 }
-resource(MeasurementConsumerPublicKey) {
-  Update(measurement_consumer_public_key)
-}
-resource(SketchConfig) {
+resource(ProtocolConfig) {
 }
 resource(Measurement) {
   measurement_spec
-  data_provider_entries
+  requisition_specs
   state
   result
 }
@@ -51,7 +55,7 @@ together {
   collection(dataProviders, DataProvider) {
     Create(data_provider)
   }
-  collection(sketchConfigs, SketchConfig) {
+  collection(protocolConfigs, ProtocolConfig) {
     List()
   }
   collection(accounts, Account) {
@@ -59,8 +63,11 @@ together {
   }
 }
 
+collection(certificates, Certificate) {
+  Create(certificate)
+}
 collection(requisitions, Requisition) {
-  List([states])
+  List([states], [measurement_consumer])
 }
 collection(eventGroups, EventGroup) {
   Create(event_group)
@@ -78,6 +85,7 @@ resource(Requisition) {
   measurement
   requisition_spec
   state
+  duchy_requisition_params
   Get()
   Refuse(refusal)
   Fulfill()
@@ -93,9 +101,14 @@ resource(ApiKey) {
   Delete()
 }
 
+Certificate "1" <.. "many" PublicKey
+
+Duchy *-- certificates
+
 DataProvider *-- eventGroups
 DataProvider *-- requisitions
-DataProvider *-- DataProviderPublicKey
+DataProvider *-- certificates
+DataProvider *-- PublicKey
 EventGroup "many" .> "1" MeasurementConsumer
 
 'DataProviderPublicKey -[hidden]-> requisitions
@@ -103,11 +116,11 @@ EventGroup "many" .> "1" MeasurementConsumer
 Requisition "many" .> "many" EventGroup
 Requisition "many" .> "1" Measurement
 Duchy "many" <. "many" Requisition
-'Requisition "many" .> "many" Duchy
 
 MeasurementConsumer *-- measurements
-MeasurementConsumer *-- MeasurementConsumerPublicKey
-Measurement "many" ..> "0..1" SketchConfig
+MeasurementConsumer *-- certificates
+MeasurementConsumer *-- PublicKey
+Measurement "many" ..> "1" ProtocolConfig
 
 Account *-- apiKeys
 MeasurementConsumer "many" .> " many" Account

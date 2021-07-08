@@ -69,13 +69,11 @@ message ListMeasurementsRequest {
   // must match the call that provided the page token.
   string page_token = 3;
 
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields specified as logical ANDs.
   message Filter {
-    // Map of key value pair tags to retrieve `Measurement`s by.
-    // `Measurement`s with tags that have all of the tags specified here
-    // are retrieved.
-    map<string, string> tags = 1;
+    repeated Measurement.State states = 1;
   }
-
   Filter filter = 4;
 }
 
