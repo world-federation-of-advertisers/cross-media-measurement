@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
@@ -42,6 +43,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("ExternalEventGroupId" to externalEventGroupId.value)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
       .bufferTo(transactionContext)
 
