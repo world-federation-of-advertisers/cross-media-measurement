@@ -242,7 +242,39 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       )
   }
 
-  @Test fun `getEventGroup succeeds`() = runBlocking {}
+  @Test
+  fun `getEventGroup succeeds`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+
+    val externalDataProviderId = insertDataProvider()
+
+    val eventGroup =
+      EventGroup.newBuilder()
+        .also {
+          it.externalDataProviderId = externalDataProviderId
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        }
+        .build()
+
+    val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
+    // An InternalId for EventGroup is generated.
+    copyIdGenerator.generateInternalId()
+    // An External for EventGroup is generated.
+    val externalEventGroupId = copyIdGenerator.generateExternalId()
+
+    val eventGroupRead =
+      eventGroupsService.getEventGroup(
+        GetEventGroupRequest.newBuilder()
+          .also {
+            it.externalDataProviderId = externalDataProviderId
+            it.externalEventGroupId = externalEventGroupId.value
+          }
+          .build()
+      )
+
+    assertThat(eventGroupRead).isEqualTo(createdEventGroup)
+  }
 }
 
 data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
