@@ -17,8 +17,6 @@ package k8s
 import ("strings")
 
 #Kingdom: {
-	_duchy_ids: [...string]
-	_duchy_id_flags: [ for d in _duchy_ids {"--duchy-ids=\(d)"}]
 	_verbose_grpc_logging: "true" | "false"
 
 	_spanner_schema_push_flags: [...string]
@@ -27,6 +25,7 @@ import ("strings")
 	_images: [Name=_]: string
 	_kingdom_image_pull_policy: string
 
+	_duchy_info_config_flag:                 "--duchy-info-config=" + #DuchyInfoConfig
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
@@ -37,9 +36,8 @@ import ("strings")
 
 	kingdom_service: {
 		"gcp-kingdom-data-server": {}
-		"global-computation-server": {}
 		"requisition-server": {}
-		"system-requisition-server": {}
+		"system-api-server": {}
 	}
 
 	kingdom_job: "kingdom-push-spanner-schema-job": {
@@ -73,38 +71,20 @@ import ("strings")
 
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
+				_duchy_info_config_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
-			] + _duchy_id_flags + _spanner_flags
+			] + _spanner_flags
 		}
 
-		"global-computation-server-pod": #ServerPod & {
+		"system-api-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
+				_duchy_info_config_flag,
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
-			] + _duchy_id_flags
-			_dependencies: ["gcp-kingdom-data-server"]
-		}
-
-		"requisition-server-pod": #ServerPod & {
-			_args: [
-				_debug_verbose_grpc_client_logging_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-				"--port=8080",
-			] + _duchy_id_flags
-			_dependencies: ["gcp-kingdom-data-server"]
-		}
-
-		"system-requisition-server-pod": #ServerPod & {
-			_args: [
-				_debug_verbose_grpc_client_logging_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
-				"--port=8080",
-			] + _duchy_id_flags
+			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
 	}
