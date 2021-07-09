@@ -19,7 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
-class CreateDataProviderLegacy : SpannerWriter<ExternalId, DataProvider>() {
+class CreateLegacyDataProvider : SpannerWriter<ExternalId, DataProvider>() {
   override suspend fun TransactionScope.runTransaction(): ExternalId {
     val internalId = idGenerator.generateInternalId()
     val externalId = idGenerator.generateExternalId()
