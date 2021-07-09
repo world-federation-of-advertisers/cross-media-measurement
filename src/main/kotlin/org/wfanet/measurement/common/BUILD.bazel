@@ -6,14 +6,14 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     runtime_deps = [
-        "//imports/kotlin/kotlin:stdlib_jdk7",
-        "//imports/kotlin/kotlin/reflect/jvm",
+        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
+        "@wfa_common_jvm//imports/kotlin/kotlin/reflect/jvm",
     ],
     deps = [
-        "//imports/java/com/google/devtools/build/runfiles",
-        "//imports/java/com/google/protobuf",
-        "//imports/java/com/google/protobuf/util",
-        "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

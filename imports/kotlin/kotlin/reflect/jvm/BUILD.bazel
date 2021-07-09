@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "jvm",
-    actual = "@maven//:org_jetbrains_kotlin_kotlin_reflect",
-)

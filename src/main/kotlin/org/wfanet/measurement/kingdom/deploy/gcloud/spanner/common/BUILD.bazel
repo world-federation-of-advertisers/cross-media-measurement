@@ -9,11 +9,11 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/protobuf",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )

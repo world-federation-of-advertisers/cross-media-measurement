@@ -5,8 +5,8 @@ kt_jvm_test(
     srcs = ["TestClockWithNamedInstantsTest.kt"],
     test_class = "org.wfanet.measurement.common.testing.TestClockWithNamedInstantsTest",
     deps = [
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlin/test",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

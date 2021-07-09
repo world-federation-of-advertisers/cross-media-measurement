@@ -11,11 +11,6 @@ kt_jvm_library(
     ],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
-        "//imports/java/com/google/common:guava",
-        "//imports/java/com/google/protobuf",
-        "//imports/java/io/grpc:api",
-        "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -25,6 +20,11 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 
@@ -33,9 +33,9 @@ kt_jvm_library(
     srcs = ["ForwardedStorageLiquidLegionsV2MillDaemon.kt"],
     deps = [
         ":liquid_legions_v2_mill_daemon",
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 

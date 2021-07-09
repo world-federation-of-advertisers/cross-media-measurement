@@ -7,8 +7,8 @@ kt_jvm_library(
     srcs = ["StorageClient.kt"],
     visibility = ["//visibility:public"],
     deps = [
-        "//imports/java/com/google/protobuf",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

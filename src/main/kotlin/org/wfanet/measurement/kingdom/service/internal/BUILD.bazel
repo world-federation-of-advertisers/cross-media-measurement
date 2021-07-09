@@ -9,9 +9,6 @@ kt_jvm_library(
     name = "legacy",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/io/grpc:api",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
@@ -24,5 +21,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:reports_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_template_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

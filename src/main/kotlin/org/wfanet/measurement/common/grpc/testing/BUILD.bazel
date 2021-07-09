@@ -9,13 +9,13 @@ kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/io/grpc:api",
-        "//imports/java/io/grpc/core:util",
-        "//imports/java/io/grpc/inprocess",
-        "//imports/java/io/grpc/testing",
-        "//imports/java/org/junit",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/core:util",
+        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )

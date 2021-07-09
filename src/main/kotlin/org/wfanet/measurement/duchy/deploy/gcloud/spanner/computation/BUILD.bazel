@@ -9,7 +9,6 @@ kt_jvm_library(
     name = "computation",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/cloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
@@ -19,5 +18,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
     ],
 )
