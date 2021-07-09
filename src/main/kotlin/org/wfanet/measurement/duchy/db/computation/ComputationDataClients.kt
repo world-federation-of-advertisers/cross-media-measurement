@@ -31,17 +31,13 @@ import org.wfanet.measurement.storage.read
 class ComputationDataClients
 private constructor(
   val computationsClient: ComputationsCoroutineStub,
-  private val computationStore: ComputationStore,
-  otherDuchies: List<String>
+  private val computationStore: ComputationStore
 ) {
 
   constructor(
     computationStorageClient: ComputationsCoroutineStub,
-    storageClient: StorageClient,
-    otherDuchies: List<String>
-  ) : this(computationStorageClient, ComputationStore(storageClient), otherDuchies)
-
-  val computationProtocolStageDetails = ComputationProtocolStageDetails(otherDuchies)
+    storageClient: StorageClient
+  ) : this(computationStorageClient, ComputationStore(storageClient))
 
   /**
    * Calls AdvanceComputationStage to move to a new stage in a consistent way.
@@ -60,8 +56,7 @@ private constructor(
       computationToken = computationToken,
       inputsToNextStage = inputsToNextStage,
       passThroughBlobs = passThroughBlobs,
-      stage = stage,
-      computationProtocolStageDetails = computationProtocolStageDetails
+      stage = stage
     )
 
   /**
@@ -167,10 +162,9 @@ private constructor(
   companion object {
     fun forTesting(
       computationStorageClient: ComputationsCoroutineStub,
-      computationStore: ComputationStore,
-      otherDuchies: List<String>
+      computationStore: ComputationStore
     ): ComputationDataClients {
-      return ComputationDataClients(computationStorageClient, computationStore, otherDuchies)
+      return ComputationDataClients(computationStorageClient, computationStore)
     }
   }
 }

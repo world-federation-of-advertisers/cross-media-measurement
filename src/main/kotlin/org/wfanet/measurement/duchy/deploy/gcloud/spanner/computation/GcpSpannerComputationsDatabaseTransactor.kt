@@ -295,7 +295,8 @@ class GcpSpannerComputationsDatabaseTransactor<
   override suspend fun endComputation(
     token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
-    endComputationReason: EndComputationReason
+    endComputationReason: EndComputationReason,
+    computationDetails: ComputationDT
   ) {
     require(computationMutations.validTerminalStage(token.protocol, endingStage)) {
       "Invalid terminal stage of computation $endingStage"
@@ -334,7 +335,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           creationTime = writeTime,
           previousStage = token.stage,
           nextAttempt = 1,
-          details = computationMutations.detailsFor(endingStage)
+          details = computationMutations.detailsFor(endingStage, computationDetails)
         )
       )
       UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)

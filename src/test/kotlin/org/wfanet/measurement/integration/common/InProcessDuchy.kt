@@ -35,7 +35,6 @@ import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
@@ -124,7 +123,6 @@ class InProcessDuchy(
           .build()
       val herald =
         Herald(
-          otherDuchyIds,
           duchyComputationsStub,
           systemComputationsStub,
           protocolsSetupConfig,
@@ -138,18 +136,14 @@ class InProcessDuchy(
   private val computationDataClients by lazy {
     ComputationDataClients(
       ComputationsCoroutineStub(duchyComputationsServer.channel),
-      duchyDependencies.storageClient,
-      otherDuchyIds
+      duchyDependencies.storageClient
     )
   }
 
   private val asyncComputationControlServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
-        AsyncComputationControlService(
-          ComputationsCoroutineStub(duchyComputationsServer.channel),
-          ComputationProtocolStageDetails(otherDuchyIds)
-        )
+        AsyncComputationControlService(ComputationsCoroutineStub(duchyComputationsServer.channel))
       )
     }
 

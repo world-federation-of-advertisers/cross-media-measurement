@@ -124,7 +124,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   suspend fun endComputation(
     token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
-    endComputationReason: EndComputationReason
+    endComputationReason: EndComputationReason,
+    computationDetails: ComputationDetailsT
   )
 
   /** Overrides the computationDetails of the computation using the given value. */

@@ -215,7 +215,6 @@ class HeraldTest {
   fun initHerald() {
     aggregatorHerald =
       Herald(
-        OTHER_DUCHY_NAMES,
         internalComputationsStub,
         systemComputationsStub,
         AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
@@ -223,7 +222,6 @@ class HeraldTest {
       )
     nonAggregatorHerald =
       Herald(
-        OTHER_DUCHY_NAMES,
         internalComputationsStub,
         systemComputationsStub,
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
@@ -640,7 +638,6 @@ class HeraldTest {
     runBlocking<Unit> {
       val heraldWithOneRetry =
         Herald(
-          OTHER_DUCHY_NAMES,
           internalComputationsStub,
           systemComputationsStub,
           NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,

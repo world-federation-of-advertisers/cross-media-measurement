@@ -251,7 +251,8 @@ private constructor(
   override suspend fun endComputation(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     endingStage: ComputationStage,
-    endComputationReason: EndComputationReason
+    endComputationReason: EndComputationReason,
+    computationDetails: ComputationDetails
   ) {
     require(validTerminalStage(token.protocol, endingStage))
     updateToken(token) { existing ->

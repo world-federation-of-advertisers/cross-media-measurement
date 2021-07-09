@@ -194,11 +194,17 @@ class ProtocolStageDetailsHelper :
     return AfterTransition.ADD_UNCLAIMED_TO_QUEUE // the value doesn't matter in this test
   }
 
-  override fun outputBlobNumbersForStage(stage: FakeProtocolStages): Int {
+  override fun outputBlobNumbersForStage(
+    stage: FakeProtocolStages,
+    computationDetails: FakeComputationDetails
+  ): Int {
     return 1 // the value doesn't matter in this test
   }
 
-  override fun detailsFor(stage: FakeProtocolStages): FakeProtocolStageDetails {
+  override fun detailsFor(
+    stage: FakeProtocolStages,
+    computationDetails: FakeComputationDetails
+  ): FakeProtocolStageDetails {
     return FakeProtocolStageDetails.newBuilder().setName(stage.name).build()
   }
 
@@ -247,7 +253,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       globalId1,
       FakeProtocol.ZERO,
       A,
-      computationMutations.detailsFor(A),
+      computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
       FAKE_COMPUTATION_DETAILS
     )
     val globalId2 = "5678"
@@ -256,7 +262,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       globalId2,
       FakeProtocol.ZERO,
       A,
-      computationMutations.detailsFor(A),
+      computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
       FAKE_COMPUTATION_DETAILS
     )
 
@@ -309,8 +315,9 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
           set("NextAttempt").to(1L)
           set("EndTime").to(null as Timestamp?)
-          set("Details").toProtoBytes(computationMutations.detailsFor(A))
-          set("DetailsJSON").toProtoJson(computationMutations.detailsFor(A))
+          set("Details").toProtoBytes(computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS))
+          set("DetailsJSON")
+            .toProtoJson(computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS))
         }
         .build(),
       Struct.newBuilder()
@@ -320,8 +327,9 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           set("CreationTime").to(TEST_INSTANT.toGcloudTimestamp())
           set("NextAttempt").to(1L)
           set("EndTime").to(null as Timestamp?)
-          set("Details").toProtoBytes(computationMutations.detailsFor(A))
-          set("DetailsJSON").toProtoJson(computationMutations.detailsFor(A))
+          set("Details").toProtoBytes(computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS))
+          set("DetailsJSON")
+            .toProtoJson(computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS))
         }
         .build()
     )
@@ -356,7 +364,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         "123",
         FakeProtocol.ZERO,
         A,
-        computationMutations.detailsFor(A),
+        computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
         FAKE_COMPUTATION_DETAILS
       )
       // This one fails because the same local id is used.
@@ -365,7 +373,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           "123",
           FakeProtocol.ZERO,
           A,
-          computationMutations.detailsFor(A),
+          computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS),
           FAKE_COMPUTATION_DETAILS
         )
       }
@@ -379,7 +387,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           "123",
           FakeProtocol.ONE,
           B,
-          computationMutations.detailsFor(B),
+          computationMutations.detailsFor(B, FAKE_COMPUTATION_DETAILS),
           FAKE_COMPUTATION_DETAILS
         )
       }
@@ -388,7 +396,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           "123",
           FakeProtocol.ONE,
           C,
-          computationMutations.detailsFor(C),
+          computationMutations.detailsFor(C, FAKE_COMPUTATION_DETAILS),
           FAKE_COMPUTATION_DETAILS
         )
       }
@@ -397,7 +405,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           "123",
           FakeProtocol.ZERO,
           D,
-          computationMutations.detailsFor(D),
+          computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS),
           FAKE_COMPUTATION_DETAILS
         )
       }
@@ -406,7 +414,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           "123",
           FakeProtocol.ONE,
           E,
-          computationMutations.detailsFor(E),
+          computationMutations.detailsFor(E, FAKE_COMPUTATION_DETAILS),
           FAKE_COMPUTATION_DETAILS
         )
       }
@@ -553,7 +561,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = A,
         nextAttempt = 1,
         creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
-        details = computationMutations.detailsFor(A)
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS)
       )
 
     val enqueuedFiveMinutesAgo =
@@ -573,7 +581,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = A,
         nextAttempt = 1,
         creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
-        details = computationMutations.detailsFor(A)
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS)
       )
 
     val enqueuedSixMinutesAgo =
@@ -593,7 +601,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = A,
         nextAttempt = 1,
         creationTime = Instant.ofEpochMilli(3456789L).toGcloudTimestamp(),
-        details = computationMutations.detailsFor(A)
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS)
       )
     databaseClient.write(
       listOf(
@@ -668,7 +676,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = A,
         nextAttempt = 2,
         creationTime = fiveMinutesAgo,
-        details = computationMutations.detailsFor(A)
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS)
       )
     val expiredClaimAttempt =
       computationMutations.insertComputationStageAttempt(
@@ -697,7 +705,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = A,
         nextAttempt = 2,
         creationTime = fiveMinutesAgo,
-        details = computationMutations.detailsFor(A)
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS)
       )
     val claimedAttempt =
       computationMutations.insertComputationStageAttempt(
@@ -778,7 +786,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = B,
         nextAttempt = 3,
         creationTime = testClock["stage_b_created"].toGcloudTimestamp(),
-        details = computationMutations.detailsFor(B)
+        details = computationMutations.detailsFor(B, FAKE_COMPUTATION_DETAILS)
       )
     val attempt =
       computationMutations.insertComputationStageAttempt(
@@ -797,7 +805,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       passThroughBlobPaths = listOf(),
       outputBlobs = 0,
       afterTransition = afterTransition,
-      nextStageDetails = computationMutations.detailsFor(D)
+      nextStageDetails = computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS)
     )
     // Ensure the Computation and ComputationStage were updated. This does not check if the
     // lock is held or the exact configurations of the ComputationStageAttempts because they
@@ -841,7 +849,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           set("PreviousStage").to(null as Long?)
           set("FollowingStage")
             .to(ComputationProtocolStages.computationStageEnumToLongValues(D).stage)
-          set("Details").toProtoBytes(computationMutations.detailsFor(B))
+          set("Details").toProtoBytes(computationMutations.detailsFor(B, FAKE_COMPUTATION_DETAILS))
         }
         .build(),
       Struct.newBuilder()
@@ -853,7 +861,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           set("PreviousStage")
             .to(ComputationProtocolStages.computationStageEnumToLongValues(B).stage)
           set("FollowingStage").to(null as Long?)
-          set("Details").toProtoBytes(computationMutations.detailsFor(D))
+          set("Details").toProtoBytes(computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS))
         }
         .build()
     )
@@ -1021,7 +1029,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           passThroughBlobPaths = listOf(),
           outputBlobs = 0,
           afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE,
-          nextStageDetails = computationMutations.detailsFor(D)
+          nextStageDetails = computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS)
         )
       }
     }
@@ -1429,7 +1437,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = C,
         nextAttempt = 3,
         creationTime = testClock.last().toGcloudTimestamp(),
-        details = computationMutations.detailsFor(C)
+        details = computationMutations.detailsFor(C, FAKE_COMPUTATION_DETAILS)
       )
     val unfinishedPreviousAttempt =
       computationMutations.insertComputationStageAttempt(
@@ -1454,7 +1462,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         .toBuilder()
         .setEndReason(EndComputationReason.SUCCEEDED.toString())
         .build()
-    database.endComputation(token, E, EndComputationReason.SUCCEEDED)
+    database.endComputation(token, E, EndComputationReason.SUCCEEDED, FAKE_COMPUTATION_DETAILS)
     assertQueryReturns(
       databaseClient,
       """
@@ -1545,7 +1553,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = C,
         nextAttempt = 3,
         creationTime = testClock.last().toGcloudTimestamp(),
-        details = computationMutations.detailsFor(C)
+        details = computationMutations.detailsFor(C, FAKE_COMPUTATION_DETAILS)
       )
     val attempt =
       computationMutations.insertComputationStageAttempt(
@@ -1562,7 +1570,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         .toBuilder()
         .setEndReason(EndComputationReason.FAILED.toString())
         .build()
-    database.endComputation(token, E, EndComputationReason.FAILED)
+    database.endComputation(token, E, EndComputationReason.FAILED, FAKE_COMPUTATION_DETAILS)
     assertQueryReturns(
       databaseClient,
       """
@@ -1621,7 +1629,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
           editVersion = testClock.last().toEpochMilli()
         )
       assertFailsWith(IllegalArgumentException::class, "Invalid initial stage") {
-        database.endComputation(token, B, EndComputationReason.CANCELED)
+        database.endComputation(token, B, EndComputationReason.CANCELED, FAKE_COMPUTATION_DETAILS)
       }
     }
 
@@ -1646,7 +1654,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         stage = C,
         nextAttempt = 3,
         creationTime = testClock.last().toGcloudTimestamp(),
-        details = computationMutations.detailsFor(C)
+        details = computationMutations.detailsFor(C, FAKE_COMPUTATION_DETAILS)
       )
     val attempt =
       computationMutations.insertComputationStageAttempt(
