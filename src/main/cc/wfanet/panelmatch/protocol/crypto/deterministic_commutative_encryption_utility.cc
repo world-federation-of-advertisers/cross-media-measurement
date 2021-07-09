@@ -14,8 +14,6 @@
 
 #include "wfanet/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility.h"
 
-#include <wfa/measurement/common/crypto/started_thread_cpu_timer.h>
-
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -27,18 +25,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "util/status_macros.h"
+#include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfanet/panelmatch/common/crypto/cryptor.h"
-#include "wfanet/panelmatch/common/crypto/encryption_utility_helper.h"
 #include "wfanet/panelmatch/common/macros.h"
 #include "wfanet/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfanet::panelmatch::protocol::crypto {
-
 namespace {
-
 using ::wfanet::panelmatch::common::crypto::Action;
 using ::wfanet::panelmatch::common::crypto::CreateCryptorFromKey;
-
 }  // namespace
 
 absl::StatusOr<wfanet::panelmatch::protocol::protobuf::CryptorEncryptResponse>

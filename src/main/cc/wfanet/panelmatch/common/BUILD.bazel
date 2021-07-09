@@ -6,8 +6,26 @@ _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
     name = "macros",
-    hdrs = [
-        "macros.h",
-    ],
+    hdrs = ["macros.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
+)
+
+cc_library(
+    name = "deserialize_proto",
+    hdrs = ["deserialize_proto.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "jni_wrap",
+    hdrs = ["jni_wrap.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":deserialize_proto",
+        ":macros",
+        "@com_google_absl//absl/status:statusor",
+    ],
 )

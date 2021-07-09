@@ -15,23 +15,15 @@
 
 #include <string>
 
-#include "absl/memory/memory.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.h"
 #include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
-#include "wfanet/panelmatch/common/crypto/encryption_utility_helper.h"
+#include "wfanet/panelmatch/common/jni_wrap.h"
 
 namespace wfanet::panelmatch::client {
 absl::StatusOr<std::string> PreprocessEventsWrapper(
     const std::string& serialized_request) {
-  wfanet::panelmatch::client::PreprocessEventsRequest request_proto;
-
-  RETURN_IF_ERROR(wfanet::panelmatch::common::crypto::ParseRequestFromString(
-      serialized_request, request_proto));
-  ASSIGN_OR_RETURN(PreprocessEventsResponse result,
-                   PreprocessEvents(request_proto));
-  return result.SerializeAsString();
+  return wfanet::panelmatch::common::JniWrap(serialized_request,
+                                             PreprocessEvents);
 }
 }  // namespace wfanet::panelmatch::client
