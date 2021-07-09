@@ -20,7 +20,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /** Deals with stage specific details for a computation protocol. */
-class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
+object ComputationProtocolStageDetails :
   ComputationProtocolStageDetailsHelper<
     ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails> {
 
@@ -31,8 +31,10 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details(otherDuchies)
-          .validateRoleForStage(stage, computationDetails)
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.validateRoleForStage(
+          stage,
+          computationDetails
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -41,28 +43,37 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details(otherDuchies)
-          .afterTransitionForStage(stage)
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.afterTransitionForStage(
+          stage
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
 
-  override fun outputBlobNumbersForStage(stage: ComputationStage): Int {
+  override fun outputBlobNumbersForStage(
+    stage: ComputationStage,
+    computationDetails: ComputationDetails
+  ): Int {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details(otherDuchies)
-          .outputBlobNumbersForStage(stage)
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details
+          .outputBlobNumbersForStage(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
 
-  override fun detailsFor(stage: ComputationStage): ComputationStageDetails {
+  override fun detailsFor(
+    stage: ComputationStage,
+    computationDetails: ComputationDetails
+  ): ComputationStageDetails {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (stage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details(otherDuchies)
-          .detailsFor(stage)
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.detailsFor(
+          stage,
+          computationDetails
+        )
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -71,8 +82,7 @@ class ComputationProtocolStageDetails(val otherDuchies: List<String>) :
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (protocol) {
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details(otherDuchies)
-          .parseDetails(bytes)
+        LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.parseDetails(bytes)
       ComputationType.UNSPECIFIED, ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }
   }

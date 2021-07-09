@@ -40,16 +40,13 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
   protected fun run(storageClient: StorageClient) {
     DuchyInfo.initializeFromFlags(flags.duchyInfoFlags)
-
     val duchyName = flags.duchy.duchyName
-    val otherDuchyNames = DuchyInfo.ALL_DUCHY_IDS.minus(duchyName).toList()
 
     val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
     val dataClients =
       ComputationDataClients(
         ComputationsCoroutineStub(computationsServiceChannel).withDuchyId(duchyName),
-        storageClient,
-        otherDuchyNames
+        storageClient
       )
 
     val computationControlClientMap =

@@ -18,6 +18,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 
@@ -26,7 +27,6 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
 
   @Test
   fun `stage defaults and conversions`() {
-    val d = LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(listOf("A", "B", "C"))
     for (stage in LiquidLegionsSketchAggregationV2.Stage.values()) {
       val expected =
         when (stage) {
@@ -42,9 +42,20 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
               .build()
           else -> ComputationStageDetails.getDefaultInstance()
         }
-      val stageProto = d.detailsFor(stage)
+      val stageProto =
+        Details.detailsFor(
+          stage,
+          LiquidLegionsSketchAggregationV2.ComputationDetails.newBuilder()
+            .apply {
+              addParticipantBuilder().apply { duchyId = "A" }
+              addParticipantBuilder().apply { duchyId = "B" }
+              addParticipantBuilder().apply { duchyId = "C" }
+              addParticipantBuilder().apply { duchyId = "D" }
+            }
+            .build()
+        )
       ProtoTruth.assertThat(stageProto).isEqualTo(expected)
-      ProtoTruth.assertThat(d.parseDetails(stageProto.toByteArray())).isEqualTo(stageProto)
+      ProtoTruth.assertThat(Details.parseDetails(stageProto.toByteArray())).isEqualTo(stageProto)
     }
   }
 }

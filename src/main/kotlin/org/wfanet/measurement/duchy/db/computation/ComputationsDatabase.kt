@@ -117,14 +117,15 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDetailsT
+    nextStageDetails: StageDetailsT,
   )
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
   suspend fun endComputation(
     token: ComputationEditToken<ProtocolT, StageT>,
     endingStage: StageT,
-    endComputationReason: EndComputationReason
+    endComputationReason: EndComputationReason,
+    computationDetails: ComputationDetailsT
   )
 
   /** Overrides the computationDetails of the computation using the given value. */

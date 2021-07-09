@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.deploy.gcloud.server
 
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
@@ -38,11 +37,7 @@ class SpannerComputationsServer : ComputationsServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
   override val protocolStageEnumHelper = ComputationProtocolStages
-  override val computationProtocolStageDetails by lazy {
-    DuchyInfo.initializeFromFlags(flags.duchyInfo)
-    val otherDuchyNames = DuchyInfo.ALL_DUCHY_IDS.minus(flags.duchy.duchyName).toList()
-    ComputationProtocolStageDetails(otherDuchyNames)
-  }
+  override val computationProtocolStageDetails = ComputationProtocolStageDetails
 
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->

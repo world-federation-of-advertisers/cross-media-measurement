@@ -25,7 +25,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.byteStringOf
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
@@ -46,52 +45,16 @@ import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 
-private val EL_GAMAL_GENERATOR =
-  byteStringOf(
-    0x03,
-    0x6B,
-    0x17,
-    0xD1,
-    0xF2,
-    0xE1,
-    0x2C,
-    0x42,
-    0x47,
-    0xF8,
-    0xBC,
-    0xE6,
-    0xE5,
-    0x63,
-    0xA4,
-    0x40,
-    0xF2,
-    0x77,
-    0x03,
-    0x7D,
-    0x81,
-    0x2D,
-    0xEB,
-    0x33,
-    0xA0,
-    0xF4,
-    0xA1,
-    0x39,
-    0x45,
-    0xD8,
-    0x98,
-    0xC2,
-    0x96
-  )
 private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "456"
 private const val ID_WHERE_ALSACE_IS_PRIMARY = "123"
 private const val ALSACE = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
-private val DUCHIES = listOf(ALSACE, BAVARIA, CARINTHIA)
 
 @RunWith(JUnit4::class)
 class ComputationDataClientsTest {
@@ -138,8 +101,7 @@ class ComputationDataClientsTest {
       SingleLiquidLegionsV2Computation(
         ComputationDataClients(
           ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
-          storageClient = dummyStorageClient,
-          otherDuchies = DUCHIES.minus(ALSACE).toList()
+          storageClient = dummyStorageClient
         ),
         ID_WHERE_ALSACE_IS_NOT_PRIMARY,
         LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR,
@@ -181,8 +143,7 @@ class ComputationDataClientsTest {
       SingleLiquidLegionsV2Computation(
         ComputationDataClients(
           ComputationsCoroutineStub(channel = grpcTestServerRule.channel),
-          storageClient = dummyStorageClient,
-          otherDuchies = DUCHIES.minus(ALSACE).toList()
+          storageClient = dummyStorageClient
         ),
         ID_WHERE_ALSACE_IS_PRIMARY,
         LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR,
@@ -192,9 +153,18 @@ class ComputationDataClientsTest {
 
     computation.enqueue()
     computation.claimWorkFor("mill-1")
+
     computation.waitForSketches(
-      LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(DUCHIES.subList(1, 3))
-        .detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS)
+      LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details.detailsFor(
+        Stage.WAIT_SETUP_PHASE_INPUTS,
+        LiquidLegionsSketchAggregationV2.ComputationDetails.newBuilder()
+          .apply {
+            addParticipantBuilder().apply { duchyId = CARINTHIA }
+            addParticipantBuilder().apply { duchyId = BAVARIA }
+            addParticipantBuilder().apply { duchyId = ALSACE }
+          }
+          .build()
+      )
     )
     fakeRpcService.receiveSketch(BAVARIA)
     fakeRpcService.receiveSketch(CARINTHIA)
@@ -223,7 +193,7 @@ class ComputationDataClientsTest {
 
 /** Data about a single step of a computation. . */
 data class ComputationStep(
-  val token: org.wfanet.measurement.internal.duchy.ComputationToken,
+  val token: ComputationToken,
   val inputs: List<ComputationStageBlobMetadata>,
   val outputs: List<ComputationStageBlobMetadata>
 )
@@ -243,14 +213,20 @@ class SingleLiquidLegionsV2Computation(
   private val testClock: TestClockWithNamedInstants
 ) {
 
-  private var token: org.wfanet.measurement.internal.duchy.ComputationToken = runBlocking {
+  private var token: ComputationToken = runBlocking {
     dataClients.computationsClient.createComputation(
         CreateComputationRequest.newBuilder()
           .apply {
             globalComputationId = globalId
             computationType = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-            // For the purpose of this test, only set role in the computationDetails.
-            computationDetailsBuilder.liquidLegionsV2Builder.apply { role = roleInComputation }
+            // For the purpose of this test, only set role and participants in the
+            // computationDetails.
+            computationDetailsBuilder.liquidLegionsV2Builder.apply {
+              role = roleInComputation
+              addParticipantBuilder().apply { duchyId = CARINTHIA }
+              addParticipantBuilder().apply { duchyId = BAVARIA }
+              addParticipantBuilder().apply { duchyId = ALSACE }
+            }
           }
           .build()
       )
@@ -277,8 +253,8 @@ class SingleLiquidLegionsV2Computation(
 
   /** Runs an operation and checks the returned token from the operation matches the expected. */
   private fun assertTokenChangesTo(
-    expected: org.wfanet.measurement.internal.duchy.ComputationToken,
-    run: suspend (ComputationStep) -> org.wfanet.measurement.internal.duchy.ComputationToken
+    expected: ComputationToken,
+    run: suspend (ComputationStep) -> ComputationToken
   ) = runBlocking {
     testClock.tickSeconds("${expected.computationStage}_$expected.attempt")
     // Some stages use the inputs to their predecessor as inputs it itself. If the inputs are needed

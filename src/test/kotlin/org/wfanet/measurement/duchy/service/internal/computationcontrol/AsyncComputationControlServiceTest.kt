@@ -27,7 +27,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
@@ -55,10 +54,7 @@ class AsyncComputationControlServiceTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationsService) }
 
   private val fakeService: AsyncComputationControlService by lazy {
-    AsyncComputationControlService(
-      ComputationsCoroutineStub(grpcTestServerRule.channel),
-      ComputationProtocolStageDetails(listOf())
-    )
+    AsyncComputationControlService(ComputationsCoroutineStub(grpcTestServerRule.channel))
   }
 
   private fun mockComputationsServiceCalls(
