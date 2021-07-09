@@ -12,25 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_ENCRYPTION_UTILITY_HELPER_H_
-#define SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_ENCRYPTION_UTILITY_HELPER_H_
+#ifndef SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_DESERIALIZE_PROTO_H_
+#define SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_DESERIALIZE_PROTO_H_
 
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-namespace wfanet::panelmatch::common::crypto {
+namespace wfanet::panelmatch::common {
 
+// Parses `serialized_proto` into a T.
 template <typename T>
-absl::Status ParseRequestFromString(const std::string& serialized_request,
-                                    T& request_proto) {
-  return request_proto.ParseFromString(serialized_request)
-             ? absl::OkStatus()
-             : absl::InternalError(
-                   "failed to parse the serialized request proto.");
+absl::StatusOr<T> DeserializeProto(const std::string& serialized_proto) {
+  T proto;
+  if (!proto.ParseFromString(serialized_proto)) {
+    return absl::InternalError("Failed to parse serialized proto.");
+  }
+  return proto;
 }
 
-}  // namespace wfanet::panelmatch::common::crypto
+}  // namespace wfanet::panelmatch::common
 
-#endif  // SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_ENCRYPTION_UTILITY_HELPER_H_
+#endif  // SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_DESERIALIZE_PROTO_H_

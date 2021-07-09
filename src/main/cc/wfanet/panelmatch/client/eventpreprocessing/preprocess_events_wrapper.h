@@ -19,11 +19,7 @@
 
 #include <string>
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "util/status_macros.h"
-#include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
-#include "wfanet/panelmatch/common/crypto/encryption_utility_helper.h"
 
 namespace wfanet::panelmatch::client {
 absl::StatusOr<std::string> PreprocessEventsWrapper(
