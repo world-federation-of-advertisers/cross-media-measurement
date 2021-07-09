@@ -86,9 +86,15 @@ wfa_repo_archive(
 
 wfa_repo_archive(
     name = "wfa_common_jvm",
+<<<<<<< HEAD
     commit = "1fe0854c130467f940da0f66a0ff186aa31ea8a3",
     repo = "common-jvm",
     sha256 = "40cd367ee9b4a8371534f6a8111f4608918d2cf1e955b9ba01e6ae3cfac86b05",
+=======
+    commit = "20e4ee123c89e89aaf67df46a76a73764168b3cd",
+    repo = "common-jvm",
+    sha256 = "30877e078f0f3ce510551dd058c72fdc082389f95c6915e13e40c06181c20621",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
 )
 
 # @com_google_truth_truth

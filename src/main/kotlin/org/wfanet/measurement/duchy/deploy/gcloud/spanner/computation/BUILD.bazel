@@ -9,15 +9,23 @@ kt_jvm_library(
     name = "computation",
     srcs = glob(["*.kt"]),
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_blob_dependency_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_java_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+=======
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     ],
 )

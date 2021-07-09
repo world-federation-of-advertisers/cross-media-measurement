@@ -8,6 +8,10 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
@@ -22,7 +26,10 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+=======
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     ],
 )
 
@@ -34,6 +41,12 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
@@ -56,9 +69,12 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+=======
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     ],
 )
 

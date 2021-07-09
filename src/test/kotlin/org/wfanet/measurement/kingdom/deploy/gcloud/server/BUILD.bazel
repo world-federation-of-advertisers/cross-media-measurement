@@ -5,6 +5,11 @@ spanner_emulator_test(
     srcs = ["GcpKingdomDataServerTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.GcpKingdomDataServerTest",
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
@@ -16,9 +21,12 @@ spanner_emulator_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+=======
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     ],
 )

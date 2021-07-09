@@ -6,7 +6,11 @@ _TEST_DEPS = [
     "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
     "@wfa_common_jvm//imports/java/org/junit",
     "@wfa_common_jvm//imports/kotlin/kotlin/test",
+<<<<<<< HEAD
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+=======
+    "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",

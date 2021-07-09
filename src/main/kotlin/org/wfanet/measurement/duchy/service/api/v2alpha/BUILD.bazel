@@ -19,6 +19,9 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:requisitions_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+=======
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     ],
 )

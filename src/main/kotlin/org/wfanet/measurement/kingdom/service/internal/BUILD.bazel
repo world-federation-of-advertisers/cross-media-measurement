@@ -9,6 +9,12 @@ kt_jvm_library(
     name = "legacy",
     srcs = glob(["*.kt"]),
     deps = [
+<<<<<<< HEAD
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisitions_service_kt_jvm_grpc",
@@ -21,8 +27,11 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+=======
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
     ],
 )
