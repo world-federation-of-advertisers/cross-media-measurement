@@ -77,7 +77,6 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     private val SELECT_COLUMNS =
       listOf(
         "ExchangeSteps.RecurringExchangeId",
-        "ExchangeSteps.ExternalRecurringExchangeId",
         "ExchangeSteps.Date",
         "ExchangeSteps.StepIndex",
         "ExchangeSteps.State",
@@ -86,6 +85,7 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
         "ExchangeSteps.DataProviderId",
         "ModelProviders.ExternalModelProviderId",
         "DataProviders.ExternalDataProviderId",
+        "RecurringExchanges.ExternalRecurringExchangeId"
       )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
