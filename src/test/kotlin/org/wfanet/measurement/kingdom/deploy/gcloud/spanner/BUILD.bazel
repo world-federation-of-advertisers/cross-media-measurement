@@ -64,6 +64,7 @@ spanner_emulator_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
@@ -76,6 +77,8 @@ spanner_emulator_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+=======
+>>>>>>> b899f8bd (Implement Internal MeasurementConsumers Service (#126))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
