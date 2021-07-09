@@ -31,7 +31,6 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
 
   enum class Index(internal val sql: String) {
     NONE(""),
-    RECURRING_EXCHANGE_ID("@{FORCE_INDEX=ExchangeStepsByRecurringExchangeId}"),
     DATA_PROVIDER_ID("@{FORCE_INDEX=ExchangeStepsByDataProviderId}"),
     MODEL_PROVIDER_ID("@{FORCE_INDEX=ExchangeStepsByModelProviderId}"),
   }
@@ -45,7 +44,7 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "RecurringExchanges.ExternalRecurringExchangeId"
+  override val externalIdColumn: String = "ExchangeSteps.ExternalRecurringExchangeId"
 
   override suspend fun translate(struct: Struct): Result {
     return Result(
@@ -73,6 +72,7 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     private val SELECT_COLUMNS =
       listOf(
         "ExchangeSteps.RecurringExchangeId",
+        "ExchangeSteps.ExternalRecurringExchangeId",
         "ExchangeSteps.Date",
         "ExchangeSteps.StepIndex",
         "ExchangeSteps.State",
@@ -81,7 +81,6 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
         "ExchangeSteps.DataProviderId",
         "ModelProviders.ExternalModelProviderId",
         "DataProviders.ExternalDataProviderId",
-        "RecurringExchanges.ExternalRecurringExchangeId"
       )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")

@@ -98,6 +98,9 @@ CREATE INDEX ExchangesByDate ON Exchanges(Date);
 
 CREATE TABLE ExchangeSteps (
   RecurringExchangeId  INT64 NOT NULL,
+
+  ExternalRecurringExchangeId   INT64 NOT NULL,
+
   Date                 DATE NOT NULL,
   StepIndex            INT64 NOT NULL,
 
