@@ -88,10 +88,6 @@ LOCAL_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image",
     ),
     struct(
-        name = "spanner_forwarded_storage_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image",
-    ),
-    struct(
         name = "fake_storage_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
     ),

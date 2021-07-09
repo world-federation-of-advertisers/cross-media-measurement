@@ -17,16 +17,13 @@ package k8s
 import ("strings")
 
 #Duchy: {
-	_duchy: {name: string, key: string, protocols_setup_config: string}
-	_duchy_names: [...string]
-	_aggregator_name: string
+	_duchy: {name: string, protocols_setup_config: string}
 	_spanner_schema_push_flags: [...string]
 	_spanner_flags: [...string]
 	_blob_storage_flags: [...string]
 	_verbose_grpc_logging: "true" | "false"
 
 	_name:                   _duchy.name
-	_key:                    _duchy.key
 	_protocols_setup_config: _duchy.protocols_setup_config
 
 	_image_prefix:  "\(_name)_"
@@ -35,26 +32,18 @@ import ("strings")
 	_images: [Name=_]: string
 	_duchy_image_pull_policy: string
 
-	_duchy_id_flags: [ for d in _duchy_names {"--duchy-ids=duchy-\(d)"}]
-
-	_computation_control_service_flags: [
-		for d in _duchy_names {
-			"--computation-control-service-target=duchy-\(d)=" +
-			(#Target & {name: "\(d)-computation-control-server"}).target
-		},
-	]
-
-	_async_computations_control_service_target_flag: "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
-	_computations_service_target_flag:               "--computations-service-target=" + (#Target & {name:              "\(_name)-spanner-computations-server"}).target
-	_duchy_name_flag:                                "--duchy-name=duchy-\(_name)"
-	_duchy_public_keys_config_flag:                  "--duchy-public-keys-config=" + #DuchyPublicKeysConfig
-	_duchy_protocols_setup_config_flag:              "--protocols-setup-config=\(_protocols_setup_config)"
-	_global_computations_service_target_flag:        "--global-computation-service-target=" + (#Target & {name: "global-computation-server"}).target
-	_metric_values_service_target_flag:              "--metric-values-service-target=" + (#Target & {name:      "\(_name)-metric-values-storage-server"}).target
-	_requisition_service_target_flag:                "--requisition-service-target=" + (#Target & {name:        "requisition-server"}).target
-	_system_requisition_service_target_flag:         "--system-requisition-service-target=" + (#Target & {name: "system-requisition-server"}).target
-	_debug_verbose_grpc_client_logging_flag:         "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
-	_debug_verbose_grpc_server_logging_flag:         "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
+	_async_computations_control_service_target_flag:      "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
+	_computations_service_target_flag:                    "--computations-service-target=" + (#Target & {name:              "\(_name)-spanner-computations-server"}).target
+	_duchy_name_flag:                                     "--duchy-name=duchy-\(_name)"
+	_duchy_info_config_flag:                              "--duchy-info-config=" + #DuchyInfoConfig
+	_public_api_protocol_configs:                         "--public-api-protocol-configs=" + #PublicApiProtocolConfigs
+	_duchy_protocols_setup_config_flag:                   "--protocols-setup-config=\(_protocols_setup_config)"
+	_system_computations_service_target_flag:             "--system-computations-service-target=" + (#Target & {name:             "system-api-server"}).target
+	_system_requisitions_service_target_flag:             "--system-requisitions-service-target=" + (#Target & {name:             "system-api-server"}).target
+	_system_computation_log_entries_service_target_flag:  "--system-computation-log-entries-service-target=" + (#Target & {name:  "system-api-server"}).target
+	_system_computation_participants_service_target_flag: "--system-computation-participants-service-target=" + (#Target & {name: "system-api-server"}).target
+	_debug_verbose_grpc_client_logging_flag:              "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_server_logging_flag:              "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
 	duchy_service: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
@@ -64,8 +53,7 @@ import ("strings")
 		"async-computation-control-server": {}
 		"computation-control-server": {}
 		"spanner-computations-server": {}
-		"metric-values-storage-server": {}
-		"publisher-data-server": _type: "NodePort"
+		"requisition-fulfillment-server": _type: "NodePort"
 	}
 
 	duchy_pod: [Name=_]: #Pod & {
@@ -81,85 +69,71 @@ import ("strings")
 			_args: [
 				_computations_service_target_flag,
 				_duchy_name_flag,
-				_duchy_public_keys_config_flag,
+				_duchy_info_config_flag,
+				_public_api_protocol_configs,
 				_duchy_protocols_setup_config_flag,
-				_global_computations_service_target_flag,
+				_system_computations_service_target_flag,
 				"--channel-shutdown-timeout=3s",
 				"--polling-interval=1m",
 			]
-			_dependencies: ["\(_name)-spanner-computations-server", "global-computation-server"]
+			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server"]
 		}
 		"liquid-legions-v2-mill-daemon-pod": #Pod & {
 			_args: [
 				_computations_service_target_flag,
 				_duchy_name_flag,
-				_duchy_public_keys_config_flag,
-				_global_computations_service_target_flag,
-				_metric_values_service_target_flag,
+				_duchy_info_config_flag,
+				_system_computations_service_target_flag,
+				_system_computation_log_entries_service_target_flag,
+				_system_computation_participants_service_target_flag,
 				"--channel-shutdown-timeout=3s",
-				"--duchy-secret-key=\(_key)",
-				"--liquid-legions-decay-rate=23.0",
-				"--liquid-legions-size=330000",
-				"--aggregator-id=\(_aggregator_name)",
 				"--mill-id=\(_name)-liquid-legions-v2-mill-1",
 				"--polling-interval=1s",
-				"--noise-config=" + #LiquidLegionsV2NoiseConfig,
-			] + _computation_control_service_flags + _blob_storage_flags
-			_jvm_flags: "-Xmx1g -Xms256m"
-			_dependencies: ["\(_name)-spanner-computations-server", "global-computation-server", "\(_name)-metric-values-storage-server", "\(_name)-computation-control-server"]
+			] + _blob_storage_flags
+			_jvm_flags: "-Xmx4g -Xms256m"
+			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-pod": #ServerPod & {
 			_args: [
 				_computations_service_target_flag,
 				_duchy_name_flag,
-				_duchy_public_keys_config_flag,
+				_duchy_info_config_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
-			] + _duchy_id_flags
+			]
 			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
 		"computation-control-server-pod": #ServerPod & {
 			_args: [
 				_async_computations_control_service_target_flag,
 				_duchy_name_flag,
-				_duchy_public_keys_config_flag,
+				_duchy_info_config_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
-			] + _duchy_id_flags + _blob_storage_flags
+			] + _blob_storage_flags
 			_dependencies: ["\(_name)-async-computation-control-server"]
 		}
 		"spanner-computations-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
-				_duchy_public_keys_config_flag,
-				_global_computations_service_target_flag,
+				_duchy_info_config_flag,
+				_system_computation_log_entries_service_target_flag,
 				"--channel-shutdown-timeout=3s",
 				"--port=8080",
 				"--spanner-database=\(_name)_duchy_computations",
 			] + _spanner_flags
-			_dependencies: ["global-computation-server"]
+			_dependencies: ["system-api-server"]
 		}
-		"metric-values-storage-server-pod": #ServerPod & {
-			_args: [
-				_debug_verbose_grpc_server_logging_flag,
-				"--port=8080",
-				"--spanner-database=\(_name)_duchy_metric_values",
-			] + _spanner_flags + _blob_storage_flags
-			_dependencies: ["global-computation-server"]
-		}
-		"publisher-data-server-pod": #ServerPod & {
+		"requisition-fulfillment-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
-				_metric_values_service_target_flag,
-				_requisition_service_target_flag,
-				_system_requisition_service_target_flag,
-				"--duchy-public-keys-config=" + #DuchyPublicKeysConfig,
+				_computations_service_target_flag,
+				_system_requisitions_service_target_flag,
 				"--port=8080",
-				"--registration-service-target=127.0.0.1:9000", // TODO: change once implemented.
-			]
-			_dependencies: ["requisition-server", "system-requisition-server", "\(_name)-metric-values-storage-server"]
+			] + _blob_storage_flags
+			_dependencies: ["system-api-server", "\(_name)-spanner-computations-server"]
 		}
 	}
 	setup_job: "push-spanner-schema-job": {
@@ -176,7 +150,6 @@ import ("strings")
 				imagePullPolicy: _duchy_image_pull_policy
 				args:            [
 							"--databases=\(_name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
-							"--databases=\(_name)_duchy_metric_values=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/metric_values.sdl",
 				] + _spanner_schema_push_flags
 			}]
 			restartPolicy: "OnFailure"

@@ -61,7 +61,7 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--system-computation-service-target"],
+    names = ["--system-computations-service-target"],
     description = ["Address and port of the kingdom system Computations Service"],
     required = true
   )
