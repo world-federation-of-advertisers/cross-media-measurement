@@ -39,7 +39,6 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     """
     SELECT $SELECT_COLUMNS_SQL
     FROM ExchangeSteps${exchangeStepsIndex.sql}
-    JOIN RecurringExchanges USING (RecurringExchangeId)
     JOIN ModelProviders USING (ModelProviderId)
     JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
