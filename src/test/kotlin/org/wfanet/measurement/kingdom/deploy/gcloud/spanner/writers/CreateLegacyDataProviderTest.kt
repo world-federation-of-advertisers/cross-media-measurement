@@ -32,6 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatab
 @RunWith(JUnit4::class)
 <<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateLegacyDataProviderTest.kt
 <<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateLegacyDataProviderTest.kt
+<<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateLegacyDataProviderTest.kt
 class CreateLegacyDataProviderTest : KingdomDatabaseTestBase() {
 =======
 class CreateDataProviderTest : LegacyKingdomDatabaseTestBase() {
@@ -39,6 +40,9 @@ class CreateDataProviderTest : LegacyKingdomDatabaseTestBase() {
 =======
 class CreateDataProviderTest : KingdomDatabaseTestBase() {
 >>>>>>> b6dbae3e (rebased):src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateDataProviderTest.kt
+=======
+class CreateLegacyDataProviderTest : KingdomDatabaseTestBase() {
+>>>>>>> 4ac657e6 (addressed comments):src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers/CreateDataProviderTest.kt
 
   @Test
   fun success() =

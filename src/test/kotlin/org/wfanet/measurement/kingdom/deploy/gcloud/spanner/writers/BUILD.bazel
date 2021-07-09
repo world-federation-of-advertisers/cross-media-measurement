@@ -53,6 +53,7 @@ spanner_emulator_test(
 spanner_emulator_test(
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     name = "CreateLegacyDataProviderTest",
     srcs = ["CreateLegacyDataProviderTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateLegacyDataProviderTest",
@@ -70,6 +71,11 @@ spanner_emulator_test(
     srcs = ["CreateDataProviderTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProviderTest",
 >>>>>>> 83eee5f8 (ready)
+=======
+    name = "CreateLegacyDataProviderTest",
+    srcs = ["CreateLegacyDataProviderTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateLegacyDataProviderTest",
+>>>>>>> 4ac657e6 (addressed comments)
     deps = _TEST_DEPS,
 )
 
