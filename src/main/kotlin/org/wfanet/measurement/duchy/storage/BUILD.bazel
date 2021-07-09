@@ -9,8 +9,8 @@ kt_jvm_library(
     ],
     exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 

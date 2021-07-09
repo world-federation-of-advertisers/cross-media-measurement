@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import java.time.Duration
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import picocli.CommandLine
 
@@ -24,23 +25,16 @@ class LiquidLegionsV2MillFlags {
   lateinit var duchy: CommonDuchyFlags
     private set
 
+  @CommandLine.Mixin
+  lateinit var duchyInfoFlags: DuchyInfoFlags
+    private set
+
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."]
   )
   lateinit var channelShutdownTimeout: Duration
-    private set
-
-  @CommandLine.Option(
-    names = ["--computation-control-service-target"],
-    description =
-      [
-        "gRPC target (authority string or URI) of the ComputationControl service in another Duchy.",
-        "This is a key=value pair where the key is the other Duchy's name. It can be repeated."],
-    required = true
-  )
-  lateinit var computationControlServiceTargets: Map<String, String>
     private set
 
   @CommandLine.Option(
@@ -57,14 +51,6 @@ class LiquidLegionsV2MillFlags {
     required = true
   )
   lateinit var computationsServiceTarget: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--metric-values-service-target"],
-    description = ["Address and port of the same duchy's MetricValuesService"],
-    required = true
-  )
-  lateinit var metricValuesServiceTarget: String
     private set
 
   @CommandLine.Option(

@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "nio",
-    actual = "@maven//:com_google_cloud_google_cloud_nio",
-)
