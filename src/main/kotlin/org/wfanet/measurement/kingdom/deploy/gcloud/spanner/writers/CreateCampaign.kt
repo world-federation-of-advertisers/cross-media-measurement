@@ -22,7 +22,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.internal.kingdom.Campaign
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AdvertiserReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyDataProviderReader
 
 class CreateCampaign(
   private val externalDataProviderId: ExternalId,
@@ -69,7 +69,7 @@ class CreateCampaign(
   }
 
   private suspend fun TransactionScope.readDataProviderId(): InternalId {
-    val readResult = DataProviderReader().readExternalId(transactionContext, externalDataProviderId)
+    val readResult = LegacyDataProviderReader().readExternalId(transactionContext, externalDataProviderId)
     return InternalId(readResult.dataProviderId)
   }
 

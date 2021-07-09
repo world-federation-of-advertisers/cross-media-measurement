@@ -17,7 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.internal.kingdom.DataProvider
 
-class DataProviderReaderLegacy : SpannerReader<DataProviderReaderLegacy.Result>() {
+class LegacyDataProviderReader : SpannerReader<LegacyDataProviderReader.Result>() {
   data class Result(val dataProvider: DataProvider, val dataProviderId: Long)
 
   override val baseSql: String =
