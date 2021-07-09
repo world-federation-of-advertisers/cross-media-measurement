@@ -20,8 +20,6 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.addChannelShutdownHooks
 import org.wfanet.measurement.common.grpc.buildChannel
-import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -36,10 +34,6 @@ import picocli.CommandLine
 private class Flags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyInfoFlags: DuchyInfoFlags
     private set
 
   @CommandLine.Option(
@@ -99,11 +93,6 @@ private class Flags {
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
-  DuchyInfo.initializeFromFlags(flags.duchyInfoFlags)
-
-  val duchyName = flags.duchy.duchyName
-  val otherDuchyNames = DuchyInfo.ALL_DUCHY_IDS.minus(duchyName).toList()
-
   val systemComputationServiceChannel = buildChannel(flags.systemComputationsServiceTarget)
   val systemComputationsClient =
     SystemComputationsCoroutineStub(systemComputationServiceChannel)
@@ -120,7 +109,6 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val herald =
     Herald(
-      otherDuchiesInComputation = otherDuchyNames,
       internalComputationsClient = ComputationsCoroutineStub(storageChannel),
       systemComputationsClient = systemComputationsClient,
       protocolsSetupConfig =

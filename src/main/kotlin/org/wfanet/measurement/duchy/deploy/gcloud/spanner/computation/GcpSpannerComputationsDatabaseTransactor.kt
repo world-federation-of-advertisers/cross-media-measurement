@@ -334,7 +334,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           creationTime = writeTime,
           previousStage = token.stage,
           nextAttempt = 1,
-          details = computationMutations.detailsFor(endingStage)
+          details = computationMutations.detailsFor(stage = endingStage, computationDetails = null)
         )
       )
       UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)

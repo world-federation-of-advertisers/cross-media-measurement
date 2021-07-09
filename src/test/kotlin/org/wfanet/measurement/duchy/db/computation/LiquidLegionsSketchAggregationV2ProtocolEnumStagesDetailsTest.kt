@@ -26,7 +26,7 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
 
   @Test
   fun `stage defaults and conversions`() {
-    val d = LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details(listOf("A", "B", "C"))
+    val d = LiquidLegionsSketchAggregationV2Protocol.EnumStages.Details
     for (stage in LiquidLegionsSketchAggregationV2.Stage.values()) {
       val expected =
         when (stage) {
@@ -42,7 +42,18 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest {
               .build()
           else -> ComputationStageDetails.getDefaultInstance()
         }
-      val stageProto = d.detailsFor(stage)
+      val stageProto =
+        d.detailsFor(
+          stage,
+          LiquidLegionsSketchAggregationV2.ComputationDetails.newBuilder()
+            .apply {
+              addParticipantBuilder().apply { duchyId = "A" }
+              addParticipantBuilder().apply { duchyId = "B" }
+              addParticipantBuilder().apply { duchyId = "C" }
+              addParticipantBuilder().apply { duchyId = "D" }
+            }
+            .build()
+        )
       ProtoTruth.assertThat(stageProto).isEqualTo(expected)
       ProtoTruth.assertThat(d.parseDetails(stageProto.toByteArray())).isEqualTo(stageProto)
     }

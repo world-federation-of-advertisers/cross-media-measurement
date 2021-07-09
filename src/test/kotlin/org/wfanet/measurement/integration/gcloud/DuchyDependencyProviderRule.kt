@@ -34,7 +34,6 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_S
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.integration.common.DUCHY_IDS
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -64,18 +63,16 @@ class DuchyDependencyProviderRule(duchyIds: Iterable<String>) :
         ?: error("Missing Computations Spanner database for duchy $duchyId")
 
     return InProcessDuchy.DuchyDependencies(
-      buildComputationsDb(duchyId, computationsDatabase.databaseClient),
+      buildComputationsDb(computationsDatabase.databaseClient),
       buildStorageClient(duchyId)
     )
   }
 
   private fun buildComputationsDb(
-    duchyId: String,
     computationsDatabaseClient: AsyncDatabaseClient
   ): ComputationsDatabase {
-    val otherDuchyNames = (DUCHY_IDS.toSet() - duchyId).toList()
     val protocolStageEnumHelper = ComputationProtocolStages
-    val stageDetails = ComputationProtocolStageDetails(otherDuchyNames)
+    val stageDetails = ComputationProtocolStageDetails
     val readOnlyDb =
       GcpSpannerComputationsDatabaseReader(computationsDatabaseClient, protocolStageEnumHelper)
     val computationsDb: ComputationsDb =

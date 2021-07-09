@@ -25,7 +25,6 @@ import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParam
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
@@ -113,7 +112,6 @@ object LiquidLegionsV2Starter {
   private suspend fun updateRequisitionsAndKeySetsInternal(
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
-    computationProtocolStageDetails: ComputationProtocolStageDetails,
     systemComputation: Computation,
     aggregatorId: String,
     logger: Logger
@@ -164,15 +162,13 @@ object LiquidLegionsV2Starter {
 
     computationStorageClient.advanceComputationStage(
       computationToken = newToken,
-      stage = Stage.CONFIRMATION_PHASE.toProtocolStage(),
-      computationProtocolStageDetails = computationProtocolStageDetails
+      stage = Stage.CONFIRMATION_PHASE.toProtocolStage()
     )
   }
 
   suspend fun updateRequisitionsAndKeySets(
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
-    computationProtocolStageDetails: ComputationProtocolStageDetails,
     systemComputation: Computation,
     aggregatorId: String,
     logger: Logger
@@ -189,7 +185,6 @@ object LiquidLegionsV2Starter {
         updateRequisitionsAndKeySetsInternal(
           token,
           computationStorageClient,
-          computationProtocolStageDetails,
           systemComputation,
           aggregatorId,
           logger
@@ -235,7 +230,6 @@ object LiquidLegionsV2Starter {
   suspend fun startComputation(
     token: ComputationToken,
     computationStorageClient: ComputationsCoroutineStub,
-    computationProtocolStageDetails: ComputationProtocolStageDetails,
     logger: Logger
   ) {
     require(token.computationDetails.hasLiquidLegionsV2()) {
@@ -250,8 +244,7 @@ object LiquidLegionsV2Starter {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
           inputsToNextStage = token.outputPathList(),
-          stage = Stage.SETUP_PHASE.toProtocolStage(),
-          computationProtocolStageDetails = computationProtocolStageDetails
+          stage = Stage.SETUP_PHASE.toProtocolStage()
         )
         logger.info("[id=${token.globalComputationId}] Computation is now started")
         return
