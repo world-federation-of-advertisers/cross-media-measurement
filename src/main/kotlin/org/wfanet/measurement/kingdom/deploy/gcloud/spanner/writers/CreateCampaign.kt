@@ -70,11 +70,16 @@ class CreateCampaign(
 
   private suspend fun TransactionScope.readDataProviderId(): InternalId {
 <<<<<<< HEAD
+<<<<<<< HEAD
     val readResult =
       LegacyDataProviderReader().readExternalId(transactionContext, externalDataProviderId)
 =======
     val readResult = LegacyDataProviderReader().readExternalId(transactionContext, externalDataProviderId)
 >>>>>>> 4ac657e6 (addressed comments)
+=======
+    val readResult = LegacyDataProviderReader()
+      .readExternalId(transactionContext, externalDataProviderId)
+>>>>>>> 5a323265 (addressed comments)
     return InternalId(readResult.dataProviderId)
   }
 
