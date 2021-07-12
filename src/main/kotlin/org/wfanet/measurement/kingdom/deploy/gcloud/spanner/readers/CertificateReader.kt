@@ -64,8 +64,10 @@ class CertificateReader(val resourceName: String) : SpannerReader<CertificateRea
         .setExternalDataProviderId(struct.getLong(externalResourceIdColumn))
         .build()
     }
-    return certificateBuilder.build()
+
+    // Need help with duchies
     // certificateBuilder.setExternalDuchyId(struct.getLong(externalResourceIdColumn)).build()
+    return certificateBuilder.build()
   }
 
   private fun buildCertificate(struct: Struct): Certificate {

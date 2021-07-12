@@ -28,11 +28,14 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
+private const val DATA_PROVIDER = "DataProvider"
+private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
+private const val DUCHY = "Duchy"
+
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
   data class InternalResource(val name: String, val id: InternalId)
 
-  // https://github.com/protocolbuffers/protobuf/releases/tag/v3.15.0
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val internalResource = getInternalResourceNameAndId(transactionContext)
     val certificateId = idGenerator.generateInternalId()
@@ -60,16 +63,16 @@ class CreateCertificate(private val certificate: Certificate) :
         MeasurementConsumerReader()
           .readExternalId(transactionContext, ExternalId(certificate.externalMeasurementConsumerId))
           .measurementConsumerId
-      return InternalResource("MeasurementConsumer", InternalId(measuerementConsumerId))
+      return InternalResource(MEASUREMENT_CONSUMER, InternalId(measuerementConsumerId))
     }
     if (certificate.hasExternalDataProviderId()) {
       val dataProviderId =
         DataProviderReader()
           .readExternalId(transactionContext, ExternalId(certificate.externalDataProviderId))
           .dataProviderId
-      return InternalResource("DataProvider", InternalId(dataProviderId))
+      return InternalResource(DATA_PROVIDER, InternalId(dataProviderId))
     }
-    return InternalResource("Duchy", InternalId(certificate.externalDuchyId.toLong()))
+    return InternalResource(DUCHY, InternalId(certificate.externalDuchyId.toLong()))
   }
 
   private fun createCertificateMapTableMutation(
