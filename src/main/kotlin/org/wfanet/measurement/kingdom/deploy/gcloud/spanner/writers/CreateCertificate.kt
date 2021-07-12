@@ -55,13 +55,14 @@ class CreateCertificate(private val certificate: Certificate) :
   private suspend fun getInternalResourceNameAndId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): InternalResource {
-    if (certificate.externalMeasurementConsumerId != 0L) {
+    if (certificate.hasExternalMeasurementConsumerId()) {
       val measuerementConsumerId =
         MeasurementConsumerReader()
           .readExternalId(transactionContext, ExternalId(certificate.externalMeasurementConsumerId))
           .measurementConsumerId
       return InternalResource("MeasurementConsumer", InternalId(measuerementConsumerId))
-    } else if (certificate.externalDataProviderId != 0L) {
+    }
+    if (certificate.hasExternalDataProviderId()) {
       val dataProviderId =
         DataProviderReader()
           .readExternalId(transactionContext, ExternalId(certificate.externalDataProviderId))
@@ -82,7 +83,7 @@ class CreateCertificate(private val certificate: Certificate) :
     val externalIdField = "External${resourceName}CertificateId"
     return insertMutation(tableName) {
       set(internalIdField to internalId.value)
-      set(externalIdField to internalCertificateId.value)
+      set("CertificateId" to internalCertificateId.value)
       set(externalIdField to externalMapId.value)
     }
   }
