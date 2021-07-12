@@ -14,22 +14,38 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 
 class SpannerDataProvidersService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
-    TODO("not implemented yet")
+    grpcRequire(
+      !request.details.apiVersion.isEmpty() &&
+        !request.details.publicKey.isEmpty() &&
+        !request.details.publicKeySignature.isEmpty()
+    ) { "Details field of DataProvider is missing fields." }
+    return CreateDataProvider(request).execute(client, idGenerator, clock)
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
-    TODO("not implemented yet")
+    return DataProviderReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalDataProviderId))
+      ?.dataProvider
+      ?: failGrpc(Status.NOT_FOUND) {
+        "No DataProvider with externalId ${request.externalDataProviderId}"
+      }
   }
 }
