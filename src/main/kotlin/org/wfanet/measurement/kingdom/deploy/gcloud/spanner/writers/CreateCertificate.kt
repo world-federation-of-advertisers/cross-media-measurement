@@ -32,6 +32,7 @@ class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
   data class InternalResource(val name: String, val id: InternalId)
 
+  // https://github.com/protocolbuffers/protobuf/releases/tag/v3.15.0
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val internalResource = getInternalResourceNameAndId(transactionContext)
     val certificateId = idGenerator.generateInternalId()

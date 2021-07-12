@@ -34,12 +34,23 @@ class SpannerCertificatesService(
   val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
 
+  private fun getInternalResourceName(request: GetCertificateRequest): String {
+    if (request.hasExternalMeasurementConsumerId()) {
+      return "MeasurementConsumer"
+    }
+    if (request.hasExternalDataProviderId()) {
+      return "DataProvider"
+    } else {
+      return "Duchy"
+    }
+  }
+
   override suspend fun createCertificate(request: Certificate): Certificate {
     return CreateCertificate(request).execute(client, idGenerator, clock)
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    return CertificateReader()
+    return CertificateReader(getInternalResourceName(request))
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate
       ?: failGrpc(Status.NOT_FOUND) {

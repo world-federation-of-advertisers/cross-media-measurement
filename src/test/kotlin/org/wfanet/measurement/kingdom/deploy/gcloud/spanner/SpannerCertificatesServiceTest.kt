@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import java.time.Clock
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.CertificatesServiceTest
