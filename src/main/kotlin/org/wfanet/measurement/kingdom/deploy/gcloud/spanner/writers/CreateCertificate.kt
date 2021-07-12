@@ -15,10 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Mutation
-<<<<<<< HEAD
-<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.InternalId
-<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferTo
@@ -49,85 +46,4 @@ fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
     set("CertificateDetails" to details)
     setJson("CertificateDetailsJson" to details)
   }
-<<<<<<< HEAD
 }
-=======
-=======
-import org.wfanet.measurement.common.identity.InternalId
->>>>>>> 8b0bd33b (building)
-import org.wfanet.measurement.common.identity.ExternalId
-=======
->>>>>>> 3942522e (measurement consumer test working)
-import org.wfanet.measurement.gcloud.common.toGcloudByteArray
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
-import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.Certificate
-
-class CreateCertificate(private val certificate: Certificate) :
-  SpannerWriter<Certificate, Certificate>() {
-  override suspend fun TransactionScope.runTransaction(): Certificate {
-    certificate.toInsertMutation(idGenerator.generateInternalId()).bufferTo(transactionContext)
-    return certificate
-  }
-
-  override fun ResultScope<Certificate>.buildResult(): Certificate {
-    return checkNotNull(transactionResult)
-  }
-}
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-
-
-
->>>>>>> f58fef48 (initial commit)
-=======
-protected fun Certificate.toInsertMutation(
-=======
-fun Certificate.toInsertMutation(
->>>>>>> 8b0bd33b (building)
-  internalId: InternalId,
-  externalId: ExternalId
-): Mutation {
-=======
-fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
-<<<<<<< HEAD
->>>>>>> 3942522e (measurement consumer test working)
-  return Mutation.newInsertBuilder("Certificates")
-    .set("CertificateId")
-    .to(internalId.value)
-    .set("SubjectKeyIdentifier")
-    .to(subjectKeyIdentifier.toGcloudByteArray())
-    .set("NotValidBefore")
-    .to(notValidBefore.toGcloudTimestamp())
-    .set("NotValidAfter")
-    .to(notValidAfter.toGcloudTimestamp())
-    .set("RevocationState")
-    .toProtoEnum(revocationState)
-    .set("CertificateDetails")
-    .toProtoBytes(details)
-    .set("CertificateDetailsJson")
-    .toProtoJson(details)
-    .build()
-=======
-  val mutation: Mutation =
-    insertMutation("Certificates") {
-      set("CertificateId" to internalId.value)
-      set("SubjectKeyIdentifier" to subjectKeyIdentifier.toGcloudByteArray())
-      set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
-      set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
-      set("RevocationState" to revocationState)
-      set("CertificateDetails" to details)
-      setJson("CertificateDetailsJson" to details)
-    }
-  return mutation
->>>>>>> e3dde181 (ready)
-=======
->>>>>>> a703b578 (ready)
-}
->>>>>>> bf3c1bb3 (getting there)

@@ -15,26 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-=======
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
-<<<<<<< HEAD
-import org.wfanet.measurement.gcloud.spanner.getNullableTimestamp
->>>>>>> da0f7f3c (addressing comments)
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Certificate
-=======
->>>>>>> 47e4ba8d (initial commit)
-=======
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
->>>>>>> 1df833ae (testing)
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-=======
->>>>>>> 5a303d38 (linted)
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -49,8 +30,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       MeasurementConsumers.MeasurementConsumerId,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumers.MeasurementConsumerDetails,
-<<<<<<< HEAD
-<<<<<<< HEAD
       MeasurementConsumers.MeasurementConsumerDetailsJson,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
       Certificates.CertificateId,
@@ -62,23 +41,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     FROM MeasurementConsumers
     JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
     JOIN Certificates USING (CertificateId)
-=======
-      MeasurementConsumers.MeasurementConsumerDetailsJson
-    FROM MeasurementConsumers
->>>>>>> 47e4ba8d (initial commit)
-=======
-      MeasurementConsumers.MeasurementConsumerDetailsJson,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
-      Certificates.CertificateId,
-      Certificates.SubjectKeyIdentifier,
-      Certificates.NotValidBefore,
-      Certificates.NotValidAfter,
-      Certificates.RevocationState,
-      Certificates.CertificateDetails
-    FROM MeasurementConsumers
-    JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
-    JOIN Certificates USING (CertificateId)
->>>>>>> e3dde181 (ready)
     """.trimIndent()
 
   override val externalIdColumn: String = "MeasurementConsumers.ExternalMeasurementConsumerId"
@@ -88,8 +50,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
-<<<<<<< HEAD
-<<<<<<< HEAD
       .apply {
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
@@ -112,32 +72,5 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
           struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
       }
-=======
-      .apply { externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId") }
->>>>>>> 47e4ba8d (initial commit)
-=======
-      .apply {
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
-        details =
-          struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
-        preferredCertificate = buildCertificate(struct)
-      }
-      .build()
-
-  // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
-  private fun buildCertificate(struct: Struct): Certificate =
-    Certificate.newBuilder()
-      .apply {
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
-        subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
-        notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
-        revocationState =
-          struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
-        details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
-      }
->>>>>>> 1df833ae (testing)
       .build()
 }
