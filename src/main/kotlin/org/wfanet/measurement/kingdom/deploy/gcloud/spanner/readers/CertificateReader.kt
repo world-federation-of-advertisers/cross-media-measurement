@@ -20,6 +20,9 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 
+private const val DATA_PROVIDER = "DataProvider"
+private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
+
 class CertificateReader(val resourceName: String) : SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
 
@@ -31,8 +34,12 @@ class CertificateReader(val resourceName: String) : SpannerReader<CertificateRea
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
-      Certificates.CertificateDetails
+      Certificates.CertificateDetails,
+      ${resourceName}Certificates.External${resourceName}CertificateId,
+      ${resourceName}Certificates.${resourceName}Id,
+      ${resourceName}s.External${resourceName}Id
     FROM ${resourceName}Certificates
+    JOIN ${resourceName}s USING (${resourceName}Id)
     JOIN Certificates USING (CertificateId)
     """.trimIndent()
 
@@ -46,19 +53,25 @@ class CertificateReader(val resourceName: String) : SpannerReader<CertificateRea
     certificateBuilder: Certificate.Builder,
     struct: Struct
   ): Certificate {
-    return certificateBuilder
-      .apply {
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        externalCertificateId = struct.getLong("ExternalDataProviderCertificateId")
-      }
-      .build()
+    val externalResourceIdColumn = "External${resourceName}Id"
+    if (resourceName == MEASUREMENT_CONSUMER) {
+      return certificateBuilder
+        .setExternalMeasurementConsumerId(struct.getLong(externalResourceIdColumn))
+        .build()
+    }
+    if (resourceName == DATA_PROVIDER) {
+      return certificateBuilder
+        .setExternalDataProviderId(struct.getLong(externalResourceIdColumn))
+        .build()
+    }
+    return certificateBuilder.build()
+    // certificateBuilder.setExternalDuchyId(struct.getLong(externalResourceIdColumn)).build()
   }
 
   private fun buildCertificate(struct: Struct): Certificate {
     val certificateBuilder =
       Certificate.newBuilder().apply {
-        // externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        // externalCertificateId = struct.getLong("ExternalDataProviderCertificateId")
+        externalCertificateId = struct.getLong("External${resourceName}CertificateId")
         subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
         notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
         notValidAfter = struct.getTimestamp("NotValidAfter").toProto()

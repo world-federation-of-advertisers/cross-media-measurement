@@ -60,12 +60,6 @@ private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in D
 @RunWith(JUnit4::class)
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
-  // protected val idGenerator =
-  //   FixedIdGenerator(
-  //     InternalId(FIXED_GENERATED_INTERNAL_ID),
-  //     ExternalId(FIXED_GENERATED_EXTERNAL_ID)
-  //   )
-
   protected val idGenerator =
     RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
   protected val copyIdGenerator =
@@ -160,12 +154,52 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         }
         .build()
 
+    val createdCertificate = certificatesService.createCertificate(certificate)
     // An InternalId for Certificate is generated.
     copyIdGenerator.generateInternalId()
     // An External for Certificate is generated.
     val externalCertificateId = copyIdGenerator.generateExternalId()
+
+    assertThat(createdCertificate)
+      .isEqualTo(
+        certificate
+          .toBuilder()
+          .also { it.externalCertificateId = externalCertificateId.value }
+          .build()
+      )
+  }
+
+  @Test
+  fun `getCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.setX509Der(X509_DER)
+        }
+        .build()
+
     val createdCertificate = certificatesService.createCertificate(certificate)
-    assertThat(createdCertificate).isEqualTo(certificate.toBuilder().also { it.externalCertificateId = externalCertificateId.value }.build())
+    // An InternalId for Certificate is generated.
+    copyIdGenerator.generateInternalId()
+    // An External for Certificate is generated.
+    val externalCertificateId = copyIdGenerator.generateExternalId()
+
+    val certificateRead =
+      certificatesService.getCertificate(
+        GetCertificateRequest.newBuilder()
+          .also {
+            it.externalMeasurementConsumerId = externalMeasurementConsumerId
+            it.externalCertificateId = externalCertificateId.value
+          }
+          .build()
+      )
+
+    assertThat(certificateRead).isEqualTo(createdCertificate)
   }
 }
 
