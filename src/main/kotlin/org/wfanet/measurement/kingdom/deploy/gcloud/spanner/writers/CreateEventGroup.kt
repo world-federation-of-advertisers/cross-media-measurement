@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import io.grpc.Status
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
@@ -28,13 +30,22 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
   override suspend fun TransactionScope.runTransaction(): EventGroup {
     val measurementConsumerId =
       MeasurementConsumerReader()
-        .readExternalId(transactionContext, ExternalId(eventGroup.externalMeasurementConsumerId))
-        .measurementConsumerId
-
+        .readExternalIdOrNull(
+          transactionContext,
+          ExternalId(eventGroup.externalMeasurementConsumerId)
+        )
+        ?.measurementConsumerId
+        ?: failGrpc(Status.NOT_FOUND) {
+          "No MeasurementConsumer with externalId ${eventGroup.externalMeasurementConsumerId}"
+        }
     val dataProviderId =
       DataProviderReader()
-        .readExternalId(transactionContext, ExternalId(eventGroup.externalDataProviderId))
-        .dataProviderId
+        .readExternalIdOrNull(transactionContext, ExternalId(eventGroup.externalDataProviderId))
+        ?.dataProviderId
+        ?: failGrpc(Status.NOT_FOUND) {
+          "No DataProvider with externalId ${eventGroup.externalDataProviderId}"
+        }
+
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
 

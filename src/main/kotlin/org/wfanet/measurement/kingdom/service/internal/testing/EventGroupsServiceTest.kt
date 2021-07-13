@@ -178,14 +178,14 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup fails for missing data provider`() = runBlocking {
-    insertMeasurementConsumer()
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
 
     val eventGroup =
       EventGroup.newBuilder()
-        .apply {
-          externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        .also {
+          it.externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
         }
         .build()
 
@@ -193,18 +193,21 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("No DataProvider with externalId $FIXED_GENERATED_EXTERNAL_ID")
   }
 
   @Test
   fun `createEventGroup fails for missing measurement consumer`() = runBlocking {
-    insertDataProvider()
+    val externalDataProviderId = insertDataProvider()
 
     val eventGroup =
       EventGroup.newBuilder()
-        .apply {
-          externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        .also {
+          it.externalDataProviderId = externalDataProviderId
+          it.externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
         }
         .build()
 
@@ -212,6 +215,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("No MeasurementConsumer with externalId $FIXED_GENERATED_EXTERNAL_ID")
   }
 
   @Test
