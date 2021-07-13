@@ -21,7 +21,6 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalExceptionCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
@@ -40,14 +39,14 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         )
         ?.measurementConsumerId
         ?: throw KingdomInternalException(
-          KingdomInternalExceptionCode.MEASUREMENT_CONSUMER_NOT_FOUND
+          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
         )
 
     val dataProviderId =
       DataProviderReader()
         .readExternalIdOrNull(transactionContext, ExternalId(eventGroup.externalDataProviderId))
         ?.dataProviderId
-        ?: throw KingdomInternalException(KingdomInternalExceptionCode.DATA_PROVIDER_NOT_FOUND)
+        ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()

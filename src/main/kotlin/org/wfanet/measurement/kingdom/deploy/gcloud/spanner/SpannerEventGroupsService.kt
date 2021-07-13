@@ -24,7 +24,6 @@ import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalExceptionCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
@@ -39,10 +38,10 @@ class SpannerEventGroupsService(
       return CreateEventGroup(request).execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalExceptionCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
-        KingdomInternalExceptionCode.DATA_PROVIDER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
       }
     }
   }
@@ -51,8 +50,6 @@ class SpannerEventGroupsService(
     return EventGroupReader()
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
       ?.eventGroup
-      ?: failGrpc(Status.NOT_FOUND) {
-        "No EventGroup with externalId ${request.externalEventGroupId}"
-      }
+      ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }
 }

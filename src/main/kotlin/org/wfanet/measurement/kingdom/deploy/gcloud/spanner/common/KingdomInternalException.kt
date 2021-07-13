@@ -14,12 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
-class KingdomInternalException(val code: KingdomInternalExceptionCode) : Exception()
+class KingdomInternalException(val code: Code) : Exception() {
+  enum class Code {
+    /** MeasurementConsumer resource queried could not be found. */
+    MEASUREMENT_CONSUMER_NOT_FOUND,
 
-enum class KingdomInternalExceptionCode {
-  /** MeasurementConsumer resource queried could not be found. */
-  MEASUREMENT_CONSUMER_NOT_FOUND,
-
-  /** DataProvider resource queried could not be found. */
-  DATA_PROVIDER_NOT_FOUND,
+    /** DataProvider resource queried could not be found. */
+    DATA_PROVIDER_NOT_FOUND,
+  }
 }

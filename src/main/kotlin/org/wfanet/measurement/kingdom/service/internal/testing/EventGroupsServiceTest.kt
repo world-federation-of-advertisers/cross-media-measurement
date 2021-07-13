@@ -111,7 +111,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           .build()
       )
 
-    assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
     return externalMeasurementConsumerId.value
   }
 
@@ -152,7 +151,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           .build()
       )
 
-    assertThat(dataProviderRead).isEqualTo(createdDataProvider)
     return externalDataProviderId.value
   }
 
@@ -192,10 +190,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("INVALID_ARGUMENT: DataProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: DataProvider not found")
   }
 
   @Test
