@@ -17,14 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
-<<<<<<< HEAD
-<<<<<<< HEAD
 import org.wfanet.measurement.common.grpc.grpcRequire
-=======
->>>>>>> 030d4904 (ready)
-=======
-import org.wfanet.measurement.common.grpc.grpcRequire
->>>>>>> cc3034cf (rebased and fixed)
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -40,16 +33,11 @@ class SpannerDataProvidersService(
   val client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> cc3034cf (rebased and fixed)
     grpcRequire(
       !request.details.apiVersion.isEmpty() &&
         !request.details.publicKey.isEmpty() &&
         !request.details.publicKeySignature.isEmpty()
     ) { "Details field of DataProvider is missing fields." }
-<<<<<<< HEAD
     return CreateDataProvider(request).execute(client, idGenerator, clock)
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
@@ -59,23 +47,5 @@ class SpannerDataProvidersService(
       ?: failGrpc(Status.NOT_FOUND) {
         "No DataProvider with externalId ${request.externalDataProviderId}"
       }
-=======
-=======
->>>>>>> cc3034cf (rebased and fixed)
-    return CreateDataProvider(request).execute(client, idGenerator, clock)
-  }
-  override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
-    return DataProviderReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalDataProviderId))
-      ?.dataProvider
-      ?: failGrpc(Status.NOT_FOUND) {
-        "No DataProvider with externalId ${request.externalDataProviderId}"
-      }
-<<<<<<< HEAD
-    }
-    return dataProvider
->>>>>>> d519ecd3 (setting up)
-=======
->>>>>>> cc3034cf (rebased and fixed)
   }
 }

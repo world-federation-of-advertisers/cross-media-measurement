@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -36,24 +34,24 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
 
     insertMutation("MeasurementConsumers") {
-        set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
-        set("PublicKeyCertificateId" to internalCertificateId.value)
-        set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId.value)
-        set("MeasurementConsumerDetails" to measurementConsumer.details)
-        setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
-      }
+      set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
+      set("PublicKeyCertificateId" to internalCertificateId.value)
+      set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId.value)
+      set("MeasurementConsumerDetails" to measurementConsumer.details)
+      setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
+    }
       .bufferTo(transactionContext)
 
     val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
 
     insertMutation("MeasurementConsumerCertificates") {
-        set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
-        set("CertificateId" to internalCertificateId.value)
-        set(
-          "ExternalMeasurementConsumerCertificateId" to
-            externalMeasurementConsumerCertificateId.value
-        )
-      }
+      set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
+      set("CertificateId" to internalCertificateId.value)
+      set(
+        "ExternalMeasurementConsumerCertificateId" to
+          externalMeasurementConsumerCertificateId.value
+      )
+    }
       .bufferTo(transactionContext)
 
     return measurementConsumer
@@ -67,66 +65,6 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
         }
       }
       .build()
-  }
-
-  override fun ResultScope<MeasurementConsumer>.buildResult(): MeasurementConsumer {
-    return checkNotNull(transactionResult)
-=======
-import com.google.cloud.spanner.Mutation
-=======
->>>>>>> a703b578 (ready)
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
-import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-
-class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
-  SpannerWriter<MeasurementConsumer, MeasurementConsumer>() {
-  override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
-    val internalCertificateId = idGenerator.generateInternalId()
-
-    measurementConsumer
-      .preferredCertificate
-      .toInsertMutation(internalCertificateId)
-      .bufferTo(transactionContext)
-
-    val internalMeasurementConsumerId = idGenerator.generateInternalId()
-    val externalMeasurementConsumerId = idGenerator.generateExternalId()
-
-    insertMutation("MeasurementConsumers") {
-        set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
-        set("PublicKeyCertificateId" to internalCertificateId.value)
-        set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId.value)
-        set("MeasurementConsumerDetails" to measurementConsumer.details)
-        setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
-      }
-      .bufferTo(transactionContext)
-
-    val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
-
-    insertMutation("MeasurementConsumerCertificates") {
-        set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
-        set("CertificateId" to internalCertificateId.value)
-        set(
-          "ExternalMeasurementConsumerCertificateId" to
-            externalMeasurementConsumerCertificateId.value
-        )
-      }
-      .bufferTo(transactionContext)
-
-    return measurementConsumer
-      .toBuilder()
-      .also {
-        it.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-        it.externalPublicKeyCertificateId = externalMeasurementConsumerCertificateId.value
-        it.preferredCertificateBuilder.also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-          it.externalCertificateId = externalMeasurementConsumerCertificateId.value
-        }
-      }
-      .build()
->>>>>>> f58fef48 (initial commit)
   }
 
   override fun ResultScope<MeasurementConsumer>.buildResult(): MeasurementConsumer {

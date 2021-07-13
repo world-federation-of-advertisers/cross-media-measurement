@@ -14,13 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-import org.wfanet.measurement.common.identity.ExternalId
->>>>>>> d519ecd3 (setting up)
-=======
->>>>>>> 030d4904 (ready)
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -41,45 +34,25 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     val externalDataProviderId = idGenerator.generateExternalId()
 
     insertMutation("DataProviders") {
-<<<<<<< HEAD
-        set("DataProviderId" to internalDataProviderId.value)
-        set("PublicKeyCertificateId" to internalCertificateId.value)
-        set("ExternalDataProviderId" to externalDataProviderId.value)
-        set("DataProviderDetails" to dataProvider.details)
-        setJson("DataProviderDetailsJson" to dataProvider.details)
-      }
-=======
       set("DataProviderId" to internalDataProviderId.value)
       set("PublicKeyCertificateId" to internalCertificateId.value)
       set("ExternalDataProviderId" to externalDataProviderId.value)
       set("DataProviderDetails" to dataProvider.details)
       setJson("DataProviderDetailsJson" to dataProvider.details)
     }
->>>>>>> d519ecd3 (setting up)
       .bufferTo(transactionContext)
 
     val externalDataProviderCertificateId = idGenerator.generateExternalId()
 
     insertMutation("DataProviderCertificates") {
-<<<<<<< HEAD
-        set("DataProviderId" to internalDataProviderId.value)
-        set("CertificateId" to internalCertificateId.value)
-        set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
-      }
-=======
       set("DataProviderId" to internalDataProviderId.value)
       set("CertificateId" to internalCertificateId.value)
       set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
     }
->>>>>>> d519ecd3 (setting up)
       .bufferTo(transactionContext)
 
     return dataProvider
       .toBuilder()
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> cc3034cf (rebased and fixed)
       .also {
         it.externalDataProviderId = externalDataProviderId.value
         it.externalPublicKeyCertificateId = externalDataProviderCertificateId.value
@@ -88,13 +61,6 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
           it.externalCertificateId = externalDataProviderCertificateId.value
         }
       }
-<<<<<<< HEAD
-=======
-      .setExternalDataProviderId(externalDataProviderId.value)
-      .setExternalPublicKeyCertificateId(externalDataProviderCertificateId.value)
->>>>>>> d519ecd3 (setting up)
-=======
->>>>>>> cc3034cf (rebased and fixed)
       .build()
   }
 
