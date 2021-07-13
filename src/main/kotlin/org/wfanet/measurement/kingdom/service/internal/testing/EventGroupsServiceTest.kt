@@ -34,9 +34,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
-import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
@@ -102,12 +100,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     // An External for MeasurementConsumerCertificate is generated.
     copyIdGenerator.generateExternalId()
 
-    measurementConsumersService.getMeasurementConsumer(
-      GetMeasurementConsumerRequest.newBuilder()
-        .setExternalMeasurementConsumerId(externalMeasurementConsumerId.value)
-        .build()
-    )
-
     return externalMeasurementConsumerId.value
   }
 
@@ -138,12 +130,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val externalDataProviderId = copyIdGenerator.generateExternalId()
     // An External for DataProviderCertificate is generated.
     copyIdGenerator.generateExternalId()
-
-    dataProvidersService.getDataProvider(
-      GetDataProviderRequest.newBuilder()
-        .setExternalDataProviderId(externalDataProviderId.value)
-        .build()
-    )
 
     return externalDataProviderId.value
   }
