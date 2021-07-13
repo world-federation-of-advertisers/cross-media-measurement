@@ -50,13 +50,13 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     val externalEventGroupId = idGenerator.generateExternalId()
 
     insertMutation("EventGroups") {
-      set("EventGroupId" to internalEventGroupId.value)
-      set("ExternalEventGroupId" to externalEventGroupId.value)
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("DataProviderId" to dataProviderId)
-      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    }
+        set("EventGroupId" to internalEventGroupId.value)
+        set("ExternalEventGroupId" to externalEventGroupId.value)
+        set("MeasurementConsumerId" to measurementConsumerId)
+        set("DataProviderId" to dataProviderId)
+        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+        set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      }
       .bufferTo(transactionContext)
 
     return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()
