@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
@@ -399,15 +400,15 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
     dataProviderId: Long? = null
   ) {
     write(
-      Mutation.newInsertBuilder("ExchangeSteps")
-        .set("RecurringExchangeId" to recurringExchangeId)
-        .set("Date" to date.toCloudDate())
-        .set("StepIndex" to stepIndex)
-        .set("State" to state)
-        .set("UpdateTime" to (updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP))
-        .set("ModelProviderId" to modelProviderId)
-        .set("DataProviderId" to dataProviderId)
-        .build()
+      insertMutation("ExchangeSteps") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("StepIndex" to stepIndex)
+        set("State" to state)
+        set("UpdateTime" to (updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP))
+        set("ModelProviderId" to modelProviderId)
+        set("DataProviderId" to dataProviderId)
+      }
     )
   }
 
