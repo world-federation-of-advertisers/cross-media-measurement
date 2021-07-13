@@ -7,10 +7,10 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
     ],
-    exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
+    exports = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
 
@@ -47,10 +47,10 @@ kt_jvm_library(
         ":computation_db",
         ":mill",
     ],
-    exports = ["//src/main/kotlin/org/wfanet/measurement/storage:client"],
+    exports = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
-        "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )

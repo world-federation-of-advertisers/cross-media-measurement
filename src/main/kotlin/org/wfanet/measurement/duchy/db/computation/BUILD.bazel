@@ -9,7 +9,6 @@ kt_jvm_library(
     name = "computation",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation:protos",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
@@ -17,5 +16,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

@@ -5,10 +5,10 @@ kt_jvm_test(
     srcs = ["SpannerStructsTest.kt"],
     test_class = "org.wfanet.measurement.gcloud.spanner.SpannerStructsTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 
@@ -17,9 +17,9 @@ kt_jvm_test(
     srcs = ["MutationsTest.kt"],
     test_class = "org.wfanet.measurement.gcloud.spanner.MutationsTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )

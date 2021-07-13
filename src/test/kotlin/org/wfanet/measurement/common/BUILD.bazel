@@ -5,11 +5,11 @@ kt_jvm_test(
     srcs = ["BytesTest.kt"],
     test_class = "org.wfanet.measurement.common.BytesTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -18,12 +18,12 @@ kt_jvm_test(
     srcs = ["ProtoUtilsTest.kt"],
     test_class = "org.wfanet.measurement.common.ProtoUtilsTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/proto/wfa/measurement/testing:test_config_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/testing:test_config_java_proto",
     ],
 )
 
@@ -32,11 +32,11 @@ kt_jvm_test(
     srcs = ["RenewedFlowTest.kt"],
     test_class = "org.wfanet.measurement.common.RenewedFlowTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -45,12 +45,12 @@ kt_jvm_test(
     srcs = ["FlowKtTest.kt"],
     test_class = "org.wfanet.measurement.common.FlowKtTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -59,12 +59,12 @@ kt_jvm_test(
     srcs = ["CountDownLatchTest.kt"],
     test_class = "org.wfanet.measurement.common.CountDownLatchTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -73,9 +73,9 @@ kt_jvm_test(
     srcs = ["ResourceNameParserTest.kt"],
     test_class = "org.wfanet.measurement.common.ResourceNameParserTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
