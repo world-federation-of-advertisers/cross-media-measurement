@@ -192,10 +192,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("No DataProvider with externalId $FIXED_GENERATED_EXTERNAL_ID")
+      .contains("INVALID_ARGUMENT: DataProvider not found")
   }
 
   @Test
@@ -214,10 +214,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("No MeasurementConsumer with externalId $FIXED_GENERATED_EXTERNAL_ID")
+      .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
   }
 
   @Test

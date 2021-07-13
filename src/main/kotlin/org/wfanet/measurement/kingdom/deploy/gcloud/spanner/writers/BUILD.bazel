@@ -11,6 +11,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
         "//src/main/proto/wfa/measurement/internal/kingdom:advertiser_java_proto",
