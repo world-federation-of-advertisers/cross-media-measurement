@@ -44,9 +44,9 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
     .also {
       it.name =
         RequisitionKey(
-          externalIdToApiId(externalComputationId),
-          externalIdToApiId(externalRequisitionId)
-        )
+            externalIdToApiId(externalComputationId),
+            externalIdToApiId(externalRequisitionId)
+          )
           .toName()
       it.dataProvider =
         when (Version.fromString(apiVersion)) {
@@ -59,9 +59,9 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
       it.dataProviderParticipationSignature = details.dataProviderParticipationSignature
       it.fulfillingComputationParticipant =
         ComputationParticipantKey(
-          externalIdToApiId(externalComputationId),
-          externalFulfillingDuchyId
-        )
+            externalIdToApiId(externalComputationId),
+            externalFulfillingDuchyId
+          )
           .toName()
     }
     .build()
@@ -211,13 +211,13 @@ fun InternalDuchyProtocolConfig.toSystemDuchyProtocolConfig(): Computation.Duchy
  */
 fun InternalDifferentialPrivacyParams.toSystemDifferentialPrivacyParams():
   DifferentialPrivacyParams {
-    return DifferentialPrivacyParams.newBuilder()
-      .also {
-        it.epsilon = epsilon
-        it.delta = delta
-      }
-      .build()
-  }
+  return DifferentialPrivacyParams.newBuilder()
+    .also {
+      it.epsilon = epsilon
+      it.delta = delta
+    }
+    .build()
+}
 
 /** Converts a kingdom internal Requisition.State to system Api Requisition.State. */
 fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
@@ -287,10 +287,10 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     .apply {
       name =
         ComputationLogEntryKey(
-          apiComputationId,
-          externalDuchyId,
-          externalIdToApiId(externalComputationLogEntryId)
-        )
+            apiComputationId,
+            externalDuchyId,
+            externalIdToApiId(externalComputationLogEntryId)
+          )
           .toName()
       participantChildReferenceId = details.duchyChildReferenceId
       logMessage = logEntry.details.logMessage
