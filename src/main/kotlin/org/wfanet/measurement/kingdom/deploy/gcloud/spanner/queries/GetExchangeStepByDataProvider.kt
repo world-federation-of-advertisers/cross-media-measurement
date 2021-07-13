@@ -29,7 +29,7 @@ class GetExchangeStepByDataProvider(
 ) : SpannerQuery<ExchangeStepReader.Result, ExchangeStep>() {
   override val reader: SpannerReader<ExchangeStepReader.Result> by lazy {
     ExchangeStepReader().withBuilder {
-      appendClause("AND DataProviders.ExternalDataProviderId = @external_data_provider_id")
+      appendClause("WHERE DataProviders.ExternalDataProviderId = @external_data_provider_id")
       bind("external_data_provider_id").to(externalDataProviderId.value)
 
       appendClause("AND ExchangeSteps.State IN UNNEST(@states)")
