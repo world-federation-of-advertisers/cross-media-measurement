@@ -15,16 +15,20 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalExceptionCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
+/**
+ * @throws KingdomInternalException if the MeasurementConsumer or DataProvider for this EventGroup
+ * is not found.
+ */
 class CreateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
@@ -35,16 +39,15 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalMeasurementConsumerId)
         )
         ?.measurementConsumerId
-        ?: failGrpc(Status.NOT_FOUND) {
-          "No MeasurementConsumer with externalId ${eventGroup.externalMeasurementConsumerId}"
-        }
+        ?: throw KingdomInternalException(
+          KingdomInternalExceptionCode.MEASUREMENT_CONSUMER_NOT_FOUND
+        )
+
     val dataProviderId =
       DataProviderReader()
         .readExternalIdOrNull(transactionContext, ExternalId(eventGroup.externalDataProviderId))
         ?.dataProviderId
-        ?: failGrpc(Status.NOT_FOUND) {
-          "No DataProvider with externalId ${eventGroup.externalDataProviderId}"
-        }
+        ?: throw KingdomInternalException(KingdomInternalExceptionCode.DATA_PROVIDER_NOT_FOUND)
 
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
