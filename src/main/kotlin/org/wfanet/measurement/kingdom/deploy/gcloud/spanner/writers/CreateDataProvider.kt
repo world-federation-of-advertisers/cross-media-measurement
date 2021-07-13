@@ -34,21 +34,21 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     val externalDataProviderId = idGenerator.generateExternalId()
 
     insertMutation("DataProviders") {
-      set("DataProviderId" to internalDataProviderId.value)
-      set("PublicKeyCertificateId" to internalCertificateId.value)
-      set("ExternalDataProviderId" to externalDataProviderId.value)
-      set("DataProviderDetails" to dataProvider.details)
-      setJson("DataProviderDetailsJson" to dataProvider.details)
-    }
+        set("DataProviderId" to internalDataProviderId.value)
+        set("PublicKeyCertificateId" to internalCertificateId.value)
+        set("ExternalDataProviderId" to externalDataProviderId.value)
+        set("DataProviderDetails" to dataProvider.details)
+        setJson("DataProviderDetailsJson" to dataProvider.details)
+      }
       .bufferTo(transactionContext)
 
     val externalDataProviderCertificateId = idGenerator.generateExternalId()
 
     insertMutation("DataProviderCertificates") {
-      set("DataProviderId" to internalDataProviderId.value)
-      set("CertificateId" to internalCertificateId.value)
-      set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
-    }
+        set("DataProviderId" to internalDataProviderId.value)
+        set("CertificateId" to internalCertificateId.value)
+        set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
+      }
       .bufferTo(transactionContext)
 
     return dataProvider
