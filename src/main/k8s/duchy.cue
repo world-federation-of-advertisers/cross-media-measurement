@@ -69,7 +69,6 @@ import ("strings")
 			_args: [
 				_computations_service_target_flag,
 				_duchy_name_flag,
-				_duchy_info_config_flag,
 				_public_api_protocol_configs,
 				_duchy_protocols_setup_config_flag,
 				_system_computations_service_target_flag,

@@ -46,8 +46,6 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   companion object {
-    private const val NEXT_DUCHY_IN_RING = "NEXT_DUCHY_IN_RING"
-    private const val THIRD_DUCHY_IN_RING = "THIRD_DUCHY_IN_RING"
     val DETAILS_WHEN_NON_AGGREGATOR: ComputationDetails =
       ComputationDetails.newBuilder()
         .apply {
@@ -61,6 +59,9 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         .apply {
           liquidLegionsV2Builder.apply {
             role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+            addParticipantBuilder().apply { duchyId = "non_aggregator_1" }
+            addParticipantBuilder().apply { duchyId = "non_aggregator_2" }
+            addParticipantBuilder().apply { duchyId = "aggregator" }
           }
         }
         .build()
@@ -70,7 +71,7 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
     ComputationMutations(
       ComputationTypes,
       ComputationProtocolStages,
-      ComputationProtocolStageDetails(listOf(NEXT_DUCHY_IN_RING, THIRD_DUCHY_IN_RING))
+      ComputationProtocolStageDetails
     )
 
   private lateinit var liquidLegionsSketchAggregationSpannerReader:
@@ -103,7 +104,11 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         nextAttempt = 2,
         creationTime = lastUpdated.minusSeconds(2).toGcloudTimestamp(),
         endTime = lastUpdated.minusMillis(200).toGcloudTimestamp(),
-        details = computationMutations.detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage())
+        details =
+          computationMutations.detailsFor(
+            Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+            DETAILS_WHEN_AGGREGATOR
+          )
       )
     val outputBlob1ForWaitSetupPhaseInputComputationStageRow =
       computationMutations.insertComputationBlobReference(
@@ -139,7 +144,10 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
           attempt = 1
           version = lastUpdated.toEpochMilli()
           stageSpecificDetails =
-            computationMutations.detailsFor(Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage())
+            computationMutations.detailsFor(
+              Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
+              DETAILS_WHEN_AGGREGATOR
+            )
           addBlobs(newEmptyOutputBlobMetadata(0L))
           addBlobs(newEmptyOutputBlobMetadata(1L))
         }
@@ -170,7 +178,11 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         nextAttempt = 45,
         creationTime = lastUpdated.minusSeconds(2).toGcloudTimestamp(),
         endTime = lastUpdated.minusMillis(200).toGcloudTimestamp(),
-        details = computationMutations.detailsFor(Stage.SETUP_PHASE.toProtocolStage())
+        details =
+          computationMutations.detailsFor(
+            Stage.SETUP_PHASE.toProtocolStage(),
+            DETAILS_WHEN_NON_AGGREGATOR
+          )
       )
     val outputBlobForToSetupPhaseComputationStageRow =
       computationMutations.insertComputationBlobReference(
@@ -187,7 +199,10 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         nextAttempt = 2,
         creationTime = lastUpdated.toGcloudTimestamp(),
         details =
-          computationMutations.detailsFor(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage())
+          computationMutations.detailsFor(
+            Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+            DETAILS_WHEN_NON_AGGREGATOR
+          )
       )
     val inputBlobForWaitExecutionPhaseOneInputStageRow =
       computationMutations.insertComputationBlobReference(
@@ -253,7 +268,10 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
           attempt = 1
           version = lastUpdated.toEpochMilli()
           stageSpecificDetails =
-            computationMutations.detailsFor(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage())
+            computationMutations.detailsFor(
+              Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+              DETAILS_WHEN_NON_AGGREGATOR
+            )
           addBlobs(newInputBlobMetadata(33L, "blob-key"))
           addBlobs(newEmptyOutputBlobMetadata(44L))
           addRequisitionsBuilder().apply {
@@ -327,7 +345,10 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
         nextAttempt = 2,
         creationTime = lastUpdated.toGcloudTimestamp(),
         details =
-          computationMutations.detailsFor(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage())
+          computationMutations.detailsFor(
+            Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+            DETAILS_WHEN_NON_AGGREGATOR
+          )
       )
     databaseClient.write(listOf(computationRow, waitExecutionPhaseOneInputRow))
     val expectedTokenWhenOutputNotWritten =
@@ -343,7 +364,10 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
           attempt = 1
           version = lastUpdated.toEpochMilli()
           stageSpecificDetails =
-            computationMutations.detailsFor(Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage())
+            computationMutations.detailsFor(
+              Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage(),
+              DETAILS_WHEN_NON_AGGREGATOR
+            )
         }
         .build()
 

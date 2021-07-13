@@ -124,7 +124,8 @@ class ComputationsService(
         ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
         ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
         else -> error("Unknown CompletedReason $it")
-      }
+      },
+      request.token.computationDetails
     )
 
     sendStatusUpdateToKingdom(
