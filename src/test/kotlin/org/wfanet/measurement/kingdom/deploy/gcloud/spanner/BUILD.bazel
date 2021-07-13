@@ -45,51 +45,9 @@ spanner_emulator_test(
     srcs = ["SpannerMeasurementConsumersServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersServiceTest",
     deps = [
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> 64301b5e (linted)
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
-<<<<<<< HEAD
-=======
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
-<<<<<<< HEAD
-=======
->>>>>>> d9a4b205 (fixed test failure caused by importing new version of proto with the same name)
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
-    ],
-)
-
-spanner_emulator_test(
-    name = "SpannerDataProvidersServiceTest",
-    srcs = ["SpannerDataProvidersServiceTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataProvidersServiceTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
-<<<<<<< HEAD
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
-=======
->>>>>>> fa017e7e (initial commit)
-=======
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
->>>>>>> 298fa502 (linted)
-<<<<<<< HEAD
->>>>>>> 64301b5e (linted)
-=======
-=======
->>>>>>> 7448d953 (fixed test failure caused by importing new version of proto with the same name)
->>>>>>> d9a4b205 (fixed test failure caused by importing new version of proto with the same name)
-=======
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
->>>>>>> cd5ff456 (rebased)
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
     ],
 )
