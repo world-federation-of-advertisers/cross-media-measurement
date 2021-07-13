@@ -14,14 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.wrappedException
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
@@ -34,13 +32,7 @@ class SpannerEventGroupsService(
   val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
-    try {
-      return CreateEventGroup(request).execute(client, idGenerator, clock)
-    } catch (e: SpannerException) {
-      throw e.wrappedException ?: e
-    } catch (e: IllegalArgumentException) {
-      throw Status.NOT_FOUND.withCause(e).asRuntimeException()
-    }
+    return CreateEventGroup(request).execute(client, idGenerator, clock)
   }
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
