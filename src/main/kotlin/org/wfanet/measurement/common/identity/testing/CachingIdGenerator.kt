@@ -25,23 +25,26 @@ import org.wfanet.measurement.common.identity.InternalId
  */
 class CachingIdGenerator(val inputIdGenerator: IdGenerator) : IdGenerator {
 
-  //  Latest generated Ids are strored in the tail nodes, earliests are stored in the head nodes.
+  //  Latest generated Ids are strored in the head nodes, earliests are stored in the tail nodes.
   private val internalIds = LinkedList<InternalId>()
   private val externalIds = LinkedList<ExternalId>()
 
   override fun generateInternalId(): InternalId {
     val internalId = inputIdGenerator.generateInternalId()
-    internalIds.addLast(internalId)
+    internalIds.addFirst(internalId)
     return internalId
   }
 
   override fun generateExternalId(): ExternalId {
     val externalId = inputIdGenerator.generateExternalId()
-    externalIds.addLast(externalId)
+    externalIds.addFirst(externalId)
     return externalId
   }
 
-  fun getNextGeneratedInternalId() = internalIds.removeFirst()
+  fun getRemainingGeneratedInternalIds() = internalIds.asSequence()
+  fun getRemainingGeneratedExternalIds() = externalIds.asSequence()
 
-  fun getNextGeneratedExternalId() = externalIds.removeFirst()
+  fun getNextGeneratedInternalId() = internalIds.removeLast()
+
+  fun getNextGeneratedExternalId() = externalIds.removeLast()
 }
