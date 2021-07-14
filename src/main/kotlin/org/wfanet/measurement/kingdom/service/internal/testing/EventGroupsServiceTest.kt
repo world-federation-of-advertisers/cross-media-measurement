@@ -100,9 +100,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     cachingIdGenerator.getNextGeneratedInternalId()
     // An InternalId for MeasurementConsumer is generated.
     cachingIdGenerator.getNextGeneratedInternalId()
-    // An External for MeasurementConsumer is generated.
+    // An ExternalId for MeasurementConsumer is generated.
     val externalMeasurementConsumerId = cachingIdGenerator.getNextGeneratedExternalId()
-    // An External for MeasurementConsumerCertificate is generated.
+    // An ExternalId for MeasurementConsumerCertificate is generated.
     cachingIdGenerator.getNextGeneratedExternalId()
 
     return externalMeasurementConsumerId.value
@@ -131,9 +131,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     cachingIdGenerator.getNextGeneratedInternalId()
     // An InternalId for DataProvider is generated.
     cachingIdGenerator.getNextGeneratedInternalId()
-    // An External for DataProvider is generated.
+    // An ExternalId for DataProvider is generated.
     val externalDataProviderId = cachingIdGenerator.getNextGeneratedExternalId()
-    // An External for DataProviderCertificate is generated.
+    // An ExternalId for DataProviderCertificate is generated.
     cachingIdGenerator.getNextGeneratedExternalId()
 
     return externalDataProviderId.value
@@ -221,7 +221,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     // An InternalId for EventGroup is generated.
     cachingIdGenerator.getNextGeneratedInternalId()
-    // An External for EventGroup is generated.
+    // An ExternalId for EventGroup is generated.
     val externalEventGroupId = cachingIdGenerator.getNextGeneratedExternalId()
 
     assertThat(createdEventGroup)
@@ -248,7 +248,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
     // An InternalId for EventGroup is generated.
     cachingIdGenerator.getNextGeneratedInternalId()
-    // An External for EventGroup is generated.
+    // An ExternalId for EventGroup is generated.
     val externalEventGroupId = cachingIdGenerator.getNextGeneratedExternalId()
 
     val eventGroupRead =
