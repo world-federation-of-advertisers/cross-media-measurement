@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 
 /**
- * An [IdGenerator] that saves the generated ids from the [inputIdGenerator] and exposes them in the
+ * An [IdGenerator] that saves the generated ids from the [inputIdGenerator] inaand exposes them in the
  * same order they are genereated. Used for testing.
  */
 class ParallelIdGenerator(val inputIdGenerator: IdGenerator) : IdGenerator {
