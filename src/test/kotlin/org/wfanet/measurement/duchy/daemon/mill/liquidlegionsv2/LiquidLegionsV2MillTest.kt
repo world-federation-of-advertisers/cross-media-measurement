@@ -147,7 +147,6 @@ private const val DECAY_RATE = 12.0
 private const val SKETCH_SIZE = 100_000L
 private const val CURVE_ID = 415L // NID_X9_62_prime256v1
 
-private val OTHER_DUCHY_NAMES = listOf(DUCHY_TWO_NAME, DUCHY_THREE_NAME)
 private const val LOCAL_ID = 1234L
 private const val GLOBAL_ID = LOCAL_ID.toString()
 
@@ -344,11 +343,7 @@ class LiquidLegionsV2MillTest {
     computationStore =
       ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
     computationDataClients =
-      ComputationDataClients.forTesting(
-        ComputationsCoroutineStub(channel),
-        computationStore,
-        OTHER_DUCHY_NAMES
-      )
+      ComputationDataClients.forTesting(ComputationsCoroutineStub(channel), computationStore)
     addService(mockLiquidLegionsComputationControl)
     addService(mockSystemComputations)
     addService(mockComputationLogEntries)

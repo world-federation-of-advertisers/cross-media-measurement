@@ -30,7 +30,6 @@ import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -57,7 +56,6 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
  * @param maxAttempts maximum number of attempts to start a computation.
  */
 class Herald(
-  otherDuchiesInComputation: List<String>,
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
@@ -65,8 +63,6 @@ class Herald(
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 10
 ) {
-  private val computationProtocolStageDetails =
-    ComputationProtocolStageDetails(otherDuchiesInComputation)
 
   // If one of the GlobalScope coroutines launched by `start` fails, it populates this.
   // TODO(world-federation-of-advertisers/cross-media-measurement#87): Fail the computation and
@@ -208,10 +204,8 @@ class Herald(
           LiquidLegionsV2Starter.updateRequisitionsAndKeySets(
             token,
             internalComputationsClient,
-            computationProtocolStageDetails,
             systemComputation,
-            protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId,
-            logger
+            protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId
           )
         else -> error { "Unknown or unsupported protocol." }
       }
@@ -226,12 +220,7 @@ class Herald(
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
-          LiquidLegionsV2Starter.startComputation(
-            token,
-            internalComputationsClient,
-            computationProtocolStageDetails,
-            logger
-          )
+          LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error { "Unknown or unsupported protocol." }
       }
     }
