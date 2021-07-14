@@ -89,7 +89,7 @@ LOCAL_IMAGES = [
     ),
     struct(
         name = "fake_storage_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
+        image = "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
     ),
 ]
 
