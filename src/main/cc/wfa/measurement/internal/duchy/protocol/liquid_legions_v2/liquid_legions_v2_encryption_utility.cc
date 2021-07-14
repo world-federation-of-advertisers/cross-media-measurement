@@ -41,7 +41,6 @@ namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 namespace {
 
 using ::private_join_and_compute::CommutativeElGamal;
-using ::wfa::StartedThreadCpuTimer;
 using ::wfa::measurement::common::SortStringByBlock;
 using ::wfa::measurement::common::crypto::Action;
 using ::wfa::measurement::common::crypto::CompositeType;
