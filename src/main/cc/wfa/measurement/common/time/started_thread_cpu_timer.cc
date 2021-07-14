@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2021 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,44 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_STARTED_THREAD_CPU_TIMER_H_
-#define WFA_MEASUREMENT_COMMON_CRYPTO_STARTED_THREAD_CPU_TIMER_H_
+#include "wfa/measurement/common/time/started_thread_cpu_timer.h"
 
-#include <time.h>
+#include <ctime>
 
+#include "absl/base/macros.h"
 #include "absl/time/time.h"
-#include "glog/logging.h"
 
-namespace wfa::measurement::common::crypto {
-
+namespace wfa {
 namespace {
-
 // Gets the cpu duration of current thread.
 absl::Duration GetCurrentThreadCpuDuration() {
 #ifdef __linux__
   struct timespec ts;
-  CHECK(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
-      << "Failed to get the thread cpu time.";
+  ABSL_ASSERT(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0);
   return absl::DurationFromTimespec(ts);
 #else
   return absl::ZeroDuration();
 #endif
 }
-
 }  // namespace
 
-class StartedThreadCpuTimer {
- public:
-  StartedThreadCpuTimer() : start_(GetCurrentThreadCpuDuration()) {}
-  absl::Duration Elapsed() const {
-    return GetCurrentThreadCpuDuration() - start_;
-  }
-  int64_t ElapsedMillis() const { return absl::ToInt64Milliseconds(Elapsed()); }
+StartedThreadCpuTimer::StartedThreadCpuTimer()
+    : start_(GetCurrentThreadCpuDuration()) {}
 
- private:
-  const absl::Duration start_;
-};
+absl::Duration StartedThreadCpuTimer::Elapsed() const {
+  return GetCurrentThreadCpuDuration() - start_;
+}
 
-}  // namespace wfa::measurement::common::crypto
+int64_t StartedThreadCpuTimer::ElapsedMillis() const {
+  return absl::ToInt64Milliseconds(Elapsed());
+}
 
-#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_STARTED_THREAD_CPU_TIMER_H_
+}  // namespace wfa
