@@ -24,7 +24,7 @@ cc_library(
         "//src/main/cc/wfa/measurement/common/crypto:constants",
         "//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
         "//src/main/cc/wfa/measurement/common/crypto:protocol_cryptor",
-        "//src/main/cc/wfa/measurement/common/crypto:started_thread_cpu_timer",
+        "//src/main/cc/wfa/measurement/common/time:started_thread_cpu_timer",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_cc_proto",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@any_sketch//src/main/cc/math:distributions",

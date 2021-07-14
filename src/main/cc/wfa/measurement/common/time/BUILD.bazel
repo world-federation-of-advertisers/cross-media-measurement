@@ -1,0 +1,12 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "started_thread_cpu_timer",
+    hdrs = ["started_thread_cpu_timer.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        "@com_google_absl//absl/time",
+    ],
+)
