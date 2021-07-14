@@ -31,9 +31,9 @@
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/encryption_utility_helper.h"
 #include "wfa/measurement/common/crypto/protocol_cryptor.h"
-#include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/common/string_block_sorter.h"
+#include "wfa/measurement/common/time/started_thread_cpu_timer.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
@@ -68,7 +68,6 @@ using ::wfa::measurement::common::crypto::kPublisherNoiseRegisterId;
 using ::wfa::measurement::common::crypto::kUnitECPointSeed;
 using ::wfa::measurement::common::crypto::MultiplyEcPointPairByScalar;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
-using ::wfa::measurement::common::crypto::StartedThreadCpuTimer;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
