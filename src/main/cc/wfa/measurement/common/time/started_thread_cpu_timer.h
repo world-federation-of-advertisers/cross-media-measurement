@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_TIME_STARTED_THREAD_CPU_TIMER_H_
-#define WFA_MEASUREMENT_COMMON_TIME_STARTED_THREAD_CPU_TIMER_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_TIME_STARTED_THREAD_CPU_TIMER_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_TIME_STARTED_THREAD_CPU_TIMER_H_
 
 #include <ctime>
 
@@ -52,4 +52,4 @@ class StartedThreadCpuTimer {
 
 }  // namespace wfa
 
-#endif  // WFA_MEASUREMENT_COMMON_TIME_STARTED_THREAD_CPU_TIMER_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_TIME_STARTED_THREAD_CPU_TIMER_H_
