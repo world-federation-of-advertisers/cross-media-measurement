@@ -7,14 +7,15 @@ kt_jvm_library(
     srcs = ["AsyncComputationControlServer.kt"],
     runtime_deps = ["@io_grpc_grpc_java//netty"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
 
@@ -38,14 +39,15 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     runtime_deps = ["@io_grpc_grpc_java//netty"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
         "//src/main/proto/wfa/measurement/internal/duchy:async_computation_control_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
 
@@ -54,9 +56,9 @@ kt_jvm_library(
     srcs = ["ForwardedStorageComputationControlServer.kt"],
     deps = [
         ":computation_control_server",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )
 
@@ -84,12 +86,12 @@ kt_jvm_library(
         "@io_grpc_grpc_java//netty",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
 
@@ -99,13 +101,14 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
 
@@ -114,9 +117,9 @@ kt_jvm_library(
     srcs = ["ForwardedStorageRequisitionFulfillmentServer.kt"],
     deps = [
         ":requisition_fulfillment_server",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
     ],
 )
 

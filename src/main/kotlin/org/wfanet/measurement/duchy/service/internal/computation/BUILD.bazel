@@ -30,12 +30,13 @@ kt_jvm_library(
     ),
     deps = [
         ":protos",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:stage_attempt_jave_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )

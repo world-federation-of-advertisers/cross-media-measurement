@@ -16,13 +16,13 @@ package org.wfanet.measurement.kingdom.service.internal
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.internal.kingdom.ReportLogEntry
 import org.wfanet.measurement.kingdom.db.ReportDatabase
 

@@ -28,11 +28,6 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.UseConstructor
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.times
-import com.nhaarman.mockitokotlin2.whenever
 import java.time.Clock
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
@@ -45,6 +40,11 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.UseConstructor
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
