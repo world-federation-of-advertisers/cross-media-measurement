@@ -19,10 +19,22 @@
 
 namespace wfa {
 
+// Utility for determining the CPU duration of the current thread since the
+// instance's construction.
+//
+// This is THREAD HOSTILE: it should not be used from multiple threads.
 class StartedThreadCpuTimer {
  public:
+  // Builds a `StartedThreadCpuTimer` and marks the time of construction as the
+  // basis of comparison for called to `Elapsed` or `ElapsedMillis`.
   StartedThreadCpuTimer();
+
+  // Outputs how much CPU time has elapsed on the current thread since
+  // construction.
   absl::Duration Elapsed() const;
+
+  // Outputs how much CPU time, in milliseconds, has elapsed on the current
+  // thread since construction.
   int64_t ElapsedMillis() const;
 
  private:
