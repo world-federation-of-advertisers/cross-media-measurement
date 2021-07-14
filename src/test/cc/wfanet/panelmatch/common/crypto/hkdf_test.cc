@@ -39,9 +39,9 @@ SecretData GetInputKeyMaterial() {
 // Test values come from
 // https://datatracker.ietf.org/doc/html/rfc5869#appendix-A.3
 TEST(HkdfTest, properCall) {
-  const Hkdf& hkdf = GetSha256Hkdf();
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   ASSERT_OK_AND_ASSIGN(SecretData result,
-                       hkdf.ComputeHkdf(GetInputKeyMaterial(), 42));
+                       hkdf->ComputeHkdf(GetInputKeyMaterial(), 42));
   EXPECT_EQ(HexEncode(SecretDataAsStringView(result)),
             "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d"
             "201395faa4b61a96c8");
@@ -49,24 +49,24 @@ TEST(HkdfTest, properCall) {
 
 // Test with an empty key and proper length
 TEST(HkdfTest, emptyKey) {
-  const Hkdf& hkdf = GetSha256Hkdf();
-  auto result = hkdf.ComputeHkdf(SecretDataFromStringView(""), 42);
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  auto result = hkdf->ComputeHkdf(SecretDataFromStringView(""), 42);
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 
 // Test with a proper key and length < 1
 TEST(HkdfTest, lengthTooSmall) {
-  const Hkdf& hkdf = GetSha256Hkdf();
-  auto result = hkdf.ComputeHkdf(GetInputKeyMaterial(), -6);
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), -6);
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 
 // Test with null key and length > 1024
 TEST(HkdfTest, lengthTooBig) {
-  const Hkdf& hkdf = GetSha256Hkdf();
-  auto result = hkdf.ComputeHkdf(GetInputKeyMaterial(), 10000);
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), 10000);
   EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }

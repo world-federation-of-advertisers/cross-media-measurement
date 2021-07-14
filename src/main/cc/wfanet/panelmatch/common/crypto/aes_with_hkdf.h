@@ -17,27 +17,39 @@
 #ifndef SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_AES_WITH_HKDF_H_
 #define SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_AES_WITH_HKDF_H_
 
-namespace wfanet::panelmatch::common::crypto {
-
+#include <memory>
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "tink/util/secret_data.h"
+#include "wfanet/panelmatch/common/crypto/aes.h"
+#include "wfanet/panelmatch/common/crypto/hkdf.h"
+
+namespace wfanet::panelmatch::common::crypto {
 
 // Implements HMAC-based Extract-and-Expand Key Derivation Function (HKDF)
 // from RFC5869 and an AES encryption
 class AesWithHkdf {
  public:
-  virtual ~AesWithHkdf() = default;
+  AesWithHkdf(std::unique_ptr<Hkdf> hkdf, std::unique_ptr<Aes> aes);
+  ~AesWithHkdf() = default;
+
   // Encrypts `input` with a SecretData `key` using an hkdf to generate an
   // aes key and an aes method to encrypt the input with the aes key
-  virtual absl::StatusOr<std::string> Encrypt(
-      absl::string_view input, const crypto::tink::util::SecretData key) = 0;
+  absl::StatusOr<std::string> Encrypt(
+      absl::string_view input,
+      const ::crypto::tink::util::SecretData& key) const;
+
   // Decrypts `input` with a SecretData `key` using an hkdf to generate an
   // aes key and an aes method to decrypt the input with the aes key
-  virtual absl::StatusOr<std::string> Decrypt(
-      absl::string_view input, const crypto::tink::util::SecretData key) = 0;
+  absl::StatusOr<std::string> Decrypt(
+      absl::string_view input,
+      const ::crypto::tink::util::SecretData& key) const;
+
+ private:
+  std::unique_ptr<Hkdf> hkdf_;
+  std::unique_ptr<Aes> aes_;
 };
 
 }  // namespace wfanet::panelmatch::common::crypto

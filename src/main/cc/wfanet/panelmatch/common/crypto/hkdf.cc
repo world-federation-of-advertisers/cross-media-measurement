@@ -45,9 +45,8 @@ class Sha256Hkdf : public Hkdf {
 };
 }  // namespace
 
-const Hkdf& GetSha256Hkdf() {
-  static const auto* const hkdf = new Sha256Hkdf();
-  return *hkdf;
+std::unique_ptr<Hkdf> GetSha256Hkdf() {
+  return absl::make_unique<Sha256Hkdf>();
 }
 
 }  // namespace wfanet::panelmatch::common::crypto

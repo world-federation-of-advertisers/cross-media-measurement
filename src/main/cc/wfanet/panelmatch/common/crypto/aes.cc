@@ -36,11 +36,10 @@ class AesSiv : public Aes {
                                       const SecretData& key) const override {
     return absl::UnimplementedError("Not implemented");
   }
+
+  int32_t key_size_bytes() const override { return 64; }
 };
 }  // namespace
 
-const Aes& GetAesSivCmac512() {
-  static const auto* const aes = new AesSiv();
-  return *aes;
-}
+std::unique_ptr<Aes> GetAesSivCmac512() { return absl::make_unique<AesSiv>(); }
 }  // namespace wfanet::panelmatch::common::crypto

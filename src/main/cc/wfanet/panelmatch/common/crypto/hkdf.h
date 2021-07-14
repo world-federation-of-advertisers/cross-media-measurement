@@ -17,6 +17,8 @@
 #ifndef SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_HKDF_H_
 #define SRC_MAIN_CC_WFANET_PANELMATCH_COMMON_CRYPTO_HKDF_H_
 
+#include <memory>
+
 #include "absl/status/statusor.h"
 #include "tink/util/secret_data.h"
 
@@ -32,7 +34,7 @@ class Hkdf {
 };
 
 // Returns an Hkdf that uses SHA-256 as the hash function
-const Hkdf& GetSha256Hkdf();
+std::unique_ptr<Hkdf> GetSha256Hkdf();
 
 }  // namespace wfanet::panelmatch::common::crypto
 

@@ -39,3 +39,16 @@ cc_test(
         "@tink_cc//util:test_util",
     ],
 )
+
+cc_test(
+    name = "aes_with_hkdf_test",
+    srcs = [
+        "aes_with_hkdf_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfanet/panelmatch/common/crypto:aes_with_hkdf",
+        "//src/test/cc/testutil:matchers",
+        "//src/test/cc/testutil:status_macros",
+        "@googletest//:gtest_main",
+    ],
+)
