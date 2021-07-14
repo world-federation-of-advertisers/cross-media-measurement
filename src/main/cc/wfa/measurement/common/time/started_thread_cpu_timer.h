@@ -22,7 +22,7 @@
 
 namespace wfa {
 
-namespace {
+namespace internal {
 
 // Gets the cpu duration of current thread.
 absl::Duration GetCurrentThreadCpuDuration() {
@@ -36,13 +36,13 @@ absl::Duration GetCurrentThreadCpuDuration() {
 #endif
 }
 
-}  // namespace
+}  // namespace internal
 
 class StartedThreadCpuTimer {
  public:
   StartedThreadCpuTimer() : start_(GetCurrentThreadCpuDuration()) {}
   absl::Duration Elapsed() const {
-    return GetCurrentThreadCpuDuration() - start_;
+    return internal::GetCurrentThreadCpuDuration() - start_;
   }
   int64_t ElapsedMillis() const { return absl::ToInt64Milliseconds(Elapsed()); }
 
