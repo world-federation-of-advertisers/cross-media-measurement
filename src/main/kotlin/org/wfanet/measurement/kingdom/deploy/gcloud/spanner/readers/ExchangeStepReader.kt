@@ -44,7 +44,7 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     LEFT JOIN DataProviders USING (DataProviderId)
     JOIN RecurringExchanges USING (RecurringExchangeId)
     """.trimIndent()
-  
+
   override val externalIdColumn: String
     get() = error("This isn't supported.")
 
