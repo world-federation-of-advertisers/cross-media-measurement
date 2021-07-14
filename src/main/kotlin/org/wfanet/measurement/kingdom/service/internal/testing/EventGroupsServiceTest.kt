@@ -40,8 +40,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -162,7 +161,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val eventGroup =
       EventGroup.newBuilder()
         .also {
-          it.externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+          it.externalDataProviderId = FIXED_EXTERNAL_ID
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
           it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
         }
@@ -183,7 +182,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       EventGroup.newBuilder()
         .also {
           it.externalDataProviderId = externalDataProviderId
-          it.externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+          it.externalMeasurementConsumerId = FIXED_EXTERNAL_ID
           it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
         }
         .build()
