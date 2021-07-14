@@ -28,7 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.testing.ParallelIdGenerator
+import org.wfanet.measurement.common.identity.testing.CachingIdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -61,8 +61,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   // protected val copyIdGenerator =
   //   RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
 
-  protected val parallelIdGenerator =
-    ParallelIdGenerator(
+  protected val cachingIdGenerator =
+    CachingIdGenerator(
       RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
     )
 
@@ -97,13 +97,13 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     )
 
     // An InternalId for MeasurementConsumer's Certificate is generated.
-    parallelIdGenerator.getNextGeneratedInternalId()
+    cachingIdGenerator.getNextGeneratedInternalId()
     // An InternalId for MeasurementConsumer is generated.
-    parallelIdGenerator.getNextGeneratedInternalId()
+    cachingIdGenerator.getNextGeneratedInternalId()
     // An External for MeasurementConsumer is generated.
-    val externalMeasurementConsumerId = parallelIdGenerator.getNextGeneratedExternalId()
+    val externalMeasurementConsumerId = cachingIdGenerator.getNextGeneratedExternalId()
     // An External for MeasurementConsumerCertificate is generated.
-    parallelIdGenerator.getNextGeneratedExternalId()
+    cachingIdGenerator.getNextGeneratedExternalId()
 
     return externalMeasurementConsumerId.value
   }
@@ -128,20 +128,20 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     )
 
     // An InternalId for DataProvider's Certificate is generated.
-    parallelIdGenerator.getNextGeneratedInternalId()
+    cachingIdGenerator.getNextGeneratedInternalId()
     // An InternalId for DataProvider is generated.
-    parallelIdGenerator.getNextGeneratedInternalId()
+    cachingIdGenerator.getNextGeneratedInternalId()
     // An External for DataProvider is generated.
-    val externalDataProviderId = parallelIdGenerator.getNextGeneratedExternalId()
+    val externalDataProviderId = cachingIdGenerator.getNextGeneratedExternalId()
     // An External for DataProviderCertificate is generated.
-    parallelIdGenerator.getNextGeneratedExternalId()
+    cachingIdGenerator.getNextGeneratedExternalId()
 
     return externalDataProviderId.value
   }
 
   @Before
   fun initServices() {
-    val services = newServices(parallelIdGenerator)
+    val services = newServices(cachingIdGenerator)
     eventGroupsService = services.eventGroupsService
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
@@ -220,9 +220,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
     // An InternalId for EventGroup is generated.
-    parallelIdGenerator.getNextGeneratedInternalId()
+    cachingIdGenerator.getNextGeneratedInternalId()
     // An External for EventGroup is generated.
-    val externalEventGroupId = parallelIdGenerator.getNextGeneratedExternalId()
+    val externalEventGroupId = cachingIdGenerator.getNextGeneratedExternalId()
 
     assertThat(createdEventGroup)
       .isEqualTo(
@@ -247,9 +247,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
     // An InternalId for EventGroup is generated.
-    parallelIdGenerator.getNextGeneratedInternalId()
+    cachingIdGenerator.getNextGeneratedInternalId()
     // An External for EventGroup is generated.
-    val externalEventGroupId = parallelIdGenerator.getNextGeneratedExternalId()
+    val externalEventGroupId = cachingIdGenerator.getNextGeneratedExternalId()
 
     val eventGroupRead =
       eventGroupsService.getEventGroup(

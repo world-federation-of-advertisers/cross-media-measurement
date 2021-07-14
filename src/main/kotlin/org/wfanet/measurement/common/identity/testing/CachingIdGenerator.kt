@@ -20,10 +20,12 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 
 /**
- * An [IdGenerator] that saves the generated ids from the [inputIdGenerator] inaand exposes them in the
- * same order they are genereated. Used for testing.
+ * An [IdGenerator] that saves the generated ids from the [inputIdGenerator] in a parallel linked
+ * list and exposes them in the same order they are genereated. Used for testing.
  */
-class ParallelIdGenerator(val inputIdGenerator: IdGenerator) : IdGenerator {
+class CachingIdGenerator(val inputIdGenerator: IdGenerator) : IdGenerator {
+
+  //  Latest generated Ids are strored in the tail nodes, earliests are stored in the head nodes.
   private val internalIds = LinkedList<InternalId>()
   private val externalIds = LinkedList<ExternalId>()
 
