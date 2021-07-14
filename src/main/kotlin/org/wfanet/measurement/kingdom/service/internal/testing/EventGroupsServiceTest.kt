@@ -29,7 +29,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.identity.testing.CachingIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -56,12 +55,8 @@ private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
-  protected val cachingIdGenerator =
-    CachingIdGenerator(
-      RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-    )
-  
-  protected val externalIds = cachingIdGenerator.getRemainingGeneratedExternalIds()
+  protected val idGenerator =
+    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
 
   protected lateinit var eventGroupsService: T
     private set
@@ -75,52 +70,50 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
 
   private suspend fun insertMeasurementConsumer(): Long {
-    measurementConsumersService.createMeasurementConsumer(
+    return measurementConsumersService.createMeasurementConsumer(
       MeasurementConsumer.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
             subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
             detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
-          }
+              }
           detailsBuilder.apply {
-            apiVersion = "2"
+                apiVersion = "2"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-        }
+              }
+            }
         .build()
     )
-
-    return externalIds.elementAt(1).value
+      .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
-    dataProvidersService.createDataProvider(
+    return dataProvidersService.createDataProvider(
       DataProvider.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
             subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
             detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
-          }
+              }
           detailsBuilder.apply {
-            apiVersion = "2"
+                apiVersion = "2"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-        }
+              }
+            }
         .build()
     )
-
-    return externalIds.elementAt(1).value
+      .externalDataProviderId
   }
 
   @Before
   fun initServices() {
-    val services = newServices(cachingIdGenerator)
+    val services = newServices(idGenerator)
     eventGroupsService = services.eventGroupsService
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
@@ -198,11 +191,11 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
-    val externalEventGroupId = externalIds.first()
+    val externalEventGroupId = createdEventGroup.externalEventGroupId
 
     assertThat(createdEventGroup)
       .isEqualTo(
-        eventGroup.toBuilder().also { it.externalEventGroupId = externalEventGroupId.value }.build()
+        eventGroup.toBuilder().also { it.externalEventGroupId = externalEventGroupId }.build()
       )
   }
 
@@ -223,14 +216,14 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
-    val externalEventGroupId = externalIds.first()
+    val externalEventGroupId = createdEventGroup.externalEventGroupId
 
     val eventGroupRead =
       eventGroupsService.getEventGroup(
         GetEventGroupRequest.newBuilder()
           .also {
             it.externalDataProviderId = externalDataProviderId
-            it.externalEventGroupId = externalEventGroupId.value
+            it.externalEventGroupId = externalEventGroupId
           }
           .build()
       )
