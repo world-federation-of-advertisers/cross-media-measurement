@@ -20,9 +20,9 @@ kt_jvm_library(
     srcs = ["SpannerEmulator.kt"],
     visibility = ["//visibility:private"],
     deps = [
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 
@@ -40,15 +40,15 @@ kt_jvm_library(
     deps = [
         ":spanner_emulator",
         ":spanner_schema",
-        "//imports/java/com/google/api/core",
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/com/google/common/truth",
-        "//imports/java/org/junit",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/testing",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/api/core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 
@@ -59,15 +59,15 @@ kt_jvm_library(
     runtime_deps = [
         # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
         # See https://github.com/bazelbuild/rules_kotlin/issues/333
-        "//imports/kotlin/kotlin:stdlib_jdk7",
+        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
     ],
     deps = [
         ":spanner_emulator",
         ":spanner_schema",
-        "//imports/java/com/google/cloud/spanner",
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 

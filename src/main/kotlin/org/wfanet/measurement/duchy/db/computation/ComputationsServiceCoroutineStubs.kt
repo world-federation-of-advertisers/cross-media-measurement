@@ -15,11 +15,8 @@
 package org.wfanet.measurement.duchy.db.computation
 
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
-import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 
 /**
@@ -33,16 +30,10 @@ suspend fun ComputationsCoroutineStub.advanceComputationStage(
   computationToken: ComputationToken,
   inputsToNextStage: List<String> = listOf(),
   passThroughBlobs: List<String> = listOf(),
-  stage: ComputationStage,
-  computationProtocolStageDetails:
-    ComputationProtocolStageDetailsHelper<
-      ComputationTypeEnum.ComputationType,
-      ComputationStage,
-      ComputationStageDetails,
-      ComputationDetails>
+  stage: ComputationStage
 ): ComputationToken {
   require(
-    computationProtocolStageDetails.validateRoleForStage(stage, computationToken.computationDetails)
+    ComputationProtocolStageDetails.validateRoleForStage(stage, computationToken.computationDetails)
   )
   val request: AdvanceComputationStageRequest =
     AdvanceComputationStageRequest.newBuilder()
@@ -51,10 +42,15 @@ suspend fun ComputationsCoroutineStub.advanceComputationStage(
         nextComputationStage = stage
         addAllInputBlobs(inputsToNextStage)
         addAllPassThroughBlobs(passThroughBlobs)
-        stageDetails = computationProtocolStageDetails.detailsFor(stage)
+        stageDetails =
+          ComputationProtocolStageDetails.detailsFor(stage, computationToken.computationDetails)
         afterTransition =
-          computationProtocolStageDetails.afterTransitionForStage(stage).toRequestProtoEnum()
-        outputBlobs = computationProtocolStageDetails.outputBlobNumbersForStage(stage)
+          ComputationProtocolStageDetails.afterTransitionForStage(stage).toRequestProtoEnum()
+        outputBlobs =
+          ComputationProtocolStageDetails.outputBlobNumbersForStage(
+            stage,
+            computationToken.computationDetails
+          )
       }
       .build()
   return this.advanceComputationStage(request).token

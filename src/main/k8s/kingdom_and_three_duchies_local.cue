@@ -83,23 +83,19 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 #Duchies: [
 	{
 		name:                   "aggregator"
-		key:                    "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
 		protocols_setup_config: #AggregatorProtocolsSetupConfig
 	},
 	{
 		name:                   "worker-1"
-		key:                    "31cc32e7cd53ff24f2b64ae8c531099af9867ebf5d9a659f742459947caa29b0"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 	},
 	{
 		name:                   "worker-2"
-		key:                    "338cce0306416b70e901436cb9eca5ac758e8ff41d7b58dabadf8726608ca6cc"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 	},
 ]
 
 #LocalDuchy: #Duchy & {
-	_duchy_names: [ for d in #Duchies {d.name}]
 	_aggregator_name: "duchy-aggregator"
 	_spanner_schema_push_flags: [
 		"--create-instance",
@@ -123,8 +119,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"computation-control-server":       "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image"
 		"herald-daemon":                    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image"
 		"liquid-legions-v2-mill-daemon":    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image"
-		"metric-values-storage-server":     "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_forwarded_storage_server_image"
-		"publisher-data-server":            "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:publisher_data_server_image"
+		"requisition-fulfillment-server":   "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_requisition_fulfillment_server_image"
 		"push-spanner-schema-container":    "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
 		"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image"
 	}
@@ -153,13 +148,8 @@ kingdom: #Kingdom & {
 	]
 	_images: {
 		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-		"report-maker-daemon":           "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_maker_daemon_image"
-		"report-starter-daemon":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:report_starter_daemon_image"
-		"requisition-linker-daemon":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/daemon:requisition_linker_daemon_image"
 		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
-		"global-computation-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:global_computation_server_image"
-		"requisition-server":            "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:requisition_server_image"
-		"system-requisition-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_requisition_server_image"
+		"system-api-server":             "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
 	}
 	_kingdom_image_pull_policy: "Never"
 	_verbose_grpc_logging:      "true"

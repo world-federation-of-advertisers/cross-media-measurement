@@ -6,11 +6,11 @@ kt_jvm_library(
     name = "gcs_computation_control_server",
     srcs = ["GcsComputationControlServer.kt"],
     deps = [
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:computation_control_server",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 
@@ -34,11 +34,11 @@ kt_jvm_library(
     name = "spanner_computations_server",
     srcs = ["SpannerComputationsServer.kt"],
     deps = [
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:computations_server",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 
@@ -60,10 +60,10 @@ kt_jvm_library(
     name = "gcs_requisition_fulfillment_server",
     srcs = ["GcsRequisitionFulfillmentServer.kt"],
     deps = [
-        "//imports/java/picocli",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:requisition_fulfillment_server",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//imports/java/picocli",
     ],
 )
 

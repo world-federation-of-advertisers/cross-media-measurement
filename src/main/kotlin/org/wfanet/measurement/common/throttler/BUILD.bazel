@@ -6,7 +6,7 @@ kt_jvm_library(
     name = "throttler",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/picocli",
-        "//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

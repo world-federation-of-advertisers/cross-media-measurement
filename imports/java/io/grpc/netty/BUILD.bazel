@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "netty",
-    actual = "@io_grpc_grpc_java//netty",
-)

@@ -18,6 +18,7 @@ import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
@@ -38,21 +39,21 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     private set
 
   protected fun run(storageClient: StorageClient) {
+    DuchyInfo.initializeFromFlags(flags.duchyInfoFlags)
     val duchyName = flags.duchy.duchyName
-    val otherDuchyNames = flags.computationControlServiceTargets.keys.minus(duchyName).toList()
 
     val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
     val dataClients =
       ComputationDataClients(
         ComputationsCoroutineStub(computationsServiceChannel).withDuchyId(duchyName),
-        storageClient,
-        otherDuchyNames
+        storageClient
       )
 
     val computationControlClientMap =
-      flags.computationControlServiceTargets.filterKeys { it != duchyName }.mapValues {
-        val otherDuchyChannel = buildChannel(it.value)
-        ComputationControlCoroutineStub(otherDuchyChannel).withDuchyId(duchyName)
+      DuchyInfo.entries.filter { it.duchyId != duchyName }.associate {
+        it.duchyId to
+          ComputationControlCoroutineStub(buildChannel(it.computationControlServiceTarget))
+            .withDuchyId(duchyName)
       }
 
     val systemComputationsClient =

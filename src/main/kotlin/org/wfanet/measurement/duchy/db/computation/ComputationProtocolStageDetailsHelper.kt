@@ -18,7 +18,7 @@ package org.wfanet.measurement.duchy.db.computation
 interface ComputationProtocolStageDetailsHelper<
   ProtocolT, StageT, StageDetailsT, ComputationDetailsT> {
   /** Creates the stage specific details for a given computation stage. */
-  fun detailsFor(stage: StageT): StageDetailsT
+  fun detailsFor(stage: StageT, computationDetails: ComputationDetailsT): StageDetailsT
 
   /** Converts bytes into a [StageDetailsT] based on [protocol] . */
   fun parseDetails(protocol: ProtocolT, bytes: ByteArray): StageDetailsT
@@ -30,7 +30,7 @@ interface ComputationProtocolStageDetailsHelper<
   fun afterTransitionForStage(stage: StageT): AfterTransition
 
   /** Returns the expected number of output blobs of [StageT]. */
-  fun outputBlobNumbersForStage(stage: StageT): Int
+  fun outputBlobNumbersForStage(stage: StageT, computationDetails: ComputationDetailsT): Int
 
   /** Sets [EndComputationReason] to the [ComputationDetailsT]. */
   fun setEndingState(

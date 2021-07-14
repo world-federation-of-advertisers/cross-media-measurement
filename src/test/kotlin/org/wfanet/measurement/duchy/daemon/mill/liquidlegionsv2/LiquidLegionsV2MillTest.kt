@@ -75,8 +75,6 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineImplBase
-import org.wfanet.measurement.internal.duchy.MetricValuesGrpcKt.MetricValuesCoroutineStub
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
@@ -149,7 +147,6 @@ private const val DECAY_RATE = 12.0
 private const val SKETCH_SIZE = 100_000L
 private const val CURVE_ID = 415L // NID_X9_62_prime256v1
 
-private val OTHER_DUCHY_NAMES = listOf(DUCHY_TWO_NAME, DUCHY_THREE_NAME)
 private const val LOCAL_ID = 1234L
 private const val GLOBAL_ID = LOCAL_ID.toString()
 
@@ -317,8 +314,6 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 class LiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
-  private val mockMetricValues: MetricValuesCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
   private val mockSystemComputations: SystemComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
@@ -348,11 +343,7 @@ class LiquidLegionsV2MillTest {
     computationStore =
       ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
     computationDataClients =
-      ComputationDataClients.forTesting(
-        ComputationsCoroutineStub(channel),
-        computationStore,
-        OTHER_DUCHY_NAMES
-      )
+      ComputationDataClients.forTesting(ComputationsCoroutineStub(channel), computationStore)
     addService(mockLiquidLegionsComputationControl)
     addService(mockSystemComputations)
     addService(mockComputationLogEntries)
@@ -389,10 +380,6 @@ class LiquidLegionsV2MillTest {
 
   private val computationStatsStub: ComputationStatsCoroutineStub by lazy {
     ComputationStatsCoroutineStub(grpcTestServerRule.channel)
-  }
-
-  private val metricValuesStub: MetricValuesCoroutineStub by lazy {
-    MetricValuesCoroutineStub(grpcTestServerRule.channel)
   }
 
   private lateinit var computationControlRequests: List<AdvanceComputationRequest>

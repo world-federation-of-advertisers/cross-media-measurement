@@ -14,26 +14,42 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
 
 class SpannerMeasurementConsumersService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
 ) : MeasurementConsumersCoroutineImplBase() {
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer
   ): MeasurementConsumer {
-    TODO("not implemented yet")
+    grpcRequire(
+      !request.details.apiVersion.isEmpty() &&
+        !request.details.publicKey.isEmpty() &&
+        !request.details.publicKeySignature.isEmpty()
+    ) { "Details field of MeasurementConsumer is missing fields." }
+    return CreateMeasurementConsumer(request).execute(client, idGenerator, clock)
   }
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
-    TODO("not implemented yet")
+    return MeasurementConsumerReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
+      ?.measurementConsumer
+      ?: failGrpc(Status.NOT_FOUND) {
+        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
+      }
   }
 }

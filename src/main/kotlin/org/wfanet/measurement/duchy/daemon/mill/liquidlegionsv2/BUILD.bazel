@@ -1,4 +1,4 @@
-load("//build:defs.bzl", "test_target")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
@@ -14,11 +14,8 @@ kt_jvm_library(
     srcs = [
         "LiquidLegionsV2Mill.kt",
     ],
-    runtime_deps = ["//imports/java/io/grpc/netty"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        "//imports/java/com/google/protobuf",
-        "//imports/java/io/grpc:api",
-        "//imports/kotlin/kotlinx/coroutines:core",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
@@ -31,7 +28,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_java_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:metric_values_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_sketch_parameter_java_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_java_proto",
@@ -43,5 +39,8 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )

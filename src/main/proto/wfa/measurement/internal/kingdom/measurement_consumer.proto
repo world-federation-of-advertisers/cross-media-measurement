@@ -26,6 +26,7 @@ message MeasurementConsumer {
   fixed64 external_measurement_consumer_id = 1;
 
   // External ID of Certificate for public key signature verification.
+  // Output-only.
   fixed64 external_public_key_certificate_id = 2;
 
   // The *preferred* Certificate belonging to this MeasurementConsumer.
