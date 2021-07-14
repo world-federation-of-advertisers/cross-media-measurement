@@ -28,8 +28,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.testing.CachingIdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.identity.testing.CachingIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -56,15 +56,12 @@ private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
-  // protected val idGenerator =
-  //   RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-  // protected val copyIdGenerator =
-  //   RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-
   protected val cachingIdGenerator =
     CachingIdGenerator(
       RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
     )
+  
+  protected val externalIds = cachingIdGenerator.getRemainingGeneratedExternalIds()
 
   protected lateinit var eventGroupsService: T
     private set
@@ -96,16 +93,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .build()
     )
 
-    // An InternalId for MeasurementConsumer's Certificate is generated.
-    cachingIdGenerator.getNextGeneratedInternalId()
-    // An InternalId for MeasurementConsumer is generated.
-    cachingIdGenerator.getNextGeneratedInternalId()
-    // An ExternalId for MeasurementConsumer is generated.
-    val externalMeasurementConsumerId = cachingIdGenerator.getNextGeneratedExternalId()
-    // An ExternalId for MeasurementConsumerCertificate is generated.
-    cachingIdGenerator.getNextGeneratedExternalId()
-
-    return externalMeasurementConsumerId.value
+    return externalIds.elementAt(1).value
   }
 
   private suspend fun insertDataProvider(): Long {
@@ -127,16 +115,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .build()
     )
 
-    // An InternalId for DataProvider's Certificate is generated.
-    cachingIdGenerator.getNextGeneratedInternalId()
-    // An InternalId for DataProvider is generated.
-    cachingIdGenerator.getNextGeneratedInternalId()
-    // An ExternalId for DataProvider is generated.
-    val externalDataProviderId = cachingIdGenerator.getNextGeneratedExternalId()
-    // An ExternalId for DataProviderCertificate is generated.
-    cachingIdGenerator.getNextGeneratedExternalId()
-
-    return externalDataProviderId.value
+    return externalIds.elementAt(1).value
   }
 
   @Before
@@ -219,10 +198,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
-    // An InternalId for EventGroup is generated.
-    cachingIdGenerator.getNextGeneratedInternalId()
-    // An ExternalId for EventGroup is generated.
-    val externalEventGroupId = cachingIdGenerator.getNextGeneratedExternalId()
+    val externalEventGroupId = externalIds.first()
 
     assertThat(createdEventGroup)
       .isEqualTo(
@@ -246,10 +222,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .build()
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
-    // An InternalId for EventGroup is generated.
-    cachingIdGenerator.getNextGeneratedInternalId()
-    // An ExternalId for EventGroup is generated.
-    val externalEventGroupId = cachingIdGenerator.getNextGeneratedExternalId()
+
+    val externalEventGroupId = externalIds.first()
 
     val eventGroupRead =
       eventGroupsService.getEventGroup(

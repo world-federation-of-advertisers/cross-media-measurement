@@ -43,8 +43,4 @@ class CachingIdGenerator(val inputIdGenerator: IdGenerator) : IdGenerator {
 
   fun getRemainingGeneratedInternalIds() = internalIds.asSequence()
   fun getRemainingGeneratedExternalIds() = externalIds.asSequence()
-
-  fun getNextGeneratedInternalId() = internalIds.removeLast()
-
-  fun getNextGeneratedExternalId() = externalIds.removeLast()
 }
