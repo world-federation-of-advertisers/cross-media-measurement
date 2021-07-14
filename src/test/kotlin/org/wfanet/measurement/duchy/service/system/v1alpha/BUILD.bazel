@@ -6,6 +6,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlServiceTest",
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
 =======
@@ -15,16 +16,26 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "//src/main/kotlin/org/wfanet/measurement/storage/testing",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+<<<<<<< HEAD
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )

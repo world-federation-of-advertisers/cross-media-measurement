@@ -6,10 +6,13 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.server.GcpKingdomDataServerTest",
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
@@ -22,11 +25,17 @@ spanner_emulator_test(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+<<<<<<< HEAD
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )

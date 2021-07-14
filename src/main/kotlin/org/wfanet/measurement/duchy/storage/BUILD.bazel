@@ -10,12 +10,17 @@ kt_jvm_library(
     exports = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
 =======
         "//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 

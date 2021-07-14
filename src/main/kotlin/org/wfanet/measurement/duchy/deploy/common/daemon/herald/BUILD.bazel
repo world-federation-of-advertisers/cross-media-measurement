@@ -7,9 +7,12 @@ kt_jvm_library(
     srcs = ["HeraldDaemon.kt"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
@@ -19,10 +22,15 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 

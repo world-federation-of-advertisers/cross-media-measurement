@@ -8,18 +8,26 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
@@ -29,19 +37,27 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
@@ -50,6 +66,7 @@ kt_jvm_library(
     srcs = ["KingdomApiServer.kt"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
@@ -61,6 +78,13 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
@@ -70,6 +94,7 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":kingdom_api_server",
+<<<<<<< HEAD
 <<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v1alpha:requisition_service",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -83,6 +108,13 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v1alpha:requisition_service",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
@@ -107,10 +139,13 @@ kt_jvm_library(
     deps = [
         ":kingdom_api_server",
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_log_entries_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_participants_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computations_service",
@@ -118,10 +153,15 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 

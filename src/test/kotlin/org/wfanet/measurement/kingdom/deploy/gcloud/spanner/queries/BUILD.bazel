@@ -7,10 +7,14 @@ _TEST_DEPS = [
     "@wfa_common_jvm//imports/java/org/junit",
     "@wfa_common_jvm//imports/kotlin/kotlin/test",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
 =======
     "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",

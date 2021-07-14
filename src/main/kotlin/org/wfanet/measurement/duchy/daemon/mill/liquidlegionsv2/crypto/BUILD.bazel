@@ -7,17 +7,24 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_java_proto",
         "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )

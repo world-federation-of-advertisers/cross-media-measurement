@@ -6,24 +6,6 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomLegacySchemaTest",
     deps = [
 <<<<<<< HEAD
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-=======
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
-        "@wfa_common_jvm//imports/java/org/junit",
->>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
-    ],
-)
-
-spanner_emulator_test(
-    name = "KingdomSchemaTest",
-    srcs = ["KingdomSchemaTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomSchemaTest",
-    deps = [
 <<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
@@ -35,6 +17,38 @@ spanner_emulator_test(
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/org/junit",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
+    ],
+)
+
+spanner_emulator_test(
+    name = "KingdomSchemaTest",
+    srcs = ["KingdomSchemaTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomSchemaTest",
+    deps = [
+<<<<<<< HEAD
+<<<<<<< HEAD
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+=======
+        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/org/junit",
+>>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
@@ -51,9 +65,13 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:testing_nontestonly",
         "@wfa_common_jvm//imports/java/org/junit",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 

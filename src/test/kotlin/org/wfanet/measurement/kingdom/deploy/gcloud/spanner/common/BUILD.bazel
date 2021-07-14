@@ -6,9 +6,12 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.FiltersTest",
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
@@ -16,8 +19,12 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )

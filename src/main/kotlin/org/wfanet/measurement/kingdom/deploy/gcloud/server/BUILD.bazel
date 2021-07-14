@@ -7,6 +7,7 @@ kt_jvm_library(
     srcs = ["LegacySpannerKingdomDataServer.kt"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:legacy_kingdom_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "@wfa_common_jvm//imports/java/picocli",
@@ -19,6 +20,13 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "@wfa_common_jvm//imports/java/picocli",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:legacy_kingdom_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
@@ -41,19 +49,27 @@ kt_jvm_library(
     srcs = ["SpannerKingdomDataServer.kt"],
     deps = [
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:kingdom_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "@wfa_common_jvm//imports/java/picocli",
 <<<<<<< HEAD
+<<<<<<< HEAD
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
 =======
 >>>>>>> 6926ac10 (Migrate build and imports to common-jvm repository import  (#135))
+=======
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+>>>>>>> 76ed543b (Replace common //src/main/ and //src/test/ files with common-jvm import (#148))
     ],
 )
 
