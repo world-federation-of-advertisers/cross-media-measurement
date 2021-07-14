@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.common.identity.testing
 
+import java.util.LinkedList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -23,32 +24,22 @@ import org.wfanet.measurement.common.identity.InternalId
  * same order they are genereated. Used for testing.
  */
 class ParallelIdGenerator(val inputIdGenerator: IdGenerator) : IdGenerator {
-  private val internalIds = mutableListOf<InternalId>()
-  private val externalIds = mutableListOf<ExternalId>()
-  private var internalIdIndex = 0
-  private var externalIdIndex = 0
+  private val internalIds = LinkedList<InternalId>()
+  private val externalIds = LinkedList<ExternalId>()
 
   override fun generateInternalId(): InternalId {
     val internalId = inputIdGenerator.generateInternalId()
-    internalIds.add(internalId)
+    internalIds.addLast(internalId)
     return internalId
   }
 
   override fun generateExternalId(): ExternalId {
     val externalId = inputIdGenerator.generateExternalId()
-    externalIds.add(externalId)
+    externalIds.addLast(externalId)
     return externalId
   }
 
-  fun getNextGeneratedInternalId(): InternalId {
-    val internalId = internalIds.get(internalIdIndex)
-    this.internalIdIndex++
-    return internalId
-  }
+  fun getNextGeneratedInternalId() = internalIds.removeFirst()
 
-  fun getNextGeneratedExternalId(): ExternalId {
-    val externalId = externalIds.get(externalIdIndex)
-    this.externalIdIndex++
-    return externalId
-  }
+  fun getNextGeneratedExternalId() = externalIds.removeFirst()
 }
