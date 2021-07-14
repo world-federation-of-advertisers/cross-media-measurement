@@ -23,14 +23,20 @@ cc_library(
 
 cc_library(
     name = "aes_with_hkdf",
+    srcs = [
+        "aes_with_hkdf.cc",
+    ],
     hdrs = [
         "aes_with_hkdf.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "//src/main/cc/wfanet/panelmatch/common/crypto:aes",
+        "//src/main/cc/wfanet/panelmatch/common/crypto:hkdf",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )
 

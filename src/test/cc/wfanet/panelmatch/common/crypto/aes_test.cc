@@ -25,14 +25,14 @@ namespace {
 using ::crypto::tink::util::SecretDataFromStringView;
 
 TEST(AesTest, unimplementedEncrypt) {
-  const Aes& aes = GetAesSivCmac512();
-  auto result = aes.Encrypt("input", SecretDataFromStringView("key"));
+  std::unique_ptr<Aes> aes = GetAesSivCmac512();
+  auto result = aes->Encrypt("input", SecretDataFromStringView("key"));
   EXPECT_THAT(result.status(), StatusIs(absl::StatusCode::kUnimplemented, ""));
 }
 
 TEST(AesTest, unimplementedDecrypt) {
-  const Aes& aes = GetAesSivCmac512();
-  auto result = aes.Decrypt("input", SecretDataFromStringView("key"));
+  std::unique_ptr<Aes> aes = GetAesSivCmac512();
+  auto result = aes->Decrypt("input", SecretDataFromStringView("key"));
   EXPECT_THAT(result.status(), StatusIs(absl::StatusCode::kUnimplemented, ""));
 }
 
