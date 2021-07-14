@@ -86,9 +86,9 @@ wfa_repo_archive(
 
 wfa_repo_archive(
     name = "wfa_common_jvm",
-    commit = "20e4ee123c89e89aaf67df46a76a73764168b3cd",
+    commit = "1fe0854c130467f940da0f66a0ff186aa31ea8a3",
     repo = "common-jvm",
-    sha256 = "30877e078f0f3ce510551dd058c72fdc082389f95c6915e13e40c06181c20621",
+    sha256 = "40cd367ee9b4a8371534f6a8111f4608918d2cf1e955b9ba01e6ae3cfac86b05",
 )
 
 # @com_google_truth_truth
@@ -168,7 +168,7 @@ MAVEN_ARTIFACTS.update({
     "com.google.cloud:google-cloud-spanner": "3.0.3",
     "com.google.code.gson:gson": "2.8.6",
     "com.google.guava:guava": "30.0-jre",
-    "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
+    "org.mockito.kotlin:mockito-kotlin": "3.2.0",
     "info.picocli:picocli": "4.4.0",
     "junit:junit": "4.13",
 })

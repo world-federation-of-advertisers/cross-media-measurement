@@ -32,9 +32,9 @@ kt_jvm_library(
     tags = ["manual"],
     deps = [
         ":run_subprocess",
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -45,8 +45,8 @@ kt_jvm_library(
     tags = ["manual"],
     deps = [
         ":run_subprocess",
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -68,9 +68,9 @@ kt_jvm_library(
     name = "push_spanner_schema",
     srcs = ["PushSpannerSchema.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 
