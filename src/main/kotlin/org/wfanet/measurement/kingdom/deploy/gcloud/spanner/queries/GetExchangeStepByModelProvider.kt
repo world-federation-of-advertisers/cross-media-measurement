@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
+import com.google.cloud.spanner.ValueBinder
+import com.google.protobuf.ProtocolMessageEnum
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.SpannerReader
@@ -33,7 +35,7 @@ class GetExchangeStepByModelProvider(
       bind("external_model_provider_id").to(externalModelProviderId.value)
 
       appendClause("AND ExchangeSteps.State IN UNNEST(@states)")
-      bind("states").toProtoEnumArray(states)
+      bind("states").toInt64Array(value.map { it.numberAsLong })
 
       appendClause("ORDER BY ExchangeSteps.UpdateTime ASC")
       appendClause("LIMIT 1")
