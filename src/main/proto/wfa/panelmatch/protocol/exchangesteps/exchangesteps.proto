@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.protocol.common
+syntax = "proto3";
 
-import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.protocol.SharedInputs
+package wfa.panelmatch.protocol;
 
-/** Insert [data] into a [SharedInputs] proto and then serializes it. */
-fun makeSerializedSharedInputs(data: List<ByteString>): ByteString {
-  return SharedInputs.newBuilder().addAllData(data).build().toByteString()
-}
+option java_package = "org.wfanet.panelmatch.protocol";
+option java_multiple_files = true;
 
-/** Deserializes [data] as a [SharedInputs] proto and returns its `data` field. */
-fun parseSerializedSharedInputs(data: ByteString): List<ByteString> {
-  return SharedInputs.parseFrom(data).dataList
+// TODO: Replace this in the measurement api with something to support signed
+// shared inputs
+message SharedInputs {
+  repeated bytes data = 1;
 }

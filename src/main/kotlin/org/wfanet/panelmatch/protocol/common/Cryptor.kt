@@ -15,12 +15,12 @@
 package org.wfanet.panelmatch.protocol.common
 
 import com.google.protobuf.ByteString
-import wfanet.panelmatch.protocol.protobuf.CryptorDecryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorDecryptResponse
-import wfanet.panelmatch.protocol.protobuf.CryptorEncryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorEncryptResponse
-import wfanet.panelmatch.protocol.protobuf.CryptorReEncryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorReEncryptResponse
+import org.wfanet.panelmatch.protocol.CryptorDecryptRequest
+import org.wfanet.panelmatch.protocol.CryptorDecryptResponse
+import org.wfanet.panelmatch.protocol.CryptorEncryptRequest
+import org.wfanet.panelmatch.protocol.CryptorEncryptResponse
+import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
+import org.wfanet.panelmatch.protocol.CryptorReEncryptResponse
 
 /** Core deterministic, commutative cryptographic operations. */
 interface Cryptor {

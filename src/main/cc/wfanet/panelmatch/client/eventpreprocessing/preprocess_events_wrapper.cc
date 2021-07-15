@@ -16,14 +16,14 @@
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
 #include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.h"
-#include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
 #include "wfanet/panelmatch/common/jni_wrap.h"
 
 namespace wfanet::panelmatch::client {
 absl::StatusOr<std::string> PreprocessEventsWrapper(
     const std::string& serialized_request) {
-  return wfanet::panelmatch::common::JniWrap(serialized_request,
-                                             PreprocessEvents);
+  return ::wfanet::panelmatch::common::JniWrap(serialized_request,
+                                               PreprocessEvents);
 }
 }  // namespace wfanet::panelmatch::client

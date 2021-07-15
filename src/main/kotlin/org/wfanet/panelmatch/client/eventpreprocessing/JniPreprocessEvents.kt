@@ -15,10 +15,10 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import java.nio.file.Paths
+import org.wfanet.panelmatch.client.PreprocessEventsRequest
+import org.wfanet.panelmatch.client.PreprocessEventsResponse
 import org.wfanet.panelmatch.common.loadLibrary
 import org.wfanet.panelmatch.common.wrapJniException
-import wfanet.panelmatch.client.PreprocessEventsRequest
-import wfanet.panelmatch.client.PreprocessEventsResponse
 
 /** A [PreprocessEvents] implementation using the JNI [PreprocessEvents]. */
 class JniPreprocessEvents : PreprocessEvents {

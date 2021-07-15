@@ -15,8 +15,8 @@
 #include "wfanet/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility_wrapper.h"
 
 #include "absl/status/statusor.h"
+#include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 #include "wfanet/panelmatch/common/jni_wrap.h"
-#include "wfanet/panelmatch/protocol/crypto/cryptor.pb.h"
 #include "wfanet/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility.h"
 
 namespace wfanet::panelmatch::protocol::crypto {

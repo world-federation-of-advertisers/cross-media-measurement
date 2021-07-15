@@ -12,17 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.protocol.common
+syntax = "proto3";
 
-import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.protocol.SharedInputs
+package wfa.panelmatch.client;
 
-/** Insert [data] into a [SharedInputs] proto and then serializes it. */
-fun makeSerializedSharedInputs(data: List<ByteString>): ByteString {
-  return SharedInputs.newBuilder().addAllData(data).build().toByteString()
+option java_package = "org.wfanet.panelmatch.client";
+option java_multiple_files = true;
+
+// Request to preprocess event data
+message PreprocessEventsRequest {
+  repeated UnprocessedEvent unprocessed_events = 1;
+  message UnprocessedEvent {
+    bytes id = 1;
+    bytes data = 2;
+  }
+  bytes crypto_key = 2;
+  bytes pepper = 3;
 }
 
-/** Deserializes [data] as a [SharedInputs] proto and returns its `data` field. */
-fun parseSerializedSharedInputs(data: ByteString): List<ByteString> {
-  return SharedInputs.parseFrom(data).dataList
+// Response of the PreprocessEvents method
+message PreprocessEventsResponse {
+  repeated ProcessedEvent processed_events = 1;
+  message ProcessedEvent {
+    bytes encrypted_id = 1;
+    bytes encrypted_data = 2;
+  }
 }

@@ -9,7 +9,7 @@ cc_library(
     strip_include_prefix = "/src/main/cc",
     deps = [
         "//src/main/cc/wfanet/panelmatch/common:macros",
-        "//src/main/proto/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -24,7 +24,7 @@ cc_library(
     deps = [
         ":preprocess_events",
         "//src/main/cc/wfanet/panelmatch/common:jni_wrap",
-        "//src/main/proto/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
         "@com_google_absl//absl/status:statusor",
         "@wfa_measurement_system//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
     ],

@@ -19,8 +19,8 @@ import com.google.protobuf.ByteString
 import java.lang.RuntimeException
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEvents
-import wfanet.panelmatch.client.PreprocessEventsRequest
 
 /** Abstract base class for testing implementations of [PreprocessEvents]. */
 abstract class AbstractPreprocessEventsTest {
