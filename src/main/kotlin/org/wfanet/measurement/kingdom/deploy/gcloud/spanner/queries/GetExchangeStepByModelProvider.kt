@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
-import com.google.cloud.spanner.ValueBinder
-import com.google.protobuf.ProtocolMessageEnum
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.identity.ExternalId
