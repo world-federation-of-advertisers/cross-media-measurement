@@ -220,8 +220,35 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     assertThat(createdEventGroup)
       .isEqualTo(
-        eventGroup.toBuilder().also { it.externalEventGroupId = externalEventGroupId.value }.build()
+        eventGroup
+          .toBuilder()
+          .also {
+            it.externalEventGroupId = externalEventGroupId.value
+            it.createTime = createdEventGroup.createTime
+          }
+          .build()
       )
+  }
+
+  @Test
+  fun `createEventGroup returns already created eventGroup for the same ProvidedEventGroupId`() =
+      runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+
+    val externalDataProviderId = insertDataProvider()
+
+    val eventGroup =
+      EventGroup.newBuilder()
+        .also {
+          it.externalDataProviderId = externalDataProviderId
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        }
+        .build()
+
+    val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
+    val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(eventGroup)
+    assertThat(secondCreateEventGroupAttempt).isEqualTo(createdEventGroup)
   }
 
   @Test

@@ -28,6 +28,7 @@ class EventGroupReader : SpannerReader<EventGroupReader.Result>() {
       EventGroups.MeasurementConsumerId,
       EventGroups.DataProviderId,
       EventGroups.ProvidedEventGroupId,
+      EventGroups.CreateTime,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       DataProviders.ExternalDataProviderId
     FROM EventGroups
@@ -47,6 +48,7 @@ class EventGroupReader : SpannerReader<EventGroupReader.Result>() {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
         providedEventGroupId = struct.getString("ProvidedEventGroupId")
+        createTime = struct.getTimestamp("CreateTime").toProto()
       }
       .build()
 }
