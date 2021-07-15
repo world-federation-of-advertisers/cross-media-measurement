@@ -52,11 +52,14 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         ?.dataProviderId
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
-    val existing = findExistingEventGroup(dataProviderId)
-    if (existing != null) {
-      return existing
-    }
+    return findExistingEventGroup(dataProviderId)
+      ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+  }
 
+  private suspend fun TransactionScope.createNewEventGroup(
+    dataProviderId: Long,
+    measurementConsumerId: Long
+  ): EventGroup {
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
 
