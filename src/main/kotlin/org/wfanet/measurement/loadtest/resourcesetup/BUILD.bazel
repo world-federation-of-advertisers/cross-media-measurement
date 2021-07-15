@@ -1,0 +1,47 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_setup",
+    srcs = [
+        "ResourceSetup.kt",
+        "ResourceSetupImpl.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumer_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/keystore",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_setup_runner",
+    srcs = [
+        "ResourceSetupFlags.kt",
+        "ResourceSetupRunner.kt",
+    ],
+    deps = [
+        ":resource_setup",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/keystore/testing",
+    ],
+)

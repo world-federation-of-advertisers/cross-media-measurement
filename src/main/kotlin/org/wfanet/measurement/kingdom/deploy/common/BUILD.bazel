@@ -6,8 +6,16 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "common",
-    srcs = glob(["*.kt"]),
+    name = "flags",
+    srcs = ["InternalApiFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "duchy_ids",
+    srcs = ["DuchyIds.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/kingdom:duchy_id_config_java_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
