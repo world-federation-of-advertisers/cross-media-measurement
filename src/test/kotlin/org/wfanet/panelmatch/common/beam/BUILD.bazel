@@ -9,7 +9,7 @@ kt_jvm_test(
         "//imports/java/org/apache/beam:core",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
-        "@wfa_measurement_system//imports/java/com/google/common/truth",
-        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )

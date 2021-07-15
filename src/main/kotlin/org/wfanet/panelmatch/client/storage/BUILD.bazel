@@ -10,8 +10,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
-        "@wfa_measurement_system//imports/java/com/google/protobuf",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )

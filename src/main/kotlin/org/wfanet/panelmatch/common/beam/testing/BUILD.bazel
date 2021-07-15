@@ -17,7 +17,7 @@ kt_jvm_library(
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
-        "@wfa_measurement_system//imports/java/com/google/protobuf",
-        "@wfa_measurement_system//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )

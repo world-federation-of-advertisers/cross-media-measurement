@@ -9,9 +9,9 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
-        "@wfa_measurement_system//imports/java/com/google/devtools/build/runfiles",
-        "@wfa_measurement_system//imports/java/com/google/protobuf",
-        "@wfa_measurement_system//imports/java/com/google/protobuf/util",
-        "@wfa_measurement_system//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
