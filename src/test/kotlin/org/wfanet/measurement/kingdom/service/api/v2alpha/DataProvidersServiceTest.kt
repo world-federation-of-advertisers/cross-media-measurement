@@ -122,7 +122,7 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `create throws INVALID_ARGUMENT when preferred certificate DER is missing`() {
+  fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
     val request = buildCreateDataProviderRequest {
       dataProviderBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
     }
@@ -132,7 +132,7 @@ class DataProvidersServiceTest {
         runBlocking { service.createDataProvider(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("preferred_certificate_der is not specified")
+    assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
   }
 
   @Test

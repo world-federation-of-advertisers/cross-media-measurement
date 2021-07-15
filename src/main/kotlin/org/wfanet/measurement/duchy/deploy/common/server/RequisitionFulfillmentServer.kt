@@ -20,10 +20,10 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
-import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.kingdom.deploy.common.SystemApiFlags
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
 import picocli.CommandLine

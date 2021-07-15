@@ -24,22 +24,12 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
+import org.wfanet.measurement.kingdom.deploy.common.InternalApiFlags
 import picocli.CommandLine
 
 class KingdomApiServerFlags {
-  @set:CommandLine.Option(
-    names = ["--internal-api-target"],
-    description = ["Target for Kingdom database APIs, e.g. localhost:8080"],
-    required = true
-  )
-  lateinit var internalApiTarget: String
-
-  @CommandLine.Option(
-    names = ["--internal-api-cert-host"],
-    description = ["The expected hostname in the KingdomDataServer's TLS certificate"],
-    required = true
-  )
-  lateinit var internalApiCertHost: String
+  @CommandLine.Mixin
+  lateinit var internalApiFlags: InternalApiFlags
     private set
 
   @set:CommandLine.Option(
@@ -68,9 +58,9 @@ fun runKingdomApiServer(
     )
   val channel: Channel =
     buildMutualTlsChannel(
-        kingdomApiServerFlags.internalApiTarget,
+        kingdomApiServerFlags.internalApiFlags.target,
         clientCerts,
-        kingdomApiServerFlags.internalApiCertHost
+        kingdomApiServerFlags.internalApiFlags.certHost
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
   val service = serviceFactory(channel).map { it.withDuchyIdentities() }
