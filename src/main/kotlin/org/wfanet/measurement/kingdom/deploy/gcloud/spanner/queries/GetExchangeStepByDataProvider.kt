@@ -32,7 +32,7 @@ class GetExchangeStepByDataProvider(
       bind("external_data_provider_id").to(externalDataProviderId.value)
 
       appendClause("AND ExchangeSteps.State IN UNNEST(@states)")
-      bind("states").toInt64Array(value.map { it.numberAsLong })
+      bind("states").toInt64Array(states.map { it.numberAsLong })
 
       appendClause("ORDER BY ExchangeSteps.UpdateTime ASC")
       appendClause("LIMIT 1")
