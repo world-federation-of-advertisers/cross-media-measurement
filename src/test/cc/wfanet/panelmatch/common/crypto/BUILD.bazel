@@ -52,3 +52,16 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "peppered_fingerprinter_test",
+    srcs = [
+        "peppered_fingerprinter_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfanet/panelmatch/common/crypto:peppered_fingerprinter",
+        "@googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+    ],
+)
