@@ -71,6 +71,13 @@ wfa_repo_archive(
 )
 
 wfa_repo_archive(
+    name = "wfa_consent_signaling_client",
+    commit = "57d8ddc5ff442f0a6adda3405c0fe0393788aef1",
+    repo = "consent-signaling-client",
+    sha256 = "ccb906f64ee71e99e032a24cb661063aae9a92aec26c535ca49122566b812fd4",
+)
+
+wfa_repo_archive(
     name = "any_sketch",
     commit = "995fe42006a56f926e568c0b02adae5f834a813d",
     repo = "any-sketch",
@@ -87,8 +94,8 @@ wfa_repo_archive(
 wfa_repo_archive(
     name = "wfa_common_jvm",
     repo = "common-jvm",
-    sha256 = "a1fa7136cf95ed7d00fe98ab33a862d20b35dc468cff041158fe7850315ec405",
-    version = "0.3.0",
+    sha256 = "b3b5f3c0090dd7cc731ab0173e1bc0b14ff2f0a74b7dbf178c3f1c0473a55c29",
+    version = "0.5.0",
 )
 
 # @com_google_truth_truth
@@ -163,6 +170,7 @@ MAVEN_ARTIFACTS.update({
     "com.google.cloud:google-cloud-nio": "0.122.0",
     "com.google.cloud:google-cloud-spanner": "3.0.3",
     "com.google.code.gson:gson": "2.8.6",
+    "com.google.crypto.tink:tink": "1.6.0",
     "com.google.guava:guava": "30.0-jre",
     "org.mockito.kotlin:mockito-kotlin": "3.2.0",
     "info.picocli:picocli": "4.4.0",
@@ -200,11 +208,7 @@ grpc_java_repositories()  # For gRPC Kotlin.
 
 load("@wfa_common_jvm//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
-rules_docker_repo(
-    name = "io_bazel_rules_docker",
-    commit = "f929d80c5a4363994968248d87a892b1c2ef61d4",
-    sha256 = "efda18e39a63ee3c1b187b1349f61c48c31322bf84227d319b5dece994380bb6",
-)
+rules_docker_repo()
 
 load(
     "@io_bazel_rules_docker//repositories:repositories.bzl",
@@ -221,12 +225,7 @@ load("@wfa_common_jvm//build/io_bazel_rules_docker:base_images.bzl", "base_java_
 
 # Defualt base images for java_image targets. Must come before
 # java_image_repositories().
-base_java_images(
-    # gcr.io/distroless/java:11-debug
-    debug_digest = "sha256:c3fe781de55d375de2675c3f23beb3e76f007e53fed9366ba931cc6d1df4b457",
-    # gcr.io/distroless/java:11
-    digest = "sha256:7fc091e8686df11f7bf0b7f67fd7da9862b2b9a3e49978d1184f0ff62cb673cc",
-)
+base_java_images()
 
 load(
     "@io_bazel_rules_docker//java:image.bzl",
@@ -262,11 +261,7 @@ private_join_and_compute_repo(
 
 load("@wfa_common_jvm//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries")
 
-cloud_spanner_emulator_binaries(
-    name = "cloud_spanner_emulator",
-    sha256 = "7a3cdd5db7f5a427230ab67a8dc09cfcb6752dd7f0b28d51e8d08150b2641506",
-    version = "1.1.1",
-)
+cloud_spanner_emulator_binaries()
 
 # CUE binaries.
 

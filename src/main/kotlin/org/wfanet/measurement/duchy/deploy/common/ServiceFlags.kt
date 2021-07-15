@@ -34,24 +34,6 @@ class ComputationsServiceFlags {
     private set
 }
 
-class SystemApiFlags {
-  @CommandLine.Option(
-    names = ["--system-api-target"],
-    description = ["Address and port of the Kingdom's system APIs"],
-    required = true
-  )
-  lateinit var target: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--system-api-cert-host"],
-    description = ["The expected hostname in the kingdom SystemApiServer's TLS certificate."],
-    required = true
-  )
-  lateinit var certHost: String
-    private set
-}
-
 class AsyncComputationControlServiceFlags {
   @CommandLine.Option(
     names = ["--async-computation-control-service-target"],
