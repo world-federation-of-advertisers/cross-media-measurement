@@ -17,13 +17,13 @@ package org.wfanet.panelmatch.protocol.common
 import java.lang.RuntimeException
 import java.nio.file.Paths
 import org.wfanet.panelmatch.common.loadLibrary
+import org.wfanet.panelmatch.protocol.CryptorDecryptRequest
+import org.wfanet.panelmatch.protocol.CryptorDecryptResponse
+import org.wfanet.panelmatch.protocol.CryptorEncryptRequest
+import org.wfanet.panelmatch.protocol.CryptorEncryptResponse
+import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
+import org.wfanet.panelmatch.protocol.CryptorReEncryptResponse
 import wfanet.panelmatch.protocol.crypto.DeterministicCommutativeEncryptionUtility
-import wfanet.panelmatch.protocol.protobuf.CryptorDecryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorDecryptResponse
-import wfanet.panelmatch.protocol.protobuf.CryptorEncryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorEncryptResponse
-import wfanet.panelmatch.protocol.protobuf.CryptorReEncryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorReEncryptResponse
 
 /**
  * A [DeterministicCommutativeEncryption] implementation using the JNI

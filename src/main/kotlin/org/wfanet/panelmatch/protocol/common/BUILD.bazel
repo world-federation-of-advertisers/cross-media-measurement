@@ -7,8 +7,8 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/proto/wfanet/panelmatch/protocol/crypto:cryptor_java_proto",
-        "//src/main/proto/wfanet/panelmatch/protocol/exchangesteps:exchangesteps_java_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_java_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/exchangesteps:exchangesteps_java_proto",
         "//src/main/swig/wfanet/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],

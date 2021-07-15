@@ -28,7 +28,7 @@
 #include "src/main/cc/wfanet/panelmatch/client/eventpreprocessing/preprocess_events.h"
 #include "src/test/cc/testutil/matchers.h"
 #include "src/test/cc/testutil/status_macros.h"
-#include "wfanet/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
 
 namespace wfanet::panelmatch::client {
 namespace {
@@ -37,12 +37,11 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Pointwise;
+using ::wfa::panelmatch::client::PreprocessEventsRequest;
+using ::wfa::panelmatch::client::PreprocessEventsResponse;
 using ::wfanet::IsOk;
 using ::wfanet::IsOkAndHolds;
 using ::wfanet::StatusIs;
-
-using wfanet::panelmatch::client::PreprocessEventsRequest;
-using wfanet::panelmatch::client::PreprocessEventsResponse;
 
 TEST(PreprocessEventsTest, ReturnsUnimplemented) {
   std::string test_id = "random-id-1";

@@ -1,0 +1,17 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+
+package(default_visibility = [
+    "//visibility:public",
+])
+
+proto_library(
+    name = "exchangesteps_proto",
+    srcs = ["exchangesteps.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+java_proto_library(
+    name = "exchangesteps_java_proto",
+    deps = [":exchangesteps_proto"],
+)

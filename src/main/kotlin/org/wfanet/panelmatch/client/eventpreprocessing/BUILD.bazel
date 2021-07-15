@@ -7,7 +7,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/proto/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
         "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],

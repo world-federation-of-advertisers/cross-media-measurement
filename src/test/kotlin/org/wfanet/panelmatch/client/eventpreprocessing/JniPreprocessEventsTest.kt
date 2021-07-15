@@ -19,9 +19,9 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.eventpreprocessing.testing.AbstractPreprocessEventsTest
 import org.wfanet.panelmatch.common.JniException
-import wfanet.panelmatch.client.PreprocessEventsRequest
 
 @RunWith(JUnit4::class)
 class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {

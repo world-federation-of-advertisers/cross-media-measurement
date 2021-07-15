@@ -20,10 +20,10 @@ import java.lang.RuntimeException
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.panelmatch.protocol.CryptorDecryptRequest
+import org.wfanet.panelmatch.protocol.CryptorEncryptRequest
+import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
 import org.wfanet.panelmatch.protocol.common.Cryptor
-import wfanet.panelmatch.protocol.protobuf.CryptorDecryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorEncryptRequest
-import wfanet.panelmatch.protocol.protobuf.CryptorReEncryptRequest
 
 private val PLAINTEXTS: List<ByteString> =
   listOf<ByteString>(

@@ -27,7 +27,7 @@
 #include "gtest/gtest.h"
 #include "src/test/cc/testutil/matchers.h"
 #include "src/test/cc/testutil/status_macros.h"
-#include "wfanet/panelmatch/protocol/crypto/cryptor.pb.h"
+#include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfa::panelmatch {
 namespace {
@@ -37,18 +37,17 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Pointwise;
+using ::wfa::panelmatch::protocol::CryptorDecryptRequest;
+using ::wfa::panelmatch::protocol::CryptorDecryptResponse;
+using ::wfa::panelmatch::protocol::CryptorEncryptRequest;
+using ::wfa::panelmatch::protocol::CryptorEncryptResponse;
+using ::wfa::panelmatch::protocol::CryptorReEncryptRequest;
+using ::wfa::panelmatch::protocol::CryptorReEncryptResponse;
 using ::wfanet::IsOk;
 using ::wfanet::IsOkAndHolds;
 using ::wfanet::panelmatch::protocol::crypto::DeterministicCommutativeDecrypt;
 using ::wfanet::panelmatch::protocol::crypto::DeterministicCommutativeEncrypt;
 using ::wfanet::panelmatch::protocol::crypto::DeterministicCommutativeReEncrypt;
-
-using ::wfanet::panelmatch::protocol::protobuf::CryptorDecryptRequest;
-using ::wfanet::panelmatch::protocol::protobuf::CryptorDecryptResponse;
-using ::wfanet::panelmatch::protocol::protobuf::CryptorEncryptRequest;
-using ::wfanet::panelmatch::protocol::protobuf::CryptorEncryptResponse;
-using ::wfanet::panelmatch::protocol::protobuf::CryptorReEncryptRequest;
-using ::wfanet::panelmatch::protocol::protobuf::CryptorReEncryptResponse;
 
 TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
   std::vector<std::string> plaintexts{"some plaintext0", "some plaintext1",

@@ -16,7 +16,7 @@ cc_library(
     deps = [
         "//src/main/cc/wfanet/panelmatch/common:macros",
         "//src/main/cc/wfanet/panelmatch/common/crypto:cryptor",
-        "//src/main/proto/wfanet/panelmatch/protocol/crypto:cryptor_cc_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
         "@wfa_measurement_system//src/main/cc/wfa/measurement/common/crypto:started_thread_cpu_timer",
     ],
 )
@@ -33,7 +33,7 @@ cc_library(
     deps = [
         ":deterministic_commutative_encryption_utility",
         "//src/main/cc/wfanet/panelmatch/common:jni_wrap",
-        "//src/main/proto/wfanet/panelmatch/protocol/crypto:cryptor_cc_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
     ],
 )
 

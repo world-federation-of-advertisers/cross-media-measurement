@@ -16,24 +16,21 @@
 #define SRC_MAIN_CC_WFANET_PANELMATCH_PROTOCOL_CRYPTO_DETERMINISTIC_COMMUTATIVE_ENCRYPTION_UTILITY_H_
 
 #include "absl/status/statusor.h"
-#include "wfanet/panelmatch/protocol/crypto/cryptor.pb.h"
+#include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfanet::panelmatch::protocol::crypto {
 
-absl::StatusOr<wfanet::panelmatch::protocol::protobuf::CryptorEncryptResponse>
+absl::StatusOr<wfa::panelmatch::protocol::CryptorEncryptResponse>
 DeterministicCommutativeEncrypt(
-    const wfanet::panelmatch::protocol::protobuf::CryptorEncryptRequest&
-        request);
+    const wfa::panelmatch::protocol::CryptorEncryptRequest& request);
 
-absl::StatusOr<wfanet::panelmatch::protocol::protobuf::CryptorReEncryptResponse>
+absl::StatusOr<wfa::panelmatch::protocol::CryptorReEncryptResponse>
 DeterministicCommutativeReEncrypt(
-    const wfanet::panelmatch::protocol::protobuf::CryptorReEncryptRequest&
-        request);
+    const wfa::panelmatch::protocol::CryptorReEncryptRequest& request);
 
-absl::StatusOr<wfanet::panelmatch::protocol::protobuf::CryptorDecryptResponse>
+absl::StatusOr<wfa::panelmatch::protocol::CryptorDecryptResponse>
 DeterministicCommutativeDecrypt(
-    const wfanet::panelmatch::protocol::protobuf::CryptorDecryptRequest&
-        request);
+    const wfa::panelmatch::protocol::CryptorDecryptRequest& request);
 
 }  // namespace wfanet::panelmatch::protocol::crypto
 
