@@ -16,13 +16,13 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.mock
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
