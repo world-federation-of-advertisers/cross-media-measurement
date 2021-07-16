@@ -14,22 +14,42 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
 class SpannerEventGroupsService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  val clock: Clock,
+  val idGenerator: IdGenerator,
+  val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
+
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
-    TODO("not implemented yet")
+    try {
+      return CreateEventGroup(request).execute(client, idGenerator, clock)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+      }
+    }
   }
+
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    TODO("not implemented yet")
+    return EventGroupReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
+      ?.eventGroup
+      ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }
 }
