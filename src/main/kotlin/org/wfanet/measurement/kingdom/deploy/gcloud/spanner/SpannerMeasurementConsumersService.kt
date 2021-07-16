@@ -48,8 +48,6 @@ class SpannerMeasurementConsumersService(
     return MeasurementConsumerReader()
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalMeasurementConsumerId))
       ?.measurementConsumer
-      ?: failGrpc(Status.NOT_FOUND) {
-        "No MeasurementConsumer with externalId ${request.externalMeasurementConsumerId}"
-      }
+      ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
   }
 }

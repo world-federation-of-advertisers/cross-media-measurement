@@ -71,6 +71,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: DataProvider not found")
   }
 
   @Test
@@ -95,6 +96,9 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Details field of DataProvider is missing fields.")
   }
 
   @Test

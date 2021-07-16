@@ -71,6 +71,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: MeasurementConsumer not found")
   }
 
   @Test
@@ -95,6 +96,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Details field of MeasurementConsumer is missing fields.")
   }
 
   @Test
