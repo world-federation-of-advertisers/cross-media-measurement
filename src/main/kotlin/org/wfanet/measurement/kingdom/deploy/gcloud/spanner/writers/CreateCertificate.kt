@@ -71,7 +71,7 @@ class CreateCertificate(private val certificate: Certificate) :
           .dataProviderId
       return InternalResource(DATA_PROVIDER, InternalId(dataProviderId))
     }
-    return InternalResource(DUCHY, InternalId(certificate.externalDuchyId.toLong()))
+    return TODO("uakyol implement duchy support after duchy config is implemented")
   }
 
   private fun createCertificateMapTableMutation(

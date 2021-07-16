@@ -35,8 +35,6 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
-import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
-import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 
@@ -44,8 +42,7 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 234L
 private const val EXTERNAL_DATA_PROVIDER_ID = 345L
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private const val EXTERNAL_DUCHY_ID = "ExternalDuchy1"
 
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -65,8 +62,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   protected val idGenerator =
     RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-  protected val copyIdGenerator =
-    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
 
   protected lateinit var certificatesService: T
     private set
@@ -80,85 +75,45 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected abstract fun newServices(idGenerator: IdGenerator): CertificateAndHelperServices<T>
 
   private suspend fun insertMeasurementConsumer(): Long {
-    val createdMeasurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+    return measurementConsumersService.createMeasurementConsumer(
+      MeasurementConsumer.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+              }
+          detailsBuilder.apply {
+                apiVersion = "2"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "2"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
-
-    // An InternalId for MeasurementConsumer's Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An InternalId for MeasurementConsumer is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for MeasurementConsumer is generated.
-    val externalMeasurementConsumerId = copyIdGenerator.generateExternalId()
-    // An External for MeasurementConsumerCertificate is generated.
-    copyIdGenerator.generateExternalId()
-
-    // We make sure that the externalMeasurementConsumerId is correct.
-    val measurementConsumerRead =
-      measurementConsumersService.getMeasurementConsumer(
-        GetMeasurementConsumerRequest.newBuilder()
-          .setExternalMeasurementConsumerId(externalMeasurementConsumerId.value)
-          .build()
-      )
-
-    assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
-    return externalMeasurementConsumerId.value
+        .build()
+    )
+      .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
-    val createdDataProvider =
-      dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
+    return dataProvidersService.createDataProvider(
+      DataProvider.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
+              }
+          detailsBuilder.apply {
+                apiVersion = "2"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "2"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
-
-    // An InternalId for DataProvider's Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An InternalId for DataProvider is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for DataProvider is generated.
-    val externalDataProviderId = copyIdGenerator.generateExternalId()
-    // An External for DataProviderCertificate is generated.
-    copyIdGenerator.generateExternalId()
-
-    // We make sure that the externalDataProviderId is correct.
-    val dataProviderRead =
-      dataProvidersService.getDataProvider(
-        GetDataProviderRequest.newBuilder()
-          .setExternalDataProviderId(externalDataProviderId.value)
-          .build()
-      )
-
-    assertThat(dataProviderRead).isEqualTo(createdDataProvider)
-    return externalDataProviderId.value
+        .build()
+    )
+      .externalDataProviderId
   }
 
   @Before
@@ -199,16 +154,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .build()
 
     val createdCertificate = certificatesService.createCertificate(certificate)
-    // An InternalId for Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for Certificate is generated.
-    val externalCertificateId = copyIdGenerator.generateExternalId()
 
     assertThat(createdCertificate)
       .isEqualTo(
         certificate
           .toBuilder()
-          .also { it.externalCertificateId = externalCertificateId.value }
+          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
           .build()
       )
   }
@@ -228,17 +179,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .build()
 
     val createdCertificate = certificatesService.createCertificate(certificate)
-    // An InternalId for Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for Certificate is generated.
-    val externalCertificateId = copyIdGenerator.generateExternalId()
 
     val certificateRead =
       certificatesService.getCertificate(
         GetCertificateRequest.newBuilder()
           .also {
             it.externalMeasurementConsumerId = externalMeasurementConsumerId
-            it.externalCertificateId = externalCertificateId.value
+            it.externalCertificateId = createdCertificate.externalCertificateId
           }
           .build()
       )
@@ -276,16 +223,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .build()
 
     val createdCertificate = certificatesService.createCertificate(certificate)
-    // An InternalId for Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for Certificate is generated.
-    val externalCertificateId = copyIdGenerator.generateExternalId()
 
     assertThat(createdCertificate)
       .isEqualTo(
         certificate
           .toBuilder()
-          .also { it.externalCertificateId = externalCertificateId.value }
+          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
           .build()
       )
   }
@@ -305,17 +248,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .build()
 
     val createdCertificate = certificatesService.createCertificate(certificate)
-    // An InternalId for Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for Certificate is generated.
-    val externalCertificateId = copyIdGenerator.generateExternalId()
 
     val certificateRead =
       certificatesService.getCertificate(
         GetCertificateRequest.newBuilder()
           .also {
             it.externalDataProviderId = externalDataProviderId
-            it.externalCertificateId = externalCertificateId.value
+            it.externalCertificateId = createdCertificate.externalCertificateId
           }
           .build()
       )

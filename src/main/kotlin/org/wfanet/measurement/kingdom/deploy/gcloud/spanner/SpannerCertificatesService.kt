@@ -28,6 +28,10 @@ import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
 
+private const val DATA_PROVIDER = "DataProvider"
+private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
+private const val DUCHY = "Duchy"
+
 class SpannerCertificatesService(
   val clock: Clock,
   val idGenerator: IdGenerator,
@@ -36,12 +40,12 @@ class SpannerCertificatesService(
 
   private fun getInternalResourceName(request: GetCertificateRequest): String {
     if (request.hasExternalMeasurementConsumerId()) {
-      return "MeasurementConsumer"
+      return MEASUREMENT_CONSUMER
     }
     if (request.hasExternalDataProviderId()) {
-      return "DataProvider"
+      return DATA_PROVIDER
     } else {
-      return "Duchy"
+      return DUCHY
     }
   }
 

@@ -65,9 +65,7 @@ class CertificateReader(val resourceName: String) : SpannerReader<CertificateRea
         .build()
     }
 
-    // Need help with duchies
-    // certificateBuilder.setExternalDuchyId(struct.getLong(externalResourceIdColumn)).build()
-    return certificateBuilder.build()
+    return TODO("uakyol implement duchy support after duchy config is implemented")
   }
 
   private fun buildCertificate(struct: Struct): Certificate {
