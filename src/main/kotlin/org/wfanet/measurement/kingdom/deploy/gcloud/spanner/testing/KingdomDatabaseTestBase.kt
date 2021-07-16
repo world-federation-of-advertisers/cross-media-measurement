@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
@@ -341,10 +342,10 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
 
   protected suspend fun insertModelProvider(modelProviderId: Long, externalModelProviderId: Long) {
     write(
-      Mutation.newInsertBuilder("ModelProviders")
-        .set("modelProviderId" to modelProviderId)
-        .set("ExternalModelProviderId" to externalModelProviderId)
-        .build()
+      insertMutation("ModelProviders") {
+        set("modelProviderId" to modelProviderId)
+        set("ExternalModelProviderId" to externalModelProviderId)
+      }
     )
   }
 
@@ -359,16 +360,16 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
       RecurringExchangeDetails.getDefaultInstance()
   ) {
     write(
-      Mutation.newInsertBuilder("RecurringExchanges")
-        .set("RecurringExchangeId" to recurringExchangeId)
-        .set("ExternalRecurringExchangeId" to externalRecurringExchangeId)
-        .set("ModelProviderId" to modelProviderId)
-        .set("DataProviderId" to dataProviderId)
-        .set("State" to state)
-        .set("NextExchangeDate" to nextExchangeDate.toCloudDate())
-        .set("RecurringExchangeDetails" to recurringExchangeDetails)
-        .set("RecurringExchangeDetailsJson" to recurringExchangeDetails)
-        .build()
+      insertMutation("RecurringExchanges") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("ExternalRecurringExchangeId" to externalRecurringExchangeId)
+        set("ModelProviderId" to modelProviderId)
+        set("DataProviderId" to dataProviderId)
+        set("State" to state)
+        set("NextExchangeDate" to nextExchangeDate.toCloudDate())
+        set("RecurringExchangeDetails" to recurringExchangeDetails)
+        set("RecurringExchangeDetailsJson" to recurringExchangeDetails)
+      }
     )
   }
 
@@ -379,13 +380,13 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
     exchangeDetails: ExchangeDetails = ExchangeDetails.getDefaultInstance()
   ) {
     write(
-      Mutation.newInsertBuilder("Exchanges")
-        .set("RecurringExchangeId" to recurringExchangeId)
-        .set("Date" to date.toCloudDate())
-        .set("State" to state)
-        .set("ExchangeDetails" to exchangeDetails)
-        .set("ExchangeDetailsJson" to exchangeDetails)
-        .build()
+      insertMutation("Exchanges") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("State" to state)
+        set("ExchangeDetails" to exchangeDetails)
+        set("ExchangeDetailsJson" to exchangeDetails)
+      }
     )
   }
 
@@ -399,15 +400,15 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
     dataProviderId: Long? = null
   ) {
     write(
-      Mutation.newInsertBuilder("ExchangeSteps")
-        .set("RecurringExchangeId" to recurringExchangeId)
-        .set("Date" to date.toCloudDate())
-        .set("StepIndex" to stepIndex)
-        .set("State" to state)
-        .set("UpdateTime" to (updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP))
-        .set("ModelProviderId" to modelProviderId)
-        .set("DataProviderId" to dataProviderId)
-        .build()
+      insertMutation("ExchangeSteps") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("StepIndex" to stepIndex)
+        set("State" to state)
+        set("UpdateTime" to (updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP))
+        set("ModelProviderId" to modelProviderId)
+        set("DataProviderId" to dataProviderId)
+      }
     )
   }
 
