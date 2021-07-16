@@ -29,6 +29,8 @@ import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.kingdom.db.EqualClause
+import org.wfanet.measurement.kingdom.db.GetExchangeStepClause
 import org.wfanet.measurement.kingdom.db.StreamExchangesClause
 import org.wfanet.measurement.kingdom.db.StreamReportsClause
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsClause
@@ -52,6 +54,7 @@ fun <V : TerminalClause> AllOfClause<V>.toSql(
       is AnyOfClause -> query.append("($fieldName IN UNNEST(@$bindName))")
       is GreaterThanClause -> query.append("($fieldName > @$bindName)")
       is LessThanClause -> query.append("($fieldName < @$bindName)")
+      is EqualClause -> query.append("($fieldName = @$bindName)")
     }
     query.bind(bindName).to(sqlData.spannerValue)
   }
@@ -125,6 +128,31 @@ object StreamExchangesFilterSqlConverter : SqlConverter<StreamExchangesClause> {
         SqlData("RecurringExchanges.State", "state", enumValueArray(v.values))
       is StreamExchangesClause.NextExchangeDate ->
         SqlData("RecurringExchanges.NextExchangeDate", "next_exchange_date", dateValue(v.value))
+    }
+}
+
+object GetExchangeStepFilterSqlConverter : SqlConverter<GetExchangeStepClause> {
+  override fun sqlData(v: GetExchangeStepClause): SqlData =
+    when (v) {
+      is GetExchangeStepClause.ExternalModelProviderId ->
+        SqlData(
+          "ModelProviders.ExternalModelProviderId",
+          "external_model_provider_id",
+          Value.int64(v.value.value)
+        )
+      is GetExchangeStepClause.ExternalDataProviderId ->
+        SqlData(
+          "DataProviders.ExternalDataProviderId",
+          "external_data_provider_id",
+          Value.int64(v.value.value)
+        )
+      is GetExchangeStepClause.RecurringExchangeId ->
+        SqlData("ExchangeSteps.RecurringExchangeId", "recurring_exchange_id", Value.int64(v.value))
+      is GetExchangeStepClause.Date -> SqlData("ExchangeSteps.Date", "date", dateValue(v.value))
+      is GetExchangeStepClause.StepIndex ->
+        SqlData("ExchangeSteps.StepIndex", "step_index", Value.int64(v.value))
+      is GetExchangeStepClause.State ->
+        SqlData("ExchangeSteps.State", "state", enumValueArray(v.values))
     }
 }
 
