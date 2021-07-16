@@ -30,8 +30,8 @@ import org.mockito.kotlin.verifyZeroInteractions
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"

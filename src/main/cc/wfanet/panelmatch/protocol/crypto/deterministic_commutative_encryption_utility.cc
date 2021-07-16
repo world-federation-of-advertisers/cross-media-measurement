@@ -24,8 +24,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "common_cpp/time/started_thread_cpu_timer.h"
 #include "util/status_macros.h"
-#include "wfa/measurement/common/crypto/started_thread_cpu_timer.h"
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 #include "wfanet/panelmatch/common/crypto/cryptor.h"
 #include "wfanet/panelmatch/common/macros.h"
@@ -39,7 +39,7 @@ using ::wfanet::panelmatch::common::crypto::CreateCryptorFromKey;
 absl::StatusOr<wfa::panelmatch::protocol::CryptorEncryptResponse>
 DeterministicCommutativeEncrypt(
     const wfa::panelmatch::protocol::CryptorEncryptRequest& request) {
-  wfa::measurement::common::crypto::StartedThreadCpuTimer timer;
+  wfa::StartedThreadCpuTimer timer;
   wfa::panelmatch::protocol::CryptorEncryptResponse response;
   ASSIGN_OR_RETURN_ERROR(auto cryptor,
                          CreateCryptorFromKey(request.encryption_key()),
@@ -54,7 +54,7 @@ DeterministicCommutativeEncrypt(
 absl::StatusOr<wfa::panelmatch::protocol::CryptorDecryptResponse>
 DeterministicCommutativeDecrypt(
     const wfa::panelmatch::protocol::CryptorDecryptRequest& request) {
-  wfa::measurement::common::crypto::StartedThreadCpuTimer timer;
+  wfa::StartedThreadCpuTimer timer;
   wfa::panelmatch::protocol::CryptorDecryptResponse response;
   ASSIGN_OR_RETURN_ERROR(auto cryptor,
                          CreateCryptorFromKey(request.encryption_key()),
@@ -69,7 +69,7 @@ DeterministicCommutativeDecrypt(
 absl::StatusOr<wfa::panelmatch::protocol::CryptorReEncryptResponse>
 DeterministicCommutativeReEncrypt(
     const wfa::panelmatch::protocol::CryptorReEncryptRequest& request) {
-  wfa::measurement::common::crypto::StartedThreadCpuTimer timer;
+  wfa::StartedThreadCpuTimer timer;
   wfa::panelmatch::protocol::CryptorReEncryptResponse response;
   ASSIGN_OR_RETURN_ERROR(auto cryptor,
                          CreateCryptorFromKey(request.encryption_key()),

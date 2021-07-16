@@ -14,8 +14,8 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
 
 /** Executes [ExchangeWorkflow.Step]s. */
 interface ExchangeStepExecutor {

@@ -19,15 +19,15 @@ import java.time.Clock
 import java.time.Instant
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ModelProviderKey
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 
 class GrpcApiClient(
