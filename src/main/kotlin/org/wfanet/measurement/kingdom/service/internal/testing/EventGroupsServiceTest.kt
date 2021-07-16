@@ -191,11 +191,15 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
-    val externalEventGroupId = createdEventGroup.externalEventGroupId
-
     assertThat(createdEventGroup)
       .isEqualTo(
-        eventGroup.toBuilder().also { it.externalEventGroupId = externalEventGroupId }.build()
+        eventGroup
+          .toBuilder()
+          .also {
+            it.externalEventGroupId = createdEventGroup.externalEventGroupId
+            it.createTime = createdEventGroup.createTime
+          }
+          .build()
       )
   }
 
@@ -236,17 +240,13 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .build()
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
-    // An InternalId for EventGroup is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for EventGroup is generated.
-    val externalEventGroupId = copyIdGenerator.generateExternalId()
 
     val eventGroupRead =
       eventGroupsService.getEventGroup(
         GetEventGroupRequest.newBuilder()
           .also {
             it.externalDataProviderId = externalDataProviderId
-            it.externalEventGroupId = externalEventGroupId
+            it.externalEventGroupId = createdEventGroup.externalEventGroupId
           }
           .build()
       )
