@@ -57,8 +57,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   protected val idGenerator =
     RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-  protected val copyIdGenerator =
-    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
 
   protected lateinit var eventGroupsService: T
     private set
@@ -72,65 +70,45 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
 
   private suspend fun insertMeasurementConsumer(): Long {
-    measurementConsumersService.createMeasurementConsumer(
-      MeasurementConsumer.newBuilder()
-        .apply {
-          preferredCertificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+    return measurementConsumersService.createMeasurementConsumer(
+        MeasurementConsumer.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+            }
+            detailsBuilder.apply {
+              apiVersion = "2"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
           }
-          detailsBuilder.apply {
-            apiVersion = "2"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-        }
-        .build()
-    )
-
-    // An InternalId for MeasurementConsumer's Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An InternalId for MeasurementConsumer is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for MeasurementConsumer is generated.
-    val externalMeasurementConsumerId = copyIdGenerator.generateExternalId()
-    // An External for MeasurementConsumerCertificate is generated.
-    copyIdGenerator.generateExternalId()
-
-    return externalMeasurementConsumerId.value
+          .build()
+      )
+      .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
-    dataProvidersService.createDataProvider(
-      DataProvider.newBuilder()
-        .apply {
-          preferredCertificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
+    return dataProvidersService.createDataProvider(
+        DataProvider.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
+            }
+            detailsBuilder.apply {
+              apiVersion = "2"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
           }
-          detailsBuilder.apply {
-            apiVersion = "2"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-        }
-        .build()
-    )
-
-    // An InternalId for DataProvider's Certificate is generated.
-    copyIdGenerator.generateInternalId()
-    // An InternalId for DataProvider is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for DataProvider is generated.
-    val externalDataProviderId = copyIdGenerator.generateExternalId()
-    // An External for DataProviderCertificate is generated.
-    copyIdGenerator.generateExternalId()
-
-    return externalDataProviderId.value
+          .build()
+      )
+      .externalDataProviderId
   }
 
   @Before
@@ -213,17 +191,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
-    // An InternalId for EventGroup is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for EventGroup is generated.
-    val externalEventGroupId = copyIdGenerator.generateExternalId()
-
     assertThat(createdEventGroup)
       .isEqualTo(
         eventGroup
           .toBuilder()
           .also {
-            it.externalEventGroupId = externalEventGroupId.value
+            it.externalEventGroupId = createdEventGroup.externalEventGroupId
             it.createTime = createdEventGroup.createTime
           }
           .build()
@@ -267,17 +240,13 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .build()
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
-    // An InternalId for EventGroup is generated.
-    copyIdGenerator.generateInternalId()
-    // An External for EventGroup is generated.
-    val externalEventGroupId = copyIdGenerator.generateExternalId()
 
     val eventGroupRead =
       eventGroupsService.getEventGroup(
         GetEventGroupRequest.newBuilder()
           .also {
             it.externalDataProviderId = externalDataProviderId
-            it.externalEventGroupId = externalEventGroupId.value
+            it.externalEventGroupId = createdEventGroup.externalEventGroupId
           }
           .build()
       )

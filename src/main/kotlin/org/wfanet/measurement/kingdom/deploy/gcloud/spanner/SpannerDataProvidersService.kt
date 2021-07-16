@@ -44,8 +44,6 @@ class SpannerDataProvidersService(
     return DataProviderReader()
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalDataProviderId))
       ?.dataProvider
-      ?: failGrpc(Status.NOT_FOUND) {
-        "No DataProvider with externalId ${request.externalDataProviderId}"
-      }
+      ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
   }
 }
