@@ -302,8 +302,7 @@ private fun <V> Instant?.ifNotNullOrEpoch(block: (Instant) -> V): V? =
 
 private fun <V> ExternalId?.ifNotNull(block: (ExternalId) -> V): V? = this?.let { block(it) }
 
-private fun <V> Long?.ifNotNull(block: (Long) -> V): V? =
-  this?.let { if (it == 0L) null else block(it) }
+private fun <V> Long?.ifNotNull(block: (Long) -> V): V? = this?.let { block(it) }
 
 private fun <V> Date?.ifNotNull(block: (Date) -> V): V? =
   this?.let { if (!it.isInitialized) null else block(it) }
