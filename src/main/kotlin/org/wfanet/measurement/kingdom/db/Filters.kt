@@ -300,8 +300,7 @@ private fun <T, V> List<T>?.ifNotNullOrEmpty(block: (List<T>) -> V): V? =
 private fun <V> Instant?.ifNotNullOrEpoch(block: (Instant) -> V): V? =
   this?.let { if (it == Instant.EPOCH) null else block(it) }
 
-private fun <V> ExternalId?.ifNotNull(block: (ExternalId) -> V): V? =
-  this?.let { block(it) }
+private fun <V> ExternalId?.ifNotNull(block: (ExternalId) -> V): V? = this?.let { block(it) }
 
 private fun <V> Long?.ifNotNull(block: (Long) -> V): V? =
   this?.let { if (it == 0L) null else block(it) }
