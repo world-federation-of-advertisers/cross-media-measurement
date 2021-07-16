@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.LessThanClause
 import org.wfanet.measurement.common.TerminalClause
 import org.wfanet.measurement.common.allOf
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.Report.ReportState
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
@@ -32,6 +33,8 @@ typealias StreamRequisitionsFilter = AllOfClause<StreamRequisitionsClause>
 typealias StreamReportsFilter = AllOfClause<StreamReportsClause>
 
 typealias StreamExchangesFilter = AllOfClause<StreamExchangesClause>
+
+typealias GetExchangeStepFilter = AllOfClause<GetExchangeStepClause>
 
 /**
  * Creates a filter for Requisitions.
@@ -75,7 +78,7 @@ fun streamRequisitionsFilter(
  *
  * streamReportsFilter(externalScheduleIds = listOf(ID1, ID2), createdAfter = SOME_TIME)
  *
- * would match each Report that matches both these criteria:
+ * would match each Report that matches both asdasthese criteria:
  * - it is associated with a schedule with external id either ID1 or ID2, and
  * - it was created after SOME_TIME.
  *
@@ -132,6 +135,46 @@ fun streamExchangesFilter(
       externalDataProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalDataProviderId),
       states.ifNotNullOrEmpty(StreamExchangesClause::State),
       nextExchangeDate.ifNotNull(StreamExchangesClause::NextExchangeDate)
+    )
+  )
+
+/**
+ * Creates a filter for an Exchange Step.
+ *
+ * The inputs are treated as disjunctions, and all non-null inputs are conjoined. All the parameters
+ * other than [states] are singular.
+ *
+ * For example,
+ *
+ * getExchangeStepFilter(externalModelProviderId = ID1, date = SOME_DATE)
+ *
+ * would match an Exchange Step that matches both these criteria:
+ * - it is associated with a ModelProvider with external id equal to ID1, and
+ * - it is associated with a date equal to SOME_DATE.
+ *
+ * @param externalModelProviderId a Model Provider id
+ * @param externalDataProviderId a Data Provider id
+ * @param recurringExchangeId a [RecurringExchange] id
+ * @param date a Date
+ * @param stepIndex a StepIndex of the ExchangeStep
+ * @param states list of [ExchangeStep.State]s
+ */
+fun getExchangeStepFilter(
+  externalModelProviderId: ExternalId? = null,
+  externalDataProviderId: ExternalId? = null,
+  recurringExchangeId: Long? = null,
+  date: Date? = null,
+  stepIndex: Long? = null,
+  states: List<ExchangeStep.State>? = null
+): GetExchangeStepFilter =
+  allOf(
+    listOfNotNull(
+      externalModelProviderId.ifNotNull(GetExchangeStepClause::ExternalModelProviderId),
+      externalDataProviderId.ifNotNull(GetExchangeStepClause::ExternalDataProviderId),
+      recurringExchangeId.ifNotNull(GetExchangeStepClause::RecurringExchangeId),
+      date.ifNotNull(GetExchangeStepClause::Date),
+      stepIndex.ifNotNull(GetExchangeStepClause::StepIndex),
+      states.ifNotNullOrEmpty(GetExchangeStepClause::State)
     )
   )
 
@@ -222,11 +265,44 @@ fun StreamExchangesFilter.hasModelProviderFilter(): Boolean {
   return clauses.any { it is StreamExchangesClause.ExternalModelProviderId }
 }
 
+// TODO(@yunyeng): Move EqualCase to common-jvm.
+interface EqualClause : TerminalClause
+
+/** Base class for filtering to get an Exchange Step. Never directly instantiated. */
+sealed class GetExchangeStepClause : TerminalClause {
+  /** Matching ExchangeStep must belong to a ModelProvider with an external id of [value]. */
+  data class ExternalModelProviderId internal constructor(val value: ExternalId) :
+    GetExchangeStepClause(), EqualClause
+
+  /** Matching ExchangeStep must belong to a DataProvider with an external id of [value]. */
+  data class ExternalDataProviderId internal constructor(val value: ExternalId) :
+    GetExchangeStepClause(), EqualClause
+
+  /** Matching ExchangeStep must belong to a RecurringExchange with an external id of [value]. */
+  data class RecurringExchangeId internal constructor(val value: Long) :
+    GetExchangeStepClause(), EqualClause
+
+  /** Matching ExchangeStep must have a [Date] equal to [value]. */
+  data class Date internal constructor(val value: com.google.type.Date) :
+    GetExchangeStepClause(), EqualClause
+
+  /** Matching ExchangeStep must have a StepIndex equal to [value]. */
+  data class StepIndex internal constructor(val value: Long) : GetExchangeStepClause(), EqualClause
+
+  /** Matching ExchangeStep must have [ExchangeStep.State] among any of those in [values]. */
+  data class State internal constructor(val values: List<ExchangeStep.State>) :
+    GetExchangeStepClause(), AnyOfClause
+}
+
 private fun <T, V> List<T>?.ifNotNullOrEmpty(block: (List<T>) -> V): V? =
   this?.ifEmpty { null }?.let(block)
 
 private fun <V> Instant?.ifNotNullOrEpoch(block: (Instant) -> V): V? =
   this?.let { if (it == Instant.EPOCH) null else block(it) }
+
+private fun <V> ExternalId?.ifNotNull(block: (ExternalId) -> V): V? = this?.let { block(it) }
+
+private fun <V> Long?.ifNotNull(block: (Long) -> V): V? = this?.let { block(it) }
 
 private fun <V> Date?.ifNotNull(block: (Date) -> V): V? =
   this?.let { if (!it.isInitialized) null else block(it) }

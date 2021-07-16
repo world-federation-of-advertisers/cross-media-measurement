@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.common.toProtoDate
+import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 
@@ -25,8 +26,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
   data class Result(
     val exchangeStep: ExchangeStep,
     val recurringExchangeId: Long,
-    val modelProviderId: Long,
-    val dataProviderId: Long,
+    val modelProviderId: Long?,
+    val dataProviderId: Long?,
   )
 
   enum class Index(internal val sql: String) {
@@ -39,8 +40,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     """
     SELECT $SELECT_COLUMNS_SQL
     FROM ExchangeSteps${exchangeStepsIndex.sql}
-    JOIN ModelProviders USING (ModelProviderId)
-    JOIN DataProviders USING (DataProviderId)
+    LEFT JOIN ModelProviders USING (ModelProviderId)
+    LEFT JOIN DataProviders USING (DataProviderId)
     JOIN RecurringExchanges USING (RecurringExchangeId)
     """.trimIndent()
 
@@ -51,8 +52,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     return Result(
       exchangeStep = buildExchangeStep(struct),
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
-      modelProviderId = struct.getLong("ModelProviderId"),
-      dataProviderId = struct.getLong("DataProviderId"),
+      modelProviderId = struct.getNullableLong("ModelProviderId"),
+      dataProviderId = struct.getNullableLong("DataProviderId"),
     )
   }
 
@@ -63,8 +64,11 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
         date = struct.getDate("Date").toProtoDate()
         stepIndex = struct.getLong("StepIndex").toInt()
         state = struct.getProtoEnum("State", ExchangeStep.State::forNumber)
-        externalModelProviderId = struct.getLong("ExternalModelProviderId")
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
+        if (struct.getNullableLong("ExternalModelProviderId") != null) {
+          externalModelProviderId = struct.getLong("ExternalModelProviderId")
+        } else {
+          externalDataProviderId = struct.getLong("ExternalDataProviderId")
+        }
       }
       .build()
   }
