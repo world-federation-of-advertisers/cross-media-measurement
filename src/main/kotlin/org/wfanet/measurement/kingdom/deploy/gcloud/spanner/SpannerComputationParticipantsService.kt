@@ -24,9 +24,9 @@ import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 
 class SpannerComputationParticipantsService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : ComputationParticipantsCoroutineImplBase() {
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest

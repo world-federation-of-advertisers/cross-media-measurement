@@ -33,9 +33,9 @@ private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
 private const val DUCHY = "Duchy"
 
 class SpannerCertificatesService(
-  val clock: Clock,
-  val idGenerator: IdGenerator,
-  val client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
 
   private fun getInternalResourceName(request: GetCertificateRequest): String {

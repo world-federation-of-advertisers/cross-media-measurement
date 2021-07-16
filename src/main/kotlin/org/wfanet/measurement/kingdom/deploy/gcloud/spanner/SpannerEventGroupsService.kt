@@ -28,9 +28,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
 class SpannerEventGroupsService(
-  val clock: Clock,
-  val idGenerator: IdGenerator,
-  val client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
 
   override suspend fun createEventGroup(request: EventGroup): EventGroup {

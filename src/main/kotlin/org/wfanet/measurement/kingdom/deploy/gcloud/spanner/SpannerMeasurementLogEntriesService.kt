@@ -22,9 +22,9 @@ import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 
 class SpannerMeasurementLogEntriesService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : MeasurementLogEntriesCoroutineImplBase() {
   override suspend fun createDuchyMeasurementLogEntry(
     request: CreateDuchyMeasurementLogEntryRequest
