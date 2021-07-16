@@ -50,17 +50,6 @@ cc_library(
 )
 
 cc_library(
-    name = "started_thread_cpu_timer",
-    hdrs = [
-        "started_thread_cpu_timer.h",
-    ],
-    strip_include_prefix = _INCLUDE_PREFIX,
-    deps = [
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_library(
     name = "protocol_cryptor",
     srcs = [
         "protocol_cryptor.cc",

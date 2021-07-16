@@ -1,14 +1,14 @@
-load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 spanner_emulator_test(
     name = "KingdomLegacySchemaTest",
     srcs = ["KingdomLegacySchemaTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomLegacySchemaTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
 
@@ -17,10 +17,10 @@ spanner_emulator_test(
     srcs = ["KingdomSchemaTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.KingdomSchemaTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
 
@@ -36,6 +36,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:testing_nontestonly",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
 

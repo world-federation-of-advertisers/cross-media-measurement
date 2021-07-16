@@ -200,6 +200,27 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `createEventGroup returns already created eventGroup for the same ProvidedEventGroupId`() =
+      runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+
+    val externalDataProviderId = insertDataProvider()
+
+    val eventGroup =
+      EventGroup.newBuilder()
+        .also {
+          it.externalDataProviderId = externalDataProviderId
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        }
+        .build()
+
+    val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
+    val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(eventGroup)
+    assertThat(secondCreateEventGroupAttempt).isEqualTo(createdEventGroup)
+  }
+
+  @Test
   fun `getEventGroup succeeds`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
 
@@ -215,8 +236,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .build()
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
-
-    val externalEventGroupId = createdEventGroup.externalEventGroupId
+    // An InternalId for EventGroup is generated.
+    copyIdGenerator.generateInternalId()
+    // An External for EventGroup is generated.
+    val externalEventGroupId = copyIdGenerator.generateExternalId()
 
     val eventGroupRead =
       eventGroupsService.getEventGroup(

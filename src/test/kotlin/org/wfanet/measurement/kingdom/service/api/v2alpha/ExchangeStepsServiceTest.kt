@@ -16,9 +16,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
-import com.nhaarman.mockitokotlin2.UseConstructor
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -26,6 +23,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.UseConstructor
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.ExchangeStep

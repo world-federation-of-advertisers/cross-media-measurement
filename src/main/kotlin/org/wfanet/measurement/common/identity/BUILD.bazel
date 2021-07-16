@@ -9,10 +9,11 @@ kt_jvm_library(
     name = "identity",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "//src/main/proto/wfa/measurement/config:duchy_rpc_config_java_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/stub",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )

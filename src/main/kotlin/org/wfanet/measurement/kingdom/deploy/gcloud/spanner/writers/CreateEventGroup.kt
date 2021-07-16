@@ -15,13 +15,17 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 /**
@@ -48,6 +52,14 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         ?.dataProviderId
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
+    return findExistingEventGroup(dataProviderId)
+      ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+  }
+
+  private suspend fun TransactionScope.createNewEventGroup(
+    dataProviderId: Long,
+    measurementConsumerId: Long
+  ): EventGroup {
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
 
@@ -64,7 +76,30 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()
   }
 
+  private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
+    val whereClause =
+      """
+      WHERE EventGroups.DataProviderId = @data_provider_id
+        AND EventGroups.ProvidedEventGroupId = @provided_event_group_id
+      """.trimIndent()
+
+    return EventGroupReader()
+      .withBuilder {
+        appendClause(whereClause)
+        bind("data_provider_id").to(dataProviderId)
+        bind("provided_event_group_id").to(eventGroup.providedEventGroupId)
+      }
+      .execute(transactionContext)
+      .map { it.eventGroup }
+      .singleOrNull()
+  }
+
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
-    return checkNotNull(transactionResult)
+    val eventGroup = checkNotNull(transactionResult)
+    return if (eventGroup.hasCreateTime()) {
+      eventGroup
+    } else {
+      eventGroup.toBuilder().apply { createTime = commitTimestamp.toProto() }.build()
+    }
   }
 }
