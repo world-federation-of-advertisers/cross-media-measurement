@@ -10,7 +10,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
     ],
 )
 

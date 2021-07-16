@@ -22,8 +22,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog

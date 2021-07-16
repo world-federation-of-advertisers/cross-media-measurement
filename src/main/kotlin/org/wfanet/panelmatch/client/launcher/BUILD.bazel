@@ -20,6 +20,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
     ],
 )

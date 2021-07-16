@@ -15,7 +15,7 @@
 package org.wfanet.panelmatch.client.launcher
 
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 
 /** Executes an [ExchangeStep]. This may be locally or remotely. */
 interface JobLauncher {

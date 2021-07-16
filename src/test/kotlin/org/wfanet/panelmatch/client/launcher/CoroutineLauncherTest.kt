@@ -23,9 +23,9 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.CountDownLatch
-import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
