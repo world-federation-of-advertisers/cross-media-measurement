@@ -23,9 +23,9 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 
 class SpannerMeasurementsService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
   override suspend fun createMeasurement(request: Measurement): Measurement {
     TODO("not implemented yet")
