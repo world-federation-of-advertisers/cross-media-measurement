@@ -4,16 +4,6 @@ load("@rules_java//java:defs.bzl", "java_proto_library")
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "duchy_public_key_config_proto",
-    srcs = ["duchy_public_key_config.proto"],
-)
-
-java_proto_library(
-    name = "duchy_public_key_config_java_proto",
-    deps = [":duchy_public_key_config_proto"],
-)
-
-proto_library(
     name = "public_api_protocol_configs_proto",
     srcs = ["public_api_protocol_configs.proto"],
     deps = [
