@@ -25,9 +25,9 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 class SpannerRequisitionsService(
-  clock: Clock,
-  idGenerator: IdGenerator,
-  client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {

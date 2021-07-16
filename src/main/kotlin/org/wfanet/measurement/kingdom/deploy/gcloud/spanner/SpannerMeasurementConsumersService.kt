@@ -28,9 +28,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
 
 class SpannerMeasurementConsumersService(
-  val clock: Clock,
-  val idGenerator: IdGenerator,
-  val client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : MeasurementConsumersCoroutineImplBase() {
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer

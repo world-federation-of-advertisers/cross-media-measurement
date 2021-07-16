@@ -21,9 +21,9 @@ import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 
 class SpannerDataServices(
-  val clock: Clock,
-  val idGenerator: IdGenerator,
-  val client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(

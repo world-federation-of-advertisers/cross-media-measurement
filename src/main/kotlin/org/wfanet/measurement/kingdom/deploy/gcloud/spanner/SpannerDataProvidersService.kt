@@ -28,9 +28,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 
 class SpannerDataProvidersService(
-  val clock: Clock,
-  val idGenerator: IdGenerator,
-  val client: AsyncDatabaseClient
+  private val clock: Clock,
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
     grpcRequire(
