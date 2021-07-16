@@ -81,9 +81,8 @@ message Measurement {
       // this entry, which can be verified using
       // `measurement_consumer_certificate`. Required.
       //
-      // The symmetric encryption key is derived using a key-agreement protocol
-      // between `measurement_public_key` in `measurement_spec` and
-      // `data_provider_public_key`.
+      // The encryption uses the `cipher_suite` specified in `measurement_spec`,
+      // with `data_provider_public_key` as the recipient public key.
       bytes encrypted_requisition_spec = 3;
     }
     // Value of the map entry. Required.
@@ -134,18 +133,13 @@ message Measurement {
   // `SUCCEEDED`.
   bytes aggregator_certificate = 9;
 
-  // Public key for this `Measurement` used to encrypt the result. Output-only.
-  // Must be set if `state` is `SUCCEEDED`.
-  EncryptionPublicKey result_public_key = 10;
-
   // Encrypted `SignedData` containing the serialized `Result`, which can be
   // verified using `aggregator_certificate`. Output-only. Must be set if
   // `state` is `SUCCEEDED`.
   //
-  // The symmetric encryption key is derived using a key-agreement protocol
-  // between `measurement_public_key` in `measurement_spec` and
-  // `result_public_key`.
-  bytes encrypted_result = 11;
+  // The encryption uses the `cipher_suite` specified in `measurement_spec`,
+  // with `measurement_public_key` as the recipient public key.
+  bytes encrypted_result = 10;
 
   // ID referencing the `Measurement` in an external system, provided by the
   // Measurement Consumer.
@@ -153,5 +147,5 @@ message Measurement {
   // If set, this value must be unique among `Measurement`s for the parent
   // `MeasurementConsumer`. This serves as an idempotency key for the
   // `Measurement`.
-  string measurement_reference_id = 12;
+  string measurement_reference_id = 11;
 }

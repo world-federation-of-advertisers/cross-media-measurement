@@ -65,6 +65,9 @@ message EncryptionPublicKey {
 
 // Description of a cipher suite for hybrid encryption using the KEM/DEM
 // paradigm.
+//
+// Values encrypted using one of these cipher suites include the sender KEM
+// public key.
 message HybridCipherSuite {
   enum KeyEncapsulationMechanism {
     KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED = 0;
