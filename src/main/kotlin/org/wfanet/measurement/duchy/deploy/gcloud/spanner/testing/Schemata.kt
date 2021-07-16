@@ -39,4 +39,3 @@ private fun schemaFile(filename: String): File {
 }
 
 val COMPUTATIONS_SCHEMA = SpannerSchema(schemaFile("computations.sdl"))
-val METRIC_VALUES_SCHEMA = SpannerSchema(schemaFile("metric_values.sdl"))

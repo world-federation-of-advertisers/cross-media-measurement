@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildChannel
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -60,18 +59,12 @@ class AsyncComputationControlServiceFlags {
 private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
   DuchyInfo.initializeFromFlags(flags.duchyInfo)
 
-  val duchyName = flags.duchy.duchyName
-  val otherDuchyNames = DuchyInfo.ALL_DUCHY_IDS.minus(duchyName).toList()
-
   val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
 
   CommonServer.fromFlags(
       flags.server,
       SERVER_NAME,
-      AsyncComputationControlService(
-        ComputationsCoroutineStub(channel),
-        ComputationProtocolStageDetails(otherDuchyNames)
-      )
+      AsyncComputationControlService(ComputationsCoroutineStub(channel))
     )
     .start()
     .blockUntilShutdown()

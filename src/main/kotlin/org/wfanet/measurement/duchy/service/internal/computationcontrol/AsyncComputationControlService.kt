@@ -18,31 +18,20 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase as AsyncComputationControlCoroutineService
-import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 
-typealias ComputationTypeDetails =
-  ComputationProtocolStageDetailsHelper<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
-
 /** Implementation of the internal Async Computation Control Service. */
-class AsyncComputationControlService(
-  private val computationsClient: ComputationsCoroutineStub,
-  private val computationTypeDetails: ComputationTypeDetails
-) : AsyncComputationControlCoroutineService() {
+class AsyncComputationControlService(private val computationsClient: ComputationsCoroutineStub) :
+  AsyncComputationControlCoroutineService() {
 
   override suspend fun advanceComputation(
     request: AdvanceComputationRequest
@@ -153,8 +142,7 @@ class AsyncComputationControlService(
         computationsClient.advanceComputationStage(
           computationToken = token,
           inputsToNextStage = token.outputPathList(),
-          stage = nextStage(token.computationDetails, token.computationStage),
-          computationProtocolStageDetails = computationTypeDetails
+          stage = nextStage(token.computationDetails, token.computationStage)
         )
       }
     }

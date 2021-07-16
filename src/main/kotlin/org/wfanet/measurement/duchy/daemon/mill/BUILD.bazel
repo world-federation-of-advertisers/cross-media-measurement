@@ -1,4 +1,4 @@
-load("//build:defs.bzl", "test_target")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = [
@@ -11,8 +11,6 @@ kt_jvm_library(
     name = "mill_base",
     srcs = ["MillBase.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
@@ -23,5 +21,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
     ],
 )

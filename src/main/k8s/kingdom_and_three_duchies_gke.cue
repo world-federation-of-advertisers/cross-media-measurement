@@ -34,23 +34,19 @@ objectSets: [
 #Duchies: [
 	{
 		name:                   "aggregator"
-		key:                    "057b22ef9c4e9626c22c13daed1363a1e6a5b309a930409f8d131f96ea2fa888"
 		protocols_setup_config: #AggregatorProtocolsSetupConfig
 	},
 	{
 		name:                   "worker-1"
-		key:                    "31cc32e7cd53ff24f2b64ae8c531099af9867ebf5d9a659f742459947caa29b0"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 	},
 	{
 		name:                   "worker-2"
-		key:                    "338cce0306416b70e901436cb9eca5ac758e8ff41d7b58dabadf8726608ca6cc"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 	},
 ]
 
 #GkeDuchy: #Duchy & {
-	_duchy_names: [ for d in #Duchies {d.name}]
 	_aggregator_name: "duchy-aggregator"
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
@@ -70,8 +66,7 @@ objectSets: [
 		"computation-control-server":       "\(_container_registry_prefix)/duchy/computation-control"
 		"herald-daemon":                    "\(_container_registry_prefix)/duchy/herald"
 		"liquid-legions-v2-mill-daemon":    "\(_container_registry_prefix)/duchy/liquid-legions-v2-mill"
-		"metric-values-storage-server":     "\(_container_registry_prefix)/duchy/metric-values"
-		"publisher-data-server":            "\(_container_registry_prefix)/duchy/publisher-data"
+		"requisition-fulfillment-server":   "\(_container_registry_prefix)/duchy/requisition-fulfillment"
 		"push-spanner-schema-container":    "\(_container_registry_prefix)/setup/push-spanner-schema"
 		"spanner-computations-server":      "\(_container_registry_prefix)/duchy/spanner-computations"
 	}
@@ -95,13 +90,8 @@ kingdom: #Kingdom & {
 	]
 	_images: {
 		"push-spanner-schema-container": "\(_container_registry_prefix)/setup/push-spanner-schema"
-		"report-maker-daemon":           "\(_container_registry_prefix)/kingdom/report-maker"
-		"report-starter-daemon":         "\(_container_registry_prefix)/kingdom/report-starter"
-		"requisition-linker-daemon":     "\(_container_registry_prefix)/kingdom/requisition-linker"
 		"gcp-kingdom-data-server":       "\(_container_registry_prefix)/kingdom/data-server"
-		"global-computation-server":     "\(_container_registry_prefix)/kingdom/global-computation"
-		"requisition-server":            "\(_container_registry_prefix)/kingdom/requisition"
-		"system-requisition-server":     "\(_container_registry_prefix)/kingdom/system-requisition"
+		"system-api-server":             "\(_container_registry_prefix)/kingdom/system-api"
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"

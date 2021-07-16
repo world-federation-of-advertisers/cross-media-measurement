@@ -15,10 +15,6 @@
 package org.wfanet.measurement.duchy.service.internal.computationcontrol
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.nhaarman.mockitokotlin2.UseConstructor
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.whenever
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -26,8 +22,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.UseConstructor
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
@@ -55,10 +54,7 @@ class AsyncComputationControlServiceTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationsService) }
 
   private val fakeService: AsyncComputationControlService by lazy {
-    AsyncComputationControlService(
-      ComputationsCoroutineStub(grpcTestServerRule.channel),
-      ComputationProtocolStageDetails(listOf())
-    )
+    AsyncComputationControlService(ComputationsCoroutineStub(grpcTestServerRule.channel))
   }
 
   private fun mockComputationsServiceCalls(

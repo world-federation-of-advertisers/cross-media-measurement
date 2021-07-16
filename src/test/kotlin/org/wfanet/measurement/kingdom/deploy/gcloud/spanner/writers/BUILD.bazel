@@ -1,15 +1,17 @@
-load("//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 _TEST_DEPS = [
-    "//imports/java/com/google/cloud/spanner",
-    "//imports/java/com/google/common/truth",
-    "//imports/java/org/junit",
-    "//imports/kotlin/kotlin/test",
-    "//src/main/kotlin/org/wfanet/measurement/common",
+    "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+    "@wfa_common_jvm//imports/java/com/google/common/truth",
+    "@wfa_common_jvm//imports/java/org/junit",
+    "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     "//src/main/kotlin/org/wfanet/measurement/common/identity",
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
-    "//src/main/kotlin/org/wfanet/measurement/common/testing",
-    "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",
@@ -117,5 +119,12 @@ spanner_emulator_test(
     name = "UpdateReportStateTest",
     srcs = ["UpdateReportStateTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateReportStateTest",
+    deps = _TEST_DEPS,
+)
+
+spanner_emulator_test(
+    name = "CreateExchangeTest",
+    srcs = ["CreateExchangeTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangeTest",
     deps = _TEST_DEPS,
 )

@@ -150,9 +150,10 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           }
         }
         .build()
+        
     val createdDataProvider =
       dataProvidersService.createDataProvider(dataProvider)
-
+      
     val dataProviderRead =
       dataProvidersService.getDataProvider(
         GetDataProviderRequest.newBuilder()

@@ -55,6 +55,7 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         externalPublicKeyCertificateId = struct.getLong("ExternalDataProviderCertificateId")
         details =
           struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
+        details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
         preferredCertificate = buildCertificate(struct)
       }
       .build()

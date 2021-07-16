@@ -84,7 +84,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
     }
 
     /** Translates [LiquidLegionsSketchAggregationV2.Stage] s into [ComputationStageDetails]. */
-    class Details(val otherDuchies: List<String>) :
+    object Details :
       ProtocolStageDetails<
         LiquidLegionsSketchAggregationV2.Stage,
         ComputationStageDetails,
@@ -125,7 +125,10 @@ object LiquidLegionsSketchAggregationV2Protocol {
         }
       }
 
-      override fun outputBlobNumbersForStage(stage: LiquidLegionsSketchAggregationV2.Stage): Int {
+      override fun outputBlobNumbersForStage(
+        stage: LiquidLegionsSketchAggregationV2.Stage,
+        computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails
+      ): Int {
         return when (stage) {
           WAIT_REQUISITIONS_AND_KEY_SET, CONFIRMATION_PHASE, WAIT_TO_START -> 0
           WAIT_EXECUTION_PHASE_ONE_INPUTS,
@@ -140,7 +143,7 @@ object LiquidLegionsSketchAggregationV2Protocol {
             1
           WAIT_SETUP_PHASE_INPUTS ->
             // The output contains otherDuchiesInComputation sketches from the other duchies.
-            otherDuchies.size
+            computationDetails.participantCount - 1
           // Mill have nothing to do for this stage.
           COMPLETE -> error("Computation should be ended with call to endComputation(...)")
           // Stages that we can't transition to ever.
@@ -151,15 +154,20 @@ object LiquidLegionsSketchAggregationV2Protocol {
       }
 
       override fun detailsFor(
-        stage: LiquidLegionsSketchAggregationV2.Stage
+        stage: LiquidLegionsSketchAggregationV2.Stage,
+        computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails
       ): ComputationStageDetails {
         return when (stage) {
           WAIT_SETUP_PHASE_INPUTS ->
             ComputationStageDetails.newBuilder()
               .apply {
                 liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
+                  val participants = computationDetails.participantList
+                  val nonAggregators = participants.subList(0, participants.size - 1)
                   putAllExternalDuchyLocalBlobId(
-                    otherDuchies.mapIndexed { idx, duchy -> duchy to idx.toLong() }.toMap()
+                    nonAggregators
+                      .mapIndexed { idx, duchy -> duchy.duchyId to idx.toLong() }
+                      .toMap()
                   )
                 }
               }
@@ -196,33 +204,43 @@ object LiquidLegionsSketchAggregationV2Protocol {
      * Translates [LiquidLegionsSketchAggregationV2.Stage] s wrapped in a [ComputationStage] into
      * [ComputationStageDetails].
      */
-    class Details(otherDuchies: List<String>) :
+    object Details :
       ProtocolStageDetails<ComputationStage, ComputationStageDetails, ComputationDetails> {
       override fun validateRoleForStage(
         stage: ComputationStage,
         details: ComputationDetails
       ): Boolean {
-        return enumBasedDetails.validateRoleForStage(
+        return EnumStages.Details.validateRoleForStage(
           stage.liquidLegionsSketchAggregationV2,
           details.liquidLegionsV2
         )
       }
 
       override fun afterTransitionForStage(stage: ComputationStage): AfterTransition {
-        return enumBasedDetails.afterTransitionForStage(stage.liquidLegionsSketchAggregationV2)
+        return EnumStages.Details.afterTransitionForStage(stage.liquidLegionsSketchAggregationV2)
       }
 
-      override fun outputBlobNumbersForStage(stage: ComputationStage): Int {
-        return enumBasedDetails.outputBlobNumbersForStage(stage.liquidLegionsSketchAggregationV2)
+      override fun outputBlobNumbersForStage(
+        stage: ComputationStage,
+        computationDetails: ComputationDetails
+      ): Int {
+        return EnumStages.Details.outputBlobNumbersForStage(
+          stage.liquidLegionsSketchAggregationV2,
+          computationDetails.liquidLegionsV2
+        )
       }
 
-      private val enumBasedDetails = EnumStages.Details(otherDuchies)
-
-      override fun detailsFor(stage: ComputationStage): ComputationStageDetails =
-        enumBasedDetails.detailsFor(stage.liquidLegionsSketchAggregationV2)
+      override fun detailsFor(
+        stage: ComputationStage,
+        computationDetails: ComputationDetails
+      ): ComputationStageDetails =
+        EnumStages.Details.detailsFor(
+          stage.liquidLegionsSketchAggregationV2,
+          computationDetails.liquidLegionsV2
+        )
 
       override fun parseDetails(bytes: ByteArray): ComputationStageDetails =
-        enumBasedDetails.parseDetails(bytes)
+        EnumStages.Details.parseDetails(bytes)
     }
   }
 }

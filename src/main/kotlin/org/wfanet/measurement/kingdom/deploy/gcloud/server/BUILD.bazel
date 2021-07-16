@@ -6,11 +6,11 @@ kt_jvm_library(
     name = "legacy_spanner_kingdom_data_server",
     srcs = ["LegacySpannerKingdomDataServer.kt"],
     deps = [
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:legacy_kingdom_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 
@@ -32,12 +32,12 @@ kt_jvm_library(
     name = "spanner_kingdom_data_server",
     srcs = ["SpannerKingdomDataServer.kt"],
     deps = [
-        "//imports/java/picocli",
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:kingdom_data_server",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 

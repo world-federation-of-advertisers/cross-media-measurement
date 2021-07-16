@@ -104,6 +104,8 @@ CREATE TABLE ExchangeSteps (
   -- ExchangeStep.State enum as int.
   State                INT64 NOT NULL,
 
+  UpdateTime           TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
   -- Denormalized "party" from the parent RecurringExchange.
   -- Exactly one of ModelProviderId and DataProviderId will be set.
   ModelProviderId      INT64,

@@ -1,0 +1,17 @@
+# proto-file: src/main/proto/wfa/measurement/config/public_api_protocol_configs.proto
+# proto-message: PublicApiProtocolConfigs
+configs {
+  key: "protocolConfigs/llv2"
+  value {
+    name: "protocolConfigs/llv2"
+    measurement_type: REACH_AND_FREQUENCY
+    liquid_legions_v2 {
+      sketch_params {
+        decay_rate: 12.0
+        max_size: 100000
+        sampling_indicator_size: 10000000
+      }
+      elliptic_curve_id: 415
+    }
+  }
+}

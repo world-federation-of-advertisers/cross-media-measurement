@@ -54,7 +54,6 @@ class CreateCertificate(private val certificate: Certificate) :
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
   }
-
   private suspend fun getInternalResourceNameAndId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): InternalResource {

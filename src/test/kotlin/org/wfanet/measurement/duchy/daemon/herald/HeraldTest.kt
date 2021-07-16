@@ -16,10 +16,6 @@ package org.wfanet.measurement.duchy.daemon.herald
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.nhaarman.mockitokotlin2.UseConstructor
-import com.nhaarman.mockitokotlin2.any
-import com.nhaarman.mockitokotlin2.mock
-import com.nhaarman.mockitokotlin2.stub
 import java.time.Clock
 import kotlin.test.assertFails
 import kotlinx.coroutines.flow.asFlow
@@ -29,6 +25,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.UseConstructor
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as publicApiHybridCipherSuite
@@ -215,7 +215,6 @@ class HeraldTest {
   fun initHerald() {
     aggregatorHerald =
       Herald(
-        OTHER_DUCHY_NAMES,
         internalComputationsStub,
         systemComputationsStub,
         AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
@@ -223,7 +222,6 @@ class HeraldTest {
       )
     nonAggregatorHerald =
       Herald(
-        OTHER_DUCHY_NAMES,
         internalComputationsStub,
         systemComputationsStub,
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
@@ -640,7 +638,6 @@ class HeraldTest {
     runBlocking<Unit> {
       val heraldWithOneRetry =
         Herald(
-          OTHER_DUCHY_NAMES,
           internalComputationsStub,
           systemComputationsStub,
           NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,

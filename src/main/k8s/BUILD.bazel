@@ -1,28 +1,28 @@
 load("//build/cue:defs.bzl", "cue_string_field")
 load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
+load("@wfa_common_jvm//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load(":macros.bzl", "cue_dump")
 
-exports_files(["duchy_public_key_config.textproto"])
+exports_files(["duchy_rpc_config.textproto"])
 
-exports_files(["liquid_legions_v2_noise_config.textproto"])
+exports_files(["public_api_protocol_configs.textproto"])
 
 exports_files(["aggregator_protocols_setup_config.textproto"])
 
 exports_files(["non_aggregator_protocols_setup_config.textproto"])
 
 cue_string_field(
-    name = "duchy_public_key_config",
-    src = "duchy_public_key_config.textproto",
-    identifier = "#DuchyPublicKeysConfig",
+    name = "duchy_rpc_config",
+    src = "duchy_rpc_config.textproto",
+    identifier = "#DuchyInfoConfig",
     package = "k8s",
 )
 
 cue_string_field(
-    name = "liquid_legions_v2_noise_config",
-    src = "liquid_legions_v2_noise_config.textproto",
-    identifier = "#LiquidLegionsV2NoiseConfig",
+    name = "public_api_protocol_configs",
+    src = "public_api_protocol_configs.textproto",
+    identifier = "#PublicApiProtocolConfigs",
     package = "k8s",
 )
 
@@ -43,8 +43,8 @@ cue_string_field(
 CUE_LIBRARIES = [
     ":aggregator_protocols_setup_config.cue",
     ":non_aggregator_protocols_setup_config.cue",
-    ":duchy_public_key_config.cue",
-    ":liquid_legions_v2_noise_config.cue",
+    ":duchy_rpc_config.cue",
+    ":public_api_protocol_configs.cue",
     "base.cue",
     "duchy.cue",
     "kingdom.cue",

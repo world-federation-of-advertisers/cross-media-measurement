@@ -54,27 +54,58 @@ http_archive(
     ],
 )
 
+load("//build/wfa:repositories.bzl", "wfa_repo_archive")
+
+wfa_repo_archive(
+    name = "wfa_measurement_proto",
+    commit = "584b40ca7b4275d194cc4cedfb877c05ec5ab24e",
+    repo = "cross-media-measurement-api",
+    sha256 = "12f231fe7c8f75e3170ee9c6e308d355eccc354ed60ef4505f6f537812652626",
+)
+
+wfa_repo_archive(
+    name = "wfa_rules_swig",
+    commit = "653d1bdcec85a9373df69920f35961150cf4b1b6",
+    repo = "rules_swig",
+    sha256 = "34c15134d7293fc38df6ed254b55ee912c7479c396178b7f6499b7e5351aeeec",
+)
+
+wfa_repo_archive(
+    name = "any_sketch",
+    commit = "995fe42006a56f926e568c0b02adae5f834a813d",
+    repo = "any-sketch",
+    sha256 = "2477a9cb52a6a415b0d498f7ba19010965145af4a449029df2e64d2379d3cc01",
+)
+
+wfa_repo_archive(
+    name = "any_sketch_java",
+    commit = "a63d47ace86d025ec3330f341d1ba4b5573fe756",
+    repo = "any-sketch-java",
+    sha256 = "9dc3cea71dfeecad40ef67a6198846177d750d84401336d196d4d83059e8301e",
+)
+
+wfa_repo_archive(
+    name = "wfa_common_jvm",
+    commit = "a2b9bae790fc84205499bed09bd1ac22e9cf7328",
+    repo = "common-jvm",
+    sha256 = "b4f410343536bb11bb0a8a868e611be792e1cb0d493d329b9ad2fe4c4dbb7c35",
+)
+
 # @com_google_truth_truth
-load("//build/com_google_truth:repo.bzl", "com_google_truth_artifact_dict")
+load("@wfa_common_jvm//build/com_google_truth:repo.bzl", "com_google_truth_artifact_dict")
 
 # @io_bazel_rules_kotlin
 
-load("//build/io_bazel_rules_kotlin:repo.bzl", "kotlinc_release", "rules_kotlin_repo")
+load("@wfa_common_jvm//build/io_bazel_rules_kotlin:repo.bzl", "rules_kotlin_repo")
 
-rules_kotlin_repo(
-    sha256 = "6194a864280e1989b6d8118a4aee03bb50edeeae4076e5bc30eef8a98dcd4f07",
-    version = "v1.5.0-alpha-2",
-)
+rules_kotlin_repo()
 
-load("//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
+load("@wfa_common_jvm//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
 
-rules_kotlin_deps(compiler_release = kotlinc_release(
-    sha256 = "dfef23bb86bd5f36166d4ec1267c8de53b3827c446d54e82322c6b6daad3594c",
-    version = "1.4.32",
-))
+rules_kotlin_deps()
 
 # kotlinx.coroutines
-load("//build/kotlinx_coroutines:repo.bzl", "kotlinx_coroutines_artifact_dict")
+load("@wfa_common_jvm//build/kotlinx_coroutines:repo.bzl", "kotlinx_coroutines_artifact_dict")
 
 # @com_github_grpc_grpc_kotlin
 
@@ -112,7 +143,7 @@ http_archive(
 )
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
-load("//build/maven:artifacts.bzl", "artifacts")
+load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
 MAVEN_ARTIFACTS = artifacts.list_to_dict(
     IO_GRPC_GRPC_JAVA_ARTIFACTS +
@@ -131,7 +162,7 @@ MAVEN_ARTIFACTS.update({
     "com.google.cloud:google-cloud-spanner": "3.0.3",
     "com.google.code.gson:gson": "2.8.6",
     "com.google.guava:guava": "30.0-jre",
-    "com.nhaarman.mockitokotlin2:mockito-kotlin": "2.2.0",
+    "org.mockito.kotlin:mockito-kotlin": "3.2.0",
     "info.picocli:picocli": "4.4.0",
     "junit:junit": "4.13",
 })
@@ -161,7 +192,7 @@ grpc_java_repositories()  # For gRPC Kotlin.
 
 # @io_bazel_rules_docker
 
-load("//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
+load("@wfa_common_jvm//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
 rules_docker_repo(
     name = "io_bazel_rules_docker",
@@ -180,7 +211,7 @@ load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
 
 container_deps()
 
-load("//build/io_bazel_rules_docker:base_images.bzl", "base_java_images")
+load("@wfa_common_jvm//build/io_bazel_rules_docker:base_images.bzl", "base_java_images")
 
 # Defualt base images for java_image targets. Must come before
 # java_image_repositories().
@@ -223,7 +254,7 @@ private_join_and_compute_repo(
 
 # @cloud_spanner_emulator
 
-load("//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries")
+load("@wfa_common_jvm//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries")
 
 cloud_spanner_emulator_binaries(
     name = "cloud_spanner_emulator",
@@ -266,34 +297,4 @@ load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_languag
 switched_rules_by_language(
     name = "com_google_googleapis_imports",
     java = True,
-)
-
-load("//build/wfa:repositories.bzl", "wfa_repo_archive")
-
-wfa_repo_archive(
-    name = "wfa_measurement_proto",
-    commit = "584b40ca7b4275d194cc4cedfb877c05ec5ab24e",
-    repo = "cross-media-measurement-api",
-    sha256 = "12f231fe7c8f75e3170ee9c6e308d355eccc354ed60ef4505f6f537812652626",
-)
-
-wfa_repo_archive(
-    name = "wfa_rules_swig",
-    commit = "653d1bdcec85a9373df69920f35961150cf4b1b6",
-    repo = "rules_swig",
-    sha256 = "34c15134d7293fc38df6ed254b55ee912c7479c396178b7f6499b7e5351aeeec",
-)
-
-wfa_repo_archive(
-    name = "any_sketch",
-    commit = "995fe42006a56f926e568c0b02adae5f834a813d",
-    repo = "any-sketch",
-    sha256 = "2477a9cb52a6a415b0d498f7ba19010965145af4a449029df2e64d2379d3cc01",
-)
-
-wfa_repo_archive(
-    name = "any_sketch_java",
-    commit = "a63d47ace86d025ec3330f341d1ba4b5573fe756",
-    repo = "any-sketch-java",
-    sha256 = "9dc3cea71dfeecad40ef67a6198846177d750d84401336d196d4d83059e8301e",
 )
