@@ -86,9 +86,9 @@ wfa_repo_archive(
 
 wfa_repo_archive(
     name = "wfa_common_jvm",
-    commit = "1fe0854c130467f940da0f66a0ff186aa31ea8a3",
+    commit = "a2b9bae790fc84205499bed09bd1ac22e9cf7328",
     repo = "common-jvm",
-    sha256 = "40cd367ee9b4a8371534f6a8111f4608918d2cf1e955b9ba01e6ae3cfac86b05",
+    sha256 = "b4f410343536bb11bb0a8a868e611be792e1cb0d493d329b9ad2fe4c4dbb7c35",
 )
 
 # @com_google_truth_truth
@@ -96,19 +96,13 @@ load("@wfa_common_jvm//build/com_google_truth:repo.bzl", "com_google_truth_artif
 
 # @io_bazel_rules_kotlin
 
-load("@wfa_common_jvm//build/io_bazel_rules_kotlin:repo.bzl", "kotlinc_release", "rules_kotlin_repo")
+load("@wfa_common_jvm//build/io_bazel_rules_kotlin:repo.bzl", "rules_kotlin_repo")
 
-rules_kotlin_repo(
-    sha256 = "6194a864280e1989b6d8118a4aee03bb50edeeae4076e5bc30eef8a98dcd4f07",
-    version = "v1.5.0-alpha-2",
-)
+rules_kotlin_repo()
 
 load("@wfa_common_jvm//build/io_bazel_rules_kotlin:deps.bzl", "rules_kotlin_deps")
 
-rules_kotlin_deps(compiler_release = kotlinc_release(
-    sha256 = "dfef23bb86bd5f36166d4ec1267c8de53b3827c446d54e82322c6b6daad3594c",
-    version = "1.4.32",
-))
+rules_kotlin_deps()
 
 # kotlinx.coroutines
 load("@wfa_common_jvm//build/kotlinx_coroutines:repo.bzl", "kotlinx_coroutines_artifact_dict")
