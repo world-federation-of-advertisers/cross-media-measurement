@@ -31,6 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RepetitionSpec
@@ -384,6 +385,28 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
         .set("State" to state)
         .set("ExchangeDetails" to exchangeDetails)
         .set("ExchangeDetailsJson" to exchangeDetails)
+        .build()
+    )
+  }
+
+  suspend fun insertExchangeStep(
+    recurringExchangeId: Long,
+    date: Date,
+    stepIndex: Long,
+    state: ExchangeStep.State,
+    updateTime: Instant? = null,
+    modelProviderId: Long? = null,
+    dataProviderId: Long? = null
+  ) {
+    write(
+      Mutation.newInsertBuilder("ExchangeSteps")
+        .set("RecurringExchangeId" to recurringExchangeId)
+        .set("Date" to date.toCloudDate())
+        .set("StepIndex" to stepIndex)
+        .set("State" to state)
+        .set("UpdateTime" to (updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP))
+        .set("ModelProviderId" to modelProviderId)
+        .set("DataProviderId" to dataProviderId)
         .build()
     )
   }
