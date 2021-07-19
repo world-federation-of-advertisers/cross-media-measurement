@@ -118,8 +118,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           }
         }
         .build()
-    val createdDataProvider =
-      dataProvidersService.createDataProvider(dataProvider)
+    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
 
     assertThat(createdDataProvider)
       .isEqualTo(
@@ -154,16 +153,13 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           }
         }
         .build()
-        
-    val createdDataProvider =
-      dataProvidersService.createDataProvider(dataProvider)
-      
+
+    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
+
     val dataProviderRead =
       dataProvidersService.getDataProvider(
         GetDataProviderRequest.newBuilder()
-          .setExternalDataProviderId(
-            createdDataProvider.externalDataProviderId
-          )
+          .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
           .build()
       )
 
