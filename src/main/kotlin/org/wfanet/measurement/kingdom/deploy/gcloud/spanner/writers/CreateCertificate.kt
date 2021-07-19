@@ -27,6 +27,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.Owner
 
 private const val DATA_PROVIDER = "DataProvider"
 private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
@@ -34,7 +35,7 @@ private const val DUCHY = "Duchy"
 
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
-  data class InternalResource(val name: String, val id: InternalId)
+  data class InternalResource(val ownerTableName: String, val id: InternalId)
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val internalResource = getInternalResourceNameAndId(transactionContext)
@@ -42,7 +43,7 @@ class CreateCertificate(private val certificate: Certificate) :
     val externalMapId = idGenerator.generateExternalId()
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
-      internalResource.name,
+      internalResource.ownerTableName,
       internalResource.id,
       certificateId,
       externalMapId
@@ -62,27 +63,30 @@ class CreateCertificate(private val certificate: Certificate) :
         MeasurementConsumerReader()
           .readExternalId(transactionContext, ExternalId(certificate.externalMeasurementConsumerId))
           .measurementConsumerId
-      return InternalResource(MEASUREMENT_CONSUMER, InternalId(measuerementConsumerId))
+      return InternalResource(
+        Owner.MEASUREMENT_CONSUMER.tableName,
+        InternalId(measuerementConsumerId)
+      )
     }
     if (certificate.hasExternalDataProviderId()) {
       val dataProviderId =
         DataProviderReader()
           .readExternalId(transactionContext, ExternalId(certificate.externalDataProviderId))
           .dataProviderId
-      return InternalResource(DATA_PROVIDER, InternalId(dataProviderId))
+      return InternalResource(Owner.DATA_PROVIDER.tableName, InternalId(dataProviderId))
     }
     return TODO("uakyol implement duchy support after duchy config is implemented")
   }
 
   private fun createCertificateMapTableMutation(
-    resourceName: String,
+    ownerTableName: String,
     internalId: InternalId,
     internalCertificateId: InternalId,
     externalMapId: ExternalId
   ): Mutation {
-    val tableName = "${resourceName}Certificates"
-    val internalIdField = "${resourceName}Id"
-    val externalIdField = "External${resourceName}CertificateId"
+    val tableName = "${ownerTableName}Certificates"
+    val internalIdField = "${ownerTableName}Id"
+    val externalIdField = "External${ownerTableName}CertificateId"
     return insertMutation(tableName) {
       set(internalIdField to internalId.value)
       set("CertificateId" to internalCertificateId.value)

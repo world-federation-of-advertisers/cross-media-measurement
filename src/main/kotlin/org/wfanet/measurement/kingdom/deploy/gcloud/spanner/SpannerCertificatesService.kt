@@ -26,11 +26,8 @@ import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.Owner
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
-
-private const val DATA_PROVIDER = "DataProvider"
-private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
-private const val DUCHY = "Duchy"
 
 class SpannerCertificatesService(
   private val clock: Clock,
@@ -38,14 +35,14 @@ class SpannerCertificatesService(
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
 
-  private fun getInternalResourceName(request: GetCertificateRequest): String {
+  private fun getInternalResourceName(request: GetCertificateRequest): Owner {
     if (request.hasExternalMeasurementConsumerId()) {
-      return MEASUREMENT_CONSUMER
+      return Owner.MEASUREMENT_CONSUMER
     }
     if (request.hasExternalDataProviderId()) {
-      return DATA_PROVIDER
+      return Owner.DATA_PROVIDER
     } else {
-      return DUCHY
+      return Owner.DUCHY
     }
   }
 

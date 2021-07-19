@@ -20,31 +20,34 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 
-private const val DATA_PROVIDER = "DataProvider"
-private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
-
-class CertificateReader(val resourceName: String) : SpannerReader<CertificateReader.Result>() {
+class CertificateReader(val owner: Owner) : SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
+
+  enum class Owner(val tableName: String) {
+    DATA_PROVIDER("DataProvider"),
+    MEASUREMENT_CONSUMER("MeasurementConsumer"),
+    DUCHY("Duchy"),
+  }
 
   override val baseSql: String =
     """
     SELECT
-      ${resourceName}Certificates.CertificateId,
+      ${owner.tableName}Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
       Certificates.CertificateDetails,
-      ${resourceName}Certificates.External${resourceName}CertificateId,
-      ${resourceName}Certificates.${resourceName}Id,
-      ${resourceName}s.External${resourceName}Id
-    FROM ${resourceName}Certificates
-    JOIN ${resourceName}s USING (${resourceName}Id)
+      ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
+      ${owner.tableName}Certificates.${owner.tableName}Id,
+      ${owner.tableName}s.External${owner.tableName}Id
+    FROM ${owner.tableName}Certificates
+    JOIN ${owner.tableName}s USING (${owner.tableName}Id)
     JOIN Certificates USING (CertificateId)
     """.trimIndent()
 
   override val externalIdColumn: String =
-    "${resourceName}Certificates.External${resourceName}CertificateId"
+    "${owner.tableName}Certificates.External${owner.tableName}CertificateId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
@@ -53,13 +56,13 @@ class CertificateReader(val resourceName: String) : SpannerReader<CertificateRea
     certificateBuilder: Certificate.Builder,
     struct: Struct
   ): Certificate {
-    val externalResourceIdColumn = "External${resourceName}Id"
-    if (resourceName == MEASUREMENT_CONSUMER) {
+    val externalResourceIdColumn = "External${owner.tableName}Id"
+    if (owner == Owner.MEASUREMENT_CONSUMER) {
       return certificateBuilder
         .setExternalMeasurementConsumerId(struct.getLong(externalResourceIdColumn))
         .build()
     }
-    if (resourceName == DATA_PROVIDER) {
+    if (owner == Owner.DATA_PROVIDER) {
       return certificateBuilder
         .setExternalDataProviderId(struct.getLong(externalResourceIdColumn))
         .build()
@@ -71,7 +74,7 @@ class CertificateReader(val resourceName: String) : SpannerReader<CertificateRea
   private fun buildCertificate(struct: Struct): Certificate {
     val certificateBuilder =
       Certificate.newBuilder().apply {
-        externalCertificateId = struct.getLong("External${resourceName}CertificateId")
+        externalCertificateId = struct.getLong("External${owner.tableName}CertificateId")
         subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
         notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
         notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
