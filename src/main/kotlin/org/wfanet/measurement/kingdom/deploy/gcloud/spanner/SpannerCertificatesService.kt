@@ -35,7 +35,7 @@ class SpannerCertificatesService(
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
 
-  private fun getInternalResourceName(request: GetCertificateRequest): Owner {
+  private fun getInternalOwner(request: GetCertificateRequest): Owner {
     if (request.hasExternalMeasurementConsumerId()) {
       return Owner.MEASUREMENT_CONSUMER
     }
@@ -51,7 +51,7 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    return CertificateReader(getInternalResourceName(request))
+    return CertificateReader(getInternalOwner(request))
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate
       ?: failGrpc(Status.NOT_FOUND) {
