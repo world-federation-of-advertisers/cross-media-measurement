@@ -137,9 +137,9 @@ load(
 
 http_archive(
     name = "rules_jvm_external",
-    sha256 = "82262ff4223c5fda6fb7ff8bd63db8131b51b413d26eb49e3131037e79e324af",
-    strip_prefix = "rules_jvm_external-3.2",
-    url = "https://github.com/bazelbuild/rules_jvm_external/archive/3.2.zip",
+    sha256 = "f36441aa876c4f6427bfb2d1f2d723b48e9d930b62662bf723ddfb8fc80f0140",
+    strip_prefix = "rules_jvm_external-4.1",
+    url = "https://github.com/bazelbuild/rules_jvm_external/archive/4.1.zip",
 )
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
@@ -163,6 +163,7 @@ MAVEN_ARTIFACTS.update({
     "com.google.code.gson:gson": "2.8.6",
     "com.google.guava:guava": "30.0-jre",
     "org.mockito.kotlin:mockito-kotlin": "3.2.0",
+    "com.squareup:kotlinpoet": "1.8.0",
     "info.picocli:picocli": "4.4.0",
     "junit:junit": "4.13",
 })
