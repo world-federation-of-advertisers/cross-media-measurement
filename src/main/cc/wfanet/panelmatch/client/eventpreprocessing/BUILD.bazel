@@ -23,9 +23,8 @@ cc_library(
     strip_include_prefix = "/src/main/cc",
     deps = [
         ":preprocess_events",
-        "//src/main/cc/wfanet/panelmatch/common:jni_wrap",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
         "@com_google_absl//absl/status:statusor",
-        "@wfa_measurement_system//src/main/cc/wfa/measurement/common/crypto:encryption_utility_helper",
+        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
     ],
 )
