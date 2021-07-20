@@ -16,13 +16,51 @@
 
 load("//build/cue:defs.bzl", "cue_export")
 
-def cue_dump(name, srcs, cue_tags = None):
+def cue_dump(name, srcs, expression = None, cue_tags = None):
     outfile = name + ".yaml"
     cue_export(
         name = name,
         srcs = srcs,
         outfile = outfile,
         filetype = "yaml",
-        expression = "listObject",
+        expression = expression,
         cue_tags = cue_tags,
+    )
+
+def generate_root_certificate(name, srcs, visibility = None):
+    native.genrule(
+        name = name,
+        srcs = srcs,
+        outs = [
+            name + ".pem",
+            name + ".key",
+        ],
+        cmd = ("openssl req -out $(@D)/%s.pem" % (name) +
+               " -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1" +
+               " -nodes -keyout $(@D)/%s.key" % (name) +
+               " -x509 -days 3650 -subj '/O=Server CA/CN=ca.server.example.com' " +
+               " -config $(location openssl.cnf) -extensions v3_ca"),
+        visibility = visibility,
+    )
+
+def generate_server_certificate(name, root, srcs, visibility = None):
+    native.genrule(
+        name = name,
+        srcs = srcs,
+        outs = [
+            name + ".csr",
+            name + ".key",
+            name + ".pem",
+        ],
+        cmd = ("openssl req -out $(@D)/%s.csr -new -newkey" % (name) +
+               " ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes" +
+               " -keyout $(@D)/%s.key -subj" % (name) +
+               " '/O=Server/CN=server.example.com' -config $(location openssl.cnf)" +
+               " -extensions v3_req;" +
+               " openssl x509 -in $(@D)/%s.csr" % (name) +
+               " -out $(@D)/%s.pem" % (name) +
+               " -days 3650 -req -CA $(@D)/%s.pem" % (root) +
+               " -CAkey $(@D)/%s.key" % (root) +
+               " -CAcreateserial -extfile $(location openssl.cnf) -extensions usr_cert"),
+        visibility = ["//visibility:public"],
     )

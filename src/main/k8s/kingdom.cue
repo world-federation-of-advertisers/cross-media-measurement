@@ -26,6 +26,9 @@ import ("strings")
 	_kingdom_image_pull_policy: string
 
 	_duchy_info_config_flag:                 "--duchy-info-config=" + #DuchyInfoConfig
+	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_server.pem"
+	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_server.key"
+	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
@@ -36,7 +39,6 @@ import ("strings")
 
 	kingdom_service: {
 		"gcp-kingdom-data-server": {}
-		"requisition-server": {}
 		"system-api-server": {}
 	}
 
@@ -72,6 +74,9 @@ import ("strings")
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
 				_duchy_info_config_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _spanner_flags
@@ -82,6 +87,9 @@ import ("strings")
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_info_config_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
 				"--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 				"--port=8080",
 			]
