@@ -24,8 +24,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHE
 import org.wfanet.measurement.kingdom.service.internal.testing.DataProvidersServiceTest
 
 @RunWith(JUnit4::class)
-class SpannerDataProvidersServiceTest :
-  DataProvidersServiceTest<SpannerDataProvidersService>() {
+class SpannerDataProvidersServiceTest : DataProvidersServiceTest<SpannerDataProvidersService>() {
 
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()

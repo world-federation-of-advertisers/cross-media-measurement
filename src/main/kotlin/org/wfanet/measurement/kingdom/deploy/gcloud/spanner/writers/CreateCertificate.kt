@@ -25,9 +25,9 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.Owner
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.Owner
 
 private const val DATA_PROVIDER = "DataProvider"
 private const val MEASUREMENT_CONSUMER = "MeasurementConsumer"
@@ -43,11 +43,11 @@ class CreateCertificate(private val certificate: Certificate) :
     val externalMapId = idGenerator.generateExternalId()
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
-      internalResource.ownerTableName,
-      internalResource.id,
-      certificateId,
-      externalMapId
-    )
+        internalResource.ownerTableName,
+        internalResource.id,
+        certificateId,
+        externalMapId
+      )
       .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
   }
