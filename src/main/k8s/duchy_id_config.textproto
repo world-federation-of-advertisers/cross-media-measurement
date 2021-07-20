@@ -1,5 +1,5 @@
 # proto-file: src/main/proto/wfa/measurement/internal/kingdom/duchy_id_config_proto
-# proto-message: DuchyRpcConfig
+# proto-message: DuchyIdonfig
 duchies {
   external_duchy_id: "aggregator"
   internal_duchy_id: 1234L

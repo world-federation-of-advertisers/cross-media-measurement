@@ -1,4 +1,4 @@
-# proto-file: src/main/proto/wfa/measurement/config/duchy_id_config.proto
+# proto-file: src/main/proto/wfa/measurement/config/duchy_rpc_config.proto
 # proto-message: DuchyRpcConfig
 duchies {
   duchy_id: "aggregator"
