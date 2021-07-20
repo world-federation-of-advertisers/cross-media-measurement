@@ -15,8 +15,8 @@
 #include "wfanet/panelmatch/common/crypto/hkdf.h"
 
 #include "gtest/gtest.h"
-#include "src/test/cc/testutil/matchers.h"
-#include "src/test/cc/testutil/status_macros.h"
+#include "src/main/cc/common_cpp/testing/status_macros.h"
+#include "src/main/cc/common_cpp/testing/status_matchers.h"
 #include "tink/util/secret_data.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"
@@ -52,7 +52,7 @@ TEST(HkdfTest, emptyKey) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   auto result = hkdf->ComputeHkdf(SecretDataFromStringView(""), 42);
   EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, ""));
+              wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 
 // Test with a proper key and length < 1
@@ -60,7 +60,7 @@ TEST(HkdfTest, lengthTooSmall) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), -6);
   EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, ""));
+              wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 
 // Test with null key and length > 1024
@@ -68,7 +68,7 @@ TEST(HkdfTest, lengthTooBig) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), 10000);
   EXPECT_THAT(result.status(),
-              StatusIs(absl::StatusCode::kInvalidArgument, ""));
+              wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 }  // namespace
 
