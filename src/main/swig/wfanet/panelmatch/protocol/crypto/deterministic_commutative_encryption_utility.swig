@@ -14,7 +14,7 @@
 
 %include "exception.i"
 %{
-#include "wfanet/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility_wrapper.h"
+#include "wfa/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility_wrapper.h"
 %}
 
 // Convert C++ ::absl::StatusOr<std::string> to a Java byte
@@ -64,4 +64,4 @@
 // Follow Java style for function names.
 %rename("%(lowercamelcase)s",%$isfunction) "";
 
-%include "wfanet/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility_wrapper.h"
+%include "wfa/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility_wrapper.h"
