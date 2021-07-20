@@ -11,6 +11,6 @@ java_wrap_cc(
     module = "EventPreprocessing",
     package = "org.wfanet.panelmatch.client.eventpreprocessing",
     deps = [
-        "//src/main/cc/wfanet/panelmatch/client/eventpreprocessing:preprocess_events_wrapper",
+        "//src/main/cc/wfa/panelmatch/client/eventpreprocessing:preprocess_events_wrapper",
     ],
 )

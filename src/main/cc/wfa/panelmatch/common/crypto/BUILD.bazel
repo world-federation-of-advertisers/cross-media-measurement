@@ -1,0 +1,93 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "aes",
+    srcs = [
+        "aes.cc",
+    ],
+    hdrs = [
+        "aes.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_base//cc/util:secret_data",
+        "@tink_cc//subtle",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
+
+cc_library(
+    name = "aes_with_hkdf",
+    srcs = [
+        "aes_with_hkdf.cc",
+    ],
+    hdrs = [
+        "aes_with_hkdf.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
+
+cc_library(
+    name = "cryptor",
+    srcs = [
+        "cryptor.cc",
+    ],
+    hdrs = [
+        "cryptor.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common:macros",
+        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
+        "@com_google_private_join_and_compute//util:status_includes",
+    ],
+)
+
+cc_library(
+    name = "hkdf",
+    srcs = [
+        "hkdf.cc",
+    ],
+    hdrs = [
+        "hkdf.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@tink_base//cc/util:secret_data",
+        "@tink_cc//subtle",
+    ],
+)
+
+cc_library(
+    name = "peppered_fingerprinter",
+    srcs = [
+        "peppered_fingerprinter.cc",
+    ],
+    hdrs = [
+        "peppered_fingerprinter.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_github_glog_glog//:glog",
+        "@com_google_absl//absl/status",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+    ],
+)
