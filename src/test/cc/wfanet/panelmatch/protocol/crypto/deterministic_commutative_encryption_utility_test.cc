@@ -25,8 +25,8 @@
 #include "absl/types/span.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "src/test/cc/testutil/matchers.h"
-#include "src/test/cc/testutil/status_macros.h"
+#include "src/main/cc/common_cpp/testing/status_macros.h"
+#include "src/main/cc/common_cpp/testing/status_matchers.h"
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfa::panelmatch {
@@ -37,14 +37,14 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Pointwise;
+using ::wfa::IsOk;
+using ::wfa::IsOkAndHolds;
 using ::wfa::panelmatch::protocol::CryptorDecryptRequest;
 using ::wfa::panelmatch::protocol::CryptorDecryptResponse;
 using ::wfa::panelmatch::protocol::CryptorEncryptRequest;
 using ::wfa::panelmatch::protocol::CryptorEncryptResponse;
 using ::wfa::panelmatch::protocol::CryptorReEncryptRequest;
 using ::wfa::panelmatch::protocol::CryptorReEncryptResponse;
-using ::wfanet::IsOk;
-using ::wfanet::IsOkAndHolds;
 using ::wfanet::panelmatch::protocol::crypto::DeterministicCommutativeDecrypt;
 using ::wfanet::panelmatch::protocol::crypto::DeterministicCommutativeEncrypt;
 using ::wfanet::panelmatch::protocol::crypto::DeterministicCommutativeReEncrypt;

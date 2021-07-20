@@ -5,10 +5,9 @@ cc_test(
     srcs = ["cryptor_test.cc"],
     deps = [
         "//src/main/cc/wfanet/panelmatch/common/crypto:cryptor",
-        "//src/test/cc/testutil:matchers",
-        "//src/test/cc/testutil:status_macros",
         "@com_google_absl//absl/memory",
         "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
 
@@ -32,13 +31,12 @@ cc_test(
     ],
     deps = [
         "//src/main/cc/wfanet/panelmatch/common/crypto:hkdf",
-        "//src/test/cc/testutil:matchers",
-        "//src/test/cc/testutil:status_macros",
         "@googletest//:gtest_main",
         "@tink_base//cc/util:secret_data",
         "@tink_base//cc/util:status",
         "@tink_base//cc/util:statusor",
         "@tink_cc//util:test_util",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
 

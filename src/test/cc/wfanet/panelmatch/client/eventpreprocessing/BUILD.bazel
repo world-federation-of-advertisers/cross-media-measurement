@@ -6,13 +6,12 @@ cc_test(
     deps = [
         "//src/main/cc/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
-        "//src/test/cc/testutil:matchers",
-        "//src/test/cc/testutil:status_macros",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_protobuf//:protobuf",
         "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )

@@ -23,16 +23,16 @@
 #include "absl/types/span.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "gtest/gtest.h"
-#include "src/test/cc/testutil/matchers.h"
-#include "src/test/cc/testutil/status_macros.h"
+#include "src/main/cc/common_cpp/testing/status_macros.h"
+#include "src/main/cc/common_cpp/testing/status_matchers.h"
 
 namespace wfa::panelmatch {
 namespace {
 using ::private_join_and_compute::ECCommutativeCipher;
 using ::testing::ContainerEq;
 using ::testing::Not;
-using ::wfanet::IsOk;
-using ::wfanet::IsOkAndHolds;
+using ::wfa::IsOk;
+using ::wfa::IsOkAndHolds;
 using ::wfanet::panelmatch::common::crypto::Action;
 using ::wfanet::panelmatch::common::crypto::CreateCryptorFromKey;
 using ::wfanet::panelmatch::common::crypto::CreateCryptorWithNewKey;
