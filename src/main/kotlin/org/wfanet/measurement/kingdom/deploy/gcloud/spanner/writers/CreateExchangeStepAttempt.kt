@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
@@ -59,7 +58,7 @@ class CreateExchangeStepAttempt(
   private suspend fun TransactionScope.findAttemptIndex(): Long {
     val sql =
       """
-      SELECT MAX(AttemptIndex) AS MaxAttemptIndex
+      SELECT IFNULL(MAX(AttemptIndex), 0) AS MaxAttemptIndex
       FROM ExchangeStepAttempts
       WHERE ExchangeStepAttempts.RecurringExchangeId = @recurring_exchange_id
       AND ExchangeStepAttempts.Date = @date
@@ -77,7 +76,7 @@ class CreateExchangeStepAttempt(
         .build()
     val row: Struct = transactionContext.executeQuery(statement).single()
 
-    return (row.getNullableLong("MaxAttemptIndex") ?: 0L) + 1L
+    return row.getLong("MaxAttemptIndex") + 1L
   }
 
   private fun ExchangeStepAttempt.toInsertMutation(): Mutation {
