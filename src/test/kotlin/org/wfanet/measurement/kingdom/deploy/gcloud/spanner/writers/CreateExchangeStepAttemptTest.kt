@@ -115,51 +115,66 @@ class CreateExchangeStepAttemptTest : KingdomDatabaseTestBase() {
     insertModelProvider(MODEL_PROVIDER_ID, EXTERNAL_MODEL_PROVIDER_ID)
 
     insertRecurringExchange(
-      RECURRING_EXCHANGE_ID1,
-      EXTERNAL_RECURRING_EXCHANGE_ID1,
-      MODEL_PROVIDER_ID,
-      DATA_PROVIDER_ID,
-      RecurringExchange.State.ACTIVE,
-      DATE1
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1,
+      modelProviderId = MODEL_PROVIDER_ID,
+      dataProviderId = DATA_PROVIDER_ID,
+      state = RecurringExchange.State.ACTIVE,
+      nextExchangeDate = DATE1
     )
     insertRecurringExchange(
-      RECURRING_EXCHANGE_ID2,
-      EXTERNAL_RECURRING_EXCHANGE_ID2,
-      MODEL_PROVIDER_ID,
-      DATA_PROVIDER_ID2,
-      RecurringExchange.State.RETIRED,
-      DATE2
+      recurringExchangeId = RECURRING_EXCHANGE_ID2,
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2,
+      modelProviderId = MODEL_PROVIDER_ID,
+      dataProviderId = DATA_PROVIDER_ID2,
+      state = RecurringExchange.State.RETIRED,
+      nextExchangeDate = DATE2
     )
-    insertExchange(RECURRING_EXCHANGE_ID1, DATE1, Exchange.State.ACTIVE, EXCHANGE_DETAILS)
-    insertExchange(RECURRING_EXCHANGE_ID2, DATE2, Exchange.State.FAILED, EXCHANGE_DETAILS)
-    insertExchange(RECURRING_EXCHANGE_ID1, DATE3, Exchange.State.ACTIVE, EXCHANGE_DETAILS)
+    insertExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      date = DATE1,
+      state = Exchange.State.ACTIVE,
+      exchangeDetails = EXCHANGE_DETAILS
+    )
+    insertExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID2,
+      date = DATE2,
+      state = Exchange.State.FAILED,
+      exchangeDetails = EXCHANGE_DETAILS
+    )
+    insertExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      date = DATE3,
+      state = Exchange.State.ACTIVE,
+      exchangeDetails = EXCHANGE_DETAILS
+    )
 
     insertExchangeStep(
-      RECURRING_EXCHANGE_ID1,
-      DATE1,
-      1L,
-      ExchangeStep.State.READY,
-      Instant.now().minusSeconds(1000),
-      null,
-      DATA_PROVIDER_ID
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      date = DATE1,
+      stepIndex = 1L,
+      state = ExchangeStep.State.READY,
+      updateTime = Instant.now().minusSeconds(1000),
+      modelProviderId = null,
+      dataProviderId = DATA_PROVIDER_ID
     )
     insertExchangeStep(
-      RECURRING_EXCHANGE_ID2,
-      DATE2,
-      1L,
-      ExchangeStep.State.BLOCKED,
-      Instant.now(),
-      null,
-      DATA_PROVIDER_ID
+      recurringExchangeId = RECURRING_EXCHANGE_ID2,
+      date = DATE2,
+      stepIndex = 1L,
+      state = ExchangeStep.State.BLOCKED,
+      updateTime = Instant.now(),
+      modelProviderId = null,
+      dataProviderId = DATA_PROVIDER_ID
     )
     insertExchangeStep(
-      RECURRING_EXCHANGE_ID1,
-      DATE3,
-      2L,
-      ExchangeStep.State.READY_FOR_RETRY,
-      Instant.now(),
-      MODEL_PROVIDER_ID,
-      null
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      date = DATE3,
+      stepIndex = 2L,
+      state = ExchangeStep.State.READY_FOR_RETRY,
+      updateTime = Instant.now(),
+      modelProviderId = MODEL_PROVIDER_ID,
+      dataProviderId = null
     )
   }
 
