@@ -17,8 +17,8 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "common_cpp/fingerprinters/fingerprinters.h"
 #include "glog/logging.h"
-#include "src/main/cc/common_cpp/fingerprinters/fingerprinters.h"
 #include "tink/util/secret_data.h"
 
 namespace wfanet::panelmatch::common::crypto {
