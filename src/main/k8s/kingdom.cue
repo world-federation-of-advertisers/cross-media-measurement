@@ -26,7 +26,7 @@ import ("strings")
 	_kingdom_image_pull_policy: string
 
 	_duchy_info_config_flag:                 "--duchy-info-config=" + #DuchyInfoConfig
-  _duchy_id_config_flag:                   "--duchy-id-config=" + #DuchyIdConfig
+	_duchy_id_config_flag:                   "--duchy-id-config=" + #DuchyIdConfig
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
@@ -73,7 +73,7 @@ import ("strings")
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
 				_duchy_info_config_flag,
-        _duchy_id_config_flag,
+				_duchy_id_config_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _spanner_flags
