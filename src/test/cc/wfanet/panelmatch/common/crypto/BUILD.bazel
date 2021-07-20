@@ -17,9 +17,11 @@ cc_test(
     srcs = ["aes_test.cc"],
     deps = [
         "//src/main/cc/wfanet/panelmatch/common/crypto:aes",
-        "//src/test/cc/testutil:matchers",
         "@com_google_absl//absl/strings",
         "@googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
+        "@tink_cc//subtle",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
 
@@ -47,9 +49,9 @@ cc_test(
     ],
     deps = [
         "//src/main/cc/wfanet/panelmatch/common/crypto:aes_with_hkdf",
-        "//src/test/cc/testutil:matchers",
-        "//src/test/cc/testutil:status_macros",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
 

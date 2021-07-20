@@ -14,11 +14,21 @@
 
 #include "wfanet/panelmatch/common/crypto/aes.h"
 
+#include <memory>
+#include <string>
+
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "common_cpp/macros/macros.h"
+#include "tink/subtle/aes_siv_boringssl.h"
+#include "tink/util/secret_data.h"
 
 namespace wfanet::panelmatch::common::crypto {
 namespace {
 
+using ::crypto::tink::DeterministicAead;
+using ::crypto::tink::subtle::AesSivBoringSsl;
 using ::crypto::tink::util::SecretData;
 
 // Implements an Aes SIV encryption scheme defined in
@@ -29,12 +39,16 @@ class AesSiv : public Aes {
 
   absl::StatusOr<std::string> Encrypt(absl::string_view input,
                                       const SecretData& key) const override {
-    return absl::UnimplementedError("Not implemented");
+    ASSIGN_OR_RETURN(std::unique_ptr<DeterministicAead> aes,
+                     AesSivBoringSsl::New(key));
+    return aes->EncryptDeterministically(input, "");
   }
 
   absl::StatusOr<std::string> Decrypt(absl::string_view input,
                                       const SecretData& key) const override {
-    return absl::UnimplementedError("Not implemented");
+    ASSIGN_OR_RETURN(std::unique_ptr<DeterministicAead> aes,
+                     AesSivBoringSsl::New(key));
+    return aes->DecryptDeterministically(input, "");
   }
 
   int32_t key_size_bytes() const override { return 64; }

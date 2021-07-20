@@ -30,12 +30,14 @@ namespace wfanet::panelmatch::common::crypto {
 class Aes {
  public:
   virtual ~Aes() = default;
+
   // Encrypts `input` using AES key `key`
   // This will return an error status if the key is the wrong size for the
   // given AES implementation
   virtual absl::StatusOr<std::string> Encrypt(
       absl::string_view input,
       const ::crypto::tink::util::SecretData& key) const = 0;
+
   // Decrypts `input` using AES key `key`
   // This will return an error status if the key is the wrong size for the
   // given AES implementation
@@ -43,6 +45,7 @@ class Aes {
       absl::string_view input,
       const ::crypto::tink::util::SecretData& key) const = 0;
 
+  // Returns required byte size for Aes key
   virtual int32_t key_size_bytes() const = 0;
 };
 
