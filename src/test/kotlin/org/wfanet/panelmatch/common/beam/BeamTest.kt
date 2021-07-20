@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.beam
 
 import com.google.common.truth.Truth.assertThat
+import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionList
@@ -50,6 +51,22 @@ class BeamTest : BeamTestBase() {
 
   @Test
   fun parDo() {
+    val result: PCollection<Int> =
+      collection.parDo(
+        object : DoFn<KV<Int, String>, Int>() {
+          @ProcessElement
+          fun processElement(context: DoFn<KV<Int, String>, Int>.ProcessContext) {
+            context.output(context.element().key + 10)
+            context.output(context.element().key + 100)
+          }
+        }
+      )
+
+    assertThat(result).containsInAnyOrder(11, 101, 12, 102, 13, 103)
+  }
+
+  @Test
+  fun parDoSequence() {
     val result: PCollection<Int> =
       collection.parDo {
         yield(it.key + 10)

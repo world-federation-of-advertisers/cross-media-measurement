@@ -52,19 +52,25 @@ fun <KeyT, ValueT> PCollection<KV<KeyT, ValueT>>.values(
 
 /** Kotlin convenience helper for [ParDo]. */
 inline fun <InT, reified OutT> PCollection<InT>.parDo(
+  doFn: DoFn<InT, OutT>,
+  name: String = "ParDO"
+): PCollection<OutT> {
+  return apply(name, ParDo.of(doFn))
+}
+
+/** Kotlin convenience helper for [ParDo]. */
+inline fun <InT, reified OutT> PCollection<InT>.parDo(
   name: String = "ParDo",
   crossinline processElement: suspend SequenceScope<OutT>.(InT) -> Unit
 ): PCollection<OutT> {
-  return apply(
-    name,
-    ParDo.of(
-      object : DoFn<InT, OutT>() {
-        @ProcessElement
-        fun processElement(@Element element: InT, output: OutputReceiver<OutT>) {
-          sequence<OutT> { processElement(element) }.forEach(output::output)
-        }
+  return parDo(
+    object : DoFn<InT, OutT>() {
+      @ProcessElement
+      fun processElement(@Element element: InT, output: OutputReceiver<OutT>) {
+        sequence<OutT> { processElement(element) }.forEach(output::output)
       }
-    )
+    },
+    name
   )
 }
 
