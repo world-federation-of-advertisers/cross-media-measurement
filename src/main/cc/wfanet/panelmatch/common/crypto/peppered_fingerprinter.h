@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "src/main/cc/common_cpp/fingerprinters/fingerprinters.h"
+#include "common_cpp/fingerprinters/fingerprinters.h"
 #include "tink/util/secret_data.h"
 
 namespace wfanet::panelmatch::common::crypto {
