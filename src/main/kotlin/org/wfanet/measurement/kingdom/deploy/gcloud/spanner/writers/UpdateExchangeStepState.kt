@@ -61,7 +61,7 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
     return exchangeStep
   }
 
-  require(!exchangeStep.state.isTerminal) { "ExchangeStep ${exchangeStep} is in a terminal state." }
+  require(!exchangeStep.state.isTerminal) { "ExchangeStep: $exchangeStep is in a terminal state." }
 
   updateMutation("ExchangeSteps") {
       set("RecurringExchangeId" to result.recurringExchangeId)
