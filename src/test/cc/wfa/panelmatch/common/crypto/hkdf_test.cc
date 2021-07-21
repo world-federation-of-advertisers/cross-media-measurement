@@ -14,9 +14,9 @@
 
 #include "wfa/panelmatch/common/crypto/hkdf.h"
 
+#include "common_cpp/testing/status_macros.h"
+#include "common_cpp/testing/status_matchers.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/common_cpp/testing/status_macros.h"
-#include "src/main/cc/common_cpp/testing/status_matchers.h"
 #include "tink/util/secret_data.h"
 #include "tink/util/status.h"
 #include "tink/util/statusor.h"

@@ -15,12 +15,11 @@
 #include "wfa/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility_wrapper.h"
 
 #include "absl/status/statusor.h"
-#include "wfa/panelmatch/common/jni_wrap.h"
+#include "common_cpp/jni/jni_wrap.h"
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 #include "wfa/panelmatch/protocol/crypto/deterministic_commutative_encryption_utility.h"
 
 namespace wfa::panelmatch::protocol::crypto {
-using ::wfa::panelmatch::common::JniWrap;
 
 absl::StatusOr<std::string> DeterministicCommutativeEncryptWrapper(
     const std::string& serialized_request) {

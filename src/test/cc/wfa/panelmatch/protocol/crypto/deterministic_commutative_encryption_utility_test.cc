@@ -23,15 +23,15 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common_cpp/testing/status_macros.h"
+#include "common_cpp/testing/status_matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/common_cpp/testing/status_macros.h"
-#include "src/main/cc/common_cpp/testing/status_matchers.h"
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfa::panelmatch {
 namespace {
-using google::protobuf::RepeatedPtrField;
+using ::google::protobuf::RepeatedPtrField;
 using ::testing::ContainerEq;
 using ::testing::Eq;
 using ::testing::Ne;

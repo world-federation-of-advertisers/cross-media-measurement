@@ -21,10 +21,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common_cpp/testing/status_macros.h"
+#include "common_cpp/testing/status_matchers.h"
 #include "crypto/ec_commutative_cipher.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/common_cpp/testing/status_macros.h"
-#include "src/main/cc/common_cpp/testing/status_matchers.h"
 
 namespace wfa::panelmatch {
 namespace {
@@ -35,6 +35,7 @@ using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
 using ::wfa::panelmatch::common::crypto::CreateCryptorWithNewKey;
 using ::wfa::panelmatch::common::crypto::Cryptor;
+
 TEST(PrivateJoinAndComputeTest, EncryptReEncryptDecrypt) {
   ASSERT_OK_AND_ASSIGN(auto cryptor1, CreateCryptorFromKey("random-key-1"));
   ASSERT_OK_AND_ASSIGN(auto cryptor2, CreateCryptorFromKey("random-key-2"));

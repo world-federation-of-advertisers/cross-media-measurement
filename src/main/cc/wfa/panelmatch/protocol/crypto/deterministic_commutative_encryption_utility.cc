@@ -31,16 +31,13 @@
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfa::panelmatch::protocol::crypto {
-namespace {
 using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
-}  // namespace
 
-absl::StatusOr<wfa::panelmatch::protocol::CryptorEncryptResponse>
-DeterministicCommutativeEncrypt(
-    const wfa::panelmatch::protocol::CryptorEncryptRequest& request) {
-  wfa::StartedThreadCpuTimer timer;
-  wfa::panelmatch::protocol::CryptorEncryptResponse response;
+absl::StatusOr<CryptorEncryptResponse> DeterministicCommutativeEncrypt(
+    const CryptorEncryptRequest& request) {
+  StartedThreadCpuTimer timer;
+  CryptorEncryptResponse response;
   ASSIGN_OR_RETURN_ERROR(auto cryptor,
                          CreateCryptorFromKey(request.encryption_key()),
                          "Failed to create the protocol cipher");
@@ -51,11 +48,10 @@ DeterministicCommutativeEncrypt(
   return response;
 }
 
-absl::StatusOr<wfa::panelmatch::protocol::CryptorDecryptResponse>
-DeterministicCommutativeDecrypt(
-    const wfa::panelmatch::protocol::CryptorDecryptRequest& request) {
-  wfa::StartedThreadCpuTimer timer;
-  wfa::panelmatch::protocol::CryptorDecryptResponse response;
+absl::StatusOr<CryptorDecryptResponse> DeterministicCommutativeDecrypt(
+    const CryptorDecryptRequest& request) {
+  StartedThreadCpuTimer timer;
+  CryptorDecryptResponse response;
   ASSIGN_OR_RETURN_ERROR(auto cryptor,
                          CreateCryptorFromKey(request.encryption_key()),
                          "Failed to create the protocol cipher");
@@ -66,11 +62,10 @@ DeterministicCommutativeDecrypt(
   return response;
 }
 
-absl::StatusOr<wfa::panelmatch::protocol::CryptorReEncryptResponse>
-DeterministicCommutativeReEncrypt(
-    const wfa::panelmatch::protocol::CryptorReEncryptRequest& request) {
-  wfa::StartedThreadCpuTimer timer;
-  wfa::panelmatch::protocol::CryptorReEncryptResponse response;
+absl::StatusOr<CryptorReEncryptResponse> DeterministicCommutativeReEncrypt(
+    const CryptorReEncryptRequest& request) {
+  StartedThreadCpuTimer timer;
+  CryptorReEncryptResponse response;
   ASSIGN_OR_RETURN_ERROR(auto cryptor,
                          CreateCryptorFromKey(request.encryption_key()),
                          "Failed to create the protocol cipher");
