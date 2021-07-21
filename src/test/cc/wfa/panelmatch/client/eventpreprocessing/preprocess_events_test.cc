@@ -21,13 +21,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "common_cpp/testing/status_macros.h"
+#include "common_cpp/testing/status_matchers.h"
 #include "gmock/gmock.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/common_cpp/testing/status_macros.h"
-#include "src/main/cc/common_cpp/testing/status_matchers.h"
-#include "src/main/cc/wfa/panelmatch/client/eventpreprocessing/preprocess_events.h"
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
 
 namespace wfa::panelmatch::client {
@@ -37,8 +36,6 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Pointwise;
-using ::wfa::panelmatch::client::PreprocessEventsRequest;
-using ::wfa::panelmatch::client::PreprocessEventsResponse;
 
 TEST(PreprocessEventsTest, ReturnsUnimplemented) {
   std::string test_id = "random-id-1";

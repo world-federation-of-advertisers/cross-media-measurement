@@ -14,8 +14,8 @@
 
 #include "wfa/panelmatch/common/crypto/peppered_fingerprinter.h"
 
+#include "common_cpp/fingerprinters/fingerprinters.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/common_cpp/fingerprinters/fingerprinters.h"
 #include "tink/util/secret_data.h"
 
 namespace wfa::panelmatch::common::crypto {
