@@ -38,6 +38,7 @@ class UpdateExchangeStepState(
         date = date,
         stepIndex = stepIndex
       )
+    // TODO: combine all updates into a single read and then multiple writes.
     val result = GetExchangeStep(filter).executeSingle(transactionContext)
 
     return updateExchangeStepState(result, state)
