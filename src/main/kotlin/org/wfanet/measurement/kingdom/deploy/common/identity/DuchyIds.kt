@@ -22,8 +22,6 @@ object DuchyIds {
   lateinit var entries: Array<Entry>
   val count: Int
     get() = DuchyIds.entries.size
-  val ALL_DUCHY_EXTERNAL_IDS: Set<String>
-    get() = DuchyIds.entries.map { it.externalDuchyId }.toSet()
 
   fun initializeFromFlags(flags: DuchyIdsFlags) {
     require(!DuchyIds::entries.isInitialized)
@@ -33,9 +31,14 @@ object DuchyIds {
     entries = configMessage.duchiesList.map { it.toDuchyIdsEntry() }.toTypedArray()
   }
 
-  /** Returns the [Entry] for the specified external Duchy ID. */
-  fun getByDuchyExternalId(externalDuchyId: String): Entry? {
-    return entries.firstOrNull { it.externalDuchyId == externalDuchyId }
+  /** Returns the internalId for the specified external Duchy ID. */
+  fun getInternalId(externalDuchyId: String): Long? {
+    return entries.firstOrNull { it.externalDuchyId == externalDuchyId }?.internalDuchyId
+  }
+
+  /** Returns the externalId for the specified internal Duchy ID. */
+  fun getExternalId(internalDuchyId: Long): String? {
+    return entries.firstOrNull { it.internalDuchyId == internalDuchyId }?.externalDuchyId
   }
 
   data class Entry(val internalDuchyId: Long, val externalDuchyId: String)
