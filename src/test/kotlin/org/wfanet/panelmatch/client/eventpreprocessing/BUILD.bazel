@@ -10,3 +10,17 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common",
     ],
 )
+
+kt_jvm_test(
+    name = "BatchingDoFnTest",
+    srcs = ["BatchingDoFnTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.BatchingDoFnTest",
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:batchingdofn",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+    ],
+)
