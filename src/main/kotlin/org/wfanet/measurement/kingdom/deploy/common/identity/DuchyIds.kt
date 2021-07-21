@@ -20,8 +20,6 @@ import picocli.CommandLine
 
 object DuchyIds {
   lateinit var entries: Array<Entry>
-  val count: Int
-    get() = DuchyIds.entries.size
 
   fun initializeFromFlags(flags: DuchyIdsFlags) {
     require(!DuchyIds::entries.isInitialized)
@@ -31,12 +29,16 @@ object DuchyIds {
     entries = configMessage.duchiesList.map { it.toDuchyIdsEntry() }.toTypedArray()
   }
 
-  /** Returns the internalId for the specified external Duchy ID. */
+  /** Returns the internalId for the specified external Duchy ID.
+   *  Matching by iteration is ok because number of duchies are in the order of ~10.
+   */
   fun getInternalId(externalDuchyId: String): Long? {
     return entries.firstOrNull { it.externalDuchyId == externalDuchyId }?.internalDuchyId
   }
 
-  /** Returns the externalId for the specified internal Duchy ID. */
+  /** Returns the externalId for the specified internal Duchy ID.
+   *  Matching by iteration is ok because number of duchies are in the order of ~10.
+   */
   fun getExternalId(internalDuchyId: Long): String? {
     return entries.firstOrNull { it.internalDuchyId == internalDuchyId }?.externalDuchyId
   }
