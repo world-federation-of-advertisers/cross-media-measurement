@@ -20,10 +20,10 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 
-class CertificateReader(val owner: Owner) : SpannerReader<CertificateReader.Result>() {
+class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
 
-  enum class Owner(val tableName: String) {
+  enum class OwnerType(val tableName: String) {
     DATA_PROVIDER("DataProvider"),
     MEASUREMENT_CONSUMER("MeasurementConsumer"),
     DUCHY("Duchy"),
@@ -57,18 +57,19 @@ class CertificateReader(val owner: Owner) : SpannerReader<CertificateReader.Resu
     struct: Struct
   ): Certificate {
     val externalResourceIdColumn = "External${owner.tableName}Id"
-    if (owner == Owner.MEASUREMENT_CONSUMER) {
-      return certificateBuilder
-        .setExternalMeasurementConsumerId(struct.getLong(externalResourceIdColumn))
-        .build()
-    }
-    if (owner == Owner.DATA_PROVIDER) {
-      return certificateBuilder
-        .setExternalDataProviderId(struct.getLong(externalResourceIdColumn))
-        .build()
-    }
 
-    return TODO("uakyol implement duchy support after duchy config is implemented")
+    return certificateBuilder
+      .apply {
+        when (owner) {
+          OwnerType.MEASUREMENT_CONSUMER ->
+            externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
+          OwnerType.DATA_PROVIDER ->
+            externalDataProviderId = struct.getLong(externalResourceIdColumn)
+          OwnerType.DUCHY ->
+            TODO("uakyol implement duchy support after duchy config is implemented")
+        }
+      }
+      .build()
   }
 
   private fun buildCertificate(struct: Struct): Certificate {

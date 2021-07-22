@@ -76,43 +76,43 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+      MeasurementConsumer.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
+              }
+          detailsBuilder.apply {
+                apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "2"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
+        .build()
+    )
       .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
     return dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
+      DataProvider.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
+              }
+          detailsBuilder.apply {
+                apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "2"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
+        .build()
+    )
       .externalDataProviderId
   }
 
@@ -122,6 +122,42 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     certificatesService = services.certificatesService
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
+  }
+
+  @Test
+  fun `getCertificate fails due to missing parent field`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.getCertificate(
+          GetCertificateRequest.newBuilder()
+            .apply { externalCertificateId = EXTERNAL_CERTIFICATE_ID }
+            .build()
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("INVALID_ARGUMENT: GetCertificateRequest is missing parent field")
+  }
+
+  @Test
+  fun `createCertificate fails due to missing parent field`() = runBlocking {
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("INVALID_ARGUMENT: Certificate is missing parent field")
   }
 
   @Test
@@ -141,6 +177,54 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
+  fun `createCertificate fails due to MeasurementConsumer owner not_found `() = runBlocking {
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalMeasurementConsumerId = 5678
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
+  }
+
+//  !!!!Still in discussion, will implement this!!!
+
+//   @Test
+//   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
+//     val externalMeasurementConsumerId = insertMeasurementConsumer()
+//     val certificate =
+//       Certificate.newBuilder()
+//         .also {
+//           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+//           it.notValidBeforeBuilder.seconds = 12345
+//           it.notValidAfterBuilder.seconds = 23456
+//           it.detailsBuilder.x509Der = X509_DER
+//         }
+//         .build()
+
+//     val createdCertificate = certificatesService.createCertificate(certificate)
+//     val exception = certificatesService.createCertificate(certificate)
+
+//     assertThat(exception)
+//       .isEqualTo(
+//         certificate
+//           .toBuilder()
+//           .also { it.externalCertificateId = createdCertificate.externalCertificateId }
+//           .build()
+//       )
+//   }
+
+  @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
     val certificate =
@@ -149,7 +233,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
           it.notValidBeforeBuilder.seconds = 12345
           it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.setX509Der(X509_DER)
+          it.detailsBuilder.x509Der = X509_DER
         }
         .build()
 
@@ -168,19 +252,19 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   fun `getCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
 
-    val certificate =
+    val request =
       Certificate.newBuilder()
         .also {
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
           it.notValidBeforeBuilder.seconds = 12345
           it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.setX509Der(X509_DER)
+          it.detailsBuilder.x509Der = X509_DER
         }
         .build()
 
-    val createdCertificate = certificatesService.createCertificate(certificate)
+    val createdCertificate = certificatesService.createCertificate(request)
 
-    val certificateRead =
+    val certificate =
       certificatesService.getCertificate(
         GetCertificateRequest.newBuilder()
           .also {
@@ -190,7 +274,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           .build()
       )
 
-    assertThat(certificateRead).isEqualTo(createdCertificate)
+    assertThat(certificate).isEqualTo(createdCertificate)
   }
 
   @Test
@@ -210,6 +294,25 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
+  fun `createCertificate fails due to DataProvider owner not_found `() = runBlocking {
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalDataProviderId = 5678
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("INVALID_ARGUMENT: DataProvider not found")
+  }
+
+  @Test
   fun `createCertificate suceeds for DataProviderCertificate`() = runBlocking {
     val externalDataProviderId = insertDataProvider()
     val certificate =
@@ -218,7 +321,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           it.externalDataProviderId = externalDataProviderId
           it.notValidBeforeBuilder.seconds = 12345
           it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.setX509Der(X509_DER)
+          it.detailsBuilder.x509Der = X509_DER
         }
         .build()
 
@@ -237,19 +340,19 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   fun `getCertificate succeeds for DataProviderCertificate`() = runBlocking {
     val externalDataProviderId = insertDataProvider()
 
-    val certificate =
+    val request =
       Certificate.newBuilder()
         .also {
           it.externalDataProviderId = externalDataProviderId
           it.notValidBeforeBuilder.seconds = 12345
           it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.setX509Der(X509_DER)
+          it.detailsBuilder.x509Der = X509_DER
         }
         .build()
 
-    val createdCertificate = certificatesService.createCertificate(certificate)
+    val createdCertificate = certificatesService.createCertificate(request)
 
-    val certificateRead =
+    val certificate =
       certificatesService.getCertificate(
         GetCertificateRequest.newBuilder()
           .also {
@@ -259,7 +362,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           .build()
       )
 
-    assertThat(certificateRead).isEqualTo(createdCertificate)
+    assertThat(certificate).isEqualTo(createdCertificate)
   }
 }
 
