@@ -9,8 +9,9 @@ cc_test(
     ],
     deps = [
         "//src/main/cc/wfa/measurement/internal/duchy/protocol/liquid_legions_v2:liquid_legions_v2_encryption_utility",
-        "//src/test/cc/testutil:matchers",
-        "//src/test/cc/testutil:status_macros",
+        #        "//src/test/cc/testutil:matchers",
+        #        "//src/test/cc/testutil:status_macros",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
         "@any_sketch//src/main/cc/any_sketch/crypto:sketch_encrypter",
         "@any_sketch//src/main/cc/estimation:estimators",
         "@any_sketch//src/main/proto/wfa/any_sketch:sketch_cc_proto",
