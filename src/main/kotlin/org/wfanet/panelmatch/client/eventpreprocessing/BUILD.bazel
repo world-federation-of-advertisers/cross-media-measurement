@@ -6,7 +6,11 @@ kt_jvm_library(
     name = "eventpreprocessing",
     srcs = glob(
         ["*.kt"],
-        exclude = ["BatchingDoFn.kt"],
+        exclude = [
+            "BatchingDoFn.kt",
+            "EncryptEvents.kt",
+            "EncryptionEventsDoFn.kt",
+        ],
     ),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",
@@ -23,5 +27,20 @@ kt_jvm_library(
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/joda",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "encryptiondofn",
+    srcs = [
+        "EncryptEvents.kt",
+        "EncryptionEventsDoFn.kt",
+    ],
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
     ],
 )
