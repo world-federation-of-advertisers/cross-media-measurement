@@ -36,7 +36,7 @@ class SpannerCertificatesService(
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
 
-  private fun getInternalOwner(request: GetCertificateRequest): OwnerType {
+  private fun getInternalOwnerType(request: GetCertificateRequest): OwnerType {
     return when (request.parentCase) {
       GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> OwnerType.DATA_PROVIDER
       GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
@@ -46,7 +46,7 @@ class SpannerCertificatesService(
     }
   }
 
-  private fun getInternalOwner(request: Certificate): OwnerType {
+  private fun getInternalOwnerType(request: Certificate): OwnerType {
     return when (request.parentCase) {
       Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> OwnerType.DATA_PROVIDER
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> OwnerType.MEASUREMENT_CONSUMER
@@ -57,7 +57,7 @@ class SpannerCertificatesService(
 
   override suspend fun createCertificate(request: Certificate): Certificate {
     try {
-      return CreateCertificate(request, getInternalOwner(request))
+      return CreateCertificate(request, getInternalOwnerType(request))
         .execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
       when (e.code) {
@@ -70,7 +70,7 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    return CertificateReader(getInternalOwner(request))
+    return CertificateReader(getInternalOwnerType(request))
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate
       ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
