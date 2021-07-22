@@ -24,9 +24,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
-#include "src/main/cc/common_cpp/testing/status_macros.h"
-#include "src/main/cc/common_cpp/testing/status_matchers.h"
 #include "src/main/cc/estimation/estimators.h"
+#include "src/test/cc/testutil/matchers.h"
+#include "src/test/cc/testutil/status_macros.h"
 #include "wfa/any_sketch/sketch.pb.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
@@ -243,18 +243,6 @@ absl::StatusOr<bool> IsPaddingFrequencyNoiseTuples(
                    GetFlagsFromFourTuples(cipher, four_tuples_bytes));
   // (0, 0, R)
   return !flags[0] && !flags[1] && flags[2];
-}
-
-MATCHER_P(IsBlockSorted, block_size, "") {
-  if (arg.length() % block_size != 0) {
-    return false;
-  }
-  for (size_t i = block_size; i < arg.length(); i += block_size) {
-    if (arg.substr(i, block_size) < arg.substr(i - block_size, block_size)) {
-      return false;
-    }
-  }
-  return true;
 }
 
 // The TestData generates cipher keys for 3 duchies, and the combined public
