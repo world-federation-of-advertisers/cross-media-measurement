@@ -18,8 +18,8 @@ import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.kingdom.deploy.common.identity.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.common.identity.DuchyIdsFlags
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIdsFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import picocli.CommandLine

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.deploy.common.identity
+package org.wfanet.measurement.kingdom.deploy.common
 
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
 
 object DuchyIds {
-  private lateinit var entries: Array<Entry>
+  private lateinit var entries: List<Entry>
 
   fun initializeFromFlags(flags: DuchyIdsFlags) {
     require(!DuchyIds::entries.isInitialized)
