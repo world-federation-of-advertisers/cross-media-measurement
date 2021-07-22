@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventencryption
+package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
 import org.apache.beam.sdk.coders.Coder
@@ -29,7 +29,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
-import org.wfanet.panelmatch.client.eventencryption.EncryptionEventsDoFn as EncryptionEventsDoFn
+import org.wfanet.panelmatch.client.eventpreprocessing.EncryptionEventsDoFn as EncryptionEventsDoFn
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 
