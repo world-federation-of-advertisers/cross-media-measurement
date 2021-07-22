@@ -27,8 +27,6 @@
 #include "src/main/cc/common_cpp/testing/status_macros.h"
 #include "src/main/cc/common_cpp/testing/status_matchers.h"
 #include "src/main/cc/estimation/estimators.h"
-//#include "src/test/cc/testutil/matchers.h"
-//#include "src/test/cc/testutil/status_macros.h"
 #include "wfa/any_sketch/sketch.pb.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"
