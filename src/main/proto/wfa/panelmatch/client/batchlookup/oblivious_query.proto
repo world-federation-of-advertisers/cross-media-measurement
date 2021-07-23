@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package wfa.panelmatch.protocol;
+package wfa.panelmatch.client.batchlookup;
 
-option java_package = "org.wfanet.panelmatch.protocol";
+option java_package = "org.wfanet.panelmatch.client.batchlookup";
 option java_multiple_files = true;
 
 // An argument in every Request proto. It contains various knobs for tuning the
