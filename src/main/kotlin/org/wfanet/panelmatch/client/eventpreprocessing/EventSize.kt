@@ -16,10 +16,11 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
 import org.apache.beam.sdk.transforms.SerializableFunction
+import org.apache.beam.sdk.values.KV
 
-/** Takes in a ByteString and returns its size in bytes */
-object ByteStringSize : SerializableFunction<ByteString, Int> {
-  override fun apply(b: ByteString): Int {
-    return b.size()
+/** Takes in a KV<ByteString,ByteString> and returns its size in bytes */
+object EventSize : SerializableFunction<KV<ByteString, ByteString>, Int> {
+  override fun apply(p: KV<ByteString, ByteString>): Int {
+    return p.key.size() + p.value.size()
   }
 }
