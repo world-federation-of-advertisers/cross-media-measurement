@@ -30,16 +30,18 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
-class CreateCertificate(private val certificate: Certificate, val owner: OwnerType) :
+class CreateCertificate(private val certificate: Certificate, val ownerType: OwnerType) :
   SpannerWriter<Certificate, Certificate>() {
-  data class Owner(val tableName: String, val id: InternalId)
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
-    val owner = getOwnerNameAndId(transactionContext)
     val certificateId = idGenerator.generateInternalId()
     val externalMapId = idGenerator.generateExternalId()
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
-    createCertificateMapTableMutation(owner, certificateId, externalMapId)
+    createCertificateMapTableMutation(
+      getOwnerNameAndId(transactionContext),
+      certificateId,
+      externalMapId
+    )
       .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
   }
@@ -49,8 +51,8 @@ class CreateCertificate(private val certificate: Certificate, val owner: OwnerTy
   }
   private suspend fun getOwnerNameAndId(
     transactionContext: AsyncDatabaseClient.TransactionContext
-  ): Owner {
-    return when (owner) {
+  ): InternalId {
+    return when (ownerType) {
       OwnerType.MEASUREMENT_CONSUMER -> {
         val measurementConsumerId =
           MeasurementConsumerReader()
@@ -62,7 +64,7 @@ class CreateCertificate(private val certificate: Certificate, val owner: OwnerTy
             ?: throw KingdomInternalException(
               KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
             )
-        Owner(OwnerType.MEASUREMENT_CONSUMER.tableName, InternalId(measurementConsumerId))
+        InternalId(measurementConsumerId)
       }
       OwnerType.DATA_PROVIDER -> {
         val dataProviderId =
@@ -73,22 +75,22 @@ class CreateCertificate(private val certificate: Certificate, val owner: OwnerTy
             )
             ?.dataProviderId
             ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-        Owner(OwnerType.DATA_PROVIDER.tableName, InternalId(dataProviderId))
+        InternalId(dataProviderId)
       }
       OwnerType.DUCHY -> TODO("uakyol implement duchy support after duchy config is implemented")
     }
   }
 
   private fun createCertificateMapTableMutation(
-    owner: Owner,
+    internalOwnerId: InternalId,
     internalCertificateId: InternalId,
     externalMapId: ExternalId
   ): Mutation {
-    val tableName = "${owner.tableName}Certificates"
-    val internalIdField = "${owner.tableName}Id"
-    val externalIdField = "External${owner.tableName}CertificateId"
+    val tableName = "${ownerType.tableName}Certificates"
+    val internalIdField = "${ownerType.tableName}Id"
+    val externalIdField = "External${ownerType.tableName}CertificateId"
     return insertMutation(tableName) {
-      set(internalIdField to owner.id.value)
+      set(internalIdField to internalOwnerId.value)
       set("CertificateId" to internalCertificateId.value)
       set(externalIdField to externalMapId.value)
     }
