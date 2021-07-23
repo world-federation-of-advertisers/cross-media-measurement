@@ -4,14 +4,10 @@ package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "eventpreprocessing",
-    srcs = glob(
-        ["*.kt"],
-        exclude = [
-            "BatchingDoFn.kt",
-            "EncryptEvents.kt",
-            "EncryptionEventsDoFn.kt",
-        ],
-    ),
+    srcs = [
+        "JniPreprocessEvents.kt",
+        "PreprocessEvents.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
@@ -22,11 +18,15 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "batchingdofn",
-    srcs = ["BatchingDoFn.kt"],
+    srcs = [
+        "BatchingDoFn.kt",
+        "ByteStringSize.kt",
+    ],
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/joda",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
     ],
 )
 
