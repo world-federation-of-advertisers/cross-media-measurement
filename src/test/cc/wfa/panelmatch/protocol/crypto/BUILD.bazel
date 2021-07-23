@@ -10,3 +10,21 @@ cc_test(
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
+
+cc_test(
+    name = "event_data_preprocessor_test",
+    srcs = [
+        "event_data_preprocessor_test.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
+        "@googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
