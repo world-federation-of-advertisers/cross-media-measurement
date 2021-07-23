@@ -15,88 +15,67 @@
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_wrapper.h"
 
 #include "absl/status/statusor.h"
+#include "common_cpp/jni/jni_wrap.h"
+#include "common_cpp/macros/macros.h"
 #include "util/status_macros.h"
-#include "wfa/measurement/common/crypto/encryption_utility_helper.h"
-#include "wfa/measurement/common/macros.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
-using ::wfa::measurement::common::crypto::ParseRequestFromString;
-
 absl::StatusOr<std::string> CompleteInitializationPhase(
     const std::string& serialized_request) {
-  CompleteInitializationPhaseRequest request_proto;
-
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteInitializationPhaseResponse result,
-                   CompleteInitializationPhase(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteInitializationPhaseRequest,
+                 CompleteInitializationPhaseResponse>(
+      serialized_request, CompleteInitializationPhase);
 }
 
 absl::StatusOr<std::string> CompleteSetupPhase(
     const std::string& serialized_request) {
-  CompleteSetupPhaseRequest request_proto;
-
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteSetupPhaseResponse result,
-                   CompleteSetupPhase(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteSetupPhaseRequest, CompleteSetupPhaseResponse>(
+      serialized_request, CompleteSetupPhase);
 }
 
 absl::StatusOr<std::string> CompleteExecutionPhaseOne(
     const std::string& serialized_request) {
-  CompleteExecutionPhaseOneRequest request_proto;
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteExecutionPhaseOneResponse result,
-                   CompleteExecutionPhaseOne(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteExecutionPhaseOneRequest,
+                 CompleteExecutionPhaseOneResponse>(serialized_request,
+                                                    CompleteExecutionPhaseOne);
 }
 
 absl::StatusOr<std::string> CompleteExecutionPhaseOneAtAggregator(
     const std::string& serialized_request) {
-  CompleteExecutionPhaseOneAtAggregatorRequest request_proto;
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse result,
-                   CompleteExecutionPhaseOneAtAggregator(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteExecutionPhaseOneAtAggregatorRequest,
+                 CompleteExecutionPhaseOneAtAggregatorResponse>(
+      serialized_request, CompleteExecutionPhaseOneAtAggregator);
 }
 
 absl::StatusOr<std::string> CompleteExecutionPhaseTwo(
     const std::string& serialized_request) {
-  CompleteExecutionPhaseTwoRequest request_proto;
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoResponse result,
-                   CompleteExecutionPhaseTwo(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteExecutionPhaseTwoRequest,
+                 CompleteExecutionPhaseTwoResponse>(serialized_request,
+                                                    CompleteExecutionPhaseTwo);
 }
 
 absl::StatusOr<std::string> CompleteExecutionPhaseTwoAtAggregator(
     const std::string& serialized_request) {
-  CompleteExecutionPhaseTwoAtAggregatorRequest request_proto;
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse result,
-                   CompleteExecutionPhaseTwoAtAggregator(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteExecutionPhaseTwoAtAggregatorRequest,
+                 CompleteExecutionPhaseTwoAtAggregatorResponse>(
+      serialized_request, CompleteExecutionPhaseTwoAtAggregator);
 }
 
 absl::StatusOr<std::string> CompleteExecutionPhaseThree(
     const std::string& serialized_request) {
-  CompleteExecutionPhaseThreeRequest request_proto;
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeResponse result,
-                   CompleteExecutionPhaseThree(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteExecutionPhaseThreeRequest,
+                 CompleteExecutionPhaseThreeResponse>(
+      serialized_request, CompleteExecutionPhaseThree);
 }
 
 absl::StatusOr<std::string> CompleteExecutionPhaseThreeAtAggregator(
     const std::string& serialized_request) {
-  CompleteExecutionPhaseThreeAtAggregatorRequest request_proto;
-  RETURN_IF_ERROR(ParseRequestFromString(request_proto, serialized_request));
-  ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeAtAggregatorResponse result,
-                   CompleteExecutionPhaseThreeAtAggregator(request_proto));
-  return result.SerializeAsString();
+  return JniWrap<CompleteExecutionPhaseThreeAtAggregatorRequest,
+                 CompleteExecutionPhaseThreeAtAggregatorResponse>(
+      serialized_request, CompleteExecutionPhaseThreeAtAggregator);
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
