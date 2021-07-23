@@ -26,6 +26,16 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ByteStringSizeTest",
+    srcs = ["ByteStringSizeTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.ByteStringSizeTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:batchingdofn",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+    ],
+)
+
+kt_jvm_test(
     name = "EncryptEventsTest",
     srcs = ["EncryptEventsTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsTest",
