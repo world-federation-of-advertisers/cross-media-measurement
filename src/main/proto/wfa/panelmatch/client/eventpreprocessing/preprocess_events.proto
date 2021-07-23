@@ -34,7 +34,7 @@ message PreprocessEventsRequest {
 message PreprocessEventsResponse {
   repeated ProcessedEvent processed_events = 1;
   message ProcessedEvent {
-    bytes encrypted_id = 1;
+    fixed64 encrypted_id = 1;
     bytes encrypted_data = 2;
   }
 }
