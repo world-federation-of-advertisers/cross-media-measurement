@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/type/date.proto";
+import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -70,4 +71,6 @@ message ExchangeStep {
     fixed64 external_data_provider_id = 5;
     fixed64 external_model_provider_id = 6;
   }
+
+  google.protobuf.Timestamp update_time = 7;
 }
