@@ -15,7 +15,11 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.SpannerException
+import java.time.Clock
+import com.google.cloud.spanner.ErrorCode
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -93,6 +97,23 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
       set(internalIdField to internalOwnerId.value)
       set("CertificateId" to internalCertificateId.value)
       set(externalIdField to externalMapId.value)
+    }
+  }
+  override suspend fun execute(
+    databaseClient: AsyncDatabaseClient,
+    idGenerator: IdGenerator,
+    clock: Clock
+  ): Certificate {
+    try {
+      return super.execute(databaseClient, idGenerator, clock)
+    } catch (e: SpannerException) {
+      when (e.errorCode) {
+        ErrorCode.ALREADY_EXISTS ->
+          throw KingdomInternalException(
+            KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
+          )
+        else -> throw KingdomInternalException(KingdomInternalException.Code.UNKNOWN)
+      }
     }
   }
 }

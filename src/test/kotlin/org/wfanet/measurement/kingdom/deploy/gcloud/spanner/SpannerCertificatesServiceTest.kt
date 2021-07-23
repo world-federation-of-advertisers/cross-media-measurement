@@ -21,8 +21,8 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
-import org.wfanet.measurement.kingdom.service.internal.testing.CertificateAndHelperServices
 import org.wfanet.measurement.kingdom.service.internal.testing.CertificatesServiceTest
+import org.wfanet.measurement.kingdom.service.internal.testing.CertificatesServiceTest.Services
 
 @RunWith(JUnit4::class)
 class SpannerCertificatesServiceTest : CertificatesServiceTest<SpannerCertificatesService>() {
@@ -30,13 +30,11 @@ class SpannerCertificatesServiceTest : CertificatesServiceTest<SpannerCertificat
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
 
-  override fun newServices(
-    idGenerator: IdGenerator
-  ): CertificateAndHelperServices<SpannerCertificatesService> {
+  override fun newServices(idGenerator: IdGenerator): Services<SpannerCertificatesService> {
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
-    return CertificateAndHelperServices<SpannerCertificatesService>(
+    return Services<SpannerCertificatesService>(
       spannerServices.certificatesService as SpannerCertificatesService,
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService

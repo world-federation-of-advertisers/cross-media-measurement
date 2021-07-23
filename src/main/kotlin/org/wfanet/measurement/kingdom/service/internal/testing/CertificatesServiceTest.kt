@@ -60,6 +60,12 @@ private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in D
 @RunWith(JUnit4::class)
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
+  protected data class Services<T>(
+    val certificatesService: T,
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val dataProvidersService: DataProvidersCoroutineImplBase
+  )
+
   protected val idGenerator =
     RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
 
@@ -72,7 +78,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
 
-  protected abstract fun newServices(idGenerator: IdGenerator): CertificateAndHelperServices<T>
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
@@ -197,32 +203,28 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
   }
 
-//  !!!!Still in discussion, will implement this!!!
+  @Test
+  fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
 
-//   @Test
-//   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
-//     val externalMeasurementConsumerId = insertMeasurementConsumer()
-//     val certificate =
-//       Certificate.newBuilder()
-//         .also {
-//           it.externalMeasurementConsumerId = externalMeasurementConsumerId
-//           it.notValidBeforeBuilder.seconds = 12345
-//           it.notValidAfterBuilder.seconds = 23456
-//           it.detailsBuilder.x509Der = X509_DER
-//         }
-//         .build()
+    val createdCertificate = certificatesService.createCertificate(certificate)
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-//     val createdCertificate = certificatesService.createCertificate(certificate)
-//     val exception = certificatesService.createCertificate(certificate)
-
-//     assertThat(exception)
-//       .isEqualTo(
-//         certificate
-//           .toBuilder()
-//           .also { it.externalCertificateId = createdCertificate.externalCertificateId }
-//           .build()
-//       )
-//   }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Certificate with the same subject key identifier (SKID) already exists.")
+  }
 
   @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {
@@ -365,9 +367,3 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertThat(certificate).isEqualTo(createdCertificate)
   }
 }
-
-data class CertificateAndHelperServices<T : CertificatesCoroutineImplBase>(
-  val certificatesService: T,
-  val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-  val dataProvidersService: DataProvidersCoroutineImplBase
-)
