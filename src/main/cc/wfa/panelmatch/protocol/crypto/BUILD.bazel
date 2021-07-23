@@ -39,12 +39,25 @@ cc_library(
 
 cc_library(
     name = "event_data_preprocessor",
+    srcs = [
+        "event_data_preprocessor.cc",
+    ],
     hdrs = [
         "event_data_preprocessor.h",
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:peppered_fingerprinter",
+        "@com_github_glog_glog//:glog",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )
