@@ -173,9 +173,9 @@ class UpdateExchangeStepStateTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `state update in normal flow`() = runBlocking {
-    directlyUpdateState(ExchangeStep.State.READY_FOR_RETRY)
+    directlyUpdateState(ExchangeStep.State.READY)
     updateStepStateAndAssertSuccess(ExchangeStep.State.READY_FOR_RETRY)
-    updateStepStateAndAssertSuccess(ExchangeStep.State.READY)
+    updateStepStateAndAssertSuccess(ExchangeStep.State.IN_PROGRESS)
   }
 
   @Test
