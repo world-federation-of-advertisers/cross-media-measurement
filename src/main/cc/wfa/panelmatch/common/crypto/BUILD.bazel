@@ -52,7 +52,6 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "//src/main/cc/wfa/panelmatch/common:macros",
         "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//util:status_includes",
     ],

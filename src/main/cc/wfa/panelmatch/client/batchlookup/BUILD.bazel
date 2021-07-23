@@ -8,7 +8,6 @@ cc_library(
     hdrs = ["oblivious_query.h"],
     strip_include_prefix = "/src/main/cc",
     deps = [
-        "//src/main/cc/wfa/panelmatch/common:macros",
         "//src/main/proto/wfa/panelmatch/client/batchlookup:oblivious_query_cc_proto",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

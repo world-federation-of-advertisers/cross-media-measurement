@@ -14,9 +14,9 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "//src/main/cc/wfa/panelmatch/common:macros",
         "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
         "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
         "@wfa_common_cpp//src/main/cc/common_cpp/time:started_thread_cpu_timer",
     ],
 )
