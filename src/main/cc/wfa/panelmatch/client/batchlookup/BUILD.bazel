@@ -1,0 +1,29 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "oblivious_query",
+    srcs = ["oblivious_query.cc"],
+    hdrs = ["oblivious_query.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common:macros",
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:oblivious_query_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "oblivious_query_wrapper",
+    srcs = ["oblivious_query_wrapper.cc"],
+    hdrs = ["oblivious_query_wrapper.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        ":oblivious_query",
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:oblivious_query_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
+    ],
+)

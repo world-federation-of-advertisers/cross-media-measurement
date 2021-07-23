@@ -21,19 +21,3 @@ java_proto_library(
     name = "cryptor_java_proto",
     deps = [":cryptor_proto"],
 )
-
-proto_library(
-    name = "oblivious_query_proto",
-    srcs = ["oblivious_query.proto"],
-    strip_import_prefix = "/src/main/proto",
-)
-
-cc_proto_library(
-    name = "oblivious_query_cc_proto",
-    deps = [":oblivious_query_proto"],
-)
-
-java_proto_library(
-    name = "oblivious_query_java_proto",
-    deps = [":oblivious_query_proto"],
-)
