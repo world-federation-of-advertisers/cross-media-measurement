@@ -8,7 +8,6 @@ cc_library(
     hdrs = ["preprocess_events.h"],
     strip_include_prefix = "/src/main/cc",
     deps = [
-        "//src/main/cc/wfa/panelmatch/common:macros",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
