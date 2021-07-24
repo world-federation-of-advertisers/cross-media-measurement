@@ -42,7 +42,7 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
     val externalMapId = idGenerator.generateExternalId()
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
-      getOwnerNameAndId(transactionContext),
+      getOwnerInternalId(transactionContext),
       certificateId,
       externalMapId
     )
@@ -53,7 +53,7 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
   }
-  private suspend fun getOwnerNameAndId(
+  private suspend fun getOwnerInternalId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): InternalId {
     return when (ownerType) {
