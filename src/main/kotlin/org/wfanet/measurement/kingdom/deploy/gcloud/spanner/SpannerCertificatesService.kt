@@ -80,7 +80,6 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    // val ownerType = getInternalOwnerType(request)
     return CertificateReader( getInternalOwnerType(request))
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate

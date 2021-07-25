@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.internal.kingdom.Certificate
 
 class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.Result>() {
@@ -29,40 +30,7 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
     DUCHY("Duchy"),
   }
 
-  //   val baseSqlCommon: String =
-  //       """
-  //     SELECT
-  //       ${owner.tableName}Certificates.CertificateId,
-  //       Certificates.SubjectKeyIdentifier,
-  //       Certificates.NotValidBefore,
-  //       Certificates.NotValidAfter,
-  //       Certificates.RevocationState,
-  //       Certificates.CertificateDetails,
-  //       ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
-  //     """.trimIndent()
-
-  //     //   ${owner.tableName}Certificates.${owner.tableName}Id,
-  //     //   ${owner.tableName}s.External${owner.tableName}Id
-  //     // FROM ${owner.tableName}Certificates
-  //     // JOIN ${owner.tableName}s USING (${owner.tableName}Id)
-  //     // JOIN Certificates USING (CertificateId)
-  //     // """
-
-  override val baseSql: String =
-    """SELECT
-      ${owner.tableName}Certificates.CertificateId,
-      Certificates.SubjectKeyIdentifier,
-      Certificates.NotValidBefore,
-      Certificates.NotValidAfter,
-      Certificates.RevocationState,
-      Certificates.CertificateDetails,
-      ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
-      ${owner.tableName}Certificates.${owner.tableName}Id,
-      ${owner.tableName}s.External${owner.tableName}Id
-    FROM ${owner.tableName}Certificates
-    JOIN ${owner.tableName}s USING (${owner.tableName}Id)
-    JOIN Certificates USING (CertificateId)
-    """.trimIndent()
+  override val baseSql: String = constructBaseSql()
 
   override val externalIdColumn: String =
     "${owner.tableName}Certificates.External${owner.tableName}CertificateId"
@@ -70,6 +38,38 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
 
+  private fun constructBaseSql(): String {
+    return when (owner) {
+      OwnerType.DUCHY ->
+        """SELECT
+            ${owner.tableName}Certificates.CertificateId,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
+            ${owner.tableName}Certificates.${owner.tableName}Id,
+          FROM ${owner.tableName}Certificates
+          JOIN Certificates USING (CertificateId)
+          """.trimIndent()
+      else ->
+        """SELECT
+            ${owner.tableName}Certificates.CertificateId,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
+            ${owner.tableName}Certificates.${owner.tableName}Id,
+            ${owner.tableName}s.External${owner.tableName}Id
+          FROM ${owner.tableName}Certificates
+          JOIN ${owner.tableName}s USING (${owner.tableName}Id)
+          JOIN Certificates USING (CertificateId)
+          """.trimIndent()
+    }
+  }
   private fun populateExternalId(
     certificateBuilder: Certificate.Builder,
     struct: Struct
@@ -84,7 +84,7 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
           OwnerType.DATA_PROVIDER ->
             externalDataProviderId = struct.getLong(externalResourceIdColumn)
           OwnerType.DUCHY ->
-            TODO("uakyol implement duchy support after duchy config is implemented")
+            externalDuchyId = DuchyIds.getExternalId(struct.getLong("DuchyId"))
         }
       }
       .build()
