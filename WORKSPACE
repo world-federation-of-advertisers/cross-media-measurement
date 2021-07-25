@@ -137,9 +137,9 @@ load(
 
 http_archive(
     name = "rules_jvm_external",
-    sha256 = "82262ff4223c5fda6fb7ff8bd63db8131b51b413d26eb49e3131037e79e324af",
-    strip_prefix = "rules_jvm_external-3.2",
-    url = "https://github.com/bazelbuild/rules_jvm_external/archive/3.2.zip",
+    sha256 = "f36441aa876c4f6427bfb2d1f2d723b48e9d930b62662bf723ddfb8fc80f0140",
+    strip_prefix = "rules_jvm_external-4.1",
+    url = "https://github.com/bazelbuild/rules_jvm_external/archive/4.1.zip",
 )
 
 load("@rules_jvm_external//:defs.bzl", "maven_install")
@@ -152,6 +152,8 @@ MAVEN_ARTIFACTS = artifacts.list_to_dict(
 
 MAVEN_ARTIFACTS.update(com_google_truth_artifact_dict(version = "1.0.1"))
 
+# kotlinx.coroutines version should be compatible with Kotlin release used by
+# rules_kotlin. See https://kotlinlang.org/docs/releases.html#release-details.
 MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.4.3"))
 
 # Add Maven artifacts or override versions (e.g. those pulled in by gRPC Kotlin
@@ -165,6 +167,10 @@ MAVEN_ARTIFACTS.update({
     "org.mockito.kotlin:mockito-kotlin": "3.2.0",
     "info.picocli:picocli": "4.4.0",
     "junit:junit": "4.13",
+
+    # For grpc-kotlin. This should be a version that is compatible with the
+    # Kotlin release used by rules_kotlin.
+    "com.squareup:kotlinpoet": "1.8.0",
 })
 
 maven_install(
@@ -298,3 +304,15 @@ switched_rules_by_language(
     name = "com_google_googleapis_imports",
     java = True,
 )
+
+# Common-cpp
+http_archive(
+    name = "wfa_common_cpp",
+    sha256 = "e0e1f5eed832ef396109354a64c6c1306bf0fb5ea0b449ce6ee1e8edc6fe279d",
+    strip_prefix = "common-cpp-43c75acc3394e19bcfd2cfe8e8e2454365d26d60",
+    url = "https://github.com/world-federation-of-advertisers/common-cpp/archive/43c75acc3394e19bcfd2cfe8e8e2454365d26d60.tar.gz",
+)
+
+load("@wfa_common_cpp//build:deps.bzl", "common_cpp_deps")
+
+common_cpp_deps()
