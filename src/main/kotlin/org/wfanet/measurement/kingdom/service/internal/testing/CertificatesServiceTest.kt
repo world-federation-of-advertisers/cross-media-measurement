@@ -27,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
@@ -42,7 +43,8 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 234L
 private const val EXTERNAL_DATA_PROVIDER_ID = 345L
-private const val EXTERNAL_DUCHY_ID = "ExternalDuchy1"
+
+private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -166,6 +168,52 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .contains("INVALID_ARGUMENT: Certificate is missing parent field")
   }
 
+  @Test fun `getCertificate fails for missing DuchyCertificate`() = runBlocking {}
+
+  @Test
+  fun `createCertificate fails due to Duchy owner not_found `() = runBlocking {
+    DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalDuchyId = "non-existing-duchy-id"
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("INVALID_ARGUMENT: Duchy not found")
+  }
+
+    @Test
+    fun `createCertificate suceeds for DuchyCertificate`() = runBlocking {
+      DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+      val certificate =
+        Certificate.newBuilder()
+          .also {
+            it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            it.notValidBeforeBuilder.seconds = 12345
+            it.notValidAfterBuilder.seconds = 23456
+            it.detailsBuilder.x509Der = X509_DER
+          }
+          .build()
+
+      val createdCertificate = certificatesService.createCertificate(certificate)
+
+      assertThat(createdCertificate)
+        .isEqualTo(
+          certificate
+            .toBuilder()
+            .also { it.externalCertificateId = createdCertificate.externalCertificateId }
+            .build()
+        )
+    }
+
   @Test
   fun `getCertificate fails for missing MeasurementConsumerCertificate`() = runBlocking {
     val exception =
@@ -203,6 +251,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
   }
 
+<<<<<<< HEAD
   @Test
   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
@@ -225,6 +274,34 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .hasMessageThat()
       .contains("Certificate with the same subject key identifier (SKID) already exists.")
   }
+=======
+  //  !!!!Still in discussion, will implement this!!!
+
+  //   @Test
+  //   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
+  //     val externalMeasurementConsumerId = insertMeasurementConsumer()
+  //     val certificate =
+  //       Certificate.newBuilder()
+  //         .also {
+  //           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+  //           it.notValidBeforeBuilder.seconds = 12345
+  //           it.notValidAfterBuilder.seconds = 23456
+  //           it.detailsBuilder.x509Der = X509_DER
+  //         }
+  //         .build()
+
+  //     val createdCertificate = certificatesService.createCertificate(certificate)
+  //     val exception = certificatesService.createCertificate(certificate)
+
+  //     assertThat(exception)
+  //       .isEqualTo(
+  //         certificate
+  //           .toBuilder()
+  //           .also { it.externalCertificateId = createdCertificate.externalCertificateId }
+  //           .build()
+  //       )
+  //   }
+>>>>>>> af111fbd (create duchy cert ok)
 
   @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {

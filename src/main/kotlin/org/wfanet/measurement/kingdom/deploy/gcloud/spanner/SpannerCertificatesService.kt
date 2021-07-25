@@ -60,26 +60,33 @@ class SpannerCertificatesService(
       return CreateCertificate(request, getInternalOwnerType(request))
         .execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
-      when (e.code) {
+      return when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
+<<<<<<< HEAD
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
           failGrpc(Status.ALREADY_EXISTS) {
             "Certificate with the same subject key identifier (SKID) already exists."
           }
         else -> failGrpc(Status.UNKNOWN) {""}
+=======
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
+>>>>>>> af111fbd (create duchy cert ok)
       }
     }
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    return CertificateReader(getInternalOwnerType(request))
+    // val ownerType = getInternalOwnerType(request)
+    return CertificateReader( getInternalOwnerType(request))
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate
       ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
   }
+
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
     TODO("not implemented yet")
   }

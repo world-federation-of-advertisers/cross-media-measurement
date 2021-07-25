@@ -29,9 +29,27 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
     DUCHY("Duchy"),
   }
 
+  //   val baseSqlCommon: String =
+  //       """
+  //     SELECT
+  //       ${owner.tableName}Certificates.CertificateId,
+  //       Certificates.SubjectKeyIdentifier,
+  //       Certificates.NotValidBefore,
+  //       Certificates.NotValidAfter,
+  //       Certificates.RevocationState,
+  //       Certificates.CertificateDetails,
+  //       ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
+  //     """.trimIndent()
+
+  //     //   ${owner.tableName}Certificates.${owner.tableName}Id,
+  //     //   ${owner.tableName}s.External${owner.tableName}Id
+  //     // FROM ${owner.tableName}Certificates
+  //     // JOIN ${owner.tableName}s USING (${owner.tableName}Id)
+  //     // JOIN Certificates USING (CertificateId)
+  //     // """
+
   override val baseSql: String =
-    """
-    SELECT
+    """SELECT
       ${owner.tableName}Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,

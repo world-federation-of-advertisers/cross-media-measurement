@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.OwnerType
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -53,40 +54,41 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
   }
+<<<<<<< HEAD
   private suspend fun getOwnerInternalId(
+=======
+
+  private suspend fun getOwnerNameAndId(
+>>>>>>> af111fbd (create duchy cert ok)
     transactionContext: AsyncDatabaseClient.TransactionContext
-  ): InternalId {
+  ): Long {
     return when (ownerType) {
       OwnerType.MEASUREMENT_CONSUMER -> {
-        val measurementConsumerId =
-          MeasurementConsumerReader()
-            .readExternalIdOrNull(
-              transactionContext,
-              ExternalId(certificate.externalMeasurementConsumerId)
-            )
-            ?.measurementConsumerId
-            ?: throw KingdomInternalException(
-              KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-            )
-        InternalId(measurementConsumerId)
+        MeasurementConsumerReader()
+          .readExternalIdOrNull(
+            transactionContext,
+            ExternalId(certificate.externalMeasurementConsumerId)
+          )
+          ?.measurementConsumerId
+          ?: throw KingdomInternalException(
+            KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+          )
       }
       OwnerType.DATA_PROVIDER -> {
-        val dataProviderId =
-          DataProviderReader()
-            .readExternalIdOrNull(
-              transactionContext,
-              ExternalId(certificate.externalDataProviderId)
-            )
-            ?.dataProviderId
-            ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-        InternalId(dataProviderId)
+        DataProviderReader()
+          .readExternalIdOrNull(transactionContext, ExternalId(certificate.externalDataProviderId))
+          ?.dataProviderId
+          ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
       }
-      OwnerType.DUCHY -> TODO("uakyol implement duchy support after duchy config is implemented")
+      OwnerType.DUCHY -> {
+        DuchyIds.getInternalId(certificate.externalDuchyId)
+          ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
+      }
     }
   }
 
   private fun createCertificateMapTableMutation(
-    internalOwnerId: InternalId,
+    internalOwnerId: Long,
     internalCertificateId: InternalId,
     externalMapId: ExternalId
   ): Mutation {
@@ -94,7 +96,7 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
     val internalIdField = "${ownerType.tableName}Id"
     val externalIdField = "External${ownerType.tableName}CertificateId"
     return insertMutation(tableName) {
-      set(internalIdField to internalOwnerId.value)
+      set(internalIdField to internalOwnerId)
       set("CertificateId" to internalCertificateId.value)
       set(externalIdField to externalMapId.value)
     }
