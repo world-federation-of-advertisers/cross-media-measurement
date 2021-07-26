@@ -318,33 +318,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .contains("Certificate with the same subject key identifier (SKID) already exists.")
   }
 
-  //  !!!!Still in discussion, will implement this!!!
-
-  //   @Test
-  //   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
-  //     val externalMeasurementConsumerId = insertMeasurementConsumer()
-  //     val certificate =
-  //       Certificate.newBuilder()
-  //         .also {
-  //           it.externalMeasurementConsumerId = externalMeasurementConsumerId
-  //           it.notValidBeforeBuilder.seconds = 12345
-  //           it.notValidAfterBuilder.seconds = 23456
-  //           it.detailsBuilder.x509Der = X509_DER
-  //         }
-  //         .build()
-
-  //     val createdCertificate = certificatesService.createCertificate(certificate)
-  //     val exception = certificatesService.createCertificate(certificate)
-
-  //     assertThat(exception)
-  //       .isEqualTo(
-  //         certificate
-  //           .toBuilder()
-  //           .also { it.externalCertificateId = createdCertificate.externalCertificateId }
-  //           .build()
-  //       )
-  //   }
-
   @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
