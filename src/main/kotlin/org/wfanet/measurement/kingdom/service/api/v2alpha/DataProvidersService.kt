@@ -14,10 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.protobuf.ByteString
-import io.grpc.Status
-import java.security.cert.CertificateException
-import java.security.cert.X509Certificate
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -26,13 +22,10 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.SignedData
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -47,33 +40,11 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
     grpcRequire(with(dataProvider.publicKey) { !data.isEmpty && !signature.isEmpty }) {
       "public_key is not fully specified"
     }
-    grpcRequire(!dataProvider.preferredCertificateDer.isEmpty) {
-      "preferred_certificate_der is not specified"
-    }
-
-    val x509Certificate: X509Certificate =
-      try {
-        readCertificate(dataProvider.preferredCertificateDer)
-      } catch (e: CertificateException) {
-        throw Status.INVALID_ARGUMENT
-          .withCause(e)
-          .withDescription("Cannot parse preferred_certificate_der")
-          .asRuntimeException()
-      }
-    val skid: ByteString =
-      grpcRequireNotNull(x509Certificate.subjectKeyIdentifier) {
-        "Cannot find Subject Key Identifier of preferred certificate"
-      }
 
     val internalResponse: InternalDataProvider =
       internalClient.createDataProvider(
         buildInternalDataProvider {
-          preferredCertificate {
-            subjectKeyIdentifier = skid
-            notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
-            notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
-            detailsBuilder.x509Der = dataProvider.preferredCertificateDer
-          }
+          preferredCertificate = parsePreferredCertificateDer(dataProvider.preferredCertificateDer)
           details {
             apiVersion = API_VERSION.string
             publicKey = dataProvider.publicKey.data
@@ -102,8 +73,6 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
     return internalResponse.toDataProvider()
   }
 }
-
-@DslMarker @Target(AnnotationTarget.CLASS, AnnotationTarget.TYPE) internal annotation class Builder
 
 internal inline fun buildDataProvider(fill: (@Builder DataProvider.Builder).() -> Unit) =
   DataProvider.newBuilder().apply(fill).build()
