@@ -295,7 +295,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
   }
 
-<<<<<<< HEAD
   @Test
   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
@@ -318,7 +317,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .hasMessageThat()
       .contains("Certificate with the same subject key identifier (SKID) already exists.")
   }
-=======
+
   //  !!!!Still in discussion, will implement this!!!
 
   //   @Test
@@ -345,7 +344,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   //           .build()
   //       )
   //   }
->>>>>>> af111fbd (create duchy cert ok)
 
   @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {

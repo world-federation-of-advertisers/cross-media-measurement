@@ -54,12 +54,8 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
   }
-<<<<<<< HEAD
-  private suspend fun getOwnerInternalId(
-=======
 
-  private suspend fun getOwnerNameAndId(
->>>>>>> af111fbd (create duchy cert ok)
+  private suspend fun getOwnerInternalId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): Long {
     return when (ownerType) {
