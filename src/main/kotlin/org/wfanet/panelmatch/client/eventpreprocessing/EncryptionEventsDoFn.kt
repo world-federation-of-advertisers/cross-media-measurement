@@ -27,7 +27,10 @@ import org.wfanet.panelmatch.client.PreprocessEventsResponse
  * from PreprocessedEventResponse protos and emits them as KV<Long,ByteString> pairs
  */
 class EncryptionEventsDoFn(
-  private val encryptEvents: SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse>
+  private val encryptEvents:
+    SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse>,
+  private val getPepper: SerializableFunction<Void?, ByteString>,
+  private val getCryptoKey: SerializableFunction<Void?, ByteString>,
 ) : DoFn<MutableList<KV<ByteString, ByteString>>, KV<Long, ByteString>>() {
   @ProcessElement
   fun process(c: ProcessContext) {
@@ -35,10 +38,12 @@ class EncryptionEventsDoFn(
     val request =
       PreprocessEventsRequest.newBuilder()
         .apply {
+          cryptoKey = getCryptoKey.apply(null as Void?)
+          pepper = getPepper.apply(null as Void?)
           for (pair in list) {
             addUnprocessedEventsBuilder().apply {
-              this.id = pair.key
-              this.data = pair.value
+              id = pair.key
+              data = pair.value
             }
           }
         }

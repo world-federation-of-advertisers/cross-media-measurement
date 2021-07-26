@@ -35,6 +35,8 @@ kt_jvm_library(
     srcs = [
         "EncryptEvents.kt",
         "EncryptionEventsDoFn.kt",
+        "HardCodedCryptoKeyProvider.kt",
+        "HardCodedPepperProvider.kt",
     ],
     deps = [
         "//imports/java/org/apache/beam:core",

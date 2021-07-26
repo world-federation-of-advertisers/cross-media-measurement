@@ -64,3 +64,39 @@ kt_jvm_test(
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
     ],
 )
+
+kt_jvm_test(
+    name = "CryptoKeyProviderTest",
+    srcs = ["CryptoKeyProviderTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.CryptoKeyProviderTest",
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:encryptiondofn",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "PepperProviderTest",
+    srcs = ["PepperProviderTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PepperProviderTest",
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:encryptiondofn",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
