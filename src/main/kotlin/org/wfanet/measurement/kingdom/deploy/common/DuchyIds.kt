@@ -25,23 +25,25 @@ object DuchyIds {
     require(!DuchyIds::entries.isInitialized)
     val configMessage =
       flags.config.reader().use { parseTextProto(it, DuchyIdConfig.getDefaultInstance()) }
-    require(configMessage.duchiesCount > 0) { "Duchy config has no entries" }
+    require(configMessage.duchiesCount > 0) { "Duchy Id config has no entries" }
     entries = configMessage.duchiesList.map { it.toDuchyIdsEntry() }
   }
 
   /**
-   * Returns the internalId for the specified external Duchy ID. Note that this performs an O(n)
-   * linear scan, where n is the number of Duchies. This should be sufficient as the number of
-   * Duchies is expected to be small (~5).
+   * Returns the internalId for the specified external Duchy ID.
+   *
+   * Note that this performs an O(n) linear scan, where n is the number of Duchies. This should be
+   * sufficient as the number of Duchies is expected to be small (~5).
    */
   fun getInternalId(externalDuchyId: String): Long? {
     return entries.firstOrNull { it.externalDuchyId == externalDuchyId }?.internalDuchyId
   }
 
   /**
-   * Returns the externalId for the specified internal Duchy ID. Note that this performs an O(n)
-   * linear scan, where n is the number of Duchies. This should be sufficient as the number of
-   * Duchies is expected to be small (~5).
+   * Returns the externalId for the specified internal Duchy ID.
+   *
+   * Note that this performs an O(n) linear scan, where n is the number of Duchies. This should be
+   * sufficient as the number of Duchies is expected to be small (~5).
    */
   fun getExternalId(internalDuchyId: Long): String? {
     return entries.firstOrNull { it.internalDuchyId == internalDuchyId }?.externalDuchyId
