@@ -92,7 +92,6 @@ abstract class SpannerWriter<T, R> {
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
     val transactionResult: T? = runTransaction(runner, idGenerator, clock)
-
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
   }
