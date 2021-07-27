@@ -33,7 +33,16 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
-  private val ownerTableName = getTableName()
+
+  private val ownerTableName: String
+  init {
+    ownerTableName =
+      when (certificate.parentCase) {
+        Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+        Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+        else -> "Duchy"
+      }
+  }
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val certificateId = idGenerator.generateInternalId()
@@ -52,13 +61,6 @@ class CreateCertificate(private val certificate: Certificate) :
     return checkNotNull(transactionResult)
   }
 
-  private fun getTableName(): String {
-    return when (certificate.parentCase) {
-      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-      else -> "Duchy"
-    }
-  }
   private suspend fun getOwnerInternalId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): InternalId {
@@ -106,7 +108,7 @@ class CreateCertificate(private val certificate: Certificate) :
     }
   }
 
-  override suspend fun handleSpannerException(e: SpannerException) {
+  override suspend fun handleSpannerException(e: SpannerException): Certificate? {
     when (e.errorCode) {
       ErrorCode.ALREADY_EXISTS ->
         throw KingdomInternalException(

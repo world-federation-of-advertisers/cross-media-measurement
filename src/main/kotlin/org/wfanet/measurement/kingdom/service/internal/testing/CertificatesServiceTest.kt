@@ -216,7 +216,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         }
         .build()
 
-   certificatesService.createCertificate(certificate)
+    certificatesService.createCertificate(certificate)
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 

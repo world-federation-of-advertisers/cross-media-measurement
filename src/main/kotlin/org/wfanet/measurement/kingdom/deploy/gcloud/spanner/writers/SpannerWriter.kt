@@ -60,6 +60,21 @@ abstract class SpannerWriter<T, R> {
   // To ensure the transaction is only executed once:
   private val executed = AtomicBoolean(false)
 
+  private suspend fun runTransaction(
+    runner: AsyncDatabaseClient.TransactionRunner,
+    idGenerator: IdGenerator,
+    clock: Clock
+  ): T? {
+    return try {
+      runner.execute { transactionContext ->
+        val scope = TransactionScope(transactionContext, idGenerator, clock)
+        scope.runTransaction()
+      }
+    } catch (e: SpannerException) {
+      handleSpannerException(e)
+    }
+  }
+
   /**
    * Executes the SpannerWriter by starting a SpannerWriter, running [runTransaction], then calling
    * [buildResult] on the output.
@@ -76,22 +91,14 @@ abstract class SpannerWriter<T, R> {
     logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
-    val transactionResult: T? =
-      try {
-        runner.execute { transactionContext ->
-          val scope = TransactionScope(transactionContext, idGenerator, clock)
-          scope.runTransaction()
-        }
-      } catch (e: SpannerException) {
-        handleSpannerException(e)
-        null
-      }
+    val transactionResult: T? = runTransaction(runner, idGenerator, clock)
+
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
   }
 
   /** Override this to handle Spanner exception thrown from [execute]. */
-  protected open suspend fun handleSpannerException(e: SpannerException) {
+  protected open suspend fun handleSpannerException(e: SpannerException): T? {
     throw e
   }
 
@@ -102,7 +109,7 @@ abstract class SpannerWriter<T, R> {
 
 /** A [SpannerWriter] whose result is the non-null transaction result. */
 abstract class SimpleSpannerWriter<T : Any> : SpannerWriter<T, T>() {
-  override fun ResultScope<T>.buildResult(): T {
+  final override fun ResultScope<T>.buildResult(): T {
     return checkNotNull(transactionResult)
   }
 }

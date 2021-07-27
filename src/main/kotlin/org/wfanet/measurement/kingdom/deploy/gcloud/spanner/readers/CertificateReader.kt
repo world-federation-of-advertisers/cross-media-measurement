@@ -15,17 +15,24 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 
 class CertificateReader(val request: GetCertificateRequest) :
   SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
-
-  private val tableName = getTableName()
+  private val tableName: String
+  init {
+    tableName =
+      when (request.parentCase) {
+        GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+        GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+        else -> "Duchy"
+      }
+  }
 
   override val baseSql: String =
     """
@@ -50,21 +57,11 @@ class CertificateReader(val request: GetCertificateRequest) :
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
 
-  private fun getTableName(): String {
-    return when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-      else -> "Duchy"
-    }
-  }
-
   private fun populateExternalId(
     certificateBuilder: Certificate.Builder,
     struct: Struct
   ): Certificate {
     val externalResourceIdColumn = "External${tableName}Id"
-    println("externalResourceIdColumnexternalResourceIdColumnexternalResourceIdColumn")
-    println(externalResourceIdColumn)
     return certificateBuilder
       .apply {
         when (request.parentCase) {
