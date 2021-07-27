@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.ErrorCode
-import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -45,17 +43,7 @@ class SpannerCertificatesService(
     ) { "Certificate is missing parent field" }
 
     try {
-      val certificateWriter =
-        CreateCertificate(request) { e: SpannerException ->
-          when (e.errorCode) {
-            ErrorCode.ALREADY_EXISTS ->
-              throw KingdomInternalException(
-                KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
-              )
-            else -> throw e
-          }
-        }
-      return certificateWriter.execute(client, idGenerator, clock)
+      return CreateCertificate(request).execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
@@ -69,23 +57,6 @@ class SpannerCertificatesService(
       }
     }
   }
-
-  // try {
-  //   return CreateCertificate(request, getInternalOwnerType(request))
-  //     .execute(client, idGenerator, clock)
-  // } catch (e: KingdomInternalException) {
-  //   when (e.code) {
-  //     KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
-  //       failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
-  //     KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
-  //       failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
-  //     KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
-  //       failGrpc(Status.ALREADY_EXISTS) {
-  //         "Certificate with the same subject key identifier (SKID) already exists."
-  //       }
-  //   }
-  // }
-  // }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
     grpcRequire(

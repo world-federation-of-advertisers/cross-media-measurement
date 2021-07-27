@@ -203,28 +203,28 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
   }
 
-//   @Test
-//   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
-//     val externalMeasurementConsumerId = insertMeasurementConsumer()
-//     val certificate =
-//       Certificate.newBuilder()
-//         .also {
-//           it.externalMeasurementConsumerId = externalMeasurementConsumerId
-//           it.notValidBeforeBuilder.seconds = 12345
-//           it.notValidAfterBuilder.seconds = 23456
-//           it.detailsBuilder.x509Der = X509_DER
-//         }
-//         .build()
+  @Test
+  fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
 
-//     val createdCertificate = certificatesService.createCertificate(certificate)
-//     val exception =
-//       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+   certificatesService.createCertificate(certificate)
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-//     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-//     assertThat(exception)
-//       .hasMessageThat()
-//       .contains("Certificate with the same subject key identifier (SKID) already exists.")
-//   }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Certificate with the same subject key identifier (SKID) already exists.")
+  }
 
   @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {

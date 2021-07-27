@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
 import org.wfanet.measurement.common.identity.ExternalId
@@ -30,10 +31,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
-class CreateCertificate(
-  private val certificate: Certificate,
-  val onFailure: (exception: SpannerException) -> Unit
-) : SpannerWriter<Certificate, Certificate>() {
+class CreateCertificate(private val certificate: Certificate) :
+  SpannerWriter<Certificate, Certificate>() {
   private val ownerTableName = getTableName()
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
@@ -90,36 +89,6 @@ class CreateCertificate(
       }
       else -> TODO("uakyol implement duchy support after duchy config is implemented")
     }
-
-    //     return when (ownerType) {
-    //       OwnerType.MEASUREMENT_CONSUMER -> {
-    //         val measurementConsumerId =
-    //           MeasurementConsumerReader()
-    //             .readExternalIdOrNull(
-    //               transactionContext,
-    //               ExternalId(certificate.externalMeasurementConsumerId)
-    //             )
-    //             ?.measurementConsumerId
-    //             ?: throw KingdomInternalException(
-    //               KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-    //             )
-    //         InternalId(measurementConsumerId)
-    //       }
-    //       OwnerType.DATA_PROVIDER -> {
-    //         val dataProviderId =
-    //           DataProviderReader()
-    //             .readExternalIdOrNull(
-    //               transactionContext,
-    //               ExternalId(certificate.externalDataProviderId)
-    //             )
-    //             ?.dataProviderId
-    //             ?: throw
-    // KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-    //         InternalId(dataProviderId)
-    //       }
-    //       OwnerType.DUCHY -> TODO("uakyol implement duchy support after duchy config is
-    // implemented")
-    //     }
   }
 
   private fun createCertificateMapTableMutation(
@@ -137,23 +106,15 @@ class CreateCertificate(
     }
   }
 
-  // override suspend fun execute(
-  //   databaseClient: AsyncDatabaseClient,
-  //   idGenerator: IdGenerator,
-  //   clock: Clock
-  // ): Certificate {
-  //   try {
-  //     return super.execute(databaseClient, idGenerator, clock)
-  //   } catch (e: SpannerException) {
-  //     when (e.errorCode) {
-  //       ErrorCode.ALREADY_EXISTS ->
-  //         throw KingdomInternalException(
-  //           KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
-  //         )
-  //       else -> throw e
-  //     }
-  //   }
-  // }
+  override suspend fun handleSpannerException(e: SpannerException) {
+    when (e.errorCode) {
+      ErrorCode.ALREADY_EXISTS ->
+        throw KingdomInternalException(
+          KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
+        )
+      else -> throw e
+    }
+  }
 }
 
 fun Certificate.toInsertMutation(internalId: InternalId): Mutation {

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
@@ -76,12 +77,22 @@ abstract class SpannerWriter<T, R> {
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
     val transactionResult: T? =
-      runner.execute { transactionContext ->
-        val scope = TransactionScope(transactionContext, idGenerator, clock)
-        scope.runTransaction()
+      try {
+        runner.execute { transactionContext ->
+          val scope = TransactionScope(transactionContext, idGenerator, clock)
+          scope.runTransaction()
+        }
+      } catch (e: SpannerException) {
+        handleSpannerException(e)
+        null
       }
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
+  }
+
+  /** Override this to handle Spanner exception thrown from [execute]. */
+  protected open suspend fun handleSpannerException(e: SpannerException) {
+    throw e
   }
 
   companion object {
@@ -91,7 +102,7 @@ abstract class SpannerWriter<T, R> {
 
 /** A [SpannerWriter] whose result is the non-null transaction result. */
 abstract class SimpleSpannerWriter<T : Any> : SpannerWriter<T, T>() {
-   override fun ResultScope<T>.buildResult(): T {
+  override fun ResultScope<T>.buildResult(): T {
     return checkNotNull(transactionResult)
   }
 }
