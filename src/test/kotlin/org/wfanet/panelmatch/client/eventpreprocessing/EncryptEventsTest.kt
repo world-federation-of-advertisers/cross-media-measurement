@@ -16,18 +16,16 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
-import org.wfanet.panelmatch.common.JniException
 
 @RunWith(JUnit4::class)
 class EncryptEventsTest {
 
   @Test
-  fun kUnimplementedStatus() {
+  fun test() {
     val request =
       PreprocessEventsRequest.newBuilder()
         .apply {
@@ -40,7 +38,7 @@ class EncryptEventsTest {
         }
         .build()
     val encryptEvents = EncryptEvents()
-    val unImplemented = assertFailsWith(JniException::class) { encryptEvents.apply(request) }
-    assertThat(unImplemented.message).contains("UNIMPLEMENTED: Not implemented")
+
+    assertThat(encryptEvents.apply(request)).isNotNull()
   }
 }

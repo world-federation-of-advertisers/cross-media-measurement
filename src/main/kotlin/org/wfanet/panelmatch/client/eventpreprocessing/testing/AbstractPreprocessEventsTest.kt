@@ -16,8 +16,6 @@ package org.wfanet.panelmatch.client.eventpreprocessing.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import java.lang.RuntimeException
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEvents
@@ -44,9 +42,6 @@ abstract class AbstractPreprocessEventsTest {
           }
         }
         .build()
-    val unImplementedException =
-      assertFailsWith(RuntimeException::class) { preprocessEvents.preprocess(request) }
-
-    assertThat(unImplementedException.message).contains("UNIMPLEMENTED: Not implemented")
+    assertThat(preprocessEvents.preprocess(request)).isNotNull()
   }
 }

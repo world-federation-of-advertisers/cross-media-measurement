@@ -14,6 +14,7 @@
 
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -22,13 +23,58 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "common_cpp/fingerprinters/fingerprinters.h"
+#include "common_cpp/macros/macros.h"
+#include "src/main/cc/wfa/panelmatch/common/crypto/cryptor.h"
+#include "src/main/cc/wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
+#include "src/main/proto/wfa/panelmatch/client/eventpreprocessing/_virtual_imports/preprocess_events_proto/wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+#include "tink/util/secret_data.h"
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+#include "wfa/panelmatch/common/crypto/aes.h"
+#include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
+#include "wfa/panelmatch/common/crypto/cryptor.h"
+#include "wfa/panelmatch/common/crypto/hkdf.h"
 
 namespace wfa::panelmatch::client {
+using ::crypto::tink::util::SecretData;
+using ::crypto::tink::util::SecretDataAsStringView;
+using ::crypto::tink::util::SecretDataFromStringView;
+using ::wfa::panelmatch::common::crypto::Action;
+using ::wfa::panelmatch::common::crypto::Aes;
+using ::wfa::panelmatch::common::crypto::AesWithHkdf;
+using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
+using ::wfa::panelmatch::common::crypto::Cryptor;
+using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
+using ::wfa::panelmatch::common::crypto::GetSha256Hkdf;
+using ::wfa::panelmatch::common::crypto::Hkdf;
+using ::wfa::panelmatch::protocol::crypto::EventDataPreprocessor;
+using ::wfa::panelmatch::protocol::crypto::ProcessedData;
+
 absl::StatusOr<wfa::panelmatch::client::PreprocessEventsResponse>
 PreprocessEvents(
     const wfa::panelmatch::client::PreprocessEventsRequest& request) {
-  // TODO(juliamorrissey): call Erin's library
-  return absl::UnimplementedError("Not implemented");
+  ASSIGN_OR_RETURN(std::unique_ptr<Cryptor> cryptor,
+                   CreateCryptorFromKey(request.crypto_key()));
+  const Fingerprinter& fingerprinter = GetSha256Fingerprinter();
+  std::unique_ptr<Aes> aes = GetAesSivCmac512();
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  const AesWithHkdf aes_hkdf = AesWithHkdf(std::move(hkdf), std::move(aes));
+  if (request.pepper().empty()) {
+    return absl::InvalidArgumentError("INVALID ARGUMENT: Empty Pepper");
+  }
+  EventDataPreprocessor preprocessor = EventDataPreprocessor(
+      std::move(cryptor), SecretDataFromStringView(request.pepper()),
+      &fingerprinter, &aes_hkdf);
+  PreprocessEventsResponse processed;
+  for (const PreprocessEventsRequest::UnprocessedEvent& u :
+       request.unprocessed_events()) {
+    ASSIGN_OR_RETURN(ProcessedData data,
+                     preprocessor.Process(u.id(), u.data()));
+    PreprocessEventsResponse::ProcessedEvent* processed_event =
+        processed.add_processed_events();
+    processed_event->set_encrypted_data(data.encrypted_event_data);
+    processed_event->set_encrypted_id(data.encrypted_identifier);
+  }
+  return processed;
 }
 }  // namespace wfa::panelmatch::client
