@@ -44,18 +44,17 @@ class KingdomApiServerFlags {
 
 fun runKingdomApiServer(
   kingdomApiServerFlags: KingdomApiServerFlags,
+  serverName: String,
   duchyInfoFlags: DuchyInfoFlags,
   commonServerFlags: CommonServer.Flags,
-  serviceFactory: (Channel) -> BindableService
+  serviceFactory: (Channel) -> Iterable<BindableService>
 ) {
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val channel: Channel =
     buildChannel(kingdomApiServerFlags.internalApiTarget)
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+  val service = serviceFactory(channel).map { it.withDuchyIdentities() }
 
-  val service = serviceFactory(channel).withDuchyIdentities()
-  val name = service.serviceDescriptor.name + "Server"
-
-  CommonServer.fromFlags(commonServerFlags, name, service).start().blockUntilShutdown()
+  CommonServer.fromFlags(commonServerFlags, serverName, service).start().blockUntilShutdown()
 }
