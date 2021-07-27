@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_BATCHLOOKUP_OBLIVIOUS_QUERY_H_
-#define SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_BATCHLOOKUP_OBLIVIOUS_QUERY_H_
+#ifndef SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_BATCHLOOKUP_QUERY_EVALUATOR_H_
+#define SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_BATCHLOOKUP_QUERY_EVALUATOR_H_
 
 #include "absl/status/statusor.h"
-#include "wfa/panelmatch/client/batchlookup/oblivious_query.pb.h"
+#include "wfa/panelmatch/client/batchlookup/query_evaluator.pb.h"
 
 namespace wfa::panelmatch::client::batchlookup {
-absl::StatusOr<GenerateKeysResponse> GenerateKeys(
-    const GenerateKeysRequest& request);
 
-absl::StatusOr<EncryptQueriesResponse> EncryptQueries(
-    const EncryptQueriesRequest& request);
-
-absl::StatusOr<DecryptQueriesResponse> DecryptQueries(
-    const DecryptQueriesRequest& request);
+absl::StatusOr<ExecuteQueriesResponse> ExecuteQueries(
+    const ExecuteQueriesRequest& request);
+absl::StatusOr<CombineResultsResponse> CombineResults(
+    const CombineResultsRequest& request);
 
 }  // namespace wfa::panelmatch::client::batchlookup
-#endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_BATCHLOOKUP_OBLIVIOUS_QUERY_H_
+
+#endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_BATCHLOOKUP_QUERY_EVALUATOR_H_
